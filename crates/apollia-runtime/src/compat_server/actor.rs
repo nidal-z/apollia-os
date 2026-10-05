@@ -15,6 +15,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::agents::ExposedAgents;
+use super::journal::{with_call_journal, CallJournal};
 use super::logs::ServerLogsHandle;
 use super::models::LocalModels;
 use super::origin::reachable_address;
@@ -22,6 +23,7 @@ use super::relay::RelayState;
 use super::router::{compat_router, serve};
 use super::tokens::ServerTokensHandle;
 use super::CompatServerError;
+use crate::audit_journal::AuditJournalHandle;
 use crate::eventbus::EventBusSender;
 
 /// Capacity of the actor's command channel. Commands come from three HTTP
@@ -54,6 +56,16 @@ pub struct CompatServerStatus {
     pub active_tokens: u64,
 }
 
+/// Where the compatible server keeps what outlives a request.
+#[derive(Clone)]
+pub struct ServerRecords {
+    /// The `system.db` holding the tokens of the server.
+    pub system_db: PathBuf,
+    /// The audit journal every request leaves an entry in. Without one, the
+    /// server answers and journals nothing.
+    pub journal: Option<AuditJournalHandle>,
+}
+
 type Reply<T> = oneshot::Sender<Result<T, CompatServerError>>;
 
 enum Command {
@@ -75,9 +87,9 @@ impl CompatServerHandle {
     /// Spawns the actor and returns its handle.
     ///
     /// `settings_path` is the `apollia.toml` holding the `[server]` section,
-    /// `system_db` the `system.db` holding the server's tokens, `models` the
-    /// local models the server relays to, `agents` the agents and workflows
-    /// it serves as models.
+    /// `records` the store of the server's tokens and the audit journal,
+    /// `models` the local models the server relays to, `agents` the agents
+    /// and workflows it serves as models.
     /// When it turns the server on, the actor opens the listener before it
     /// answers its first command; a failure to open it is logged and kept as
     /// the last error, and the runtime goes on without the server. The actor
@@ -89,11 +101,12 @@ impl CompatServerHandle {
     /// listener; the lines of the local `llama-server` processes go there too.
     pub fn spawn(
         settings_path: PathBuf,
-        system_db: PathBuf,
+        records: ServerRecords,
         models: LocalModels,
         agents: ExposedAgents,
         bus: &EventBusSender,
     ) -> Self {
+        let ServerRecords { system_db, journal } = records;
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let events = apollia_core::events::subscribe_resilient(bus, "compat_server");
         let tokens = ServerTokensHandle::spawn(system_db);
@@ -103,6 +116,7 @@ impl CompatServerHandle {
             settings_path,
             models,
             agents,
+            journal,
             tokens: tokens.clone(),
             logs: logs.clone(),
             running: None,
@@ -212,6 +226,7 @@ struct CompatServerActor {
     settings_path: PathBuf,
     models: LocalModels,
     agents: ExposedAgents,
+    journal: Option<AuditJournalHandle>,
     tokens: ServerTokensHandle,
     logs: ServerLogsHandle,
     running: Option<Running>,
@@ -364,11 +379,13 @@ impl CompatServerActor {
                 _ => CompatServerError::Bind { port, source },
             })?;
         let cancel = CancellationToken::new();
-        let task = tokio::spawn(serve(
-            listener,
-            compat_router(tokens, relay, self.logs.clone(), cors),
-            cancel.clone(),
-        ));
+        let calls = self
+            .journal
+            .clone()
+            .map(|journal| CallJournal::new(journal, self.tokens.clone()));
+        let router =
+            with_call_journal(compat_router(tokens, relay, self.logs.clone(), cors), calls);
+        let task = tokio::spawn(serve(listener, router, cancel.clone()));
         self.running = Some(Running {
             port,
             serve_on_lan,

@@ -76,7 +76,7 @@ async fn fake_engine() -> (u16, Received) {
 
 /// A models folder whose registry names `/models/chat.gguf` `acme/chat` and
 /// `/models/vectors.gguf` `acme/vectors`.
-fn registry() -> TempDir {
+pub(super) fn registry() -> TempDir {
     let dir = TempDir::new().unwrap();
     let entry = |id: &str, path: &str, category: &str| {
         json!({

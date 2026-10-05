@@ -144,6 +144,29 @@ A refused request (4xx) is at the `warn` level, a failed one (5xx) at `error`.
 These lines are a view for whoever develops against the server, not a record:
 they are lost when the runtime stops.
 
+## Audit journal
+
+The record is the audit journal. Every request the server receives leaves one
+entry there, of the kind `server_call`, in the run `server:calls`, chained and
+signed like every other entry: a request answered, one refused (`401`, `400`)
+and one that failed alike.
+
+| Field | What it holds |
+|---|---|
+| `method`, `endpoint` | The method and the path asked for, without its query string |
+| `target`, `target_kind` | The model named, or the agent or workflow (`model` or `agent`); absent when the request named none the server could read |
+| `token_name` | The name of the token presented, never its value; absent without a token in use |
+| `caller_address`, `origin` | The address the connection was accepted from, and `loopback` or `local_network` |
+| `status` | The status answered |
+| `prompt_tokens`, `completion_tokens` | The tokens the answer stated, read in passing from a stream; absent when it stated none |
+| `duration_ms` | How long the answer took; for a stream, until it closed |
+| `task_id`, `run_id` | For a call to an agent or a workflow, the task and the run it started |
+
+An entry never holds a message, an answer, a header or a token value. A header
+that claims another address is not read: the address is the one of the
+connection. The entries of an agent run are kept under the `run_id` its call
+names, so what an application asked an agent to do is followed from the call.
+
 ## Errors
 
 Each endpoint answers its errors in the format of its own API. The OpenAI

@@ -19,6 +19,7 @@ use super::agent_run::{start_agent, start_workflow, StartError};
 use super::agents::{ExposedAgents, ExposedTarget};
 use super::auth::{presented_token, unauthorized_with};
 use super::errors::{error_response, openai_error_with, ErrorKind, Family};
+use super::journal::LaunchedRun;
 use super::origin::{admit_agent_call, admits_agent_call, CallOrigin, AGENT_TOKEN_REQUIRED};
 use super::tokens::ServerTokensHandle;
 use crate::workflows::inputs::validate;
@@ -217,11 +218,17 @@ pub(crate) async fn chat_with_exposed(
         }
     };
     let header = AnswerHeader::new(&run.run_id, model);
-    if body.get("stream") == Some(&Value::Bool(true)) {
+    let launched = LaunchedRun {
+        task_id: run.task_id.clone(),
+        run_id: run.journal_run.clone(),
+    };
+    let mut response = if body.get("stream") == Some(&Value::Bool(true)) {
         answer_streamed(run, header)
     } else {
         answer_whole(run, header).await
-    }
+    };
+    response.extensions_mut().insert(launched);
+    response
 }
 
 #[cfg(test)]

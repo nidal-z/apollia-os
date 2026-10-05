@@ -142,6 +142,11 @@ impl Drop for StopOnDrop {
 pub(crate) struct StartedRun {
     /// The task or the workflow run, named in the answer's identifier.
     pub(crate) run_id: String,
+    /// The task of an agent run, for the journal entry of the call.
+    pub(crate) task_id: Option<String>,
+    /// The run the audit journal keeps the entries of an agent under; for a
+    /// workflow, its workflow run.
+    pub(crate) journal_run: Option<String>,
     pub(crate) progress: mpsc::Receiver<Progress>,
     pub(crate) guard: StopOnDrop,
 }
@@ -219,6 +224,10 @@ async fn launch_agent(
         Ok(Some(detail)) => detail.items.into_iter().next().and_then(|i| i.task_id),
         _ => None,
     };
+    let journal_run = match (&tasks, &task_id) {
+        (Some(tasks), Some(task_id)) => tasks.get_run_id(task_id).await.ok().flatten(),
+        _ => None,
+    };
     tracing::event!(
         tracing::Level::INFO,
         agent_id = %agent,
@@ -229,14 +238,16 @@ async fn launch_agent(
     let (tx, progress) = mpsc::channel(PROGRESS_CAPACITY);
     let follower = AgentFollower {
         batches,
-        tasks,
         batch_id: batch_id.clone(),
         task_id: task_id.clone(),
+        journal_run: journal_run.clone(),
         tx,
     };
     tokio::spawn(follower.follow(events));
     Ok(StartedRun {
-        run_id: task_id.unwrap_or(batch_id),
+        run_id: task_id.clone().unwrap_or(batch_id),
+        task_id,
+        journal_run,
         progress,
         guard,
     })
@@ -272,6 +283,8 @@ pub(crate) async fn start_workflow(
     tokio::spawn(follow_workflow(events, run_id.clone(), launched.end, tx));
     Ok(StartedRun {
         run_id: run_id.clone(),
+        task_id: None,
+        journal_run: Some(run_id.clone()),
         progress,
         guard: StopOnDrop {
             stop: Some(Stop::Workflow(workflows, run_id)),
@@ -320,18 +333,16 @@ fn agent_step(event: &RuntimeEvent, task_id: &str) -> Option<String> {
 /// Follows the batch of one item an agent call runs as.
 struct AgentFollower {
     batches: BatchHandle,
-    tasks: Option<Arc<TaskRepository>>,
     batch_id: String,
     task_id: Option<String>,
+    /// The run the model turns of the task report their tokens under.
+    journal_run: Option<String>,
     tx: mpsc::Sender<Progress>,
 }
 
 impl AgentFollower {
     async fn follow(self, mut events: apollia_core::events::ResilientReceiver) {
-        let run_id = match (&self.tasks, &self.task_id) {
-            (Some(tasks), Some(task_id)) => tasks.get_run_id(task_id).await.ok().flatten(),
-            _ => None,
-        };
+        let run_id = self.journal_run.clone();
         let task_id = self.task_id.clone().unwrap_or_default();
         let mut usage = Usage::default();
         let mut settle = tokio::time::interval(SETTLE_PERIOD);

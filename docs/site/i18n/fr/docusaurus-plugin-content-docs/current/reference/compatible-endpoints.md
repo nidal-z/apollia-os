@@ -149,6 +149,30 @@ qu'écrit le `llama-server` local. Une requête refusée (4xx) est au niveau
 Ces lignes sont une vue pour qui développe contre le serveur, pas un
 enregistrement : elles sont perdues à l'arrêt du runtime.
 
+## Journal d'audit
+
+L'enregistrement, c'est le journal d'audit. Chaque requête que reçoit le
+serveur y laisse une entrée, de nature `server_call`, dans l'exécution
+`server:calls`, chaînée et signée comme toutes les autres : une requête servie,
+une requête refusée (`401`, `400`) et une requête en échec, de la même façon.
+
+| Champ | Ce qu'il porte |
+|---|---|
+| `method`, `endpoint` | La méthode et le chemin demandés, sans la chaîne de requête |
+| `target`, `target_kind` | Le modèle nommé, ou l'agent ou le workflow (`model` ou `agent`) ; absent quand la requête n'en nommait aucun que le serveur ait pu lire |
+| `token_name` | Le nom du jeton présenté, jamais sa valeur ; absent sans jeton actif |
+| `caller_address`, `origin` | L'adresse depuis laquelle la connexion a été acceptée, et `loopback` ou `local_network` |
+| `status` | Le statut répondu |
+| `prompt_tokens`, `completion_tokens` | Les jetons que la réponse a déclarés, lus au passage dans un flux ; absents quand elle n'en déclarait pas |
+| `duration_ms` | La durée de la réponse ; pour un flux, jusqu'à sa fermeture |
+| `task_id`, `run_id` | Pour un appel à un agent ou à un workflow, la tâche et l'exécution qu'il a lancées |
+
+Une entrée ne porte jamais un message, une réponse, un en-tête ni la valeur
+d'un jeton. Un en-tête qui prétend une autre adresse n'est pas lu : l'adresse
+est celle de la connexion. Les entrées de l'exécution d'un agent sont gardées
+sous le `run_id` que nomme son appel, si bien que ce qu'une application a
+demandé à un agent se suit depuis l'appel.
+
 ## Erreurs
 
 Chaque point d'accès répond ses erreurs au format de sa propre API. Les points

@@ -42,7 +42,7 @@ use crate::chat::ChatSessionManagerHandle;
 use crate::test_support::poll_until_async;
 use crate::workflows::{BoxFuture, WorkflowCall, WorkflowDescriptor, WorkflowHandle, WorkflowHost};
 
-const CLERK: &str = "demand-clerk";
+pub(super) const CLERK: &str = "demand-clerk";
 const WRITER: &str = "note-writer";
 const HIDDEN: &str = "hidden-clerk";
 const WORKFLOW: &str = "office/close-month";
@@ -191,17 +191,17 @@ fn store(repo: &AgentRepository, name: &str, mission: &str, access: &[&str]) {
     .unwrap();
 }
 
-struct Fixture {
+pub(super) struct Fixture {
     agents: ExposedAgents,
-    tokens: ServerTokensHandle,
+    pub(super) tokens: ServerTokensHandle,
     batches: BatchHandle,
     gate: Arc<Semaphore>,
     events: broadcast::Receiver<RuntimeEvent>,
-    _dir: tempfile::TempDir,
+    pub(super) _dir: tempfile::TempDir,
 }
 
 impl Fixture {
-    fn router(&self, tokens: Option<ServerTokensHandle>) -> Router {
+    pub(super) fn router(&self, tokens: Option<ServerTokensHandle>) -> Router {
         compat_router(
             tokens,
             RelayState::with_agents(
@@ -219,7 +219,7 @@ impl Fixture {
 /// A runtime with three agents, a workflow, and the exposure of two agents
 /// and the workflow: `demand-clerk` reads, `note-writer` writes, and
 /// `hidden-clerk` is not exposed.
-async fn fixture() -> Fixture {
+pub(super) async fn fixture() -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let agents_db = apollia_core::paths::DataFile::Agents.path(dir.path());
     let repo = AgentRepository::open(&agents_db).unwrap();
