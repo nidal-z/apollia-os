@@ -19,6 +19,9 @@ use super::journal::{with_call_journal, CallJournal};
 use super::logs::ServerLogsHandle;
 use super::models::LocalModels;
 use super::origin::reachable_address;
+use super::policy::{
+    closed_against_the_file, ServerPolicyLocks, REQUIRE_AUTH_KEY, SERVE_ON_LAN_KEY,
+};
 use super::relay::RelayState;
 use super::router::{compat_router, serve};
 use super::tokens::ServerTokensHandle;
@@ -32,9 +35,7 @@ const COMMAND_CAPACITY: usize = 64;
 
 const ENABLED_KEY: &str = "server.enabled";
 const PORT_KEY: &str = "server.port";
-const REQUIRE_AUTH_KEY: &str = "server.require_auth";
 const CORS_KEY: &str = "server.cors";
-const SERVE_ON_LAN_KEY: &str = "server.serve_on_lan";
 
 /// What the compatible server is doing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -54,6 +55,18 @@ pub struct CompatServerStatus {
     pub last_error: Option<String>,
     /// How many tokens of the server are in use (not revoked).
     pub active_tokens: u64,
+    /// For each setting the organisation policy can fix, whether it does.
+    pub imposed_by_policy: ServerPolicyLocks,
+}
+
+/// Where the compatible server reads its settings.
+#[derive(Debug, Clone)]
+pub struct ServerSettings {
+    /// The `apollia.toml` holding the `[server]` section.
+    pub path: PathBuf,
+    /// The settings the organisation policy fixes, which win over the file.
+    /// [`PolicySettings::none`] on a machine without a policy.
+    pub policy: PolicySettings,
 }
 
 /// Where the compatible server keeps what outlives a request.
@@ -86,13 +99,16 @@ pub struct CompatServerHandle {
 impl CompatServerHandle {
     /// Spawns the actor and returns its handle.
     ///
-    /// `settings_path` is the `apollia.toml` holding the `[server]` section,
-    /// `records` the store of the server's tokens and the audit journal,
-    /// `models` the local models the server relays to, `agents` the agents
-    /// and workflows it serves as models.
+    /// `settings` is the `apollia.toml` holding the `[server]` section and
+    /// what the organisation policy fixes of it, `records` the store of the
+    /// server's tokens and the audit journal, `models` the local models the
+    /// server relays to, `agents` the agents and workflows it serves as
+    /// models.
     /// When it turns the server on, the actor opens the listener before it
     /// answers its first command; a failure to open it is logged and kept as
-    /// the last error, and the runtime goes on without the server. The actor
+    /// the last error, and the runtime goes on without the server. A setting
+    /// the policy fixes against the file is applied as the policy says, and
+    /// the journal records it. The actor
     /// stops, closing the listener and leaving the setting as it is, when the
     /// bus carries [`RuntimeEvent::ShutdownRequested`] or every handle is
     /// dropped.
@@ -100,13 +116,17 @@ impl CompatServerHandle {
     /// The logs of the server start with it and outlive a stop of the
     /// listener; the lines of the local `llama-server` processes go there too.
     pub fn spawn(
-        settings_path: PathBuf,
+        settings: ServerSettings,
         records: ServerRecords,
         models: LocalModels,
         agents: ExposedAgents,
         bus: &EventBusSender,
     ) -> Self {
         let ServerRecords { system_db, journal } = records;
+        let ServerSettings {
+            path: settings_path,
+            policy,
+        } = settings;
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
         let events = apollia_core::events::subscribe_resilient(bus, "compat_server");
         let tokens = ServerTokensHandle::spawn(system_db);
@@ -114,6 +134,7 @@ impl CompatServerHandle {
         models.send_engine_lines_to(&logs);
         let actor = CompatServerActor {
             settings_path,
+            policy,
             models,
             agents,
             journal,
@@ -224,6 +245,8 @@ struct Running {
 
 struct CompatServerActor {
     settings_path: PathBuf,
+    /// What the organisation policy fixes, read once when the runtime starts.
+    policy: PolicySettings,
     models: LocalModels,
     agents: ExposedAgents,
     journal: Option<AuditJournalHandle>,
@@ -280,6 +303,7 @@ impl CompatServerActor {
         if !enabled {
             return;
         }
+        self.record_what_the_policy_closes();
         if let Err(error) = self.open().await {
             self.fail(&error);
         }
@@ -294,9 +318,27 @@ impl CompatServerActor {
             .unwrap_or(DEFAULT_COMPAT_SERVER_PORT))
     }
 
+    /// The switch `key` as it is in force: the value of the policy when it
+    /// fixes the key, the value of the file otherwise.
     fn configured_flag(&self, key: &str) -> Result<bool, CompatServerError> {
-        let resolved = resolve_setting(&self.settings_path, key, &PolicySettings::none())?;
+        let resolved = resolve_setting(&self.settings_path, key, &self.policy)?;
         Ok(resolved.value == Value::Bool(true))
+    }
+
+    /// A server the file turns on, with a setting the policy fixes otherwise,
+    /// opens as the policy says: one journal entry per such setting says what
+    /// was closed.
+    fn record_what_the_policy_closes(&self) {
+        for key in closed_against_the_file(&self.settings_path, &self.policy) {
+            tracing::event!(
+                tracing::Level::WARN,
+                key = key,
+                "compat_server.policy.setting_closed"
+            );
+            if let Some(journal) = &self.journal {
+                crate::governance::record_setting_enforced(journal, key);
+            }
+        }
     }
 
     fn status(&self) -> CompatServerStatus {
@@ -314,6 +356,7 @@ impl CompatServerActor {
             address: reachable_address(serve_on_lan, port),
             last_error: self.last_error.clone(),
             active_tokens: 0,
+            imposed_by_policy: ServerPolicyLocks::of(&self.policy),
         }
     }
 

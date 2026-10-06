@@ -58,6 +58,11 @@
 //! run [`SERVER_CALLS_RUN_ID`]: who called, from where, what it named and how
 //! it was answered, never what was said ([`ServerCallRecord`]).
 //!
+//! The organisation policy closes three of its settings, and only closes: the
+//! local network, a server without a token, the MCP servers a request brings
+//! (see the `policy` module). A setting it fixes is read from it, whatever the
+//! file says, and the state of the server names it.
+//!
 //! [`CompatServerHandle`] is the actor that owns the listener. Every path its
 //! router mounts is listed on the public page of compatible endpoints, which
 //! `scripts/check_compat_routes.py` holds.
@@ -77,6 +82,7 @@ mod journal;
 mod logs;
 mod models;
 mod origin;
+mod policy;
 mod reasoning;
 mod relay;
 mod request_mcp;
@@ -99,6 +105,8 @@ mod lan_tests;
 #[cfg(test)]
 mod logs_tests;
 #[cfg(test)]
+mod policy_tests;
+#[cfg(test)]
 mod reasoning_tests;
 #[cfg(test)]
 mod relay_tests;
@@ -107,7 +115,7 @@ mod request_mcp_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use actor::{CompatServerHandle, CompatServerStatus, ServerRecords};
+pub use actor::{CompatServerHandle, CompatServerStatus, ServerRecords, ServerSettings};
 pub use agents::ExposedAgents;
 pub use journal::{ServerCallRecord, ServerCallTarget, SERVER_CALLS_RUN_ID};
 pub use logs::{
@@ -118,6 +126,7 @@ pub use models::LocalModels;
 pub use origin::{
     admit_agent_call, admits_agent_call, reachable_address, CallOrigin, AGENT_TOKEN_REQUIRED,
 };
+pub use policy::ServerPolicyLocks;
 pub use request_mcp_run::{
     LaunchedRequest, LaunchedRequestRunner, RequestAgentRunner, RequestMcp, REQUEST_AGENT_ID,
 };

@@ -143,6 +143,11 @@ internal token never opens them. Each request carries its `CallOrigin`
 (loopback or local network, read from the peer address at accept), and a call
 to an agent or a workflow from the local network goes through
 `admit_agent_call`, which wants a token in use whatever `require_auth` says.
+The organisation policy closes three of their settings and only closes
+(`serve_on_lan`, `require_auth`, `allow_request_mcp`): the actor and
+`LocalModels` resolve them under the `PolicySettings` read at boot, never under
+`PolicySettings::none()`, and a server the file had left open against the policy
+leaves one `PolicySettingEnforced` entry per key (`src/compat_server/policy.rs`).
 None of the rules of this section
 applies to them. They live in `src/compat_server/`, never in `src/api/` and
 never under `/api/v1/`, so `scripts/check_openapi_routes.py` does not read them

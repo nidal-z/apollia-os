@@ -1,6 +1,7 @@
 //! What governance writes to the journal on its own: the events the stores of
 //! `governance.db` left in their outbox, the organisation policy applied at
-//! each start, every entry into fail-closed, and what happens to the journal
+//! each start, each setting it closed against the user's file, every entry
+//! into fail-closed, and what happens to the journal
 //! itself (an opening without its key, a daily export written or failed).
 //!
 //! The runtime is the one writer of the signed journal. A rule or a consent
@@ -154,6 +155,18 @@ async fn last_applied_digest(journal: &AuditJournalHandle) -> Option<String> {
                 .and_then(|d| d.as_str())
                 .map(str::to_owned)
         })
+}
+
+/// Records that the organisation policy fixed the setting `key` against what
+/// the user's file says, and that what it had opened was closed.
+pub(crate) fn record_setting_enforced(journal: &AuditJournalHandle, key: &str) {
+    append(
+        journal,
+        &GovernanceEvent::PolicySettingEnforced {
+            key: key.to_owned(),
+        },
+        now(),
+    );
 }
 
 /// Records that governance entered `state`.

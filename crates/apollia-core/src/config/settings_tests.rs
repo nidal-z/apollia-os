@@ -634,3 +634,23 @@ fn test_a_policy_fixing_the_load_bypass_refuses_the_write() {
     assert_eq!(resolved.value, json!("confirm"));
     assert_eq!(resolved.source, SettingSource::Policy);
 }
+
+// ── What a policy may only close ─────────────────────────────────────────
+
+#[test]
+fn test_a_policy_may_close_the_server_and_never_open_it() {
+    // GIVEN the three server settings a policy fixes on one side only
+    for (key, closing) in super::settings::POLICY_CLOSING_VALUES {
+        // WHEN a policy imposing the closing value, then the opening one, is
+        // checked
+        let closed = check_imposed_setting(key, &json!(*closing));
+        let opened = check_imposed_setting(key, &json!(!*closing));
+
+        // THEN the first is accepted and the second refused, naming the key
+        assert!(closed.is_ok(), "{key}: {closed:?}");
+        assert!(
+            matches!(&opened, Err(SettingError::InvalidValue { key: k, .. }) if k == key),
+            "{key}: {opened:?}"
+        );
+    }
+}

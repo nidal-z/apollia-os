@@ -43,6 +43,9 @@ pub struct LocalModels {
     settings: Option<PathBuf>,
     /// `system.db`, whose backend row of a model gives its load preset.
     system_db: Option<PathBuf>,
+    /// The settings the organisation policy fixes: a setting it fixes is read
+    /// from it, whatever the file says.
+    policy: PolicySettings,
 }
 
 /// Why a request's model could not be held.
@@ -106,7 +109,15 @@ impl LocalModels {
             models_dir,
             settings: None,
             system_db: None,
+            policy: PolicySettings::none(),
         }
+    }
+
+    /// Reads the settings `policy` fixes from it rather than from the file.
+    #[must_use]
+    pub fn under_policy(mut self, policy: PolicySettings) -> Self {
+        self.policy = policy;
+        self
     }
 
     /// Reads `[server] jit_loading` in `settings` and the load presets in
@@ -228,7 +239,8 @@ impl LocalModels {
     }
 
     /// Whether `[server] allow_request_mcp` is on now, read at every request;
-    /// the default, off, when the file cannot be read.
+    /// the default, off, when the file cannot be read. The organisation
+    /// policy that fixes it off wins over the file.
     pub(crate) fn allows_request_mcp(&self) -> bool {
         self.switch(
             ALLOW_REQUEST_MCP_KEY,
@@ -236,13 +248,22 @@ impl LocalModels {
         )
     }
 
+    /// Whether the organisation policy fixes `[server] allow_request_mcp`, so
+    /// that no setting of the user turns it on.
+    pub(crate) fn request_mcp_fixed_by_policy(&self) -> bool {
+        self.policy.locks(ALLOW_REQUEST_MCP_KEY)
+    }
+
     /// The boolean setting `key` of the file now, `default` when the file
     /// cannot be read or the runtime was given none.
     fn switch(&self, key: &str, default: bool) -> bool {
+        if let Some(imposed) = self.policy.imposed(key) {
+            return imposed.as_bool().unwrap_or(default);
+        }
         let Some(path) = &self.settings else {
             return default;
         };
-        match resolve_setting(path, key, &PolicySettings::none()) {
+        match resolve_setting(path, key, &self.policy) {
             Ok(resolved) => resolved.value.as_bool().unwrap_or(default),
             Err(error) => {
                 tracing::event!(

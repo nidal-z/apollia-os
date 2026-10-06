@@ -66,7 +66,7 @@ Four routes of the native API drive it while the runtime runs:
 
 | Route | Effect |
 |---|---|
-| `GET /api/v1/server` | Whether it listens, its port, whether it serves the local network, the address to copy, why its last start failed, and how many tokens are in use |
+| `GET /api/v1/server` | Whether it listens, its port, whether it serves the local network, the address to copy, why its last start failed, how many tokens are in use, and which of its settings the [organisation policy](#organisation-policy) fixes |
 | `POST /api/v1/server/start` | Opens it on the configured port and writes `enabled = true` |
 | `POST /api/v1/server/stop` | Closes it and writes `enabled = false`; the native API keeps answering |
 | `POST /api/v1/server/restart` | Closes and reopens it so it applies the `[server]` keys as they stand; only this listener is reopened, the native API keeps its connections. A stopped server stays stopped |
@@ -128,6 +128,42 @@ Each request is classified, when its connection is accepted, as coming from the
 machine (the loopback interface) or from the local network (any other address).
 The decision and its reading against the local-first principle are written in the
 [architecture decisions](/architecture/decisions#local-server).
+
+## Organisation policy
+
+An organisation that deposits a signed policy on the machine closes three
+settings of the compatible server, through the `[settings]` table of its
+`policy.toml`:
+
+```toml
+[settings]
+"server.serve_on_lan" = false        # the server stays on the machine
+"server.require_auth" = true         # every request presents a token
+"server.allow_request_mcp" = false   # no request brings an MCP server
+```
+
+| Key | The value a policy fixes | What it closes |
+|---|---|---|
+| `server.serve_on_lan` | `false` | The local network: the server listens on the loopback interface alone |
+| `server.require_auth` | `true` | A server without a token: every request presents one |
+| `server.allow_request_mcp` | `false` | The MCP servers a request brings: such a request answers `400`, and the message names the policy |
+
+A policy only closes. One that fixes any of the three at the other value is
+refused whole when it is read, like a policy that names an unknown key: opening
+the server stays an action of the user, never of a file dropped on the machine.
+
+A key the policy fixes is read from the policy, whatever `apollia.toml` says,
+and writing it is refused with "setting 'server.serve_on_lan' is locked by the
+organization policy". `GET /api/v1/server` says which keys are fixed in its
+`imposedByPolicy` field, one boolean per key: `serveOnLan`, `requireAuth`,
+`allowRequestMcp`.
+
+The runtime reads the policy when it starts, before the server opens. A server
+that `apollia.toml` had left on and open against the policy therefore opens
+closed, and the audit journal keeps one entry per key closed that way, of the
+kind `policy_setting_enforced`, in the run `governance:policy:organisation`. The
+entry names the key and holds no value. How a policy is deposited and signed is
+written in the [architecture decisions](/architecture/decisions#organisation-policy).
 
 ## Logs
 

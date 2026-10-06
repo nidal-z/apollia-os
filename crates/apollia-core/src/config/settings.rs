@@ -46,6 +46,16 @@ const CHOICES: &[(&str, &[&str])] = &[
     ("engines.mlx", MLX_ENGINE_CHOICES),
 ];
 
+/// Settings a policy may fix on one side only, by dotted key, with the one
+/// value it may impose: the value that closes. A policy closes the compatible
+/// server to the local network, requires its token, refuses the MCP servers a
+/// request brings; opening any of the three stays a gesture of the user.
+pub(super) const POLICY_CLOSING_VALUES: &[(&str, bool)] = &[
+    ("server.serve_on_lan", false),
+    ("server.require_auth", true),
+    ("server.allow_request_mcp", false),
+];
+
 /// Where the value of a resolved setting comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -280,7 +290,8 @@ fn check_type(key: &str, value: &Value, default: &Value) -> Result<(), SettingEr
 }
 
 /// Checks that a policy may impose `value` on the setting `key`: the key names
-/// a setting of a typed section, and the value has that setting's type.
+/// a setting of a typed section, the value has that setting's type, and, for a
+/// setting of [`POLICY_CLOSING_VALUES`], it is the value that closes.
 ///
 /// The policy loader calls it on every key of its `[settings]` table, so a
 /// policy that names a setting this build does not know is refused whole
@@ -289,12 +300,25 @@ fn check_type(key: &str, value: &Value, default: &Value) -> Result<(), SettingEr
 /// # Errors
 ///
 /// [`SettingError::UnknownKey`] when `key` names no setting,
-/// [`SettingError::InvalidValue`] when `value` has another type.
+/// [`SettingError::InvalidValue`] when `value` has another type, or would open
+/// what a policy may only close.
 pub fn check_imposed_setting(key: &str, value: &Value) -> Result<(), SettingError> {
     let default = default_of(key).ok_or_else(|| SettingError::UnknownKey {
         key: key.to_owned(),
     })?;
-    check_type(key, value, &default)
+    check_type(key, value, &default)?;
+    let Some((_, closing)) = POLICY_CLOSING_VALUES.iter().find(|(name, _)| *name == key) else {
+        return Ok(());
+    };
+    if value.as_bool() == Some(*closing) {
+        return Ok(());
+    }
+    Err(SettingError::InvalidValue {
+        key: key.to_owned(),
+        reason: format!(
+            "a policy can only impose {closing} here, got {value}: opening the server is left to the user"
+        ),
+    })
 }
 
 /// Reads `path`, an absent file reading as an empty document.

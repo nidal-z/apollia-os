@@ -20764,7 +20764,8 @@
           "port",
           "serveOnLan",
           "address",
-          "activeTokens"
+          "activeTokens",
+          "imposedByPolicy"
         ],
         "properties": {
           "activeTokens": {
@@ -20776,6 +20777,10 @@
           "address": {
             "type": "string",
             "description": "The address a client copies: `http://127.0.0.1:<port>` on the machine\nalone, `http://<IPv4 address on the local network>:<port>` otherwise."
+          },
+          "imposedByPolicy": {
+            "$ref": "#/components/schemas/ServerPolicyLocks",
+            "description": "For each setting the organisation policy can fix, whether it does."
           },
           "lastError": {
             "type": [
@@ -27951,6 +27956,29 @@
           "server": {
             "type": "string",
             "description": "Server name."
+          }
+        }
+      },
+      "ServerPolicyLocks": {
+        "type": "object",
+        "description": "Which settings of the compatible server the organisation policy imposes.\nAn imposed setting cannot be written: the value in force is the policy's.",
+        "required": [
+          "serveOnLan",
+          "requireAuth",
+          "allowRequestMcp"
+        ],
+        "properties": {
+          "allowRequestMcp": {
+            "type": "boolean",
+            "description": "`server.allow_request_mcp`: the policy refuses the MCP servers a\nrequest brings."
+          },
+          "requireAuth": {
+            "type": "boolean",
+            "description": "`server.require_auth`: the policy requires a token on every request."
+          },
+          "serveOnLan": {
+            "type": "boolean",
+            "description": "`server.serve_on_lan`: the policy keeps the server on the machine."
           }
         }
       },
