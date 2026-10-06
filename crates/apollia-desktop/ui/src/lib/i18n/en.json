@@ -3537,6 +3537,28 @@
       "error_import": "The file could not be imported.",
       "error_not_offered": "{file} is not the file of a search-by-meaning model Apollia offers.",
       "error_default": "The model is installed but could not be set for search by meaning."
+    },
+    "first_agent": {
+      "title": "Your first agent",
+      "subtitle": "Choose how to get it. You can add others later from the Agents screen.",
+      "cards_label": "Three ways to get an agent",
+      "install_title": "Install an agent",
+      "install_body": "Open a package you received (.apo file). You see what it contains before installing it.",
+      "create_title": "Create by describing my need",
+      "create_body": "Say in a few sentences what you expect: Apollia prepares the sheet of the agent, you read it over.",
+      "example_title": "Start from an example",
+      "example_body": "Choose a ready-made agent proposed by Apollia. Only the one you choose is installed.",
+      "skip": "Skip",
+      "kept": "{name} is ready. The next steps are done with it.",
+      "pick_failed": "The file could not be opened. {reason}",
+      "no_agent_in_package": "The package {name} is installed, but it brings no agent. Choose another one, or skip this step.",
+      "examples_title": "Start from an example",
+      "examples_subtitle": "Choose one: only that one will be installed.",
+      "examples_loading": "Reading the examples…",
+      "examples_failed": "The examples could not be read.",
+      "examples_empty": "Apollia proposes no example for now. Go back to install a package or to create an agent by describing your need.",
+      "example_install": "Install this example",
+      "example_use": "Choose this agent"
     }
   },
   "agent_detail": {
@@ -4123,6 +4145,7 @@
     "step_count": "Step {current} of {total} · {label}",
     "step_language": "Language",
     "step_ai": "AI",
+    "step_first_agent": "First agent",
     "model_percent": "Model: {percent}%",
     "model_downloading": "Model: downloading",
     "model_installing": "Model: installing",

@@ -6,13 +6,14 @@ import fr from "$lib/i18n/fr.json";
 import {
   ONBOARDING_PHASE_ORDER,
   ONBOARDING_STEPS,
+  nextStep,
   phaseOfStep,
   phasePath,
   stepOfPhase,
 } from "./onboardingSteps";
 
-// The list is not frozen here: three steps are still to be added after the
-// conversation. What is held is the order of the steps that exist, that each
+// The list is not frozen here: two steps are still to be added after the
+// first agent. What is held is the order of the steps that exist, that each
 // one stands for its own phase of the backend, that the usage-profile question
 // is not one of them, and that the modal draws this list and no other.
 
@@ -21,19 +22,20 @@ function source(file: string): string {
 }
 
 describe("onboarding steps - the order of the first launch", () => {
-  test("the steps come in the order language, AI, embeddings, who I am", () => {
+  test("the steps come in the order language, AI, embeddings, who I am, first agent", () => {
     // GIVEN the steps of the first-launch modal
     const ids = ONBOARDING_STEPS.map((step) => step.id);
 
     // WHEN their order is read
-    // THEN it is the order of the first launch, the embeddings model third
-    // and the conversation fourth
-    expect(ids).toEqual(["welcome", "ai-setup", "embeddings", "chat"]);
+    // THEN it is the order of the first launch, the embeddings model third,
+    // the conversation fourth and the first agent fifth
+    expect(ids).toEqual(["welcome", "ai-setup", "embeddings", "chat", "first-agent"]);
     expect(ONBOARDING_STEPS.map((step) => step.labelKey)).toEqual([
       "onboarding_modal.step_language",
       "onboarding_modal.step_ai",
       "onboarding_modal.step_search",
       "onboarding_modal.step_about",
+      "onboarding_modal.step_first_agent",
     ]);
   });
 
@@ -69,7 +71,7 @@ describe("onboarding steps - the order of the first launch", () => {
     const modal = source("./OnboardingModal.svelte");
 
     // WHEN the progress and the step count are read
-    // THEN both count this list, so the three steps still to come add
+    // THEN both count this list, so the two steps still to come add
     // themselves by an entry here and leave no empty step meanwhile
     expect(modal).toContain("{#each STEPS as step, i (step.id)}");
     expect(modal).toContain("total: STEPS.length");
@@ -132,9 +134,9 @@ describe("onboarding steps - the flow resumes where it was left", () => {
   test("a phase with no step yet reopens on the last step before it", () => {
     // GIVEN the phases of the steps still to be built, and those that close the flow
     // WHEN each is turned into a step
-    // THEN each lands on the conversation, the last step that exists
-    for (const phase of ["first_agent", "connection", "first_task", "guided_tour", "graduation", "done"]) {
-      expect(stepOfPhase(phase), phase).toBe("chat");
+    // THEN each lands on the first agent, the last step that exists
+    for (const phase of ["connection", "first_task", "guided_tour", "graduation", "done"]) {
+      expect(stepOfPhase(phase), phase).toBe("first-agent");
     }
   });
 
@@ -152,6 +154,37 @@ describe("onboarding steps - the flow resumes where it was left", () => {
     // THEN it opens on the language, the first step of the list
     expect(stepOfPhase("welcome")).toBe(ONBOARDING_STEPS[0].id);
     expect(ONBOARDING_STEPS[0].labelKey).toBe("onboarding_modal.step_language");
+  });
+});
+
+describe("onboarding steps - what follows a step", () => {
+  test("the first agent follows the conversation", () => {
+    // GIVEN the conversation, once its profile was saved or left unsaved
+    // WHEN the step after it is asked for
+    // THEN it is the first agent, on its own phase of the backend
+    expect(nextStep("chat")).toBe("first-agent");
+    expect(phaseOfStep("first-agent")).toBe("first_agent");
+  });
+
+  test("nothing follows the last step built", () => {
+    // GIVEN the last step of the list
+    const last = ONBOARDING_STEPS[ONBOARDING_STEPS.length - 1].id;
+
+    // WHEN the step after it is asked for
+    // THEN there is none, and the modal closes
+    expect(nextStep(last)).toBeNull();
+  });
+
+  test("the modal moves on through this function, from the conversation and from the first agent", () => {
+    // GIVEN the source of the modal
+    const modal = source("./OnboardingModal.svelte");
+
+    // WHEN the two mounts are read
+    // THEN each hands over to the step after it, and a completed profile
+    // asked from the settings still closes the modal
+    expect(modal).toContain('onclose={enriching ? onclose : () => advanceFrom("chat")}');
+    expect(modal).toContain('onnext={() => advanceFrom("first-agent")}');
+    expect(modal).toContain("const next = nextStep(step);");
   });
 });
 

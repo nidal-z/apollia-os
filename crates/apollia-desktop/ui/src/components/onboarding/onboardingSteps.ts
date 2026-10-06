@@ -10,7 +10,7 @@ import type { OnboardingPhase } from "$lib/types";
  * come back. The progress counts the steps of this list and no other, so a
  * step that is not built yet is not announced.
  */
-export type OnboardingStep = "welcome" | "ai-setup" | "embeddings" | "chat";
+export type OnboardingStep = "welcome" | "ai-setup" | "embeddings" | "chat" | "first-agent";
 
 export interface OnboardingStepEntry {
   id: OnboardingStep;
@@ -42,7 +42,18 @@ export const ONBOARDING_STEPS: readonly OnboardingStepEntry[] = [
   { id: "ai-setup", labelKey: "onboarding_modal.step_ai", phase: "ai_setup" },
   { id: "embeddings", labelKey: "onboarding_modal.step_search", phase: "embeddings" },
   { id: "chat", labelKey: "onboarding_modal.step_about", phase: "acquaintance" },
+  { id: "first-agent", labelKey: "onboarding_modal.step_first_agent", phase: "first_agent" },
 ];
+
+/**
+ * The step that follows `step`, `null` after the last one built: the modal
+ * then closes, as it does at the end of the first launch. A step added to the
+ * list is reached from the one before it with no change to the modal.
+ */
+export function nextStep(step: OnboardingStep): OnboardingStep | null {
+  const index = ONBOARDING_STEPS.findIndex((entry) => entry.id === step);
+  return ONBOARDING_STEPS[index + 1]?.id ?? null;
+}
 
 /** The phase the backend moves to when `step` opens. */
 export function phaseOfStep(step: OnboardingStep): OnboardingPhase {

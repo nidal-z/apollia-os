@@ -7,7 +7,7 @@ sidebar_position: 4
 # Set up your profile on first launch
 
 > On the first start of Apollia (or after a reset), a configuration flow opens automatically.
-> It walks you through four steps - the language, the AI, the model that searches by meaning, a short conversation that proposes your profile - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode in Settings, off by default.
+> It walks you through five steps - the language, the AI, the model that searches by meaning, a short conversation that proposes your profile, a first agent - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode in Settings, off by default.
 > Total duration: 3 to 8 minutes depending on model downloads.
 >
 > This page covers **the initial flow only**. To edit your profile day to day from the installed application, see **[My profile](../memoire/manage-my-profile.md)**.
@@ -19,7 +19,7 @@ sidebar_position: 4
 
 ## Flow overview
 
-The flow is paced by a progress rail visible at the top of the window, with the count of the steps above it: **Language · AI · Search · About me**. You can go back at any step, and **Configure later** is available at the top right of the window, on every step, to postpone the whole thing.
+The flow is paced by a progress rail visible at the top of the window, with the count of the steps above it: **Language · AI · Search · About me · First agent**. You can go back at any step, and **Configure later** is available at the top right of the window, on every step, to postpone the whole thing.
 
 | Step | What happens there |
 |---|---|
@@ -27,6 +27,7 @@ The flow is paced by a progress rail visible at the top of the window, with the 
 | **AI** | The language model your agents work with: a model on your computer, with a built-in download, or a server you already use. It is the only step you cannot skip. |
 | **Search** | A second, smaller model that lets your agents find a document by its meaning. It can be skipped. |
 | **About me** | A short conversation with an agent, every question of which can be skipped. The agent then proposes a profile, which you read over and correct before it is saved. |
+| **First agent** | Three ways to an agent that is ready to work: install a package, create one by describing your need, or start from an example. It can be skipped. |
 
 ## Detailed steps
 
@@ -90,14 +91,24 @@ Answer naturally, no precise wording required. **Nothing is written during the c
 
 No field is required. Correct anything that is off, then choose:
 
-- **Save** - the form is written to your default profile, and the window closes.
-- **Skip without saving** - nothing is written, and the window closes. Your profile stays empty until you fill it from **Settings → Profile**.
+- **Save** - the form is written to your default profile, and the flow moves on to the first agent.
+- **Skip without saving** - nothing is written, and the flow moves on to the first agent. Your profile stays empty until you fill it from **Settings → Profile**.
 - **Back** - returns to the conversation; **See the proposal again** reopens the form.
 
 <!-- claim:onboarding-skip-direct -->
 The **Skip the questions** button (in the window footer) ends the conversation **immediately, with no extra AI turn**: the form opens at once, empty or holding what the agent had already proposed, and you fill it by hand or skip it. The in-chat **I'm done** button, by contrast, lets the agent propose a profile from what you already said.
 
 The onboarding no longer proposes permission rules. Rules are created from the approval prompts, or by hand in **Settings → Permissions**.
+
+### Step 5 - Your first agent
+
+Three cards, three ways to an agent that is ready to work when the window closes:
+
+- **Install an agent** opens a package you received (a `.apo` file). Apollia shows what it contains, what it asks for and who published it; nothing is installed before you confirm.
+- **Create by describing my need** opens a short conversation. Apollia drafts the sheet of the agent as you answer, you read it over and correct it, and **Save the agent** creates it.
+- **Start from an example** lists the ready-made agents Apollia proposes, each with its mission and the connection it requires. Choose one: only that one is installed, after the same confirmation as any package.
+
+Once an agent is there, the step names it and **Continue** closes the window. **Skip** closes it with no agent: you talk to Apollia, and you can add an agent at any time from the **Agents** screen.
 
 ### Skip the flow
 
@@ -116,7 +127,7 @@ If you want to go through the first-launch flow again:
 1. Open **Settings → Danger Zone**.
 2. Click **Reset Onboarding**. This action only clears the progress and profile markers - your LLM backends, downloaded models and other data stay intact.
 3. A confirmation window asks you to type `RESET`. Confirm.
-4. The four-step flow restarts from the choice of the language.
+4. The five-step flow restarts from the choice of the language.
 
 For **small adjustments** (fixing your name, adding a daily tool) without going through the flow again, open **Settings → Profile** directly - see [My profile](../memoire/manage-my-profile.md). On a profile with empty fields, **Complete with an agent** starts the same short conversation for that profile; its proposal comes back into the form, where **Save** writes it and **Skip** drops it.
 
@@ -138,4 +149,4 @@ Once the flow is finished, open **Settings → Profile**: the default profile ho
 - **The agent stops answering during the conversation:** close the window through **Configure later** and restart from **Settings → Danger Zone → Reset Onboarding**.
 - **The form opens empty:** the agent proposed nothing, or you skipped the questions. Fill the fields by hand, or skip and come back from **Settings → Profile**.
 
-> **Technical reference:** [Apollia reference](/reference) - full spec of the 4 steps, backend persistence, IPC commands, runtime events.
+> **Technical reference:** [Apollia reference](/reference) - full spec of the 5 steps, backend persistence, IPC commands, runtime events.
