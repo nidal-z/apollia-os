@@ -38,7 +38,6 @@
     X,
     Search,
     ArrowLeft,
-    Server,
     Upload,
   } from "lucide-svelte";
   import { Spinner, ProgressBar } from "$lib/components/ui/progress";
@@ -75,11 +74,9 @@
      * its file, which the next step sizes its own recommendation beside.
      */
     onconfigured: (configured: boolean, sizeBytes: number | null) => void;
-    /** The operator asked for a cloud backend instead. */
-    onopencloud: () => void;
   }
 
-  const { sysInfo, onconfigured, onopencloud }: Props = $props();
+  const { sysInfo, onconfigured }: Props = $props();
 
   let ggufModels = $state<GgufModelInfo[]>([]);
   let selectedGguf = $state<GgufModelInfo | null>(null);
@@ -643,10 +640,6 @@
         <Button variant="ghost" size="sm" class="btn-search-hf" onclick={() => { showSearch = true; searchResults = []; }}>
           <Search size={11} strokeWidth={2} />
           {$t("onboarding.ai_setup.search_hf")}
-        </Button>
-        <Button variant="ghost" size="sm" class="btn-search-hf btn-cloud" onclick={onopencloud} data-testid="onboarding-open-cloud">
-          <Server size={11} strokeWidth={2} />
-          {$t("onboarding.ai_setup.connect_server")}
         </Button>
       </div>
     {/if}

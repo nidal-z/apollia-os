@@ -3466,7 +3466,42 @@
       "recommended_models": "Recommended models",
       "recommended": "Recommended",
       "search_hf": "Search on HuggingFace",
-      "connect_server": "Connect to a server",
+      "source": {
+        "label": "Where the AI of your agents runs",
+        "local_title": "On this computer",
+        "local_body": "A model runs on your computer. Nothing leaves the machine.",
+        "server_title": "Use a server",
+        "server_body": "The AI server of your organisation, or the one you already use."
+      },
+      "server": {
+        "address_label": "Server address",
+          "address_hint": "The address the server gives its clients, with http:// or https:// and its port, for example {example}.",
+        "key_label": "Key",
+        "key_hint": "Only if the server asks for one. Apollia keeps it with its secrets, never in plain text in its configuration.",
+        "test": "Test",
+        "testing": "Testing…",
+        "models_label": "Models of the server",
+        "models_found": "{count, plural, one {The server answers and offers # model.} other {The server answers and offers # models.}} Choose the one your agents will use.",
+        "chosen": "{model} is the default model of your agents, on {address}.",
+        "error": {
+          "invalid_address_title": "This address is not complete",
+          "invalid_address_body": "It must start with http:// or https://, followed by the name of the server and its port.",
+          "unreachable_title": "The server does not answer",
+          "unreachable_body": "Check that the server is started, that the address and the port are right, and that this computer can reach it on the network.",
+          "key_refused_title": "The server refuses the key",
+          "key_refused_body": "Check the key: it is missing, mistyped or no longer valid.",
+          "not_openai_compatible_title": "This address does not answer like an AI server",
+          "not_openai_compatible_body": "Something answers, but with no list of models. Check the address: it must be the one of the server's interface, not the one of its home page.",
+          "policy_title": "The policy of your organisation refuses this server",
+          "policy_body": "Use a server your organisation allows, or ask the person who manages Apollia for you.",
+          "no_models_title": "The server offers no model",
+          "no_models_body": "It answers, but its list is empty. Install or load a model on the server, then test again.",
+          "save_title": "The server could not be saved",
+          "save_body": "The default model did not change. Choose the model again; if this goes on, test the server again.",
+          "other_title": "The test did not succeed",
+          "other_body": "Check the address and the key, then test again."
+        }
+      },
       "download_failed": "The download failed.",
       "memory_breakdown": "Needs {total} GB: {weights} GB of weights, {cache} GB of context cache and {overhead} GB for the engine",
       "memory_breakdown_approx": "Needs about {total} GB: {weights} GB of weights, roughly {cache} GB of context cache and {overhead} GB for the engine",
@@ -3479,9 +3514,9 @@
       "caveat_no_pre_tokenizer": "No tokenizer declared; the engine will fall back to its default",
       "recommend_loading": "Measuring your hardware and checking models",
       "recommend_unreachable_title": "Could not reach HuggingFace",
-      "recommend_unreachable_body": "The model catalogue is fetched live, so there is nothing to list right now. You can still import a model from disk or use a cloud provider.",
+      "recommend_unreachable_body": "The model catalogue is fetched live, so there is nothing to list right now. You can still import a model from disk or use a server.",
       "recommend_empty_title": "No curated model fits this machine",
-      "recommend_empty_body": "Every model we curate needs more memory than this machine has available. A cloud provider will work, and so will a smaller model imported from disk.",
+      "recommend_empty_body": "Every model we curate needs more memory than this machine has available. A server will work, and so will a smaller model imported from disk.",
       "recommend_retry": "Try again",
       "recommend_measured_on": "Measured on {cpu} with {ram} GB of RAM",
       "no_tool_calling_badge": "No tools",
@@ -5380,5 +5415,88 @@
       "journal_unsigned": "The journal opened without its signing key",
       "journal_export_failed": "The daily export of the journal failed"
     }
+  },
+  "batch_launch": {
+    "action": "Process a batch",
+    "chat_action": "Process each row",
+    "title": "Process a batch with “{name}”",
+    "title_no_agent": "Process a batch",
+    "legend": "The agent receives the items of the source one at a time. Each item is a request of its own.",
+    "agent": {
+      "title": "Agent",
+      "choose": "Choose an agent"
+    },
+    "source": {
+      "title": "Source",
+      "change": "Change source",
+      "pick_file": "Choose a file…",
+      "file_filter": "Excel or CSV file",
+      "unread_only": "Unread messages only",
+      "unreadable": "The sources could not be read: {reason}",
+      "blocked": {
+        "folder_unread": "A batch does not read a folder file by file yet.",
+        "file_not_table": "This file is neither a workbook nor a CSV file.",
+        "mailbox_unknown": "This mailbox is not attached to a connection a batch can read."
+      }
+    },
+    "family": {
+      "table": {
+        "name": "Excel or CSV file",
+        "item": "A row of the workbook becomes an item",
+        "none": "No file among your sources. Choose one on this computer."
+      },
+      "folder": {
+        "name": "Folder",
+        "item": "A file of the folder becomes an item",
+        "none": "No folder among your sources."
+      },
+      "mail": {
+        "name": "Mailbox",
+        "item": "A received message becomes an item",
+        "none": "No mailbox among your sources."
+      }
+    },
+    "results": {
+      "title": "Results",
+      "copy": "In a copy of the file, with the agent's columns",
+      "original": "In the original file, after a backup",
+      "original_unavailable": "The original file can be modified for an .xlsx or .xlsm workbook only.",
+      "columns": "Columns added",
+      "columns_hint": "One column per field the agent returns, comma separated: for example Category, Urgency. An answer without fields goes whole into the first.",
+      "default_column": "Result"
+    },
+    "accesses": {
+      "title": "Accesses to grant for the duration of the batch",
+      "none": "None: this agent asks for no sensitive access.",
+      "no_agent": "Choose an agent to see its sensitive accesses.",
+      "rule": "Granted until the batch ends, then withdrawn. Without a grant, the item concerned waits for your decision in To review, and the batch goes on.",
+      "asked_each_time": "Asked at every use: no batch grant covers it.",
+      "family": {
+        "read_personal": "Read personal data",
+        "write_or_delete": "Write or delete",
+        "send_external": "Send outside",
+        "execute_code": "Execute code",
+        "unclassified": "Unclassified access"
+      }
+    },
+    "threshold": {
+      "title": "Failure threshold",
+      "label": "Interrupt the batch after",
+      "failures": "{count} failures",
+      "never": "Never interrupt",
+      "hint": "By default, the batch is interrupted after 10 failures. Failed items stay ready to be run again."
+    },
+    "refusal": {
+      "agent_missing": "Choose an agent: the batch does not start without one.",
+      "source_missing": "Choose a source: the batch does not start without one.",
+      "source_blocked": "A batch cannot read this source.",
+      "columns_missing": "Name at least one column for the results.",
+      "columns_duplicate": "Two result columns share the same name.",
+      "columns_too_many": "A batch adds 32 columns at most."
+    },
+    "ready": "The items will be handed to the agent, one at a time.",
+    "confirm": "Launch the batch",
+    "launching": "Launching…",
+    "launched": "Batch launched: {count, plural, one {# item} other {# items}}."
   }
 }

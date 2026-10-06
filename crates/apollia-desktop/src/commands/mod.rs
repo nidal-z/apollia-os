@@ -17,6 +17,7 @@ pub mod authorizations;
 #[cfg(debug_assertions)]
 pub mod automation;
 pub mod background_service;
+pub mod batches;
 pub mod chat;
 pub mod cli;
 pub mod config;
@@ -30,6 +31,7 @@ pub mod journal;
 pub mod link_preview;
 pub mod llm;
 pub mod llm_loaded;
+pub mod llm_servers;
 pub mod mcp;
 pub mod mcp_bridge;
 pub mod mcp_coaching;

@@ -3466,7 +3466,42 @@
       "recommended_models": "Modèles recommandés",
       "recommended": "Recommandé",
       "search_hf": "Rechercher sur HuggingFace",
-      "connect_server": "Se connecter à un serveur",
+      "source": {
+        "label": "Où tourne l'IA de vos agents",
+        "local_title": "Sur ce poste",
+        "local_body": "Un modèle tourne sur votre poste. Rien ne sort de la machine.",
+        "server_title": "Utiliser un serveur",
+        "server_body": "Le serveur d'IA de votre organisation, ou celui que vous utilisez déjà."
+      },
+      "server": {
+        "address_label": "Adresse du serveur",
+          "address_hint": "L'adresse que le serveur donne à ses clients, avec http:// ou https:// et son port, par exemple {example}.",
+        "key_label": "Clé",
+        "key_hint": "Seulement si le serveur en demande une. Apollia la garde avec ses secrets, jamais en clair dans sa configuration.",
+        "test": "Tester",
+        "testing": "Test en cours…",
+        "models_label": "Modèles du serveur",
+        "models_found": "{count, plural, one {Le serveur répond et propose # modèle.} other {Le serveur répond et propose # modèles.}} Choisissez celui que vos agents utiliseront.",
+        "chosen": "{model} est le modèle par défaut de vos agents, sur {address}.",
+        "error": {
+          "invalid_address_title": "Cette adresse n'est pas complète",
+          "invalid_address_body": "Elle doit commencer par http:// ou https://, suivie du nom du serveur et de son port.",
+          "unreachable_title": "Le serveur ne répond pas",
+          "unreachable_body": "Vérifiez que le serveur est démarré, que l'adresse et le port sont les bons, et que ce poste peut le joindre sur le réseau.",
+          "key_refused_title": "Le serveur refuse la clé",
+          "key_refused_body": "Vérifiez la clé : elle manque, elle est mal recopiée ou elle n'est plus valable.",
+          "not_openai_compatible_title": "Cette adresse ne répond pas comme un serveur d'IA",
+          "not_openai_compatible_body": "Quelque chose répond, mais sans liste de modèles. Vérifiez l'adresse : il faut celle de l'interface du serveur, pas celle de sa page d'accueil.",
+          "policy_title": "La politique de votre organisation refuse ce serveur",
+          "policy_body": "Utilisez un serveur que votre organisation autorise, ou voyez avec la personne qui gère Apollia chez vous.",
+          "no_models_title": "Le serveur ne propose aucun modèle",
+          "no_models_body": "Il répond, mais sa liste est vide. Installez ou chargez un modèle sur le serveur, puis testez de nouveau.",
+          "save_title": "Le serveur n'a pas pu être enregistré",
+          "save_body": "Le modèle par défaut n'a pas changé. Choisissez de nouveau le modèle ; si cela persiste, testez de nouveau le serveur.",
+          "other_title": "Le test n'a pas abouti",
+          "other_body": "Vérifiez l'adresse et la clé, puis testez de nouveau."
+        }
+      },
       "download_failed": "Le téléchargement a échoué.",
       "memory_breakdown": "Nécessite {total} Go : {weights} Go de poids, {cache} Go de cache de contexte et {overhead} Go pour le moteur",
       "memory_breakdown_approx": "Nécessite environ {total} Go : {weights} Go de poids, environ {cache} Go de cache de contexte et {overhead} Go pour le moteur",
@@ -3479,9 +3514,9 @@
       "caveat_no_pre_tokenizer": "Aucun tokeniseur déclaré ; le moteur utilisera celui par défaut",
       "recommend_loading": "Mesure de votre matériel et vérification des modèles",
       "recommend_unreachable_title": "HuggingFace injoignable",
-      "recommend_unreachable_body": "Le catalogue des modèles est récupéré en direct : il n'y a donc rien à afficher pour le moment. Vous pouvez toujours importer un modèle depuis le disque ou utiliser un fournisseur cloud.",
+      "recommend_unreachable_body": "Le catalogue des modèles est récupéré en direct : il n'y a donc rien à afficher pour le moment. Vous pouvez toujours importer un modèle depuis le disque ou utiliser un serveur.",
       "recommend_empty_title": "Aucun modèle sélectionné ne tient sur cette machine",
-      "recommend_empty_body": "Tous les modèles que nous sélectionnons demandent plus de mémoire que cette machine n'en a de disponible. Un fournisseur cloud conviendra, tout comme un modèle plus petit importé depuis le disque.",
+      "recommend_empty_body": "Tous les modèles que nous sélectionnons demandent plus de mémoire que cette machine n'en a de disponible. Un serveur conviendra, tout comme un modèle plus petit importé depuis le disque.",
       "recommend_retry": "Réessayer",
       "recommend_measured_on": "Mesuré sur {cpu} avec {ram} Go de RAM",
       "no_tool_calling_badge": "Sans outils",
@@ -5380,5 +5415,88 @@
       "journal_unsigned": "Le journal s'est ouvert sans sa clé de signature",
       "journal_export_failed": "L'export quotidien du journal a échoué"
     }
+  },
+  "batch_launch": {
+    "action": "Traiter un lot",
+    "chat_action": "Traiter chaque ligne",
+    "title": "Traiter un lot avec « {name} »",
+    "title_no_agent": "Traiter un lot",
+    "legend": "L'agent reçoit les éléments de la source un par un. Chaque élément est une demande à part entière.",
+    "agent": {
+      "title": "Agent",
+      "choose": "Choisir un agent"
+    },
+    "source": {
+      "title": "Source",
+      "change": "Changer de source",
+      "pick_file": "Choisir un fichier…",
+      "file_filter": "Fichier Excel ou CSV",
+      "unread_only": "Messages non lus seulement",
+      "unreadable": "Les sources n'ont pas pu être lues : {reason}",
+      "blocked": {
+        "folder_unread": "Un lot ne lit pas encore un dossier fichier par fichier.",
+        "file_not_table": "Ce fichier n'est ni un classeur ni un CSV.",
+        "mailbox_unknown": "Cette boîte mail n'est pas rattachée à une connexion lisible."
+      }
+    },
+    "family": {
+      "table": {
+        "name": "Fichier Excel ou CSV",
+        "item": "Une ligne du classeur devient un élément",
+        "none": "Aucun fichier parmi vos sources. Choisissez-en un sur ce poste."
+      },
+      "folder": {
+        "name": "Dossier",
+        "item": "Un fichier du dossier devient un élément",
+        "none": "Aucun dossier parmi vos sources."
+      },
+      "mail": {
+        "name": "Boîte mail",
+        "item": "Un message reçu devient un élément",
+        "none": "Aucune boîte mail parmi vos sources."
+      }
+    },
+    "results": {
+      "title": "Résultats",
+      "copy": "Dans une copie du fichier, avec les colonnes de l'agent",
+      "original": "Dans le fichier d'origine, après une sauvegarde",
+      "original_unavailable": "Le fichier d'origine ne peut être modifié que pour un classeur .xlsx ou .xlsm.",
+      "columns": "Colonnes ajoutées",
+      "columns_hint": "Une colonne par champ que l'agent rend, séparées par des virgules : par exemple Catégorie, Urgence. Une réponse sans champ va entière dans la première.",
+      "default_column": "Résultat"
+    },
+    "accesses": {
+      "title": "Accès à accorder pour la durée du lot",
+      "none": "Aucun : cet agent ne demande aucun accès sensible.",
+      "no_agent": "Choisissez un agent pour voir ses accès sensibles.",
+      "rule": "Accordés jusqu'à la fin du lot, puis retirés. Sans accord, l'élément concerné attend votre décision dans À valider, et le lot continue.",
+      "asked_each_time": "Demandé à chaque usage : aucun accord de lot ne le couvre.",
+      "family": {
+        "read_personal": "Lire des données personnelles",
+        "write_or_delete": "Écrire ou supprimer",
+        "send_external": "Envoyer vers l'extérieur",
+        "execute_code": "Exécuter du code",
+        "unclassified": "Accès non classé"
+      }
+    },
+    "threshold": {
+      "title": "Seuil d'échecs",
+      "label": "Interrompre le lot après",
+      "failures": "{count} échecs",
+      "never": "Ne jamais interrompre",
+      "hint": "Par défaut, le lot s'interrompt après 10 échecs. Les éléments en échec restent prêts à être relancés."
+    },
+    "refusal": {
+      "agent_missing": "Choisissez un agent : le lot ne part pas sans lui.",
+      "source_missing": "Choisissez une source : le lot ne part pas sans elle.",
+      "source_blocked": "Cette source ne peut pas être lue par un lot.",
+      "columns_missing": "Nommez au moins une colonne pour les résultats.",
+      "columns_duplicate": "Deux colonnes de résultats portent le même nom.",
+      "columns_too_many": "Un lot ajoute 32 colonnes au plus."
+    },
+    "ready": "Les éléments seront confiés à l'agent, un par un.",
+    "confirm": "Lancer le lot",
+    "launching": "Lancement…",
+    "launched": "Lot lancé : {count, plural, one {# élément} other {# éléments}}."
   }
 }

@@ -472,7 +472,13 @@ describe("OnboardingAiSetup - recognition language data", () => {
 // which are settings and not questions of a first launch.
 
 describe("OnboardingAiSetup - the step cannot be passed", () => {
-  const NOTHING = { probing: false, engineWired: false, backendCount: 0, downloadInFlight: false };
+  const NOTHING = {
+    probing: false,
+    engineWired: false,
+    backendCount: 0,
+    serverChosen: false,
+    downloadInFlight: false,
+  };
 
   test("without a model or a server, continue stays closed", () => {
     // GIVEN a machine with no engine wired, no backend and no download
@@ -487,6 +493,7 @@ describe("OnboardingAiSetup - the step cannot be passed", () => {
     // THEN each one is enough on its own
     expect(canContinueAiStep({ ...NOTHING, engineWired: true })).toBe(true);
     expect(canContinueAiStep({ ...NOTHING, backendCount: 1 })).toBe(true);
+    expect(canContinueAiStep({ ...NOTHING, serverChosen: true })).toBe(true);
     expect(canContinueAiStep({ ...NOTHING, downloadInFlight: true })).toBe(true);
   });
 
