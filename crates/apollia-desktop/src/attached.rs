@@ -64,6 +64,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_trashed_chat_sessions",
     "restore_chat_session",
     "trash_chat_session",
+    // The folders of the conversation list, and the search in the messages.
+    "create_chat_folder",
+    "delete_chat_folder",
+    "list_chat_folders",
+    "move_chat_session_to_folder",
+    "rename_chat_folder",
+    "search_chat_messages",
     // The agents and the models the selector of a conversation offers.
     "list_chat_targets",
     // The model calls behind the total of one answer.

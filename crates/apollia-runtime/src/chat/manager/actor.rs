@@ -99,6 +99,19 @@ impl ChatSessionManager {
                 ChatCommand::ListTrashedSessions { reply } => {
                     let _ = reply.send(self.handle_list_trashed_sessions());
                 }
+                ChatCommand::Folders { action, reply } => {
+                    let _ = reply.send(match action {
+                        Some(action) => self.handle_folder_action(action),
+                        None => self.repository.list_folders(),
+                    });
+                }
+                ChatCommand::SearchMessages {
+                    query,
+                    limit,
+                    reply,
+                } => {
+                    let _ = reply.send(self.repository.search_messages(&query, limit));
+                }
                 ChatCommand::RenameSession {
                     session_id,
                     title,

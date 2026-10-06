@@ -4480,6 +4480,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/folders`, the folders in the order of
+         *     the list, each with the conversations it holds.
+         */
+        get: operations["list_chat_folders"];
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/folders`, create a folder, placed
+         *     after the existing ones.
+         */
+        post: operations["create_chat_folder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/folders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Handler for `PUT /api/v1/sessions/folders/{id}`, rename a folder. */
+        put: operations["rename_chat_folder"];
+        post?: never;
+        /**
+         * Handler for `DELETE /api/v1/sessions/folders/{id}`, remove a folder. Its
+         *     conversations are kept and go back out of any folder.
+         */
+        delete: operations["delete_chat_folder"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/plan-mode-default": {
         parameters: {
             query?: never;
@@ -4509,6 +4554,28 @@ export interface paths {
          * @description Query param `?limit=N` (default 10, max 50).
          */
         get: operations["list_recent_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/search`, the conversations whose
+         *     messages contain every word of `q`, the best match first, each with an
+         *     excerpt. A word is matched from its start, and a conversation in the
+         *     trash is never answered.
+         */
+        get: operations["search_chat_messages"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4627,6 +4694,26 @@ export interface paths {
          *     every message it holds.
          */
         post: operations["erase_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/sessions/{id}/folder`, put the conversation in a
+         *     folder, or out of any folder.
+         */
+        put: operations["set_session_folder"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6929,6 +7016,20 @@ export interface components {
             /** @description Tool that required approval. */
             tool_name: string;
         };
+        /** @description A folder of the conversation list. */
+        ChatFolder: {
+            /** @description Folder identifier. */
+            id: string;
+            /** @description Name the user gave it. */
+            name: string;
+            /**
+             * Format: int64
+             * @description Place in the list, the lowest first.
+             */
+            position: number;
+            /** @description The conversations in the folder, the ones in the trash left out. */
+            session_ids: string[];
+        };
         /**
          * @description Snapshot of a session's plan plus its current plan-mode phase.
          *
@@ -7928,6 +8029,14 @@ export interface components {
              */
             error: string;
         };
+        /**
+         * @description Body of `POST /api/v1/sessions/folders` and of
+         *     `PUT /api/v1/sessions/folders/{id}`.
+         */
+        FolderNameBody: {
+            /** @description Name of the folder: not blank, 100 characters at most. */
+            name: string;
+        };
         /** @description Request body for `POST /api/v1/sessions/:id/fork`. */
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
@@ -8924,6 +9033,19 @@ export interface components {
             content: string;
             /** @description Role of the message sender. */
             role: string;
+        };
+        /** @description A conversation that contains the words searched. */
+        MessageSearchHit: {
+            /** @description Agent of the conversation, when it has one. */
+            agent_name?: string | null;
+            /** @description ISO-8601 creation timestamp of the conversation. */
+            created_at: string;
+            /** @description The passage of the best matching message, on one line. */
+            excerpt: string;
+            /** @description Session identifier. */
+            session_id: string;
+            /** @description Title the user or the model gave the conversation, when it has one. */
+            title?: string | null;
         };
         /** @description One item the migration did not carry over. */
         MigrationIssue: {
@@ -10304,6 +10426,14 @@ export interface components {
         ServersListResponse: {
             /** @description Every declared server, sorted by name. */
             servers: components["schemas"]["ServerResponse"][];
+        };
+        /** @description Body of `PUT /api/v1/sessions/{id}/folder`. */
+        SessionFolderBody: {
+            /**
+             * @description The folder the conversation goes in; `null` takes it out of any
+             *     folder.
+             */
+            folder_id?: string | null;
         };
         /**
          * @description Aggregated metrics for a chat session.
@@ -22615,6 +22745,168 @@ export interface operations {
             };
         };
     };
+    list_chat_folders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The folders of the conversation list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatFolder"][];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_chat_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderNameBody"];
+            };
+        };
+        responses: {
+            /** @description Folder created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatFolder"];
+                };
+            };
+            /** @description Blank or oversized name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    rename_chat_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Folder id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderNameBody"];
+            };
+        };
+        responses: {
+            /** @description Folder renamed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Blank or oversized name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Folder not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_chat_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Folder id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Folder removed, its conversations kept */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Folder not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_plan_mode_default: {
         parameters: {
             query?: never;
@@ -22662,6 +22954,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    search_chat_messages: {
+        parameters: {
+            query: {
+                /** @description The words searched in the messages */
+                q: string;
+                /** @description Most conversations answered (default 20, at most 50) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversations found, each with an excerpt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageSearchHit"][];
+                };
             };
             /** @description Chat subsystem unavailable */
             503: {
@@ -22967,6 +23293,49 @@ export interface operations {
                 content?: never;
             };
             /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_session_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionFolderBody"];
+            };
+        };
+        responses: {
+            /** @description Conversation moved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session or folder not found */
             404: {
                 headers: {
                     [name: string]: unknown;

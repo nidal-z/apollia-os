@@ -231,6 +231,7 @@ mod disabled;
 mod dispatcher;
 mod documents;
 mod exchange;
+mod folders;
 mod handle;
 mod handle_ext;
 mod images;
@@ -289,6 +290,7 @@ pub(in crate::chat::manager) fn package_executors(
 
 pub use agent_task::AgentTaskRun;
 pub use command::ChatCommand;
+pub use folders::FolderAction;
 pub use handle::ChatSessionManagerHandle;
 pub use types::{
     ChatPlanSnapshot, ChatToolsConfig, CreateSessionParams, InjectError, PauseError,

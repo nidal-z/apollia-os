@@ -24,8 +24,8 @@
     sessionSort,
     sidebarDensity,
     sidebarSessions,
-    type DecoratedSession,
   } from "$lib/stores/chatSessions";
+  import ConversationList from "../components/chat/ConversationList.svelte";
   import ConversationSortMenu from "../components/chat/ConversationSortMenu.svelte";
   import ConversationTrash from "../components/chat/ConversationTrash.svelte";
   import {
@@ -54,12 +54,10 @@
 
   // Operator design-system primitives - V3 Chat Refonte v2.
   import {
-    ConversationRow,
     Journal,
     PlanDagPanel,
     type JournalEvent,
     type JournalMode,
-    type ConversationState,
   } from "$lib/components/operator";
   import { llmJournalEvents, readGeneration } from "$lib/chat/generationStats";
   import { loadTurnCalls, turnCallsOf } from "$lib/chat/turnCalls.svelte";
@@ -273,32 +271,12 @@
   // Re-uses the existing `decoratedSessions` store: the SSE wiring stays
   // owned by `chatSessions` upstream - this view is purely presentational.
 
-  function relativeTime(iso: string | null | undefined): string {
-    if (!iso) return "-";
-    const d = new Date(iso).getTime();
-    if (Number.isNaN(d)) return "-";
-    const diffSec = Math.max(1, Math.round((Date.now() - d) / 1000));
-    if (diffSec < 60) return `${diffSec}s`;
-    const min = Math.round(diffSec / 60);
-    if (min < 60) return `${min}min`;
-    const h = Math.round(min / 60);
-    if (h < 24) return `${h}h`;
-    const day = Math.round(h / 24);
-    return `${day}j`;
-  }
-
-  function rowState(s: DecoratedSession, isSelected: boolean): ConversationState {
-    if (isSelected) return "active";
-    if (s.archived) return "archived";
-    if (s.status === "closed") return "closed";
-    if (s.pinned) return "pinned";
-    if (s.unread) return "unread";
-    return "default";
-  }
-
   const filteredSessions = $derived(
     sidebarSessions($decoratedSessions, sessionSearchQuery, $sessionSort),
   );
+  // Every conversation the list can show: a search in the messages may find
+  // one the title filter left out.
+  const listedSessions = $derived(sidebarSessions($decoratedSessions, "", $sessionSort));
 
   // Live agent activity events for the right Journal panel.
   // Source: `currentSession` (set by ChatConversation.applySessionDetail on every
@@ -528,7 +506,7 @@
       </Button>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto" data-testid="chat-active-list">
+    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="chat-active-list">
       {#if $connectionStatus === "connecting"}
         <div class="space-y-1 px-3 py-2">
           {#each { length: 4 } as _}
@@ -539,29 +517,18 @@
             </div>
           {/each}
         </div>
-      {:else if filteredSessions.length === 0}
-        <div class="px-4 py-6 text-center text-caption text-muted-foreground">
-          {#if sessionSearchQuery.trim()}
-            {$t("chat.no_results")}
-          {:else}
-            {$t("chat.no_sessions")}
-          {/if}
-        </div>
       {:else}
-        {#each filteredSessions as session (session.id)}
-          <ConversationRow
-            title={session.title ?? session.agent_name ?? $t("chat.untitled_session")}
-            lastMessage={session.last_message_preview ?? undefined}
-            timestamp={relativeTime(session.lastActivityAt)}
-            state={rowState(session, session.id === selectedSessionId)}
-            live={session.status === "processing"}
-            onclick={() => { navigateToSession(session.id); closeSessionsDrawer(); }}
-            onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
-            ondelete={() => void handleDeleteSession(session.id)}
-            onconfigure={() => { openConfig(session.id); closeSessionsDrawer(); }}
-            density={$sidebarDensity}
-          />
-        {/each}
+        <ConversationList
+          sessions={filteredSessions}
+          listed={listedSessions}
+          query={sessionSearchQuery}
+          {selectedSessionId}
+          density={$sidebarDensity}
+          onselect={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
+          onrename={(id, title) => void handleRenameSession(id, title)}
+          ondelete={(id) => void handleDeleteSession(id)}
+          onconfigure={(id) => { openConfig(id); closeSessionsDrawer(); }}
+        />
       {/if}
     </div>
     <button

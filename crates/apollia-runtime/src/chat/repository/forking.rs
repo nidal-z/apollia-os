@@ -166,6 +166,9 @@ impl ChatSessionRepository {
                 .map_err(|e| {
                     ChatError::InternalError(format!("create_fork_session copy message: {e}"))
                 })?;
+            Self::index_message(&tx, child_id, seq, &msg.role, &msg.content).map_err(|e| {
+                ChatError::InternalError(format!("create_fork_session index message: {e}"))
+            })?;
         }
 
         tx.commit()

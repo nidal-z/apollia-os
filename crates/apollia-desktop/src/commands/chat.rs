@@ -17,6 +17,7 @@ use crate::attached::{segment, RuntimeLink};
 /// the chat in `images`.
 pub(crate) mod conversations;
 pub mod export;
+pub mod folders;
 pub mod images;
 pub mod naming;
 mod remote;

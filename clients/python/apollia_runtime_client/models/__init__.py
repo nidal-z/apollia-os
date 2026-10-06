@@ -79,6 +79,7 @@ from .channel_delete_response import ChannelDeleteResponse
 from .channel_response import ChannelResponse
 from .channel_response_config import ChannelResponseConfig
 from .chat_approval_history_entry import ChatApprovalHistoryEntry
+from .chat_folder import ChatFolder
 from .chat_plan_snapshot import ChatPlanSnapshot
 from .chat_plan_snapshot_plan_type_0 import ChatPlanSnapshotPlanType0
 from .chat_request import ChatRequest
@@ -194,6 +195,7 @@ from .fail_closed_type_2_cause import FailClosedType2Cause
 from .fire_response import FireResponse
 from .fit_dto import FitDto
 from .folder_error_body import FolderErrorBody
+from .folder_name_body import FolderNameBody
 from .fork_session_request import ForkSessionRequest
 from .generate_next_steps_body import GenerateNextStepsBody
 from .generate_title_body import GenerateTitleBody
@@ -300,6 +302,7 @@ from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
 from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
+from .message_search_hit import MessageSearchHit
 from .migration_issue import MigrationIssue
 from .migration_report import MigrationReport
 from .migration_status import MigrationStatus
@@ -440,6 +443,7 @@ from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .server_token_view import ServerTokenView
 from .servers_list_response import ServersListResponse
+from .session_folder_body import SessionFolderBody
 from .session_metrics import SessionMetrics
 from .session_model_capabilities import SessionModelCapabilities
 from .session_workspace import SessionWorkspace
@@ -670,6 +674,7 @@ __all__ = (
     "ChannelResponse",
     "ChannelResponseConfig",
     "ChatApprovalHistoryEntry",
+    "ChatFolder",
     "ChatPlanSnapshot",
     "ChatPlanSnapshotPlanType0",
     "ChatRequest",
@@ -785,6 +790,7 @@ __all__ = (
     "FireResponse",
     "FitDto",
     "FolderErrorBody",
+    "FolderNameBody",
     "ForkSessionRequest",
     "GeneratedTitle",
     "GenerateNextStepsBody",
@@ -891,6 +897,7 @@ __all__ = (
     "MemorySearchResultView",
     "MemoryWiped",
     "MessageDto",
+    "MessageSearchHit",
     "MigrationIssue",
     "MigrationReport",
     "MigrationStatus",
@@ -1027,6 +1034,7 @@ __all__ = (
     "ServerResponse",
     "ServersListResponse",
     "ServerTokenView",
+    "SessionFolderBody",
     "SessionMetrics",
     "SessionModelCapabilities",
     "SessionWorkspace",

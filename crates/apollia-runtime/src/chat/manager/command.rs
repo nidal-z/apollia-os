@@ -141,6 +141,23 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<Vec<crate::chat::repository::TrashedSession>, ChatError>>,
     },
+    /// Read the folders of the conversation list, after applying `action`
+    /// when one is given.
+    Folders {
+        /// The change to make first, `None` for a plain read.
+        action: Option<super::folders::FolderAction>,
+        /// Response channel: the folders afterwards, or the created one alone.
+        reply: oneshot::Sender<Result<Vec<crate::chat::repository::ChatFolder>, ChatError>>,
+    },
+    /// Search the content of the messages.
+    SearchMessages {
+        /// The words typed.
+        query: String,
+        /// Most conversations answered.
+        limit: usize,
+        /// Response channel: the conversations found, the best match first.
+        reply: oneshot::Sender<Result<Vec<crate::chat::repository::MessageSearchHit>, ChatError>>,
+    },
     /// Rename a session (set a user-defined title).
     RenameSession {
         /// Target session.
