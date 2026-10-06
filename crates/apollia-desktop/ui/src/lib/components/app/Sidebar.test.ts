@@ -1,4 +1,6 @@
 import { describe, test, expect, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { render as renderToString } from "svelte/server";
 import { locale, waitLocale } from "svelte-i18n";
 
@@ -27,6 +29,11 @@ import Sidebar, {
   visibleSidebarRoutes,
 } from "./Sidebar.svelte";
 import { developerMode } from "$lib/stores/developerMode";
+import { invoke } from "@tauri-apps/api/core";
+import type { PendingDecision, PendingKind } from "$lib/ipc/pendingDecisions";
+import { refreshPendingDecisions } from "$lib/stores/pendingDecisions";
+import { pendingApprovals } from "$lib/stores/hitl";
+import { pendingChatApprovals } from "$lib/stores/chat";
 import { DEVELOPER_ROUTES } from "$lib/navigation/developerRoutes";
 import glossary from "$lib/i18n/glossary.json";
 import en from "$lib/i18n/en.json";
@@ -304,5 +311,81 @@ describe("Sidebar - the rendered developer group", () => {
     expect(html.indexOf('data-testid="nav-memory"')).toBeGreaterThan(observability);
     expect(html).toContain('aria-labelledby="sidebar-developer-group-title"');
     expect(html).toContain(">Developer mode</span>");
+  });
+});
+
+function waiting(kind: PendingKind): PendingDecision {
+  return {
+    id: `${kind}-1`,
+    kind,
+    agentId: "agent",
+    summary: "Something is asked.",
+    access: null,
+    family: null,
+    answers: kind === "question" ? ["answer"] : ["once", "refuse"],
+    questions: null,
+    allowOther: false,
+    origin: {},
+    askedAt: null,
+  };
+}
+
+/** Publishes `items` as the list of decisions the runtime holds. */
+async function runtimeLists(items: PendingDecision[]): Promise<void> {
+  vi.mocked(invoke).mockImplementationOnce(async () => ({ items }));
+  await refreshPendingDecisions();
+}
+
+/** The count drawn beside the review entry, or null when none is drawn. */
+function reviewCount(html: string): string | null {
+  return /data-testid="nav-inbox-count">([^<]*)</.exec(html)?.[1] ?? null;
+}
+
+describe("Sidebar - the count of what waits for the user", () => {
+  test("a list with one item of each kind shows 4", async () => {
+    // GIVEN a consent, a paused task, a batch item and a question waiting
+    await runtimeLists([
+      waiting("consent"),
+      waiting("task_pause"),
+      waiting("batch_item"),
+      waiting("question"),
+    ]);
+
+    // WHEN the sidebar is drawn
+    const html = await renderSidebar(false);
+
+    // THEN the review entry counts the four of them
+    expect(reviewCount(html)).toBe("4");
+  });
+
+  test("the count is the length of the list, whatever the event stores hold", async () => {
+    // GIVEN an empty list, while the stores the live events feed still hold
+    // two paused tasks and a consent
+    await runtimeLists([]);
+    pendingApprovals.set([{}, {}] as never);
+    pendingChatApprovals.set([{}] as never);
+
+    // WHEN the sidebar is drawn
+    const html = await renderSidebar(false);
+    pendingApprovals.set([]);
+    pendingChatApprovals.set([]);
+
+    // THEN no count is drawn: nothing is added to the list
+    expect(reviewCount(html)).toBeNull();
+  });
+
+  test("the sidebar source holds one formula for that count", () => {
+    // GIVEN the source of the sidebar
+    const source = readFileSync(
+      fileURLToPath(new URL("./Sidebar.svelte", import.meta.url)),
+      "utf8",
+    );
+
+    // WHEN looking for the counters it used to add up
+    // THEN none is read any more, and the shared count is
+    for (const former of ["pendingCount", "pendingChatApprovalCount", "pendingUserInputCount"]) {
+      expect(source).not.toContain(former);
+    }
+    expect(source).toContain("$toReviewCount");
   });
 });

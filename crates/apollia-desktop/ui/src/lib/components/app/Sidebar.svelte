@@ -90,13 +90,9 @@
   import { t } from "svelte-i18n";
   import { currentRoute, navigateTo, sidebarRoute } from "$lib/stores/navigation";
   import { sidebarState, drawerOpen, layoutActions } from "$lib/stores/layout";
-  import { pendingCount } from "$lib/stores/hitl";
-  import {
-    activeChatCount,
-    pendingChatApprovalCount,
-    pendingUserInputCount,
-    openNewChatRequested,
-  } from "$lib/stores/chat";
+  import { onMount } from "svelte";
+  import { activeChatCount, openNewChatRequested } from "$lib/stores/chat";
+  import { toReviewCount, watchPendingDecisions } from "$lib/stores/pendingDecisions";
   import { developerMode } from "$lib/stores/developerMode";
   import { navPosition } from "$lib/stores/chatAppearance";
   import { navSide } from "$lib/layout/navSide";
@@ -128,9 +124,9 @@
   // The entry marked: the one the screen shown belongs to.
   const shownEntry = $derived(sidebarRoute($currentRoute));
 
-  const approvalsCount = $derived(
-    $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount,
-  );
+  // What waits for the user is counted in one place, over the list the review
+  // screen shows.
+  onMount(() => watchPendingDecisions());
 
   let drawerRef: HTMLElement | null = $state(null);
   const side = $derived(navSide($navPosition));
@@ -177,7 +173,7 @@
 
   function getBadgeCount(badge: string): number {
     if (badge === "chat") return $activeChatCount;
-    if (badge === "approvals") return approvalsCount;
+    if (badge === "approvals") return $toReviewCount;
     return 0;
   }
 </script>

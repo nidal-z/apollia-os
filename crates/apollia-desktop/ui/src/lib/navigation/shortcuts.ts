@@ -231,6 +231,16 @@ export function comboFor(entry: ShortcutEntry, mac = isMacPlatform()): string {
   return mac ? entry.combo.mac : entry.combo.win;
 }
 
+/**
+ * The keycaps of a registered shortcut on this system, or on the one given:
+ * `keycapsFor("palette.open")` is ⌘ K on macOS, Ctrl K on Windows and Linux.
+ * An id the registry does not hold has no keycap.
+ */
+export function keycapsFor(id: string, mac = isMacPlatform()): string[] {
+  const entry = SHORTCUTS.find((e) => e.id === id);
+  return entry ? splitCombo(comboFor(entry, mac)) : [];
+}
+
 /** Split a chord into its individual keycaps (e.g. "⌘+⇧+P" → ["⌘","⇧","P"]). */
 export function splitCombo(combo: string): string[] {
   return combo

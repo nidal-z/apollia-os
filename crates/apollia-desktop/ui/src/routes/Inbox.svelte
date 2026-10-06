@@ -46,15 +46,16 @@
   import { listPendingApprovals, listPendingUserInputs } from "$lib/ipc/inbox";
   import {
     decidePendingDecision,
-    listPendingDecisions,
     type DecideRequest,
     type PendingDecision,
   } from "$lib/ipc/pendingDecisions";
+  import { pendingDecisions, refreshPendingDecisions } from "$lib/stores/pendingDecisions";
 
   /** How often the list is read again while the screen is open. */
   const REFRESH_MS = 15_000;
 
-  let items = $state<PendingDecision[]>([]);
+  // The list the sidebar counts: one read, shared, so the two always agree.
+  const items = $derived($pendingDecisions);
   let loading = $state(true);
   let error = $state<unknown>(null);
   let filter = $state<ReviewFilter>("all");
@@ -126,8 +127,7 @@
 
   async function load(): Promise<void> {
     try {
-      const listed = await listPendingDecisions();
-      items = listed;
+      const listed = await refreshPendingDecisions();
       error = null;
       // An item answered elsewhere meanwhile has nothing left to send.
       const present = new Set(listed.map((item) => item.id));
