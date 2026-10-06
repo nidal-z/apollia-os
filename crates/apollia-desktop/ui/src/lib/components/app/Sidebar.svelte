@@ -1,11 +1,11 @@
 <script lang="ts" module>
   import type { Route } from "$lib/stores/navigation";
   import {
-    LayoutDashboard, MessageSquare, Bot, ListChecks, ShieldCheck,
+    LayoutDashboard, MessageSquare, Bot, ShieldCheck,
     Repeat, Brain, Database, Activity, Mic, Library, ScrollText,
   } from "lucide-svelte";
 
-  type Badge = "none" | "chat" | "tasks" | "approvals";
+  type Badge = "none" | "chat" | "approvals";
 
   /** A primary entry of the sidebar; `developer` hides it with the mode off. */
   export interface PrimaryNavEntry {
@@ -23,7 +23,6 @@
     { route: "dashboard"      as Route, Icon: LayoutDashboard, labelKey: "nav.sidebar.dashboard",      badge: "none"      },
     { route: "chat"           as Route, Icon: MessageSquare,   labelKey: "nav.sidebar.chat",           badge: "chat"      },
     { route: "agents"         as Route, Icon: Bot,             labelKey: "nav.sidebar.agents",         badge: "none"      },
-    { route: "tasks"          as Route, Icon: ListChecks,      labelKey: "nav.sidebar.tasks",          badge: "tasks"     },
     { route: "library"        as Route, Icon: Library,         labelKey: "nav.sidebar.library",        badge: "none"      },
     { route: "automations"    as Route, Icon: Repeat,          labelKey: "nav.sidebar.automations",    badge: "none"      },
     { route: "inbox"          as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",          badge: "approvals" },
@@ -71,7 +70,6 @@
     pendingUserInputCount,
     openNewChatRequested,
   } from "$lib/stores/chat";
-  import { runningTasks, tasksRunningCount } from "$lib/stores/tasks";
   import { developerMode } from "$lib/stores/developerMode";
   import { resourceWidgetVisible } from "$lib/stores/developerSettings";
   import { whileShown } from "$lib/settings/resourceMonitor";
@@ -106,19 +104,6 @@
   const approvalsCount = $derived(
     $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount,
   );
-  const runningCount = $derived($runningTasks.length);
-  const inFlightCount = $derived($tasksRunningCount);
-
-  let pulseKey = $state(0);
-  let lastInFlight = 0;
-  $effect(() => {
-    if (inFlightCount !== lastInFlight) {
-      lastInFlight = inFlightCount;
-      pulseKey += 1;
-      const n = pulseKey;
-      setTimeout(() => { if (n === pulseKey) pulseKey = 0; }, 400);
-    }
-  });
 
   let drawerRef: HTMLElement | null = $state(null);
   let previouslyFocused: HTMLElement | null = null;
@@ -165,7 +150,6 @@
   function getBadgeCount(badge: string): number {
     if (badge === "chat") return $activeChatCount;
     if (badge === "approvals") return approvalsCount;
-    if (badge === "tasks") return inFlightCount;
     return 0;
   }
 </script>
@@ -235,8 +219,6 @@
             <span class="truncate">{label}</span>
             {#if badgeCount > 0}
               <span class="ml-auto min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-center text-overline font-semibold text-primary-foreground leading-none">{badgeCount}</span>
-            {:else if item.badge === "tasks" && runningCount > 0}
-              <span class="ml-auto flex h-2 w-2"><span class="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-primary opacity-60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span></span>
             {/if}
           </button>
         {/each}
@@ -311,7 +293,6 @@
     {#each primaryNav as item (item.route)}
       {@const isActive = shownEntry === item.route}
       {@const badgeCount = getBadgeCount(item.badge)}
-      {@const isPulse = item.badge === "tasks" && runningCount > 0}
       {@const label = $t(item.labelKey)}
       <div class="rail-item group relative mb-1">
         <button
@@ -329,11 +310,6 @@
           <item.Icon size={17} strokeWidth={1.5} />
           {#if badgeCount > 0}
             <span class="absolute -right-0.5 -top-0.5 min-w-3.5 rounded-full bg-primary px-1 py-px text-center text-overline font-semibold text-primary-foreground leading-none">{badgeCount > 9 ? "9+" : badgeCount}</span>
-          {:else if isPulse}
-            <span class="absolute right-0.5 top-0.5 flex h-1.5 w-1.5">
-              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
-              <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary"></span>
-            </span>
           {/if}
         </button>
         <!--

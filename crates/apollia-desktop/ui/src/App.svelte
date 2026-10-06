@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { openNewChatRequested } from "$lib/stores/chat";
   import { onMount } from "svelte";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { isLoading, t } from "svelte-i18n";
@@ -42,20 +41,6 @@
 
   function handleAncillaryKeydown(event: KeyboardEvent) {
     const mod = isMac ? event.metaKey : event.ctrlKey;
-    // Cmd/Ctrl+T: create a new task (navigates to /tasks and opens dialog).
-    if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "t") {
-      const target = event.target as HTMLElement | null;
-      const isEditing =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable);
-      if (isEditing) return;
-      event.preventDefault();
-      navigateTo("chat");
-      openNewChatRequested.set(Date.now());
-      return;
-    }
     // Cmd/Ctrl+Shift+A: toggle the artifacts tab of the context drawer.
     if (mod && event.shiftKey && !event.altKey && event.key.toLowerCase() === "a") {
       event.preventDefault();

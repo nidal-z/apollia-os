@@ -120,7 +120,6 @@
     "nav-memory",
     "nav-observability",
     "nav-settings",
-    "nav-tasks",
     "nav-transcriptions",
     "oauth-add-account-google",
     "oauth-add-account-microsoft",
@@ -165,18 +164,6 @@
     "settings-nav-stt",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
-    "task-detail-tab-output",
-    "task-detail-tab-overview",
-    "task-detail-tab-technical",
-    "task-detail-tab-trace",
-    "tasks-filter-all",
-    "tasks-filter-approval",
-    "tasks-filter-done",
-    "tasks-filter-error",
-    "tasks-filter-running",
-    "tasks-filter-todo",
-    "tasks-split-filter-all",
-    "tasks-split-filter-done",
     "theme-dark",
     "theme-light",
     "theme-system",
@@ -308,16 +295,6 @@
     {
       "kind": "waitFor",
       "testid": "agents-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "nav-tasks",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
       "timeoutMs": 3000
     },
     {
@@ -1371,12 +1348,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "tasks-page",
+      "testid": "agents-page",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "04f-sheet-task-row-opens-tasks"
+      "label": "04f-sheet-task-row-opens-agent-sheet"
     },
     {
       "kind": "goto",
@@ -5557,823 +5534,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-05-tasks-det"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-tasks-operator-list"
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-filter-bar"
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-filter-all"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-todo",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-filter-todo"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-running",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-filter-running"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-approval",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-filter-approval"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-done",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-filter-done"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-error",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-filter-error"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-table",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-tasks-populated"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-refresh",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-table",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "list_tasks",
-      "reject": "seeded tasks failure: list_tasks rejected by the recipe"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-refresh",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-load-error",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07a1-tasks-load-error (list_tasks rejected by a stub)"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-load-error-detail-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 150
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-load-error-detail",
-      "contains": "list_tasks rejected by the recipe"
-    },
-    {
-      "kind": "screenshot",
-      "label": "07a2-tasks-load-error-detail-open (the raw rejection text)"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-load-error-detail-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-load-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-load-error",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07a3-tasks-load-retry-still-failing (stub still armed)"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "list_tasks"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-load-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "tasks-load-error",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-table",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07a4-tasks-load-retried (seeded rows back after clearStubs)"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-new",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07b-assign-task-opens-agent-picker"
-    },
-    {
-      "kind": "press",
-      "key": "Escape",
-      "testid": "quickpicker-textarea",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 700,
-      "height": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-fab",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07c-tasks-fab-narrow (700 px: the md:hidden FAB is on screen)"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-fab",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "press",
-      "key": "Escape",
-      "testid": "quickpicker-textarea",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 1280,
-      "height": 800
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-task-detail-overview"
-    },
-    {
-      "kind": "expect",
-      "testid": "task-detail"
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-split-sidebar"
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-split-list"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "tasks-split-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "expect",
-      "testid": "task-overview-input"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-overview-output",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-split-filter-done",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-split-filter-done"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-split-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-detail-tab-output",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-output-tab",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-task-output"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "smart-output-raw-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "smart-output-raw-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "10b-task-output-raw (the seeded markdown output shown as source)"
-    },
-    {
-      "kind": "click",
-      "testid": "smart-output-raw-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "10c-task-output-formatted-again"
-    },
-    {
-      "kind": "click",
-      "testid": "task-detail-tab-trace",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-trace-tab",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-task-trace"
-    },
-    {
-      "kind": "click",
-      "testid": "task-detail-tab-overview",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-overview-input",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-back-to-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-back-to-list"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-running",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12a-running-task-detail"
-    },
-    {
-      "kind": "captureText",
-      "testid": "task-detail-title",
-      "as": "running-task-title"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-stop",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-stop",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "12b-running-task-stopped"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-back-to-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-error",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "screenshot",
-      "label": "12c-failed-task-retried"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-back-to-list",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-done",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-delete",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-delete",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-delete-confirm-cancel",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "task-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12d-delete-cancelled"
-    },
-    {
-      "kind": "click",
-      "testid": "task-delete",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-delete-confirm-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "task-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12e-done-task-deleted"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13-tasks-builder-list"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-task-detail-builder"
-    },
-    {
-      "kind": "click",
-      "testid": "task-detail-tab-technical",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-technical-tab",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "15-task-technical-builder"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "16-back-operator"
-    },
-    {
-      "kind": "screenshot",
-      "label": "section-06-automations-det"
+      "label": "section-05-automations-det"
     },
     {
       "kind": "goto",
@@ -7432,7 +6593,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-07-inbox-det"
+      "label": "section-06-inbox-det"
     },
     {
       "kind": "goto",
@@ -7938,7 +7099,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-08-notifications-det"
+      "label": "section-07-notifications-det"
     },
     {
       "kind": "goto",
@@ -8774,7 +7935,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-09-memory-det"
+      "label": "section-08-memory-det"
     },
     {
       "kind": "goto",
@@ -9602,7 +8763,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-10-connections-det"
+      "label": "section-09-connections-det"
     },
     {
       "kind": "goto",
@@ -12387,7 +11548,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-11-observability-det"
+      "label": "section-10-observability-det"
     },
     {
       "kind": "goto",
@@ -13183,7 +12344,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-12-coach-det"
+      "label": "section-11-coach-det"
     },
     {
       "kind": "goto",
@@ -13545,7 +12706,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-13-settings-det"
+      "label": "section-12-settings-det"
     },
     {
       "kind": "goto",
@@ -16780,7 +15941,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-14-profile-det"
+      "label": "section-13-profile-det"
     },
     {
       "kind": "goto",
@@ -17261,7 +16422,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-15-llm-det"
+      "label": "section-14-llm-det"
     },
     {
       "kind": "goto",
@@ -18101,7 +17262,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-16-model-hub-det"
+      "label": "section-15-model-hub-det"
     },
     {
       "kind": "goto",
@@ -18796,7 +17957,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-17-stt-det"
+      "label": "section-16-stt-det"
     },
     {
       "kind": "goto",
@@ -19603,7 +18764,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-18-tools-det"
+      "label": "section-17-tools-det"
     },
     {
       "kind": "goto",
@@ -20568,7 +19729,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-19-permissions-det"
+      "label": "section-18-permissions-det"
     },
     {
       "kind": "goto",
@@ -21239,7 +20400,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-20-journal-det"
+      "label": "section-19-journal-det"
     },
     {
       "kind": "goto",

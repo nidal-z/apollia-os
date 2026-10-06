@@ -17,6 +17,8 @@
  *    sidebar on the Guide tab, or collapses it when the guide is shown.
  *  - `companion.focus` (Cmd/Ctrl+Shift+C): opens the Guide tab and focuses
  *    its input.
+ *  - `chat.new_conversation` (Cmd/Ctrl+T): shows the chat and starts a new
+ *    conversation, unless the focus is in a text field.
  *  - `settings.engines` (Cmd/Ctrl+Shift+R) and `settings.hardware`
  *    (Cmd/Ctrl+Shift+H): open the settings window on the System group.
  *
@@ -29,8 +31,10 @@
  *  - `app.quit` (Cmd+Q)               -> native window manager
  */
 import { registerShortcutHandler } from "$lib/navigation/shortcutDispatcher";
+import { openNewChatRequested } from "$lib/stores/chat";
 import { commandPaletteOpen } from "$lib/stores/commandPalette";
 import { detailSidebar } from "$lib/stores/detailSidebar";
+import { navigateTo } from "$lib/stores/navigation";
 import { openSettingsWindow } from "$lib/stores/settingsWindow";
 import type { SettingsSubRoute } from "$lib/stores/settings";
 
@@ -66,6 +70,13 @@ export function registerGlobalShortcutHandlers(): () => void {
       // Operators expect the palette to open even while typing.
       allowInInput: true,
       handler: () => commandPaletteOpen.update((open) => !open),
+    }),
+    registerShortcutHandler({
+      id: "chat.new_conversation",
+      handler: () => {
+        navigateTo("chat");
+        openNewChatRequested.set(Date.now());
+      },
     }),
     registerShortcutHandler({
       id: "companion.toggle",

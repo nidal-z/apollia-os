@@ -127,8 +127,8 @@
   function navigateToInbox() {
     navigateTo("inbox");
   }
-  function navigateToTasks() {
-    navigateTo("tasks");
+  function navigateToJournal() {
+    navigateTo("journal");
   }
   function navigateToChat() {
     navigateTo("chat");
@@ -193,7 +193,7 @@
         />
       </div>
 
-      <DeliverablesCard items={deliverableRows} onOpen={navigateToTasks} />
+      <DeliverablesCard items={deliverableRows} onOpen={navigateToJournal} />
 
       <AgentsAtWorkCard
         agents={agentsAtWork}
@@ -202,7 +202,7 @@
       />
     </div>
 
-    <RecentActivityStrip items={activityRows} onOpen={navigateToTasks} />
+    <RecentActivityStrip items={activityRows} onOpen={navigateToJournal} />
   {/if}
 </div>
 

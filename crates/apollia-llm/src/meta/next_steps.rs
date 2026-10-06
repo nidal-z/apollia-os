@@ -35,7 +35,6 @@ pub const MAX_NEXT_STEPS: usize = 3;
 const ALLOWED_ROUTES: &[&str] = &[
     "/dashboard",
     "/agents",
-    "/tasks",
     "/chat",
     "/automations",
     "/automations?wizard=open",
@@ -644,7 +643,7 @@ mod tests {
             {"title":"a","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/inbox"}}},
             {"title":"b","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/agents"}}},
             {"title":"c","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/chat"}}},
-            {"title":"d","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/tasks"}}}
+            {"title":"d","description":"d","action_button":{"label":"l","action":"navigate","payload":{"route":"/llm"}}}
         ]}"#;
         // WHEN it is parsed
         let steps = parse_steps(raw).expect("parse");

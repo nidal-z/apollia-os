@@ -16,7 +16,6 @@ import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 import {
   LayoutDashboard,
   Bot,
-  ListChecks,
   MessageSquare,
   ShieldCheck,
   Plug,
@@ -48,7 +47,6 @@ export const routeMeta: Record<Route, RouteMeta> = {
   agents: { labelKey: "nav.agents", parent: null, icon: Bot },
   batches: { labelKey: "batch_history.title", parent: "agents", icon: Layers },
   batch: { labelKey: "batch_view.title_loading", parent: "batches", icon: Layers },
-  tasks: { labelKey: "nav.tasks", parent: null, icon: ListChecks },
   chat: { labelKey: "nav.chat", parent: null, icon: MessageSquare },
   inbox: { labelKey: "nav.inbox", parent: null, icon: ShieldCheck },
   integrations: { labelKey: "nav.connections", parent: null, icon: Plug },

@@ -373,12 +373,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "tasks-page",
+      "testid": "agents-page",
       "timeoutMs": 10000
     },
     {
       "kind": "screenshot",
-      "label": "04f-sheet-task-row-opens-tasks"
+      "label": "04f-sheet-task-row-opens-agent-sheet"
     },
     {
       "kind": "goto",

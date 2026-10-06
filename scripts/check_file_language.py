@@ -318,7 +318,6 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-cli/src/commands/chat_stream.rs": 3,
     "crates/apollia-cli/src/commands/chat_stream/classify.rs": 1,
     "crates/apollia-cli/src/commands/run.rs": 2,
-    "crates/apollia-desktop/ui/src/lib/command-palette/actions.ts": 1,
     "crates/apollia-desktop/ui/tests/settings/hotkey-capture.spec.ts": 1,
     "crates/apollia-llm/src/meta/parse_automation.rs": 30,
     "crates/apollia-memory/src/lib.rs": 1,

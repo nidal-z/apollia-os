@@ -61,7 +61,6 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         "launch_workflow",
         "list_tasks",
         "get_task_timeline",
-        "cancel_task",
         "list_pending_approvals",
         "resume_task",
         "list_pending_user_inputs",
@@ -370,12 +369,12 @@ async fn test_a_task_already_gone_reads_as_a_refusal_with_its_status() {
         .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
 
-    // WHEN the attached arm cancels it
+    // WHEN the client asks for its cancellation
     let result = client
         .delete::<serde_json::Value>("/api/v1/tasks/t-1")
         .await;
 
-    // THEN the status survives, which is what turns it into `false`
+    // THEN the status survives, for the caller to read
     assert!(matches!(
         result,
         Err(AttachedError::Refused { status: 404, .. })
