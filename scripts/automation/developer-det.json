@@ -1,17 +1,35 @@
 {
-  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the model picker, the link back to the settings)",
+  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the server settings opened and CORS switched, a port that is not one, a port another program holds, the warning of a server on the local network without a token, the model picker, the link back to the settings)",
   "stopOnError": false,
   "notes": [
-    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte and components/developer/localServer.ts.",
+    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, ServerSettingsPanel.svelte, ServerSettingRow.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte and components/developer/localServer.ts and serverSettings.ts.",
     "The start and the stop are real: they reach the compatible server of the runtime of the seeded home, on the port of its [server] section (7772 unless the seed says otherwise). A machine where another program holds that port shows the taken-port error on the first start and reds the steps that wait for the address; that is the machine, not the product.",
     "The taken-port state is stubbed: start_local_server rejects with the LocalServerRefusal of crates/apollia-desktop/src/commands/local_server.rs (kind port_in_use). A field renamed there drifts here silently. The stub is cleared before the next start, which is real and clears the error.",
     "The copy button is clicked, not asserted: the clipboard of the webview may refuse a write that no user gesture started, and the copy itself is held by the Vitest suite.",
     "The picker of Load a model is opened and closed without choosing: the models of the seed are placeholders, and the loading window is played by llm-det.",
     "The book leaves the server stopped and the developer mode off, as it found them.",
-    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run."
+    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run.",
+    "The server settings are opened with the server stopped, so switching CORS writes [server] cors in the apollia.toml of the seeded home and reopens nothing; it is switched back before the panel closes. The panel is a popover: the click that opened it closes it.",
+    "The rows of the server settings take their test ids from the names of the list of rows in components/developer/serverSettings.ts (developer-server-setting-<name>, with -control and -help for their parts), so they are declared dynamic here; a row renamed there drifts here silently.",
+    "The taken port of the settings and the server on the local network are stubbed: start_local_server and restart_local_server answer the LocalServerView or the LocalServerRefusal of crates/apollia-desktop/src/commands/local_server.rs, so no listener is opened on the network of the machine playing the book and [server] serve_on_lan is never written. What is written for real, and written back: port 7773 then 7772, require_auth on then off. A field renamed in that view drifts here silently."
   ],
   "dynamicTestids": [
     "developer-server-error-port_in_use",
+    "developer-server-setting-allow-request-mcp",
+    "developer-server-setting-cors",
+    "developer-server-setting-cors-control",
+    "developer-server-setting-cors-help",
+    "developer-server-setting-jit-auto-unload",
+    "developer-server-setting-jit-idle",
+    "developer-server-setting-jit-idle-control",
+    "developer-server-setting-jit-keep-last",
+    "developer-server-setting-jit-loading",
+    "developer-server-setting-port",
+    "developer-server-setting-port-control",
+    "developer-server-setting-require-auth",
+    "developer-server-setting-require-auth-control",
+    "developer-server-setting-separate-reasoning",
+    "developer-server-setting-serve-on-lan",
     "nav-developer",
     "settings-nav-developer"
   ],
@@ -218,6 +236,385 @@
     },
     {
       "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-port"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-require-auth"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-active-tokens"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-manage-tokens"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-serve-on-lan"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-allow-request-mcp"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-cors"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-cors-help"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-jit-loading"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-jit-auto-unload"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-jit-idle"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-jit-keep-last"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-setting-separate-reasoning"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-setting-cors-control",
+      "checked": true
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-developer-server-settings-cors-on"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-setting-cors-control",
+      "checked": false
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "fill",
+      "testid": "developer-server-setting-port-control",
+      "text": "80"
+    },
+    {
+      "kind": "press",
+      "testid": "developer-server-setting-port-control",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-port-invalid",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-settings"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-developer-server-settings-port-invalid"
+    },
+    {
+      "kind": "fill",
+      "testid": "developer-server-setting-port-control",
+      "text": "7772"
+    },
+    {
+      "kind": "press",
+      "testid": "developer-server-setting-port-control",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-port-invalid",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "developer-server-setting-jit-idle-control",
+      "text": "1.5"
+    },
+    {
+      "kind": "press",
+      "testid": "developer-server-setting-jit-idle-control",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-minutes-invalid",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "developer-server-setting-jit-idle-control",
+      "text": "60"
+    },
+    {
+      "kind": "press",
+      "testid": "developer-server-setting-jit-idle-control",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-minutes-invalid",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_local_server",
+      "resolve": {
+        "running": true,
+        "port": 7772,
+        "serveOnLan": false,
+        "address": "http://127.0.0.1:7772",
+        "lastError": null,
+        "activeTokens": 0,
+        "imposedByPolicy": {
+          "serveOnLan": false,
+          "requireAuth": false,
+          "allowRequestMcp": false
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-toggle",
+      "checked": true
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-address",
+      "timeoutMs": 8000,
+      "contains": "http://127.0.0.1:7772"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "restart_local_server",
+      "reject": {
+        "kind": "port_in_use",
+        "message": "port 7773 is already in use by another program"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "developer-server-setting-port-control",
+      "text": "7773"
+    },
+    {
+      "kind": "press",
+      "testid": "developer-server-setting-port-control",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-port-taken",
+      "timeoutMs": 8000,
+      "contains": "7773"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-settings"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-error-port_in_use"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-developer-server-settings-port-taken"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "restart_local_server"
+    },
+    {
+      "kind": "fill",
+      "testid": "developer-server-setting-port-control",
+      "text": "7772"
+    },
+    {
+      "kind": "press",
+      "testid": "developer-server-setting-port-control",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-port-taken",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_local_server"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_local_server",
+      "resolve": {
+        "running": true,
+        "port": 7772,
+        "serveOnLan": true,
+        "address": "http://192.168.1.42:7772",
+        "lastError": null,
+        "activeTokens": 0,
+        "imposedByPolicy": {
+          "serveOnLan": false,
+          "requireAuth": false,
+          "allowRequestMcp": false
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "restart_local_server",
+      "resolve": {
+        "running": true,
+        "port": 7772,
+        "serveOnLan": true,
+        "address": "http://192.168.1.42:7772",
+        "lastError": null,
+        "activeTokens": 0,
+        "imposedByPolicy": {
+          "serveOnLan": false,
+          "requireAuth": false,
+          "allowRequestMcp": false
+        }
+      }
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-toggle",
+      "checked": true
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-lan-warning",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-address",
+      "timeoutMs": 4000,
+      "contains": "192.168.1.42"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-developer-server-lan-without-auth"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-lan-require-auth"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-lan-warning",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-setting-require-auth-control",
+      "checked": false
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-lan-warning",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_local_server"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "restart_local_server"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-toggle",
+      "checked": false
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-no-address",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-lan-warning",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testid": "developer-load-model"
     },
     {
@@ -227,7 +624,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04-developer-load-model-picker"
+      "label": "08-developer-load-model-picker"
     },
     {
       "kind": "click",

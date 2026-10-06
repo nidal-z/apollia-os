@@ -572,9 +572,10 @@ async fn test_a_start_refused_for_a_taken_port_keeps_its_status_attached() {
 
 #[test]
 fn test_the_local_server_of_the_developer_screen_passes_the_gate_attached() {
-    // GIVEN the three commands of the bar of the local server
+    // GIVEN the four commands of the bar of the local server
     let commands = [
         "get_local_server",
+        "restart_local_server",
         "start_local_server",
         "stop_local_server",
     ];

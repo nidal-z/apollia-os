@@ -34,7 +34,15 @@ const PORT = 7772;
 const ADDRESS = `http://127.0.0.1:${PORT}`;
 
 function view(running: boolean, lastError: string | null = null): LocalServerView {
-  return { running, port: PORT, serveOnLan: false, address: ADDRESS, lastError };
+  return {
+    running,
+    port: PORT,
+    serveOnLan: false,
+    address: ADDRESS,
+    lastError,
+    activeTokens: 0,
+    imposedByPolicy: { serveOnLan: false, requireAuth: false, allowRequestMcp: false },
+  };
 }
 
 /**

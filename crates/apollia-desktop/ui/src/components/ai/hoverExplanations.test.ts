@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import fr from "$lib/i18n/fr.json";
 import en from "$lib/i18n/en.json";
 import { CAPABILITIES, capabilityExplanationKey, capabilityLabelKey } from "./explanations";
+import { SERVER_SETTING_ROWS, SERVER_SETTINGS_TEXTS } from "../developer/serverSettings";
 
 /**
  * Every icon of capability and every badge of the AI screen explains itself on
@@ -14,8 +15,12 @@ import { CAPABILITIES, capabilityExplanationKey, capabilityLabelKey } from "./ex
  * The rule holds by construction: a capability is drawn by `CapabilityIcon`,
  * which reads its text from the capability, and a badge by `ExplainedBadge`,
  * whose `explanation` is required. This suite reads the sources of the screen
- * and refuses what would step around them. A story that adds a surface to the
+ * and refuses what would step around them. A change that adds a surface to the
  * AI screen adds its folder or file to `SCREEN_SOURCES`.
+ *
+ * The settings of the local server follow the same rule: a row is drawn by
+ * `ServerSettingRow`, whose `help` is required, and reads its text from the
+ * list of rows. The suite refuses a row without its text in either language.
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -96,6 +101,19 @@ export function unexplainedCapabilityIcons(src: string, file: string): number[] 
     if (!/(\scapability=|\{capability\})/.test(tag.attrs)) out.push(lineOf(src, tag.index));
   }
   return out;
+}
+
+/** The sources of the settings of the local server, relative to `src/`. */
+const SERVER_SETTINGS_SOURCES = [
+  "components/developer/ServerSettingsPanel.svelte",
+  "components/developer/ServerSettingRow.svelte",
+];
+
+/** Lines of a row of the server settings drawn without its explanation. */
+export function unexplainedSettingRows(src: string): number[] {
+  return openingTags(src, "ServerSettingRow")
+    .filter((tag) => !/\shelp=(\{[^}]*\S[^}]*\}|"[^"]*[^"\s][^"]*")/.test(tag.attrs))
+    .map((tag) => lineOf(src, tag.index));
 }
 
 function read(catalog: unknown, key: string): unknown {
@@ -183,5 +201,76 @@ describe("the AI screen explains every icon and badge on hover", () => {
     );
     // THEN none is missing
     expect(missing).toEqual([]);
+  });
+});
+
+describe("the settings of the local server explain every row on hover", () => {
+  const files = SERVER_SETTINGS_SOURCES.map((entry) => path.join(SRC, entry));
+
+  test("a row drawn without its explanation is found", () => {
+    // GIVEN a row without help, one with an empty help, and a correct one
+    const src = [
+      '<ServerSettingRow label="Port" testid="x" for="y">',
+      '<ServerSettingRow label="Port" help="" testid="x" for="y">',
+      '<ServerSettingRow label="Port" help={$t(item.help)} testid="x" for="y">',
+    ].join("\n");
+    // WHEN the unexplained rows are read
+    // THEN the first two are found
+    expect(unexplainedSettingRows(src)).toEqual([1, 2]);
+  });
+
+  test.each(files.map((f) => [path.relative(SRC, f), f]))(
+    "%s carries no native title and no row without its explanation",
+    (_name, file) => {
+      // GIVEN one source of the panel
+      const src = readFileSync(file, "utf8");
+      // WHEN its native titles and its rows are read
+      // THEN the system draws no tooltip there, and every row has its text
+      expect(nativeTitles(src)).toEqual([]);
+      expect(unexplainedSettingRows(src)).toEqual([]);
+    },
+  );
+
+  test("the row shows its explanation through the house tooltip, from a required text", () => {
+    // GIVEN the component every row goes through
+    const src = readFileSync(path.join(SRC, "components/developer/ServerSettingRow.svelte"), "utf8");
+    // WHEN its props and its markup are read
+    // THEN `help` is required, and the house `Tooltip` shows it on its "?"
+    expect(src).toMatch(/\n\s+help: string;/);
+    expect(src).not.toMatch(/help\?:/);
+    expect(src).toMatch(/<Tooltip\s+content=\{help\}/);
+    expect(src).toContain("triggerTestid={`${testid}-help`}");
+    // AND the panel draws its rows from the list alone
+    const panel = readFileSync(path.join(SRC, "components/developer/ServerSettingsPanel.svelte"), "utf8");
+    expect(openingTags(panel, "ServerSettingRow")).toHaveLength(1);
+    expect(panel).toContain("help={$t(item.help)}");
+  });
+
+  test.each([
+    ["fr", fr],
+    ["en", en],
+  ])("every row has its name and its explanation in %s", (_loc, catalog) => {
+    // GIVEN the rows of the panel
+    // WHEN their texts are read from the catalogue
+    const keys = [
+      ...SERVER_SETTING_ROWS.flatMap((row) => [row.label, row.help]),
+      SERVER_SETTINGS_TEXTS.helpLabel,
+      SERVER_SETTINGS_TEXTS.policyLockedHint,
+    ];
+    const missing = keys.filter((key) => {
+      const value = read(catalog, key);
+      return typeof value !== "string" || value.trim() === "";
+    });
+    // THEN none is missing
+    expect(SERVER_SETTING_ROWS.length).toBe(10);
+    expect(missing).toEqual([]);
+  });
+
+  test("the explanations differ between the two languages", () => {
+    // GIVEN the explanation of each row
+    // WHEN French and English are compared
+    const same = SERVER_SETTING_ROWS.filter((row) => read(fr, row.help) === read(en, row.help));
+    // THEN none was left untranslated
+    expect(same).toEqual([]);
   });
 });

@@ -1,10 +1,12 @@
-// The settings of the compatible server that two screens show: Settings >
-// Developer and the server settings of the Developer screen.
+// The settings of the compatible server, as the server settings of the
+// Developer screen show them all and Settings > Developer shows some.
 //
 // Each lives under one key of `[server]` in `apollia.toml`, read and written
-// through the shell, so both screens read this one store and write the same
-// key; the organization policy can impose any of them. The runtime reads them
-// at every request or every check, so a change applies without a restart.
+// through the shell, so every screen reads this one store and writes the same
+// key; the organization policy can impose any of them. The runtime reads the
+// loading and reasoning settings at every request or every check; the port,
+// the token check, the local network and CORS are read when the listener
+// opens, so a running server applies them once reopened.
 
 import { get, writable } from "svelte/store";
 import {
@@ -16,6 +18,11 @@ import {
 
 /** The dotted keys, one per setting, never repeated elsewhere. */
 export const SERVER_SETTING_KEYS = {
+  port: "server.port",
+  requireAuth: "server.require_auth",
+  serveOnLan: "server.serve_on_lan",
+  allowRequestMcp: "server.allow_request_mcp",
+  cors: "server.cors",
   jitLoading: "server.jit_loading",
   jitKeepLastOnly: "server.jit_keep_last_only",
   jitAutoUnload: "server.jit_auto_unload",
@@ -28,6 +35,11 @@ export type ServerSettingKey = (typeof SERVER_SETTING_KEYS)[keyof typeof SERVER_
 
 /** The value of each setting when no one wrote one, as the runtime defaults it. */
 export const SERVER_SETTING_DEFAULTS: Record<ServerSettingKey, boolean | number> = {
+  "server.port": 7772,
+  "server.require_auth": false,
+  "server.serve_on_lan": false,
+  "server.allow_request_mcp": false,
+  "server.cors": false,
   "server.jit_loading": true,
   "server.jit_keep_last_only": true,
   "server.jit_auto_unload": true,

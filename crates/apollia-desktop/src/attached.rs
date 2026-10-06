@@ -169,9 +169,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "remove_source",
     // The report of the migration of the former projects.
     "get_project_migration_report",
-    // The local server of the developer screen: its state, its start and its
-    // stop, over `/api/v1/server`.
+    // The local server of the developer screen: its state, its start, its
+    // stop and its reopening, over `/api/v1/server`.
     "get_local_server",
+    "restart_local_server",
     "start_local_server",
     "stop_local_server",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.

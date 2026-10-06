@@ -4,6 +4,7 @@
 //! - [`get_local_server`]: `GET /api/v1/server`
 //! - [`start_local_server`]: `POST /api/v1/server/start`
 //! - [`stop_local_server`]: `POST /api/v1/server/stop`
+//! - [`restart_local_server`]: `POST /api/v1/server/restart`
 //!
 //! The server lives in the runtime, never in this process: each command is a
 //! call to a runtime route, so it serves the embedded runtime and the daemon
@@ -19,6 +20,7 @@ use crate::commands::HttpFailure;
 const SERVER_PATH: &str = "/api/v1/server";
 const START_PATH: &str = "/api/v1/server/start";
 const STOP_PATH: &str = "/api/v1/server/stop";
+const RESTART_PATH: &str = "/api/v1/server/restart";
 
 /// The status the runtime answers when another program holds the port.
 const PORT_IN_USE_STATUS: u16 = 409;
@@ -38,6 +40,27 @@ pub struct LocalServerView {
     /// Why the last start failed, absent after a start that succeeded.
     #[serde(default)]
     pub last_error: Option<String>,
+    /// How many tokens of the server are in use.
+    #[serde(default)]
+    pub active_tokens: u64,
+    /// The settings of the server the organisation policy imposes.
+    #[serde(default)]
+    pub imposed_by_policy: PolicyLocks,
+}
+
+/// For each setting of the server a policy can fix, whether it does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyLocks {
+    /// The policy keeps the server on the machine.
+    #[serde(default)]
+    pub serve_on_lan: bool,
+    /// The policy requires a token on every request.
+    #[serde(default)]
+    pub require_auth: bool,
+    /// The policy refuses the MCP servers a request brings.
+    #[serde(default)]
+    pub allow_request_mcp: bool,
 }
 
 /// Why the server did not start.
@@ -101,6 +124,26 @@ pub async fn stop_local_server(state: State<'_, RuntimeLink>) -> Result<LocalSer
     parse_view(state.post_json(STOP_PATH, &serde_json::json!({})).await?)
 }
 
+/// Closes and reopens the local server so it applies its settings as they
+/// stand (port, local network, token check, CORS). A stopped server stays
+/// stopped.
+///
+/// Delegates to `POST /api/v1/server/restart`. Rejected as
+/// [`start_local_server`] is; a refused reopen leaves the server stopped.
+#[tauri::command]
+pub async fn restart_local_server(
+    state: State<'_, RuntimeLink>,
+) -> Result<LocalServerView, LocalServerRefusal> {
+    let json = state
+        .post_json_refusable(RESTART_PATH, &serde_json::json!({}))
+        .await
+        .map_err(refusal)?;
+    parse_view(json).map_err(|message| LocalServerRefusal {
+        kind: "other",
+        message,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,7 +159,11 @@ mod tests {
             "address": "http://127.0.0.1:7772",
             "lastError": null,
             "activeTokens": 2,
-            "imposedByPolicy": { "serveOnLan": false }
+            "imposedByPolicy": {
+                "serveOnLan": false,
+                "requireAuth": true,
+                "allowRequestMcp": false
+            }
         });
 
         // WHEN the command parses it
@@ -131,6 +178,30 @@ mod tests {
         let sent = serde_json::to_value(&view).unwrap();
         assert_eq!(sent["serveOnLan"], false);
         assert_eq!(sent["lastError"], serde_json::Value::Null);
+        // AND the count of tokens and what the policy imposes come with them
+        assert_eq!(view.active_tokens, 2);
+        assert!(view.imposed_by_policy.require_auth);
+        assert_eq!(sent["activeTokens"], 2);
+        assert_eq!(sent["imposedByPolicy"]["requireAuth"], true);
+        assert_eq!(sent["imposedByPolicy"]["serveOnLan"], false);
+    }
+
+    #[test]
+    fn test_a_state_from_a_runtime_without_tokens_or_policy_reads_as_none() {
+        // GIVEN the body of a runtime that reports neither tokens nor policy
+        let json = serde_json::json!({
+            "running": false,
+            "port": 7772,
+            "serveOnLan": false,
+            "address": "http://127.0.0.1:7772"
+        });
+
+        // WHEN the command parses it
+        let view = parse_view(json).unwrap();
+
+        // THEN no token is counted and nothing is imposed
+        assert_eq!(view.active_tokens, 0);
+        assert_eq!(view.imposed_by_policy, PolicyLocks::default());
     }
 
     #[test]
