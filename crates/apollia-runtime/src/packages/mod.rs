@@ -53,6 +53,8 @@ mod tests;
 #[cfg(test)]
 mod tests_embedded;
 #[cfg(test)]
+mod tests_example_qualify;
+#[cfg(test)]
 mod tests_examples;
 #[cfg(test)]
 mod tests_export;

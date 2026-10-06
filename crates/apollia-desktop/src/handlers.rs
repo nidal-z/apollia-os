@@ -158,6 +158,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::package_examples::list_example_packages,
         commands::package_examples::preview_example_package,
         commands::package_examples::install_example_package,
+        commands::example_dataset::copy_example_dataset,
         crate::package_open::take_opened_package_files,
         commands::tool_governance::governance_list_tools,
         commands::tool_governance::governance_state,

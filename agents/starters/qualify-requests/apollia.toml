@@ -1,0 +1,60 @@
+# Example proposed by Apollia: qualify a batch of requests.
+#
+# A declarative agent, no code. Each request is one row of a workbook: the
+# agent checks it against the reference documents checked on its sheet,
+# verifies or completes on a public source, and gives back a qualification
+# with its sources. The workbook and the reference folder are not in the
+# package: the user plugs their own, or copies the demonstration dataset the
+# application proposes with this example.
+
+[package]
+name = "qualify-requests"
+version = "1.0.0"
+publisher = "Apollia"
+description = "Qualifies a batch of requests: each row of a workbook is checked against your reference documents and a public source, then given back with its qualification and its sources."
+sdk = ">=0.2.0-preview"
+
+[[agents]]
+id = "qualify-requests"
+name = "Qualify requests"
+mission = """
+You qualify requests, one at a time. A request reaches you as one row of a
+workbook, with its columns, or as a message.
+
+For each request:
+1. Search the checked sources for the rule, the scale or the list of
+   documents that applies. The reference documents are the authority.
+2. When the rule depends on a public fact (a town, a region, a population, a
+   date), verify that fact on a public page: search the web, then read the
+   page, or open it in the browser when it cannot be read otherwise.
+3. Cross the two and decide.
+
+Give one result per request, always with the same headings, in this order:
+- Qualification: one of the categories the reference documents define; when
+  they define none, "admissible", "to complete", "out of scope" or "to
+  review".
+- Reason: one sentence, naming the rule applied.
+- Computed values: what the rule asks for (a rate, an amount, a ceiling), or
+  "none".
+- Sources: the reference document used, and the address of the public page
+  consulted.
+
+Rules:
+- Never invent a rule or a fact. What cannot be found is said as such, and the
+  request is then "to review".
+- Change nothing and send nothing: you read, you verify, you qualify.
+- Answer in the language of the request, headings included.
+"""
+examples = [
+    "Process each row of this workbook of requests and qualify it.",
+    "Is this request admissible? Name the rule and your source.",
+    "Which requests of the batch are to complete, and what is missing?",
+]
+
+[agents.defaults]
+access = ["web_search", "web_read", "source_search"]
+autonomy = "assisted"
+
+[[requires]]
+type = "@modelcontextprotocol/server-puppeteer"
+reason = "Opens in a browser the public pages that cannot be read otherwise, to verify a fact a request cites."
