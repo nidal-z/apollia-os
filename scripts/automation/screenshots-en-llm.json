@@ -8,10 +8,8 @@
   ],
   "stopOnError": false,
   "dynamicTestids": [
-    "inbox-filter-all",
-    "inbox-filter-approval",
-    "inbox-filter-ask_user",
-    "inbox-tab-pending",
+    "review-filter-decisions",
+    "review-filter-questions",
     "settings-nav-general",
     "settings-nav-llm"
   ],
@@ -151,35 +149,20 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-filter-approval",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-approval",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
+      "testid": "review-item",
       "nth": 0,
       "timeoutMs": 8000
     },
     {
       "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
+      "testid": "review-filter-decisions",
       "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "hitl-always",
+      "testidPrefix": "operator-approval-always-",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {
@@ -193,50 +176,6 @@
     {
       "kind": "screenshot",
       "label": "troubleshooting-un-agent-est-bloque-1"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "hitl-always",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 700
-    },
-    {
-      "kind": "screenshot",
-      "label": "controle-approuver-ou-refuser-une-action-4"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 700
-    },
-    {
-      "kind": "screenshot",
-      "label": "troubleshooting-une-action-est-refusee-1"
     },
     {
       "kind": "goto",
@@ -293,41 +232,19 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-filter-ask_user",
+      "testid": "review-question",
       "timeoutMs": 8000
     },
     {
       "kind": "click",
-      "testid": "inbox-filter-ask_user",
+      "testid": "review-filter-questions",
       "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
+      "testid": "review-question",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "ask-user-form",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "ask-user-context",
-      "timeoutMs": 5000
     },
     {
       "kind": "sleep",
@@ -338,33 +255,24 @@
       "label": "transversal-utiliser-l-inbox-2"
     },
     {
-      "kind": "click",
-      "testid": "ask-user-refuse",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-reject-dialog",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "fill",
-      "testid": "inbox-reject-reason",
+      "testid": "review-question-reason",
       "text": "Documentation capture, no answer needed for this question."
     },
     {
       "kind": "click",
-      "testid": "inbox-reject-confirm",
+      "testid": "review-question-refuse",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-answered",
       "timeoutMs": 8000
     },
     {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 5000
+      "kind": "waitGone",
+      "testid": "review-answered",
+      "timeoutMs": 20000
     },
     {
       "kind": "goto",

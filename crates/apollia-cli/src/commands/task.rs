@@ -81,9 +81,13 @@ pub enum TaskCommand {
         #[clap(long, requires = "reject")]
         reason: Option<String>,
     },
-    /// List resolved HITL approvals (accepted or rejected).
+    /// List the task approvals waiting for a decision.
+    ///
+    /// The decisions already taken are in the audit journal
+    /// (`apollia-os audit journal`).
     Approvals {
-        /// Also include pending approvals.
+        /// Accepted and without effect: the list holds the pending approvals
+        /// only.
         #[arg(long)]
         pending: bool,
     },
@@ -127,7 +131,7 @@ pub async fn run(cmd: &TaskCommand, socket: Option<PathBuf>, json: bool) -> i32 
             )
             .await
         }
-        TaskCommand::Approvals { pending } => run_approvals(&client, *pending, json).await,
+        TaskCommand::Approvals { pending: _ } => run_approvals(&client, json).await,
     }
 }
 // ────────────────────────────────────────────────────────────────────────────
@@ -151,10 +155,7 @@ mod tests {
     use clap::Parser;
 
     use super::display::{build_pending_json, plan_to_json};
-    use super::util::{
-        approval_decision, format_duration_since, step_status_icon, truncate_output,
-        truncate_prompt,
-    };
+    use super::util::{format_duration_since, step_status_icon, truncate_output, truncate_prompt};
     use super::*;
     use chrono::Utc;
 
@@ -455,23 +456,5 @@ mod tests {
             TaskCommand::Approvals { pending } => assert!(pending),
             other => panic!("expected Approvals, got {other:?}"),
         }
-    }
-
-    // The approvals table renders exactly one decision, and it is the only
-    // part of it a test can read: `format_approvals_list` prints and returns
-    // nothing, so calling it asserted nothing about either branch.
-    #[test]
-    fn test_approval_decision_labels_every_state() {
-        // GIVEN one approval row per state the API can return
-        let approved = serde_json::json!({ "approved": true });
-        let rejected = serde_json::json!({ "approved": false });
-        let undecided = serde_json::json!({ "id": "appr-001" });
-
-        // WHEN the decision column is rendered, resolved and pending
-        // THEN each state has its own label, and a pending row ignores the flag
-        assert_eq!(approval_decision(&approved, false), "approved");
-        assert_eq!(approval_decision(&rejected, false), "rejected");
-        assert_eq!(approval_decision(&undecided, false), "?");
-        assert_eq!(approval_decision(&approved, true), "pending");
     }
 }

@@ -174,7 +174,7 @@
   "nav": {
     "dashboard": "Accueil",
     "agents": "Assistants",
-    "inbox": "Boîte de réception",
+    "inbox": "À valider",
     "llm": "Modèles LLM",
     "automations": "Automatisations",
     "memory": "Mémoire",
@@ -192,7 +192,7 @@
       "chat": "Chat",
       "agents": "Assistants",
       "automations": "Automatisations",
-      "inbox": "Boîte de réception",
+      "inbox": "À valider",
       "memory": "Mémoire",
       "observability": "Observabilité",
       "llm": "Modèles LLM",
@@ -771,12 +771,12 @@
     "deliverables_empty": "Aucun livrable terminé aujourd'hui.",
     "agents_empty": "Aucun agent actif pour l'instant.",
     "recent_activity_title": "Activité récente",
-    "inbox_more_one": "+ {count} autre dans la boîte de réception →",
-    "inbox_more_other": "+ {count} autres dans la boîte de réception →",
+    "inbox_more_one": "+ {count} autre dans À valider →",
+    "inbox_more_other": "+ {count} autres dans À valider →",
     "open_task_aria": "Ouvrir la tâche {name}",
     "agent_detail_aria": "Détails de l'agent {name}",
     "pending_untitled": "(sans titre)",
-    "ctx_open_inbox": "Ouvrir dans la boite de reception",
+    "ctx_open_inbox": "Ouvrir dans À valider",
     "ctx_open_deliverable": "Ouvrir le livrable",
     "ctx_agent_detail": "Ouvrir le détail de l'agent",
     "ctx_agent_logs": "Voir les journaux",
@@ -920,89 +920,67 @@
       "action_allow": "Autoriser",
       "action_reply": "Répondre",
       "action_resolve": "Résoudre",
-      "open_conversation": "Ouvrir la conversation",
-      "action_review": "Revoir",
-      "copy_id": "Copier l'identifiant"
+      "open_conversation": "Ouvrir la conversation"
     },
-    "title_operator": "Boîte de réception",
-    "subtitle": "Actions en attente qui requièrent votre attention",
-    "pending_count": "{count} en attente",
-    "tab_pending": "À traiter",
-    "tab_activity": "Activité",
-    "tab_notifications": "Notifications envoyées",
-    "filter_by_agent": "Agent",
-    "all_agents": "Tous les agents",
-    "chips": {
-      "all": "Tous",
-      "approvals": "Approbations",
-      "questions": "Questions"
-    },
-    "group": {
-      "today": "Aujourd'hui",
-      "yesterday": "Hier",
-      "earlier": "Plus tôt"
-    },
-    "history": {
-      "accepted": "Autorisé",
-      "always_accepted": "Toujours autorisé",
-      "refused": "Refusé",
-      "reason": "Raison :",
-      "session": "Session",
-      "origin_chat": "Chat",
-      "origin_task": "Tâche d'agent",
-      "task": "Tâche"
-    },
-    "activity": {
-      "empty": "Tout va bien - aucun incident récent.",
-      "empty_desc": "Cet onglet liste uniquement les échecs, dégradations et incidents LLM des 14 derniers jours. Pour l'activité globale (tâches lancées, triggers exécutés avec succès), voir Observabilité → Chronologie.",
-      "empty_cta": "Ouvrir Observabilité",
-      "see_logs": "Voir les logs",
-      "filter": {
-        "all": "Toutes",
-        "failures": "Échecs",
-        "degradations": "Dégradations",
-        "llm": "LLM"
-      }
-    },
-    "notifications": {
-      "empty": "Aucune notification envoyée.",
-      "empty_desc": "L'historique des notifications poussées vers vos canaux apparaîtra ici."
-    },
-    "plan": {
-      "label": "Plan en attente d'approbation"
-    },
-    "ask_user": {
-      "submit": "Répondre",
-      "submitting": "Envoi…",
-      "refuse": "Refuser de répondre",
-      "refuse_title": "Refuser de répondre",
-      "open_chat": "Ouvrir la conversation"
-    },
-    "empty_title": "Tout est traité",
-    "empty_subtitle": "Aucune action en attente. Les nouvelles demandes apparaîtront ici.",
-    "refuse": "Refuser",
-    "always_accept": "Toujours autoriser",
-    "reject_title": "Refuser l'action",
-    "reject_reason_help": "Expliquez brièvement pourquoi vous refusez cette action.",
-    "reject_reason_label": "Motif du refus",
-    "reject_placeholder": "Pourquoi refusez-vous cette action ? (min. {min} caractères)",
-    "reject_help": "Minimum {min} caractères.",
-    "reject_too_short": "Au moins {min} caractères requis.",
-    "reject_too_long": "Maximum {max} caractères.",
-    "confirm_reject": "Confirmer le refus",
-    "dialog_stack_indicator": "Dialogue {current} sur {total}",
-    "open_in_inbox": "Ouvrir dans la boîte de réception",
-    "toast": {
-      "accepted": "Action approuvée",
-      "rejected": "Action refusée",
-      "always_accepted": "Règle enregistrée - futurs appels auto-approuvés",
-      "ask_user_replied": "Réponses envoyées à l'agent",
-      "copied": "Copié dans le presse-papiers"
-    },
-    "history_title": "Historique récent (14 jours)",
+    "open_in_inbox": "Ouvrir dans À valider",
     "error": {
       "details": "Détails techniques",
       "learn_more": "En savoir plus"
+    }
+  },
+  "review": {
+    "title": "À valider",
+    "subtitle": "Accords demandés par les agents, questions, tâches en pause et éléments de lot, en une seule liste, avec les mêmes réponses que dans le Chat. Répondre ici reprend la conversation, la tâche ou le lot concerné.",
+    "count_one": "{count} élément attend votre réponse.",
+    "count_other": "{count} éléments attendent votre réponse.",
+    "agent_unknown": "Un agent",
+    "asks_consent": "{agent} demande votre accord",
+    "filter": {
+      "all": "Tout",
+      "decisions": "Décisions",
+      "questions": "Questions",
+      "batch_items": "Éléments de lot"
+    },
+    "origin": {
+      "conversation_named": "Depuis la conversation « {title} »",
+      "conversation": "Depuis une conversation",
+      "task": "Depuis une tâche, en pause",
+      "batch": "Depuis un lot, élément {position}",
+      "unknown": "Demande d'un agent"
+    },
+    "open": {
+      "conversation": "Ouvrir la conversation",
+      "agent": "Ouvrir l'agent",
+      "batch": "Ouvrir le lot"
+    },
+    "code": {
+      "collapsed": "Commande repliée : {shown} lignes sur {total}. Les réponses apparaissent une fois la commande entière affichée.",
+      "show_all": "Afficher la commande entière"
+    },
+    "question": {
+      "heading": "{agent} vous pose une question",
+      "badge": "Question",
+      "proposed": "Réponses proposées par l'agent",
+      "other_placeholder": "Autre réponse…",
+      "open_placeholder": "Votre réponse…",
+      "submit": "Répondre",
+      "refuse": "Refuser de répondre",
+      "yes": "Oui",
+      "no": "Non"
+    },
+    "answered": {
+      "once": "Accordé une fois à {agent}",
+      "always": "Accordé toujours à {agent} pour ce type d'action",
+      "refuse": "Refusé",
+      "answer": "Réponse donnée à {agent}",
+      "recorded": "Réponse enregistrée. Cette ligne se retire dans quelques secondes.",
+      "cancel": "Annuler"
+    },
+    "resumed_one": "{count} élément de lot repris grâce à cet accord.",
+    "resumed_other": "{count} éléments de lot repris grâce à cet accord.",
+    "empty": {
+      "title": "Rien n'attend votre réponse",
+      "desc": "Un accord demandé par un agent, une question, une tâche en pause ou un élément de lot en attente apparaîtra ici."
     }
   },
   "policy": {
@@ -1194,8 +1172,6 @@
     "chosen_label": "Choisi"
   },
   "approvals": {
-    "rejecting": "Rejet...",
-    "unknown_agent": "Agent inconnu",
     "timer": {
       "waiting_since": "Agent en attente depuis {elapsed}",
       "remaining": "· {remaining} restant"
@@ -1604,11 +1580,8 @@
   },
   "notifications": {
     "channels_title": "Canaux",
-    "empty_history": "Aucune notification dans l'historique.",
     "all_events": "Tous les événements",
     "test": "Tester",
-    "filter_by_channel": "Filtrer par canal :",
-    "all_channels": "Tous les canaux",
     "edit_channel": "Modifier le canal",
     "creating": "Création...",
     "saving": "Enregistrement...",
@@ -1680,16 +1653,6 @@
     "field_headers_invalid": "Les en-têtes doivent être du JSON valide",
     "edit": "Modifier",
     "delete": "Supprimer",
-    "table": {
-      "timestamp": "Horodatage",
-      "channel": "Canal",
-      "event": "Événement",
-      "status": "Statut"
-    },
-    "status": {
-      "sent": "envoyé",
-      "failed": "échoué"
-    },
     "native": {
       "approval_title": "Action requise",
       "approval_body": "Agent {agentName} attend une approbation",
@@ -2227,14 +2190,12 @@
         "navigation": "Navigation",
         "chat": "Chat",
         "settings": "Réglages",
-        "companion": "Companion",
-        "approvals": "Approbations"
+        "companion": "Companion"
       },
       "scope": {
         "chat": "Dans le Chat",
         "settings": "Dans les Réglages",
         "dialog": "Dans une fenêtre",
-        "approvals": "Dans la file d'approbations",
         "global_label": "Global",
         "contextual_label": "Contextuel"
       },
@@ -2255,9 +2216,6 @@
         "settings_close": "Fermer la fenêtre ou le panneau",
         "companion_toggle": "Ouvrir le guide sur l'écran courant",
         "companion_focus": "Focaliser la saisie du Companion",
-        "approvals_accept": "Accepter l'approbation courante",
-        "approvals_refuse": "Refuser l'approbation courante",
-        "approvals_next": "Approbation suivante / précédente",
         "settings_engines": "Ouvrir Système > Moteurs",
         "settings_hardware": "Ouvrir Système > Matériel"
       },
@@ -4561,20 +4519,10 @@
   },
   "approval": {
     "action": {
-      "allow": "Autoriser",
       "refuse": "Refuser",
       "once": "Une fois",
       "always_for_agent": "Toujours pour cet agent"
     },
-    "risk": {
-      "low": "faible",
-      "medium": "moyen",
-      "high": "élevé",
-      "paid": "payant"
-    },
-    "risk_label": "risque {level}",
-    "cost_estimate": "Coût estimé : {cost}",
-    "expires_in": "expire dans {expires}",
     "always_hint": "« Toujours pour cet agent » le laisse refaire ce type d'action sans vous redemander.",
     "refuse_reason_placeholder": "Raison du refus (facultative), transmise à l'agent",
     "see_more": "Voir plus",

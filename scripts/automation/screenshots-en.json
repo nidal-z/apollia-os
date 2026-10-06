@@ -20,11 +20,6 @@
     "connections-sidebar-filter-all",
     "danger-card-factory-reset",
     "global-event-task.completed",
-    "inbox-activity-filter-all",
-    "inbox-filter-all",
-    "inbox-tab-activity",
-    "inbox-tab-notifications",
-    "inbox-tab-pending",
     "mcp-detail-tab-overview",
     "observability-tab-audit-trail",
     "observability-tab-llm-costs",
@@ -1780,23 +1775,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "inbox-tabbar",
+      "testid": "review-empty",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 5000
     },
     {
       "kind": "sleep",
@@ -1805,58 +1785,6 @@
     {
       "kind": "screenshot",
       "label": "transversal-utiliser-l-inbox-1"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-activity",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-activity-filter-all",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-filter-all",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "transversal-utiliser-l-inbox-3"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-notifications",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "data-table",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "transversal-utiliser-l-inbox-4"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
     },
     {
       "kind": "goto",

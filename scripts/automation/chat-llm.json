@@ -2,8 +2,7 @@
   "name": "chat-llm (inference + tools + HITL; fresh sessions; plan via composer-plan-toggle button)",
   "stopOnError": false,
   "dynamicTestids": [
-    "inbox-filter-ask_user",
-    "inbox-tab-pending",
+    "review-filter-questions",
     "settings-nav-developer"
   ],
   "steps": [
@@ -888,45 +887,18 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-agent-filter",
+      "testid": "review-question",
       "timeoutMs": 10000
     },
     {
-      "kind": "selectOption",
-      "testid": "inbox-agent-filter",
-      "index": 1,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "16c-inbox-agent-filter-scoped"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "inbox-agent-filter",
-      "value": "all",
-      "timeoutMs": 2500
-    },
-    {
       "kind": "click",
-      "testid": "inbox-filter-ask_user",
+      "testid": "review-filter-questions",
       "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "inbox-row-secondary",
+      "testid": "review-question",
       "timeoutMs": 8000
     },
     {
@@ -935,7 +907,8 @@
     },
     {
       "kind": "click",
-      "testid": "inbox-row-secondary",
+      "testid": "review-open",
+      "nth": 0,
       "timeoutMs": 5000
     },
     {
@@ -962,80 +935,14 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
+      "testid": "review-question",
       "timeoutMs": 10000
     },
     {
-      "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "ask-user-form",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "16f-inbox-ask-user-expanded"
-    },
-    {
-      "kind": "click",
-      "testid": "ask-user-open-chat",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-ask-user-inline",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "16g-inbox-open-chat-landed"
-    },
-    {
-      "kind": "goto",
-      "route": "inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "ask-user-form",
-      "timeoutMs": 4000
+      "kind": "fill",
+      "testidPrefix": "review-question-input-",
+      "text": "Camille"
     },
     {
       "kind": "screenshot",
@@ -1043,17 +950,22 @@
     },
     {
       "kind": "click",
-      "testid": "ask-user-submit",
+      "testid": "review-question-submit",
       "timeoutMs": 2500
     },
     {
+      "kind": "waitFor",
+      "testid": "review-answered",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitGone",
-      "testid": "ask-user-form",
-      "timeoutMs": 15000
+      "testid": "review-answered",
+      "timeoutMs": 20000
     },
     {
       "kind": "screenshot",
-      "label": "16i-inbox-ask-user-answered-skipped"
+      "label": "16i-inbox-ask-user-answered"
     },
     {
       "kind": "goto",

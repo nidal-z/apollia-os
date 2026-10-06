@@ -387,25 +387,6 @@ pub struct PausedTaskRow {
     pub context: serde_json::Value,
 }
 
-/// Row of a resolved approval, read from `task_approvals`.
-#[derive(Debug, Clone)]
-pub struct ResolvedApprovalRow {
-    /// Task identifier.
-    pub task_id: String,
-    /// Agent name.
-    pub agent_name: String,
-    /// `true` if approved, `false` if rejected.
-    pub approved: bool,
-    /// Rejection reason (if applicable).
-    pub reason: Option<String>,
-    /// ISO 8601 suspension timestamp.
-    pub suspended_at: Option<String>,
-    /// ISO 8601 response timestamp.
-    pub responded_at: Option<String>,
-    /// Wait duration in milliseconds.
-    pub wait_duration_ms: Option<i64>,
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1212,90 +1193,5 @@ mod tests {
 
         // THEN the index exists
         assert!(has_index, "idx_task_approvals_pending must exist");
-    }
-
-    // ─── list_resolved_approvals tests ────────────────────────────────
-
-    #[tokio::test]
-    async fn test_story141_list_resolved_approvals() {
-        // GIVEN a repo with a resolved approval
-        let (repo, _db_path) = open_test_repo().await;
-        let task_id = "t-141-resolved";
-        let context = serde_json::json!({"montant": 5000});
-
-        repo.save_pause(PauseRecord {
-            task_id,
-            step_id: None,
-            prompt: "Approve the payment?",
-            context: &context,
-            payload: None,
-            agent_name: None,
-            skill_id: None,
-        })
-        .await
-        .expect("save_pause failed");
-
-        repo.save_suspended_at(task_id, None, "2099-01-01T10:00:00.000Z")
-            .await
-            .expect("save_suspended_at failed");
-
-        let response = InputResponseData {
-            approved: true,
-            reason: None,
-            context,
-            responded_at: "2099-01-01T10:05:00.000Z".to_string(),
-            answer: None,
-            payload: None,
-        };
-        repo.save_input_response(task_id, &response)
-            .await
-            .expect("save_input_response failed");
-
-        // WHEN list_resolved_approvals is called
-        let rows = repo
-            .list_resolved_approvals(20, 30)
-            .await
-            .expect("list_resolved_approvals failed");
-
-        // THEN one resolved approval is returned
-        assert_eq!(rows.len(), 1, "expected 1 resolved approval");
-        assert_eq!(rows[0].task_id, task_id);
-        assert!(rows[0].approved);
-        assert!(rows[0].reason.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_story141_list_resolved_excludes_pending() {
-        // GIVEN a repo with an approval still pending (no response)
-        let (repo, _db_path) = open_test_repo().await;
-        let task_id = "t-141-pending";
-
-        repo.save_pause(PauseRecord {
-            task_id,
-            step_id: None,
-            prompt: "Pending",
-            context: &serde_json::json!({}),
-            payload: None,
-            agent_name: None,
-            skill_id: None,
-        })
-        .await
-        .expect("save_pause failed");
-
-        repo.save_suspended_at(task_id, None, "2026-03-13T10:00:00.000Z")
-            .await
-            .expect("save_suspended_at failed");
-
-        // WHEN list_resolved_approvals is called
-        let rows = repo
-            .list_resolved_approvals(20, 30)
-            .await
-            .expect("list_resolved_approvals failed");
-
-        // THEN no rows returned (pending is excluded)
-        assert!(
-            rows.is_empty(),
-            "pending approval should not appear in resolved list"
-        );
     }
 }

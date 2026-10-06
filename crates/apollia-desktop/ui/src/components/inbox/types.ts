@@ -67,10 +67,3 @@ export type InboxItem =
   | ToolInboxItem
   | AskUserInboxItem
   | PlanInboxItem;
-
-/** Urgency threshold default (30 min) in milliseconds. */
-export const DEFAULT_URGENCY_THRESHOLD_MS = 30 * 60 * 1000;
-
-/** Reject reason length bounds. */
-export const MIN_REJECT_REASON = 5;
-export const MAX_REJECT_REASON = 500;

@@ -27,7 +27,6 @@
     chat: "settings.shortcuts.category.chat",
     settings: "settings.shortcuts.category.settings",
     companion: "settings.shortcuts.category.companion",
-    approvals: "settings.shortcuts.category.approvals",
   };
 
   let query = $state("");
