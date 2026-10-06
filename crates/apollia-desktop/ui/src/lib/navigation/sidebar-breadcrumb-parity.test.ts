@@ -54,8 +54,10 @@ describe("sidebar and breadcrumb name every common route identically", () => {
     // refactor that blinds the extraction fails here instead of passing silently
     expect(commonRoutes).toEqual([
       "agents",
+      "authorizations",
       "automations",
       "chat",
+      "developer",
       "inbox",
       "integrations",
       "journal",

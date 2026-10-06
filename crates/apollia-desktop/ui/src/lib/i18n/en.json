@@ -197,12 +197,15 @@
       "integrations": "Connections",
       "settings": "Settings",
       "library": "Library",
-      "journal": "Journal"
+      "journal": "Activity log",
+      "authorizations": "Permissions",
+      "developer": "Developer"
     },
     "policy": "Organization policy",
     "library": "Library",
     "authorizations": "Permissions",
-    "journal": "Journal",
+    "journal": "Activity log",
+    "developer": "Developer",
     "resource_widget": {
       "open": "Open the monitor",
       "aria": "Consumption of this machine, open the resource monitor",

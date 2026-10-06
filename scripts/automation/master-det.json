@@ -112,11 +112,14 @@
     "native-detail-tab-settings",
     "native-needs-config-google",
     "nav-agents",
+    "nav-authorizations",
     "nav-automations",
     "nav-chat",
+    "nav-developer",
     "nav-inbox",
     "nav-integrations",
     "nav-journal",
+    "nav-library",
     "nav-llm",
     "nav-memory",
     "nav-observability",
@@ -279,12 +282,20 @@
       "label": "01-sidebar-operator"
     },
     {
+      "kind": "expect",
+      "testid": "sidebar-primary-rank"
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar-secondary-rank"
+    },
+    {
       "kind": "click",
       "testid": "nav-chat"
     },
     {
       "kind": "waitFor",
-      "testid": "app-main",
+      "testid": "chat-page",
       "timeoutMs": 8000
     },
     {
@@ -298,11 +309,20 @@
     },
     {
       "kind": "click",
-      "testid": "nav-automations"
+      "testid": "nav-integrations"
     },
     {
       "kind": "waitFor",
       "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
       "timeoutMs": 8000
     },
     {
@@ -311,16 +331,52 @@
     },
     {
       "kind": "waitFor",
-      "testid": "app-main",
+      "testid": "inbox-page",
       "timeoutMs": 8000
     },
     {
       "kind": "click",
-      "testid": "nav-integrations"
+      "testid": "nav-library"
     },
     {
       "kind": "waitFor",
-      "testid": "app-main",
+      "testid": "library-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-automations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-authorizations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02a-authorizations-policy-panel"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
       "timeoutMs": 8000
     },
     {
@@ -363,6 +419,11 @@
     {
       "kind": "waitGone",
       "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-developer",
       "timeoutMs": 4000
     },
     {
@@ -646,6 +707,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "nav-developer",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
       "label": "12-sidebar-developer-entries"
     },
@@ -661,6 +727,19 @@
     {
       "kind": "screenshot",
       "label": "13-nav-llm-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-nav-developer-screen"
     },
     {
       "kind": "click",
@@ -780,6 +859,11 @@
     {
       "kind": "waitGone",
       "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-developer",
       "timeoutMs": 4000
     },
     {

@@ -113,8 +113,9 @@ describe("tooltip - no hover group carries both a house tooltip and a native tit
       }
     }
 
-    // THEN the scan saw real tooltips, and none of them is doubled
-    expect(tooltips).toBeGreaterThanOrEqual(2);
+    // THEN the scan saw a real tooltip (the rail entry draws the one every
+    // rank shares), and none is doubled
+    expect(tooltips).toBeGreaterThanOrEqual(1);
     expect(doubled).toEqual([]);
   });
 

@@ -171,7 +171,7 @@
     "progress": "Progression"
   },
   "nav": {
-    "agents": "Assistants",
+    "agents": "Agents",
     "inbox": "À valider",
     "llm": "IA",
     "automations": "Automatisations",
@@ -179,7 +179,7 @@
     "observability": "Observabilité",
     "transcriptions": "Transcriptions",
     "chat": "Chat",
-    "settings": "Paramètres",
+    "settings": "Réglages",
     "connections": "Connexions",
     "open_sidebar": "Ouvrir la navigation",
     "close_sidebar": "Fermer la navigation",
@@ -187,7 +187,7 @@
     "developer_group": "Mode développeur",
     "sidebar": {
       "chat": "Chat",
-      "agents": "Assistants",
+      "agents": "Agents",
       "automations": "Automatisations",
       "inbox": "À valider",
       "memory": "Mémoire",
@@ -195,14 +195,17 @@
       "llm": "IA",
       "transcriptions": "Transcriptions",
       "integrations": "Connexions",
-      "settings": "Paramètres",
+      "settings": "Réglages",
       "library": "Bibliothèque",
-      "journal": "Journal"
+      "journal": "Journal",
+      "authorizations": "Autorisations",
+      "developer": "Développeur"
     },
     "policy": "Politique de l'organisation",
     "library": "Bibliothèque",
     "authorizations": "Autorisations",
     "journal": "Journal",
+    "developer": "Développeur",
     "resource_widget": {
       "open": "Ouvrir le moniteur",
       "aria": "Consommation du poste, ouvrir le moniteur de ressources",

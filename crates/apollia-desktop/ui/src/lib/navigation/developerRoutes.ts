@@ -2,8 +2,8 @@
  * The screens reserved to the developer mode, and the switch that keeps them
  * out of reach while the mode is off.
  *
- * The sidebar lists these routes in its developer group, the palette flags
- * them, and the main router sends a request for one of them, mode off, to the
+ * The sidebar lists these routes in its developer group, or as the developer
+ * entry of its first rank, the palette flags them, and the main router sends a request for one of them, mode off, to the
  * default route instead of rendering it. A request for a route no screen
  * answers to goes the same way.
  */
@@ -17,12 +17,18 @@ import { routeMeta } from "$lib/navigation/routeMeta";
  */
 export const DEFAULT_ROUTE: Route = "chat";
 
-/** The screens shown only with the developer mode on, in sidebar order. */
+/** The screens of the developer group of the sidebar, in sidebar order. */
 export const DEVELOPER_ROUTES: readonly Route[] = ["transcriptions", "observability", "memory"];
+
+/**
+ * The developer screen: a primary entry of the sidebar rather than a member
+ * of the developer group, and out of reach with the mode off all the same.
+ */
+export const DEVELOPER_SCREEN_ROUTE: Route = "developer";
 
 /** Whether `route` is reserved to the developer mode. */
 export function isDeveloperRoute(route: Route): boolean {
-  return DEVELOPER_ROUTES.includes(route);
+  return route === DEVELOPER_SCREEN_ROUTE || DEVELOPER_ROUTES.includes(route);
 }
 
 /**

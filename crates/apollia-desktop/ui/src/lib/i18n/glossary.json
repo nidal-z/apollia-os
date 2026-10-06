@@ -93,8 +93,6 @@
       "integrations.connectors.figma.auth_help",
       "mac_sandbox.body",
       "mac_sandbox.title",
-      "nav.agents",
-      "nav.sidebar.agents",
       "plan_mode.error_ipc",
       "settings.developer.mcp.config_label",
       "settings.developer.mcp.items_hint",
