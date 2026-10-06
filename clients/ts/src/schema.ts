@@ -7607,7 +7607,8 @@ export interface components {
             reason?: string | null;
             /**
              * @description The answer to the typed question of a paused task: a proposition id,
-             *     free text when it allows it, or a value.
+             *     free text when it allows it, or a value. For the question of a
+             *     workflow: the chosen choice or free text, when `answers` is not given.
              */
             value?: Record<string, never> | null;
         };
@@ -9599,14 +9600,20 @@ export interface components {
              * @description Position of the item in its source, from 0.
              */
             rank?: number | null;
-            /** @description The `ask_user` request of a question. */
+            /** @description The `ask_user` request of a question, or the request of a workflow's. */
             requestId?: string | null;
+            /** @description The workflow run that asked a question. */
+            runId?: string | null;
             /** @description The conversation, for a consent or a question asked in one. */
             sessionId?: string | null;
+            /** @description The step the run waits in. */
+            step?: string | null;
             /** @description The paused task. */
             taskId?: string | null;
             /** @description The tool call a consent is about. */
             toolCallId?: string | null;
+            /** @description Its workflow, `<package>/<workflow>`. */
+            workflowId?: string | null;
         };
         /**
          * @description A key changed since the start that waits for a restart, with its line in

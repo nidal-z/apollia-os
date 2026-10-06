@@ -254,6 +254,10 @@ fi
 section "approvals"
 check_json_field "approvals pending --json holds no item" "len(d['items'])" 0 "${Q[@]}" approvals pending --json
 check         "approvals pending (empty)"                    "${Q[@]}" approvals pending
+# No workflow of the seed waits on a question: answering one that does not
+# wait is refused by the runtime, in human and in JSON form.
+check_exit    "approvals decide unknown question → 1"        1 "${Q[@]}" approvals decide workflow-question:00000000-0000-0000-0000-000000000000 answer --value 12
+check_exit    "approvals decide unknown question --json → 1" 1 "${Q[@]}" approvals decide workflow-question:00000000-0000-0000-0000-000000000000 refuse --reason later --json
 
 # ── batches ─────────────────────────────────────────────────────────────────
 # The batch engine runs in the daemon. The seed holds no batch. It reads

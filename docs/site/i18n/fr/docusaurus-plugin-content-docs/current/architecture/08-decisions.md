@@ -203,6 +203,17 @@ demandé, et reprend sur la réponse. La suspension est un état de premier rang
 pas une attente bloquante : le processus est libre, et une exécution peut rester
 en attente au travers d'un redémarrage.
 
+Un workflow pose une question à l'utilisateur depuis une étape, par
+`ctx.user.ask` : une question, les choix qu'elle propose quand elle en a, et une
+réponse libre que l'utilisateur peut toujours donner à la place. La question est
+listée avec les autres décisions qui attendent l'utilisateur, avec l'exécution,
+le workflow et l'étape dont elle vient, et la réponse réveille l'étape là où
+elle s'est arrêtée. Cette attente n'est pas un état suspendu : un workflow
+s'exécute en mémoire et ne reprend pas, donc une exécution qui attend une
+réponse quand le runtime s'arrête est mise en échec au démarrage suivant, avec
+cette raison, comme toute exécution interrompue. Une question refusée arrive à
+l'étape sous la forme de `QuestionDeclined`, que l'auteur peut intercepter.
+
 ## Mémoire {#memory-model}
 
 La mémoire a trois couches : les événements épisodiques avec un score

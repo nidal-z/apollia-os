@@ -1820,3 +1820,35 @@ fn test_cli_parses_approvals_pending() {
     };
     assert!(matches!(args.command, ApprovalsCommand::Pending));
 }
+
+#[test]
+fn test_cli_parses_approvals_decide() {
+    // GIVEN "apollia-os approvals decide <id> answer --value 180.50"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "approvals",
+        "decide",
+        "workflow-question:r-1",
+        "answer",
+        "--value",
+        "180.50",
+    ]);
+    // THEN the decide verb carries the item, the answer and its value
+    let Commands::Approvals(args) = cli.command else {
+        panic!("expected approvals");
+    };
+    let ApprovalsCommand::Decide {
+        id,
+        answer,
+        value,
+        reason,
+    } = args.command
+    else {
+        panic!("expected decide");
+    };
+    assert_eq!(id, "workflow-question:r-1");
+    assert_eq!(answer, crate::commands::approvals::DecideAnswer::Answer);
+    assert_eq!(value.as_deref(), Some("180.50"));
+    assert!(reason.is_none());
+}

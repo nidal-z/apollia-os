@@ -187,6 +187,16 @@ runtime suspends the run, emits an event carrying what is being asked, and
 resumes on the answer. Suspension is a first-class state, not a blocking wait:
 the process is free, and a run can stay parked across a restart.
 
+A workflow asks the user a question from inside a step, through
+`ctx.user.ask`: one question, the choices it proposes when it has some, and a
+free answer the user may always give instead. The question is listed with the
+other decisions waiting for the user, with the run, the workflow and the step
+it comes from, and the answer wakes the step where it stopped. This wait is
+not a parked state: a workflow runs in memory and does not resume, so a run
+that waits on a question when the runtime stops is failed at the next start,
+with that reason, like every interrupted run. A declined question reaches the
+step as `QuestionDeclined`, which the author may catch.
+
 ## Memory {#memory-model}
 
 Memory has three layers: episodic events with an importance score, semantic

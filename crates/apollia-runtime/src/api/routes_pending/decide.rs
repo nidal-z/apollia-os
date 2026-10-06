@@ -5,7 +5,10 @@ use std::collections::BTreeSet;
 use axum::http::StatusCode;
 use tracing::Level;
 
-use super::collect::{batch_answers, held, task_answers, BATCH, CONSENT, QUESTION, TASK};
+use super::collect::{
+    batch_answers, held, task_answers, BATCH, CONSENT, QUESTION, TASK, WORKFLOW_ANSWER_ID,
+    WORKFLOW_QUESTION,
+};
 use super::{refusal, DecideRequest, DecideResponse, PendingAnswer, PendingError};
 use crate::api::routes_tasks::ResumeRequest;
 use crate::api::server::AppState;
@@ -29,6 +32,8 @@ pub(crate) async fn decide<B: ExecutionBackend + Clone>(
         decide_batch_item(state, rest, &request).await?
     } else if let Some(request_id) = id.strip_prefix(QUESTION) {
         decide_question(state, request_id, &request).await?
+    } else if let Some(request_id) = id.strip_prefix(WORKFLOW_QUESTION) {
+        decide_workflow_question(state, request_id, &request).await?
     } else {
         return Err(unknown(&id));
     };
@@ -468,4 +473,73 @@ async fn decide_question<B: ExecutionBackend + Clone>(
         .await
         .map_err(chat_refusal)?;
     Ok(response(request, 1, "Answered; the agent goes on."))
+}
+
+/// The answer a request gives to the one question of a workflow: the entry of
+/// `answers` for it, as the `ask_user` questions are answered, or `value`.
+fn workflow_answer(request: &DecideRequest) -> Option<String> {
+    let listed = request.answers.as_ref().and_then(|answers| {
+        answers
+            .iter()
+            .find(|a| a.id == WORKFLOW_ANSWER_ID && !a.skipped)
+            .and_then(|a| a.value.clone())
+    });
+    let text = listed.or_else(|| match request.value.as_ref()? {
+        serde_json::Value::String(text) => Some(text.clone()),
+        serde_json::Value::Null => None,
+        other => Some(other.to_string()),
+    })?;
+    Some(text).filter(|t| !t.trim().is_empty())
+}
+
+/// The question a step of a workflow stopped on, answered through the
+/// workflow engine: the run goes on in the step that asked, with the answer,
+/// or is told the user declined.
+async fn decide_workflow_question<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    request_id: &str,
+    request: &DecideRequest,
+) -> Result<DecideResponse, PendingError> {
+    use crate::workflows::{UserReply, WorkflowError};
+
+    let workflows = state.workflows.as_ref().ok_or_else(|| {
+        refusal(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "UNAVAILABLE",
+            "the workflow engine is not running in this runtime",
+        )
+    })?;
+    offered(
+        request.answer,
+        &[PendingAnswer::Answer, PendingAnswer::Refuse],
+    )?;
+    let (reply, message) = if request.answer == PendingAnswer::Refuse {
+        let reason = request
+            .reason
+            .clone()
+            .filter(|r| !r.trim().is_empty())
+            .unwrap_or_else(|| "The user declined to answer".to_string());
+        (
+            UserReply::Declined(reason),
+            "Declined; the workflow is told.",
+        )
+    } else {
+        let answer = workflow_answer(request).ok_or_else(|| {
+            refusal(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "INVALID_ANSWER",
+                "an answer to the question of a workflow carries `value`, a proposed choice \
+                 or free text",
+            )
+        })?;
+        (UserReply::Answer(answer), "Answered; the workflow goes on.")
+    };
+    workflows
+        .answer_question(request_id, reply)
+        .await
+        .map_err(|e| match e {
+            WorkflowError::UnknownQuestion(_) => unknown(&request.id),
+            other => refusal(StatusCode::SERVICE_UNAVAILABLE, "UNAVAILABLE", other),
+        })?;
+    Ok(response(request, 1, message))
 }

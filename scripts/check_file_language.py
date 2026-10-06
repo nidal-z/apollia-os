@@ -339,9 +339,6 @@ FRENCH_DATA: dict[str, int] = {
     "tests/cli/seed/files/agents/onboarding-agent/agent.py": 28,
     # prompt: French text sent to a model, because the operator writes French
     "crates/apollia-runtime/src/chat/title.rs": 17,
-    # fixture: French user text, or a multi-byte character, a test feeds to the
-    # code under test
-    "tests/hitl/hitl_e2e_agent.py": 1,
     # The accented French words recognition must give back from a scanned page.
     "crates/apollia-sources/tests/ocr_reader.rs": 9,
     "crates/apollia-sources/src/indexer/tests/recognition.rs": 2,

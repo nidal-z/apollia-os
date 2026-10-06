@@ -31,6 +31,7 @@ from apollia.testing.context import (
     MockSecrets,
     MockStt,
     MockTemplates,
+    MockUser,
     MockWorkflows,
     MockWorkspace,
 )
@@ -67,6 +68,7 @@ class MockContext:
         self.a2a = MockA2A()
         self.agents = MockAgents()
         self.workflows = MockWorkflows()
+        self.user = MockUser()
         self.datasources = MockDatasources()
         self.templates = MockTemplates()
         self.secrets = MockSecrets()

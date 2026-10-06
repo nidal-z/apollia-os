@@ -30,6 +30,7 @@ from apollia.context.secrets import SecretsInterface
 from apollia.context.stt import SttInterface
 from apollia.context.templates import TemplatesInterface
 from apollia.context.tools import ToolProxy
+from apollia.context.user import UserInterface
 from apollia.context.workflows import WorkflowsInterface
 from apollia.context.workspace import WorkspaceContext
 from apollia.hitl import ApprovalPayload, InputResponse, QuestionPayload
@@ -236,6 +237,8 @@ class Ctx(Protocol):
     agents: AgentsInterface
     #: Run an installed workflow with typed inputs. Bound in a workflow run.
     workflows: WorkflowsInterface
+    #: Ask the user a question and wait for the answer. Bound in a workflow run.
+    user: UserInterface
     mail: MailInterface
     datasources: DatasourcesInterface
     templates: TemplatesInterface
@@ -385,6 +388,7 @@ __all__ = [
     "TemplatesInterface",
     "TextContent",
     "ToolProxy",
+    "UserInterface",
     "WorkflowsInterface",
     "WorkspaceContext",
     "image_from_bytes",

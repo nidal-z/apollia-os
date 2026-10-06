@@ -16,6 +16,23 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Answer one waiting decision via `POST /api/v1/pending-decisions/decide`.
+    pub async fn decide_pending(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post("/api/v1/pending-decisions/decide", Some(body))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// List all triggers via `GET /api/v1/triggers`.
     pub async fn list_triggers(&self) -> Result<serde_json::Value, ClientError> {
         let resp = self.get("/api/v1/triggers").await?;

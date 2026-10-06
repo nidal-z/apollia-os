@@ -10,6 +10,7 @@ use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
+use super::questions::WaitingQuestions;
 use super::run::{finish, RunServices};
 use super::{
     inputs, qualify, AgentRunner, Launched, ParentRun, RunEnd, WorkflowCall, WorkflowCommand,
@@ -33,6 +34,8 @@ pub(super) struct WorkflowActor {
     /// The callers waiting for a stopped run to end.
     pub(super) stopping:
         HashMap<String, Vec<oneshot::Sender<Result<WorkflowRunRow, WorkflowError>>>>,
+    /// The questions runs wait on, each with the channel of its answer.
+    pub(super) questions: WaitingQuestions,
 }
 
 impl WorkflowActor {
@@ -87,8 +90,38 @@ impl WorkflowActor {
                     workflows.sort_by(|a, b| a.id.cmp(&b.id));
                     let _ = reply.send(workflows);
                 }
+                WorkflowCommand::Ask { question, reply } => {
+                    tracing::event!(
+                        tracing::Level::INFO,
+                        run_id = %question.run_id,
+                        request_id = %question.request_id,
+                        "workflow.question.asked"
+                    );
+                    self.questions.register(question, reply);
+                }
+                WorkflowCommand::Withdraw { request_id } => self.questions.withdraw(&request_id),
+                WorkflowCommand::Questions { reply } => {
+                    let _ = reply.send(self.questions.list());
+                }
+                WorkflowCommand::Reply {
+                    request_id,
+                    answer,
+                    reply,
+                } => {
+                    let answered = self.questions.answer(&request_id, answer);
+                    if let Ok(question) = &answered {
+                        tracing::event!(
+                            tracing::Level::INFO,
+                            run_id = %question.run_id,
+                            request_id = %request_id,
+                            "workflow.question.answered"
+                        );
+                    }
+                    let _ = reply.send(answered);
+                }
                 WorkflowCommand::Ended { run_id, row } => {
                     self.running.remove(&run_id);
+                    self.questions.forget_run(&run_id);
                     for waiter in self.stopping.remove(&run_id).unwrap_or_default() {
                         let answer = row
                             .clone()

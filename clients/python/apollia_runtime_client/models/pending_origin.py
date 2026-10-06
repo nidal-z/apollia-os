@@ -19,19 +19,25 @@ class PendingOrigin:
         batch_id (None | str | Unset): The batch of an item.
         message_id (None | str | Unset): The message whose turn asked.
         rank (int | None | Unset): Position of the item in its source, from 0.
-        request_id (None | str | Unset): The `ask_user` request of a question.
+        request_id (None | str | Unset): The `ask_user` request of a question, or the request of a workflow's.
+        run_id (None | str | Unset): The workflow run that asked a question.
         session_id (None | str | Unset): The conversation, for a consent or a question asked in one.
+        step (None | str | Unset): The step the run waits in.
         task_id (None | str | Unset): The paused task.
         tool_call_id (None | str | Unset): The tool call a consent is about.
+        workflow_id (None | str | Unset): Its workflow, `<package>/<workflow>`.
     """
 
     batch_id: None | str | Unset = UNSET
     message_id: None | str | Unset = UNSET
     rank: int | None | Unset = UNSET
     request_id: None | str | Unset = UNSET
+    run_id: None | str | Unset = UNSET
     session_id: None | str | Unset = UNSET
+    step: None | str | Unset = UNSET
     task_id: None | str | Unset = UNSET
     tool_call_id: None | str | Unset = UNSET
+    workflow_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -59,11 +65,23 @@ class PendingOrigin:
         else:
             request_id = self.request_id
 
+        run_id: None | str | Unset
+        if isinstance(self.run_id, Unset):
+            run_id = UNSET
+        else:
+            run_id = self.run_id
+
         session_id: None | str | Unset
         if isinstance(self.session_id, Unset):
             session_id = UNSET
         else:
             session_id = self.session_id
+
+        step: None | str | Unset
+        if isinstance(self.step, Unset):
+            step = UNSET
+        else:
+            step = self.step
 
         task_id: None | str | Unset
         if isinstance(self.task_id, Unset):
@@ -77,6 +95,12 @@ class PendingOrigin:
         else:
             tool_call_id = self.tool_call_id
 
+        workflow_id: None | str | Unset
+        if isinstance(self.workflow_id, Unset):
+            workflow_id = UNSET
+        else:
+            workflow_id = self.workflow_id
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -88,12 +112,18 @@ class PendingOrigin:
             field_dict["rank"] = rank
         if request_id is not UNSET:
             field_dict["requestId"] = request_id
+        if run_id is not UNSET:
+            field_dict["runId"] = run_id
         if session_id is not UNSET:
             field_dict["sessionId"] = session_id
+        if step is not UNSET:
+            field_dict["step"] = step
         if task_id is not UNSET:
             field_dict["taskId"] = task_id
         if tool_call_id is not UNSET:
             field_dict["toolCallId"] = tool_call_id
+        if workflow_id is not UNSET:
+            field_dict["workflowId"] = workflow_id
 
         return field_dict
 
@@ -137,6 +167,15 @@ class PendingOrigin:
 
         request_id = _parse_request_id(d.pop("requestId", UNSET))
 
+        def _parse_run_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        run_id = _parse_run_id(d.pop("runId", UNSET))
+
         def _parse_session_id(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -145,6 +184,15 @@ class PendingOrigin:
             return cast(None | str | Unset, data)
 
         session_id = _parse_session_id(d.pop("sessionId", UNSET))
+
+        def _parse_step(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        step = _parse_step(d.pop("step", UNSET))
 
         def _parse_task_id(data: object) -> None | str | Unset:
             if data is None:
@@ -164,14 +212,26 @@ class PendingOrigin:
 
         tool_call_id = _parse_tool_call_id(d.pop("toolCallId", UNSET))
 
+        def _parse_workflow_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        workflow_id = _parse_workflow_id(d.pop("workflowId", UNSET))
+
         pending_origin = cls(
             batch_id=batch_id,
             message_id=message_id,
             rank=rank,
             request_id=request_id,
+            run_id=run_id,
             session_id=session_id,
+            step=step,
             task_id=task_id,
             tool_call_id=tool_call_id,
+            workflow_id=workflow_id,
         )
 
         pending_origin.additional_properties = d
