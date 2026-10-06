@@ -3492,7 +3492,8 @@
       "next_message": "Message suivant",
       "prev_message": "Message précédent",
       "stop_or_close": "Arrêter le streaming / fermer la modale",
-      "target_selector": "Choisir l'agent ou le modèle"
+      "target_selector": "Choisir l'agent ou le modèle",
+      "reload_last_model": "Recharger le dernier modèle"
     },
     "shortcut_group": {
       "chat": "Chat",
@@ -3948,6 +3949,60 @@
       "in_messages": "Dans les messages",
       "pending": "Recherche dans les messages...",
       "failed": "La recherche dans les messages n'a pas abouti."
+    },
+    "model_load": {
+      "aria": "Charger un modèle",
+      "back": "Revenir sans charger",
+      "memory": "Mémoire estimée",
+      "estimating": "calcul en cours…",
+      "estimate_mark": "estimation",
+      "memory_gpu": "Carte graphique",
+      "memory_total": "En tout",
+      "gigabytes": "{size} Go",
+      "memory_unknown": "La mémoire de ce modèle n'a pas pu être estimée.",
+      "estimate_failed": "L'estimation n'a pas abouti : {error}",
+      "file": "Fichier du modèle",
+      "quantization_help": "Niveau de compression du modèle. Plus il est fort, moins le modèle prend de mémoire, et moins ses réponses sont fines.",
+      "no_settings": "Aucun réglage configurable pour ce modèle : il se charge avec ses réglages d'origine.",
+      "context": "Longueur de contexte",
+      "context_help": "Ce que le modèle garde en tête pendant une conversation, en jetons. Plus le contexte est long, plus le modèle prend de mémoire.",
+      "context_max": "Le modèle accepte jusqu'à {max} jetons.",
+      "offload": "Déchargement sur la carte graphique",
+      "offload_help": "Le modèle est fait de couches. Celles confiées à la carte graphique répondent plus vite ; les autres restent en mémoire vive.",
+      "offload_hint": "Couches confiées à la carte graphique ; le reste en mémoire vive.",
+      "refusal_title": "Ce chargement dépasse la mémoire disponible",
+      "refusal_body": "Estimation {estimated} Go pour {budget} Go de mémoire ; garde-fous « {level} ». Réduisez le contexte ou le déchargement, ou chargez quand même après confirmation.",
+      "load_failed": "Le modèle n'a pas pu être chargé : {error}",
+      "remember": "Mémoriser ces réglages pour {name}",
+      "pin": "Garder en mémoire",
+      "pin_help": "Un modèle gardé en mémoire n'est pas déchargé quand il reste inactif ni quand sa dernière conversation se ferme.",
+      "show_advanced": "Afficher les réglages avancés",
+      "loading": "Chargement…",
+      "load_anyway": "Charger quand même…",
+      "load": "Charger",
+      "confirm_title": "Charger quand même ?",
+      "confirm_body": "{name} demande environ {estimated} Go de mémoire, et les garde-fous de chargement en autorisent {budget} Go. Cet ordinateur peut ralentir fortement ou manquer de mémoire.",
+      "confirm_action": "Charger quand même",
+      "loaded_toast": "{name} est chargé.",
+      "advanced": {
+        "title": "Réglages avancés",
+        "batch": "Taille du lot d'évaluation",
+        "threads": "Fils de calcul",
+        "seed": "Graine",
+        "kv_offload": "Garder le cache de contexte sur la carte graphique",
+        "automatic": "automatique"
+      }
+    },
+    "model_eject": {
+      "label": "Éjecter le modèle",
+      "nothing_loaded": "Aucun modèle de cet ordinateur n'est chargé pour cette conversation.",
+      "answering": "Le modèle répond en ce moment ; il pourra être éjecté à la fin de sa réponse.",
+      "failed": "{name} n'a pas pu être éjecté : {error}"
+    },
+    "reload_last": {
+      "label": "Recharger le dernier modèle",
+      "reloading": "Rechargement de",
+      "refused": "Le dernier modèle n'a pas pu être rechargé tel quel : {error}"
     }
   },
   "transcriptions": {
@@ -4820,7 +4875,13 @@
       "since": "chargé {when}",
       "unload": "Décharger",
       "unloaded_toast": "{name} déchargé, sa mémoire est libérée.",
-      "in_use_error": "{name} est en cours d'usage : une réponse est en cours. Réessayez quand elle sera terminée."
+      "in_use_error": "{name} est en cours d'usage : une réponse est en cours. Réessayez quand elle sera terminée.",
+      "kept": "Gardé en mémoire",
+      "kept_explanation": "Ce modèle reste chargé : il n'est pas déchargé quand il reste inactif ni quand sa dernière conversation se ferme.",
+      "pin": "Garder en mémoire",
+      "unpin": "Ne plus garder en mémoire",
+      "pinned_toast": "{name} reste en mémoire.",
+      "unpinned_toast": "{name} n'est plus gardé en mémoire."
     },
     "installed": {
       "title": "Sur ce poste",

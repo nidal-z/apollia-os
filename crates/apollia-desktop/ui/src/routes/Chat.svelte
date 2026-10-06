@@ -50,6 +50,10 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { registerShortcuts } from "$lib/stores/shortcuts";
   import { requestChatTargetSelector } from "$lib/stores/chatTargetSelector";
+  import { MAIN_PANE, paneLeases } from "$lib/chat/modelLease";
+  import { showReloadLast } from "$lib/chat/modelLoad";
+  import { lastLoadedModel, loadedModels, requestReloadLast } from "$lib/stores/modelResidency";
+  import ModelLoadDialog from "../components/chat/ModelLoadDialog.svelte";
   import CommandPalette from "../components/chat/CommandPalette.svelte";
 
   // Operator design-system primitives - V3 Chat Refonte v2.
@@ -126,6 +130,20 @@
       keys: [MOD_LABEL, "L"],
       allowInTextarea: true,
       run: () => requestChatTargetSelector(),
+    },
+    {
+      id: "chat.reload_last_model",
+      chord: { code: "KeyR", modifiers: ["mod"] },
+      group: "chat.shortcut_group.chat",
+      descriptionKey: "chat.shortcut.reload_last_model",
+      keys: [MOD_LABEL, "R"],
+      allowInTextarea: true,
+      // Only while the reload line shows; otherwise the chord is left alone.
+      run: () => {
+        if (!showReloadLast($loadedModels, $lastLoadedModel)) return false;
+        requestReloadLast();
+        return true;
+      },
     },
     {
       id: "chat.search",
@@ -239,7 +257,8 @@
     selectedSessionId = sessionId;
     markSessionRead(sessionId);
   }
-  function closeConversation() { selectedSessionId = null; }
+  // Closing the conversation releases the model it held in memory.
+  function closeConversation() { selectedSessionId = null; void paneLeases.drop(MAIN_PANE); }
 
   async function handleDeleteSession(sessionId: string): Promise<void> {
     // To the trash when the choice of Settings > Chat is on, for good otherwise.
@@ -250,7 +269,7 @@
       return;
     }
     chatSessions.update((sessions) => sessions.filter((s) => s.id !== sessionId));
-    if (selectedSessionId === sessionId) selectedSessionId = null;
+    if (selectedSessionId === sessionId) closeConversation();
   }
 
   async function handleRenameSession(sessionId: string, newTitle: string): Promise<void> {
@@ -699,4 +718,5 @@
 
   </aside>
   {/if}
+  <ModelLoadDialog />
 </div>

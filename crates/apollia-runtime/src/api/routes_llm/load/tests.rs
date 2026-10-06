@@ -134,10 +134,13 @@ async fn test_the_estimate_reads_the_recorded_header_at_the_window_asked() {
     )
     .await;
 
-    // THEN each answers the window it would launch, the memory on the
-    // accelerator and in total sized from the header, and the balanced
-    // guardrail's verdict; nothing was launched
+    // THEN each answers the window it would launch, the largest window and
+    // the quantisation the file declares, the memory on the accelerator and
+    // in total sized from the header, and the balanced guardrail's verdict;
+    // nothing was launched
     assert_eq!(small_status, StatusCode::OK, "{small}");
+    assert_eq!(small["maxCtx"], 32768);
+    assert_eq!(small["quantization"], "Q8_0");
     assert_eq!(small["engine"], "llama-server");
     assert_eq!(small["configurable"], true);
     assert_eq!(small["nCtx"], 4096);

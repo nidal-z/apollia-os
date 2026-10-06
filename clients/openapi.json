@@ -24932,6 +24932,15 @@
             "$ref": "#/components/schemas/GuardrailCheckDto",
             "description": "What the load guardrail makes of it."
           },
+          "maxCtx": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The largest window the model accepts, from its header; absent when\nthe header does not say, and for an MLX model.",
+            "minimum": 0
+          },
           "memory": {
             "oneOf": [
               {
@@ -24964,6 +24973,13 @@
             ],
             "format": "int32",
             "description": "Layers it would place on the accelerator; absent for an MLX model."
+          },
+          "quantization": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The quantisation the file name declares (`Q4_K_M`); absent when it\ndeclares none."
           },
           "totalLayers": {
             "type": [

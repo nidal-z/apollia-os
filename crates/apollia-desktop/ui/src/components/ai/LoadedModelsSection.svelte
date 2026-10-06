@@ -1,17 +1,18 @@
 <script lang="ts">
   /**
    * LoadedModelsSection - the "Loaded" section of the AI screen: one card per
-   * model resident in memory, its kind, format, memory and load time, and the
-   * button that unloads it.
+   * model resident in memory, its kind, format, memory and load time, the
+   * pin that keeps it in memory, and the button that unloads it.
    */
   import { locale, t } from "svelte-i18n";
+  import { Pin } from "lucide-svelte";
   import type { LoadedModel, LoadedModelsResponse } from "$lib/types";
   import { formatRelativeTime } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
   import CapabilityIcon from "./CapabilityIcon.svelte";
   import ExplainedBadge from "./ExplainedBadge.svelte";
   import { capabilitiesOf } from "./explanations";
-  import { canUnload } from "./loadedModels";
+  import { canUnload, isKeptInMemory } from "./loadedModels";
   import {
     gigabytes,
     loadedFormat,
@@ -25,11 +26,17 @@
     error: string | null;
     /** Path of the model being unloaded, if any. */
     unloading: string | null;
+    /** Paths of the models kept in memory. */
+    pins: string[];
+    /** Path of the model whose pin is being written, if any. */
+    pinning: string | null;
     onunload: (model: LoadedModel) => void;
+    /** Called with the model and whether it is to be kept in memory. */
+    onpin: (model: LoadedModel, pinned: boolean) => void;
     onretry: () => void;
   }
 
-  let { view, error, unloading, onunload, onretry }: Props = $props();
+  let { view, error, unloading, pins, pinning, onunload, onpin, onretry }: Props = $props();
 
   const lang = $derived($locale ?? "fr");
   const models = $derived(view?.models ?? []);
@@ -73,6 +80,7 @@
       {#each models as item (item.modelPath)}
         {@const memory = loadedMemoryBytes(item)}
         {@const answering = !canUnload(item)}
+        {@const kept = isKeptInMemory(pins, item)}
         <div
           class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3"
           data-testid="ai-loaded-card"
@@ -105,6 +113,14 @@
                 help
                 testid="ai-loaded-format"
               />
+              {#if kept}
+                <ExplainedBadge
+                  label={$t("ai.loaded.kept")}
+                  explanation={$t("ai.loaded.kept_explanation")}
+                  variant="primary"
+                  testid="ai-loaded-kept"
+                />
+              {/if}
             </div>
             <div class="flex items-center gap-2">
               <span class="truncate text-sm font-medium text-foreground" data-testid="ai-loaded-name">
@@ -124,6 +140,20 @@
             <span class="text-xs text-muted-foreground" data-testid="ai-loaded-since">
               {$t("ai.loaded.since", { values: { when: formatRelativeTime(item.loadedAt, lang) } })}
             </span>
+            <button
+              type="button"
+              class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 {kept
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground'}"
+              onclick={() => onpin(item, !kept)}
+              disabled={pinning !== null}
+              aria-pressed={kept}
+              aria-label={$t(kept ? "ai.loaded.unpin" : "ai.loaded.pin")}
+              title={$t(kept ? "ai.loaded.unpin" : "ai.loaded.pin")}
+              data-testid="ai-loaded-pin-btn"
+            >
+              <Pin size={14} strokeWidth={1.75} fill={kept ? "currentColor" : "none"} />
+            </button>
             <Button
               variant="outline"
               size="sm"

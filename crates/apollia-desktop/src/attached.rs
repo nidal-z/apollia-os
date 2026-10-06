@@ -112,6 +112,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "delete_llm_backend",
     "list_loaded_models",
     "set_default_llm_backend",
+    // Loading a model by hand: the estimate, the load, the last one loaded.
+    "estimate_model_load",
+    "get_last_loaded_model",
+    "load_model",
+    "reload_last_loaded_model",
+    // The lease of an open conversation on its model, and the pin.
+    "list_model_pins",
+    "open_model_lease",
+    "release_model_lease",
+    "set_model_pin",
     // The AI screen: the embeddings model of search.
     "set_embeddings_default",
     "unload_loaded_model",

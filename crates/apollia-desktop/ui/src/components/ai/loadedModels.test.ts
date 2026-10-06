@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import type { LoadedModel } from "$lib/types";
-import { canUnload, showLoadedModels, unloadErrorKey } from "./loadedModels";
+import { canUnload, isKeptInMemory, showLoadedModels, unloadErrorKey } from "./loadedModels";
 
 function model(activeRequests: number): LoadedModel {
   return {
@@ -74,5 +74,27 @@ describe("loadedModels", () => {
     // THEN it finds the in-use wording, and nothing for another failure
     expect(key).toBe("ai.loaded.in_use_error");
     expect(unloadErrorKey("model /models/a.gguf is not loaded")).toBeNull();
+  });
+
+  test("a loaded model whose path is pinned is marked as kept in memory", () => {
+    // GIVEN two loaded models, and the pins of the machine naming the first
+    const kept = model(0);
+    const other = { ...model(0), modelPath: "/models/b.gguf" };
+    const pins = ["/models/a.gguf", "/models/gone.gguf"];
+
+    // WHEN the section asks which one carries the mark
+    const marks = [isKeptInMemory(pins, kept), isKeptInMemory(pins, other)];
+
+    // THEN only the pinned one does
+    expect(marks).toEqual([true, false]);
+  });
+
+  test("without any pin no loaded model is marked", () => {
+    // GIVEN a loaded model and no pin
+    // WHEN the section asks whether it carries the mark
+    const mark = isKeptInMemory([], model(0));
+
+    // THEN it does not
+    expect(mark).toBe(false);
   });
 });

@@ -1121,6 +1121,511 @@
       "ms": 200
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_chat_targets",
+      "resolve": {
+        "agents": [
+          {
+            "id": "apollia:chat",
+            "name": "Apollia",
+            "enabled": true,
+            "model": null
+          }
+        ],
+        "installed": [
+          {
+            "id": "Phi-3-mini-Q4",
+            "path": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+            "category": "language",
+            "format": "gguf",
+            "parameters": null
+          }
+        ],
+        "servers": [],
+        "default_model": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": null,
+        "models": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_model_pins",
+      "resolve": {
+        "pins": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_last_loaded_model",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "load": {},
+        "loadedAt": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 2.1,
+          "totalGb": 2.5,
+          "capacityGb": 16.0,
+          "fit": "fits",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "allowed",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-memory-total",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-memory"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-file"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-memory-gpu"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-title",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-format-badge",
+      "contains": "GGUF"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-quantization",
+      "contains": "Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-context-input"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-context-slider"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-context-max"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-offload-input"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-offload-total",
+      "contains": "32"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-context-help"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-offload-help"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-offload-slider"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-remember"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-pin"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-submit"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-advanced-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-advanced",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-kv-offload"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-model-load-window"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-reload-last",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-reload-last-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-reload-last-model",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-target-selector-empty"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "estimate_model_load"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 19.6,
+          "totalGb": 21.4,
+          "capacityGb": 16.0,
+          "fit": "too_large",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "refused",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-refusal-figures",
+      "contains": "16"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-model-load-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-confirm-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "load_model",
+      "reject": "automation: load refused"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-confirm-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-error",
+      "contains": "automation: load refused",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "load_model"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-close"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "estimate_model_load"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "vllm-mlx",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": false,
+        "nCtx": 4096,
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "allowed",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-no-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-memory-unknown"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-format-badge",
+      "contains": "MLX"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-back"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "estimate_model_load"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "reject": "automation: estimate refused"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-estimate-error",
+      "contains": "automation: estimate refused",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "estimate_model_load"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 2.1,
+          "totalGb": 2.5,
+          "capacityGb": 16.0,
+          "fit": "fits",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "allowed",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "reload_last_loaded_model",
+      "reject": "automation: reload refused"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-reload-last-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-notice",
+      "contains": "automation: reload refused",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-title",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
       "kind": "click",
       "testid": "quickpicker-toggle-agents"
     },
@@ -1279,6 +1784,10 @@
     {
       "kind": "expect",
       "testid": "chat-conversation"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-model-eject"
     },
     {
       "kind": "expect",
@@ -16317,6 +16826,15 @@
       }
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_model_pins",
+      "resolve": {
+        "pins": [
+          "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf"
+        ]
+      }
+    },
+    {
       "kind": "goto",
       "route": "llm"
     },
@@ -16363,8 +16881,20 @@
       "testid": "ai-loaded-unload-btn"
     },
     {
+      "kind": "expect",
+      "testid": "ai-loaded-pin-btn"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-kept"
+    },
+    {
       "kind": "clearStubs",
       "command": "list_loaded_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_model_pins"
     },
     {
       "kind": "screenshot",

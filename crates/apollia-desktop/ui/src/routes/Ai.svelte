@@ -17,6 +17,7 @@
     type InstalledModel,
   } from "$lib/ipc/modelHub";
   import { listLoadedModels, reloadLlmFromDb, unloadLoadedModel } from "$lib/ipc/llm";
+  import { listModelPins, setModelPin } from "$lib/ipc/llmLoad";
   import { getModelsDir } from "$lib/ipc/modelsFolder";
   import { importModelFile } from "$lib/ipc/models";
   import {
@@ -54,6 +55,8 @@
   let filter = $state<CategoryFilter>("all");
   let query = $state("");
   let unloading = $state<string | null>(null);
+  let pins = $state<string[]>([]);
+  let pinning = $state<string | null>(null);
   let importing = $state(false);
   let searchTarget = $state<InstalledModel | null>(null);
   let deleteTarget = $state<InstalledModel | null>(null);
@@ -79,6 +82,34 @@
     }
   }
 
+  async function loadPins(): Promise<void> {
+    try {
+      pins = (await listModelPins()).pins;
+    } catch {
+      // Without a local engine there is nothing to keep in memory.
+      pins = [];
+    }
+  }
+
+  /** Keeps a loaded model in memory, or stops keeping it. */
+  async function pin(model: LoadedModel, pinned: boolean): Promise<void> {
+    if (pinning) return;
+    pinning = model.modelPath;
+    const name = model.modelId ?? model.model;
+    try {
+      await setModelPin(model.modelPath, pinned);
+      addToast(
+        get(t)(pinned ? "ai.loaded.pinned_toast" : "ai.loaded.unpinned_toast", { values: { name } }),
+        "success",
+      );
+    } catch (err: unknown) {
+      reportError(err, { surface: "toast" });
+    } finally {
+      pinning = null;
+      await loadPins();
+    }
+  }
+
   async function loadFolder(): Promise<void> {
     try {
       modelsDir = await getModelsDir();
@@ -88,7 +119,7 @@
   }
 
   async function refresh(): Promise<void> {
-    await Promise.all([loadInstalled(), loadLoaded(), loadFolder()]);
+    await Promise.all([loadInstalled(), loadLoaded(), loadPins(), loadFolder()]);
   }
 
   async function unload(model: LoadedModel): Promise<void> {
@@ -276,7 +307,10 @@
       view={loaded}
       error={loadedError}
       {unloading}
+      {pins}
+      {pinning}
       onunload={unload}
+      onpin={pin}
       onretry={loadLoaded}
     />
     <InstalledModelsSection

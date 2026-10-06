@@ -3492,7 +3492,8 @@
       "next_message": "Next message",
       "prev_message": "Previous message",
       "stop_or_close": "Stop streaming / close modal",
-      "target_selector": "Choose the agent or the model"
+      "target_selector": "Choose the agent or the model",
+      "reload_last_model": "Reload the last model"
     },
     "shortcut_group": {
       "chat": "Chat",
@@ -3948,6 +3949,60 @@
       "in_messages": "In the messages",
       "pending": "Searching the messages...",
       "failed": "The search in the messages did not go through."
+    },
+    "model_load": {
+      "aria": "Load a model",
+      "back": "Go back without loading",
+      "memory": "Estimated memory",
+      "estimating": "estimating…",
+      "estimate_mark": "estimate",
+      "memory_gpu": "Graphics card",
+      "memory_total": "Total",
+      "gigabytes": "{size} GB",
+      "memory_unknown": "The memory of this model could not be estimated.",
+      "estimate_failed": "The estimate did not go through: {error}",
+      "file": "Model file",
+      "quantization_help": "How much the model is compressed. The stronger it is, the less memory the model takes, and the less refined its answers are.",
+      "no_settings": "No configurable setting for this model: it loads with its original settings.",
+      "context": "Context length",
+      "context_help": "What the model keeps in mind during a conversation, in tokens. The longer the context, the more memory the model takes.",
+      "context_max": "The model accepts up to {max} tokens.",
+      "offload": "Offload to the graphics card",
+      "offload_help": "The model is made of layers. Those given to the graphics card answer faster; the others stay in main memory.",
+      "offload_hint": "Layers given to the graphics card; the rest in main memory.",
+      "refusal_title": "This load exceeds the available memory",
+      "refusal_body": "Estimate {estimated} GB for {budget} GB of memory; guardrails \"{level}\". Reduce the context or the offload, or load anyway after confirming.",
+      "load_failed": "The model could not be loaded: {error}",
+      "remember": "Remember these settings for {name}",
+      "pin": "Keep in memory",
+      "pin_help": "A model kept in memory is not unloaded when it stays idle, nor when its last conversation closes.",
+      "show_advanced": "Show advanced settings",
+      "loading": "Loading…",
+      "load_anyway": "Load anyway…",
+      "load": "Load",
+      "confirm_title": "Load anyway?",
+      "confirm_body": "{name} needs about {estimated} GB of memory, and the load guardrails allow {budget} GB. This computer may slow down sharply or run out of memory.",
+      "confirm_action": "Load anyway",
+      "loaded_toast": "{name} is loaded.",
+      "advanced": {
+        "title": "Advanced settings",
+        "batch": "Evaluation batch size",
+        "threads": "Compute threads",
+        "seed": "Seed",
+        "kv_offload": "Keep the context cache on the graphics card",
+        "automatic": "automatic"
+      }
+    },
+    "model_eject": {
+      "label": "Eject the model",
+      "nothing_loaded": "No model of this computer is loaded for this conversation.",
+      "answering": "The model is answering right now; it can be ejected once its answer ends.",
+      "failed": "{name} could not be ejected: {error}"
+    },
+    "reload_last": {
+      "label": "Reload the last model",
+      "reloading": "Reloading",
+      "refused": "The last model could not be reloaded as it was: {error}"
     }
   },
   "transcriptions": {
@@ -4820,7 +4875,13 @@
       "since": "loaded {when}",
       "unload": "Unload",
       "unloaded_toast": "{name} unloaded, its memory is free.",
-      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
+      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes.",
+      "kept": "Kept in memory",
+      "kept_explanation": "This model stays loaded: it is not unloaded when it stays idle, nor when its last conversation closes.",
+      "pin": "Keep in memory",
+      "unpin": "Stop keeping in memory",
+      "pinned_toast": "{name} stays in memory.",
+      "unpinned_toast": "{name} is no longer kept in memory."
     },
     "installed": {
       "title": "On this computer",

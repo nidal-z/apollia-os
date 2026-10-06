@@ -264,6 +264,7 @@
           conversation={target}
           onpick={ontargetpick}
           disabled={sessionStatus !== "active"}
+          ejectable
         />
       </div>
     {/if}
