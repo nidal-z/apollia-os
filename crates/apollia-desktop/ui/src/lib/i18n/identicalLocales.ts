@@ -110,6 +110,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "batch_launch.source.title", // Source
   "chat.activity.sources", // Sources
   "chat.assistant", // Assistant
+  "chat.chips.vision", // Vision
   "chat.citations_aria", // Citations
   "chat.command_group.agents", // Agents
   "chat.config_title", // Configuration
@@ -119,7 +120,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.export.meta_session", // Session
   "chat.export.role_assistant", // Assistant
   "chat.journal.agent", // Agent
-  "chat.legend_messages", // Messages
   "chat.mode_auto", // Auto
   "chat.planMode.phaseLabel", // Phase
   "chat.quickpicker.agents_section", // Agents

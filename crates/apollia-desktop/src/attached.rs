@@ -51,12 +51,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
-    // The images of the chat: what the model of a conversation reads, and
-    // the stored images of its messages.
+    // The images of the chat: what the model reads, and the stored images.
     "get_chat_model_capabilities",
     "read_chat_image",
-    // The conversations as the list manages them: configure, rename, name,
-    // erase.
+    // The settings a conversation holds for itself, read and replaced.
+    "get_chat_session_settings",
+    "set_chat_session_settings",
+    // The conversations as the list manages them: configure, rename, erase.
     "delete_chat_session",
     "generate_chat_session_name",
     "rename_chat_session",
@@ -76,8 +77,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_targets",
     // The model calls behind the total of one answer.
     "list_turn_llm_calls",
-    // The chat: a turn played again, a decision on a tool call, and the
-    // skills of the worker agents.
+    // A turn played again, a decision on a tool call, the worker skills.
     "authorize_chat_tool",
     "edit_and_resend_chat_message",
     "list_a2a_skills",

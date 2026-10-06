@@ -15,7 +15,13 @@
     /** Extra classes merged into the content element. */
     class?: string;
     /** Trigger content (the element the tooltip anchors to). */
-    children: Snippet;
+    children?: Snippet;
+    /**
+     * Renders the trigger element itself, for a trigger that is already a
+     * control (a button with its own click). Receives the bits-ui props to
+     * spread on that element. Takes the place of `children`.
+     */
+    trigger?: Snippet<[Record<string, unknown>]>;
   }
 
   let {
@@ -25,16 +31,25 @@
     disabled = false,
     class: className = "",
     children,
+    trigger,
   }: Props = $props();
 </script>
 
 {#if disabled}
-  {@render children()}
+  {#if trigger}{@render trigger({})}{:else}{@render children?.()}{/if}
 {:else}
   <TooltipPrimitive.Root delayDuration={delay}>
-    <TooltipPrimitive.Trigger class="inline-flex items-center">
-      {@render children()}
-    </TooltipPrimitive.Trigger>
+    {#if trigger}
+      <TooltipPrimitive.Trigger>
+        {#snippet child({ props })}
+          {@render trigger(props)}
+        {/snippet}
+      </TooltipPrimitive.Trigger>
+    {:else}
+      <TooltipPrimitive.Trigger class="inline-flex items-center">
+        {@render children?.()}
+      </TooltipPrimitive.Trigger>
+    {/if}
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
         {side}

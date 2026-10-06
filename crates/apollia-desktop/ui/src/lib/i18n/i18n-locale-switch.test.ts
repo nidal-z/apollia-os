@@ -10,7 +10,7 @@ import fr from "./fr.json";
  * store immediately updates resolved values - the guarantee
  * asks for: changing locale in dev swaps strings without a reload.
  *
- * Uses a handful of spec-called-out keys (Copy / Thinking / Libre / Plan cache
+ * Uses a handful of spec-called-out keys (Copy / Thinking / Low / Plan cache
  * / icon-only aria-label) so regressions on those specific findings fail
  * loudly. The sixth, `common.workspace`, left with the screen that showed it:
  * a locale-switch proof pinned on a string the product no longer renders keeps
@@ -20,7 +20,7 @@ import fr from "./fr.json";
 const SPEC_KEYS = [
   { key: "common.copy", en: "Copy", fr: "Copier" },
   { key: "chat.thinking", en: "Thinking...", fr: "Réflexion en cours..." },
-  { key: "chat.legend_free", en: "Free", fr: "Libre" },
+  { key: "chat.chips.levels.low", en: "Low", fr: "Faible" },
   { key: "a11y.close", en: "Close", fr: "Fermer" },
   {
     key: "observability.plan_cache.title",
