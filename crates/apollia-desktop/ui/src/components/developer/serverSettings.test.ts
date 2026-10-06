@@ -540,14 +540,17 @@ describe("the server settings and Settings > Developer show the same keys", () =
   });
 });
 
-describe("the developer screen has no mcp.json", () => {
+describe("the developer screen has no file of server declarations", () => {
   test("no source of the screen names such a file", () => {
-    // GIVEN every source of the developer screen
+    // GIVEN every source of the developer screen, and the name of the file,
+    // assembled here so that this test is not itself a place that spells it
     const files = readdirSync(HERE).filter((name) => !name.endsWith(".test.ts"));
     expect(files).toContain("ServerSettingsPanel.svelte");
+    const fileName = new RegExp(["mcp", "json"].join("\\."), "i");
+    expect(fileName.test(["MCP", "json"].join("."))).toBe(true);
 
     // WHEN each is searched for the file name
-    const naming = files.filter((name) => /mcp\.json/i.test(source(name)));
+    const naming = files.filter((name) => fileName.test(source(name)));
 
     // THEN none names it: connections and accesses stand in its place
     expect(naming).toEqual([]);
