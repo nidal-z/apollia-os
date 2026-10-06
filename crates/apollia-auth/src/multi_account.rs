@@ -392,10 +392,10 @@ mod tests {
     #[test]
     fn test_account_id_display_returns_raw_value() {
         // GIVEN an account id built from an address
-        let id = AccountId::new("nidal@example.com");
+        let id = AccountId::new("ada@example.com");
         // WHEN it is displayed
         // THEN the raw value comes out, neither masked nor wrapped
-        assert_eq!(format!("{id}"), "nidal@example.com");
+        assert_eq!(format!("{id}"), "ada@example.com");
     }
 
     #[test]

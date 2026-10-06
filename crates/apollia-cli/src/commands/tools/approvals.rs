@@ -1,4 +1,4 @@
-//! `tools approvals`: the human-in-the-loop queue, pending and resolved.
+//! `tools approvals`: the human-in-the-loop queue waiting for a decision.
 
 use std::path::PathBuf;
 
@@ -19,9 +19,6 @@ pub(super) async fn run_approvals(
     let client = RuntimeClient::new(socket_path);
     match cmd {
         ToolsApprovalsCmd::Pending => run_approvals_pending(&client, json).await,
-        ToolsApprovalsCmd::Resolved { days, limit } => {
-            run_approvals_resolved(&client, *days, *limit, json).await
-        }
     }
 }
 
@@ -64,30 +61,6 @@ pub(super) async fn run_approvals_pending(client: &RuntimeClient, json: bool) ->
     }
 }
 
-pub(super) async fn run_approvals_resolved(
-    client: &RuntimeClient,
-    days: u32,
-    limit: u32,
-    json: bool,
-) -> i32 {
-    let uri = format!("/api/v1/approvals/resolved?days={days}&limit={limit}");
-    match client.get(&uri).await {
-        Ok(resp) if resp.status < 400 => {
-            if json {
-                println!("{}", resp.body);
-            } else {
-                match serde_json::from_str::<serde_json::Value>(&resp.body) {
-                    Ok(v) => print_resolved_human(&v),
-                    Err(_) => println!("{}", resp.body),
-                }
-            }
-            exit_codes::SUCCESS
-        }
-        Ok(resp) => emit_approvals_http_error(&resp, json),
-        Err(e) => emit_approvals_client_error(&e, json),
-    }
-}
-
 pub(super) fn print_pending_human(v: &serde_json::Value) {
     let arr = v
         .get("pending")
@@ -118,36 +91,5 @@ pub(super) fn print_pending_human(v: &serde_json::Value) {
             .and_then(|x| x.as_str())
             .unwrap_or("?");
         println!("  {task_id:<24} {tool:<24} {agent:<24} {when}");
-    }
-}
-
-pub(super) fn print_resolved_human(v: &serde_json::Value) {
-    let arr = v
-        .get("resolved")
-        .or_else(|| v.get("approvals"))
-        .and_then(|a| a.as_array())
-        .cloned()
-        .unwrap_or_else(|| v.as_array().cloned().unwrap_or_default());
-    if arr.is_empty() {
-        println!("  (no resolved approvals in window)");
-        return;
-    }
-    println!(
-        "  {:<24} {:<10} {:<24} RESOLVED",
-        "TASK", "DECISION", "TOOL"
-    );
-    for item in &arr {
-        let task_id = item.get("task_id").and_then(|x| x.as_str()).unwrap_or("?");
-        let decision = item
-            .get("decision")
-            .or_else(|| item.get("status"))
-            .and_then(|x| x.as_str())
-            .unwrap_or("?");
-        let tool = item.get("tool").and_then(|x| x.as_str()).unwrap_or("?");
-        let when = item
-            .get("resolved_at")
-            .and_then(|x| x.as_str())
-            .unwrap_or("?");
-        println!("  {task_id:<24} {decision:<10} {tool:<24} {when}");
     }
 }

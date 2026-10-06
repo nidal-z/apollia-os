@@ -49,6 +49,12 @@ pub struct ChatApprovalAsked {
     pub family: Option<String>,
     /// Prompt shown to the user.
     pub prompt: String,
+    /// The full arguments of the call, shown behind "see more".
+    pub detail: Option<String>,
+    /// The whole command or source, for a tool that runs code.
+    pub code: Option<String>,
+    /// The folder the code runs in, for a tool that runs code.
+    pub working_dir: Option<String>,
     /// The answers offered: once, always and refuse, or no always for code.
     pub answers: Vec<ConsentAnswer>,
     /// RFC 3339 timestamp of the request.
@@ -424,6 +430,9 @@ mod tests {
             agent_id: Some("apollia-chat".into()),
             family: Some("write_or_delete".into()),
             prompt: "Tool 'file_write' asks to run".into(),
+            detail: None,
+            code: None,
+            working_dir: None,
             answers: crate::governance::ALL_ANSWERS.to_vec(),
             asked_at: "2026-10-03T09:00:00Z".into(),
         };

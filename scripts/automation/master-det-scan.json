@@ -2,6 +2,9 @@
   "name": "master-det (per-page deterministic suite, one boot, no model) [SCAN cap=3000ms]",
   "stopOnError": false,
   "dynamicTestids": [
+    "approval-card-file_write",
+    "approval-detail-file_write",
+    "approval-see-more-file_write",
     "arg-input-0",
     "automation-delete-automation-probe-trigger",
     "automation-delete-seed-trigger-daily-digest",
@@ -78,16 +81,6 @@
     "help-link-docs",
     "help-link-report",
     "help-link-shortcuts",
-    "inbox-activity-filter-all",
-    "inbox-activity-filter-degradations",
-    "inbox-activity-filter-failures",
-    "inbox-activity-filter-llm",
-    "inbox-filter-all",
-    "inbox-filter-approval",
-    "inbox-filter-ask_user",
-    "inbox-tab-activity",
-    "inbox-tab-notifications",
-    "inbox-tab-pending",
     "install-secret-input-seed-deps-webhook",
     "mcp-detail-tab-overview",
     "mcp-detail-tab-settings",
@@ -132,6 +125,13 @@
     "observability-tab-plan-cache",
     "observability-tab-timeline",
     "observability-toggle-debug_log_prompt",
+    "operator-approval-accept-bash_executor",
+    "operator-approval-accept-file_write",
+    "operator-approval-always-bash_executor",
+    "operator-approval-always-file_write",
+    "operator-approval-always-send_email",
+    "operator-approval-code-bash_executor",
+    "operator-approval-refuse-bash_executor",
     "period-14d",
     "period-30d",
     "period-365d",
@@ -147,6 +147,12 @@
     "profile-menu-reset",
     "profile-menu-set_default",
     "quickpicker-agent-seed-classifier",
+    "review-filter-all",
+    "review-filter-batch_items",
+    "review-filter-decisions",
+    "review-filter-questions",
+    "review-question-other-figure",
+    "review-question-radio-figure-ledger",
     "settings-nav-appearance",
     "settings-nav-chat",
     "settings-nav-configuration",
@@ -162,6 +168,7 @@
     "settings-nav-notifications",
     "settings-nav-profile",
     "settings-nav-stt",
+    "sidebar-connection-folder:automation",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
     "theme-dark",
@@ -4530,6 +4537,38 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_sources",
+      "resolve": [
+        {
+          "id": "src-automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "group": null,
+          "reference": "folder:automation",
+          "indexState": "keywords_only",
+          "addedAt": "2026-10-01T08:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_source_index",
+      "resolve": {
+        "id": "src-automation",
+        "indexState": "keywords_only",
+        "documents": 12,
+        "chunks": 40,
+        "skipped": [
+          {
+            "path": "/automation/recording.mov",
+            "sizeBytes": 60000000,
+            "reason": "too_large"
+          }
+        ]
+      }
+    },
+    {
       "kind": "click",
       "testid": "agent-adjust-open",
       "timeoutMs": 2500
@@ -4572,7 +4611,201 @@
       "kind": "click",
       "testidPrefix": "agent-adjust-source-check",
       "timeoutMs": 2500,
+      "nth": -1
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet-source-state",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-status"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-source-skipped",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet-source-skipped-list",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-open-ai"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a-apollia-adjust-sources (stubbed registry: one folder searched by keywords only, one file left out)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-source-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-remove-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-remove-dialog-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-remove-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": []
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sources-add",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sources-add-menu",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-sources-add-choice",
+      "timeoutMs": 2500,
       "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-source-pick-connections"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-pick-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "folder:automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "account": null,
+          "path": "/automation/folder",
+          "provenance": "custom",
+          "remote": false,
+          "official": false,
+          "state": "connected",
+          "tools": [
+            {
+              "id": "mcp:automation/read_file",
+              "family": "read",
+              "familySource": "server",
+              "prechecked": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sources-add",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sources-add-menu",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-sources-add-choice",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-candidate",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-pick-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-adjust-source-check",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-grant-reading",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a2-apollia-adjust-source-reading-note (checked folder the agent cannot read)"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-adjust-source-check",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-grant-reading",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_source_index"
     },
     {
       "kind": "click",
@@ -6647,193 +6880,430 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "screenshot",
-      "label": "01-inbox-operator"
-    },
-    {
-      "kind": "expect",
-      "testid": "inbox-tabbar"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-inbox-tab-pending"
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-approval",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-inbox-filter-approval"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-ask_user",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-inbox-filter-ask-user"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-inbox-pending-empty"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-history-list",
+      "testid": "review-empty",
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "inbox-history-row",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-history-origin",
-      "nth": 0,
+      "kind": "waitGone",
+      "testid": "review-filters",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "05b-inbox-history-merged (one list, each row tagged with its origin)"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-activity",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-inbox-tab-activity"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-activity-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-activity-rows"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-filter-failures",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-activity-failures"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-filter-degradations",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-activity-degradations"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-filter-llm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-activity-llm"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-activity-all"
+      "label": "01-review-empty (nothing waits at cold boot, no history, no tabs)"
     },
     {
       "kind": "stubInvoke",
-      "command": "list_runtime_activity",
-      "reject": "seeded activity failure",
-      "once": true
+      "command": "list_pending_decisions",
+      "resolve": {
+        "items": [
+          {
+            "id": "consent:seed-session::seed-message::call-1",
+            "kind": "consent",
+            "agentId": "apollia-chat",
+            "summary": "Tool 'file_write' asks to run with: {\"path\":\"notes/summary.txt\"}",
+            "access": "file_write",
+            "family": "write_or_delete",
+            "detail": "{\n  \"path\": \"notes/summary.txt\",\n  \"content\": \"Summary of the week\"\n}",
+            "answers": [
+              "once",
+              "always",
+              "refuse"
+            ],
+            "questions": null,
+            "allowOther": false,
+            "origin": {
+              "sessionId": "seed-session",
+              "messageId": "seed-message",
+              "toolCallId": "call-1"
+            },
+            "askedAt": "2026-10-03T09:04:00Z"
+          },
+          {
+            "id": "consent:seed-session::seed-message::call-2",
+            "kind": "consent",
+            "agentId": "apollia-chat",
+            "summary": "python3 report.py",
+            "access": "bash_executor",
+            "family": "execute_code",
+            "code": "set -e\ncd reports\npython3 collect.py --week 40\npython3 clean.py --strict\npython3 report.py --out week-40.md\nwc -l week-40.md",
+            "workingDir": "/tmp/apollia-work",
+            "answers": [
+              "once",
+              "refuse"
+            ],
+            "questions": null,
+            "allowOther": false,
+            "origin": {
+              "sessionId": "seed-session",
+              "messageId": "seed-message",
+              "toolCallId": "call-2"
+            },
+            "askedAt": "2026-10-03T09:03:00Z"
+          },
+          {
+            "id": "question:seed-request",
+            "kind": "question",
+            "agentId": null,
+            "summary": "Two figures differ between the ledger and the dashboard.",
+            "access": null,
+            "family": null,
+            "answers": [
+              "answer",
+              "refuse"
+            ],
+            "questions": [
+              {
+                "id": "figure",
+                "question": "Which revenue figure should the minutes keep?",
+                "type": "single_choice",
+                "options": [
+                  "ledger",
+                  "dashboard"
+                ]
+              }
+            ],
+            "allowOther": true,
+            "origin": {
+              "sessionId": "seed-session",
+              "requestId": "seed-request"
+            },
+            "askedAt": "2026-10-03T09:02:00Z"
+          },
+          {
+            "id": "batch:seed-batch:13",
+            "kind": "batch_item",
+            "agentId": "apollia-chat",
+            "summary": "Waiting for the access send_email",
+            "access": "send_email",
+            "family": "send_external",
+            "answers": [
+              "once",
+              "always",
+              "refuse"
+            ],
+            "questions": null,
+            "allowOther": false,
+            "origin": {
+              "batchId": "seed-batch",
+              "rank": 13
+            },
+            "askedAt": "2026-10-03T09:01:00Z"
+          },
+          {
+            "id": "task:seed-task",
+            "kind": "task_pause",
+            "agentId": "weekly-digest",
+            "summary": "Send the Monday digest to the whole team?",
+            "access": null,
+            "family": null,
+            "answers": [
+              "once",
+              "refuse"
+            ],
+            "questions": null,
+            "allowOther": false,
+            "origin": {
+              "taskId": "seed-task"
+            },
+            "askedAt": "2026-10-03T09:00:00Z"
+          }
+        ]
+      }
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 2500
+      "kind": "stubInvoke",
+      "command": "decide_pending_decision",
+      "resolve": {
+        "id": "consent:seed-session::seed-message::call-1",
+        "answer": "always",
+        "resumed": 1,
+        "batchItemsResumed": 1,
+        "message": "Allowed for this agent from now on; the agent goes on."
+      }
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-activity",
-      "timeoutMs": 2500
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "inbox-activity-error",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "contains": "5 items are waiting for your answer.",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "review-filters"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-item",
+      "nth": 4,
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "11a-activity-load-error"
+      "label": "02-review-one-list (five items, the most recent first)"
+    },
+    {
+      "kind": "click",
+      "testid": "review-filter-decisions",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-item",
+      "nth": 2,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "review-question",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-review-filter-decisions (two consents and the paused task)"
+    },
+    {
+      "kind": "click",
+      "testid": "review-filter-questions",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-question",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "review-question-context"
+    },
+    {
+      "kind": "expect",
+      "testid": "review-question-radio-figure-ledger"
+    },
+    {
+      "kind": "expect",
+      "testid": "review-question-other-figure"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-review-filter-questions (proposed choices and another answer)"
+    },
+    {
+      "kind": "click",
+      "testid": "review-filter-batch_items",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-summary",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "operator-approval-always-send_email"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-review-filter-batch-items"
+    },
+    {
+      "kind": "click",
+      "testid": "review-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-folded",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "operator-approval-accept-bash_executor",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-review-command-folded (four lines, no answer yet)"
+    },
+    {
+      "kind": "click",
+      "testid": "review-unfold",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "operator-approval-code-bash_executor",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "operator-approval-accept-bash_executor"
+    },
+    {
+      "kind": "expect",
+      "testid": "operator-approval-refuse-bash_executor"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "operator-approval-always-bash_executor",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-review-command-whole (once and refuse, never always)"
+    },
+    {
+      "kind": "click",
+      "testid": "operator-approval-accept-file_write",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-answered",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-review-answered-held (answer recorded, Cancel offered)"
+    },
+    {
+      "kind": "click",
+      "testid": "review-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "review-answered",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "operator-approval-accept-file_write",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-review-answer-cancelled (the card is back, nothing was sent)"
+    },
+    {
+      "kind": "click",
+      "testid": "operator-approval-always-file_write",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-answered",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-resumed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-review-always-sent (one batch item resumed thanks to this consent)"
+    },
+    {
+      "kind": "click",
+      "testid": "review-filter-questions",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "review-question-radio-figure-ledger",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "review-question-submit",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-answered",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-review-question-answered"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "review-answered",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "review-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "review-open",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-review-open-conversation-landed-on-chat"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_pending_decisions"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_pending_decisions",
+      "reject": "seeded pending decisions failure",
+      "once": true
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-review-load-error"
     },
     {
       "kind": "click",
@@ -6842,7 +7312,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "11b-activity-load-error-details-open"
+      "label": "13b-review-load-error-details-open"
     },
     {
       "kind": "click",
@@ -6855,79 +7325,48 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "waitGone",
+      "testid": "review-error",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
+      "testid": "review-empty",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "11c-activity-retried (the stub was once, the seeded rows are back)"
+      "label": "13c-review-retried (the stub was once, the real list is empty)"
     },
     {
       "kind": "stubInvoke",
-      "command": "list_runtime_activity",
-      "resolve": [],
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-activity",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "contains": "All clear - no recent incidents.",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "inbox-activity-empty-cta",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "11d-activity-empty-mode-off (list answered [] by the stub, no link to Observability)"
-    },
-    {
-      "kind": "goto",
-      "route": "inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-activity",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "activity-row-see-logs",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-notifications",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-inbox-tab-notifications"
+      "command": "list_pending_decisions",
+      "resolve": {
+        "items": [
+          {
+            "id": "consent:seed-session::seed-message::call-1",
+            "kind": "consent",
+            "agentId": "apollia-chat",
+            "summary": "Tool 'file_write' asks to run with: {\"path\":\"notes/summary.txt\"}",
+            "access": "file_write",
+            "family": "write_or_delete",
+            "detail": "{\n  \"path\": \"notes/summary.txt\",\n  \"content\": \"Summary of the week\"\n}",
+            "answers": [
+              "once",
+              "always",
+              "refuse"
+            ],
+            "questions": null,
+            "allowOther": false,
+            "origin": {
+              "sessionId": "seed-session",
+              "messageId": "seed-message",
+              "toolCallId": "call-1"
+            },
+            "askedAt": "2026-10-03T09:04:00Z"
+          }
+        ]
+      }
     },
     {
       "kind": "goto",
@@ -6967,94 +7406,30 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "screenshot",
-      "label": "13-inbox-builder"
+      "kind": "waitFor",
+      "testid": "approval-card-file_write",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "approval-see-more-file_write"
     },
     {
       "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-inbox-pending-builder"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-activity",
+      "testid": "approval-see-more-file_write",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
+      "testid": "approval-detail-file_write",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "15-inbox-activity-builder"
+      "label": "14-review-developer-card (the developer card of the chat, full arguments)"
     },
     {
-      "kind": "waitFor",
-      "testid": "activity-row-see-logs",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "list_runtime_activity",
-      "resolve": [],
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-activity",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-activity-empty-cta",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "15a-activity-empty-developer (list answered [] by the stub)"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-empty-cta",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "observability-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "15b-activity-empty-cta-landed-on-observability"
-    },
-    {
-      "kind": "goto",
-      "route": "inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-notifications",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "16-inbox-notifications-builder"
+      "kind": "clearStubs"
     },
     {
       "kind": "goto",
@@ -7094,8 +7469,13 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "review-empty",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
-      "label": "17-back-operator"
+      "label": "15-back-to-default-mode"
     },
     {
       "kind": "screenshot",
@@ -11510,6 +11890,157 @@
     {
       "kind": "clearStubs",
       "command": "oauth_set_drive_folder"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "folder:automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "account": null,
+          "path": "/automation/folder",
+          "provenance": "custom",
+          "remote": false,
+          "official": false,
+          "state": "connected",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-connection-folder:automation",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-detail-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_sources",
+      "resolve": [
+        {
+          "id": "src-automation",
+          "kind": "folder",
+          "label": "Automation documents",
+          "group": null,
+          "reference": "folder:automation",
+          "indexState": "ready",
+          "addedAt": "2026-10-01T08:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-folder-remove-source"
+    },
+    {
+      "kind": "screenshot",
+      "label": "47-folder-connection-removal-lists-its-sources"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_folder_connection",
+      "resolve": {
+        "id": "folder:automation",
+        "kind": "folder",
+        "label": "Automation folder",
+        "account": null,
+        "path": "/automation/folder",
+        "provenance": "custom",
+        "remote": false,
+        "official": false,
+        "state": "connected",
+        "tools": []
+      },
+      "argsMatch": {
+        "connectionId": "folder:automation",
+        "confirm": true
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_folder_connection",
+      "reject": "automation: remove_folder_connection was not called with the confirmation the dialog gave"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "remove_folder_connection"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
     },
     {
       "kind": "goto",

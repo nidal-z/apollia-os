@@ -941,15 +941,11 @@ fn test_seed_inserts_channel_when_empty_and_no_marker() {
 
 #[test]
 fn test_seed_uses_profile_name_when_present() {
-    // GIVEN a user memory with profile.name = "Nidal"
+    // GIVEN a user memory with profile.name = "Ada"
     let (notif, um, _tmp) = make_seed_inputs();
     um.lock()
         .unwrap()
-        .set(
-            "name",
-            "Nidal",
-            apollia_memory::user_memory::WrittenBy::User,
-        )
+        .set("name", "Ada", apollia_memory::user_memory::WrittenBy::User)
         .expect("set name");
 
     // WHEN the seed runs
@@ -960,7 +956,7 @@ fn test_seed_uses_profile_name_when_present() {
         .get_channel("desktop-default")
         .expect("get")
         .expect("Some");
-    assert_eq!(ch.label.as_deref(), Some("Nidal's desktop"));
+    assert_eq!(ch.label.as_deref(), Some("Ada's desktop"));
 }
 
 #[test]

@@ -24,7 +24,7 @@ license = "MIT OR Apache-2.0"
 # `license-files` glob cannot climb out of the package root, so the two
 # files are copied here rather than referenced at ../.
 license-files = ["LICENSE-APACHE", "LICENSE-MIT"]
-authors = [{name = "Nidal Zoumita", email = "admin@apollia.fr"}]
+authors = [{name = "Apollia", email = "contact@apollia.fr"}]
 dependencies = []
 
 [project.urls]

@@ -378,6 +378,11 @@ application under `crates/apollia-desktop/`, and the documentation site under
 What each crate holds and why it exists:
 [repository layout](https://docs.apollia.fr/explanation/repository-layout/).
 
+## Roadmap
+
+What shipped, what is being built, and the versions planned after it:
+[ROADMAP.md](ROADMAP.md).
+
 ## Contributing
 
 Apollia OS is a single-maintainer preview. **Issues are
@@ -409,8 +414,7 @@ the button GitHub renders from `.github/FUNDING.yml` leads nowhere. This list
 gains the rail when the profile goes live.
 
 Funding goes straight into the work: cross-platform CI, vision support, and the
-foundations for distributing community agents. Supporters are listed in
-[SPONSORS.md](SPONSORS.md).
+foundations for distributing community agents.
 
 This is separate from the commercial side. If you need a custom agent built for
 your own workflow, that is a paid engagement, see [apollia.fr](https://apollia.fr).
@@ -423,6 +427,9 @@ Apollia OS is dual-licensed under either of:
 
 - [Apache License, Version 2.0](LICENSE-APACHE)
 - [MIT License](LICENSE-MIT)
+
+The third-party components the release packages redistribute, and their
+licenses, are listed in [NOTICE](NOTICE).
 
 at your option. This aligns with the de facto standard for the Rust ecosystem.
 

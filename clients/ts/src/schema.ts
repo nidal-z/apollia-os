@@ -464,27 +464,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/approvals/resolved": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Handler for `GET /api/v1/approvals/resolved`.
-         * @description Returns the last `limit` resolved approvals (approved or rejected)
-         *     within the last `days` days.
-         */
-        get: operations["list_resolved_approvals"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/artifacts": {
         parameters: {
             query?: never;
@@ -7681,6 +7660,12 @@ export interface components {
         DecideResponse: {
             /** @description The answer applied. */
             answer: components["schemas"]["PendingAnswer"];
+            /**
+             * Format: int64
+             * @description How many other batch items, waiting on an access this answer now
+             *     covers, ran again besides the item answered.
+             */
+            batchItemsResumed: number;
             /** @description The item answered. */
             id: string;
             /** @description What happened, to show the user. */
@@ -9601,6 +9586,13 @@ export interface components {
             answers: components["schemas"]["PendingAnswer"][];
             /** @description When it was asked, RFC 3339, when known. */
             askedAt?: string | null;
+            /** @description The whole command or source, when the consent is about running code. */
+            code?: string | null;
+            /**
+             * @description The full arguments of the call a consent is about, as the chat card
+             *     shows them behind "see more".
+             */
+            detail?: string | null;
             /**
              * @description Its action family (`read_personal`, `write_or_delete`, `send_external`,
              *     `execute_code`, `unclassified`), when known.
@@ -9619,6 +9611,8 @@ export interface components {
             questions?: Record<string, never> | null;
             /** @description What is asked, in a sentence. */
             summary: string;
+            /** @description The folder that code runs in. */
+            workingDir?: string | null;
         };
         /** @description The decisions waiting for the user. */
         PendingDecisionList: {
@@ -10198,16 +10192,6 @@ export interface components {
             sources: string[];
             /** @description Version of the definition. */
             version: string;
-        };
-        /** @description One resolved HITL approval entry. */
-        ResolvedApprovalResponse: {
-            agent_name: string;
-            approved: boolean;
-            reason?: string | null;
-            responded_at?: string | null;
-            task_id: string;
-            /** Format: int64 */
-            wait_duration_ms?: number | null;
         };
         /** @description The memory and the processor in use at the time of the request. */
         ResourceUsageResponse: {
@@ -13208,40 +13192,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PendingApprovalResponse"][];
-                };
-            };
-        };
-    };
-    list_resolved_approvals: {
-        parameters: {
-            query?: {
-                /** @description Maximum number of resolved approvals to return (default 20) */
-                limit?: number;
-                /** @description Look-back window in days (default 7) */
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Recently resolved approvals */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolvedApprovalResponse"][];
-                };
-            };
-            /** @description Internal error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };

@@ -739,6 +739,8 @@ guards:
       "scripts/check_tauri_ipc_args.py"
       "scripts/check_tauri_ipc_callers.py"
       "scripts/check_tracing_messages.py"
+      "scripts/check_tracked_inventory.py"
+      "scripts/check_tracked_inventory.py --selftest"
       "scripts/check_unimported_files.py"
       "scripts/check_ui_vocabulary.py"
       "scripts/check_windows_python_dll.py"

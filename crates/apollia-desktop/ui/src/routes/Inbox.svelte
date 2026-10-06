@@ -1,365 +1,241 @@
 <script lang="ts">
+  /**
+   * "To review": every decision waiting for the user in one list, answered
+   * with the cards of the chat. The list is the runtime's own gathering of the
+   * consents of the conversations, the task pauses, the batch items and the
+   * questions of agents; answering here goes through the call that answers
+   * each where it was born, so the conversation, the task or the batch goes on.
+   *
+   * There is no history here: a decision taken is read in the audit journal.
+   */
   import { onMount } from "svelte";
   import { t, locale } from "svelte-i18n";
+  import { ShieldCheck } from "lucide-svelte";
   import { formatRelativeTime } from "$lib/utils";
 
-  import { pendingApprovals, pendingCount, requestNotificationPermission } from "$lib/stores/hitl";
+  import { pendingApprovals, requestNotificationPermission } from "$lib/stores/hitl";
   import {
+    addPendingUserInput,
     pendingChatApprovals,
-    pendingChatApprovalCount,
-    pendingUserInputs,
-    pendingUserInputCount,
     pendingChatSessionId,
+    pendingUserInputs,
   } from "$lib/stores/chat";
-  import { pendingPlanApprovals, pendingPlanApprovalCount } from "$lib/stores/chat-global";
-  import { addToast } from "$lib/components/ui/toast/store";
+  import { chatSessions } from "$lib/stores/sse";
   import { reportError } from "$lib/errors/reportError";
   import { navigateTo } from "$lib/stores/navigation";
+  import { requestSheet } from "$lib/stores/agentOpen";
+  import { openBatch } from "$lib/stores/batchView";
 
-  import { TabBar } from "$lib/components/ui/tabs";
+  import { Banner } from "$lib/components/ui/banner";
   import RouteTransition from "$lib/components/ui/route-transition/RouteTransition.svelte";
-  import { PageHeader } from "$lib/components/operator";
+  import { EmptyState, FilterChipBar, PageHeader } from "$lib/components/operator";
 
-  import RejectReasonDialog from "../components/inbox/RejectReasonDialog.svelte";
-  import InboxPendingTab from "../components/inbox/InboxPendingTab.svelte";
-  import InboxActivityTab from "../components/inbox/InboxActivityTab.svelte";
-  import InboxNotificationsTab from "../components/inbox/InboxNotificationsTab.svelte";
-
+  import InboxErrorBox from "../components/inbox/InboxErrorBox.svelte";
+  import ReviewItem from "../components/inbox/ReviewItem.svelte";
+  import { createAnswerHold } from "../components/inbox/answerHold";
   import {
-    listPendingApprovals,
-    listPendingUserInputs,
-    listChatApprovalHistory,
-    listResolvedApprovals,
-    listRuntimeActivity,
-    getNotificationLogs,
-    listNotificationChannels,
-    respondUserInput,
-    respondUserInputRejected,
-  } from "$lib/ipc/inbox";
+    ANSWER_HOLD_MS,
+    REVIEW_FILTERS,
+    filterCounts,
+    newestFirst,
+    originOf,
+    shownUnder,
+    type ReviewFilter,
+  } from "../components/inbox/reviewModel";
+
+  import { listPendingApprovals, listPendingUserInputs } from "$lib/ipc/inbox";
   import {
-    taskToInbox,
-    chatToInbox,
-    planToInbox,
-    askUserToInbox,
-    type ActivityFilter,
-    type Translate,
-  } from "../components/inbox/inboxModel";
-  import { resolveItem, alwaysAccept } from "../components/inbox/inboxActions";
-  import { mergeApprovalHistory, type HistoryEntry } from "../components/inbox/historyModel";
-  import { itemId } from "../components/inbox/rowMenu";
-  import type { InboxItem } from "../components/inbox/types";
-  import type {
-    AskUserAnswer,
-    NotificationChannel,
-    NotificationLogEntry,
-  } from "$lib/types";
+    decidePendingDecision,
+    listPendingDecisions,
+    type DecideRequest,
+    type PendingDecision,
+  } from "$lib/ipc/pendingDecisions";
 
-  type Tab = "pending" | "activity" | "notifications";
-  const TAB_STORAGE_KEY = "inbox.active_tab";
-  // Same window for both history origins so the merged list has one meaning.
-  const HISTORY_LIMIT = 50;
-  const HISTORY_DAYS = 14;
+  /** How often the list is read again while the screen is open. */
+  const REFRESH_MS = 15_000;
 
-  let activeTab = $state<Tab>("pending");
+  let items = $state<PendingDecision[]>([]);
   let loading = $state(true);
   let error = $state<unknown>(null);
-  let userInputsError = $state<unknown>(null);
-  let submitting = $state(false);
-  let expandedId = $state<string | null>(null);
-  let rejectTarget = $state<InboxItem | null>(null);
-  let history = $state<HistoryEntry[]>([]);
-  let historyError = $state<unknown>(null);
-  let historyPartialError = $state<unknown>(null);
-  let activityEntries = $state<NotificationLogEntry[]>([]);
-  let activityLoading = $state(false);
-  let activityError = $state<unknown>(null);
-  let activityFilter = $state<ActivityFilter>("all");
-  let notificationLogs = $state<NotificationLogEntry[]>([]);
-  let channels = $state<NotificationChannel[]>([]);
-  let notificationsLoading = $state(false);
-  let notificationsError = $state<unknown>(null);
-  let channelsError = $state<unknown>(null);
+  let filter = $state<ReviewFilter>("all");
+  /** The answers given and not sent yet, by item id. */
+  let held = $state<Record<string, DecideRequest>>({});
+  /** Batch items that ran again thanks to the last "always" answered here. */
+  let resumedBatchItems = $state(0);
 
   const relTime = (iso: string) => formatRelativeTime(iso, $locale ?? "en");
 
-  const allItems = $derived.by<InboxItem[]>(() => {
-    const tr = $t as Translate;
-    const items = [
-      ...$pendingApprovals.map((p) => taskToInbox(p, tr)),
-      ...$pendingChatApprovals.map(chatToInbox),
-      ...$pendingUserInputs.map((u) => askUserToInbox(u, tr)),
-      ...$pendingPlanApprovals.map((p) => planToInbox(p, tr)),
-    ];
-    return items.sort(
-      (a, b) => new Date(b.suspendedAt).getTime() - new Date(a.suspendedAt).getTime(),
-    );
-  });
-
-  const totalPending = $derived(
-    $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount + $pendingPlanApprovalCount,
+  const ordered = $derived(newestFirst(items));
+  /** What still waits: an item answered here no longer counts. */
+  const waiting = $derived(ordered.filter((item) => !(item.id in held)));
+  const counts = $derived(filterCounts(waiting));
+  const shown = $derived(shownUnder(ordered, filter));
+  const chips = $derived(
+    REVIEW_FILTERS.map((key) => ({
+      key,
+      label: $t(`review.filter.${key}`),
+      count: counts[key],
+    })),
+  );
+  const titles = $derived(
+    new Map($chatSessions.map((session) => [session.id, session.title] as const)),
   );
 
-  const tabItems = $derived([
-    { key: "pending", label: $t("inbox.tab_pending"), count: totalPending },
-    { key: "activity", label: $t("inbox.tab_activity"), count: activityEntries.length },
-    { key: "notifications", label: $t("inbox.tab_notifications"), count: notificationLogs.length },
-  ]);
-
-  function loadInitialTab(): Tab {
-    if (typeof window === "undefined") return "pending";
-    const fromQuery = new URL(window.location.href).searchParams.get("tab");
-    if (fromQuery === "activity" || fromQuery === "notifications" || fromQuery === "pending") return fromQuery;
-    const stored = sessionStorage.getItem(TAB_STORAGE_KEY);
-    if (stored === "activity" || stored === "notifications" || stored === "pending") return stored;
-    return "pending";
+  function conversationTitle(item: PendingDecision): string | null {
+    const origin = originOf(item);
+    return origin.kind === "conversation" ? (titles.get(origin.sessionId) ?? null) : null;
   }
 
-  function selectTab(next: string): void {
-    if (next !== "pending" && next !== "activity" && next !== "notifications") return;
-    activeTab = next;
-    try {
-      sessionStorage.setItem(TAB_STORAGE_KEY, next);
-    } catch {
-      // REASON: sessionStorage can be unavailable (private mode / quota); the
-      // active tab is non-critical UI state, so failing to persist it is safe
-      // to ignore. This is not a data path - nothing is silently lost.
+  const hold = createAnswerHold<DecideRequest>({
+    delayMs: ANSWER_HOLD_MS,
+    send: async (_id, request) => {
+      const response = await decidePendingDecision(request);
+      resumedBatchItems = response.batchItemsResumed;
+    },
+    settled: (id, failure) => {
+      const { [id]: _sent, ...rest } = held;
+      held = rest;
+      if (failure) reportError(failure, { surface: "toast" });
+      void load();
+    },
+  });
+
+  function answer(item: PendingDecision, request: DecideRequest): void {
+    resumedBatchItems = 0;
+    held = { ...held, [item.id]: request };
+    hold.hold(item.id, request);
+  }
+
+  function cancel(item: PendingDecision): void {
+    hold.cancel(item.id);
+    const { [item.id]: _cancelled, ...rest } = held;
+    held = rest;
+  }
+
+  function open(item: PendingDecision): void {
+    const origin = originOf(item);
+    if (origin.kind === "conversation") {
+      pendingChatSessionId.set(origin.sessionId);
+      navigateTo("chat");
+    } else if (origin.kind === "batch") {
+      openBatch(origin.batchId, "history");
+    } else if (origin.kind === "task" && item.agentId) {
+      requestSheet({ kind: "agent", id: item.agentId });
     }
-    if (next === "activity") void loadActivity();
-    if (next === "notifications") void loadNotificationLogs();
   }
 
-  function toggleExpand(item: InboxItem): void {
-    expandedId = expandedId === item.id ? null : item.id;
+  async function load(): Promise<void> {
+    try {
+      const listed = await listPendingDecisions();
+      items = listed;
+      error = null;
+      // An item answered elsewhere meanwhile has nothing left to send.
+      const present = new Set(listed.map((item) => item.id));
+      for (const id of Object.keys(held)) {
+        if (!present.has(id) && hold.cancel(id)) {
+          const { [id]: _gone, ...rest } = held;
+          held = rest;
+        }
+      }
+    } catch (e) {
+      error = e;
+    } finally {
+      loading = false;
+    }
   }
 
   /**
-   * Runs a resolving action with the shared busy / success-toast / humanized-
-   * error envelope. A resolved item leaves the store and its row unmounts, so a
-   * stale `expandedId` matches nothing and needs no explicit reset.
+   * The counters of the sidebar and of the chat read the stores the events
+   * feed; they are seeded here as well, so a decision that waited before this
+   * window opened is counted.
    */
-  async function runResolve(
-    action: () => Promise<void>,
-    toastKey: string,
-    reloadHistory = true,
-  ): Promise<void> {
-    submitting = true;
-    try {
-      await action();
-      addToast($t(toastKey), "success");
-      if (reloadHistory) await loadHistory();
-    } catch (e) {
-      reportError(e, { surface: "toast" });
-    } finally {
-      submitting = false;
-    }
-  }
-
-  const handleApprove = (item: InboxItem) =>
-    runResolve(() => resolveItem(item, true), "inbox.toast.accepted");
-
-  const handleAlwaysAccept = (item: InboxItem) =>
-    runResolve(() => alwaysAccept(item), "inbox.toast.always_accepted");
-
-  function openReject(item: InboxItem): void {
-    rejectTarget = item;
-  }
-
-  async function confirmReject(reason: string): Promise<void> {
-    if (!rejectTarget) return;
-    const target = rejectTarget;
-    await runResolve(() => resolveItem(target, false, reason), "inbox.toast.rejected");
-    rejectTarget = null;
-  }
-
-  function respondAskUser(item: InboxItem, answers: AskUserAnswer[]): void {
-    if (item.kind !== "ask_user") return;
-    const requestId = item.source.request_id;
-    void runResolve(() => respondUserInput(requestId, answers), "inbox.toast.ask_user_replied", false);
-  }
-
-  function rejectAskUser(item: InboxItem, reason: string): void {
-    if (item.kind !== "ask_user") return;
-    const requestId = item.source.request_id;
-    void runResolve(() => respondUserInputRejected(requestId, reason), "inbox.toast.rejected", false);
-  }
-
-  function openAskUserChat(sessionId: string): void {
-    pendingChatSessionId.set(sessionId);
-    navigateTo("chat");
-  }
-
-  async function copyItemId(item: InboxItem): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(itemId(item));
-      addToast($t("inbox.toast.copied"), "success");
-    } catch (e) {
-      reportError(e, { surface: "toast" });
-    }
-  }
-
-  async function loadData(): Promise<void> {
-    loading = true;
-    error = null;
-    userInputsError = null;
-    const [pendingRes, inputsRes] = await Promise.allSettled([
+  async function seedCounters(): Promise<void> {
+    const [pauses, questions] = await Promise.allSettled([
       listPendingApprovals(),
       listPendingUserInputs(),
     ]);
-    if (pendingRes.status === "fulfilled") pendingApprovals.set(pendingRes.value);
-    else error = pendingRes.reason;
-    if (inputsRes.status === "fulfilled") {
-      const { addPendingUserInput } = await import("$lib/stores/chat");
-      for (const u of inputsRes.value) addPendingUserInput(u);
-    } else {
-      userInputsError = inputsRes.reason;
-    }
-    loading = false;
-    await loadHistory();
-  }
-
-  /**
-   * Loads both origins of the decision history (chat authorizations and agent
-   * task approvals) and merges them into one date-sorted list. One failing
-   * origin degrades to a partial error above the surviving rows; only a double
-   * failure replaces the section with the error box.
-   */
-  async function loadHistory(): Promise<void> {
-    const [chatRes, taskRes] = await Promise.allSettled([
-      listChatApprovalHistory(HISTORY_LIMIT, HISTORY_DAYS),
-      listResolvedApprovals(HISTORY_LIMIT, HISTORY_DAYS),
-    ]);
-    const failures: unknown[] = [];
-    if (chatRes.status === "rejected") failures.push(chatRes.reason);
-    if (taskRes.status === "rejected") failures.push(taskRes.reason);
-
-    if (failures.length === 2) {
-      history = [];
-      historyError = failures[0];
-      historyPartialError = null;
-      return;
-    }
-
-    history = mergeApprovalHistory(
-      chatRes.status === "fulfilled" ? chatRes.value : [],
-      taskRes.status === "fulfilled" ? taskRes.value : [],
-    );
-    historyError = null;
-    historyPartialError = failures.length === 1 ? failures[0] : null;
-  }
-
-  async function loadActivity(): Promise<void> {
-    activityLoading = true;
-    try {
-      activityEntries = await listRuntimeActivity(14);
-      activityError = null;
-    } catch (e) {
-      activityError = e;
-      activityEntries = [];
-    } finally {
-      activityLoading = false;
+    if (pauses.status === "fulfilled") pendingApprovals.set(pauses.value);
+    if (questions.status === "fulfilled") {
+      for (const question of questions.value) addPendingUserInput(question);
     }
   }
 
-  async function loadNotificationLogs(): Promise<void> {
-    notificationsLoading = true;
-    const [logsRes, chRes] = await Promise.allSettled([
-      getNotificationLogs(50),
-      listNotificationChannels(),
-    ]);
-    if (logsRes.status === "fulfilled") {
-      notificationLogs = logsRes.value;
-      notificationsError = null;
-    } else {
-      notificationsError = logsRes.reason;
-      notificationLogs = [];
-    }
-    if (chRes.status === "fulfilled") {
-      channels = chRes.value;
-      channelsError = null;
-    } else {
-      channelsError = chRes.reason;
-      channels = [];
-    }
-    notificationsLoading = false;
-  }
+  // A decision asked or answered elsewhere moves the stores the events feed:
+  // the list is read again when one of them changes.
+  $effect(() => {
+    void $pendingApprovals.length;
+    void $pendingChatApprovals.length;
+    void $pendingUserInputs.length;
+    void load();
+  });
 
   onMount(() => {
-    activeTab = loadInitialTab();
     requestNotificationPermission();
-    void loadData();
-    void loadActivity();
-    void loadNotificationLogs();
-    function onSelectTab(ev: Event) {
-      const detail = (ev as CustomEvent).detail as { tab?: string } | undefined;
-      if (detail?.tab) selectTab(detail.tab);
-    }
-    window.addEventListener("apollia:inbox:select-tab", onSelectTab);
-    return () => window.removeEventListener("apollia:inbox:select-tab", onSelectTab);
+    void seedCounters();
+    const refresh = setInterval(() => void load(), REFRESH_MS);
+    return () => {
+      clearInterval(refresh);
+      hold.flush();
+    };
   });
 </script>
 
 <RouteTransition>
   <div class="flex h-full min-h-0 w-full flex-col overflow-hidden" data-testid="inbox-page">
     <PageHeader
-      title={$t("inbox.title_operator")}
-      subtitle={activeTab === "pending" && totalPending > 0
-        ? $t("inbox.pending_count", { values: { count: totalPending } })
-        : $t("inbox.subtitle")}
+      title={$t("review.title")}
+      subtitle={waiting.length > 0
+        ? `${$t(waiting.length === 1 ? "review.count_one" : "review.count_other", {
+            values: { count: waiting.length },
+          })} ${$t("review.subtitle")}`
+        : $t("review.subtitle")}
     />
 
-    <div class="px-8 pt-3">
-      <TabBar items={tabItems} {activeTab} ontabchange={selectTab} testidPrefix="inbox" />
-    </div>
-
-    {#if activeTab === "pending"}
-      <InboxPendingTab
-        items={allItems}
-        {loading}
-        {error}
-        partialError={userInputsError}
-        {history}
-        {historyError}
-        {historyPartialError}
-        {submitting}
-        {expandedId}
-        {relTime}
-        onToggleExpand={toggleExpand}
-        onApprove={handleApprove}
-        onReject={openReject}
-        onAlwaysAccept={handleAlwaysAccept}
-        onRespondAskUser={respondAskUser}
-        onRejectAskUser={rejectAskUser}
-        onOpenChat={openAskUserChat}
-        onCopyId={copyItemId}
-        onRetry={loadData}
-        onRetryHistory={loadHistory}
-      />
-    {:else if activeTab === "activity"}
-      <InboxActivityTab
-        entries={activityEntries}
-        loading={activityLoading}
-        error={activityError}
-        filter={activityFilter}
-        onFilterChange={(f) => (activityFilter = f)}
-        onRetry={loadActivity}
-      />
-    {:else}
-      <InboxNotificationsTab
-        logs={notificationLogs}
-        {channels}
-        loading={notificationsLoading}
-        error={notificationsError}
-        {channelsError}
-        onRetry={loadNotificationLogs}
-      />
+    {#if error}
+      <div class="px-8 pt-5">
+        <InboxErrorBox {error} onRetry={load} testid="review-error" />
+      </div>
     {/if}
 
-    <RejectReasonDialog
-      open={rejectTarget !== null}
-      {submitting}
-      title={$t("inbox.reject_title")}
-      onclose={() => (rejectTarget = null)}
-      onconfirm={confirmReject}
-    />
+    {#if !loading && items.length === 0 && !error}
+      <div class="flex min-h-0 flex-1 items-center justify-center" data-testid="review-empty">
+        <EmptyState title={$t("review.empty.title")} desc={$t("review.empty.desc")} tone="neutral">
+          {#snippet icon()}
+            <ShieldCheck class="h-6 w-6" />
+          {/snippet}
+        </EmptyState>
+      </div>
+    {:else if items.length > 0}
+      <FilterChipBar
+        {chips}
+        activeKey={filter}
+        onchange={(key) => (filter = key as ReviewFilter)}
+        testidPrefix="review-filter"
+        data-testid="review-filters"
+      />
+
+      <div class="min-h-0 flex-1 overflow-y-auto px-8 pb-8" data-testid="review-list">
+        <div class="mx-auto flex max-w-3xl flex-col gap-6">
+          {#if resumedBatchItems > 0}
+            <Banner variant="success" surface="card" data-testid="review-resumed">
+              {$t(resumedBatchItems === 1 ? "review.resumed_one" : "review.resumed_other", {
+                values: { count: resumedBatchItems },
+              })}
+            </Banner>
+          {/if}
+          {#each shown as item (item.id)}
+            <ReviewItem
+              {item}
+              conversationTitle={conversationTitle(item)}
+              held={held[item.id] ?? null}
+              {relTime}
+              onanswer={answer}
+              oncancel={cancel}
+              onopen={open}
+            />
+          {/each}
+        </div>
+      </div>
+    {/if}
   </div>
 </RouteTransition>

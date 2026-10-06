@@ -79,8 +79,9 @@ built in isolation under special flags (`apollia-loom-models` and the top-level
 | `.github/CODE_OF_CONDUCT.md` | Community conduct standards. GitHub reads it from `.github/` as it would from the root. |
 | `GOVERNANCE.md` | How decisions are made and who maintains the project. |
 | `SECURITY.md` | How to report a vulnerability and the supported-versions policy. |
-| `SPONSORS.md` | Funding and sponsorship information. |
 | `CHANGELOG.md` | Human-readable record of notable changes per release. |
+| `ROADMAP.md` | The direction of the project: what shipped, the version in progress, and the versions planned after it. |
+| `CITATION.cff` | Citation metadata, in the Citation File Format, for anyone who references the project in a publication. |
 
 ## Licensing
 
@@ -91,9 +92,9 @@ license fits their needs.
 
 | File | What it is |
 |---|---|
-| `LICENSE` | A short index that states the dual license and points to the two full texts. It also confirms that contributions are dual-licensed under the same terms. It is not itself a license text. |
 | `LICENSE-APACHE` | The full Apache License 2.0 text. |
 | `LICENSE-MIT` | The full MIT License text. |
+| `NOTICE` | The third-party components the release packages redistribute beside the project's own code, each with its license. |
 
 ## Build and quality configuration
 
@@ -109,14 +110,12 @@ actually configures in this repository.
 | `rustfmt.toml` | Formatting: edition 2021, `max_width = 100`, reordered imports, field-init and try shorthands, Unix newlines. |
 | `deny.toml` | `cargo-deny` policy: an allowlist of acceptable licenses, denial of unknown registries, a warning on duplicate dependency versions, and a documented, per-release list of ignored security advisories (each with its lift condition). |
 | `Cross.toml` | `cross-rs` cross-compilation: `pre-build` steps that install the Linux system libraries (ALSA, PulseAudio, JACK, CMake, clang) into the build container for the x86_64 and aarch64 GNU/Linux targets. |
-| `sonar-project.properties` | SonarQube analysis config (local Community Build, not part of the public release): source and test roots, exclusions, the imported Clippy report path, and documented per-rule exemptions. |
 | `justfile` | `just` task recipes: the canonical commands for building, testing, linting, and running the desktop automaton. |
 | `.pre-commit-config.yaml` | The hook list, and the file to read for it rather than a copy of it: file hygiene and secret detection, `ruff` on `sdk/`, `rustfmt` and `cargo check` on the workspace, nine of the repository guards under `scripts/` (the prose rules among them), and the documentation-site build. Two entries run outside the commit itself: `clippy` on push, and the commit-message convention at `commit-msg`. Not to be bypassed. |
 | `.editorconfig` | Editor-agnostic whitespace rules: LF endings, final newline, and per-language indent sizes (4 for Rust/Python/TOML, 2 for web and Markdown). |
 | `.python-version` | Pins the local Python interpreter (`3.13.7`) for tooling like `pyenv`. |
-| `.mailmap` | Canonicalizes contributor name and email across git history. |
 | `.cargo/` | Cargo defaults: `config.toml` sets build environment (macOS deployment target, an accelerated dev profile) and `audit.toml` holds the `cargo-audit` advisory ignores (mirrored from `deny.toml`). |
-| `.github/` | GitHub configuration: CI, CodeQL, nightly, and release workflows (`.github/workflows/`), plus `CODEOWNERS`, issue and PR templates, `dependabot.yml`, and `FUNDING.yml`. |
+| `.github/` | GitHub configuration: CI, CodeQL, weekly deep-check, and release workflows (`.github/workflows/`), plus `CODEOWNERS`, issue and PR templates, `dependabot.yml`, and `FUNDING.yml`. |
 | `.gitignore` | Paths git does not track (see below). |
 
 ## Local-only entries (gitignored, never shipped)

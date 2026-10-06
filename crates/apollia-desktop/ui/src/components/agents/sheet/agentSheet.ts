@@ -214,21 +214,6 @@ export function groupAccesses(accesses: AccessView[]): AccessGroup[] {
 
 // ── Sources ─────────────────────────────────────────────────────────────
 
-/** One source the agent consults. */
-export interface SourceView {
-  id: string;
-  /** `profile` and `memory` are named; any other source shows as written. */
-  kind: "profile" | "memory" | "other";
-}
-
-/** The sources checked for the agent, the user profile among them. */
-export function sourceViews(sources: string[]): SourceView[] {
-  return sources.map((id) => ({
-    id,
-    kind: id === "profile" ? "profile" : id === "memory" ? "memory" : "other",
-  }));
-}
-
 /** Whether the agent may read the user's profile. */
 export function readsProfile(sources: string[]): boolean {
   return sources.includes("profile");

@@ -92,6 +92,7 @@ fn response(request: &DecideRequest, resumed: u64, message: impl ToString) -> De
         id: request.id.clone(),
         answer: request.answer,
         resumed,
+        batch_items_resumed: 0,
         message: message.to_string(),
     }
 }
@@ -116,6 +117,7 @@ async fn decide_consent<B: ExecutionBackend + Clone>(
         })
         .collect();
     offered(request.answer, &answers)?;
+    let (agent, family) = (asked.agent_id.clone(), asked.family.clone());
     let (decision, message) = match request.answer {
         PendingAnswer::Once => (ToolDecision::Accept, "Allowed once; the agent goes on."),
         PendingAnswer::Always => (
@@ -138,7 +140,56 @@ async fn decide_consent<B: ExecutionBackend + Clone>(
     )
     .await
     .map_err(chat_refusal)?;
-    Ok(response(request, 1, message))
+    let mut answered = response(request, 1, message);
+    if request.answer == PendingAnswer::Always {
+        answered.batch_items_resumed = batch_items_covered(state, agent, family).await;
+    }
+    Ok(answered)
+}
+
+/// After "always" on a consent of a conversation: the batch items of the same
+/// agent waiting on an access of the same family run again, and their number
+/// is returned. The consent is written here as well as by the turn that
+/// resumes, so the items do not run again before it holds. Nothing runs again
+/// when the agent or the family is unknown, or when no standing consent can
+/// cover the family.
+async fn batch_items_covered<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    agent: Option<String>,
+    family: Option<String>,
+) -> u64 {
+    let (Some(agent), Some(family)) = (agent, family) else {
+        return 0;
+    };
+    let (Some(batches), Some(governance)) = (state.batches.as_ref(), state.governance.as_ref())
+    else {
+        return 0;
+    };
+    let Ok(action_family) = serde_json::from_value::<apollia_tools::ActionFamily>(
+        serde_json::Value::String(family.clone()),
+    ) else {
+        return 0;
+    };
+    if governance
+        .grant_always(&agent, action_family)
+        .await
+        .is_err()
+    {
+        return 0;
+    }
+    match resume_covered(batches, &agent, &family).await {
+        Ok((resumed, _)) => resumed,
+        Err((_, body)) => {
+            tracing::event!(
+                Level::WARN,
+                agent = %agent,
+                family = %family,
+                error = %body.0.error,
+                "pending.batch_items.resume_failed"
+            );
+            0
+        }
+    }
 }
 
 /// A task pause, answered as `POST /api/v1/tasks/{id}/resume` answers it.
@@ -323,6 +374,26 @@ async fn always_for_agent<B: ExecutionBackend + Clone>(
         .await
         .map_err(|e| refusal(StatusCode::CONFLICT, "GOVERNANCE", e))?;
 
+    let (resumed, batch_count) = resume_covered(batches, agent, family).await?;
+    let mut answered = response(
+        request,
+        resumed,
+        format!(
+            "Allowed for {agent} from now on: {resumed} waiting item(s) in {batch_count} batch(es) run again."
+        ),
+    );
+    // The item answered is one of those the consent covers.
+    answered.batch_items_resumed = resumed.saturating_sub(1);
+    Ok(answered)
+}
+
+/// Runs again every batch of `agent` with an item waiting for an access of
+/// `family`: how many items, in how many batches.
+async fn resume_covered(
+    batches: &BatchHandle,
+    agent: &str,
+    family: &str,
+) -> Result<(u64, usize), PendingError> {
     let accesses = batches.accesses(agent).await.unwrap_or_default();
     let waiting = batches.awaiting_items().await.map_err(batch_refusal)?;
     let mut covered: BTreeSet<String> = BTreeSet::new();
@@ -348,14 +419,7 @@ async fn always_for_agent<B: ExecutionBackend + Clone>(
             .await
             .map_err(batch_refusal)?;
     }
-    Ok(response(
-        request,
-        resumed,
-        format!(
-            "Allowed for {agent} from now on: {resumed} waiting item(s) in {} batch(es) run again.",
-            covered.len()
-        ),
-    ))
+    Ok((resumed, covered.len()))
 }
 
 /// A question an agent asked, answered as the `ask_user` routes answer it.

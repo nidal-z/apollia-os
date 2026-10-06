@@ -948,7 +948,7 @@ mod tests {
             &iface.namespace,
             RememberArgs {
                 key: "user.name",
-                value: "Nidal",
+                value: "Ada",
                 source: Some("onboarding"),
                 confidence: Some(0.9),
             },
@@ -957,7 +957,7 @@ mod tests {
         // THEN the entry is stored with the given confidence
         assert!(id.is_ok());
         let value = recall_inner(&iface.manager, &iface.namespace, "user.name");
-        assert_eq!(value.expect("recall"), Some("Nidal".to_string()));
+        assert_eq!(value.expect("recall"), Some("Ada".to_string()));
     }
 
     // No overwrite when existing confidence is strictly higher
@@ -970,7 +970,7 @@ mod tests {
             &iface.namespace,
             RememberArgs {
                 key: "user.name",
-                value: "Nidal",
+                value: "Ada",
                 source: Some("onboarding"),
                 confidence: Some(0.9),
             },
@@ -992,7 +992,7 @@ mod tests {
 
         // THEN the original value is preserved
         let value = recall_inner(&iface.manager, &iface.namespace, "user.name");
-        assert_eq!(value.expect("recall"), Some("Nidal".to_string()));
+        assert_eq!(value.expect("recall"), Some("Ada".to_string()));
     }
 
     // Overwrite when new confidence is higher or equal
@@ -1263,7 +1263,7 @@ mod tests {
             &iface.namespace,
             RememberArgs {
                 key: "user.name",
-                value: "Nidal",
+                value: "Ada",
                 source: Some("onboarding"),
                 confidence: Some(0.9),
             },

@@ -128,6 +128,13 @@ impl BuiltInChatAgent {
         apollia_tools::is_disabled(tool, &self.session.proposed_accesses)
     }
 
+    /// Whether an "always" given to `call` holds for the rest of the run: it
+    /// does on an access proposed for the conversation, even where its family
+    /// keeps no standing consent. A code executor asks at each call.
+    pub(super) fn always_holds_for_run(&self, call: &ToolCall, family: ActionFamily) -> bool {
+        self.is_proposed(&call.name) && !is_code_call(call, family)
+    }
+
     /// Records in the journal a call governance refused because of the
     /// policy or a rule. Neither the call's argument nor its result is
     /// recorded.

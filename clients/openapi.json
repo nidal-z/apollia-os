@@ -1536,65 +1536,6 @@
         }
       }
     },
-    "/api/v1/approvals/resolved": {
-      "get": {
-        "tags": [
-          "governance"
-        ],
-        "summary": "Handler for `GET /api/v1/approvals/resolved`.",
-        "description": "Returns the last `limit` resolved approvals (approved or rejected)\nwithin the last `days` days.",
-        "operationId": "list_resolved_approvals",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Maximum number of resolved approvals to return (default 20)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          },
-          {
-            "name": "days",
-            "in": "query",
-            "description": "Look-back window in days (default 7)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Recently resolved approvals",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResolvedApprovalResponse"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/artifacts": {
       "post": {
         "tags": [
@@ -22154,12 +22095,19 @@
           "id",
           "answer",
           "resumed",
+          "batchItemsResumed",
           "message"
         ],
         "properties": {
           "answer": {
             "$ref": "#/components/schemas/PendingAnswer",
             "description": "The answer applied."
+          },
+          "batchItemsResumed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many other batch items, waiting on an access this answer now\ncovers, ran again besides the item answered.",
+            "minimum": 0
           },
           "id": {
             "type": "string",
@@ -26477,6 +26425,20 @@
             ],
             "description": "When it was asked, RFC 3339, when known."
           },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The whole command or source, when the consent is about running code."
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The full arguments of the call a consent is about, as the chat card\nshows them behind \"see more\"."
+          },
           "family": {
             "type": [
               "string",
@@ -26506,6 +26468,13 @@
           "summary": {
             "type": "string",
             "description": "What is asked, in a sentence."
+          },
+          "workingDir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The folder that code runs in."
           }
         }
       },
@@ -27776,45 +27745,6 @@
           "version": {
             "type": "string",
             "description": "Version of the definition."
-          }
-        }
-      },
-      "ResolvedApprovalResponse": {
-        "type": "object",
-        "description": "One resolved HITL approval entry.",
-        "required": [
-          "task_id",
-          "agent_name",
-          "approved"
-        ],
-        "properties": {
-          "agent_name": {
-            "type": "string"
-          },
-          "approved": {
-            "type": "boolean"
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "responded_at": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "task_id": {
-            "type": "string"
-          },
-          "wait_duration_ms": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
           }
         }
       },

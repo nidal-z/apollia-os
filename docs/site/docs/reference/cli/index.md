@@ -65,7 +65,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os tools show`↴](#apollia-os-tools-show)
 * [`apollia-os tools approvals`↴](#apollia-os-tools-approvals)
 * [`apollia-os tools approvals pending`↴](#apollia-os-tools-approvals-pending)
-* [`apollia-os tools approvals resolved`↴](#apollia-os-tools-approvals-resolved)
 * [`apollia-os audit`↴](#apollia-os-audit)
 * [`apollia-os audit list`↴](#apollia-os-audit-list)
 * [`apollia-os audit journal`↴](#apollia-os-audit-journal)
@@ -858,7 +857,7 @@ Task management (list, status, cancel, inspect, resume, approvals)
 * `cancel` - Cancel a running task
 * `inspect` - Display the full execution plan of an orchestrated task
 * `resume` - Approve or reject a task pending HITL approval
-* `approvals` - List resolved HITL approvals (accepted or rejected)
+* `approvals` - List the task approvals waiting for a decision
 
 
 
@@ -940,13 +939,15 @@ Exactly one of `--approve` or `--reject` must be supplied.
 
 ## `apollia-os task approvals`
 
-List resolved HITL approvals (accepted or rejected)
+List the task approvals waiting for a decision.
+
+The decisions already taken are in the audit journal (`apollia-os audit journal`).
 
 **Usage:** `apollia-os task approvals [OPTIONS]`
 
 ###### **Options:**
 
-* `--pending` - Also include pending approvals
+* `--pending` - Accepted and without effect: the list holds the pending approvals only
 
 
 
@@ -1179,7 +1180,6 @@ Inspect the HITL queue from the tool registry's side
 ###### **Subcommands:**
 
 * `pending` - List approvals pending decision (tasks in `input_required`)
-* `resolved` - List approvals resolved within the `--days` window
 
 
 
@@ -1188,23 +1188,6 @@ Inspect the HITL queue from the tool registry's side
 List approvals pending decision (tasks in `input_required`)
 
 **Usage:** `apollia-os tools approvals pending`
-
-
-
-## `apollia-os tools approvals resolved`
-
-List approvals resolved within the `--days` window
-
-**Usage:** `apollia-os tools approvals resolved [OPTIONS]`
-
-###### **Options:**
-
-* `--days <DAYS>` - Days of history to include (default: 7)
-
-  Default value: `7`
-* `--limit <LIMIT>` - Maximum number of entries to return (default: 50)
-
-  Default value: `50`
 
 
 

@@ -102,13 +102,18 @@ pub async fn add_folder_connection(
 }
 
 /// Remove the folder connection `connection_id` (`folder:<id>`).
+///
+/// Sources may be made on the folder. Without `confirm` the runtime removes
+/// nothing while any depends on it and answers why; with it, those sources
+/// and their indexes go with the connection.
 #[tauri::command]
 pub async fn remove_folder_connection(
     state: State<'_, RuntimeLink>,
     connection_id: String,
+    confirm: bool,
 ) -> Result<Connection, String> {
     let json = state
-        .delete_json(&remove_folder_path(&connection_id)?)
+        .delete_json(&remove_folder_path(&connection_id, confirm)?)
         .await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse the folder connection: {e}"))
 }
@@ -118,11 +123,12 @@ fn add_folder_body(path: &str) -> serde_json::Value {
 }
 
 /// The route that removes the folder `connection_id` names.
-fn remove_folder_path(connection_id: &str) -> Result<String, String> {
+fn remove_folder_path(connection_id: &str, confirm: bool) -> Result<String, String> {
     let id = folder_id_of(connection_id)
         .ok_or_else(|| format!("'{connection_id}' is not a folder connection"))?;
+    let confirmation = if confirm { "?confirm=true" } else { "" };
     Ok(format!(
-        "/api/v1/connections/folders/{}",
+        "/api/v1/connections/folders/{}{confirmation}",
         crate::attached::segment(id)
     ))
 }
@@ -174,11 +180,23 @@ mod tests {
     fn test_a_folder_connection_is_removed_by_its_stored_identifier() {
         // GIVEN the identifier of a folder connection, and of an MCP server
         // WHEN the removal route is built for each
-        let folder = remove_folder_path("folder:4f1c");
-        let server = remove_folder_path("mcp:notion");
+        let folder = remove_folder_path("folder:4f1c", false);
+        let server = remove_folder_path("mcp:notion", false);
         // THEN the folder's names its stored identifier, the server is refused
         assert_eq!(folder.unwrap(), "/api/v1/connections/folders/4f1c");
         assert!(server.is_err());
+    }
+
+    #[test]
+    fn test_a_confirmed_removal_tells_the_runtime_to_take_the_sources_with_the_folder() {
+        // GIVEN a folder connection sources depend on, and the user's confirmation
+        // WHEN the removal route is built
+        let confirmed = remove_folder_path("folder:4f1c", true);
+        // THEN it carries the confirmation the runtime waits for
+        assert_eq!(
+            confirmed.unwrap(),
+            "/api/v1/connections/folders/4f1c?confirm=true"
+        );
     }
 
     #[test]

@@ -294,7 +294,7 @@ Rules :
 - A crash is a real bug. Minimize it, anchor it to `file:line`, and fix it (or
   file it) rather than masking it.
 - CI runs a short smoke over the seed corpus on each PR (`Fuzz (smoke)` in
-  `ci.yml`, advisory) and a longer session weekly (`Deep Fuzz` in `nightly.yml`,
+  `ci.yml`, advisory) and a longer session weekly (`Deep Fuzz` in `weekly.yml`,
   uploads any crash artifact). This cargo-fuzz integration also satisfies the
   OpenSSF Scorecard Fuzzing check.
 
@@ -346,7 +346,7 @@ Rules :
 - Keep Loom models abstract and prod-decoupled. Never add `loom` to a
   workspace crate; it would drag `--cfg loom` into Tokio.
 - A Miri `miri_pure` test must not call into libpython, directly or transitively.
-- CI runs both weekly in `nightly.yml` (`loom`, `miri`), advisory.
+- CI runs both weekly in `weekly.yml` (`loom`, `miri`), advisory.
 
 ---
 
@@ -391,7 +391,7 @@ out of scope and stay documented as such.
 Rules :
 
 - Kani links its own toolchain via rustup: it is CI-only (advisory `kani` job in
-  `nightly.yml`). Locally, the proptest mirrors are the runnable proof.
+  `weekly.yml`). Locally, the proptest mirrors are the runnable proof.
 - Gate every harness on `#[cfg(kani)]`; the cfg is whitelisted workspace-wide.
 - A harness must exercise the same pure helper the prod path uses. Never prove a
   divergent model.
