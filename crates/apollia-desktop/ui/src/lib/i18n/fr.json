@@ -142,6 +142,250 @@
       }
     }
   },
+  "guide": {
+    "you_are_on": "Vous êtes sur",
+    "actions_title": "Ce que vous pouvez faire ici",
+    "unnamed_item": "cet agent",
+    "no_model": {
+      "title": "Le guide a besoin d'un modèle",
+      "body": "Aucun modèle ne peut répondre pour l'instant. En attendant, voici la page de documentation de cet écran.",
+      "action": "Choisir un modèle dans IA",
+      "onboarding_title": "Le guide répondra bientôt",
+      "onboarding_body": "Le guide répondra dès qu'un modèle sera choisi. En attendant, voici la page de « Faire connaissance ».",
+      "field": "Choisissez un modèle pour poser une question"
+    },
+    "doc": {
+      "breadcrumb": "Documentation",
+      "open_in_browser": "Ouvrir dans le navigateur",
+      "loading": "Chargement de la page…",
+      "error": "Cette page de documentation n'a pas pu être lue.",
+      "fallback": "Cette page n'existe pas encore en français : la voici en anglais."
+    },
+    "context": {
+      "chat": {
+        "text": "Le Chat est l'endroit où le travail se demande et se suit. Vous y parlez avec Apollia, avec l'un de vos agents ou directement avec un modèle, et vos conversations restent sur ce poste.",
+        "action": {
+          "label": "Choisir un agent",
+          "result": "Voyez vos agents et ce que chacun sait faire, puis confiez-lui une tâche."
+        },
+        "secondary": {
+          "first": "Voir les modèles dans IA",
+          "second": "Voir ce qui attend dans À valider"
+        },
+        "question": "Demandez : agent ou modèle, lequel choisir ?"
+      },
+      "agents": {
+        "text": "Vos agents travaillent pour vous ; vos workflows enchaînent plusieurs étapes. Cet écran les liste, et c'est ici que vous en créez un en le décrivant, à partir d'un exemple ou d'un paquet.",
+        "action": {
+          "label": "Confier une tâche à un agent",
+          "result": "Ouvrez le Chat, choisissez l'agent dans la barre du haut et dites-lui ce que vous attendez."
+        },
+        "secondary": {
+          "first": "Installer un paquet depuis la Bibliothèque",
+          "second": "Voir ce qui attend dans À valider"
+        },
+        "question": "Demandez : agent ou workflow ?",
+        "fiche": {
+          "name": "Fiche d'un agent",
+          "text": "Vous lisez la fiche de {name}. Elle dit ce que fait cet agent, quel modèle répond pour lui, ce qu'il a le droit de faire et ce qu'il a déjà fait.",
+          "action": {
+            "label": "Lui confier une tâche",
+            "result": "Donnez-lui une tâche dans le Chat ; vous y suivez ses étapes."
+          },
+          "secondary": {
+            "first": "Revoir ses autorisations",
+            "second": "Voir son activité dans le Journal"
+          },
+          "question": "Demandez : que fait-il seul ?"
+        }
+      },
+      "batches": {
+        "text": "Cet écran garde tous les lots, du plus récent au plus ancien, quel que soit l'agent. Un lot ouvert se relit, s'exporte et relance ses échecs.",
+        "action": {
+          "label": "Voir les agents",
+          "result": "Retrouvez l'agent dont vous relisez les lots."
+        },
+        "secondary": {
+          "first": "Voir les éléments de lot qui attendent dans À valider",
+          "second": "Voir l'activité dans le Journal"
+        },
+        "question": "Demandez : qu'est-ce qu'un lot ?"
+      },
+      "batch": {
+        "text": "Vous lisez un lot : chaque élément a son état, et un élément ouvert montre son détail dans le panneau de détail. Le lot se relit, s'exporte et relance ses échecs.",
+        "action": {
+          "label": "Voir tous les lots",
+          "result": "L'historique garde chaque lot, du plus récent au plus ancien."
+        },
+        "secondary": {
+          "first": "Répondre aux éléments qui attendent dans À valider",
+          "second": "Voir les agents"
+        },
+        "question": "Demandez : comment relancer les échecs ?"
+      },
+      "integrations": {
+        "text": "Une connexion relie vos agents à l'un de vos services : un compte, une boîte mail, un dossier de votre ordinateur ou un service du catalogue. Les outils fournis avec Apollia se règlent ici aussi.",
+        "action": {
+          "label": "Donner une connexion à un agent",
+          "result": "Ouvrez la fiche d'un agent pour ajuster ce à quoi il a accès."
+        },
+        "secondary": {
+          "first": "Voir ce que chaque agent a le droit de faire",
+          "second": "Voir les connexions apportées par un paquet"
+        },
+        "question": "Demandez : quelle connexion pour mes mails ?"
+      },
+      "llm": {
+        "text": "L'écran IA montre les modèles qui répondent : ceux qui sont chargés, ceux installés sur ce poste et ceux des serveurs de votre organisation. Vous y découvrez un modèle adapté à votre poste ou y ajoutez un serveur.",
+        "action": {
+          "label": "Essayer un modèle",
+          "result": "Ouvrez le Chat et choisissez le modèle dans la barre du haut : il se charge à votre première question."
+        },
+        "secondary": {
+          "first": "Régler les valeurs par défaut des modèles",
+          "second": "Voir quel modèle utilise chaque agent"
+        },
+        "question": "Demandez : quel modèle choisir ?"
+      },
+      "inbox": {
+        "text": "À valider réunit tout ce qui attend votre réponse : les accords demandés par les agents, leurs questions, les tâches en pause et les éléments de lot. Répondre ici reprend la conversation, la tâche ou le lot concerné.",
+        "action": {
+          "label": "Revoir vos accords permanents",
+          "result": "Les accords donnés pour de bon se relisent et se retirent dans Autorisations."
+        },
+        "secondary": {
+          "first": "Voir ce que les agents ont fait dans le Journal",
+          "second": "Reprendre une conversation dans le Chat"
+        },
+        "question": "Demandez : pourquoi cette action attend-elle ?"
+      },
+      "developer": {
+        "text": "L'écran Développeur s'adresse à ceux qui relient leurs propres programmes à Apollia. Il n'apparaît qu'avec le mode développeur allumé ; au quotidien, rien ici n'est nécessaire pour travailler avec vos agents.",
+        "action": {
+          "label": "Régler le mode développeur",
+          "result": "Le mode s'allume et s'éteint dans Réglages, section Développeur."
+        },
+        "secondary": {
+          "first": "Voir les modèles dans IA",
+          "second": "Voir l'activité dans le Journal"
+        },
+        "question": "Demandez : à quoi sert le mode développeur ?"
+      },
+      "library": {
+        "text": "La Bibliothèque liste ce que vous avez installé : agents, workflows, outils et connexions, avec leur éditeur et leur signature. Un paquet en apporte plusieurs d'un coup, dans un seul fichier.",
+        "action": {
+          "label": "Voir les agents installés",
+          "result": "Les agents et les workflows d'un paquet rejoignent l'écran Agents, prêts à travailler."
+        },
+        "secondary": {
+          "first": "Voir les connexions",
+          "second": "Voir ce que chaque agent a le droit de faire"
+        },
+        "question": "Demandez : un paquet, c'est quoi ?"
+      },
+      "automations": {
+        "text": "Une automatisation lance un agent ou un workflow sans vous : selon une planification, quand un fichier change ou quand un appel arrive d'un autre outil. Vous en créez une en disant quand elle doit se lancer.",
+        "action": {
+          "label": "Choisir l'agent à lancer",
+          "result": "Voyez vos agents et ce que chacun sait faire avant d'en automatiser un."
+        },
+        "secondary": {
+          "first": "Voir ce que les agents ont fait dans le Journal",
+          "second": "Voir ce qui attend dans À valider"
+        },
+        "question": "Demandez : comment lancer un agent chaque matin ?"
+      },
+      "authorizations": {
+        "text": "Autorisations montre ce que chaque agent a le droit de faire sur ce poste. Un accord se retire en un clic, et chaque retrait est inscrit au Journal.",
+        "action": {
+          "label": "Voir les retraits au Journal",
+          "result": "Chaque changement d'accès y est inscrit, du plus récent au plus ancien."
+        },
+        "secondary": {
+          "first": "Ouvrir la fiche d'un agent",
+          "second": "Voir les accords qui attendent dans À valider"
+        },
+        "question": "Demandez : que peut faire un agent sans moi ?"
+      },
+      "journal": {
+        "text": "Le Journal liste chaque action des agents et chaque changement d'accès, en clair, du plus récent au plus ancien. Il reste sur cet appareil ; vous pouvez le filtrer et l'exporter.",
+        "action": {
+          "label": "Revoir les autorisations",
+          "result": "Voyez ce que chaque agent a le droit de faire, et retirez un accord si besoin."
+        },
+        "secondary": {
+          "first": "Ouvrir la fiche d'un agent",
+          "second": "Voir ce qui attend dans À valider"
+        },
+        "question": "Demandez : où voir ce qu'un agent a fait ?"
+      },
+      "settings": {
+        "text": "Les Réglages s'ouvrent dans une fenêtre au-dessus de l'écran courant. Vous y réglez la langue, l'apparence, votre profil, le chat, les notifications et les valeurs par défaut des modèles.",
+        "action": {
+          "label": "Choisir vos modèles dans IA",
+          "result": "Les modèles s'installent et se branchent dans l'écran IA ; les Réglages n'en fixent que les valeurs par défaut."
+        },
+        "secondary": {
+          "first": "Voir les autorisations",
+          "second": "Voir l'activité dans le Journal"
+        },
+        "question": "Demandez : où changer la langue ?"
+      },
+      "transcriptions": {
+        "text": "Transcriptions garde l'historique de vos dictées vocales et des fichiers transcrits. L'écran n'apparaît qu'avec le mode développeur allumé.",
+        "action": {
+          "label": "Dicter dans le Chat",
+          "result": "La dictée remplit le champ de saisie d'une conversation."
+        },
+        "secondary": {
+          "first": "Voir les modèles de dictée dans IA",
+          "second": "Régler la dictée dans Réglages"
+        },
+        "question": "Demandez : comment dicter un message ?"
+      },
+      "observability": {
+        "text": "Observabilité réunit la vue technique de ce qui a tourné : la chronologie des exécutions, le coût des modèles et la piste des appels d'outils. L'écran n'apparaît qu'avec le mode développeur allumé.",
+        "action": {
+          "label": "Lire la même chose en clair",
+          "result": "Le Journal raconte les actions des agents sans détail technique."
+        },
+        "secondary": {
+          "first": "Ouvrir la fiche d'un agent",
+          "second": "Voir les modèles dans IA"
+        },
+        "question": "Demandez : où voir le coût d'une exécution ?"
+      },
+      "memory": {
+        "text": "Mémoire montre l'ensemble de ce que vos agents ont retenu : vous pouvez y chercher, ouvrir une entrée et la supprimer. L'écran n'apparaît qu'avec le mode développeur allumé.",
+        "action": {
+          "label": "Voir la mémoire d'un agent sur sa fiche",
+          "result": "La fiche d'un agent montre ce qu'il a retenu, sans mode développeur."
+        },
+        "secondary": {
+          "first": "Modifier votre profil dans Réglages",
+          "second": "Voir l'activité dans le Journal"
+        },
+        "question": "Demandez : que retient un agent ?"
+      },
+      "policy": {
+        "text": "La politique de l'organisation est fixée par votre service informatique et s'applique à tout ce poste. Personne ne peut la modifier depuis Apollia ; cet écran la donne à lire.",
+        "action": {
+          "label": "Voir vos propres autorisations",
+          "result": "Dans les limites de la politique, vous décidez de ce que chaque agent a le droit de faire."
+        },
+        "secondary": {
+          "first": "Voir les connexions",
+          "second": "Voir l'activité dans le Journal"
+        },
+        "question": "Demandez : qui fixe cette politique ?"
+      },
+      "onboarding": {
+        "name": "Faire connaissance",
+        "text": "Apollia vous fait passer par quelques étapes : la langue, le modèle qui répondra, un premier agent, une connexion et une première tâche. Seule l'étape du modèle est obligatoire ; les autres se passent et se reprennent plus tard.",
+        "question": "Demandez : quel modèle choisir ?"
+      }
+    }
+  },
   "a11y": {
     "skip_to_content": "Aller au contenu principal",
     "main_landmark": "Contenu principal",

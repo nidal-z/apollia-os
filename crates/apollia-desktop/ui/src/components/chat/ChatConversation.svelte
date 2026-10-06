@@ -119,6 +119,8 @@
     onnewChat?: () => void;
     /** Called with the conversation a choice in the selector opened. */
     onopensession?: (sessionId: string) => void;
+    /** What the empty input suggests asking, in place of the chat's own suggestions. */
+    suggestions?: string[];
   }
 
   let {
@@ -134,6 +136,7 @@
     onnewChat,
     onopensession,
     inputHidden = false,
+    suggestions,
   }: Props = $props();
 
   let messages = $state<ChatMessageView[]>([]);
@@ -763,6 +766,7 @@
       imageSupport={images.value}
       {sessionId}
       agentName={sessionAgentName}
+      {suggestions}
     />
   {/if}
 </div>

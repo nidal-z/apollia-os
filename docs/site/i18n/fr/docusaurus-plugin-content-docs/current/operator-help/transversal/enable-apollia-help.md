@@ -23,7 +23,7 @@ sidebar_position: 4
 
    ![L'écran Accueil, avec l'icône d'aide de la barre du haut](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
 
-2. Le **panneau de détail** s'ouvre à droite de l'écran, sur son onglet **Guide**. Une session de discussion dédiée démarre, et un court spinner s'affiche pendant sa création (1 à 2 secondes).
+2. Le **panneau de détail** s'ouvre à droite de l'écran, sur son onglet **Guide**. En tête, le guide dit sur quel écran vous êtes et à quoi il sert, et propose des actions ; chacune ouvre l'écran qu'elle nomme. Dessous, une session de discussion dédiée démarre, et un court spinner s'affiche pendant sa création (1 à 2 secondes).
 
 3. Posez une question rapide. Le guide répond dans la colonne, et l'écran reste utilisable à sa gauche.
 
@@ -49,6 +49,7 @@ L'icône d'aide fonctionne aussi pendant le premier lancement : la barre du haut
 ## Si ça ne marche pas
 
 - **Le guide ne répond pas / aucune réponse n'arrive** : vérifiez le **point d'état Apollia** dans le bandeau. S'il est ambre, configurez un fournisseur LLM dans **Paramètres → Modèles LLM**.
+- **L'onglet montre une page de documentation à la place de la conversation** : aucun modèle ne peut encore répondre. La page est celle de l'écran courant, lue sans réseau, et **Ouvrir dans le navigateur** mène à la même page du site public. Installez un modèle ou connectez un serveur dans **IA**, et la conversation revient.
 - **L'onglet Guide s'ouvre puis affiche une erreur** : la session n'a pas pu démarrer. Cliquez sur **Réessayer** dans l'onglet, ou repliez-le et rouvrez-le.
 
 > **Concept :** [Explication Apollia](/explanation)

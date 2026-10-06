@@ -142,6 +142,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
   "dev.journal.arguments", // Arguments
+  "guide.doc.breadcrumb", // Documentation
   "integrations.wizard.local_loopback_badge", // Local
   "journal.detail.action", // Action
   "journal.detail.agent", // Agent

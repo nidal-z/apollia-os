@@ -1,14 +1,21 @@
-import { vi, describe, test, expect, beforeEach } from "vitest";
+import { vi, describe, test, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(""),
 }));
 
 import { get } from "svelte/store";
+import { locale, t, waitLocale } from "svelte-i18n";
+import "$lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { companionStore } from "$lib/stores/companion";
 
 const mockedInvoke = vi.mocked(invoke);
+
+beforeAll(async () => {
+  locale.set("en");
+  await waitLocale();
+});
 
 beforeEach(() => {
   companionStore.reset();
@@ -18,37 +25,24 @@ beforeEach(() => {
 // ── Route context propagation ─────────────────────────────────────────────────
 
 describe("CompanionContextProvider - route context", () => {
-  test("context text for a known route is stored in companionStore", async () => {
-    // GIVEN the backend returns a specific text for /memory
-    const memoryContext =
-      "You are on the Memory page. Apollia offers 3 kinds of memory.";
-    mockedInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "get_companion_context")
-        return Promise.resolve(memoryContext);
-      return Promise.resolve(null);
-    });
-
+  test("the context of a known route is the catalogue text of that screen", async () => {
+    // GIVEN the interface in English
     // WHEN updateContext is called for the memory route
     await companionStore.updateContext({ route: "memory", subscreen: null, object: null });
 
-    // THEN the store reflects the returned context
-    expect(get(companionStore).currentContext).toBe(memoryContext);
+    // THEN the store holds the catalogue text, and the shell was not asked
+    expect(get(companionStore).currentContext).toContain(get(t)("guide.context.memory.text"));
+    expect(mockedInvoke).not.toHaveBeenCalled();
   });
 
-  test("unknown route receives a generic fallback context from the backend", async () => {
-    // GIVEN the backend returns a generic fallback for an unknown route
-    const fallback =
-      "Je suis votre assistant Apollia. Posez-moi n'importe quelle question.";
-    mockedInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "get_companion_context") return Promise.resolve(fallback);
-      return Promise.resolve(null);
-    });
-
-    // WHEN updateContext is called with an unknown route
+  test("a route no screen answers to leaves the guide without a screen text", async () => {
+    // GIVEN a route outside the visible ones
+    // WHEN updateContext is called with it
     await companionStore.updateContext({ route: "unknown-page", subscreen: null, object: null });
 
-    // THEN the fallback context is stored
-    expect(get(companionStore).currentContext).toBe(fallback);
+    // THEN no text is invented for it
+    expect(get(companionStore).currentContext).toBe("");
+    expect(get(companionStore).currentRoute).toBe("unknown-page");
   });
 });
 
