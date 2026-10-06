@@ -49,6 +49,9 @@ fn asked(tool_call_id: &str, tool: &str, answers: &[ConsentAnswer]) -> ChatAppro
         agent_id: Some("apollia-chat".into()),
         family: Some("write_or_delete".into()),
         prompt: format!("Tool '{tool}' asks to run"),
+        detail: Some(format!("{{\n  \"tool\": \"{tool}\"\n}}")),
+        code: None,
+        working_dir: None,
         answers: answers.to_vec(),
         asked_at: "2026-10-03T09:00:00Z".into(),
     }
@@ -107,9 +110,13 @@ async fn test_a_chat_consent_is_listed_with_its_three_answers_and_once_resumes_i
     assert_eq!(listed[0]["access"], "file_write");
     assert_eq!(listed[0]["answers"], json!(["once", "always", "refuse"]));
     assert_eq!(listed[0]["origin"]["sessionId"], "s-1");
+    // AND what the chat card shows behind "see more"
+    assert_eq!(listed[0]["detail"], "{\n  \"tool\": \"file_write\"\n}");
+    assert!(listed[0].get("code").is_none(), "{listed:?}");
     // AND the conversation waiting on it goes on with the answer
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["resumed"], 1);
+    assert_eq!(body["batchItemsResumed"], 0);
     let decision = waiting.try_recv().unwrap();
     assert_eq!(decision, ToolDecision::Accept);
     // AND it no longer waits
@@ -610,6 +617,7 @@ async fn test_always_gives_a_standing_consent_and_resumes_every_item_it_covers()
     // with a message that says so
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["resumed"], 2);
+    assert_eq!(body["batchItemsResumed"], 1);
     assert!(body["message"]
         .as_str()
         .unwrap()
@@ -628,6 +636,74 @@ async fn test_always_gives_a_standing_consent_and_resumes_every_item_it_covers()
         .await
         .unwrap();
     assert!(!again, "the consent was already there");
+}
+
+#[tokio::test]
+async fn test_always_on_a_conversation_consent_resumes_the_batch_item_it_covers() {
+    // GIVEN governance, a batch item of an agent waiting for `send_email`,
+    // and a conversation of the same agent whose call of that family waits
+    let dir = tempfile::tempdir().unwrap();
+    let (mut state, repo, _) = batch_state(&dir, &["send_email"]).await;
+    let governance =
+        crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+            governance_db: Some(dir.path().join("governance.db")),
+            config_path: None,
+            policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            journal: None,
+            events: None,
+            forbidden_connections: Default::default(),
+        });
+    state.governance = Some(governance);
+    let chat_dir = tempfile::tempdir().unwrap();
+    state.chat_manager = seeded_chat(chat_dir.path()).chat_manager;
+    let chat = state.chat_manager.clone().unwrap();
+    let batch = state
+        .batches
+        .clone()
+        .unwrap()
+        .launch(launch())
+        .await
+        .unwrap();
+    awaiting(&state, &batch.batch_id, 1).await;
+    let mut waiting = chat.pending_chat_approvals().register_asked(
+        "s-1::a-1::c-9".into(),
+        ChatApprovalAsked {
+            agent_id: Some(AGENT.into()),
+            family: Some("send_external".into()),
+            code: Some("ls".into()),
+            working_dir: Some("/tmp".into()),
+            ..asked("c-9", "send_email", &ALL_ANSWERS)
+        },
+    );
+    let listed = items(&state).await;
+    assert_eq!(listed.len(), 2, "{listed:?}");
+
+    // WHEN the consent of the conversation is answered "always"
+    let (status, body) = call(
+        state.clone(),
+        "POST",
+        DECIDE,
+        Some(json!({"id": "consent:s-1::a-1::c-9", "answer": "always"})),
+    )
+    .await;
+
+    // THEN the consent was listed with the code and the folder it carried
+    let consent = listed.iter().find(|i| i["kind"] == "consent").unwrap();
+    assert_eq!(consent["code"], "ls");
+    assert_eq!(consent["workingDir"], "/tmp");
+    // AND the conversation goes on, and the answer says one batch item ran
+    // again besides it
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(waiting.try_recv().unwrap(), ToolDecision::AlwaysAccept);
+    assert_eq!(body["resumed"], 1);
+    assert_eq!(body["batchItemsResumed"], 1);
+    // AND that item completes and leaves the list
+    let reached = poll_until_async(WAIT, || async {
+        item_status(&repo, &batch.batch_id, 0).await == "completed"
+    })
+    .await;
+    assert!(reached, "the covered item never completed");
+    assert!(items(&state).await.is_empty());
 }
 
 // ─── questions ──────────────────────────────────────────────────────────────

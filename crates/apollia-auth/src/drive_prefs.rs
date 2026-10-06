@@ -491,10 +491,10 @@ mod tests {
         let (_dir, path) = tmp();
         // WHEN the folder path is looked up for an account
         // THEN nothing is stored, and the caller falls back on the default root
-        assert_eq!(lookup_folder_path_at(&path, "google", "nidal@x"), None);
+        assert_eq!(lookup_folder_path_at(&path, "google", "ada@x"), None);
         // effective_* uses the default lookup but in this test the home is
         // not overridden; call only the explicit-path lookup.
-        let p = lookup_folder_path_at(&path, "google", "nidal@x")
+        let p = lookup_folder_path_at(&path, "google", "ada@x")
             .unwrap_or_else(|| DEFAULT_ROOT_FOLDER_PATH.to_string());
         assert_eq!(p, "Apollia");
     }
@@ -504,11 +504,11 @@ mod tests {
         // GIVEN two accounts of the same provider
         let (_dir, path) = tmp();
         // WHEN a distinct folder path is stored for each
-        set_folder_path_at(&path, "google", "nidal@x", "Documents/Apollia").unwrap();
+        set_folder_path_at(&path, "google", "ada@x", "Documents/Apollia").unwrap();
         set_folder_path_at(&path, "google", "other@x", "Travail/AI").unwrap();
         // THEN each account reads back its own
         assert_eq!(
-            lookup_folder_path_at(&path, "google", "nidal@x").as_deref(),
+            lookup_folder_path_at(&path, "google", "ada@x").as_deref(),
             Some("Documents/Apollia")
         );
         assert_eq!(
@@ -524,10 +524,10 @@ mod tests {
         // THEN the lookup returns Some(""), explicit "use Drive root",
         // NOT None (which would mean "fall back to default").
         let (_dir, path) = tmp();
-        set_folder_path_at(&path, "google", "nidal@x", "Documents").unwrap();
-        set_folder_path_at(&path, "google", "nidal@x", "").unwrap();
+        set_folder_path_at(&path, "google", "ada@x", "Documents").unwrap();
+        set_folder_path_at(&path, "google", "ada@x", "").unwrap();
         assert_eq!(
-            lookup_folder_path_at(&path, "google", "nidal@x").as_deref(),
+            lookup_folder_path_at(&path, "google", "ada@x").as_deref(),
             Some("")
         );
     }
@@ -539,31 +539,31 @@ mod tests {
         // THEN lookup returns None (= use Apollia default) and picked
         // folders survive.
         let (_dir, path) = tmp();
-        set_folder_path_at(&path, "google", "nidal@x", "Documents").unwrap();
+        set_folder_path_at(&path, "google", "ada@x", "Documents").unwrap();
         let f = PickedFolder {
             format_version: 1,
             id: "id-1".into(),
             name: "Docs".into(),
             mime_type: default_folder_mime(),
         };
-        add_picked_folder_at(&path, "google", "nidal@x", f.clone()).unwrap();
+        add_picked_folder_at(&path, "google", "ada@x", f.clone()).unwrap();
 
-        reset_folder_path_at(&path, "google", "nidal@x").unwrap();
+        reset_folder_path_at(&path, "google", "ada@x").unwrap();
 
-        assert_eq!(lookup_folder_path_at(&path, "google", "nidal@x"), None);
-        assert_eq!(list_picked_folders_at(&path, "google", "nidal@x"), vec![f]);
+        assert_eq!(lookup_folder_path_at(&path, "google", "ada@x"), None);
+        assert_eq!(list_picked_folders_at(&path, "google", "ada@x"), vec![f]);
     }
 
     #[test]
     fn reset_drops_section_when_no_picked_folders_remain() {
         // GIVEN an account with a stored folder path and no picked folder
         let (_dir, path) = tmp();
-        set_folder_path_at(&path, "google", "nidal@x", "Documents").unwrap();
+        set_folder_path_at(&path, "google", "ada@x", "Documents").unwrap();
         // WHEN the folder path is reset
-        reset_folder_path_at(&path, "google", "nidal@x").unwrap();
+        reset_folder_path_at(&path, "google", "ada@x").unwrap();
         // THEN the whole section goes: the lookup and the picked list are both empty
-        assert_eq!(lookup_folder_path_at(&path, "google", "nidal@x"), None);
-        assert!(list_picked_folders_at(&path, "google", "nidal@x").is_empty());
+        assert_eq!(lookup_folder_path_at(&path, "google", "ada@x"), None);
+        assert!(list_picked_folders_at(&path, "google", "ada@x").is_empty());
     }
 
     #[test]
@@ -605,11 +605,11 @@ mod tests {
             mime_type: default_folder_mime(),
         };
         // WHEN both are added to the same account
-        add_picked_folder_at(&path, "google", "nidal@x", f1.clone()).unwrap();
-        add_picked_folder_at(&path, "google", "nidal@x", f2.clone()).unwrap();
+        add_picked_folder_at(&path, "google", "ada@x", f1.clone()).unwrap();
+        add_picked_folder_at(&path, "google", "ada@x", f2.clone()).unwrap();
 
         // THEN both come back from the list
-        let listed = list_picked_folders_at(&path, "google", "nidal@x");
+        let listed = list_picked_folders_at(&path, "google", "ada@x");
         assert_eq!(listed.len(), 2);
         assert!(listed.contains(&f1));
         assert!(listed.contains(&f2));
@@ -625,7 +625,7 @@ mod tests {
             name: "Old".into(),
             mime_type: default_folder_mime(),
         };
-        add_picked_folder_at(&path, "google", "nidal@x", f).unwrap();
+        add_picked_folder_at(&path, "google", "ada@x", f).unwrap();
         // WHEN the same id is added again under another name
         let renamed = PickedFolder {
             format_version: 1,
@@ -633,10 +633,10 @@ mod tests {
             name: "New".into(),
             mime_type: default_folder_mime(),
         };
-        add_picked_folder_at(&path, "google", "nidal@x", renamed).unwrap();
+        add_picked_folder_at(&path, "google", "ada@x", renamed).unwrap();
 
         // THEN the entry is replaced rather than duplicated
-        let listed = list_picked_folders_at(&path, "google", "nidal@x");
+        let listed = list_picked_folders_at(&path, "google", "ada@x");
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].name, "New");
     }
@@ -647,7 +647,7 @@ mod tests {
         let (_dir, path) = tmp();
         // WHEN an unknown id is removed
         // THEN the call succeeds instead of failing on the absence
-        assert!(remove_picked_folder_at(&path, "google", "nidal@x", "unknown").is_ok());
+        assert!(remove_picked_folder_at(&path, "google", "ada@x", "unknown").is_ok());
     }
 
     #[test]
@@ -666,13 +666,13 @@ mod tests {
             name: "B".into(),
             mime_type: default_folder_mime(),
         };
-        add_picked_folder_at(&path, "google", "nidal@x", f1).unwrap();
-        add_picked_folder_at(&path, "google", "nidal@x", f2.clone()).unwrap();
+        add_picked_folder_at(&path, "google", "ada@x", f1).unwrap();
+        add_picked_folder_at(&path, "google", "ada@x", f2.clone()).unwrap();
         // WHEN one of them is removed by id
-        remove_picked_folder_at(&path, "google", "nidal@x", "a").unwrap();
+        remove_picked_folder_at(&path, "google", "ada@x", "a").unwrap();
 
         // THEN only the other one remains
-        let listed = list_picked_folders_at(&path, "google", "nidal@x");
+        let listed = list_picked_folders_at(&path, "google", "ada@x");
         assert_eq!(listed, vec![f2]);
     }
 
@@ -680,7 +680,7 @@ mod tests {
     fn picked_folders_coexist_with_folder_path() {
         // GIVEN an account with a stored folder path
         let (_dir, path) = tmp();
-        set_folder_path_at(&path, "google", "nidal@x", "Documents/Apollia").unwrap();
+        set_folder_path_at(&path, "google", "ada@x", "Documents/Apollia").unwrap();
         // WHEN a picked folder is added on top of it
         let f = PickedFolder {
             format_version: 1,
@@ -688,14 +688,14 @@ mod tests {
             name: "Travail".into(),
             mime_type: default_folder_mime(),
         };
-        add_picked_folder_at(&path, "google", "nidal@x", f.clone()).unwrap();
+        add_picked_folder_at(&path, "google", "ada@x", f.clone()).unwrap();
 
         // THEN the two live side by side, neither overwriting the other
         assert_eq!(
-            lookup_folder_path_at(&path, "google", "nidal@x").as_deref(),
+            lookup_folder_path_at(&path, "google", "ada@x").as_deref(),
             Some("Documents/Apollia")
         );
-        assert_eq!(list_picked_folders_at(&path, "google", "nidal@x"), vec![f]);
+        assert_eq!(list_picked_folders_at(&path, "google", "ada@x"), vec![f]);
     }
 
     #[test]
@@ -703,10 +703,10 @@ mod tests {
         // GIVEN a folder path carrying whitespace and a doubled slash
         let (_dir, path) = tmp();
         // WHEN it is stored for an account
-        set_folder_path_at(&path, "google", "nidal@x", "  /Documents//Apollia/ ").unwrap();
+        set_folder_path_at(&path, "google", "ada@x", "  /Documents//Apollia/ ").unwrap();
         // THEN what comes back is the sanitised form
         assert_eq!(
-            lookup_folder_path_at(&path, "google", "nidal@x").as_deref(),
+            lookup_folder_path_at(&path, "google", "ada@x").as_deref(),
             Some("Documents/Apollia")
         );
     }

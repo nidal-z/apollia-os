@@ -2,8 +2,7 @@
   "name": "hitl-always-llm (the always answer of the inbox HITL card: one grant, then the same family runs without a card)",
   "stopOnError": false,
   "dynamicTestids": [
-    "inbox-filter-approval",
-    "inbox-tab-pending"
+    "review-filter-decisions"
   ],
   "notes": [
     "Standalone by design. hitl-always renders only inside the inbox HITLCard mounted with onAlwaysAccept, which InboxPendingList passes for an EXPANDED chat-tool pending row (InboxPendingList.svelte, HITLCard.svelte). The pending row is a live tool call awaiting approval (in-memory pendingChatApprovals, no seed row), so the block starts a new free-chat session whose prompt names the tool and the file.",
@@ -80,35 +79,20 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-filter-approval",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-approval",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
+      "testid": "review-item",
       "nth": 0,
       "timeoutMs": 8000
     },
     {
       "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
+      "testid": "review-filter-decisions",
       "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "hitl-always",
+      "testidPrefix": "operator-approval-always-",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {
@@ -117,13 +101,19 @@
     },
     {
       "kind": "click",
-      "testid": "hitl-always",
+      "testidPrefix": "operator-approval-always-",
+      "nth": 0,
       "timeoutMs": 5000
     },
     {
+      "kind": "waitFor",
+      "testid": "review-answered",
+      "timeoutMs": 8000
+    },
+    {
       "kind": "waitGone",
-      "testid": "hitl-always",
-      "timeoutMs": 15000
+      "testid": "review-answered",
+      "timeoutMs": 20000
     },
     {
       "kind": "screenshot",

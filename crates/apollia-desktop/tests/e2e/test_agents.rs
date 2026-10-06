@@ -19,9 +19,9 @@ const AGENT_POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// If the agent is already active when the test runs (e.g. desktop app
 /// auto-started it), the test exits early after confirming the state.
 #[tokio::test]
-#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
+#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of weekly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_agents_list_start_bundled_verify_active() {
-    // GIVEN a runtime and a desktop app already up, as the nightly job starts them
+    // GIVEN a runtime and a desktop app already up, as the weekly job starts them
     // WHEN the agent list is read and the bundled onboarding agent is started from its on-disk path
     // THEN it ends up in the active state, or was already there
     super::with_retry(|| async {

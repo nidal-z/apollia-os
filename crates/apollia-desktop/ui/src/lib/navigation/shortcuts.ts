@@ -17,8 +17,7 @@ export type ShortcutCategory =
   | "navigation"
   | "chat"
   | "settings"
-  | "companion"
-  | "approvals";
+  | "companion";
 
 export type ShortcutScope = "global" | "contextual";
 
@@ -49,7 +48,6 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
   "chat",
   "settings",
   "companion",
-  "approvals",
 ];
 
 export const SHORTCUTS: ShortcutEntry[] = [
@@ -193,32 +191,6 @@ export const SHORTCUTS: ShortcutEntry[] = [
     descriptionKey: "settings.shortcuts.items.companion_focus",
     scope: "global",
     category: "companion",
-  },
-
-  // ── Approvals ──────────────────────────────────────────────────────
-  {
-    id: "approvals.accept",
-    combo: { mac: "A", win: "A" },
-    descriptionKey: "settings.shortcuts.items.approvals_accept",
-    scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
-  },
-  {
-    id: "approvals.refuse",
-    combo: { mac: "R", win: "R" },
-    descriptionKey: "settings.shortcuts.items.approvals_refuse",
-    scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
-  },
-  {
-    id: "approvals.next",
-    combo: { mac: "J / K", win: "J / K" },
-    descriptionKey: "settings.shortcuts.items.approvals_next",
-    scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
   },
 ];
 

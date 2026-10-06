@@ -24,6 +24,7 @@
   import AdjustModel from "../sheet/AdjustModel.svelte";
   import AdjustAccess from "../sheet/AdjustAccess.svelte";
   import AdjustSources from "../sheet/AdjustSources.svelte";
+  import { createAgentSources } from "../sheet/useAgentSources.svelte";
   import {
     grantCandidates,
     modelOptions,
@@ -42,13 +43,17 @@
     form: AdjustDraft;
     /** Every access of the draft, checked or not. */
     listed: string[];
-    /** The accesses and the sources checked when the form opened. */
+    /** The accesses checked when the form opened. */
     checked: string[];
-    sources: string[];
     notes: Record<string, AccessNote>;
   }
 
-  let { name = $bindable(), form, listed, checked, sources, notes }: Props = $props();
+  let { name = $bindable(), form, listed, checked, notes }: Props = $props();
+
+  const registry = createAgentSources();
+  $effect(() => {
+    void registry.refresh();
+  });
 
   let presets = $state<PresetOffer[]>([]);
   let connections = $state<Connection[]>([]);
@@ -177,5 +182,5 @@
     {remote}
     notes={badges}
   />
-  <AdjustSources draft={form} inForce={sources} modified={false} />
+  <AdjustSources draft={form} sources={registry} modified={false} />
 </div>

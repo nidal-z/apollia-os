@@ -27,29 +27,6 @@ export interface PendingApproval {
   suspended_at: string;
 }
 
-/** Resolved approval (approved or rejected), for the history. */
-export interface ResolvedApproval {
-  task_id: string;
-  agent_name: string;
-  approved: boolean;
-  reason: string | null;
-  wait_duration_ms: number | null;
-  responded_at: string | null;
-}
-
-/** History entry of one chat HITL approval. */
-export interface ResolvedChatApproval {
-  session_id: string;
-  message_id: string;
-  tool_name: string;
-  /** "accept" | "refuse" | "always_accept" */
-  decision: string;
-  /** ISO-8601 timestamp. */
-  resolved_at: string;
-  /** Reason the operator gave (refusals only). */
-  reason: string | null;
-}
-
 /** State of the SSE connection. */
 export type ConnectionStatus =
   | "connecting"

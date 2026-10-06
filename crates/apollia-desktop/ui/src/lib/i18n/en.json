@@ -174,7 +174,7 @@
   "nav": {
     "dashboard": "Home",
     "agents": "Agents",
-    "inbox": "Inbox",
+    "inbox": "To review",
     "llm": "LLM models",
     "automations": "Automations",
     "memory": "Memory",
@@ -192,7 +192,7 @@
       "chat": "Chat",
       "agents": "Agents",
       "automations": "Automations",
-      "inbox": "Inbox",
+      "inbox": "To review",
       "memory": "Memory",
       "observability": "Observability",
       "llm": "LLM models",
@@ -620,7 +620,12 @@
       "choose_another": "Choose another folder",
       "done": "Done",
       "remove": "Remove",
-      "remove_confirm": "Remove the folder {name} from the connections? Its files stay on your computer."
+      "remove_title": "Remove the connection “{name}”?",
+      "remove_plain": "The agents lose access to this folder. Its files stay on your computer.",
+      "remove_with_sources": "{count, plural, one {One source depends on it. It will be removed} other {# sources depend on it. They will be removed}} with the connection: the agents that consult them will no longer reach them. The files of the folder are not touched.",
+      "dependent_sources": "Sources that depend on it · {count}",
+      "remove_confirm_plain": "Remove the connection",
+      "remove_confirm_sources": "Remove the connection and {count, plural, one {its source} other {its # sources}}"
     },
     "badge_builtin": "Built in"
   },
@@ -766,12 +771,12 @@
     "deliverables_empty": "No deliverable completed today.",
     "agents_empty": "No active agent right now.",
     "recent_activity_title": "Recent activity",
-    "inbox_more_one": "+ {count} more in the inbox →",
-    "inbox_more_other": "+ {count} more in the inbox →",
+    "inbox_more_one": "+ {count} more in To review →",
+    "inbox_more_other": "+ {count} more in To review →",
     "open_task_aria": "Open task {name}",
     "agent_detail_aria": "Agent details for {name}",
     "pending_untitled": "(untitled)",
-    "ctx_open_inbox": "Open in inbox",
+    "ctx_open_inbox": "Open in To review",
     "ctx_open_deliverable": "Open deliverable",
     "ctx_agent_detail": "Open agent details",
     "ctx_agent_logs": "View logs",
@@ -915,89 +920,67 @@
       "action_allow": "Allow",
       "action_reply": "Reply",
       "action_resolve": "Resolve",
-      "open_conversation": "Open conversation",
-      "action_review": "Review",
-      "copy_id": "Copy id"
+      "open_conversation": "Open conversation"
     },
-    "title_operator": "Inbox",
-    "subtitle": "Pending actions waiting on you",
-    "pending_count": "{count} pending",
-    "tab_pending": "To do",
-    "tab_activity": "Activity",
-    "tab_notifications": "Notifications sent",
-    "filter_by_agent": "Agent",
-    "all_agents": "All agents",
-    "chips": {
-      "all": "All",
-      "approvals": "Approvals",
-      "questions": "Questions"
-    },
-    "group": {
-      "today": "Today",
-      "yesterday": "Yesterday",
-      "earlier": "Earlier"
-    },
-    "history": {
-      "accepted": "Approved",
-      "always_accepted": "Always approved",
-      "refused": "Rejected",
-      "reason": "Reason:",
-      "session": "Session",
-      "origin_chat": "Chat",
-      "origin_task": "Agent task",
-      "task": "Task"
-    },
-    "activity": {
-      "empty": "All clear - no recent incidents.",
-      "empty_desc": "This tab lists only failures, degradations and LLM incidents from the last 14 days. For overall activity (tasks launched, triggers fired successfully), open Observability → Timeline.",
-      "empty_cta": "Open Observability",
-      "see_logs": "View logs",
-      "filter": {
-        "all": "All",
-        "failures": "Failures",
-        "degradations": "Degradations",
-        "llm": "LLM"
-      }
-    },
-    "notifications": {
-      "empty": "No notifications sent.",
-      "empty_desc": "History of notifications pushed to your channels will appear here."
-    },
-    "plan": {
-      "label": "Plan awaiting approval"
-    },
-    "ask_user": {
-      "submit": "Reply",
-      "submitting": "Sending…",
-      "refuse": "Decline to answer",
-      "refuse_title": "Decline to answer",
-      "open_chat": "Open conversation"
-    },
-    "empty_title": "Nothing waiting",
-    "empty_subtitle": "All caught up. New requests will show up here.",
-    "refuse": "Refuse",
-    "always_accept": "Always allow",
-    "reject_title": "Reject action",
-    "reject_reason_help": "Explain briefly why you are rejecting this action.",
-    "reject_reason_label": "Rejection reason",
-    "reject_placeholder": "Why are you rejecting this action? (min. {min} characters)",
-    "reject_help": "Minimum {min} characters.",
-    "reject_too_short": "At least {min} characters required.",
-    "reject_too_long": "Maximum {max} characters.",
-    "confirm_reject": "Confirm rejection",
-    "dialog_stack_indicator": "Dialog {current} of {total}",
-    "open_in_inbox": "Open in inbox",
-    "toast": {
-      "accepted": "Action approved",
-      "rejected": "Action rejected",
-      "always_accepted": "Rule saved - future calls auto-approved",
-      "ask_user_replied": "Answers sent to the agent",
-      "copied": "Copied to clipboard"
-    },
-    "history_title": "Recent history (last 14 days)",
+    "open_in_inbox": "Open in To review",
     "error": {
       "details": "Technical details",
       "learn_more": "Learn more"
+    }
+  },
+  "review": {
+    "title": "To review",
+    "subtitle": "Consents asked by agents, questions, paused tasks and batch items, in one list, with the same answers as in the Chat. Answering here resumes the conversation, the task or the batch concerned.",
+    "count_one": "{count} item is waiting for your answer.",
+    "count_other": "{count} items are waiting for your answer.",
+    "agent_unknown": "An agent",
+    "asks_consent": "{agent} asks for your consent",
+    "filter": {
+      "all": "All",
+      "decisions": "Decisions",
+      "questions": "Questions",
+      "batch_items": "Batch items"
+    },
+    "origin": {
+      "conversation_named": "From the conversation “{title}”",
+      "conversation": "From a conversation",
+      "task": "From a paused task",
+      "batch": "From a batch, item {position}",
+      "unknown": "Asked by an agent"
+    },
+    "open": {
+      "conversation": "Open the conversation",
+      "agent": "Open the agent",
+      "batch": "Open the batch"
+    },
+    "code": {
+      "collapsed": "Command folded: {shown} lines out of {total}. The answers appear once the whole command is shown.",
+      "show_all": "Show the whole command"
+    },
+    "question": {
+      "heading": "{agent} asks you a question",
+      "badge": "Question",
+      "proposed": "Answers proposed by the agent",
+      "other_placeholder": "Another answer…",
+      "open_placeholder": "Your answer…",
+      "submit": "Answer",
+      "refuse": "Decline to answer",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "answered": {
+      "once": "Allowed once for {agent}",
+      "always": "Always allowed for {agent} for this kind of action",
+      "refuse": "Refused",
+      "answer": "Answer given to {agent}",
+      "recorded": "Answer recorded. This line leaves in a few seconds.",
+      "cancel": "Cancel"
+    },
+    "resumed_one": "{count} batch item resumed thanks to this consent.",
+    "resumed_other": "{count} batch items resumed thanks to this consent.",
+    "empty": {
+      "title": "Nothing is waiting for your answer",
+      "desc": "A consent asked by an agent, a question, a paused task or a waiting batch item will appear here."
     }
   },
   "policy": {
@@ -1189,8 +1172,6 @@
     "chosen_label": "Chosen"
   },
   "approvals": {
-    "rejecting": "Rejecting...",
-    "unknown_agent": "Unknown agent",
     "timer": {
       "waiting_since": "Agent waiting since {elapsed}",
       "remaining": "· {remaining} left"
@@ -1599,11 +1580,8 @@
   },
   "notifications": {
     "channels_title": "Channels",
-    "empty_history": "No notifications in history.",
     "all_events": "All events",
     "test": "Test",
-    "filter_by_channel": "Filter by channel:",
-    "all_channels": "All channels",
     "edit_channel": "Edit channel",
     "creating": "Creating...",
     "saving": "Saving...",
@@ -1675,16 +1653,6 @@
     "field_headers_invalid": "Headers must be valid JSON",
     "edit": "Edit",
     "delete": "Delete",
-    "table": {
-      "timestamp": "Timestamp",
-      "channel": "Channel",
-      "event": "Event",
-      "status": "Status"
-    },
-    "status": {
-      "sent": "sent",
-      "failed": "failed"
-    },
     "native": {
       "approval_title": "Action required",
       "approval_body": "Agent {agentName} is waiting for approval",
@@ -2216,14 +2184,12 @@
         "navigation": "Navigation",
         "chat": "Chat",
         "settings": "Settings",
-        "companion": "Companion",
-        "approvals": "Approvals"
+        "companion": "Companion"
       },
       "scope": {
         "chat": "Inside Chat",
         "settings": "Inside Settings",
         "dialog": "Inside a dialog",
-        "approvals": "Inside the Approvals queue",
         "global_label": "Global",
         "contextual_label": "Contextual"
       },
@@ -2244,9 +2210,6 @@
         "settings_close": "Close dialog or sheet",
         "companion_toggle": "Open the guide on the current screen",
         "companion_focus": "Focus the Companion input",
-        "approvals_accept": "Accept the current approval",
-        "approvals_refuse": "Refuse the current approval",
-        "approvals_next": "Jump to next / previous approval",
         "settings_engines": "Open System > Engines",
         "settings_hardware": "Open System > Hardware"
       },
@@ -4550,20 +4513,10 @@
   },
   "approval": {
     "action": {
-      "allow": "Allow",
       "refuse": "Refuse",
       "once": "Once",
       "always_for_agent": "Always for this agent"
     },
-    "risk": {
-      "low": "low",
-      "medium": "medium",
-      "high": "high",
-      "paid": "paid"
-    },
-    "risk_label": "{level} risk",
-    "cost_estimate": "Estimated cost: {cost}",
-    "expires_in": "expires in {expires}",
     "always_hint": "\"Always for this agent\" lets it repeat this kind of action without asking you again.",
     "refuse_reason_placeholder": "Reason for refusing (optional), passed to the agent",
     "see_more": "See more",
@@ -4808,6 +4761,10 @@
     "removed": "Left out of the package (another package, agent or workflow): {list}"
   },
   "dev": {
+    "agent_sources": {
+      "add_code_folder": "A code folder",
+      "add_code_folder_hint": "Among your folder connections, read as code"
+    },
     "connections": {
       "catalogue_subtitle": "Browse the public MCP catalogue or register a custom server.",
       "catalogue_tab_discover": "MCP catalogue",
@@ -5709,5 +5666,52 @@
     "empty_body": "Launch a batch from the sheet of an agent, with \"Process a batch\", or by dropping an Excel or CSV file in the chat.",
     "empty_filtered_title": "No batch matches",
     "empty_filtered_body": "Change the filters or the search to see other batches."
+  },
+  "agent_sources": {
+    "add": "Add a source",
+    "add_folder": "A folder",
+    "add_folder_hint": "Among your folder connections",
+    "add_file": "A file",
+    "add_file_hint": "A document on this computer",
+    "add_mail": "A mailbox",
+    "add_mail_hint": "Among your mailbox connections",
+    "add_profile": "The profile",
+    "add_memory": "The memory",
+    "about_profile": "What you said about yourself and your work",
+    "about_memory": "What the agent retained",
+    "name_folder": "Folder “{name}”",
+    "name_file": "File “{name}”",
+    "name_mail": "Mailbox {name}",
+    "name_code_folder": "Code folder “{name}”",
+    "status_pending": "Waiting to be read",
+    "status_indexing": "Reading: {count, plural, =0 {no file read yet} one {# file read} other {# files read}}",
+    "status_ready": "{count, plural, =0 {No file read} one {# file read} other {# files read}}",
+    "status_keywords_only": "Keyword search only: no model for searching by meaning is installed.",
+    "status_error": "This source could not be read: the folder or the file is no longer reachable, or its connection was removed.",
+    "status_missing": "This source was removed. Uncheck it.",
+    "state_ready": "Ready",
+    "state_indexing": "In progress",
+    "state_error": "Error",
+    "state_keywords_only": "Keywords only",
+    "state_pending": "Waiting",
+    "state_missing": "Removed",
+    "skipped": "{count, plural, one {# file skipped} other {# files skipped}} (over 50 MB or unreadable)",
+    "skipped_too_large": "over 50 MB",
+    "skipped_unreadable": "unreadable",
+    "open_ai": "Install a model in AI",
+    "reading_note": "The agent can search this folder, not open its files.",
+    "grant_reading": "Grant reading too",
+    "pick_folder_title": "Choose a folder connection",
+    "pick_folder_empty": "No folder connection yet. Add a folder in Connections, then come back to this sheet.",
+    "pick_mail_title": "Choose a mailbox",
+    "pick_mail_empty": "No mailbox connected yet. Add one in Connections, then come back to this sheet.",
+    "pick_file_title": "Choose the file the agent will consult",
+    "open_connections": "Go to Connections",
+    "add_failed": "This source could not be added.",
+    "remove_label": "Remove the source {name}",
+    "remove_title": "Remove this source?",
+    "remove_message": "“{name}” is removed for every agent that consults it, and what Apollia had read of it is erased. Your files and messages are not touched.",
+    "remove_confirm": "Remove the source",
+    "remove_failed": "This source could not be removed."
   }
 }

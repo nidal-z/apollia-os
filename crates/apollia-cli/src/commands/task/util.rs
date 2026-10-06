@@ -8,24 +8,19 @@ use crate::exit_codes;
 
 use super::{MAX_OUTPUT_LEN, MAX_PROMPT_LEN};
 
-/// Format the approvals list as a human-readable table.
+/// Print the pending approvals as a human-readable table.
 ///
 /// Columns: `ID | TASK_ID | AGENT | DECISION | DATE`
-pub(super) fn format_approvals_list(resp: &serde_json::Value, pending: bool) {
-    let key = if pending { "pending" } else { "approvals" };
+pub(super) fn format_approvals_list(resp: &serde_json::Value) {
     let approvals = resp
-        .get(key)
+        .get("pending")
         .or_else(|| resp.get("approvals"))
         .and_then(|a| a.as_array())
         .cloned()
+        .or_else(|| resp.as_array().cloned())
         .unwrap_or_default();
 
-    let header = if pending {
-        "PENDING APPROVALS"
-    } else {
-        "RESOLVED APPROVALS"
-    };
-    println!("  {header}");
+    println!("  PENDING APPROVALS");
     println!(
         "  {:<36} {:<36} {:<20} {:<10} DATE",
         "ID", "TASK_ID", "AGENT", "DECISION"
@@ -37,37 +32,28 @@ pub(super) fn format_approvals_list(resp: &serde_json::Value, pending: bool) {
     }
 
     for a in &approvals {
-        print_approval_row(a, pending);
-    }
-}
-
-/// Maps the approval decision to its display label.
-pub(super) fn approval_decision(a: &serde_json::Value, pending: bool) -> &'static str {
-    if pending {
-        return "pending";
-    }
-    match a.get("approved").and_then(|v| v.as_bool()) {
-        Some(true) => "approved",
-        Some(false) => "rejected",
-        None => "?",
+        print_approval_row(a);
     }
 }
 
 /// Renders a single approvals-table row.
-pub(super) fn print_approval_row(a: &serde_json::Value, pending: bool) {
+pub(super) fn print_approval_row(a: &serde_json::Value) {
     let id = a.get("id").and_then(|v| v.as_str()).unwrap_or("?");
     let task_id = a.get("task_id").and_then(|v| v.as_str()).unwrap_or("?");
-    let agent = a.get("agent_id").and_then(|v| v.as_str()).unwrap_or("?");
-    let decision = approval_decision(a, pending);
+    let agent = a
+        .get("agent_id")
+        .or_else(|| a.get("agent_name"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
     let date = a
-        .get("resolved_at")
-        .or_else(|| a.get("requested_at"))
+        .get("requested_at")
+        .or_else(|| a.get("suspended_at"))
         .and_then(|v| v.as_str())
         .map(|s| if s.len() >= 19 { &s[..19] } else { s })
         .unwrap_or("?");
     println!(
         "  {:<36} {:<36} {:<20} {:<10} {}",
-        id, task_id, agent, decision, date
+        id, task_id, agent, "pending", date
     );
 }
 

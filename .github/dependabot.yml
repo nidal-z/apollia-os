@@ -1,11 +1,10 @@
-# Dependency updates for a single maintainer.
+# Dependency updates, grouped.
 #
 # The lever that matters here is not the schedule, it is the grouping. Ungrouped,
-# the four ecosystems below can open thirty pull requests in one Monday morning
-# (10 + 5 + 10 and the default 5 on github-actions), which is a week of review
-# for one person. Grouped, each ecosystem opens one pull request per week for its
-# minor and patch bumps; a major version still arrives on its own, because that
-# is the one that needs reading.
+# the ecosystems below open dozens of pull requests in one Monday morning, which
+# is more than anyone reads carefully. Grouped, each directory opens one pull
+# request per week for its minor and patch bumps; a major version still arrives
+# on its own, because that is the one that needs reading.
 version: 2
 
 updates:
@@ -59,6 +58,38 @@ updates:
     labels:
       - dependencies
       - frontend
+
+  - package-ecosystem: npm
+    directory: "/docs/site"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    groups:
+      docs-site-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: "/clients/ts"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    groups:
+      ts-client-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
 
   - package-ecosystem: github-actions
     directory: "/"

@@ -384,7 +384,7 @@
           rows={Math.max(3, argsTailDraft.split(/\r?\n/).length + 1)}
           bind:value={argsTailDraft}
           placeholder={launcherHead.some((a) => a.includes("server-filesystem"))
-            ? "/Users/moi/Documents\n/Users/moi/Desktop"
+            ? "/Users/me/Documents\n/Users/me/Desktop"
             : $t("connections.mcp_settings.args_placeholder")}
           class="font-mono text-body-xs"
           data-testid="mcp-settings-args-input"

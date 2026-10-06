@@ -812,6 +812,174 @@ def check_prose_tracker_rule() -> None:
             check_prose.RULES = rules
 
 
+
+# ── The prose identity and host-name rules ───────────────────────────────────
+# Same family again. Both rules were added on a tree already swept clean, so a
+# green run says the sweep was complete and nothing about the two detectors.
+# They are driven on a temporary tree like the tracker rule above.
+#
+# Every fixture is composed from fragments, for the reason given above: this
+# file is inventoried by the guard it tests. The negatives are the neighbours
+# the rules must leave alone: the first name the tree uses as example data, a
+# host named by its role, a word that only starts like a hardware model, and a
+# file whose name carries a `.local` segment with no host in front of it.
+
+FIRST_NAME = "ni" + "dal"
+FAMILY_NAME = "zou" + "mita"
+ADDRESS_SAMPLE = "reach " + FIRST_NAME + "@example.com for the fixture"
+FAMILY_SAMPLE = "Copyright 2026 " + FAMILY_NAME.capitalize()
+HANDLE_SAMPLE = "* @" + FIRST_NAME + "-z"
+EXAMPLE_NAME_CLEAN = "the profile is named Ada, and the address is ada@example.com"
+IDENTITY_NAME = "docs/" + FIRST_NAME + "-notes.md"
+CODEOWNERS = ".github/CODEOWNERS"
+NESTED_CODEOWNERS = "docs/.github/CODEOWNERS"
+
+OWNED_HOST_SAMPLE = "ssh build@someone-" + "mac" + "-studio.local"
+BARE_HOST_SAMPLE = "http://" + "MacBook" + "-Pro.local:11434/v1"
+ROLE_HOST_CLEAN = "http://inference-box.local:11434/v1"
+WORD_HOST_CLEAN = "the machine.local and macro.local records resolve"
+LOCAL_FILE_CLEAN = "preferences live in AGENTS.local.md and justfile.local"
+
+
+def check_prose_identity_rules() -> None:
+    print("prose guard: a person and a workstation are refused, example data is not")
+
+    def rule_of(pattern: object) -> int:
+        return next(
+            i for i, r in enumerate(check_prose.RULES) if r.pattern is pattern
+        )
+
+    identity = rule_of(check_prose.PERSONAL_IDENTITY)
+    machine = rule_of(check_prose.MACHINE_HOSTNAME)
+    identity_label = check_prose.RULES[identity].label
+    machine_label = check_prose.RULES[machine].label
+
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+        files = _prose_tree(
+            tmp,
+            {
+                "docs/address.md": ADDRESS_SAMPLE.encode("utf-8"),
+                "docs/family.md": FAMILY_SAMPLE.encode("utf-8"),
+                "docs/handle.md": HANDLE_SAMPLE.encode("utf-8"),
+                "docs/example-name.md": EXAMPLE_NAME_CLEAN.encode("utf-8"),
+                IDENTITY_NAME: CLEAN_SAMPLE.encode("utf-8"),
+                CODEOWNERS: HANDLE_SAMPLE.encode("utf-8"),
+                NESTED_CODEOWNERS: HANDLE_SAMPLE.encode("utf-8"),
+                "docs/owned-host.md": OWNED_HOST_SAMPLE.encode("utf-8"),
+                "docs/bare-host.md": BARE_HOST_SAMPLE.encode("utf-8"),
+                "docs/role-host.md": ROLE_HOST_CLEAN.encode("utf-8"),
+                "docs/word-host.md": WORD_HOST_CLEAN.encode("utf-8"),
+                "docs/local-file.md": LOCAL_FILE_CLEAN.encode("utf-8"),
+            },
+        )
+
+        found = check_prose.scan(tmp, files)
+        hits = {f.split(":")[0] for f in found}
+
+        for rel, what in (
+            ("docs/address.md", "a first name inside an address"),
+            ("docs/family.md", "a capitalized family name"),
+            ("docs/handle.md", "a handle"),
+        ):
+            case(
+                f"flags {what}",
+                f"{rel}:1: {identity_label}" in found,
+                f"the identity rule stayed silent on {what}, so the spelling "
+                f"would come back unnoticed. findings: {found!r}",
+            )
+        case(
+            "stays silent on the example first name of the tree",
+            "docs/example-name.md" not in hits,
+            f"example data was reported. Test fixtures need a first name, and "
+            f"a rule that refuses the agreed one gets switched off. "
+            f"findings: {found!r}",
+        )
+        case(
+            "flags the name carried by a file name",
+            f"{IDENTITY_NAME}: {identity_label}, in the file name" in found,
+            f"the name pass reported nothing, so a file could carry the name "
+            f"in its path and satisfy the rule in its body. findings: {found!r}",
+        )
+        case(
+            "the ownership file is the one excused path",
+            CODEOWNERS not in hits,
+            f"the excused path was reported, so the rule cannot be green "
+            f"while the ownership file addresses an account. findings: {found!r}",
+        )
+        case(
+            "an ownership file anywhere else is not excused",
+            f"{NESTED_CODEOWNERS}:1: {identity_label}" in found,
+            f"the exemption matched a path it does not name; it is anchored "
+            f"on the full relative path so one excused file cannot become a "
+            f"family of them. findings: {found!r}",
+        )
+        case(
+            "flags a workstation host name carrying an owner",
+            f"docs/owned-host.md:1: {machine_label}" in found,
+            f"the host-name rule stayed silent on the shape it exists to "
+            f"catch. findings: {found!r}",
+        )
+        case(
+            "flags a workstation host name in mixed case with a port",
+            f"docs/bare-host.md:1: {machine_label}" in found,
+            f"the default host name of a laptop escaped the rule. "
+            f"findings: {found!r}",
+        )
+        case(
+            "stays silent on a host named by its role",
+            "docs/role-host.md" not in hits,
+            f"a role-named host was reported, which is the replacement the "
+            f"rule itself asks for. findings: {found!r}",
+        )
+        case(
+            "stays silent on a word that only starts like a hardware model",
+            "docs/word-host.md" not in hits,
+            f"the model was matched as a prefix rather than as a whole "
+            f"token. findings: {found!r}",
+        )
+        case(
+            "stays silent on a file name with a local segment",
+            "docs/local-file.md" not in hits,
+            f"an override file name was read as a host. The tree documents "
+            f"several of them. findings: {found!r}",
+        )
+
+        # Negative control on the exemption, the shape the tracker rule uses.
+        rules = check_prose.RULES
+        try:
+            check_prose.RULES = [
+                r._replace(exempt=None) if i == identity else r
+                for i, r in enumerate(rules)
+            ]
+            widened = {f.split(":")[0] for f in check_prose.scan(tmp, files)}
+            case(
+                "negative control: dropping the ownership exemption is reported",
+                CODEOWNERS in widened,
+                "the excused path stayed silent with its exemption removed, so "
+                "the exemption assertion above proves nothing",
+            )
+        finally:
+            check_prose.RULES = rules
+
+        # Negative control on the detectors: with both rules removed the same
+        # tree is clean, so every positive above is owed to them and not to a
+        # neighbouring rule that happens to match the fixture.
+        try:
+            check_prose.RULES = [
+                r for i, r in enumerate(rules) if i not in (identity, machine)
+            ]
+            without = check_prose.scan(tmp, files)
+            case(
+                "negative control: without the two rules the fixtures are clean",
+                without == [],
+                f"another rule reports these fixtures, so the positives above "
+                f"do not isolate the rules under test. findings: {without!r}",
+            )
+        finally:
+            check_prose.RULES = rules
+
+
 # ── The worktree verdict comparator ──────────────────────────────────────────
 # Same family, fourth instance, and this one was written knowing the family. A
 # comparator that only read exit codes would call the two `svelte-check` runs
@@ -2917,6 +3085,8 @@ def main() -> int:
     print()
     check_prose_tracker_rule()
     print()
+    check_prose_identity_rules()
+    print()
     check_worktree_comparator()
     print()
     check_red_tests_are_named()
@@ -2950,10 +3120,12 @@ def main() -> int:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nsixteen properties hold: neither a comment nor a re-export is a use, "
+        "\nseventeen properties hold: neither a comment nor a re-export is a use, "
         "zero coverage says so, the font guard fires on a dirty tree and reads "
         "the same set whatever tree it runs in, the prose tracker rule fires "
-        "and its one exemption is bounded from both sides, two equal exit codes "
+        "and its one exemption is bounded from both sides, the prose identity "
+        "and host-name rules refuse a person and a workstation while example "
+        "data and role-named hosts pass, two equal exit codes "
         "over different measures are not the same verdict, and a failed "
         "assertion reaches the artifact with its cause while a passing one adds "
         "nothing to it, and the heavy-guard recorder names the tests that made "

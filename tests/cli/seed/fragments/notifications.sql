@@ -9,9 +9,7 @@
 --   * global-events-section + the global-event-* toggles reflect enabled state
 --                           (GlobalEventsEditor, get_notification_events)
 --                           <- notification_global_events
---   * inbox-tab-notifications log list (get_notification_logs)
---   * inbox-tab-activity activity-row-* (list_runtime_activity, filtered to
---     task.failed / agent.degraded / trigger.error / llm.backend_down)
+--   * the recent sends of the Notifications section (get_notification_logs)
 --                           <- notification_logs
 --
 -- The notifications-det.json script creates its OWN channel `det-auto-channel`
@@ -60,10 +58,9 @@ INSERT INTO notification_global_events (event_name) VALUES
 -- the Inbox "activity" tab (task.failed / agent.degraded / trigger.error /
 -- llm.backend_down only). channels is a JSON map of per-channel outcome.
 --
--- sent_at is stored in SQLite space form ('YYYY-MM-DD HH:MM:SS'), NOT rfc3339.
--- list_runtime_activity keeps any row whose sent_at fails rfc3339 parsing
--- (unwrap_or(true)), so the activity rows stay visible regardless of the wall
--- clock on the day the automation runs, while remaining fully deterministic.
+-- sent_at is stored in SQLite space form ('YYYY-MM-DD HH:MM:SS'), NOT rfc3339,
+-- so the rows read the same regardless of the wall clock on the day the
+-- automation runs.
 INSERT INTO notification_logs (id, event_name, task_id, agent_id, sent_at, channels, error) VALUES
   ('seed-log-completed',
    'task.completed',

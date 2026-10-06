@@ -70,7 +70,7 @@ exclude = ["fuzz", "crates/apollia-loom-models"]
 rust-version = "1.89"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-authors = ["Nidal Zoumita <admin@apollia.fr>"]
+authors = ["Apollia <contact@apollia.fr>"]
 repository = "https://github.com/Apollia-OS/apollia-os"
 homepage = "https://apollia.fr"
 

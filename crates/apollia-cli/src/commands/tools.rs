@@ -71,15 +71,6 @@ pub enum ToolsCommand {
 pub enum ToolsApprovalsCmd {
     /// List approvals pending decision (tasks in `input_required`).
     Pending,
-    /// List approvals resolved within the `--days` window.
-    Resolved {
-        /// Days of history to include (default: 7).
-        #[arg(long, default_value_t = 7)]
-        days: u32,
-        /// Maximum number of entries to return (default: 50).
-        #[arg(long, default_value_t = 50)]
-        limit: u32,
-    },
 }
 
 /// Subcommands of `apollia-os tools config`.

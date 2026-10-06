@@ -49,6 +49,8 @@
   import AdjustAccess from "./AdjustAccess.svelte";
   import AdjustSources from "./AdjustSources.svelte";
   import type { AgentAdjust } from "./useAgentAdjust.svelte";
+  import { createAgentSources } from "./useAgentSources.svelte";
+  import { awaitsIndex, sourceRows } from "./agentSources";
   import {
     grantCandidates,
     isOverridden,
@@ -67,7 +69,6 @@
     missionView,
     modelView,
     readableName,
-    sourceViews,
     type AccessDescriptor,
     type AccessView,
   } from "./agentSheet";
@@ -109,6 +110,24 @@
 
   $effect(() => {
     void loadRuns(runtimeId);
+  });
+
+  // The registry of sources and their indexes, read again while one of the
+  // sources shown is still being read.
+  const SOURCES_POLL_MS = 4000;
+  const registry = createAgentSources();
+
+  $effect(() => {
+    void adjust?.revision;
+    void adjust?.active;
+    void definitionId;
+    void registry.refresh();
+  });
+
+  $effect(() => {
+    if (!sourcesPending) return;
+    const timer = setInterval(() => void registry.refresh(), SOURCES_POLL_MS);
+    return () => clearInterval(timer);
   });
 
   async function loadDefinition(id: string, declared: AgentListItem | null): Promise<void> {
@@ -186,7 +205,12 @@
   const model = $derived(modelView(resolved?.model ?? null, defaultModel));
   const notice = $derived(fallbackNotice(fallback));
   const groups = $derived(groupAccesses(accesses));
-  const sources = $derived(sourceViews(resolved?.sources ?? []));
+  const sources = $derived(sourceRows(registry.registry, registry.indexes, resolved?.sources ?? [], false));
+  const sourcesPending = $derived(
+    awaitsIndex(
+      sourceRows(registry.registry, registry.indexes, adjust?.draft?.sources ?? resolved?.sources ?? [], false),
+    ),
+  );
   const changeRows = $derived(changeViews(changes));
 
   // ── Adjustment ──────────────────────────────────────────────────────
@@ -279,12 +303,12 @@
       {loadConnectionOffer}
       {remote}
     />
-    <AdjustSources draft={adjust.draft} inForce={adjust.base.sources} modified={marked("sources")} />
+    <AdjustSources draft={adjust.draft} sources={registry} modified={marked("sources")} />
   {:else}
     <SheetMission view={mission} modified={marked("mission") || marked("examples")} />
     <SheetModel view={model} fallback={notice} modified={marked("model")} />
     <SheetAccess {groups} loading={accessLoading} modified={marked("access")} {remote} />
-    <SheetSources {sources} modified={marked("sources")} />
+    <SheetSources rows={sources} modified={marked("sources")} />
   {/if}
   <SheetAlways {definitionId} />
   <SheetActivity
