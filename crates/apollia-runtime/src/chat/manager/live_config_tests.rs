@@ -189,3 +189,31 @@ async fn a_change_of_a_section_the_chat_does_not_read_leaves_its_tools_untouched
     let after = manager.chat_tools_config.as_ref().expect("config");
     assert!(Arc::ptr_eq(&before, after));
 }
+
+#[tokio::test]
+async fn the_profile_default_saved_by_the_route_is_the_switch_of_the_next_conversation_only() {
+    // GIVEN a chat following its runtime, and a conversation born while the
+    // profile is shared by default
+    let dir = tempfile::tempdir().unwrap();
+    let rig = Rig::on("");
+    let chat = spawned(&dir);
+    chat.follow_config(rig.feed()).await;
+    let before = chat.create_session(libre()).await.expect("create");
+
+    // WHEN the route turns the sharing off, and a conversation is created
+    rig.save("[chat]\nshare_profile_default = false\n").await;
+    let after = chat.create_session(libre()).await.expect("create");
+
+    // THEN the new conversation is born with its switch off, in memory and in
+    // the database, and the earlier one keeps its own
+    let born_on = chat.get_session(before.id).await.expect("detail");
+    let born_off = chat.get_session(after.id.clone()).await.expect("detail");
+    assert!(born_on.session.use_profile);
+    assert!(!born_off.session.use_profile);
+    let stored = ChatSessionRepository::open(&dir.path().join("chat.db"))
+        .expect("open")
+        .get_session(&after.id.to_string())
+        .expect("read")
+        .expect("row");
+    assert!(!stored.use_profile);
+}

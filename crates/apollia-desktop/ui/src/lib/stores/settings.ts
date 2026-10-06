@@ -31,6 +31,7 @@ export type SettingsSubRoute =
   | "chat"
   | "stt"
   | "model-defaults"
+  | "integrations"
   | "notifications"
   | "developer"
   | "configuration"
@@ -46,6 +47,7 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "chat",
   "stt",
   "model-defaults",
+  "integrations",
   "notifications",
   "developer",
   "configuration",

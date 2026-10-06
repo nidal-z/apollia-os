@@ -257,7 +257,9 @@ mod tests {
         #[cfg(feature = "web-search")]
         expected.push("web_search");
 
-        let tools = AgentAccess::of(&apollia).tools(&registry).await;
+        let tools = AgentAccess::of(&apollia)
+            .tools(&registry, &apollia_tools::DefaultAccess::default())
+            .await;
 
         assert_eq!(tools, expected);
         registry.shutdown().await;

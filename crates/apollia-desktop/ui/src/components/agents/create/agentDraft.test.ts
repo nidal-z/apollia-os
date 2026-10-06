@@ -157,6 +157,33 @@ describe("extractDraft - the draft is read in the conversation", () => {
       { id: "mail_send", checked: false, sensitive: true, by_default: false },
     ]);
   });
+
+  test("a sensitive access the default access grants opens checked, and is sent", () => {
+    // GIVEN an answer where the runtime marks a sensitive access as a default
+    const answer = {
+      ok: true,
+      draft: proposed({
+        access: [
+          { id: "file_write", checked: true, sensitive: true, by_default: true },
+          { id: "mail_send", checked: true, sensitive: true, by_default: false },
+        ],
+      }),
+    };
+
+    // WHEN the draft is read and its form opened
+    const draft = extractDraft([message(1, [call(answer)])]);
+    const review = reviewOf(draft, []);
+
+    // THEN the default one is checked and still marked sensitive, the other
+    // one stays the choice of the person, and the sheet sends the first alone
+    expect(draft?.access.map((a) => [a.id, a.checked])).toEqual([
+      ["file_write", true],
+      ["mail_send", false],
+    ]);
+    expect(review.checked).toEqual(["file_write"]);
+    expect(review.notes).toEqual({ file_write: "sensitive", mail_send: "sensitive" });
+    expect(sheetOf(review.name, review.form).access).toEqual(["file_write"]);
+  });
 });
 
 describe("draftFields - the draft beside the conversation", () => {

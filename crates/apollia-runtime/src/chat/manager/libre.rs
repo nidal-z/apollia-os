@@ -219,7 +219,12 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         agent_draft,
     } = params;
 
-    let available_tools = available_tools.tools(&tool_registry).await;
+    let available_tools = available_tools
+        .tools(
+            &tool_registry,
+            &super::default_access_of(chat_tools_config_for_session.as_deref()),
+        )
+        .await;
     let available_tools = super::code_context::with_code_context(
         chat_tools_config_for_session.as_deref(),
         &agent_id,

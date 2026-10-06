@@ -146,7 +146,7 @@ pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
     ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
 };
-pub use tools::ToolsConfig;
+pub use tools::{NewAgentConfig, ToolsConfig, NEW_AGENT_ACCESS_KEY, NEW_AGENT_FAMILIES_KEY};
 pub use triggers::TriggersConfig;
 pub use validate::{validate, ConfigDiagnostic};
 pub use web::{

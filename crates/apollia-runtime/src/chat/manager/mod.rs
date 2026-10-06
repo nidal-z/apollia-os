@@ -288,6 +288,15 @@ pub(in crate::chat::manager) fn package_executors(
         .unwrap_or_default()
 }
 
+/// The default access in force, as `[tools.new_agent]` states it; the reading
+/// family when the chat was given no configuration.
+pub(in crate::chat::manager) fn default_access_of(
+    cfg: Option<&ChatToolsConfig>,
+) -> apollia_tools::DefaultAccess {
+    cfg.map(|cfg| apollia_tools::DefaultAccess::from_config(&cfg.tools_config.new_agent))
+        .unwrap_or_default()
+}
+
 pub use agent_task::AgentTaskRun;
 pub use command::ChatCommand;
 pub use folders::FolderAction;

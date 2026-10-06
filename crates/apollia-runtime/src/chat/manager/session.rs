@@ -170,6 +170,20 @@ impl ChatSessionManager {
                 .set_plan_mode(&session_id, true, plan_phase)?;
         }
 
+        // A new session is born with the profile switch `[chat]
+        // share_profile_default` states; the column is born on, so only an
+        // off default is written.
+        let use_profile = self.shares_profile_by_default();
+        if !use_profile {
+            self.repository.update_session_config(
+                &session_id,
+                &SessionConfigUpdate {
+                    use_profile: Some(false),
+                    ..SessionConfigUpdate::default()
+                },
+            )?;
+        }
+
         // Build in-memory session
         let session = ChatSession {
             id: session_id.clone(),
@@ -191,7 +205,7 @@ impl ChatSessionManager {
             plan_mode,
             plan_phase,
             profile_id: None,
-            use_profile: true,
+            use_profile,
         };
 
         let info = session_to_info(&session);

@@ -162,6 +162,8 @@ pub const KEYS: &[ConfigKey] = &[
     key("tools.web_read.max_response_kb", Integer, Some("2048"), Reloadable, "Largest page web_read reads, in KiB (64 to 32768)."),
     key("tools.web_read.ssrf_guard", Boolean, Some("true"), Reloadable, "Refuse an address on the local network or the machine itself."),
     key("tools.python_interpreter", Path, None, Reloadable, "Python interpreter used instead of the bundled one."),
+    locked(key("tools.new_agent.families", StringArray, Some("[\"read\"]"), Reloadable, "Families of tools an agent created without code is granted whole, read against the tools active when it is created: read, read_personal, write_or_delete, send_external, execute_code.")),
+    locked(key("tools.new_agent.access", StringArray, Some("[]"), Reloadable, "Tools an agent created without code is granted by name, on top of tools.new_agent.families.")),
     // [mcp]
     locked(key("mcp.approval_ttl_hours", Integer, Some("24"), Reloadable, "Hours an MCP tool approval stays valid; 0 never expires (0 to 8760).")),
     locked(key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Reloadable, "Load every MCP tool schema up front, or on first use.")),
@@ -172,6 +174,7 @@ pub const KEYS: &[ConfigKey] = &[
     // [chat]
     key("chat.plan_mode_default", Boolean, Some("false"), Reloadable, "Start every new conversation in plan mode."),
     key("chat.tool_turn_temperature", Float, None, Reloadable, "Model temperature of a turn that offers tools; none means 0.3."),
+    locked(key("chat.share_profile_default", Boolean, Some("true"), Reloadable, "Start every new conversation with the profile shared with the built-in assistant; a conversation that exists keeps its own switch.")),
     // [models]
     locked(key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards.")),
     locked(key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it.")),

@@ -228,6 +228,8 @@ Native tools: limits, static disabling, and per-tool settings.
 | `tools.web_read.max_response_kb` | integer | `2048` | Largest page web_read reads, in KiB (64 to 32768). |
 | `tools.web_read.ssrf_guard` | boolean | `true` | Refuse an address on the local network or the machine itself. |
 | `tools.python_interpreter` | path | not set | Python interpreter used instead of the bundled one. |
+| `tools.new_agent.families` | string array | `["read"]` | Families of tools an agent created without code is granted whole, read against the tools active when it is created: read, read_personal, write_or_delete, send_external, execute_code. The organization policy can fix it. |
+| `tools.new_agent.access` | string array | `[]` | Tools an agent created without code is granted by name, on top of tools.new_agent.families. The organization policy can fix it. |
 
 ### `[mcp]`
 
@@ -256,6 +258,7 @@ Chat session defaults.
 | --- | --- | --- | --- |
 | `chat.plan_mode_default` | boolean | `false` | Start every new conversation in plan mode. |
 | `chat.tool_turn_temperature` | float | not set | Model temperature of a turn that offers tools; none means 0.3. |
+| `chat.share_profile_default` | boolean | `true` | Start every new conversation with the profile shared with the built-in assistant; a conversation that exists keeps its own switch. The organization policy can fix it. |
 
 ### `[models]`
 

@@ -3,8 +3,9 @@
 //! The body is the sheet the person validated: a name, a mission, examples,
 //! accesses and sources. The agent is stored with the origin `interface`,
 //! under an identifier derived from its name. An absent access list leaves
-//! the agent on what an agent created without code reads by default; a list,
-//! even empty, is the choice of the person and replaces that default. The
+//! the agent on the default access (`[tools.new_agent]`: the reading family,
+//! then what the setting adds); a list, even empty, is the choice of the
+//! person and replaces that default. The
 //! model is not part of the body: it is assigned as for any agent, through
 //! `PUT /api/v1/llm/agents/{agent}/model`.
 //!

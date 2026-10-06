@@ -2149,6 +2149,7 @@
       "general": "General",
       "chat": "Chat",
       "model_defaults": "Model defaults",
+      "integrations": "Integrations",
       "engines": "Engines",
       "hardware": "Hardware",
       "notifications": "Notifications"
@@ -3167,6 +3168,32 @@
       "naming_always_hint": "Apollia names every new conversation, whatever the generation speed.",
       "trash_label": "Send deleted conversations to the trash",
       "trash_hint": "Deleted conversations go to the Apollia trash, where you can restore them. Off, a deleted conversation is gone for good."
+    },
+    "integrations_section": {
+      "subtitle": "What Apollia grants by default, and what is always authorized.",
+      "new_agent_title": "New agent created without code",
+      "access_label": "Accesses granted at its creation",
+      "access_hint": "By default, the whole reading family active on this machine, and the reading of every connection plugged in. Sensitive accesses are granted on the sheet of each agent; check them here to give them to every new agent.",
+      "access_sensitive": "Sensitive",
+      "access_by_family": "Always granted: this access only reads.",
+      "access_empty": "No access is available on this machine.",
+      "access_error": "The accesses could not be read.",
+      "write_error": "The setting could not be saved.",
+      "new_conversation_title": "New conversation",
+      "share_profile_label": "Share my profile with a new conversation",
+      "share_profile_hint": "Starting position of the switch of each conversation; an existing conversation keeps its own.",
+      "always_title": "Always authorized",
+      "always_count": "{count, plural, one {# access without confirmation} other {# accesses without confirmation}}",
+      "always_empty_label": "No access is always authorized",
+      "always_empty_hint": "The accesses you authorize without confirmation will show here, agent by agent.",
+      "always_manage_label": "Manage the accesses always authorized",
+      "always_manage_hint": "What an agent may do without asking you, agent by agent.",
+      "always_manage_action": "Manage in Authorizations",
+      "connections_title": "Connections",
+      "connections_label": "Accounts, services and built-in tools",
+      "connections_hint": "They are connected and set up on the Connections screen.",
+      "connections_action": "Open Connections",
+      "developer_title": "Developer mode"
     },
     "model_defaults": {
       "subtitle": "The values a model receives when nothing else sets them.",
@@ -4836,6 +4863,8 @@
       "tool_provenance": "MCP server {server} · {name}"
     },
     "integrations": {
+      "request_mcp_label": "Allow the MCP servers a request brings",
+      "request_mcp_hint": "The local server accepts the MCP servers described in the request of a client. Off by default.",
       "wizard": {
         "node_downloading": "Downloading a required component: Node.js"
       }

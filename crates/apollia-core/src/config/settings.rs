@@ -170,7 +170,8 @@ pub enum SettingError {
 /// (`llm.residency.idle_unload_minutes`, where `0` never unloads), the default
 /// context window (`[llm.defaults]`), the image ceiling (`[llm.images]`) and
 /// the graphics devices held back (`[llm.devices]`), then the whole `[server]`
-/// and `[engines]` sections.
+/// and `[engines]` sections, and the defaults of a new conversation and of a
+/// new agent (`chat.share_profile_default`, `[tools.new_agent]`).
 fn defaults() -> serde_json::Map<String, Value> {
     let mut sections = serde_json::Map::new();
     // A struct of plain fields always serializes; a failure would only make
@@ -218,6 +219,20 @@ fn defaults() -> serde_json::Map<String, Value> {
     }
     if let Ok(author) = serde_json::to_value(AuthorConfig::default()) {
         sections.insert("author".to_owned(), author);
+    }
+    // Of `[chat]` and `[tools]`, only the defaults Settings > Integrations
+    // edits are named settings; the rest of the two sections is read whole.
+    sections.insert(
+        "chat".to_owned(),
+        serde_json::json!({
+            "share_profile_default": super::ChatConfig::default().share_profile_default
+        }),
+    );
+    if let Ok(new_agent) = serde_json::to_value(super::NewAgentConfig::default()) {
+        sections.insert(
+            "tools".to_owned(),
+            serde_json::json!({ "new_agent": new_agent }),
+        );
     }
     sections
 }

@@ -169,7 +169,12 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
     let tools = super::code_context::with_code_context(
         wiring.chat_tools_config.as_deref(),
         &spec.agent_id,
-        access.tools(&wiring.tool_registry).await,
+        access
+            .tools(
+                &wiring.tool_registry,
+                &super::default_access_of(wiring.chat_tools_config.as_deref()),
+            )
+            .await,
         &mut package_tools,
     )
     .await;

@@ -1,7 +1,10 @@
 /**
  * The settings navigation column: two groups, ranked by use rather than by
  * architecture. "Settings" holds what a user adjusts, "System" what the
- * machine runs on. Notifications comes just before Developer, and Developer
+ * machine runs on. Integrations holds the defaults Apollia grants (the
+ * accesses of a new agent, the profile in a new conversation) and points to
+ * the Authorizations and Connections screens; it is not the former OAuth
+ * section. Notifications comes just before Developer, and Developer
  * closes the use-ranked part of its group: it is the switch a business user
  * never has to touch. Configuration, the editor of `apollia.toml`, follows it
  * and is listed only with the developer mode on. The sections that leave the
@@ -18,6 +21,7 @@ import {
   MessageSquare,
   Mic,
   SlidersHorizontal,
+  Plug,
   Code,
   Bell,
   Activity,
@@ -52,6 +56,7 @@ export const SETTINGS_NAV: SettingsNavCluster[] = [
       { key: "chat", labelKey: "settings.nav.chat", icon: MessageSquare },
       { key: "stt", labelKey: "settings.nav.stt", icon: Mic },
       { key: "model-defaults", labelKey: "settings.nav.model_defaults", icon: SlidersHorizontal },
+      { key: "integrations", labelKey: "settings.nav.integrations", icon: Plug },
       { key: "notifications", labelKey: "settings.nav.notifications", icon: Bell },
       { key: "developer", labelKey: "settings.nav.developer", icon: Code },
       {

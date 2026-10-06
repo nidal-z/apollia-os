@@ -46,7 +46,8 @@ describe("settings navigation column", () => {
     // WHEN its groups and entries are listed
     const layout = SETTINGS_NAV.map((g) => [g.labelKey, g.entries.map((e) => e.key)]);
 
-    // THEN Settings comes first, Notifications sits just before Developer, which
+    // THEN Settings comes first, Integrations follows the model defaults,
+    // Notifications sits just before Developer, which
     // closes its use-ranked part, the sections leaving the settings follow, and
     // System holds Engines and Hardware
     expect(layout).toEqual([
@@ -59,6 +60,7 @@ describe("settings navigation column", () => {
           "chat",
           "stt",
           "model-defaults",
+          "integrations",
           "notifications",
           "developer",
           "configuration",
@@ -105,8 +107,8 @@ describe("Notifications, a section of the settings", () => {
     // WHEN the place of Notifications is read
     const at = settings.indexOf("notifications");
 
-    // THEN it comes right after the model defaults and right before Developer
-    expect(settings[at - 1]).toBe("model-defaults");
+    // THEN it comes right after Integrations and right before Developer
+    expect(settings[at - 1]).toBe("integrations");
     expect(settings[at + 1]).toBe("developer");
     // and the Route union no longer holds a notifications screen
     expect(navigation).not.toMatch(/\| "notifications"/);

@@ -11,16 +11,18 @@
 //! registry does not hold, a source nobody added and a model nobody declared
 //! are left out and named under `unavailable`, so the model can say so. An
 //! access of a sensitive family is kept, unchecked: granting it is a choice
-//! the person makes in the form. The reading family, which an agent created
-//! without code is granted when nobody chooses for it, is added to every
-//! draft, checked and marked as a default.
+//! the person makes in the form. The default access, which an agent created
+//! without code is granted when nobody chooses for it (the reading family,
+//! then what `[tools.new_agent]` adds), is added to every draft, checked and
+//! marked as a default: a sensitive access is checked there only because the
+//! setting grants it to every new agent.
 //!
 //! This module is stateless: it parses the arguments, checks them against a
 //! [`DraftOffer`] read when the exchange starts, and shapes the answer.
 
 use apollia_llm::types::ToolSpec;
 use apollia_tools::descriptor::ActionFamily;
-use apollia_tools::ToolRegistryHandle;
+use apollia_tools::{DefaultAccess, ToolRegistryHandle};
 use serde::{Deserialize, Serialize};
 
 /// Name under which the tool is advertised to the model and matched in the loop.
@@ -55,7 +57,7 @@ pub struct OfferedAccess {
     /// Whether its family is anything but plain reading.
     pub sensitive: bool,
     /// Whether an agent created without code is granted it by default: a
-    /// tool of the reading family.
+    /// tool of a family the default grants, or one the default names.
     pub by_default: bool,
 }
 
@@ -89,12 +91,13 @@ pub fn is_sensitive(family: ActionFamily) -> bool {
 
 impl DraftOffer {
     /// Reads the offer: the tools `registry` holds without the `disabled`
-    /// ones, the built-in sources then `sources`, and `models`. A registry
-    /// that cannot be listed offers no access: a draft never proposes what
-    /// could not be checked.
+    /// ones, those `default` grants marked as such, the built-in sources
+    /// then `sources`, and `models`. A registry that cannot be listed offers
+    /// no access: a draft never proposes what could not be checked.
     pub async fn read(
         registry: &ToolRegistryHandle,
         disabled: &[String],
+        default: &DefaultAccess,
         sources: Vec<OfferedSource>,
         models: Vec<String>,
     ) -> Self {
@@ -115,7 +118,7 @@ impl DraftOffer {
             .filter(|d| !disabled.contains(&d.name) && d.name != apollia_tools::CODE_CONTEXT_TOOL)
             .map(|d| OfferedAccess {
                 sensitive: is_sensitive(d.family),
-                by_default: d.family == ActionFamily::Read,
+                by_default: default.families.contains(&d.family) || default.tools.contains(&d.name),
                 id: d.name,
                 description: d.description,
             })
@@ -151,7 +154,8 @@ impl DraftOffer {
 pub struct DraftAccess {
     /// The identifier the agent would be granted it by.
     pub id: String,
-    /// Whether the form opens with it granted. A sensitive access never is.
+    /// Whether the form opens with it granted. A sensitive access is only
+    /// when the default grants it to every new agent.
     pub checked: bool,
     /// Whether its family is anything but plain reading.
     pub sensitive: bool,
@@ -260,12 +264,17 @@ pub fn run_agent_draft(offer: &DraftOffer, raw_args: &serde_json::Value) -> Agen
     let mut access = Vec::new();
     for id in trimmed_unique(args.access) {
         match offer.access(&id) {
-            Some(offered) => access.push(DraftAccess {
-                id,
-                checked: !offered.sensitive,
-                sensitive: offered.sensitive,
-                by_default: false,
-            }),
+            Some(offered) => {
+                // A sensitive access the conversation asked for stays the
+                // choice of the person, unless the default already grants it.
+                let granted_by_default = offered.sensitive && offered.by_default;
+                access.push(DraftAccess {
+                    id,
+                    checked: !offered.sensitive || granted_by_default,
+                    sensitive: offered.sensitive,
+                    by_default: granted_by_default,
+                });
+            }
             None => unavailable.push(id),
         }
     }
@@ -274,7 +283,7 @@ pub fn run_agent_draft(offer: &DraftOffer, raw_args: &serde_json::Value) -> Agen
             access.push(DraftAccess {
                 id: offered.id.clone(),
                 checked: true,
-                sensitive: false,
+                sensitive: offered.sensitive,
                 by_default: true,
             });
         }
@@ -388,7 +397,8 @@ pub fn creation_prompt(offer: &DraftOffer) -> String {
          for something that is not listed, say that it does not exist on this machine yet \
          and that it can be added in Connections, and leave it out of the draft. An access \
          marked sensitive is proposed unchecked: say that the person decides in the form. \
-         The accesses marked default are added to every draft: do not list them yourself.\n",
+         The accesses marked default are added to every draft, checked: do not list them \
+         yourself.\n",
     );
     prompt.push_str("\n## Accesses on this machine\n");
     if offer.accesses.is_empty() {
@@ -396,12 +406,11 @@ pub fn creation_prompt(offer: &DraftOffer) -> String {
     }
     for access in &offer.accesses {
         let description = access.description.lines().next().unwrap_or_default().trim();
-        let mark = if access.sensitive {
-            " (sensitive)"
-        } else if access.by_default {
-            " (default)"
-        } else {
-            ""
+        let mark = match (access.by_default, access.sensitive) {
+            (true, true) => " (default, sensitive)",
+            (true, false) => " (default)",
+            (false, true) => " (sensitive)",
+            (false, false) => "",
         };
         prompt.push_str(&format!("- `{}`{mark}: {description}\n", access.id));
     }
