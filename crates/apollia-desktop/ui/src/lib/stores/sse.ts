@@ -26,6 +26,7 @@ import type {
   ChatSessionSummary,
 } from "$lib/types";
 import { onboardingStore } from "./onboarding";
+import { notifyBatchEvent } from "./batchNotifications";
 import { refreshSttStatus, refreshTranscriptions } from "./stt";
 import {
   appendGlobalToken,
@@ -592,9 +593,11 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       break;
     }
     case "task-changed":
+      void notifyBatchEvent(event);
       void refreshTasksViaIpc();
       break;
     case "approval-changed":
+      void notifyBatchEvent(event);
       void refreshPendingApprovalsViaIpc();
       void refreshTasksViaIpc();
       break;

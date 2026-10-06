@@ -1,0 +1,178 @@
+<script lang="ts">
+  /**
+   * BatchSummaryCard - the card at the top of the view of a batch: its state,
+   * how many items were dealt with out of the total, the commands its state
+   * offers, the progress counted on the items, the counters, the schedule,
+   * the message of the state, then the threshold, the accesses and where the
+   * results are written.
+   */
+  import { locale, t } from "svelte-i18n";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import { ProgressBar } from "$lib/components/ui/progress";
+  import { Card } from "$lib/components/operator";
+  import type { BatchControl, BatchExportFormat, BatchSummary } from "$lib/ipc/batches";
+  import BatchExportMenu from "./BatchExportMenu.svelte";
+  import {
+    BAR_VARIANT,
+    STATE_TONE,
+    commandsFor,
+    durationMinutes,
+    estimatedEnd,
+    progressOf,
+    stateOf,
+    writtenColumns,
+  } from "./batchView";
+
+  interface Props {
+    batch: BatchSummary;
+    /** The command being applied, `null` when none is. */
+    busy: BatchControl | "export" | null;
+    /** What each access granted lets the agent do, by access. */
+    accessLabels: Record<string, string>;
+    /** The time the schedule is computed against. */
+    now: Date;
+    onAct: (action: BatchControl) => void;
+    onExport: (format: BatchExportFormat) => void;
+  }
+
+  let { batch, busy, accessLabels, now, onAct, onExport }: Props = $props();
+
+  /** A maximum the launch dialog sends for "never interrupt". */
+  const NEVER_INTERRUPT = 4_294_967_295;
+
+  const state = $derived(stateOf(batch));
+  const progress = $derived(progressOf(batch));
+  const commands = $derived(commandsFor(batch));
+  const columns = $derived(writtenColumns(batch));
+  const live = $derived(state === "running" || state === "paused");
+
+  function hour(value: string | Date | null): string {
+    if (value === null) return "";
+    const date = typeof value === "string" ? new Date(value) : value;
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleTimeString($locale ?? "en", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  const schedule = $derived.by(() => {
+    const started = hour(batch.createdAt);
+    const values = { started, at: hour(batch.endedAt ?? batch.updatedAt), minutes: durationMinutes(batch, now) ?? 0 };
+    if (state === "running") {
+      const end = estimatedEnd(batch, now);
+      return end === null
+        ? $t("batch_view.schedule.started", { values })
+        : $t("batch_view.schedule.estimated", { values: { started, end: hour(end) } });
+    }
+    return $t(`batch_view.schedule.${state}`, { values });
+  });
+
+  const message = $derived.by(() => {
+    const values = { remaining: progress.remaining, canceled: batch.canceled, failures: batch.maxFailures };
+    if (state === "paused") return $t("batch_view.message.paused");
+    if (state === "interrupted") return $t("batch_view.message.interrupted", { values });
+    if (state === "stopped") return $t("batch_view.message.stopped", { values });
+    return "";
+  });
+
+  const grants = $derived(batch.grants.map((grant) => accessLabels[grant] ?? grant));
+
+  const facts = $derived(
+    [
+      batch.maxFailures >= NEVER_INTERRUPT
+        ? $t("batch_view.fact.threshold_never")
+        : $t("batch_view.fact.threshold", { values: { count: batch.maxFailures } }),
+      grants.length === 0
+        ? $t("batch_view.fact.no_access")
+        : $t(live ? "batch_view.fact.accesses" : "batch_view.fact.accesses_ended", {
+            values: { accesses: grants.join(", ") },
+          }),
+      columns.length === 0
+        ? ""
+        : $t(`batch_view.fact.written_${batch.source.write?.destination ?? "copy"}`, {
+            values: { columns: columns.join(", ") },
+          }),
+    ].filter((fact) => fact !== ""),
+  );
+</script>
+
+<Card class="p-5" data-testid="batch-summary">
+  <div class="flex flex-wrap items-center gap-3">
+    <Badge variant={STATE_TONE[state]} outline data-testid="batch-state" data-state={state}>
+      {$t(`batch_view.state.${state}`)}
+    </Badge>
+    <p class="m-0 min-w-0 flex-1 text-body font-medium text-foreground" data-testid="batch-treated">
+      {$t("batch_view.treated", { values: { treated: progress.treated, total: progress.total } })}
+    </p>
+    <div class="flex flex-wrap items-center gap-2">
+      {#each commands as command (command.id)}
+        {#if command.id === "export"}
+          <BatchExportMenu disabled={busy !== null} loading={busy === "export"} {onExport} />
+        {:else}
+          {@const action = command.id}
+          <Button
+            variant={command.primary ? "primary-solid" : "outline"}
+            size="sm"
+            disabled={!command.enabled || busy !== null}
+            loading={busy === action}
+            onclick={() => onAct(action)}
+            data-testid={`batch-${action}`}
+          >
+            {$t(`batch_view.command.${action}`)}
+          </Button>
+        {/if}
+      {/each}
+    </div>
+  </div>
+
+  <div
+    class="mt-4"
+    role="progressbar"
+    aria-valuemin={0}
+    aria-valuemax={progress.total}
+    aria-valuenow={progress.treated}
+    aria-label={$t("batch_view.treated", { values: { treated: progress.treated, total: progress.total } })}
+    data-testid="batch-progress"
+    data-treated={progress.treated}
+    data-total={progress.total}
+  >
+    <ProgressBar value={progress.percent} variant={BAR_VARIANT[state]} size="md" />
+  </div>
+
+  <div class="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-body-sm">
+    <span class="text-success-a11y" data-testid="batch-count-completed">
+      {$t("batch_view.count.completed", { values: { count: batch.completed } })}
+    </span>
+    {#if batch.failed > 0}
+      <span class="text-danger-a11y" data-testid="batch-count-failed">
+        {$t("batch_view.count.failed", { values: { count: batch.failed } })}
+      </span>
+    {/if}
+    {#if batch.awaiting > 0}
+      <span class="text-muted-foreground" data-testid="batch-count-awaiting">
+        {$t("batch_view.count.awaiting", { values: { count: batch.awaiting } })}
+      </span>
+    {/if}
+    {#if progress.remaining > 0}
+      <span class="text-muted-foreground" data-testid="batch-count-todo">
+        {$t("batch_view.count.todo", { values: { count: progress.remaining } })}
+      </span>
+    {/if}
+    {#if batch.canceled > 0}
+      <span class="text-muted-foreground" data-testid="batch-count-canceled">
+        {$t("batch_view.count.canceled", { values: { count: batch.canceled } })}
+      </span>
+    {/if}
+    <span class="ml-auto text-caption text-muted-foreground" data-testid="batch-schedule">{schedule}</span>
+  </div>
+
+  {#if message !== ""}
+    <p
+      class="m-0 mt-3 text-body-sm {state === 'interrupted' ? 'text-danger-a11y' : 'text-foreground'}"
+      data-testid="batch-message"
+    >
+      {message}
+    </p>
+  {/if}
+
+  <p class="m-0 mt-3 text-caption text-muted-foreground" data-testid="batch-facts">{facts.join(" · ")}</p>
+</Card>

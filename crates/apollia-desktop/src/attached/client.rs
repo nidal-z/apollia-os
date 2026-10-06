@@ -229,6 +229,25 @@ impl AttachedClient {
         Ok((report, bytes))
     }
 
+    /// `GET path`, for an answer that is a file: its bytes, under
+    /// [`MAX_FILE_BYTES`].
+    pub(crate) async fn get_for_file(&self, path: &str) -> Result<Vec<u8>, AttachedError> {
+        let response = self
+            .http
+            .get(self.url(path))
+            .bearer_auth(&self.token)
+            .timeout(FILE_REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(AttachedError::Unreachable)?;
+        if !response.status().is_success() {
+            return Err(refusal(response).await);
+        }
+        apollia_core::net::read_capped_bytes(response, MAX_FILE_BYTES)
+            .await
+            .map_err(AttachedError::Body)
+    }
+
     /// `PUT path` with a JSON body, its JSON answer read as `T`.
     pub(crate) async fn put<T: DeserializeOwned>(
         &self,

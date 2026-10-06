@@ -1,11 +1,13 @@
 <script lang="ts">
   /**
    * LaunchBatchButton - the "Process a batch" button of an agent's header,
-   * with the launch dialog it opens on that agent.
+   * with the launch dialog it opens on that agent. A launched batch opens in
+   * its view.
    */
   import { t } from "svelte-i18n";
   import { Layers } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { openBatch } from "$lib/stores/batchView";
   import BatchLaunchDialog from "./BatchLaunchDialog.svelte";
 
   interface Props {
@@ -23,4 +25,9 @@
   {#snippet icon()}<Layers size={12} />{/snippet}
   {$t("batch_launch.action")}
 </Button>
-<BatchLaunchDialog {open} {agent} onclose={() => (open = false)} />
+<BatchLaunchDialog
+  {open}
+  {agent}
+  onclose={() => (open = false)}
+  onlaunched={(batch) => openBatch(batch.batchId, "launch")}
+/>
