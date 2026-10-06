@@ -6,6 +6,7 @@
   import { SkipToContent } from "$lib/components/layout";
   import KeyboardHintOverlay from "./components/common/KeyboardHintOverlay.svelte";
   import OnboardingModal from "./components/onboarding/OnboardingModal.svelte";
+  import OnboardingFirstTask from "./components/onboarding/OnboardingFirstTask.svelte";
   import ProjectMigrationNotice from "./components/projectMigration/ProjectMigrationNotice.svelte";
   import PackagePreviewDialog from "./components/packages/PackagePreviewDialog.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
@@ -24,7 +25,7 @@
   import { hydrateDeveloperSettings } from "$lib/stores/developerSettings";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingModalOpen } from "$lib/stores/onboarding";
-  import type { OnboardingState } from "$lib/types";
+  import { engineArrivalAsksAgain, shouldOpenOnboarding } from "$lib/onboarding/reopening";
   import { CommandPalette } from "./components/command-palette";
   import { mountShortcutDispatcher } from "$lib/navigation/shortcutDispatcher";
   import { registerGlobalShortcutHandlers } from "$lib/navigation/globalShortcutHandlers";
@@ -37,6 +38,9 @@
 
   let ready = $state(false);
   let prevLlmCount = 0;
+  // Set when the first-launch modal is closed, finished or put off: a language
+  // model that arrives later in this run does not open it again.
+  let onboardingClosed = false;
 
   const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
 
@@ -53,10 +57,6 @@
         contextDrawerOpen.set(true);
       })();
     }
-  }
-
-  function shouldOpenOnboarding(state: OnboardingState): boolean {
-    return !state.completed && !state.skipped && state.started_at === null;
   }
 
   onMount(() => {
@@ -163,16 +163,26 @@
     prevLlmCount = get(llmBackends).length;
     const unsubscribeLlm = llmBackends.subscribe((list) => {
       const count = list.length;
-      const justBecameAvailable = prevLlmCount === 0 && count > 0;
+      const asksAgain = engineArrivalAsksAgain({
+        previous: prevLlmCount,
+        count,
+        closedThisRun: onboardingClosed,
+      });
       prevLlmCount = count;
-      if (!justBecameAvailable) return;
+      if (!asksAgain) return;
       void getOnboardingState()
         .then((state) => {
-          if (shouldOpenOnboarding(state)) {
+          // The modal may have been closed while the state was read.
+          if (!onboardingClosed && shouldOpenOnboarding(state)) {
             onboardingModalOpen.set(true);
           }
         })
         .catch(() => {});
+    });
+
+    // Opened again, by a reset or from the settings: a new run of the modal.
+    const unsubscribeOnboarding = onboardingModalOpen.subscribe((open) => {
+      if (open) onboardingClosed = false;
     });
 
     window.addEventListener("keydown", handleAncillaryKeydown);
@@ -190,10 +200,12 @@
       unlistenRuntime?.();
       unlistenSpeed?.();
       unsubscribeLlm();
+      unsubscribeOnboarding();
     };
   });
 
   function handleOnboardingClose(): void {
+    onboardingClosed = true;
     onboardingModalOpen.set(false);
     // Closing the modal, whether finished or skipped, is what marks the user
     // as onboarded: no later step is required to count as done.
@@ -232,6 +244,8 @@
     <!-- The preview of a `.apo` package, opened from any screen by its path. -->
     <PackagePreviewDialog />
     <ToastContainer />
+    <!-- What the first launch closes on: a conversation, or a batch. -->
+    <OnboardingFirstTask />
     {#if $onboardingModalOpen}
       <OnboardingModal onclose={handleOnboardingClose} />
     {:else}

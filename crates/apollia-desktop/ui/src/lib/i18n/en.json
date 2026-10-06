@@ -3423,6 +3423,10 @@
       "error_not_offered": "{file} is not the file of a search-by-meaning model Apollia offers.",
       "error_default": "The model is installed but could not be set for search by meaning."
     },
+    "first_task": {
+      "intro_title": "{name}, your first agent",
+      "intro_body": "Its first example is filled in below. Send it as it is, or change it."
+    },
     "first_agent": {
       "title": "Your first agent",
       "subtitle": "Choose how to get it. You can add others later from the Agents screen.",
@@ -4043,6 +4047,7 @@
     "step_ai": "AI",
     "step_first_agent": "First agent",
     "step_connection": "Connection",
+    "step_first_task": "First task",
     "model_percent": "Model: {percent}%",
     "model_downloading": "Model: downloading",
     "model_installing": "Model: installing",

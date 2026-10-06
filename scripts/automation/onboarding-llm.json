@@ -266,11 +266,25 @@
       "timeoutMs": 15000
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-messages-list",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-send-button"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "first-task-intro",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
       "label": "12-onb-profile-saved"
     }
   ],
   "notes": [
-    "The profile review leads to the first-agent step (OnboardingFirstAgent.svelte). This book passes it with first-agent-skip, which keeps no agent and closes the modal, the step being the last one built; its three cards are played by onboarding-full."
+    "The profile review leads to the first-agent step (OnboardingFirstAgent.svelte). This book passes it with first-agent-skip, which keeps no agent: the connection step is passed over and the modal closes on the first task (OnboardingFirstTask.svelte), here a conversation with Apollia, really created, with an empty composer and no introduction (first-task-intro absent). The three cards of the step and the first task of an agent kept are played by onboarding-full."
   ]
 }
