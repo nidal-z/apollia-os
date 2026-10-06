@@ -89,7 +89,6 @@
   let form = $state<AdjustDraft>({ mission: "", examples: [], access: [], sources: [], model: null });
   let listed = $state<string[]>([]);
   let checked = $state<string[]>([]);
-  let sources = $state<string[]>([]);
   let notes = $state<Record<string, AccessNote>>({});
   // The draft the form was last filled from, `null` before the first review.
   let reviewedKey: string | null = null;
@@ -161,7 +160,6 @@
       form = review.form;
       listed = review.listed;
       checked = review.checked;
-      sources = review.sources;
       notes = review.notes;
       reviewedKey = key;
     }
@@ -293,7 +291,7 @@
           <p class="text-caption opacity-90">{saveError}</p>
         </ErrorBanner>
       {/if}
-      <CreateAgentReview bind:name {form} {listed} {checked} {sources} {notes} />
+      <CreateAgentReview bind:name {form} {listed} {checked} {notes} />
     </div>
   {:else}
     <PageHeader
