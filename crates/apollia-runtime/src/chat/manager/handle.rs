@@ -418,6 +418,58 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// Replace the settings of a conversation; returns them as stored.
+    ///
+    /// # Errors
+    ///
+    /// [`ChatError::InvalidSettings`] for settings that cannot be applied,
+    /// [`ChatError::SessionNotFound`], [`ChatError::SessionClosed`].
+    pub async fn set_session_settings(
+        &self,
+        session_id: SessionId,
+        settings: SessionSettings,
+    ) -> Result<SessionSettings, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::SetSessionSettings {
+                session_id,
+                settings,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Replace the notes of a conversation; returns them as stored.
+    ///
+    /// # Errors
+    ///
+    /// [`ChatError::InvalidSettings`] for notes too long,
+    /// [`ChatError::SessionNotFound`], [`ChatError::SessionClosed`].
+    pub async fn set_session_notes(
+        &self,
+        session_id: SessionId,
+        notes: String,
+    ) -> Result<String, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::SetSessionNotes {
+                session_id,
+                notes,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
     /// List sessions with optional status filter.
     pub async fn list_sessions(&self, status_filter: Option<SessionStatus>) -> Vec<SessionInfo> {
         let (reply_tx, reply_rx) = oneshot::channel();

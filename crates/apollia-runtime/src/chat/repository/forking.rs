@@ -6,6 +6,7 @@
 use rusqlite::params;
 
 use crate::chat::repository::{row_to_session, ChatSessionRepository, MessageRow, SessionRow};
+use crate::chat::session_settings::SessionSettings;
 use crate::chat::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, PlanPhase, SessionStatus,
     ToolCallRecord,
@@ -64,7 +65,6 @@ impl ChatSessionRepository {
             id: row.id,
             mode,
             agent_name: row.agent_name,
-            system_prompt: row.system_prompt,
             status,
             history,
             authorized_tools,
@@ -79,14 +79,16 @@ impl ChatSessionRepository {
             plan_phase,
             profile_id: row.profile_id,
             use_profile: row.use_profile,
+            settings: SessionSettings::from_column(session_id, &row.settings),
+            notes: row.notes,
         })
     }
 
     /// Create a child session that forks from `parent_id`, copying the first
     /// `up_to_count` messages (or all messages when `None`).
     ///
-    /// The child inherits the parent's mode, system prompt, available tools, and
-    /// LLM backend. Its `parent_session_id` is set to `parent_id` and its
+    /// The child inherits the parent's mode, settings, available tools, and
+    /// LLM backend. The notes stay with the parent: they are about it. Its `parent_session_id` is set to `parent_id` and its
     /// `fork_depth` is `parent.fork_depth + 1`.
     ///
     /// Returns the fully-populated [`ChatSession`] for the new child.
@@ -126,14 +128,14 @@ impl ChatSessionRepository {
         // Persist child session row.
         tx.execute(
             "INSERT INTO chat_sessions
-                    (id, mode, agent_name, system_prompt, available_tools, created_at,
+                    (id, mode, agent_name, settings, available_tools, created_at,
                      llm_backend, parent_session_id, fork_depth)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 child_id,
                 parent_row.mode,
                 parent_row.agent_name,
-                parent_row.system_prompt,
+                parent_row.settings,
                 tools_json,
                 created_at,
                 parent_row.llm_backend,
@@ -186,9 +188,9 @@ impl ChatSessionRepository {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                "SELECT id, mode, agent_name, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id, use_profile
+                        plan_mode, plan_phase, profile_id, use_profile, settings, notes
                  FROM chat_sessions
                  WHERE parent_session_id = ?1
                  ORDER BY created_at ASC",

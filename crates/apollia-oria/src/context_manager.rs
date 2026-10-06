@@ -57,6 +57,31 @@ use crate::tool_offload::{OffloadRef, ToolOffloadStore};
 /// Instantiated from `ORIAConfig` via [`ContextManager::from_config`].
 /// Used in `BuiltInChatAgent`'s ReAct loop (iterative inference loop) to avoid
 /// `context_length_exceeded` errors on long sessions.
+/// What a conversation does when its messages reach the context limit.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ContextOverflow {
+    /// The older middle of the conversation is summarized; the system prompt
+    /// and the recent messages are kept.
+    #[default]
+    SummarizeMiddle,
+    /// The oldest exchanges leave the window, without a summary.
+    SlidingWindow,
+    /// Nothing is dropped: the turn is refused once the limit is reached.
+    StopAtLimit,
+}
+
+/// The messages of a conversation reached the context limit and its overflow
+/// setting is [`ContextOverflow::StopAtLimit`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("the conversation holds {tokens} tokens, at the limit of {limit} the model reads")]
+pub struct ContextLimitReached {
+    /// Tokens of the messages and of the tool schemas sent with them.
+    pub tokens: usize,
+    /// Tokens the limit allows: the context window of the model, less the
+    /// headroom kept for the answer.
+    pub limit: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct ContextManager {
     /// Fraction of `context_limit` above which compaction is triggered.
@@ -79,6 +104,9 @@ pub struct ContextManager {
     tool_offload: Option<Arc<ToolOffloadStore>>,
     /// Character length above which a `ToolResult` content is offloaded to disk.
     tool_offload_threshold_chars: usize,
+    /// What happens at the limit; summarizing unless set otherwise by
+    /// [`ContextManager::with_overflow`].
+    overflow: ContextOverflow,
 }
 
 impl ContextManager {
@@ -101,7 +129,104 @@ impl ContextManager {
             recent_verbatim_count,
             tool_offload,
             tool_offload_threshold_chars,
+            overflow: ContextOverflow::default(),
         }
+    }
+
+    /// Choose what happens when the messages reach the limit.
+    #[must_use]
+    pub fn with_overflow(mut self, overflow: ContextOverflow) -> Self {
+        self.overflow = overflow;
+        self
+    }
+
+    /// What happens when the messages reach the limit.
+    pub fn overflow(&self) -> ContextOverflow {
+        self.overflow
+    }
+
+    /// Bring `messages` under the limit the way the overflow setting says,
+    /// and return `(messages, was_changed)`.
+    ///
+    /// Summarizing runs [`Self::maybe_compact_with_reserve`]. The sliding
+    /// window drops the oldest exchanges whole, so a tool result never
+    /// outlives the call it answers, and keeps the system prompt and the
+    /// current turn. `reserve_tokens` counts in the measure as it does there.
+    ///
+    /// # Errors
+    ///
+    /// [`ContextLimitReached`] when the setting is
+    /// [`ContextOverflow::StopAtLimit`] and the limit is reached.
+    pub async fn fit_with_reserve(
+        &self,
+        messages: &[ChatMessage],
+        llm: &LlmRouter,
+        reserve_tokens: usize,
+    ) -> Result<(Vec<ChatMessage>, bool), ContextLimitReached> {
+        match self.overflow {
+            ContextOverflow::SummarizeMiddle => Ok(self
+                .maybe_compact_with_reserve(messages, llm, reserve_tokens)
+                .await),
+            ContextOverflow::SlidingWindow => Ok(self.slide(messages, llm, reserve_tokens)),
+            ContextOverflow::StopAtLimit => {
+                let limit = (llm.context_limit() as f32 * self.compact_threshold) as usize;
+                let tokens = llm.count_tokens(messages) + reserve_tokens;
+                if messages.len() >= 2 && tokens >= limit {
+                    return Err(ContextLimitReached { tokens, limit });
+                }
+                Ok((messages.to_vec(), false))
+            }
+        }
+    }
+
+    /// The sliding window: the system prompt, then the most recent exchanges
+    /// that fit under the threshold, the current turn always among them.
+    fn slide(
+        &self,
+        messages: &[ChatMessage],
+        llm: &LlmRouter,
+        reserve_tokens: usize,
+    ) -> (Vec<ChatMessage>, bool) {
+        if messages.len() < 2 {
+            return (messages.to_vec(), false);
+        }
+        let limit = llm.context_limit();
+        let over_threshold = |msgs: &[ChatMessage]| {
+            ((llm.count_tokens(msgs) + reserve_tokens) as f32 / limit as f32)
+                >= self.compact_threshold
+        };
+        if !over_threshold(messages) {
+            return (messages.to_vec(), false);
+        }
+        let turn_start = current_turn_start(messages);
+        if turn_start <= 1 {
+            tracing::warn!(
+                context_limit = limit,
+                reserve_tokens = reserve_tokens,
+                detail =
+                    "the system prompt, the tools and the current turn alone exceed the window",
+                "context.slide.nothing_to_drop"
+            );
+            return (messages.to_vec(), false);
+        }
+        // An exchange starts at a message the user wrote; cutting there keeps
+        // every tool call with its result.
+        let cuts = (2..turn_start)
+            .filter(|&i| {
+                messages[i].role == Role::User
+                    && matches!(messages[i].content, MessageContent::Text(_))
+            })
+            .chain(std::iter::once(turn_start));
+        let mut window = Vec::new();
+        for cut in cuts {
+            window = Vec::with_capacity(1 + messages.len() - cut);
+            window.push(messages[0].clone());
+            window.extend_from_slice(&messages[cut..]);
+            if !over_threshold(&window) {
+                break;
+            }
+        }
+        (window, true)
     }
 
     /// Create a `ContextManager` from the `[oria]` section of `apollia.toml`.
@@ -1090,5 +1215,87 @@ mod tests {
             .expect("readdir")
             .next()
             .is_none());
+    }
+
+    /// A history of two earlier exchanges and the current request, estimated
+    /// at 210_000 tokens for a window of 200_000: 400_000 then 300_000
+    /// characters, at 4 characters a token times 1.2.
+    fn history_over_the_limit() -> Vec<ChatMessage> {
+        vec![
+            ChatMessage::system("system"),
+            ChatMessage::user(format!("first {}", "x".repeat(400_000))),
+            ChatMessage::assistant("first answer"),
+            ChatMessage::user(format!("second {}", "y".repeat(300_000))),
+            ChatMessage::assistant("second answer"),
+            ChatMessage::user("current request"),
+        ]
+    }
+
+    #[tokio::test]
+    async fn test_summarize_the_middle_folds_the_older_messages_into_a_summary() {
+        // GIVEN the default overflow setting and a history over the limit
+        let manager = ContextManager::new(0.80, 4000, 1, None, 8000);
+        let llm = make_llm(MockSummaryModel::with_response("what was said before"));
+
+        // WHEN the history is brought under the limit
+        let (fitted, changed) = manager
+            .fit_with_reserve(&history_over_the_limit(), &llm, 0)
+            .await
+            .expect("summarizing never refuses");
+
+        // THEN the older messages are replaced by the summary and the request kept
+        assert_eq!(manager.overflow(), ContextOverflow::SummarizeMiddle);
+        assert!(changed);
+        assert!(message_text(&fitted[0]).contains("what was said before"));
+        assert_eq!(
+            message_text(fitted.last().expect("request")),
+            "current request"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sliding_window_drops_the_oldest_exchange_without_a_summary() {
+        // GIVEN the sliding window and a history over the limit
+        let manager = ContextManager::new(0.80, 4000, 1, None, 8000)
+            .with_overflow(ContextOverflow::SlidingWindow);
+        let llm = make_llm(MockSummaryModel::with_response("never asked for"));
+
+        // WHEN the history is brought under the limit
+        let (fitted, changed) = manager
+            .fit_with_reserve(&history_over_the_limit(), &llm, 0)
+            .await
+            .expect("the sliding window never refuses");
+
+        // THEN the first exchange is gone, the second and the request are
+        // kept verbatim, and the system prompt carries no summary
+        assert!(changed);
+        assert_eq!(fitted.len(), 4);
+        assert_eq!(message_text(&fitted[0]), "system");
+        assert!(message_text(&fitted[1]).starts_with("second "));
+        assert_eq!(message_text(&fitted[3]), "current request");
+    }
+
+    #[tokio::test]
+    async fn test_stop_at_limit_refuses_the_turn_and_drops_nothing() {
+        // GIVEN the stop-at-limit setting, a history over the limit and one under it
+        let manager = ContextManager::new(0.80, 4000, 1, None, 8000)
+            .with_overflow(ContextOverflow::StopAtLimit);
+        let llm = make_llm(MockSummaryModel::with_response("never asked for"));
+        let short = vec![ChatMessage::system("system"), ChatMessage::user("hello")];
+
+        // WHEN each is brought to the limit
+        let refused = manager
+            .fit_with_reserve(&history_over_the_limit(), &llm, 0)
+            .await;
+        let kept = manager.fit_with_reserve(&short, &llm, 0).await;
+
+        // THEN the long one is refused with its measure, the short one untouched
+        let error = refused.expect_err("the limit is reached");
+        assert_eq!(error.limit, 160_000);
+        assert!(error.tokens >= error.limit);
+        let (kept, changed) = kept.expect("under the limit");
+        assert!(!changed);
+        assert_eq!(kept.len(), 2);
+        assert_eq!(message_text(&kept[1]), "hello");
     }
 }

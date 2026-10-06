@@ -89,7 +89,10 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// exchange starts.
     pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
+    /// The mission of the agent, read when the message is sent.
     pub(in crate::chat::manager) system_prompt: String,
+    /// What the conversation changes from its agent, for itself alone.
+    pub(in crate::chat::manager) session_settings: SessionSettings,
     pub(in crate::chat::manager) context_window_size: usize,
     pub(in crate::chat::manager) stored_summary: Option<String>,
     pub(in crate::chat::manager) llm_for_summarize: Option<Arc<LlmRouter>>,

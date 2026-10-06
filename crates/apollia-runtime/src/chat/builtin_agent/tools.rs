@@ -611,6 +611,12 @@ impl BuiltInChatAgent {
                 }
             }
             ToolDecision::AlwaysAccept => {
+                // An "always" on an access proposed for the conversation
+                // holds for the rest of the run even where its family keeps
+                // no standing consent. A code executor asks at each call.
+                if self.is_proposed(&call.name) && !is_code_call(call, asked.family) {
+                    acc.authorized.insert(call.name.clone());
+                }
                 if asked.always_offered && is_code_call(call, asked.family) {
                     self.allow_command_for_good(call).await;
                 } else if asked.always_offered {

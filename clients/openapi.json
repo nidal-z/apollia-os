@@ -18449,6 +18449,270 @@
           {}
         ]
       }
+    },
+    "/api/v1/sessions/{id}/notes": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/notes`.",
+        "operationId": "get_session_notes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The notes of the conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionNotes"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/notes`.",
+        "operationId": "put_session_notes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionNotes"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The notes as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionNotes"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown field, or notes too long",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/settings": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/settings`.",
+        "operationId": "get_session_settings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The settings of the conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSettings"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/settings`.",
+        "operationId": "put_session_settings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The settings as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown field, or a value that cannot be applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -21213,6 +21477,15 @@
           }
         }
       },
+      "ContextOverflowSetting": {
+        "type": "string",
+        "description": "What a conversation does when it reaches the context limit of its model.",
+        "enum": [
+          "summarize_middle",
+          "sliding_window",
+          "stop_at_limit"
+        ]
+      },
       "ConversationStatsView": {
         "type": "object",
         "description": "Statistics of one chat conversation.",
@@ -21602,7 +21875,7 @@
               "string",
               "null"
             ],
-            "description": "Custom system prompt."
+            "description": "Instructions of the conversation, added to the mission of its agent and\nnever in its place: 4000 characters at most. Read back as\n`settings.instructions`."
           },
           "tools": {
             "type": "array",
@@ -28275,6 +28548,105 @@
           }
         }
       },
+      "SessionNotes": {
+        "type": "object",
+        "description": "The notes of a conversation, as `GET` answers them and `PUT` takes them.",
+        "required": [
+          "notes"
+        ],
+        "properties": {
+          "notes": {
+            "type": "string",
+            "description": "Free text the user keeps beside the conversation. It is never sent to\na model."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionSettings": {
+        "type": "object",
+        "description": "The settings of one conversation. Every field is optional: one left out\nis inherited from the agent. An unknown field is refused.",
+        "properties": {
+          "context_overflow": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContextOverflowSetting",
+                "description": "What happens at the context limit; summarizing when left out."
+              }
+            ]
+          },
+          "disabled_accesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses of the agent switched off for this conversation."
+          },
+          "instructions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Instructions added to the mission of the agent for this conversation."
+          },
+          "max_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Upper bound on the length of an answer, in tokens.",
+            "minimum": 0
+          },
+          "preset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Preset chosen for the conversation, a preset of its model. It takes\nthe place of the agent's preset."
+          },
+          "profile_access": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "For an installed agent, whether it may read the user profile in this\nconversation, whatever its own profile source says. Left out, the\nsource of the agent decides. The profile is read by a tool and never\nplaced in the prompt of an installed agent."
+          },
+          "proposed_accesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses the agent does not hold, proposed for this conversation:\nthe model may call them and each call asks for consent."
+          },
+          "reasoning_effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Level of reasoning (`low`, `medium`, `high`), for a model that reads it."
+          },
+          "temperature": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Sampling temperature, between 0 and 2."
+          },
+          "thinking": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Reasoning on or off, for a model that reads it."
+          }
+        },
+        "additionalProperties": false
+      },
       "SessionWorkspace": {
         "type": "object",
         "description": "Answer of `GET /api/v1/sessions/{id}/workspace`.",
@@ -30844,7 +31216,7 @@
               "string",
               "null"
             ],
-            "description": "New system prompt."
+            "description": "New instructions of the conversation, added to the mission of its agent:\n4000 characters at most. Written to `settings.instructions`; the other\nsettings are left as they are."
           },
           "tools": {
             "type": [

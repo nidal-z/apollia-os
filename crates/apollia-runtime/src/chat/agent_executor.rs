@@ -173,6 +173,11 @@ pub struct SessionWiring {
     /// What a draft of an agent may hold, in the conversation that creates
     /// one; `None` everywhere else, where `propose_agent` is not offered.
     pub agent_draft: Option<crate::chat::agent_draft_tool::DraftOffer>,
+    /// What the conversation changes from its agent, for itself alone: its
+    /// instructions, added after the mission whatever the agent, its request
+    /// settings, its reasoning, what its context does at the limit, and the
+    /// accesses it proposes. The default changes nothing.
+    pub session: crate::chat::builtin_agent::SessionOverrides,
 }
 
 /// What the granted agent and workflow calls of a run go through.
@@ -319,7 +324,8 @@ impl AgentExecutor {
         .with_tool_output_dir(wiring.tool_output_dir)
         .with_preferred_backend(spec.model.clone())
         .with_turn_id(wiring.turn_id)
-        .with_agent_draft(wiring.agent_draft);
+        .with_agent_draft(wiring.agent_draft)
+        .with_session_overrides(wiring.session);
         Self {
             spec,
             agent,
@@ -431,5 +437,7 @@ pub mod plan_first;
 
 #[cfg(test)]
 mod governance_tests;
+#[cfg(test)]
+mod session_tests;
 #[cfg(test)]
 mod tests;

@@ -637,7 +637,6 @@ mod tests {
             id: "sess-test".into(),
             mode: ChatMode::Agent,
             agent_name: Some(agent_name.into()),
-            system_prompt: String::new(),
             status: super::super::types::SessionStatus::Active,
             history: vec![],
             authorized_tools: HashSet::new(),
@@ -652,6 +651,8 @@ mod tests {
             plan_phase: super::super::types::PlanPhase::Done,
             profile_id: None,
             use_profile: true,
+            settings: crate::chat::SessionSettings::default(),
+            notes: String::new(),
         }
     }
 
@@ -660,7 +661,6 @@ mod tests {
             id: "sess-history".into(),
             mode: ChatMode::Agent,
             agent_name: Some("test-agent".into()),
-            system_prompt: String::new(),
             status: super::super::types::SessionStatus::Active,
             history: vec![
                 ChatMessage {
@@ -726,6 +726,8 @@ mod tests {
             plan_phase: super::super::types::PlanPhase::Done,
             profile_id: None,
             use_profile: true,
+            settings: crate::chat::SessionSettings::default(),
+            notes: String::new(),
         }
     }
 

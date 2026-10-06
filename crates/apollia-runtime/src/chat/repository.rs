@@ -8,7 +8,8 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
-use super::types::{ChatError, ChatMode, ChatRole, PlanPhase, SessionConfigUpdate, SessionStatus};
+use super::session_settings::SessionSettings;
+use super::types::{ChatError, ChatMode, ChatRole, PlanPhase, SessionStatus};
 
 mod approvals;
 mod folders;
@@ -16,6 +17,7 @@ mod forking;
 mod message_search;
 mod profile;
 mod search;
+mod settings;
 mod trash;
 
 pub use folders::{ChatFolder, FOLDER_NAME_MAX_CHARS};
@@ -31,8 +33,6 @@ pub struct SessionRow {
     pub mode: String,
     /// Agent name (nullable).
     pub agent_name: Option<String>,
-    /// System prompt.
-    pub system_prompt: String,
     /// Status string (`"active"`, `"processing"`, `"closed"`).
     pub status: String,
     /// JSON array of available tool names.
@@ -59,6 +59,11 @@ pub struct SessionRow {
     pub profile_id: Option<String>,
     /// Profile switch of the conversation (on by default).
     pub use_profile: bool,
+    /// Settings of the conversation, the JSON document
+    /// [`SessionSettings`] reads.
+    pub settings: String,
+    /// Notes the user keeps beside the conversation.
+    pub notes: String,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -198,7 +203,9 @@ impl ChatSessionRepository {
         })
     }
 
-    /// Persist a new chat session.
+    /// Persist a new chat session. `instructions`, when not blank, are the
+    /// instructions the conversation adds to the mission of its agent, kept
+    /// in its settings.
     // REASON: each argument is one column of the session row; the table schema is the struct.
     #[allow(clippy::too_many_arguments)]
     pub fn create_session(
@@ -206,77 +213,27 @@ impl ChatSessionRepository {
         id: &str,
         mode: &ChatMode,
         agent_name: Option<&str>,
-        system_prompt: &str,
+        instructions: &str,
         available_tools: &[String],
         created_at: &str,
         llm_backend: Option<&str>,
     ) -> Result<(), ChatError> {
         let tools_json = serde_json::to_string(available_tools)
             .map_err(|e| ChatError::InternalError(format!("tools serialization: {e}")))?;
+        let settings = SessionSettings {
+            instructions: settings::non_blank(instructions),
+            ..SessionSettings::default()
+        }
+        .to_column();
 
         self.conn
             .execute(
-                "INSERT INTO chat_sessions (id, mode, agent_name, system_prompt, available_tools, created_at, llm_backend)
+                "INSERT INTO chat_sessions (id, mode, agent_name, settings, available_tools, created_at, llm_backend)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![id, mode.as_sql(), agent_name, system_prompt, tools_json, created_at, llm_backend],
+                params![id, mode.as_sql(), agent_name, settings, tools_json, created_at, llm_backend],
             )
             .map_err(|e| ChatError::InternalError(format!("create_session: {e}")))?;
 
-        Ok(())
-    }
-
-    /// Update session configuration (system_prompt, available_tools,
-    /// llm_backend, profile_id).
-    ///
-    /// Only updates fields that are `Some`.
-    pub fn update_session_config(
-        &self,
-        id: &str,
-        update: &SessionConfigUpdate,
-    ) -> Result<(), ChatError> {
-        let mut parts = Vec::new();
-        let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
-
-        if let Some(prompt) = &update.system_prompt {
-            parts.push("system_prompt = ?");
-            values.push(Box::new(prompt.clone()));
-        }
-        if let Some(tools) = &update.available_tools {
-            let tools_json = serde_json::to_string(tools)
-                .map_err(|e| ChatError::InternalError(format!("tools serialization: {e}")))?;
-            parts.push("available_tools = ?");
-            values.push(Box::new(tools_json));
-        }
-        if let Some(backend) = &update.llm_backend {
-            parts.push("llm_backend = ?");
-            values.push(Box::new(backend.clone()));
-        }
-        if let Some(profile) = &update.profile_id {
-            parts.push("profile_id = ?");
-            values.push(Box::new(profile.clone()));
-        }
-        if let Some(use_profile) = update.use_profile {
-            parts.push("use_profile = ?");
-            values.push(Box::new(i64::from(use_profile)));
-        }
-
-        if parts.is_empty() {
-            return Ok(());
-        }
-
-        let set_clause = parts.join(", ");
-        let sql = format!("UPDATE chat_sessions SET {set_clause} WHERE id = ?");
-        values.push(Box::new(id.to_string()));
-
-        let params: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
-        let updated = self
-            .conn
-            .execute(&sql, params.as_slice())
-            .map_err(|e| ChatError::InternalError(format!("update_session_config: {e}")))?;
-
-        if updated == 0 {
-            return Err(ChatError::SessionNotFound(id.to_string()));
-        }
         Ok(())
     }
 
@@ -414,9 +371,9 @@ impl ChatSessionRepository {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                "SELECT id, mode, agent_name, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id, use_profile
+                        plan_mode, plan_phase, profile_id, use_profile, settings, notes
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -434,17 +391,17 @@ impl ChatSessionRepository {
     pub fn list_sessions(&self, status: Option<&str>) -> Result<Vec<SessionRow>, ChatError> {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                "SELECT id, mode, agent_name, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id, use_profile
+                        plan_mode, plan_phase, profile_id, use_profile, settings, notes
                  FROM chat_sessions WHERE status = ?1 AND deleted_at IS NULL
                  ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                "SELECT id, mode, agent_name, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id, use_profile
+                        plan_mode, plan_phase, profile_id, use_profile, settings, notes
                  FROM chat_sessions WHERE deleted_at IS NULL ORDER BY created_at DESC",
                 None,
             ),
@@ -731,20 +688,21 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         id: row.get(0)?,
         mode: row.get(1)?,
         agent_name: row.get(2)?,
-        system_prompt: row.get(3)?,
-        status: row.get(4)?,
-        available_tools: row.get(5)?,
-        created_at: row.get(6)?,
-        closed_at: row.get(7)?,
-        llm_backend: row.get(8)?,
-        summary: row.get(9)?,
-        title: row.get(10)?,
-        parent_session_id: row.get(11)?,
-        fork_depth: row.get(12)?,
-        plan_mode: row.get::<_, i64>(13)? != 0,
-        plan_phase: row.get(14)?,
-        profile_id: row.get(15)?,
-        use_profile: row.get::<_, i64>(16)? != 0,
+        status: row.get(3)?,
+        available_tools: row.get(4)?,
+        created_at: row.get(5)?,
+        closed_at: row.get(6)?,
+        llm_backend: row.get(7)?,
+        summary: row.get(8)?,
+        title: row.get(9)?,
+        parent_session_id: row.get(10)?,
+        fork_depth: row.get(11)?,
+        plan_mode: row.get::<_, i64>(12)? != 0,
+        plan_phase: row.get(13)?,
+        profile_id: row.get(14)?,
+        use_profile: row.get::<_, i64>(15)? != 0,
+        settings: row.get(16)?,
+        notes: row.get(17)?,
     })
 }
 
@@ -830,7 +788,10 @@ mod tests {
         assert_eq!(session.id, "sess-1");
         assert_eq!(session.mode, "libre");
         assert!(session.agent_name.is_none());
-        assert_eq!(session.system_prompt, "You are helpful.");
+        assert_eq!(
+            session.settings, r#"{"instructions":"You are helpful."}"#,
+            "a prompt given at creation is the instructions of the conversation"
+        );
         assert_eq!(session.status, "active");
         assert_eq!(session.available_tools, "[]");
         assert!(session.closed_at.is_none());
@@ -1433,7 +1394,11 @@ mod tests {
         assert_eq!(session.history[0].content, "User message");
         assert_eq!(session.history[1].content, "Assistant reply");
         assert!(session.authorized_tools.contains("bash_executor"));
-        assert_eq!(session.system_prompt, "System prompt");
+        assert_eq!(
+            session.settings.instructions.as_deref(),
+            Some("System prompt")
+        );
+        assert_eq!(session.notes, "");
     }
 
     #[test]

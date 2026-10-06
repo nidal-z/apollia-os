@@ -699,7 +699,9 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         id: session.id,
         mode: session.mode.as_sql().to_string(),
         agent_name: session.agent_name,
-        system_prompt: session.system_prompt,
+        // The instructions of the conversation, under the name the
+        // configuration panel reads them by.
+        system_prompt: session.settings.instructions.unwrap_or_default(),
         status: session.status.as_sql().to_string(),
         available_tools: session.available_tools,
         authorized_tools,

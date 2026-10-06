@@ -157,6 +157,14 @@ check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --soc
 # runtime, exit 2. The real read is covered by the runtime's route tests.
 check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1
 check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
+# The settings and the notes of a conversation are read and written through
+# the runtime: with no runtime, exit 2. A settings document naming a field
+# the settings do not declare is refused before anything is sent, exit 1.
+check_exit   "chat settings get (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat settings get s-1
+check_exit   "chat settings set (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat settings set s-1 '{"max_tokens":256}'
+check_exit   "chat settings set unknown field → 1" 1 "$BIN" --socket "$CHAT_OFF" chat settings set s-1 '{"system_prompt":"x"}'
+check_exit   "chat notes get --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat notes get s-1 --json
+check_exit   "chat notes set (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat notes set s-1 "ask about March"
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
 # Every other uninstall goes through the runtime, which unregisters the agents

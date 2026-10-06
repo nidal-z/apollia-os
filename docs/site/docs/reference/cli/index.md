@@ -162,6 +162,12 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os chat rename`↴](#apollia-os-chat-rename)
 * [`apollia-os chat export`↴](#apollia-os-chat-export)
 * [`apollia-os chat capabilities`↴](#apollia-os-chat-capabilities)
+* [`apollia-os chat settings`↴](#apollia-os-chat-settings)
+* [`apollia-os chat settings get`↴](#apollia-os-chat-settings-get)
+* [`apollia-os chat settings set`↴](#apollia-os-chat-settings-set)
+* [`apollia-os chat notes`↴](#apollia-os-chat-notes)
+* [`apollia-os chat notes get`↴](#apollia-os-chat-notes-get)
+* [`apollia-os chat notes set`↴](#apollia-os-chat-notes-set)
 * [`apollia-os chat config`↴](#apollia-os-chat-config)
 * [`apollia-os chat config get`↴](#apollia-os-chat-config-get)
 * [`apollia-os chat config set`↴](#apollia-os-chat-config-set)
@@ -2590,6 +2596,8 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
 * `capabilities` - Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images
+* `settings` - Read or replace what one conversation changes from its agent: its request settings, its instructions, the accesses it switches off
+* `notes` - Read or replace the notes kept beside one conversation
 * `config` - Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Options:**
@@ -2683,6 +2691,90 @@ Reaches the runtime; exits 2 when it is not running.
 ###### **Arguments:**
 
 * `<SESSION_ID>` - Session id
+
+
+
+## `apollia-os chat settings`
+
+Read or replace what one conversation changes from its agent: its request settings, its instructions, the accesses it switches off
+
+**Usage:** `apollia-os chat settings <COMMAND>`
+
+###### **Subcommands:**
+
+* `get` - Print what a conversation changes from its agent
+* `set` - Replace the settings of a conversation
+
+
+
+## `apollia-os chat settings get`
+
+Print what a conversation changes from its agent.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat settings get <SESSION_ID>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+
+
+
+## `apollia-os chat settings set`
+
+Replace the settings of a conversation.
+
+Reaches the runtime; exits 2 when it is not running. The fields are `preset`, `thinking`, `reasoning_effort` (`low`, `medium`, `high`), `temperature`, `max_tokens`, `context_overflow` (`summarize_middle`, `sliding_window`, `stop_at_limit`), `instructions`, `disabled_accesses`, `proposed_accesses` and `profile_access`. `{}` returns the conversation to the settings of its agent.
+
+**Usage:** `apollia-os chat settings set <SESSION_ID> <SETTINGS>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+* `<SETTINGS>` - The settings, a JSON object. A field left out is inherited
+
+
+
+## `apollia-os chat notes`
+
+Read or replace the notes kept beside one conversation
+
+**Usage:** `apollia-os chat notes <COMMAND>`
+
+###### **Subcommands:**
+
+* `get` - Print the notes kept beside a conversation
+* `set` - Replace the notes kept beside a conversation. They are never sent to a model
+
+
+
+## `apollia-os chat notes get`
+
+Print the notes kept beside a conversation.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat notes get <SESSION_ID>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+
+
+
+## `apollia-os chat notes set`
+
+Replace the notes kept beside a conversation. They are never sent to a model.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat notes set <SESSION_ID> <NOTES>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+* `<NOTES>` - The notes. An empty string erases them
 
 
 

@@ -42,6 +42,7 @@ pub mod pause;
 pub mod plan;
 pub mod session_reads;
 mod session_route;
+pub mod settings;
 mod sse;
 pub mod trash;
 pub mod turns;
@@ -56,7 +57,9 @@ pub struct CreateSessionRequest {
     pub mode: String,
     /// Agent name (required when `mode == "agent"`).
     pub agent_name: Option<String>,
-    /// Custom system prompt.
+    /// Instructions of the conversation, added to the mission of its agent and
+    /// never in its place: 4000 characters at most. Read back as
+    /// `settings.instructions`.
     pub system_prompt: Option<String>,
     /// List of tool names available in this session.
     #[serde(default)]
@@ -749,6 +752,10 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::ImagesNotSupported { .. } => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
         ChatError::ImageRejected(_) => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::DocumentRejected(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::InvalidSettings(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::ContextLimitReached { .. } => {
+            (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
+        }
     };
     (status, Json(ErrorResponse { error: msg }))
 }

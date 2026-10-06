@@ -107,6 +107,24 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Replace the settings of a conversation.
+    SetSessionSettings {
+        /// Target session.
+        session_id: SessionId,
+        /// The settings that take the place of the stored ones.
+        settings: SessionSettings,
+        /// Response channel: the settings as stored.
+        reply: oneshot::Sender<Result<SessionSettings, ChatError>>,
+    },
+    /// Replace the notes of a conversation.
+    SetSessionNotes {
+        /// Target session.
+        session_id: SessionId,
+        /// The notes that take the place of the stored ones.
+        notes: String,
+        /// Response channel: the notes as stored.
+        reply: oneshot::Sender<Result<String, ChatError>>,
+    },
     /// Empty the profile of every session designating `profile_id`, the
     /// profile having been deleted.
     ReleaseProfile {

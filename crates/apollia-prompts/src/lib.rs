@@ -14,7 +14,10 @@
 pub mod blocks;
 pub mod compose;
 
-pub use compose::{BaseProfile, ChatPromptBuilder};
+pub use compose::{
+    check_session_instructions, BaseProfile, ChatPromptBuilder, InstructionsTooLong,
+    SESSION_INSTRUCTIONS_MAX_CHARS,
+};
 
 /// Appended to user-facing system prompts so the model replies in the user's
 /// language even though the instructions themselves are English.

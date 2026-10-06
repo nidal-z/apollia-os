@@ -28,8 +28,10 @@ use rusqlite::Connection;
 /// v17 `use_profile` (the profile switch of a conversation),
 /// v18 `deleted_at` (a conversation sent to the trash),
 /// v19 `chat_folders` and `folder_id` (a conversation put in a folder),
-/// v20 `chat_messages_fts` (the search in the content of the messages).
-pub(crate) const SCHEMA_VERSION: u32 = 20;
+/// v20 `chat_messages_fts` (the search in the content of the messages),
+/// v21 `settings` and `notes` (the settings and the notes of a conversation;
+/// a session prompt becomes its instructions).
+pub(crate) const SCHEMA_VERSION: u32 = 21;
 
 /// Base tables, applied on first open.
 const BASE_SQL: &str = include_str!("../../migrations/001_chat_tables.sql");
@@ -94,6 +96,7 @@ const MIGRATIONS: [Migration; SCHEMA_VERSION as usize] = [
     migrate_v18,
     migrate_v19,
     migrate_v20,
+    migrate_v21,
 ];
 
 /// Bring `conn` to the current chat schema version, or refuse it.
@@ -319,6 +322,47 @@ fn migrate_v20(conn: &Connection) -> Result<(), rusqlite::Error> {
     )
 }
 
+/// v21: the settings and the notes of a conversation. `settings` is a JSON
+/// document read through `SessionSettings`, empty when the conversation
+/// inherits everything from its agent; `notes` is text the user keeps beside
+/// the conversation.
+///
+/// A session prompt used to replace the mission of the agent. It becomes the
+/// instructions of the conversation, which are added to the mission: every
+/// non-empty `system_prompt` moves into `settings.instructions` and the
+/// column is emptied. The emptied column is what makes a replay a no-op on a
+/// file whose version was never stamped.
+fn migrate_v21(conn: &Connection) -> Result<(), rusqlite::Error> {
+    add_column_if_missing(
+        conn,
+        "ALTER TABLE chat_sessions ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'",
+    )?;
+    add_column_if_missing(
+        conn,
+        "ALTER TABLE chat_sessions ADD COLUMN notes TEXT NOT NULL DEFAULT ''",
+    )?;
+    let prompts: Vec<(String, String, String)> = {
+        let mut stmt = conn.prepare(
+            "SELECT id, system_prompt, settings FROM chat_sessions WHERE TRIM(system_prompt) <> ''",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        rows.collect::<Result<_, _>>()?
+    };
+    for (id, prompt, settings) in prompts {
+        let mut settings =
+            crate::chat::session_settings::SessionSettings::from_column(&id, &settings);
+        if settings.instructions.is_none() {
+            settings.instructions =
+                crate::chat::session_settings::instructions_from_legacy_prompt(&prompt);
+        }
+        conn.execute(
+            "UPDATE chat_sessions SET settings = ?1, system_prompt = '' WHERE id = ?2",
+            rusqlite::params![settings.to_column(), id],
+        )?;
+    }
+    Ok(())
+}
+
 /// Returns `true` when `table` already declares a column named `column`.
 fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, rusqlite::Error> {
     let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
@@ -331,3 +375,6 @@ fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, r
     }
     Ok(false)
 }
+
+#[cfg(test)]
+mod tests;

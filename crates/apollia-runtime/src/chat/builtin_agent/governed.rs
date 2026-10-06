@@ -101,8 +101,31 @@ impl BuiltInChatAgent {
             other if !rewritten_by_hook && acc.authorized.contains(&once_grant(&call.name)) => {
                 answered_once(other)
             }
+            // An access proposed for the conversation, which the agent does
+            // not hold, asks at each call even where governance would let
+            // the call run unasked. A standing consent is the user's
+            // "always" and lets it through, as does an "always" given
+            // earlier in this run.
+            AccessDecision::Allowed { reason }
+                if reason != DecisionReason::Consent
+                    && self.is_proposed(&call.name)
+                    && !acc.authorized.contains(&call.name) =>
+            {
+                let reason = DecisionReason::Consent;
+                let answers = ALL_ANSWERS.to_vec();
+                if self.unattended {
+                    AccessDecision::Pending { reason, answers }
+                } else {
+                    AccessDecision::AskUser { reason, answers }
+                }
+            }
             other => other,
         }
+    }
+
+    /// Whether `tool` is an access proposed for the conversation.
+    pub(super) fn is_proposed(&self, tool: &str) -> bool {
+        apollia_tools::is_disabled(tool, &self.session.proposed_accesses)
     }
 
     /// Records in the journal a call governance refused because of the

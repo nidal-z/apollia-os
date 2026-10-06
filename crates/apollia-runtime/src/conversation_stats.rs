@@ -70,7 +70,12 @@ pub async fn conversation_stats(
         .ok_or_else(|| ConversationStatsError::NotFound(session_id.clone()))?;
 
     let message_count = detail.message_count as usize;
-    let prompt = &detail.session.system_prompt;
+    let prompt = detail
+        .session
+        .settings
+        .instructions
+        .as_deref()
+        .unwrap_or_default();
     let has_summary = prompt.contains("## Conversation summary");
     let summarized_count = if has_summary && message_count > DEFAULT_CONTEXT_WINDOW_SIZE {
         message_count.saturating_sub(DEFAULT_CONTEXT_WINDOW_SIZE)
