@@ -27,7 +27,10 @@ export interface PackagePreviewRequest {
 /** The open preview, `null` when the dialog is closed. */
 export const packagePreviewRequest = writable<PackagePreviewRequest | null>(null);
 
-/** Window event sent once a package is installed or updated. */
+/**
+ * Window event sent once a package is installed or updated. Its detail names
+ * the package and the agents it brought: `{ name, agents: [{ id, name }] }`.
+ */
 export const PACKAGE_INSTALLED_EVENT = "apollia:packages:installed";
 
 /** Opens the preview on the package at `path`. */

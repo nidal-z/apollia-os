@@ -13,6 +13,9 @@
    *   4. {@link OnboardingChatStep} - a short agent-driven chat, then the
    *                                   proposed profile read over before it
    *                                   is saved
+   *   5. {@link OnboardingFirstAgent} - a first agent: installed from a
+   *                                   package, created by describing the
+   *                                   need, or taken from an example
    *
    * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`, and the
    * progress counts that list: a step is announced once it is built. No step
@@ -43,7 +46,7 @@
   } from "$lib/ipc/onboarding";
   import { skipOnboarding } from "$lib/onboarding/skipOnboarding";
   import { get } from "svelte/store";
-  import { profileEnrichment } from "$lib/stores/onboarding";
+  import { onboardingFirstAgent, profileEnrichment } from "$lib/stores/onboarding";
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
   import { ErrorBanner } from "$lib/components/operator";
@@ -52,10 +55,14 @@
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
   import OnboardingEmbeddingsStep from "./OnboardingEmbeddingsStep.svelte";
   import OnboardingChatStep from "./OnboardingChatStep.svelte";
+  import OnboardingFirstAgent from "./OnboardingFirstAgent.svelte";
+  import type { FirstAgentView } from "./firstAgent";
   import { downloadNotice } from "./llmDownload";
   import { llmDownload } from "./llmDownloadLive";
   import {
+    ONBOARDING_PHASE_ORDER,
     ONBOARDING_STEPS,
+    nextStep,
     phaseOfStep,
     phasePath,
     stepOfPhase,
@@ -91,6 +98,10 @@
   // Set once the conversation reports it never started: Escape becomes an exit
   // again, because there is no turn left to interrupt by accident.
   let chatStranded = $state(false);
+  // What the first-agent step shows. The creation of an agent brings its
+  // conversation and its draft side by side: the card widens for it.
+  let firstAgentView = $state<FirstAgentView>("cards");
+  const creatingAgent = $derived(currentStep === "first-agent" && firstAgentView === "create");
   // Opened by Settings > Profile to complete a profile, not by a first launch:
   // the modal goes straight to the conversation and leaves the first-launch
   // state (phase, skipped flag) alone.
@@ -140,6 +151,14 @@
     untrack(() => syncBackendPhase(phaseOfStep(step)));
   }
 
+  // On to the step after `step`; after the last one built the first launch
+  // is over and the modal closes.
+  function advanceFrom(step: Step): void {
+    const next = nextStep(step);
+    if (next === null) onclose();
+    else goTo(next);
+  }
+
   // Skipping is what writes `onboarding_skipped`, and that flag is the one
   // `App.svelte` re-reads at launch to decide whether this modal opens again.
   // Closing on a failed write claimed a skip the backend never recorded.
@@ -165,6 +184,11 @@
       const state = await getOnboardingState();
       backendPhase = state.phase;
       currentStep = stepOfPhase(state.phase);
+      // A first launch that has not reached the first-agent step yet keeps
+      // no agent: one kept by an earlier run is not the one of this run.
+      if (ONBOARDING_PHASE_ORDER.indexOf(state.phase) < ONBOARDING_PHASE_ORDER.indexOf("first_agent")) {
+        onboardingFirstAgent.clear();
+      }
     } catch {
       // Backend unreachable - keep the default "welcome" step.
     }
@@ -208,7 +232,8 @@
 >
   <div
     class="onboarding-card"
-    class:onboarding-card-tall={currentStep === "ai-setup" || currentStep === "chat"}
+    class:onboarding-card-tall={currentStep === "ai-setup" || currentStep === "chat" || creatingAgent}
+    class:onboarding-card-wide={creatingAgent}
   >
     <header class="onboarding-card-header">
       <div class="onboarding-card-bar">
@@ -273,12 +298,12 @@
 
     <div
       class="onboarding-card-body"
-      class:onboarding-card-body-flush={currentStep === "chat"}
+      class:onboarding-card-body-flush={currentStep === "chat" || creatingAgent}
     >
       {#key currentStep}
         <div
           class="onboarding-panel"
-          class:onboarding-panel-flush={currentStep === "chat"}
+          class:onboarding-panel-flush={currentStep === "chat" || creatingAgent}
           in:fly={rm({ x: 12 * navDir, duration: duration.base, easing: cubicOut })}
           out:fly={rm({ x: -12 * navDir, duration: duration.fast, easing: cubicOut })}
         >
@@ -307,7 +332,12 @@
                 if (enriching) onclose();
                 else void handleSkip();
               }}
-              {onclose}
+              onclose={enriching ? onclose : () => advanceFrom("chat")}
+            />
+          {:else if currentStep === "first-agent"}
+            <OnboardingFirstAgent
+              bind:view={firstAgentView}
+              onnext={() => advanceFrom("first-agent")}
             />
           {/if}
         </div>
@@ -401,6 +431,11 @@
      scroll area is comfortable on small viewports. */
   .onboarding-card-tall {
     height: min(86vh, 760px);
+  }
+
+  /* The creation of an agent shows its conversation beside its draft. */
+  .onboarding-card-wide {
+    max-width: 1040px;
   }
 
   .onboarding-card-header {

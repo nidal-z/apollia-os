@@ -11,6 +11,7 @@ import { writable, derived } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type { OnboardingState, OnboardingPhase } from "$lib/types";
 import type { EnrichmentRequest, PendingProposal } from "$lib/onboarding/profileProposal";
+import { parseFirstAgent, type FirstAgent } from "$lib/onboarding/firstAgent";
 
 const DEFAULT_STATE: OnboardingState = {
   phase: "welcome",
@@ -108,6 +109,60 @@ export const profileEnrichment = writable<EnrichmentRequest | null>(null);
  * it or not, then clears it.
  */
 export const pendingProfileProposal = writable<PendingProposal | null>(null);
+
+/** The `localStorage` key the agent of the first launch is kept under. */
+export const FIRST_AGENT_STORAGE_KEY = "apollia.onboarding.first_agent";
+
+function readStoredFirstAgent(): FirstAgent | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    return parseFirstAgent(localStorage.getItem(FIRST_AGENT_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function storeFirstAgent(agent: FirstAgent | null): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    if (agent === null) localStorage.removeItem(FIRST_AGENT_STORAGE_KEY);
+    else localStorage.setItem(FIRST_AGENT_STORAGE_KEY, JSON.stringify(agent));
+  } catch {
+    // Storage refused: the agent is kept for this run of the application only.
+  }
+}
+
+function createFirstAgentStore() {
+  const { subscribe, set } = writable<FirstAgent | null>(readStoredFirstAgent());
+
+  return {
+    subscribe,
+
+    /** Keeps `agent`, obtained at the "first agent" step, for the next steps. */
+    retain(agent: FirstAgent): void {
+      storeFirstAgent(agent);
+      set(agent);
+    },
+
+    /**
+     * Keeps no agent: the step was passed, or the first launch is replayed
+     * from its start. The steps after it then propose no connection and open
+     * the first conversation with Apollia.
+     */
+    clear(): void {
+      storeFirstAgent(null);
+      set(null);
+    },
+  };
+}
+
+/**
+ * The agent the "first agent" step of the first launch ended with, `null`
+ * when the step was passed or not reached yet. The connection step and the
+ * first-task step read it, through `$lib/onboarding/firstAgent`. Kept across
+ * a restart, so a first launch resumed on a later step still knows it.
+ */
+export const onboardingFirstAgent = createFirstAgentStore();
 
 /** Whether the sidebar onboarding badge should be visible. */
 export const showOnboardingBadge = derived(

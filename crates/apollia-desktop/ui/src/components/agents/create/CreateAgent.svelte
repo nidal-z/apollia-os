@@ -15,6 +15,11 @@
    * the draft is read in the conversation, and the form lives in this
    * component. Leaving at any moment before the save leaves no agent behind;
    * the conversation itself is removed when the screen is left.
+   *
+   * The first launch mounts the first two moments inside its own step: it
+   * passes `oncreated`, which takes the saved agent in place of the third
+   * moment, and `embedded`, which leaves the breadcrumb of the Agents screen
+   * out.
    */
   import { onDestroy } from "svelte";
   import { t } from "svelte-i18n";
@@ -45,14 +50,27 @@
   } from "./agentDraft";
 
   interface Props {
-    /** Back to the list of the Agents screen. */
+    /** Back to where the creation was asked from. */
     onback: () => void;
     /** Open a conversation with the agent `name`. */
-    onStartChat: (name: string) => void;
-    onOpenLogs: (agentId: string) => void;
+    onStartChat?: (name: string) => void;
+    onOpenLogs?: (agentId: string) => void;
+    /**
+     * Takes the agent once it is saved. The host then decides what follows,
+     * and the sheet of the saved agent is not shown here.
+     */
+    oncreated?: (agent: ResolvedAgent) => void;
+    /** Mounted inside another surface: no breadcrumb of the Agents screen. */
+    embedded?: boolean;
   }
 
-  let { onback, onStartChat, onOpenLogs }: Props = $props();
+  let {
+    onback,
+    onStartChat = () => undefined,
+    onOpenLogs = () => undefined,
+    oncreated,
+    embedded = false,
+  }: Props = $props();
 
   /** How often the conversation is read for a new draft, in milliseconds. */
   const POLL_MS = 1500;
@@ -167,6 +185,10 @@
       });
       if (!outcome) return;
       stopPolling();
+      if (oncreated) {
+        oncreated(outcome.agent);
+        return;
+      }
       created = outcome.agent;
       modelError = outcome.modelError;
       phase = "saved";
@@ -181,21 +203,23 @@
 </script>
 
 <div class="flex h-full min-h-0 flex-col" data-testid="agent-create" data-phase={phase}>
-  <nav
-    class="flex items-center gap-1 px-8 pt-5 text-caption text-muted-foreground"
-    aria-label={$t("a11y.breadcrumb")}
-  >
-    <button
-      type="button"
-      class="rounded px-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onclick={onback}
-      data-testid="agent-create-back"
+  {#if !embedded}
+    <nav
+      class="flex items-center gap-1 px-8 pt-5 text-caption text-muted-foreground"
+      aria-label={$t("a11y.breadcrumb")}
     >
-      {$t("agents.title")}
-    </button>
-    <ChevronRight size={12} />
-    <span class="text-foreground">{$t("agent_create.breadcrumb")}</span>
-  </nav>
+      <button
+        type="button"
+        class="rounded px-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onclick={onback}
+        data-testid="agent-create-back"
+      >
+        {$t("agents.title")}
+      </button>
+      <ChevronRight size={12} />
+      <span class="text-foreground">{$t("agent_create.breadcrumb")}</span>
+    </nav>
+  {/if}
 
   {#if phase === "saved" && created}
     <DetailHeader title={created.name} titleTestid="agent-create-saved-title" meta={$t("agent_create.saved_meta")}>

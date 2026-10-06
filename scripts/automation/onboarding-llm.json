@@ -243,6 +243,24 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "onboarding-first-agent",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-cards"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-onb-first-agent"
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-skip",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitGone",
       "testid": "onboarding-modal",
       "timeoutMs": 15000
@@ -251,5 +269,8 @@
       "kind": "screenshot",
       "label": "12-onb-profile-saved"
     }
+  ],
+  "notes": [
+    "The profile review leads to the first-agent step (OnboardingFirstAgent.svelte). This book passes it with first-agent-skip, which keeps no agent and closes the modal, the step being the last one built; its three cards are played by onboarding-full."
   ]
 }

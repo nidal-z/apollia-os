@@ -3,6 +3,9 @@
   "stopOnError": false,
   "dynamicTestids": [
     "ai-setup-source-server",
+    "first-agent-card-create",
+    "first-agent-card-example",
+    "first-agent-card-install",
     "onboarding-lang-en",
     "onboarding-lang-fr",
     "profile-field-role",
@@ -98,7 +101,7 @@
     {
       "kind": "expect",
       "testid": "onboarding-step-count",
-      "contains": "2 sur 4"
+      "contains": "2 sur 5"
     },
     {
       "kind": "expect",
@@ -227,7 +230,7 @@
     {
       "kind": "expect",
       "testid": "onboarding-step-count",
-      "contains": "3 sur 4"
+      "contains": "3 sur 5"
     },
     {
       "kind": "screenshot",
@@ -652,6 +655,381 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "onboarding-first-agent",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-step-count",
+      "contains": "5 sur 5"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-cards"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-card-install",
+      "contains": "Installer un agent"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-card-create",
+      "contains": "Créer en décrivant mon besoin"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-card-example",
+      "contains": "Partir d'un exemple"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-skip"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-onb-first-agent-cards"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/automation-first-agent.apo",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "preview_package_file",
+      "resolve": {
+        "name": "paquet-recu",
+        "version": "1.0.0",
+        "description": "A package received from a colleague.",
+        "sdk": ">=0.3",
+        "signature": {
+          "status": "unsigned",
+          "publisher": "Apollia",
+          "declaredPublisher": "Apollia",
+          "keyFingerprint": null,
+          "publicKey": null,
+          "trusted": false,
+          "reason": null
+        },
+        "signatureRequired": false,
+        "agents": [
+          {
+            "id": "paquet-recu",
+            "name": "Agent reçu",
+            "mission": "Answers the questions about the notes.",
+            "examples": [],
+            "access": []
+          }
+        ],
+        "workflows": [],
+        "tools": [],
+        "requires": [],
+        "mcpServers": [],
+        "pip": [],
+        "triggers": [],
+        "installedVersion": null,
+        "update": null,
+        "notices": [],
+        "refusal": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-install",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-title",
+      "contains": "paquet-recu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11c-onb-first-agent-package-preview"
+    },
+    {
+      "kind": "click",
+      "testid": "package-preview-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-skip"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "reject": "no model is configured for the conversation",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-create",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-start-error",
+      "contains": "no model is configured",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-conversation"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-draft"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11d-onb-first-agent-create"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-cards",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_example_packages",
+      "resolve": [
+        {
+          "name": "veille-web",
+          "version": "1.0.0",
+          "description": "Watches a topic on the web.",
+          "agents": [
+            {
+              "id": "veille-web",
+              "name": "Veille web",
+              "mission": "Searches the web on your topic and writes a summary."
+            }
+          ],
+          "requires": [
+            {
+              "type": "imap",
+              "reason": "Reads the newsletters of your mailbox.",
+              "present": false,
+              "broughtByPackage": false
+            }
+          ],
+          "installedVersion": null
+        },
+        {
+          "name": "qualifier-des-demandes",
+          "version": "1.0.0",
+          "description": "Sorts incoming requests and says what each one needs.",
+          "agents": [
+            {
+              "id": "qualifier-des-demandes",
+              "name": "Qualifier des demandes",
+              "mission": "Reads each request, sorts it and says what it needs next."
+            }
+          ],
+          "requires": [],
+          "installedVersion": null
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "preview_example_package",
+      "argsMatch": {
+        "name": "qualifier-des-demandes"
+      },
+      "resolve": {
+        "name": "qualifier-des-demandes",
+        "version": "1.0.0",
+        "description": "Sorts incoming requests and says what each one needs.",
+        "sdk": ">=0.3",
+        "signature": {
+          "status": "unsigned",
+          "publisher": "Apollia",
+          "declaredPublisher": "Apollia",
+          "keyFingerprint": null,
+          "publicKey": null,
+          "trusted": false,
+          "reason": null
+        },
+        "signatureRequired": false,
+        "agents": [
+          {
+            "id": "qualifier-des-demandes",
+            "name": "Qualifier des demandes",
+            "mission": "Reads each request, sorts it and says what it needs next.",
+            "examples": [],
+            "access": []
+          }
+        ],
+        "workflows": [],
+        "tools": [],
+        "requires": [],
+        "mcpServers": [],
+        "pip": [],
+        "triggers": [],
+        "installedVersion": null,
+        "update": null,
+        "notices": [],
+        "refusal": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "install_example_package",
+      "argsMatch": {
+        "name": "qualifier-des-demandes"
+      },
+      "resolve": {
+        "name": "qualifier-des-demandes",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-example",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-examples",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-example",
+      "nth": 0,
+      "contains": "Veille web"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-example-requires",
+      "contains": "imap"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-example",
+      "nth": 1,
+      "contains": "Qualifier des demandes"
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-examples-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-cards",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-example",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-examples",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-example",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11e-onb-first-agent-example-chosen"
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-example-install",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-title",
+      "contains": "qualifier-des-demandes",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "package-preview-install",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-kept",
+      "contains": "Qualifier des demandes",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "first-agent-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11f-onb-first-agent-kept"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-continue",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitGone",
       "testid": "onboarding-modal",
       "timeoutMs": 15000
@@ -1022,13 +1400,15 @@
     }
   ],
   "notes": [
-    "onboarding-skip (abandon onboarding) sits in the header of the modal and is drawn on every step (OnboardingModal.svelte), the AI setup included. The footer exists on the conversation only and renders onboarding-skip-optional, which skips the questions, all of them optional, and opens the profile review (OnboardingProfileReview.svelte). The review writes nothing by itself: onboarding-review-save writes the default profile, onboarding-review-skip leaves it untouched, and both close the modal.",
+    "onboarding-skip (abandon onboarding) sits in the header of the modal and is drawn on every step (OnboardingModal.svelte), the AI setup included. The footer exists on the conversation only and renders onboarding-skip-optional, which skips the questions, all of them optional, and opens the profile review (OnboardingProfileReview.svelte). The review writes nothing by itself: onboarding-review-save writes the default profile, onboarding-review-skip leaves it untouched, and both lead to the first-agent step.",
     "The skip finalizes the conversation through finalize_onboarding_chat, with no model turn, so the review opens in a deterministic run with an empty proposal; the book fills the role by hand (profile-field-role, a field drawn from the list Rust sends with the default profile) and saves. A proposal filled by the agent needs a model and is played by onboarding-llm.",
     "llm-load-model-btn is played through the invoke stub: OnboardingLlmSection.svelte imports plugin-dialog `open`, which is invoke('plugin:dialog|open'), so a once stub resolving ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf skips the OS picker and continues into import_model_file (model_hub.rs copies only when dest differs from source, so the seed's own file is left intact) then selectGgufModel, the same wiring as the llm-model-row click. It sits in the first ai-setup pass, before any row click, so llmConfiguring is false (selectGgufModel returns early while a configuration is in flight).",
     "The onboarding asks no usage profile: the welcome, where the language is chosen, leads straight to the AI setup, and ai-setup-back returns to the welcome. The AI setup is the only step that cannot be passed, and it asks neither for dictation nor for a context window: a recipe cannot name a control that no longer exists, so those absences are held by OnboardingAiSetup.test.ts, and the book checks what is there, ai-setup-continue-hint and a header that counts the steps that exist (onboarding-step-count). ai-setup-continue is open from the first pass because the seed registers a default backend. The book walks the welcome and the AI setup twice, once bare and once to replay the detected rows, and after the finish it checks that the developer group of the sidebar is absent, the developer mode staying off.",
     "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts), humanize keeps the raw text on detail (lib/errors/humanize.ts) and the disclosure of OnboardingModal.svelte renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because it closes the modal, which the earlier flow needs.",
     "curated-llm-row is played through the invoke stub, in the first ai-setup pass right after the picker import: a once stub rejects start_variant_download (lib/ipc/modelHub.ts) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the file name of the first row, a .gguf the live recommendation picks for the machine, so the book asserts the extension and not a name. The download is followed outside the step (llmDownload.ts), so the book then leaves the step on it: onboarding-model-progress shows in the header on the AI setup and still on the embeddings step, and embeddings-back finds llm-download-progress where it was. No event ever settles that fake id, so the book ends it with llm-download-cancel, which cancel_model_download refuses for an id it never knew: the step drops the download, the header notice goes and the curated list comes back, which the later passes of the step need.",
     "The embeddings step (OnboardingEmbeddingsStep.svelte) follows ai-setup-continue. Its recommendation comes from get_embeddings_recommendation, which the runtime answers from its embedded table with no network, so embeddings-model-card renders in a deterministic run. The step was already opened once while the language model downloaded, and it reads its recommendation again each time it opens, so the book waits for embeddings-download rather than expecting it at once. The book plays, in order: the import of a file the registry does not offer (the picker stub resolves the seed's Phi-3-mini-Q4.gguf, embeddingsSetup.ts refuses it before any copy and embeddings-error names it); a download the invoke stub rejects, then one it resolves with a fake id so embeddings-download-progress renders; embeddings-download-cancel, which cancel_model_download refuses for an id it never knew, so the step puts the offer back; three round trips through embeddings-back, the first with get_embeddings_recommendation rejected (embeddings-unavailable, the step stays passable), the second with get_memory_embeddings_model resolving an installed entry (embeddings-ready); and the passing, whose warning lists the two unavailable functions before embeddings-continue-without opens the conversation. No default embeddings model is ever set by this book.",
-    "The server of the AI step is played after the first danger-zone reset, inside the modal, which stays open throughout (OnboardingServerForm.svelte, serverSetup.ts). The first two refusals are real: an address without its scheme is refused by the form before any call, and http://127.0.0.1:9 goes to the backend, where nothing listens, so test_llm_server (commands/llm_servers.rs) rejects with a ServerTestFailure of kind unreachable whose sentence names the address. The listing and the choice are stubbed, a deterministic run having no server: a once stub resolves test_llm_server with two identifiers, then once stubs resolve save_llm_server with a ServerResponse and set_default_model with a DefaultModelResponse (routes_llm/servers.rs, routes_llm/presets.rs), so nothing is written to the seeded store. ai-setup-continue then leads to the embeddings step, and onboarding-skip closes the modal for the reset that follows."
+    "The server of the AI step is played after the first danger-zone reset, inside the modal, which stays open throughout (OnboardingServerForm.svelte, serverSetup.ts). The first two refusals are real: an address without its scheme is refused by the form before any call, and http://127.0.0.1:9 goes to the backend, where nothing listens, so test_llm_server (commands/llm_servers.rs) rejects with a ServerTestFailure of kind unreachable whose sentence names the address. The listing and the choice are stubbed, a deterministic run having no server: a once stub resolves test_llm_server with two identifiers, then once stubs resolve save_llm_server with a ServerResponse and set_default_model with a DefaultModelResponse (routes_llm/servers.rs, routes_llm/presets.rs), so nothing is written to the seeded store. ai-setup-continue then leads to the embeddings step, and onboarding-skip closes the modal for the reset that follows.",
+    "The first-agent step (OnboardingFirstAgent.svelte, firstAgent.ts) follows the profile review and is the last step built: first-agent-continue, or first-agent-skip, closes the modal. Its three cards are played in turn. first-agent-card-install goes through the plugin-dialog `open` stub, then preview_package_file is stubbed with a PackagePreview (crates/apollia-runtime/src/packages/preview.rs): no file exists at the path, the book only reads that the preview dialog rises above the modal, and cancels it. first-agent-card-create mounts components/agents/create/CreateAgent.svelte inside the step; create_chat_session is refused once, so the conversation says it could not start and agent-create-cancel returns to the cards with no model turn. The draft and the saved agent are played by agent-create-det on the Agents screen.",
+    "The binary proposes no example of its own yet, so the three example commands are stubbed as in agent-examples-det: list_example_packages answers two ExamplePackage (crates/apollia-runtime/src/packages/examples.rs), and preview_example_package and install_example_package are armed with argsMatch on the chosen name alone, so a call naming the other example would reach the runtime and fail the book. The installation itself writes nothing into the seeded home; the step keeps the agent the preview named in its installed event (first-agent-kept). The real installation of one example and of that one only is held by the runtime tests of packages/examples.rs."
   ]
 }

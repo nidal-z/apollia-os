@@ -7,7 +7,7 @@ sidebar_position: 4
 # Configurer votre profil au premier lancement
 
 > Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.
-> Il vous fait passer en quatre étapes - la langue, l'IA, le modèle qui cherche par le sens, une courte conversation qui propose votre profil - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur dans les Paramètres, éteint par défaut.
+> Il vous fait passer en cinq étapes - la langue, l'IA, le modèle qui cherche par le sens, une courte conversation qui propose votre profil, un premier agent - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur dans les Paramètres, éteint par défaut.
 > Durée totale : 3 à 8 minutes selon le téléchargement des modèles.
 >
 > Cette page couvre **le parcours initial uniquement**. Pour éditer votre profil au quotidien depuis l'application installée, voir **[Mon profil](../memoire/manage-my-profile.md)**.
@@ -19,7 +19,7 @@ sidebar_position: 4
 
 ## Vue d'ensemble du parcours
 
-Le parcours est rythmé par un rail de progression visible en haut de la fenêtre, surmonté du compte des étapes : **Langue · IA · Recherche · Qui je suis**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en haut à droite de la fenêtre, à chaque étape, pour ajourner l'ensemble.
+Le parcours est rythmé par un rail de progression visible en haut de la fenêtre, surmonté du compte des étapes : **Langue · IA · Recherche · Qui je suis · Premier agent**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en haut à droite de la fenêtre, à chaque étape, pour ajourner l'ensemble.
 
 | Étape | Ce qui s'y passe |
 |---|---|
@@ -27,6 +27,7 @@ Le parcours est rythmé par un rail de progression visible en haut de la fenêtr
 | **IA** | Le modèle de langage avec lequel vos agents travaillent : un modèle sur votre poste, avec téléchargement embarqué, ou un serveur que vous utilisez déjà. C'est la seule étape que vous ne pouvez pas passer. |
 | **Recherche** | Un second modèle, plus petit, qui permet à vos agents de retrouver un document par son sens. Elle peut être passée. |
 | **Qui je suis** | Une courte conversation avec un agent, dont chaque question peut être passée. L'agent propose ensuite un profil, que vous relisez et corrigez avant qu'il soit enregistré. |
+| **Premier agent** | Trois façons d'obtenir un agent prêt à travailler : installer un paquet, en créer un en décrivant votre besoin, ou partir d'un exemple. Elle peut être passée. |
 
 ## Étapes détaillées
 
@@ -90,14 +91,24 @@ Répondez naturellement, sans formulation précise. **Rien n'est écrit pendant 
 
 Aucun champ n'est obligatoire. Corrigez ce qui ne va pas, puis choisissez :
 
-- **Enregistrer** - le formulaire est écrit dans votre profil par défaut, et la fenêtre se ferme.
-- **Passer sans enregistrer** - rien n'est écrit, et la fenêtre se ferme. Votre profil reste vide jusqu'à ce que vous le remplissiez depuis **Paramètres → Profil**.
+- **Enregistrer** - le formulaire est écrit dans votre profil par défaut, et le parcours passe au premier agent.
+- **Passer sans enregistrer** - rien n'est écrit, et le parcours passe au premier agent. Votre profil reste vide jusqu'à ce que vous le remplissiez depuis **Paramètres → Profil**.
 - **Retour** - revient à la conversation ; **Revoir la proposition** rouvre le formulaire.
 
 <!-- claim:onboarding-skip-direct -->
 Le bouton **Passer les questions** (dans le pied de la fenêtre) met fin à la conversation **immédiatement, sans tour d'IA supplémentaire** : le formulaire s'ouvre aussitôt, vide ou avec ce que l'agent avait déjà proposé, et vous le remplissez à la main ou vous passez. Le bouton **J'ai fini** dans le chat, lui, laisse l'agent proposer un profil à partir de ce que vous avez déjà dit.
 
 L'onboarding ne propose plus de règles de permissions. Les règles se créent depuis les demandes d'approbation, ou à la main dans **Paramètres → Permissions**.
+
+### Étape 5 - Votre premier agent
+
+Trois cartes, trois façons d'avoir un agent prêt à travailler quand la fenêtre se ferme :
+
+- **Installer un agent** ouvre un paquet que vous avez reçu (un fichier `.apo`). Apollia montre ce qu'il contient, ce qu'il demande et qui l'a publié ; rien n'est installé avant votre confirmation.
+- **Créer en décrivant mon besoin** ouvre une courte conversation. Apollia prépare la fiche de l'agent au fil de vos réponses, vous la relisez et la corrigez, et **Enregistrer l'agent** le crée.
+- **Partir d'un exemple** liste les agents prêts à l'emploi qu'Apollia propose, chacun avec sa mission et la connexion qu'il requiert. Choisissez-en un : seul celui-ci est installé, après la même confirmation que pour tout paquet.
+
+Une fois l'agent là, l'étape le nomme et **Continuer** ferme la fenêtre. **Passer** la ferme sans agent : vous parlez à Apollia, et vous pouvez ajouter un agent à tout moment depuis l'écran **Agents**.
 
 ### Sauter le parcours
 
@@ -116,7 +127,7 @@ Si vous voulez rejouer le parcours du premier lancement :
 1. Ouvrez **Paramètres → Zone de danger**.
 2. Cliquez sur **Réinitialiser l'onboarding**. Cette action efface uniquement les marqueurs de progression et de profil - vos backends LLM, modèles téléchargés et autres données restent intacts.
 3. Une fenêtre de confirmation demande de taper `RESET`. Confirmez.
-4. Le parcours en quatre étapes redémarre depuis le choix de la langue.
+4. Le parcours en cinq étapes redémarre depuis le choix de la langue.
 
 Pour de **petits ajustements** (corriger votre nom, ajouter un outil quotidien) sans repasser le parcours, ouvrez directement **Paramètres → Profil** - voir [Mon profil](../memoire/manage-my-profile.md). Sur un profil dont des champs sont vides, **Compléter avec un agent** lance la même courte conversation pour ce profil ; sa proposition revient dans le formulaire, où **Enregistrer** l'écrit et **Passer** l'écarte.
 
@@ -138,4 +149,4 @@ Une fois le parcours terminé, ouvrez **Paramètres → Profil** : le profil par
 - **L'agent ne répond plus pendant la conversation :** fermez la fenêtre via **Configurer plus tard** et relancez depuis **Paramètres → Zone de danger → Réinitialiser l'onboarding**.
 - **Le formulaire s'ouvre vide :** l'agent n'a rien proposé, ou vous avez passé les questions. Remplissez les champs à la main, ou passez et revenez depuis **Paramètres → Profil**.
 
-> **Référence technique :** [Référence Apollia](/reference) - spec complète des 4 étapes, persistence backend, commandes IPC, événements runtime.
+> **Référence technique :** [Référence Apollia](/reference) - spec complète des 5 étapes, persistence backend, commandes IPC, événements runtime.

@@ -3571,6 +3571,28 @@
       "error_import": "Le fichier n'a pas pu être importé.",
       "error_not_offered": "{file} n'est pas le fichier d'un modèle de recherche par le sens proposé par Apollia.",
       "error_default": "Le modèle est installé mais n'a pas pu être retenu pour la recherche par le sens."
+    },
+    "first_agent": {
+      "title": "Votre premier agent",
+      "subtitle": "Choisissez comment l'obtenir. Vous pourrez en ajouter d'autres plus tard depuis l'écran Agents.",
+      "cards_label": "Trois façons d'obtenir un agent",
+      "install_title": "Installer un agent",
+      "install_body": "Ouvrez un paquet que vous avez reçu (fichier .apo). Vous voyez ce qu'il contient avant de l'installer.",
+      "create_title": "Créer en décrivant mon besoin",
+      "create_body": "Dites en quelques phrases ce que vous attendez : Apollia prépare la fiche de l'agent, vous la relisez.",
+      "example_title": "Partir d'un exemple",
+      "example_body": "Choisissez un agent prêt à l'emploi proposé par Apollia. Seul celui que vous choisissez est installé.",
+      "skip": "Passer",
+      "kept": "{name} est prêt. C'est avec lui que la suite se fera.",
+      "pick_failed": "Le fichier n'a pas pu être ouvert. {reason}",
+      "no_agent_in_package": "Le paquet {name} est installé, mais il n'apporte aucun agent. Choisissez-en un autre, ou passez cette étape.",
+      "examples_title": "Partir d'un exemple",
+      "examples_subtitle": "Choisissez-en un : seul celui-ci sera installé.",
+      "examples_loading": "Lecture des exemples…",
+      "examples_failed": "Les exemples n'ont pas pu être lus.",
+      "examples_empty": "Apollia ne propose aucun exemple pour l'instant. Revenez en arrière pour installer un paquet ou créer un agent en décrivant votre besoin.",
+      "example_install": "Installer cet exemple",
+      "example_use": "Choisir cet agent"
     }
   },
   "agent_detail": {
@@ -4157,6 +4179,7 @@
     "step_count": "Étape {current} sur {total} · {label}",
     "step_language": "Langue",
     "step_ai": "IA",
+    "step_first_agent": "Premier agent",
     "model_percent": "Modèle : {percent} %",
     "model_downloading": "Modèle : téléchargement en cours",
     "model_installing": "Modèle : installation",

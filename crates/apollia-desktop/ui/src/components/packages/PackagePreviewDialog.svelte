@@ -142,7 +142,10 @@
         $t(`packages.preview.${key}`, { values: { name: preview.name, version: report.version ?? preview.version } }),
         "success",
       );
-      window.dispatchEvent(new CustomEvent(PACKAGE_INSTALLED_EVENT, { detail: { name: preview.name } }));
+      // The agents it brought are named too: the first launch keeps the
+      // first one for its next steps.
+      const agents = preview.agents.map(({ id, name }) => ({ id, name }));
+      window.dispatchEvent(new CustomEvent(PACKAGE_INSTALLED_EVENT, { detail: { name: preview.name, agents } }));
       closePackagePreview();
     } catch (err) {
       installError = String(err);
