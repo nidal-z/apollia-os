@@ -173,6 +173,14 @@ pub struct LoadEstimateResponse {
     /// Layers the model has; absent when unknown.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_layers: Option<u32>,
+    /// The largest window the model accepts, from its header; absent when
+    /// the header does not say, and for an MLX model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_ctx: Option<u32>,
+    /// The quantisation the file name declares (`Q4_K_M`); absent when it
+    /// declares none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantization: Option<String>,
     /// The memory it would take; absent when the model cannot be sized.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory: Option<MemoryEstimateDto>,
@@ -371,6 +379,8 @@ async fn estimate_target<B: ExecutionBackend + Clone>(
                 n_ctx: estimate.map_or(n_ctx, |e| e.n_ctx),
                 n_gpu_layers: estimate.map(|e| e.n_gpu_layers),
                 total_layers: estimate.map(|e| e.total_layers).filter(|n| *n > 0),
+                max_ctx: estimate.and_then(|e| e.max_ctx),
+                quantization: apollia_llm::recommend::gguf_file_quantization(&target.model_path),
                 memory: estimate.map(|e| MemoryEstimateDto {
                     gpu_gb: e.gpu_gb,
                     total_gb: e.total_gb,
@@ -409,6 +419,8 @@ async fn estimate_target<B: ExecutionBackend + Clone>(
                 n_ctx,
                 n_gpu_layers: None,
                 total_layers: None,
+                max_ctx: None,
+                quantization: None,
                 memory: estimate.map(|(gpu_gb, e)| MemoryEstimateDto {
                     gpu_gb,
                     total_gb: e.total_gb,

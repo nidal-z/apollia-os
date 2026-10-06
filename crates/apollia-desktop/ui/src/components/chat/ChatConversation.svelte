@@ -71,6 +71,9 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
+  import { MAIN_PANE, paneLeases, syncConversationLease } from "$lib/chat/modelLease";
+  import { chatTargets } from "$lib/stores/chatTargets";
+  import ReloadLastModel from "./ReloadLastModel.svelte";
   import { createImageSupport } from "./useImageSupport.svelte";
   import { createAnswerActions } from "./useAnswerActions.svelte";
 
@@ -171,6 +174,12 @@
     mode: sessionMode,
     agentName: sessionAgentName,
     model: sessionDetail?.llm_backend ?? null,
+  });
+
+  // The conversation holds its local model in memory while it is open here.
+  $effect(() => {
+    const known = sessionDetail?.id === sessionId ? target : null;
+    void syncConversationLease(paneLeases, MAIN_PANE, sessionId, known, $chatTargets);
   });
 
   async function handleTargetPick(choice: ChatTarget): Promise<void> {
@@ -740,6 +749,7 @@
   {/if}
 
   {#if !inputHidden}
+    <ReloadLastModel />
     <ChatInput
       disabled={inputDisabled}
       busy={isProcessing || isStreaming}

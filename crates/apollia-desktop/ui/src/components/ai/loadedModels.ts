@@ -15,6 +15,11 @@ export function canUnload(model: LoadedModel): boolean {
   return model.activeRequests === 0;
 }
 
+/** Whether the model is kept in memory: its path is among the pinned ones. */
+export function isKeptInMemory(pins: readonly string[], model: LoadedModel): boolean {
+  return pins.includes(model.modelPath);
+}
+
 /**
  * Catalogue key for a rejected unload, when the refusal is one the block can
  * phrase itself. The runtime refuses a model that started answering between the

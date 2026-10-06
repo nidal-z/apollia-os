@@ -44,6 +44,7 @@
   import { setPlanMode, getPlanModeDefault } from "$lib/ipc/planMode";
   import AgentStatusCard from "./AgentStatusCard.svelte";
   import ChatTargetSelector from "./ChatTargetSelector.svelte";
+  import ReloadLastModel from "./ReloadLastModel.svelte";
   import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import { startRequest } from "$lib/chat/applyTargetChoice";
   import EmptyAgentsState from "./EmptyAgentsState.svelte";
@@ -350,6 +351,8 @@
       <X size={13} />
     </button>
   </div>
+
+  <ReloadLastModel />
 
   <!-- Prompt textarea -->
   <label class="block">

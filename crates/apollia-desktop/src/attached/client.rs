@@ -321,11 +321,13 @@ impl AttachedClient {
     }
 
     /// Opens the event stream. The answer is the open-ended SSE body, read by
-    /// the relay.
+    /// the relay. The stream names this application, so the daemon releases
+    /// the leases it holds on local models when the stream ends.
     pub(crate) async fn open_events(&self) -> Result<reqwest::Response, AttachedError> {
         let response = self
             .http
             .get(self.url("/api/v1/events"))
+            .query(&[("client", crate::commands::llm_residency::client_id())])
             .bearer_auth(&self.token)
             .header(reqwest::header::ACCEPT, "text/event-stream")
             .send()

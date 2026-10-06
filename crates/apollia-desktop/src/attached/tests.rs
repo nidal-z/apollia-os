@@ -547,6 +547,11 @@ fn test_models_mcp_connections_and_notifications_pass_the_gate_attached() {
     let screens = [
         "update_llm_server",
         "list_loaded_models",
+        "estimate_model_load",
+        "load_model",
+        "reload_last_loaded_model",
+        "open_model_lease",
+        "set_model_pin",
         "list_mcp_servers",
         "add_mcp_server",
         "list_connections",

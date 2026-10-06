@@ -21,6 +21,7 @@ const model: ModelTarget = {
   format: "gguf",
   server: null,
   parameters: "8B",
+  path: "/models/Qwen3-8B-Q4_K_M.gguf",
 };
 const agent: AgentTarget = { kind: "agent", id: "veille", name: "Veille", model: null, builtin: false };
 const free = { mode: "libre" as const, agentName: null, model: null };

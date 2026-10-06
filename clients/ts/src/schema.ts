@@ -8816,6 +8816,12 @@ export interface components {
             engine: components["schemas"]["EngineName"];
             /** @description What the load guardrail makes of it. */
             guardrail: components["schemas"]["GuardrailCheckDto"];
+            /**
+             * Format: int32
+             * @description The largest window the model accepts, from its header; absent when
+             *     the header does not say, and for an MLX model.
+             */
+            maxCtx?: number | null;
             memory?: null | components["schemas"]["MemoryEstimateDto"];
             /** @description The model, as asked. */
             modelId: string;
@@ -8831,6 +8837,11 @@ export interface components {
              * @description Layers it would place on the accelerator; absent for an MLX model.
              */
             nGpuLayers?: number | null;
+            /**
+             * @description The quantisation the file name declares (`Q4_K_M`); absent when it
+             *     declares none.
+             */
+            quantization?: string | null;
             /**
              * Format: int32
              * @description Layers the model has; absent when unknown.

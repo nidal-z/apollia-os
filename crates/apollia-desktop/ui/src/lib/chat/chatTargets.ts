@@ -41,6 +41,8 @@ export interface ModelTarget {
   server: string | null;
   /** Parameter count label of a local model, e.g. `"8B"`. */
   parameters: string | null;
+  /** Where the weights of a local model are, `null` for a model of a server. */
+  path: string | null;
 }
 
 export type ChatTarget = AgentTarget | ModelTarget;
@@ -111,6 +113,7 @@ export function buildTargetGroups(payload: ChatTargetsPayload): TargetGroups {
       format,
       server: null,
       parameters: text(raw.parameters),
+      path: text(raw.path),
     });
   }
   for (const server of payload.servers) {
@@ -126,6 +129,7 @@ export function buildTargetGroups(payload: ChatTargetsPayload): TargetGroups {
         format: null,
         server: server.server,
         parameters: null,
+        path: null,
       });
     }
   }
@@ -204,6 +208,23 @@ export function targetLabel(
   const name = conversation.mode === "agent" ? (agent?.name ?? agentId) : apolliaName;
   const model = conversation.model ?? agent?.model ?? defaultModel;
   return { agent: name, model: modelLabel(groups, model) };
+}
+
+/**
+ * The model a conversation talks to, among the models the selector offers:
+ * the one chosen for it, else the one of its agent, else the default one.
+ * `null` when that model is not listed.
+ */
+export function conversationModel(
+  groups: TargetGroups,
+  conversation: ConversationTarget,
+  defaultModel: string | null,
+): ModelTarget | null {
+  const agentId = conversation.mode === "agent" ? conversation.agentName : APOLLIA_AGENT_ID;
+  const agent = groups.agents.find((a) => a.id === agentId) ?? null;
+  const name = conversation.model ?? agent?.model ?? defaultModel;
+  if (!name) return null;
+  return groups.models.find((m) => m.route === name || rowName(m.route) === name) ?? null;
 }
 
 /** What choosing a target does to the conversation it is chosen on. */

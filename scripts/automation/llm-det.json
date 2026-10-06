@@ -2,7 +2,7 @@
   "name": "llm-det (the AI screen: loaded models, models of this computer, and the servers: list, models, default, short window, test and retry, switch, menu, delete by name cancelled, edit and add under stubs, empty state, list error; developer mode off then on then off)",
   "stopOnError": false,
   "notes": [
-    "The Loaded section is shown through a stubbed IPC: no engine holds a model in the deterministic run, so the visit in developer mode stubs list_loaded_models with one resident chat model shaped like the runtime answer (routes_llm/loaded.rs, camelCase, footprintGb 2.5) before the route mounts, asserts the card, its name, memory, load time, summary and unload button, then clears the stub. Nothing is loaded or unloaded: the unload button is only asserted.",
+    "The Loaded section is shown through a stubbed IPC: no engine holds a model in the deterministic run, so the visit in developer mode stubs list_loaded_models with one resident chat model shaped like the runtime answer (routes_llm/loaded.rs, camelCase, footprintGb 2.5) before the route mounts, asserts the card, its name, memory, load time, summary and unload button, then clears the stub. Nothing is loaded or unloaded: the unload button is only asserted. The pin is shown the same way: list_model_pins is stubbed with PinsResponse (routes_llm/residency.rs) naming the path of that model, so the card carries its 'kept in memory' mark and its pin button, both only asserted.",
     "The servers are walked under stubs, so the book never reaches a network: list_llm_servers (type DeclaredServer of lib/ipc/llmServers.ts, ServerResponse of the runtime), list_llm_server_models (ServerModels, with expected_context_window), get_default_model and set_default_model (DefaultModel), test_llm_server (a list of identifiers, or a rejection shaped like ServerTestFailure: kind and message), save_llm_server and update_llm_server (DeclaredServer). A stub imitates a runtime type and drifts silently when it changes.",
     "The AI screen reads the servers once at mount (Ai.svelte onMount -> servers.refresh), so a new list_llm_servers stub is followed by leaving the route and coming back (goto chat, goto llm).",
     "Two stubs of one command are answered in the order they were added: the rejection of list_llm_server_models is added first, once, then the answer that lists, so Retry lists again.",
@@ -282,6 +282,15 @@
       }
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_model_pins",
+      "resolve": {
+        "pins": [
+          "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf"
+        ]
+      }
+    },
+    {
       "kind": "goto",
       "route": "llm"
     },
@@ -328,8 +337,20 @@
       "testid": "ai-loaded-unload-btn"
     },
     {
+      "kind": "expect",
+      "testid": "ai-loaded-pin-btn"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-kept"
+    },
+    {
       "kind": "clearStubs",
       "command": "list_loaded_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_model_pins"
     },
     {
       "kind": "screenshot",
