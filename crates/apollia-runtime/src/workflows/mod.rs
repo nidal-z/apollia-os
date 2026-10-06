@@ -20,6 +20,11 @@
 //! A run started on its own takes the budget of the `[workflows]`
 //! configuration.
 //!
+//! A step may also ask the user a question (`ctx.user.ask`): the run waits on
+//! it, the question is listed with the decisions waiting for the user, and
+//! the answer wakes the step where it stopped ([`questions`]). The wait spends
+//! the wall clock of the run's budget like any other.
+//!
 //! Stopping a run cancels its token: the step in progress is interrupted at
 //! its next await point, the run ends `canceled`, the step it was in is
 //! `canceled` and the steps it never reached are `not_started`.
@@ -32,10 +37,13 @@ mod actor;
 mod agents;
 pub mod fields;
 pub mod inputs;
+pub mod questions;
 mod run;
 
 #[cfg(test)]
 mod inputs_tests;
+#[cfg(test)]
+mod questions_tests;
 #[cfg(test)]
 mod tests;
 
@@ -55,6 +63,7 @@ use crate::eventbus::EventBusSender;
 pub use agents::LaunchedAgentRunner;
 pub use fields::{input_fields, InputField, InputKind};
 pub use inputs::{InputError, InputErrorCode};
+pub use questions::{QuestionAsked, UserReply, WorkflowQuestion};
 
 /// Levels a nesting of runs may reach: a workflow, a workflow it calls, and
 /// one more. An agent run started by a step counts as a level.
@@ -98,6 +107,11 @@ pub trait WorkflowServices: Send + Sync {
     /// the caller's package, and return what it returns.
     fn run_workflow(&self, workflow: String, inputs: Value)
         -> BoxFuture<'_, Result<Value, String>>;
+
+    /// Ask the user `asked` and wait for the reply: the answer, or that the
+    /// user declined. An error refuses the question or reports that the run
+    /// was stopped while it waited.
+    fn ask_user(&self, asked: QuestionAsked) -> BoxFuture<'_, Result<UserReply, String>>;
 }
 
 /// One run handed to the host.
@@ -200,6 +214,9 @@ pub enum WorkflowError {
     /// The run already ended.
     #[error("workflow run '{0}' already ended")]
     AlreadyEnded(String),
+    /// No run waits on that question.
+    #[error("no workflow question '{0}' waits")]
+    UnknownQuestion(String),
     /// The Python host is not attached: no workflow can run yet.
     #[error("workflows cannot run in this runtime: the package host is not attached")]
     NoHost,
@@ -296,6 +313,23 @@ pub(crate) enum WorkflowCommand {
         workflow: String,
         reply: oneshot::Sender<Option<WorkflowDescriptor>>,
     },
+    /// A run asks the user and waits on `reply`.
+    Ask {
+        question: WorkflowQuestion,
+        reply: oneshot::Sender<UserReply>,
+    },
+    /// The run of that question stopped waiting.
+    Withdraw {
+        request_id: String,
+    },
+    Questions {
+        reply: oneshot::Sender<Vec<WorkflowQuestion>>,
+    },
+    Reply {
+        request_id: String,
+        answer: UserReply,
+        reply: oneshot::Sender<Result<WorkflowQuestion, WorkflowError>>,
+    },
 }
 
 /// The handle of the workflow actor. Reads go to `hitl.db` directly; a launch
@@ -328,6 +362,7 @@ impl WorkflowHandle {
             host: None,
             running: std::collections::HashMap::new(),
             stopping: std::collections::HashMap::new(),
+            questions: questions::WaitingQuestions::default(),
         };
         tokio::spawn(actor.run());
         Self { tx, repository }
@@ -478,6 +513,43 @@ impl WorkflowHandle {
         self.tx
             .send(WorkflowCommand::Cancel {
                 run_id: run_id.to_string(),
+                reply,
+            })
+            .await
+            .map_err(|_| WorkflowError::Stopped)?;
+        rx.await.map_err(|_| WorkflowError::Stopped)?
+    }
+
+    /// The questions running workflows wait on, oldest first.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkflowError::Stopped`].
+    pub async fn pending_questions(&self) -> Result<Vec<WorkflowQuestion>, WorkflowError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(WorkflowCommand::Questions { reply })
+            .await
+            .map_err(|_| WorkflowError::Stopped)?;
+        rx.await.map_err(|_| WorkflowError::Stopped)
+    }
+
+    /// Hands `answer` to the run waiting on the question `request_id`, which
+    /// goes on in the step it asked from, and returns the question.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkflowError::UnknownQuestion`] or [`WorkflowError::Stopped`].
+    pub async fn answer_question(
+        &self,
+        request_id: &str,
+        answer: UserReply,
+    ) -> Result<WorkflowQuestion, WorkflowError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(WorkflowCommand::Reply {
+                request_id: request_id.to_string(),
+                answer,
                 reply,
             })
             .await

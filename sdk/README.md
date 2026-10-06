@@ -2,7 +2,7 @@
 
 > **Apollia AgentKit v0.2.0-preview** - Python toolkit for building agents that run on [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
 
-The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **17 backend services** (LLM, memory, tools, A2A, agents, workflows, mail, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
+The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **18 backend services** (LLM, memory, tools, A2A, agents, workflows, user, mail, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
 
 **Design philosophy** :
 - Signature **is** the schema (type hints → JSON Schema → runtime validation)
@@ -379,7 +379,7 @@ sdk/
     ├── react.py       # apollia.react(ctx, ...) utility
     ├── errors.py      # DomainError, NeedHumanInput, PayloadError, ...
     ├── types.py       # Ctx Protocol, vision types, helpers
-    ├── context/       # 17 Protocol surfaces (llm, memory, tools, a2a, agents, workflows, mail, ...)
+    ├── context/       # 18 Protocol surfaces (llm, memory, tools, a2a, agents, workflows, user, mail, ...)
     ├── _internal/     # dispatch, inference, manifest, aip_result, logger_bridge
     ├── testing/       # mock(), MockContext, assertions
     ├── cli/           # apollia inspect, apollia new, apollia describe

@@ -18,6 +18,7 @@ __all__ = [
     "DomainError",
     "NeedHumanInput",
     "PayloadError",
+    "QuestionDeclined",
     "SchemaError",
     "SkillNotFound",
     "StructuredOutputError",
@@ -124,6 +125,28 @@ class ToolApprovalDenied(AgentError):
         super().__init__(message)
         self.message: str = message
         self.tool: str = tool
+        self.reason: str | None = reason
+
+
+class QuestionDeclined(AgentError):
+    """The user declined to answer a question a workflow asked.
+
+    Raised by ``ctx.user.ask`` when the question is refused instead of
+    answered. Catch it to go on without the answer; left uncaught, the step
+    that asked fails, and the run with it.
+    """
+
+    def __init__(self, question: str, *, reason: str | None = None) -> None:
+        """Report a declined question.
+
+        Args:
+            question: The question that was asked.
+            reason: The user's reason, when one was given.
+        """
+        super().__init__(
+            f"the user declined to answer {question!r}" + (f": {reason}" if reason else "")
+        )
+        self.question: str = question
         self.reason: str | None = reason
 
 

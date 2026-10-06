@@ -218,6 +218,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os review`↴](#apollia-os-review)
 * [`apollia-os approvals`↴](#apollia-os-approvals)
 * [`apollia-os approvals pending`↴](#apollia-os-approvals-pending)
+* [`apollia-os approvals decide`↴](#apollia-os-approvals-decide)
 * [`apollia-os batch`↴](#apollia-os-batch)
 * [`apollia-os batch run`↴](#apollia-os-batch-run)
 * [`apollia-os batch status`↴](#apollia-os-batch-status)
@@ -3522,15 +3523,45 @@ The decisions waiting for you (pending)
 
 ###### **Subcommands:**
 
-* `pending` - List every decision waiting for you: consents, paused tasks, batch items waiting for an access, questions from agents
+* `pending` - List every decision waiting for you: consents, paused tasks, batch items waiting for an access, questions from agents and from workflows
+* `decide` - Answer one waiting decision: the run that waits goes on with it
 
 
 
 ## `apollia-os approvals pending`
 
-List every decision waiting for you: consents, paused tasks, batch items waiting for an access, questions from agents
+List every decision waiting for you: consents, paused tasks, batch items waiting for an access, questions from agents and from workflows
 
 **Usage:** `apollia-os approvals pending`
+
+
+
+## `apollia-os approvals decide`
+
+Answer one waiting decision: the run that waits goes on with it
+
+**Usage:** `apollia-os approvals decide [OPTIONS] <ID> <ANSWER>`
+
+###### **Arguments:**
+
+* `<ID>` - The `id` of the item, as `approvals pending` prints it
+* `<ANSWER>` - The answer, one of those the item takes
+
+  Possible values:
+  - `once`:
+    This call, or this item, only
+  - `always`:
+    This one and every later one of the same agent in the same family
+  - `refuse`:
+    Not this one
+  - `answer`:
+    The answer to a question, given with `--value`
+
+
+###### **Options:**
+
+* `--value <TEXT>` - The answer to a question: one of its choices, or free text
+* `--reason <TEXT>` - Why, for a refusal; handed to the run that asked
 
 
 

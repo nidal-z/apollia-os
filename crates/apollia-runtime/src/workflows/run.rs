@@ -10,8 +10,8 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    AgentRunner, BoxFuture, ParentRun, RunEnd, WorkflowCommand, WorkflowHandle, WorkflowServices,
-    MAX_DEPTH,
+    AgentRunner, BoxFuture, ParentRun, QuestionAsked, RunEnd, UserReply, WorkflowCommand,
+    WorkflowHandle, WorkflowQuestion, WorkflowServices, MAX_DEPTH,
 };
 use crate::agents::task::Nesting;
 use crate::eventbus::EventBusSender;
@@ -206,6 +206,52 @@ impl RunServices {
         self.record_output(output.to_string());
         Ok(output)
     }
+
+    /// Hand the question to the actor and wait for its reply, or for the run
+    /// to be stopped.
+    async fn ask(&self, asked: QuestionAsked) -> Result<UserReply, String> {
+        if self.cancel.is_cancelled() {
+            return Err("the run was stopped".into());
+        }
+        asked.check()?;
+        let engine = self
+            .engine
+            .upgrade()
+            .ok_or_else(|| "the workflow engine is not running".to_string())?;
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let step = self.state().open.clone();
+        let (reply, answered) = oneshot::channel();
+        engine
+            .send(WorkflowCommand::Ask {
+                question: WorkflowQuestion {
+                    request_id: request_id.clone(),
+                    run_id: self.run_id.clone(),
+                    workflow_id: self.workflow_id.clone(),
+                    step,
+                    asked,
+                    asked_at: chrono::Utc::now().to_rfc3339(),
+                },
+                reply,
+            })
+            .await
+            .map_err(|_| "the workflow engine is not running".to_string())?;
+        // A sender kept across the wait would keep the actor alive after its
+        // last handle is gone, and the run waiting on an engine nobody reaches.
+        drop(engine);
+        tokio::select! {
+            reply = answered => {
+                reply.map_err(|_| {
+                    "the runtime stopped before the question was answered".to_string()
+                })
+            }
+            () = self.cancel.cancelled() => {
+                if let Some(engine) = self.engine.upgrade() {
+                    let _ = engine.send(WorkflowCommand::Withdraw { request_id }).await;
+                }
+                Err("the run was stopped".into())
+            }
+        }
+    }
 }
 
 impl WorkflowServices for RunServices {
@@ -227,6 +273,10 @@ impl WorkflowServices for RunServices {
         inputs: Value,
     ) -> BoxFuture<'_, Result<Value, String>> {
         Box::pin(self.workflow(workflow, inputs))
+    }
+
+    fn ask_user(&self, asked: QuestionAsked) -> BoxFuture<'_, Result<UserReply, String>> {
+        Box::pin(self.ask(asked))
     }
 }
 

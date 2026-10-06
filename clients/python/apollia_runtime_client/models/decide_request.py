@@ -29,7 +29,8 @@ class DecideRequest:
         reason (None | str | Unset): Why, for a refusal; handed to the agent.
         value (DecideRequestValueType0 | None | Unset): The answer to the typed question of a paused task: a proposition
             id,
-            free text when it allows it, or a value.
+            free text when it allows it, or a value. For the question of a
+            workflow: the chosen choice or free text, when `answers` is not given.
     """
 
     answer: PendingAnswer

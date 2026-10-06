@@ -425,6 +425,10 @@ check_exit "package trust remove (runtime absent) → 2"  2 "$BIN" --socket "$PK
 # list answers 2, in human and in JSON form. Track 2 lists them, empty.
 check_exit "approvals pending (runtime absent) → 2"        2 "$BIN" --socket "$PKGOFF" approvals pending
 check_exit "approvals pending --json (runtime absent) → 2" 2 "$BIN" --socket "$PKGOFF" approvals pending --json
+# Answering one goes through the runtime too. An answer to a question with no
+# `--value` is refused before the runtime is reached.
+check_exit "approvals decide (runtime absent) → 2"         2 "$BIN" --socket "$PKGOFF" approvals decide workflow-question:none refuse
+check_exit "approvals decide answer without --value → 1"   1 "$BIN" --socket "$PKGOFF" approvals decide workflow-question:none answer
 
 # ── A.13b organisation policy (files only) ──────────────────────────────────
 # The key pair and the policy folder are prepared under the scratch folder;

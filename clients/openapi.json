@@ -21870,7 +21870,7 @@
               "object",
               "null"
             ],
-            "description": "The answer to the typed question of a paused task: a proposition id,\nfree text when it allows it, or a value."
+            "description": "The answer to the typed question of a paused task: a proposition id,\nfree text when it allows it, or a value. For the question of a\nworkflow: the chosen choice or free text, when `answers` is not given."
           }
         }
       },
@@ -26311,7 +26311,14 @@
               "string",
               "null"
             ],
-            "description": "The `ask_user` request of a question."
+            "description": "The `ask_user` request of a question, or the request of a workflow's."
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The workflow run that asked a question."
           },
           "sessionId": {
             "type": [
@@ -26319,6 +26326,13 @@
               "null"
             ],
             "description": "The conversation, for a consent or a question asked in one."
+          },
+          "step": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The step the run waits in."
           },
           "taskId": {
             "type": [
@@ -26333,6 +26347,13 @@
               "null"
             ],
             "description": "The tool call a consent is about."
+          },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its workflow, `<package>/<workflow>`."
           }
         }
       },
