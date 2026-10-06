@@ -16,6 +16,9 @@
    *   5. {@link OnboardingFirstAgent} - a first agent: installed from a
    *                                   package, created by describing the
    *                                   need, or taken from an example
+   *   6. {@link OnboardingConnection} - the connections that agent requires
+   *                                   and this machine lacks; passed over
+   *                                   when there is none
    *
    * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`, and the
    * progress counts that list: a step is announced once it is built. No step
@@ -56,6 +59,13 @@
   import OnboardingEmbeddingsStep from "./OnboardingEmbeddingsStep.svelte";
   import OnboardingChatStep from "./OnboardingChatStep.svelte";
   import OnboardingFirstAgent from "./OnboardingFirstAgent.svelte";
+  import OnboardingConnection from "./OnboardingConnection.svelte";
+  import {
+    loadConnectionProposal,
+    nothingToPropose,
+    type ConnectionProposal,
+  } from "./connectionStep";
+  import { connectionSources } from "./connectionStepLive";
   import type { FirstAgentView } from "./firstAgent";
   import { downloadNotice } from "./llmDownload";
   import { llmDownload } from "./llmDownloadLive";
@@ -101,6 +111,9 @@
   // What the first-agent step shows. The creation of an agent brings its
   // conversation and its draft side by side: the card widens for it.
   let firstAgentView = $state<FirstAgentView>("cards");
+  // What the connection step shows, read before it opens: the step is passed
+  // over when the agent kept requires no connection this machine lacks.
+  let connectionProposal = $state<ConnectionProposal | null>(null);
   const creatingAgent = $derived(currentStep === "first-agent" && firstAgentView === "create");
   // Opened by Settings > Profile to complete a profile, not by a first launch:
   // the modal goes straight to the conversation and leaves the first-launch
@@ -151,10 +164,18 @@
     untrack(() => syncBackendPhase(phaseOfStep(step)));
   }
 
+  // Reads what the connection step would show; `true` when it is nothing.
+  async function connectionIsPassed(): Promise<boolean> {
+    connectionProposal = await loadConnectionProposal(get(onboardingFirstAgent), connectionSources);
+    return nothingToPropose(connectionProposal);
+  }
+
   // On to the step after `step`; after the last one built the first launch
   // is over and the modal closes.
-  function advanceFrom(step: Step): void {
-    const next = nextStep(step);
+  async function advanceFrom(step: Step): Promise<void> {
+    const passed: Step[] = [];
+    if (nextStep(step) === "connection" && (await connectionIsPassed())) passed.push("connection");
+    const next = nextStep(step, passed);
     if (next === null) onclose();
     else goTo(next);
   }
@@ -183,7 +204,10 @@
     try {
       const state = await getOnboardingState();
       backendPhase = state.phase;
-      currentStep = stepOfPhase(state.phase);
+      const step = stepOfPhase(state.phase);
+      // Resumed on the connection step with nothing left to propose: back on
+      // the first agent, which names the agent kept and offers to continue.
+      currentStep = step === "connection" && (await connectionIsPassed()) ? "first-agent" : step;
       // A first launch that has not reached the first-agent step yet keeps
       // no agent: one kept by an earlier run is not the one of this run.
       if (ONBOARDING_PHASE_ORDER.indexOf(state.phase) < ONBOARDING_PHASE_ORDER.indexOf("first_agent")) {
@@ -338,6 +362,12 @@
             <OnboardingFirstAgent
               bind:view={firstAgentView}
               onnext={() => advanceFrom("first-agent")}
+            />
+          {:else if currentStep === "connection" && connectionProposal}
+            <OnboardingConnection
+              proposal={connectionProposal}
+              onnext={() => advanceFrom("connection")}
+              onback={() => goTo("first-agent")}
             />
           {/if}
         </div>

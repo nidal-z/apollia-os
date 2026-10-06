@@ -7,7 +7,7 @@ sidebar_position: 4
 # Configurer votre profil au premier lancement
 
 > Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.
-> Il vous fait passer en cinq étapes - la langue, l'IA, le modèle qui cherche par le sens, une courte conversation qui propose votre profil, un premier agent - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur dans les Paramètres, éteint par défaut.
+> Il vous fait passer en six étapes - la langue, l'IA, le modèle qui cherche par le sens, une courte conversation qui propose votre profil, un premier agent, une connexion dont cet agent a besoin - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur dans les Paramètres, éteint par défaut.
 > Durée totale : 3 à 8 minutes selon le téléchargement des modèles.
 >
 > Cette page couvre **le parcours initial uniquement**. Pour éditer votre profil au quotidien depuis l'application installée, voir **[Mon profil](../memoire/manage-my-profile.md)**.
@@ -19,7 +19,7 @@ sidebar_position: 4
 
 ## Vue d'ensemble du parcours
 
-Le parcours est rythmé par un rail de progression visible en haut de la fenêtre, surmonté du compte des étapes : **Langue · IA · Recherche · Qui je suis · Premier agent**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en haut à droite de la fenêtre, à chaque étape, pour ajourner l'ensemble.
+Le parcours est rythmé par un rail de progression visible en haut de la fenêtre, surmonté du compte des étapes : **Langue · IA · Recherche · Qui je suis · Premier agent · Connexion**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en haut à droite de la fenêtre, à chaque étape, pour ajourner l'ensemble.
 
 | Étape | Ce qui s'y passe |
 |---|---|
@@ -28,6 +28,7 @@ Le parcours est rythmé par un rail de progression visible en haut de la fenêtr
 | **Recherche** | Un second modèle, plus petit, qui permet à vos agents de retrouver un document par son sens. Elle peut être passée. |
 | **Qui je suis** | Une courte conversation avec un agent, dont chaque question peut être passée. L'agent propose ensuite un profil, que vous relisez et corrigez avant qu'il soit enregistré. |
 | **Premier agent** | Trois façons d'obtenir un agent prêt à travailler : installer un paquet, en créer un en décrivant votre besoin, ou partir d'un exemple. Elle peut être passée. |
+| **Connexion** | Les connexions dont votre premier agent a besoin et que vous n'avez pas encore, chacune ajoutée sur place. Elle n'apparaît que s'il en manque une, et elle peut être passée. |
 
 ## Étapes détaillées
 
@@ -108,7 +109,18 @@ Trois cartes, trois façons d'avoir un agent prêt à travailler quand la fenêt
 - **Créer en décrivant mon besoin** ouvre une courte conversation. Apollia prépare la fiche de l'agent au fil de vos réponses, vous la relisez et la corrigez, et **Enregistrer l'agent** le crée.
 - **Partir d'un exemple** liste les agents prêts à l'emploi qu'Apollia propose, chacun avec sa mission et la connexion qu'il requiert. Choisissez-en un : seul celui-ci est installé, après la même confirmation que pour tout paquet.
 
-Une fois l'agent là, l'étape le nomme et **Continuer** ferme la fenêtre. **Passer** la ferme sans agent : vous parlez à Apollia, et vous pouvez ajouter un agent à tout moment depuis l'écran **Agents**.
+Une fois l'agent là, l'étape le nomme et **Continuer** passe à la suite. **Passer** ferme la fenêtre sans agent : vous parlez à Apollia, et vous pouvez ajouter un agent à tout moment depuis l'écran **Agents**.
+
+### Étape 6 - Une connexion utile
+
+Cette étape n'apparaît que si l'agent retenu a besoin d'une connexion que vous n'avez pas encore. Un agent créé en décrivant votre besoin, ou un agent dont toutes les connexions sont là, la franchit sans s'y arrêter.
+
+Chaque connexion manquante a sa ligne, avec la raison que l'agent donne pour en avoir besoin :
+
+- **Ajouter** ouvre, au-dessus de la fenêtre, le même dialogue que l'écran **Connexions**, directement sur cette connexion. Une fois ajoutée, sa ligne indique **Présente**.
+- Une connexion que la sélection d'Apollia ne propose pas n'a pas de bouton **Ajouter** : ajoutez-la plus tard depuis l'écran **Connexions**.
+
+**Passer** et **Continuer** ferment tous deux la fenêtre, quoi que montrent les lignes : rien ici n'est obligatoire, et une connexion manquante s'ajoute à tout moment depuis l'écran **Connexions**.
 
 ### Sauter le parcours
 
@@ -127,7 +139,7 @@ Si vous voulez rejouer le parcours du premier lancement :
 1. Ouvrez **Paramètres → Zone de danger**.
 2. Cliquez sur **Réinitialiser l'onboarding**. Cette action efface uniquement les marqueurs de progression et de profil - vos backends LLM, modèles téléchargés et autres données restent intacts.
 3. Une fenêtre de confirmation demande de taper `RESET`. Confirmez.
-4. Le parcours en cinq étapes redémarre depuis le choix de la langue.
+4. Le parcours en six étapes redémarre depuis le choix de la langue.
 
 Pour de **petits ajustements** (corriger votre nom, ajouter un outil quotidien) sans repasser le parcours, ouvrez directement **Paramètres → Profil** - voir [Mon profil](../memoire/manage-my-profile.md). Sur un profil dont des champs sont vides, **Compléter avec un agent** lance la même courte conversation pour ce profil ; sa proposition revient dans le formulaire, où **Enregistrer** l'écrit et **Passer** l'écarte.
 

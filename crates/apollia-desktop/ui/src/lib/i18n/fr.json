@@ -3522,6 +3522,17 @@
       "examples_empty": "Apollia ne propose aucun exemple pour l'instant. Revenez en arrière pour installer un paquet ou créer un agent en décrivant votre besoin.",
       "example_install": "Installer cet exemple",
       "example_use": "Choisir cet agent"
+    },
+    "connection": {
+      "title": "Une connexion utile",
+      "subtitle_missing_one": "{name} a besoin d'une connexion que vous n'avez pas encore. Ajoutez-la maintenant, ou plus tard depuis l'écran Connexions.",
+      "subtitle_missing_many": "{name} a besoin de connexions que vous n'avez pas encore. Ajoutez-les maintenant, ou plus tard depuis l'écran Connexions.",
+      "subtitle_present_one": "La connexion dont {name} a besoin est déjà là. Vous pouvez continuer, ou la revoir plus tard depuis l'écran Connexions.",
+      "subtitle_present_many": "Les connexions dont {name} a besoin sont déjà là. Vous pouvez continuer, ou les revoir plus tard depuis l'écran Connexions.",
+      "add": "Ajouter",
+      "present": "Présente",
+      "add_later": "À ajouter depuis l'écran Connexions",
+      "skip": "Passer"
     }
   },
   "agent_detail": {
@@ -4109,6 +4120,7 @@
     "step_language": "Langue",
     "step_ai": "IA",
     "step_first_agent": "Premier agent",
+    "step_connection": "Connexion",
     "model_percent": "Modèle : {percent} %",
     "model_downloading": "Modèle : téléchargement en cours",
     "model_installing": "Modèle : installation",

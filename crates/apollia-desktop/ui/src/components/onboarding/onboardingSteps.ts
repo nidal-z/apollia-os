@@ -10,7 +10,13 @@ import type { OnboardingPhase } from "$lib/types";
  * come back. The progress counts the steps of this list and no other, so a
  * step that is not built yet is not announced.
  */
-export type OnboardingStep = "welcome" | "ai-setup" | "embeddings" | "chat" | "first-agent";
+export type OnboardingStep =
+  | "welcome"
+  | "ai-setup"
+  | "embeddings"
+  | "chat"
+  | "first-agent"
+  | "connection";
 
 export interface OnboardingStepEntry {
   id: OnboardingStep;
@@ -43,16 +49,22 @@ export const ONBOARDING_STEPS: readonly OnboardingStepEntry[] = [
   { id: "embeddings", labelKey: "onboarding_modal.step_search", phase: "embeddings" },
   { id: "chat", labelKey: "onboarding_modal.step_about", phase: "acquaintance" },
   { id: "first-agent", labelKey: "onboarding_modal.step_first_agent", phase: "first_agent" },
+  { id: "connection", labelKey: "onboarding_modal.step_connection", phase: "connection" },
 ];
 
 /**
  * The step that follows `step`, `null` after the last one built: the modal
  * then closes, as it does at the end of the first launch. A step added to the
- * list is reached from the one before it with no change to the modal.
+ * list is reached from the one before it with no change to the modal. A step
+ * named in `passed` is stepped over: it has nothing to show this time.
  */
-export function nextStep(step: OnboardingStep): OnboardingStep | null {
+export function nextStep(
+  step: OnboardingStep,
+  passed: readonly OnboardingStep[] = [],
+): OnboardingStep | null {
   const index = ONBOARDING_STEPS.findIndex((entry) => entry.id === step);
-  return ONBOARDING_STEPS[index + 1]?.id ?? null;
+  const next = ONBOARDING_STEPS.slice(index + 1).find((entry) => !passed.includes(entry.id));
+  return next?.id ?? null;
 }
 
 /** The phase the backend moves to when `step` opens. */
