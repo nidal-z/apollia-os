@@ -363,6 +363,8 @@ pub(in crate::chat::manager) fn session_to_info(session: &ChatSession) -> Sessio
         status: session.status.clone(),
         created_at: session.created_at.clone(),
         title: session.title.clone(),
+        message_count: u32::try_from(session.history.len()).unwrap_or(u32::MAX),
+        output_tokens: crate::chat::generation::output_tokens_of(&session.history),
     }
 }
 

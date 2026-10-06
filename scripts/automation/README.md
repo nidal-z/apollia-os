@@ -99,6 +99,11 @@ contract below): the time since the webview started loading the interface.
 What the process does before its window exists is not counted, and neither is
 the compilation `cargo tauri dev` does first.
 
+New conversation: the seed's `apollia.toml` sets `[desktop] chat_single_empty =
+false`. With the default, on, "New conversation" opens the empty conversation
+that already exists and no picker shows; the chat books leave conversations
+without a message behind them and assert the picker at every press.
+
 ## Running it on Linux and Windows
 
 The harness is not macOS-bound: the runner is TypeScript inside the app, the

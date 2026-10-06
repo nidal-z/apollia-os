@@ -36,7 +36,9 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
+  import { chatDoubleClickRename } from "$lib/stores/chatBehaviours";
+  import { chatTokenCount, formatTokenCount } from "$lib/stores/chatTokenCount";
   import { FolderPlus } from "lucide-svelte";
   import { ConversationRow } from "$lib/components/operator";
   import type { SidebarDensity } from "$lib/stores/chatSessions";
@@ -173,6 +175,12 @@
       folders={moveTargets}
       folderId={folderIdOf($chatFolders, session.id)}
       onmove={(folderId) => move(session.id, folderId)}
+      renameOnDoubleClick={$chatDoubleClickRename}
+      tokens={$chatTokenCount
+        ? $t("chat.conversation_tokens", {
+            values: { count: formatTokenCount(session.output_tokens ?? 0, $locale ?? "en") },
+          })
+        : undefined}
     />
   </div>
 {/snippet}
@@ -240,6 +248,7 @@
       ondelete={() => void run(() => deleteFolder(group.folder.id))}
       ondropsession={(sessionId) => move(sessionId, group.folder.id)}
       onrenamed={() => (namingFolderId = null)}
+      renameOnDoubleClick={$chatDoubleClickRename}
     />
     {#if !collapsed}
       {#if group.sessions.length === 0}

@@ -11,6 +11,7 @@ import { locale, waitLocale } from "svelte-i18n";
 import { LOCALE_STORAGE_KEY } from "$lib/i18n";
 import { NOTICE_SEEN_KEY } from "$lib/projectMigration/notice";
 import { CHAT_TRASH_DEFAULT, chatTrashEnabled } from "$lib/stores/chatTrash";
+import { CHAT_TOKEN_COUNT_DEFAULT, chatTokenCount } from "$lib/stores/chatTokenCount";
 
 /**
  * Pins the interface language for the run.
@@ -62,6 +63,9 @@ export function resetDeterministicUiState(): void {
   // restores from it. The store read its value when the module loaded, so it
   // is set back rather than only forgotten (its subscriber rewrites the key).
   chatTrashEnabled.set(CHAT_TRASH_DEFAULT);
+  // chatTokenCount.ts: the count under each conversation is off by default,
+  // and the books read the rows of the list without it.
+  chatTokenCount.set(CHAT_TOKEN_COUNT_DEFAULT);
   // The seeded home still holds the former projects, so every boot migrates
   // them and the notice of that migration would cover the first page a book
   // opens. It is marked as shown for both outcomes: the notice itself is a

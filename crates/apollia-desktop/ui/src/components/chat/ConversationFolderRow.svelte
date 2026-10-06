@@ -1,5 +1,6 @@
 <!--
-  A folder of the conversation list: fold it, rename it, remove it, and drop a
+  A folder of the conversation list: fold it, rename it (from its menu, or by
+  a double click on its name when Settings > Chat allows it), remove it, and drop a
   conversation on it. Removing a folder removes no conversation; the menu says
   so next to the action.
 -->
@@ -16,6 +17,7 @@
   import { t } from "svelte-i18n";
   import { ChevronDown, ChevronRight, Edit3, Folder, MoreHorizontal, Trash2 } from "lucide-svelte";
   import { ActionMenu } from "$lib/components/ui/action-menu";
+  import { doubleClickRenames } from "$lib/chat/chatBehaviours";
   import {
     FOLDER_NAME_MAX_CHARS,
     carriesSession,
@@ -38,6 +40,8 @@
     ondropsession: (sessionId: string) => void;
     /** The name stopped being edited, kept or not. */
     onrenamed?: () => void;
+    /** Whether a double click on the name renames the folder. */
+    renameOnDoubleClick?: boolean;
   }
 
   let {
@@ -51,6 +55,7 @@
     ondelete,
     ondropsession,
     onrenamed,
+    renameOnDoubleClick = true,
   }: Props = $props();
 
   let menuOpen = $state(false);
@@ -143,6 +148,9 @@
       class="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       aria-expanded={!collapsed}
       onclick={ontoggle}
+      ondblclick={() => {
+        if (doubleClickRenames(renameOnDoubleClick, true)) void startEdit();
+      }}
       data-testid="chat-folder-toggle"
     >
       {#if collapsed}

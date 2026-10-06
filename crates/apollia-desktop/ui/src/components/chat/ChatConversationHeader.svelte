@@ -10,6 +10,8 @@
    */
   import { tick } from "svelte";
   import { t } from "svelte-i18n";
+  import { doubleClickRenames } from "$lib/chat/chatBehaviours";
+  import { chatDoubleClickRename } from "$lib/stores/chatBehaviours";
   import {
     X,
     Bot,
@@ -243,7 +245,9 @@
       {:else}
         <button
           type="button"
-          ondblclick={startEdit}
+          ondblclick={() => {
+            if (doubleClickRenames($chatDoubleClickRename, true)) startEdit();
+          }}
           class="group flex min-w-0 items-center gap-1 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-muted/40"
           aria-label={$t("chat.rename_session")}
           data-testid="chat-header-title"

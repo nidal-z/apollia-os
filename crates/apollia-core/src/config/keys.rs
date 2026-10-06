@@ -122,6 +122,7 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("llm.guardrails.ceiling_gb", Float, None, Reloadable, "Largest estimate, in gigabytes, the ceiling level launches.")),
     locked(key("llm.guardrails.bypass", Enum(&["confirm", "unrestricted"]), Some("\"confirm\""), Reloadable, "What loading a refused model anyway asks first: confirm, an explicit confirmation, or unrestricted, nothing.")),
     locked(key("llm.residency.idle_unload_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads.")),
+    locked(key("llm.residency.unload_before_load", Boolean, Some("false"), Reloadable, "Before a local model is loaded, unload the resident ones that are not pinned and answer no request; off, several models stay loaded together.")),
     locked(key("llm.defaults.context", Enum(&["custom", "model_max"]), Some("\"custom\""), Reloadable, "Context window of a local model that neither APOLLIA_LLAMA_N_CTX, nor a preset, nor its backend fixes: custom, the figure of llm.defaults.context_tokens, or model_max, the length the model was trained for.")),
     locked(key("llm.defaults.context_tokens", Integer, Some("0"), Reloadable, "Default context window, in tokens, when llm.defaults.context is custom; 0 lets the engine size it to the memory of this machine, model by model, up to 32768.")),
     locked(key("llm.images.limit_side", Boolean, Some("true"), Reloadable, "Scale an image down before it is sent to a model when its largest side exceeds llm.images.max_side_px.")),
@@ -194,6 +195,10 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("desktop.chat_auto_naming", Enum(&["never", "auto", "always"]), Some("\"auto\""), Reloadable, "Name a new conversation from its first message: never, automatically when the model generates fast enough, or always.")),
     locked(key("desktop.chat_debug_blocks", Boolean, Some("true"), Reloadable, "With the developer mode on, show the raw data of a tool step and the detailed trace in a conversation.")),
     locked(key("desktop.resource_widget", Boolean, Some("false"), Reloadable, "Show the processor, the memory and the video memory in use at the foot of the sidebar.")),
+    locked(key("desktop.chat_single_empty", Boolean, Some("true"), Reloadable, "Open the empty conversation that already exists rather than a second one.")),
+    locked(key("desktop.chat_double_click_edit", Boolean, Some("false"), Reloadable, "Open the edition of a message of a conversation on a double click.")),
+    locked(key("desktop.chat_double_click_rename", Boolean, Some("true"), Reloadable, "Rename a conversation or a folder of the list on a double click.")),
+    locked(key("desktop.chat_regenerate_shortcut", Boolean, Some("true"), Reloadable, "Regenerate the last answer of the conversation shown with Cmd + R on a Mac, Ctrl + R elsewhere.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),

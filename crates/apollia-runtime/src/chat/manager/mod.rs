@@ -243,6 +243,7 @@ mod handle;
 mod handle_ext;
 mod images;
 mod libre;
+mod listing;
 mod live_config;
 mod plan;
 mod session;

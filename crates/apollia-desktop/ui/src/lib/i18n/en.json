@@ -2139,7 +2139,8 @@
         "companion_toggle": "Open the guide on the current screen",
         "companion_focus": "Focus the Companion input",
         "settings_engines": "Open System > Engines",
-        "settings_hardware": "Open System > Hardware"
+        "settings_hardware": "Open System > Hardware",
+        "chat_regenerate": "Regenerate the last answer, or reload the last model when none is loaded"
       },
       "reserved": "OS reserved",
       "reserved_hint": "Reserved by the operating system and cannot be reassigned.",
@@ -2827,7 +2828,22 @@
       "naming_always": "Always",
       "naming_always_hint": "Apollia names every new conversation, whatever the generation speed.",
       "trash_label": "Send deleted conversations to the trash",
-      "trash_hint": "Deleted conversations go to the Apollia trash, where you can restore them. Off, a deleted conversation is gone for good."
+      "trash_hint": "Deleted conversations go to the Apollia trash, where you can restore them. Off, a deleted conversation is gone for good.",
+      "single_empty_label": "Only one empty conversation at a time",
+      "single_empty_hint": "On, \"New conversation\" opens the empty conversation that already exists instead of creating another one; its agent or model is chosen from the top bar.",
+      "unload_before_load_label": "Unload the loaded models before loading another one",
+      "unload_before_load_hint": "Off, several models stay loaded together as long as memory allows. On, loading a model unloads the others first; a model kept in memory or answering stays loaded.",
+      "double_click_edit_label": "Double-click a message to edit it",
+      "double_click_edit_hint": "On, a double click on one of your messages opens it for editing. Off, you edit it with its dedicated action.",
+      "token_count_label": "Show the token count in the conversation list",
+      "token_count_hint": "Each conversation of the list shows the tokens the model generated for it.",
+      "double_click_rename_label": "Double-click a conversation or a folder to rename it",
+      "double_click_rename_hint": "On, a double click on the name of a conversation or a folder, in the list or at the top of the conversation, lets you rename it. Off, you rename it from its menu.",
+      "regenerate_label_mac": "Use ⌘ + R to regenerate the last answer",
+      "regenerate_hint_mac": "In a conversation, ⌘ + R regenerates the last answer. When no model is loaded, ⌘ + R reloads the last model, whether this setting is on or off.",
+      "regenerate_label_other": "Use Ctrl + R to regenerate the last answer",
+      "regenerate_hint_other": "In a conversation, Ctrl + R regenerates the last answer. When no model is loaded, Ctrl + R reloads the last model, whether this setting is on or off.",
+      "write_failed": "The setting could not be saved."
     },
     "integrations_section": {
       "subtitle": "What Apollia grants by default, and what is always authorized.",
@@ -3720,7 +3736,8 @@
       "newest": "Newest first",
       "oldest": "Oldest first",
       "activity": "Latest activity",
-      "name": "Name, A to Z"
+      "name": "Name, A to Z",
+      "tokens": "Most tokens first"
     },
     "step": {
       "toggle": "Show or hide the step detail",
@@ -3839,7 +3856,8 @@
       "label": "Reload the last model",
       "reloading": "Reloading",
       "refused": "The last model could not be reloaded as it was: {error}"
-    }
+    },
+    "conversation_tokens": "{count} tokens"
   },
   "transcriptions": {
     "title": "Transcriptions",
