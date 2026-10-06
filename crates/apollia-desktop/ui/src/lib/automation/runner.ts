@@ -14,6 +14,7 @@ import { seam } from "./invokeSeam";
 import { simulateHeartbeatLoss } from "../stores/runtimeHealth";
 import { clearToasts } from "$lib/components/ui/toast";
 import { waitClickable } from "./clickable";
+import { elapsedVerdict } from "./timing";
 import type {
   AutomationBoot,
   RunReport,
@@ -565,6 +566,15 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
         argsMatch: step.argsMatch,
       });
       return `stubbed ${step.command} (${mode}${step.once ? ", once" : ""})`;
+    }
+    case "expectElapsed": {
+      // Since the webview started loading the interface: the launch, as far
+      // as a recipe can observe it. The measure is kept whichever way the
+      // verdict falls, since the number is what the report is read for.
+      const verdict = elapsedVerdict(performance.now(), step.maxMs);
+      captures[step.as] = String(verdict.elapsedMs);
+      if (!verdict.ok) throw new Error(verdict.detail);
+      return verdict.detail;
     }
     case "clearToasts": {
       clearToasts();

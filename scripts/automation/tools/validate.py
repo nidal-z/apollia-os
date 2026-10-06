@@ -73,6 +73,7 @@ SCHEMAS = {
     "resizeWindow": ({"width", "height"}, set(), None),
     "fault": ({"name"}, set(), None),
     "emitEvent": ({"event"}, {"payload"}, None),
+    "expectElapsed": ({"maxMs", "as"}, set(), None),
 }
 SCRIPT_KEYS = {"name", "stopOnError", "destructive", "notes", "dynamicTestids", "steps"}
 
