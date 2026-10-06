@@ -26,7 +26,7 @@ function offeredIds(): string[] {
   return get(paletteGroups).flatMap((group) => group.items.map((item) => item.id));
 }
 
-const TECHNICAL = ["nav.transcriptions", "nav.memory", "nav.observability"];
+const TECHNICAL = ["nav.developer", "nav.transcriptions", "nav.memory", "nav.observability"];
 const FOR_EVERYONE = ["nav.chat", "nav.llm", "agents.create", "automations.create", "chat.new"];
 
 describe("paletteIndex - the developer mode filters the technical actions", () => {
@@ -58,14 +58,14 @@ describe("paletteIndex - the developer mode filters the technical actions", () =
     for (const id of [...FOR_EVERYONE, ...TECHNICAL]) expect(ids).toContain(id);
   });
 
-  test("only the three technical pages carry the developer flag", () => {
+  test("only the technical pages carry the developer flag", () => {
     // GIVEN the real action catalogue
     const actions = buildPaletteActions();
 
     // WHEN the flagged actions are listed
     const flagged = actions.filter((action) => action.developer).map((action) => action.id);
 
-    // THEN they are exactly Transcriptions, Memory and Observability
+    // THEN they are exactly Developer, Transcriptions, Memory and Observability
     expect(flagged.sort()).toEqual([...TECHNICAL].sort());
   });
 });

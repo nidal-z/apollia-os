@@ -10,7 +10,7 @@ use serde_json::Value;
 use super::{AttachedError, RuntimeLink};
 use crate::commands::{
     http_delete_json, http_get_for_file, http_get_json, http_patch_json, http_post_for_file,
-    http_post_json, http_put_json,
+    http_post_json, http_post_json_refusable, http_put_json, HttpFailure,
 };
 
 impl RuntimeLink {
@@ -44,6 +44,28 @@ impl RuntimeLink {
         match self {
             Self::Embedded(runtime) => http_post_json(runtime.api_port, path, body).await,
             Self::Attached(remote) => Ok(remote.post(path, body).await?),
+        }
+    }
+
+    /// [`Self::post_json`] for a caller that tells one refusal from another:
+    /// the failure keeps the HTTP status the runtime answered, in both arms.
+    pub(crate) async fn post_json_refusable(
+        &self,
+        path: &str,
+        body: &Value,
+    ) -> Result<Value, HttpFailure> {
+        match self {
+            Self::Embedded(runtime) => http_post_json_refusable(runtime.api_port, path, body).await,
+            Self::Attached(remote) => remote.post(path, body).await.map_err(|error| {
+                let status = match &error {
+                    AttachedError::Refused { status, .. } => Some(*status),
+                    _ => None,
+                };
+                HttpFailure {
+                    status,
+                    message: error.into(),
+                }
+            }),
         }
     }
 

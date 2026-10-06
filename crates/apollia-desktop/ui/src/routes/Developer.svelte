@@ -1,11 +1,38 @@
 <script lang="ts">
   /**
    * The developer screen, reached from the developer entry of the sidebar with
-   * the developer mode on. It holds its title and nothing else yet.
+   * the developer mode on: the local server and its logs, and the
+   * documentation. Each pane is its own component.
    */
-  import { t } from "svelte-i18n";
+  import { developerMode } from "$lib/stores/developerMode";
+  import DeveloperColumn from "../components/developer/DeveloperColumn.svelte";
+  import DocumentationPane from "../components/developer/DocumentationPane.svelte";
+  import LocalServerPane from "../components/developer/LocalServerPane.svelte";
+  import LogsPane from "../components/developer/LogsPane.svelte";
+  import {
+    DEFAULT_DEVELOPER_VIEW,
+    panesOf,
+    screenVisible,
+    type DeveloperView,
+  } from "../components/developer/developerScreen";
+
+  let view = $state<DeveloperView>(DEFAULT_DEVELOPER_VIEW);
+  const panes = $derived(panesOf(view));
 </script>
 
-<section class="flex h-full flex-col p-6" data-testid="developer-page">
-  <h1 class="text-heading-lg font-semibold text-foreground">{$t("nav.developer")}</h1>
-</section>
+{#if screenVisible($developerMode)}
+  <div class="flex h-full min-h-0" data-testid="developer-page">
+    <DeveloperColumn {view} onview={(next) => (view = next)} />
+    <div class="flex min-w-0 flex-1 flex-col">
+      {#if panes.includes("server")}
+        <LocalServerPane />
+      {/if}
+      {#if panes.includes("documentation")}
+        <DocumentationPane />
+      {/if}
+      {#if panes.includes("logs")}
+        <LogsPane />
+      {/if}
+    </div>
+  </div>
+{/if}

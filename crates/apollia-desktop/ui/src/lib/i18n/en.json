@@ -2113,14 +2113,16 @@
         "navigation": "Navigation",
         "chat": "Chat",
         "settings": "Settings",
-        "companion": "Companion"
+        "companion": "Companion",
+        "developer": "Developer"
       },
       "scope": {
         "chat": "Inside Chat",
         "settings": "Inside Settings",
         "dialog": "Inside a dialog",
         "global_label": "Global",
-        "contextual_label": "Contextual"
+        "contextual_label": "Contextual",
+        "developer": "On the Developer screen"
       },
       "items": {
         "palette_open": "Open the Command Palette",
@@ -2140,7 +2142,8 @@
         "companion_toggle": "Open the guide on the current screen",
         "companion_focus": "Focus the Companion input",
         "settings_engines": "Open System > Engines",
-        "settings_hardware": "Open System > Hardware"
+        "settings_hardware": "Open System > Hardware",
+        "developer_server_toggle": "Start or stop the local server"
       },
       "reserved": "OS reserved",
       "reserved_hint": "Reserved by the operating system and cannot be reassigned.",
@@ -4791,6 +4794,37 @@
           "invalid_json_object": "Type a JSON object, between braces.",
           "reserved_field": "The fields model, messages, stream, stream_options, tools and tool_choice cannot be added here."
         }
+      }
+    },
+    "developer": {
+      "views": {
+        "server": "Local server",
+        "documentation": "Documentation"
+      },
+      "logs": {
+        "title": "Server logs"
+      },
+      "settings_hint": "The developer mode and the MCP bridge are set in Settings.",
+      "settings_link": "Settings › Developer",
+      "server": {
+        "status_running": "Server: Running",
+        "status_stopped": "Server: Stopped",
+        "status_error": "Server: Error",
+        "status_unknown": "Server: reading…",
+        "switch_label": "Start or stop the local server",
+        "shortcut_label": "Shortcut to start or stop the server",
+        "reachable_at": "Reachable at",
+        "copy": "Copy the address",
+        "copied": "Address copied",
+        "copy_failed": "The address could not be copied.",
+        "no_address_stopped": "Stopped: no reachable address",
+        "no_address": "No reachable address",
+        "port_in_use": "Port {port} is already used by another application: the server could not start. Free this port or choose another one.",
+        "failed": "The server did not answer the request: {error}",
+        "unreadable": "The state of the server could not be read: {error}",
+        "load_model": "Load a model",
+        "load_reading": "Reading the models…",
+        "load_empty": "No model of this computer is waiting to be loaded."
       }
     }
   },

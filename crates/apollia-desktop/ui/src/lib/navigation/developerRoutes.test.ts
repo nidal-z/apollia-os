@@ -20,6 +20,7 @@ import { get } from "svelte/store";
 import { DEFAULT_ROUTE, DEVELOPER_ROUTES, reachableRoute } from "./developerRoutes";
 import { currentRoute, type Route } from "$lib/stores/navigation";
 import { buildPaletteActions } from "$lib/command-palette/actions";
+import { filterByDeveloperMode } from "$lib/command-palette/paletteIndex";
 
 describe("developerRoutes - the router keeps the developer screens out of reach", () => {
   test.each(["observability", "transcriptions", "memory", "developer"] as const)(
@@ -93,6 +94,19 @@ describe("developerRoutes - the router keeps the developer screens out of reach"
     // THEN the packaged build falls back to the chat
     expect(packaged).toBe("chat");
     expect(development).toBe("design");
+  });
+
+  test("the palette lists the developer screen with the mode on and not with it off", () => {
+    // GIVEN the real palette catalogue
+    const actions = buildPaletteActions();
+
+    // WHEN it is filtered for each position of the developer mode
+    const off = filterByDeveloperMode(actions, false).map((action) => action.id);
+    const on = filterByDeveloperMode(actions, true).map((action) => action.id);
+
+    // THEN the screen is offered with the mode on only
+    expect(off).not.toContain("nav.developer");
+    expect(on).toContain("nav.developer");
   });
 
   test("the palette flags every developer route, so it does not list them with the mode off", () => {

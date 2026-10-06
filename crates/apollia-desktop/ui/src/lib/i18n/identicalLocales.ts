@@ -141,6 +141,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
+  "dev.developer.views.documentation", // Documentation
   "dev.journal.arguments", // Arguments
   "integrations.wizard.local_loopback_badge", // Local
   "journal.detail.action", // Action

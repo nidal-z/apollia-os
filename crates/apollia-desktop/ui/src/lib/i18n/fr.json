@@ -2113,14 +2113,16 @@
         "navigation": "Navigation",
         "chat": "Chat",
         "settings": "Réglages",
-        "companion": "Companion"
+        "companion": "Companion",
+        "developer": "Développeur"
       },
       "scope": {
         "chat": "Dans le Chat",
         "settings": "Dans les Réglages",
         "dialog": "Dans une fenêtre",
         "global_label": "Global",
-        "contextual_label": "Contextuel"
+        "contextual_label": "Contextuel",
+        "developer": "Dans l'écran Développeur"
       },
       "items": {
         "palette_open": "Ouvrir la palette de commandes",
@@ -2140,7 +2142,8 @@
         "companion_toggle": "Ouvrir le guide sur l'écran courant",
         "companion_focus": "Focaliser la saisie du Companion",
         "settings_engines": "Ouvrir Système > Moteurs",
-        "settings_hardware": "Ouvrir Système > Matériel"
+        "settings_hardware": "Ouvrir Système > Matériel",
+        "developer_server_toggle": "Démarrer ou arrêter le serveur local"
       },
       "reserved": "Réservé OS",
       "reserved_hint": "Réservé par le système d'exploitation, non réassignable.",
@@ -4791,6 +4794,37 @@
           "invalid_json_object": "Saisissez un objet JSON, entre accolades.",
           "reserved_field": "Les champs model, messages, stream, stream_options, tools et tool_choice ne peuvent pas être ajoutés ici."
         }
+      }
+    },
+    "developer": {
+      "views": {
+        "server": "Serveur local",
+        "documentation": "Documentation"
+      },
+      "logs": {
+        "title": "Journaux du serveur"
+      },
+      "settings_hint": "Le mode développeur et le pont MCP se règlent dans Réglages.",
+      "settings_link": "Réglages › Développeur",
+      "server": {
+        "status_running": "Serveur : En marche",
+        "status_stopped": "Serveur : Arrêté",
+        "status_error": "Serveur : Erreur",
+        "status_unknown": "Serveur : lecture…",
+        "switch_label": "Démarrer ou arrêter le serveur local",
+        "shortcut_label": "Raccourci pour démarrer ou arrêter le serveur",
+        "reachable_at": "Joignable à",
+        "copy": "Copier l'adresse",
+        "copied": "Adresse copiée",
+        "copy_failed": "L'adresse n'a pas pu être copiée.",
+        "no_address_stopped": "Arrêté : aucune adresse joignable",
+        "no_address": "Aucune adresse joignable",
+        "port_in_use": "Le port {port} est déjà utilisé par une autre application : le serveur n'a pas pu démarrer. Libérez ce port ou choisissez-en un autre.",
+        "failed": "Le serveur n'a pas répondu à la demande : {error}",
+        "unreadable": "L'état du serveur n'a pas pu être lu : {error}",
+        "load_model": "Charger un modèle",
+        "load_reading": "Lecture des modèles…",
+        "load_empty": "Aucun modèle de cet ordinateur n'attend d'être chargé."
       }
     }
   },

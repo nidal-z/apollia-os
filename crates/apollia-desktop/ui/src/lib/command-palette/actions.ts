@@ -13,6 +13,7 @@ import { get } from "svelte/store";
 import { t } from "svelte-i18n";
 import {
   Bot,
+  Code,
   MessageSquare,
   ShieldCheck,
   Plug,
@@ -130,6 +131,7 @@ export function buildPaletteActions(): PaletteAction[] {
     nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], true),
     nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], true),
     nav("nav.observability", "observability", "nav.observability", Activity, ["observability", "metrics"], true),
+    nav("nav.developer", "developer", "nav.developer", Code, ["developer", "server", "api", "documentation", "logs"], true),
     nav("nav.policy", "policy", "nav.policy", Landmark, ["policy", "politique", "organisation", "organization"]),
     nav("nav.authorizations", "authorizations", "nav.authorizations", KeyRound, ["authorizations", "autorisations", "permissions", "rules"]),
     nav("nav.journal", "journal", "nav.journal", ScrollText, ["journal", "audit", "history", "historique", "activity"]),
