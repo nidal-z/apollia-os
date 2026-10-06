@@ -21,8 +21,8 @@ import { CAPABILITIES, capabilityExplanationKey, capabilityLabelKey } from "./ex
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "../..");
 
-/** The sources of the AI screen, relative to `src/`. */
-const SCREEN_SOURCES = ["components/ai", "routes/Ai.svelte"];
+/** The sources of the AI screen, and of the developer screen that draws its cards, relative to `src/`. */
+const SCREEN_SOURCES = ["components/ai", "routes/Ai.svelte", "components/developer"];
 
 /** The lucide icons that stand for a capability; only `CapabilityIcon` draws them. */
 const CAPABILITY_ICONS = ["Eye", "Wrench", "Lightbulb", "Brain"];

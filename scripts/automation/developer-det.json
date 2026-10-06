@@ -1,16 +1,22 @@
 {
-  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the model picker, the link back to the settings)",
+  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the model picker, the cards of the loaded models and of the exposed agents and workflows, an eject, the link back to the settings)",
   "stopOnError": false,
   "notes": [
-    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte and components/developer/localServer.ts.",
+    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte, ServerModelsSection.svelte, ExposedItemsSection.svelte, SupportedEndpoints.svelte, components/ai/LoadedModelCard.svelte, and components/developer/localServer.ts and servedItems.ts.",
     "The start and the stop are real: they reach the compatible server of the runtime of the seeded home, on the port of its [server] section (7772 unless the seed says otherwise). A machine where another program holds that port shows the taken-port error on the first start and reds the steps that wait for the address; that is the machine, not the product.",
     "The taken-port state is stubbed: start_local_server rejects with the LocalServerRefusal of crates/apollia-desktop/src/commands/local_server.rs (kind port_in_use). A field renamed there drifts here silently. The stub is cleared before the next start, which is real and clears the error.",
     "The copy button is clicked, not asserted: the clipboard of the webview may refuse a write that no user gesture started, and the copy itself is held by the Vitest suite.",
     "The picker of Load a model is opened and closed without choosing: the models of the seed are placeholders, and the loading window is played by llm-det.",
+    "The cards are stubbed: list_loaded_models resolves a LoadedModelsResponse (ui/src/lib/types/llm.ts), list_mcp_exposable a list of McpExposableItem (crates/apollia-desktop/src/commands/mcp_bridge.rs), get_workflow a WorkflowView (ui/src/lib/ipc/workflows.ts), unload_loaded_model an UnloadedModel. A field renamed there drifts here silently. The seed loads no model and exposes nothing the book could count on. The stubs are armed while the documentation view is shown, so the local server pane reads them when it mounts again; they are all cleared after the eject.",
+    "The foot Supported endpoints is asserted, not clicked: while the documentation pane reads no page it opens the documentation site in the browser of the machine.",
     "The book leaves the server stopped and the developer mode off, as it found them.",
     "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run."
   ],
   "dynamicTestids": [
+    "ai-capability-tools",
+    "developer-exposed-card-brouillon",
+    "developer-exposed-card-factures_relance",
+    "developer-exposed-card-qualifier-demandes",
     "developer-server-error-port_in_use",
     "nav-developer",
     "settings-nav-developer"
@@ -72,6 +78,19 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_mcp_exposable",
+      "resolve": [
+        {
+          "kind": "agent",
+          "item_id": "qualifier-demandes",
+          "name": "Qualify requests",
+          "description": "",
+          "exposed": false
+        }
+      ]
+    },
+    {
       "kind": "click",
       "testid": "nav-developer"
     },
@@ -112,6 +131,27 @@
     {
       "kind": "expect",
       "testid": "developer-load-model"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-models-section"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-exposed-section"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-exposed-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-exposed-open-settings"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-endpoints"
     },
     {
       "kind": "screenshot",
@@ -253,6 +293,93 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "clearStubs",
+      "command": "list_mcp_exposable"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_mcp_exposable",
+      "resolve": [
+        {
+          "kind": "agent",
+          "item_id": "qualifier-demandes",
+          "name": "Qualify requests",
+          "description": "",
+          "exposed": true
+        },
+        {
+          "kind": "workflow",
+          "item_id": "factures/relance",
+          "name": "Invoice reminder",
+          "description": "",
+          "exposed": true
+        },
+        {
+          "kind": "agent",
+          "item_id": "brouillon",
+          "name": "Draft",
+          "description": "",
+          "exposed": false
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_workflow",
+      "resolve": {
+        "workflowId": "factures/relance",
+        "version": "1.0.0",
+        "description": "",
+        "steps": [],
+        "inputs": [
+          {
+            "name": "client",
+            "kind": "text",
+            "required": true,
+            "nullable": false
+          },
+          {
+            "name": "periode",
+            "kind": "text",
+            "required": true,
+            "nullable": false
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": 1,
+        "models": [
+          {
+            "engine": "llama-server",
+            "kind": "chat",
+            "model": "Phi-3-mini-Q4",
+            "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+            "port": 8081,
+            "nCtx": 4096,
+            "nGpuLayers": 0,
+            "nParallel": 4,
+            "loadedAt": "2026-01-01T00:00:00Z",
+            "lastUsedAt": "2026-01-01T00:00:00Z",
+            "activeRequests": 0,
+            "origin": "app",
+            "footprintGb": 2.5,
+            "modelId": "microsoft/phi-3-mini",
+            "sizeBytes": 2400000000,
+            "capabilities": {
+              "tools": true,
+              "vision": false,
+              "reasoning": false
+            }
+          }
+        ]
+      }
+    },
+    {
       "kind": "click",
       "testid": "developer-view-server"
     },
@@ -265,6 +392,171 @@
       "kind": "waitFor",
       "testid": "developer-pane-logs",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-loaded-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-ready"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-kind",
+      "contains": "llm"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-name",
+      "contains": "microsoft/phi-3-mini"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-capability-tools"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-models-count",
+      "contains": "1"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-model-size"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-model-parallel",
+      "contains": "4"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-model-detail"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-model-copy"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-exposed-card-qualifier-demandes",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-exposed-card-factures_relance"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-exposed-identifier",
+      "contains": "apollia/qualifier-demandes"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-exposed-count",
+      "contains": "2"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-exposed-inputs"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-exposed-card-brouillon",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-exposed-empty",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-exposed-copy"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-developer-served-cards"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_loaded_models"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": 1,
+        "models": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "unload_loaded_model",
+      "resolve": {
+        "engine": "llama-server",
+        "model": "Phi-3-mini-Q4",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "developer-model-eject"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-models-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-loaded-card",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-view-documentation"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-pane-server",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": false,
+        "maxLoaded": 0,
+        "models": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_mcp_exposable",
+      "reject": "the Apollia service does not answer"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-view-server"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-models-no-engine",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-exposed-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs"
     },
     {
       "kind": "click",

@@ -4988,6 +4988,40 @@
         "load_model": "Load a model",
         "load_reading": "Reading the models…",
         "load_empty": "No model of this computer is waiting to be loaded."
+      },
+      "models": {
+        "title": "Loaded models",
+        "empty": "No model is loaded. \"Load a model\" puts one in memory.",
+        "size": "{size} GB",
+        "parallel": "Parallel {count}",
+        "eject": "Eject",
+        "eject_failed": "{name} could not be ejected: {error}",
+        "copy_id": "Copy the identifier",
+        "copied": "Identifier copied.",
+        "copy_failed": "The identifier could not be copied.",
+        "detail": "Detail and settings",
+        "detail_unavailable": "This file is not in the list of models of this computer: its settings do not open from here."
+      },
+      "exposed": {
+        "title": "Exposed agents and workflows",
+        "badge": "Exposed",
+        "badge_explanation": "Another application can call it through the local server, like a model.",
+        "agent_explanation": "An agent: it takes a message and answers once its work is done.",
+        "workflow_explanation": "A workflow: it takes a JSON object that carries its inputs.",
+        "inputs_message": "Inputs: message",
+        "inputs_fields": "Inputs: {names}",
+        "inputs_none": "Inputs: none",
+        "inputs_unknown": "Inputs: not read",
+        "governed": "Governed: access, consents, budget",
+        "error": "The list of exposed agents and workflows could not be read.",
+        "empty_title": "No exposed agent or workflow",
+        "empty_body": "Tick an agent or a workflow under \"Exposed agents and workflows\", in Settings › Developer: it will appear here under the identifier {identifier}, and its calls will stay governed.",
+        "empty_action": "Open Settings › Developer"
+      },
+      "endpoints": {
+        "title": "Supported endpoints",
+        "summary": "OpenAI: chat, responses, models, embeddings · Anthropic: messages · Apollia API",
+        "open": "Open the page of supported endpoints"
       }
     }
   },

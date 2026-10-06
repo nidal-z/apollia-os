@@ -9,17 +9,9 @@
   import type { LoadedModel, LoadedModelsResponse } from "$lib/types";
   import { formatRelativeTime } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
-  import CapabilityIcon from "./CapabilityIcon.svelte";
-  import ExplainedBadge from "./ExplainedBadge.svelte";
-  import { capabilitiesOf } from "./explanations";
+  import LoadedModelCard from "./LoadedModelCard.svelte";
   import { canUnload, isKeptInMemory } from "./loadedModels";
-  import {
-    gigabytes,
-    loadedFormat,
-    loadedKindExplanationKey,
-    loadedKindKey,
-    loadedMemoryBytes,
-  } from "./aiModels";
+  import { gigabytes, loadedMemoryBytes } from "./aiModels";
 
   interface Props {
     view: LoadedModelsResponse | null;
@@ -81,57 +73,8 @@
         {@const memory = loadedMemoryBytes(item)}
         {@const answering = !canUnload(item)}
         {@const kept = isKeptInMemory(pins, item)}
-        <div
-          class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3"
-          data-testid="ai-loaded-card"
-        >
-          <div class="min-w-0 space-y-1.5">
-            <div class="flex flex-wrap items-center gap-1.5">
-              {#if answering}
-                <ExplainedBadge
-                  label={$t("ai.loaded.answering")}
-                  explanation={$t("ai.loaded.answering_explanation")}
-                  variant="warning"
-                  testid="ai-loaded-answering"
-                />
-              {:else}
-                <ExplainedBadge
-                  label={$t("ai.loaded.ready")}
-                  explanation={$t("ai.loaded.ready_explanation")}
-                  variant="success"
-                  testid="ai-loaded-ready"
-                />
-              {/if}
-              <ExplainedBadge
-                label={$t(loadedKindKey(item))}
-                explanation={$t(loadedKindExplanationKey(item))}
-                testid="ai-loaded-kind"
-              />
-              <ExplainedBadge
-                label={loadedFormat(item).toUpperCase()}
-                explanation={$t("ai.format_explanation")}
-                help
-                testid="ai-loaded-format"
-              />
-              {#if kept}
-                <ExplainedBadge
-                  label={$t("ai.loaded.kept")}
-                  explanation={$t("ai.loaded.kept_explanation")}
-                  variant="primary"
-                  testid="ai-loaded-kept"
-                />
-              {/if}
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="truncate text-sm font-medium text-foreground" data-testid="ai-loaded-name">
-                {item.modelId ?? item.model}
-              </span>
-              {#each capabilitiesOf(item.capabilities) as capability (capability)}
-                <CapabilityIcon {capability} />
-              {/each}
-            </div>
-          </div>
-          <div class="flex shrink-0 items-center gap-4">
+        <LoadedModelCard model={item} {kept}>
+          {#snippet facts()}
             {#if memory !== null}
               <span class="text-sm text-foreground" data-testid="ai-loaded-memory">
                 {$t("ai.loaded.memory", { values: { size: gigabytes(memory, lang) } })}
@@ -140,6 +83,8 @@
             <span class="text-xs text-muted-foreground" data-testid="ai-loaded-since">
               {$t("ai.loaded.since", { values: { when: formatRelativeTime(item.loadedAt, lang) } })}
             </span>
+          {/snippet}
+          {#snippet actions()}
             <button
               type="button"
               class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 {kept
@@ -163,8 +108,8 @@
             >
               {$t("ai.loaded.unload")}
             </Button>
-          </div>
-        </div>
+          {/snippet}
+        </LoadedModelCard>
       {/each}
     </div>
   {/if}

@@ -4988,6 +4988,40 @@
         "load_model": "Charger un modèle",
         "load_reading": "Lecture des modèles…",
         "load_empty": "Aucun modèle de cet ordinateur n'attend d'être chargé."
+      },
+      "models": {
+        "title": "Modèles chargés",
+        "empty": "Aucun modèle n'est chargé. « Charger un modèle » en met un en mémoire.",
+        "size": "{size} Go",
+        "parallel": "Parallèle {count}",
+        "eject": "Éjecter",
+        "eject_failed": "{name} n'a pas pu être éjecté : {error}",
+        "copy_id": "Copier l'identifiant",
+        "copied": "Identifiant copié.",
+        "copy_failed": "L'identifiant n'a pas pu être copié.",
+        "detail": "Détail et réglages",
+        "detail_unavailable": "Ce fichier n'est pas dans la liste des modèles de cet ordinateur : ses réglages ne s'ouvrent pas d'ici."
+      },
+      "exposed": {
+        "title": "Agents et workflows exposés",
+        "badge": "Exposé",
+        "badge_explanation": "Une autre application peut l'appeler par le serveur local, comme un modèle.",
+        "agent_explanation": "Un agent : il reçoit un message et répond quand il a fini son travail.",
+        "workflow_explanation": "Un workflow : il reçoit un objet JSON qui porte ses entrées.",
+        "inputs_message": "Entrées : message",
+        "inputs_fields": "Entrées : {names}",
+        "inputs_none": "Entrées : aucune",
+        "inputs_unknown": "Entrées : non lues",
+        "governed": "Gouverné : accès, consentements, budget",
+        "error": "La liste des agents et workflows exposés n'a pas pu être lue.",
+        "empty_title": "Aucun agent ni workflow exposé",
+        "empty_body": "Cochez un agent ou un workflow sous « Agents et workflows exposés », dans Réglages › Développeur : il apparaîtra ici sous l'identifiant {identifier}, et ses appels resteront gouvernés.",
+        "empty_action": "Ouvrir Réglages › Développeur"
+      },
+      "endpoints": {
+        "title": "Points d'accès pris en charge",
+        "summary": "OpenAI : chat, réponses, modèles, embeddings · Anthropic : messages · API d'Apollia",
+        "open": "Ouvrir la page des points d'accès pris en charge"
       }
     }
   },
