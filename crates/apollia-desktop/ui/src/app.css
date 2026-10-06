@@ -1409,6 +1409,13 @@
   font-weight: var(--chat-font-weight);
 }
 
+/* User turn in the "blocks" style: the width of the column, no bubble. */
+.chat-user-block {
+  color: hsl(var(--foreground));
+  font-size: calc(var(--text-chat-user) * var(--chat-font-scale));
+  font-weight: var(--chat-font-weight);
+}
+
 /* The reader's rungs (Settings > Appearance). Rung 3 is the `:root` value. */
 :root[data-chat-font-size="1"] { --chat-font-scale: 0.875; }
 :root[data-chat-font-size="2"] { --chat-font-scale: 0.9375; }

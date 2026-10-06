@@ -299,7 +299,7 @@
     },
     translate: (key, values) => $t(key, values ? { values } : undefined),
     toast: (label) => addToast(label, "error"),
-    scrollToBottom: () => scroll.toBottom(),
+    scrollToBottom: () => scroll.follow(),
     finalizeStreaming: () => void finalizeStreaming(),
     refreshSession: () => void refreshSession(),
   };
@@ -315,17 +315,17 @@
         tokenBuffer += event.payload.token;
         isStreaming = true;
         isProcessing = false;
-        scroll.toBottom();
+        scroll.follow();
       },
     ));
 
     subscriptions.keep(await listen<RuntimeEventPayload>("runtime-event", (event) => {
-      a2a.onLifecycleEvent(event.payload, () => scroll.toBottom());
+      a2a.onLifecycleEvent(event.payload, () => scroll.follow());
     }));
 
     // Sub-agent step events, which only mean something while a delegation runs.
     subscriptions.keep(await listen<RuntimeEventPayload>("runtime-event", (event) => {
-      a2a.onStepEvent(event.payload, () => scroll.toBottom());
+      a2a.onStepEvent(event.payload, () => scroll.follow());
     }));
 
     subscriptions.keep(await listen<ChatChangedEvent>("runtime-event", (event) => {
@@ -395,7 +395,7 @@
     try {
       const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
-      applySessionDetail(detail); scroll.toBottom();
+      applySessionDetail(detail); scroll.follow();
     } catch { /* Session may have been deleted */ }
   }
 
@@ -408,7 +408,7 @@
     try {
       const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
-      applySessionDetail(detail); scroll.toBottom();
+      applySessionDetail(detail); scroll.follow();
     } catch { /* Session may have been deleted */ }
   }
 
@@ -549,7 +549,7 @@
     pendingError = null;
     messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
     isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scroll.toBottom(true);
+    await tick(); scroll.sent();
 
     try {
       const documents = documentPayloads(attachments);
@@ -625,7 +625,7 @@
     if (patch.isProcessing !== undefined) isProcessing = patch.isProcessing;
     if (patch.approval) pendingApproval = patch.approval;
     if (patch.userInput !== undefined) pendingUserInput = patch.userInput;
-    if (patch.scroll) scroll.toBottom();
+    if (patch.scroll) scroll.follow();
   }
 
   // ── Next Steps ─────────────────────────────────────────

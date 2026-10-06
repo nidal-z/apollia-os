@@ -19,6 +19,9 @@
    * Props:
    *   label        required. Field label text (already translated).
    *   hint         optional. Contextual help rendered under the label.
+   *   help         optional. A "?" beside the label, explained on hover.
+   *   indent       optional. The row depends on the one above: set back, with
+   *                a corner arrow before its label.
    *   control      required snippet. The right-aligned control(s).
    *   for          optional. Associates the label with the control's `id`.
    *   layout       "row" (default) keeps label + control on one line and wraps
@@ -28,11 +31,15 @@
    *   data-testid  forwarded to the row wrapper.
    */
   import type { Snippet } from "svelte";
+  import { CircleHelp, CornerDownRight } from "lucide-svelte";
+  import { Tooltip } from "$lib/components/ui/tooltip";
   import { cn } from "$lib/utils";
 
   interface Props {
     label: string;
     hint?: string;
+    help?: string;
+    indent?: boolean;
     control: Snippet;
     for?: string;
     layout?: "row" | "stack";
@@ -43,6 +50,8 @@
   let {
     label,
     hint,
+    help,
+    indent = false,
     control,
     for: htmlFor,
     layout = "row",
@@ -61,8 +70,27 @@
     border && "border-b border-border/60 last:border-b-0",
   )}
 >
-  <div class="min-w-0 flex-1">
-    <label for={htmlFor} class="block text-label-md text-foreground">{label}</label>
+  <div class={cn("min-w-0 flex-1", indent && "pl-5")}>
+    <div class="flex items-center gap-1.5">
+      {#if indent}
+        <CornerDownRight size={13} strokeWidth={1.75} class="flex-none text-muted-foreground" aria-hidden="true" />
+      {/if}
+      <label
+        for={htmlFor}
+        class={cn("block text-label-md", indent ? "text-muted-foreground" : "text-foreground")}
+      >{label}</label>
+      {#if help}
+        <Tooltip content={help} side="top">
+          <span
+            class="inline-flex text-muted-foreground hover:text-foreground"
+            data-testid={testid ? `${testid}-help` : undefined}
+          >
+            <CircleHelp size={13} strokeWidth={1.75} aria-hidden="true" />
+            <span class="sr-only">{help}</span>
+          </span>
+        </Tooltip>
+      {/if}
+    </div>
     {#if hint}
       <p class="mt-0.5 max-w-md text-caption text-muted-foreground">{hint}</p>
     {/if}

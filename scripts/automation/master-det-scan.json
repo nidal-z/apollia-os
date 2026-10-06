@@ -2,6 +2,8 @@
   "name": "master-det (per-page deterministic suite, one boot, no model) [SCAN cap=3000ms]",
   "stopOnError": false,
   "dynamicTestids": [
+    "appearance-message-style-block",
+    "appearance-message-style-bubble",
     "approval-card-file_write",
     "approval-detail-file_write",
     "approval-see-more-file_write",
@@ -13961,6 +13963,151 @@
       "kind": "click",
       "testid": "theme-system",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "appearance-nav-position-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-nav-position"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-nav-position-select",
+      "value": "right",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar"
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-navigation-right"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-nav-position-select",
+      "value": "left",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-view-mode"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-view-mode-select",
+      "value": "plain",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-view-mode-select",
+      "value": "markdown",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-generation-info"
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-generation-info-help"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-generation-info-select",
+      "value": "all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-generation-info-select",
+      "value": "last",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-scroll-sent-top"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-scroll-sent-top-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-scroll-sent-top-toggle",
+      "checked": true
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-follow-generation"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-follow-generation-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-follow-generation-toggle",
+      "checked": true
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-message-style"
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-message-style-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "appearance-message-style-block",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "17c-chat-style-blocks"
+    },
+    {
+      "kind": "click",
+      "testid": "appearance-message-style-bubble",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-reasoning-vignette"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-reasoning-vignette-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-reasoning-vignette-toggle",
+      "checked": true
     },
     {
       "kind": "sleep",

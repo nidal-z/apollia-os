@@ -1,5 +1,19 @@
+<script lang="ts" module>
+  import type { ChatMessageStyle } from "$lib/stores/chatAppearance";
+
+  /**
+   * Whether a group carries the avatar, name and time row. An assistant turn
+   * always does. A user turn does only in the "blocks" style, where no bubble
+   * tells it from the answer; system and tool messages never do.
+   */
+  export function groupShowsHeader(role: string, style: ChatMessageStyle): boolean {
+    return role === "assistant" || (role === "user" && style === "block");
+  }
+</script>
+
 <script lang="ts">
   import { t, locale } from "svelte-i18n";
+  import { chatMessageStyle } from "$lib/stores/chatAppearance";
   import { Avatar } from "$lib/components/ui/avatar";
   import type { MessageGroup } from "$lib/chat/groupMessages";
   import ChatMessageBubble from "./ChatMessageBubble.svelte";
@@ -14,6 +28,8 @@
     variant?: "default" | "compact";
     /** True while a turn is generating - disables regenerate/edit in bubbles. */
     busy?: boolean;
+    /** The answer that keeps its generation figures under "last message only". */
+    lastAnswerId?: string | null;
     /** Regenerate the reply to an assistant turn (truncate-in-place). */
     onregenerate?: (messageId: string) => void;
     /** Replace a user message and re-run from it (truncate-in-place). */
@@ -26,16 +42,14 @@
     agentName = null,
     variant = "default",
     busy = false,
+    lastAnswerId = null,
     onregenerate,
     onedit,
   }: Props = $props();
 
   const isUser = $derived(group.role === "user");
 
-  // Only the assistant turn carries the avatar + name + time header (the .who
-  // row in the mockup). User turns render as a bare right-aligned bubble, and
-  // system / tool messages stay standalone with no header.
-  const showHeader = $derived(group.role === "assistant");
+  const showHeader = $derived(groupShowsHeader(group.role, $chatMessageStyle));
 
   const displayName = $derived.by(() => {
     if (isUser) return $t("chat.you");
@@ -77,6 +91,7 @@
         showTimestamp={false}
         {variant}
         {busy}
+        {lastAnswerId}
         {onregenerate}
         {onedit}
       />
