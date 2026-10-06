@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
   SHORTCUTS,
   SHORTCUT_CATEGORIES,
+  visibleShortcuts,
   filterShortcuts,
   splitCombo,
   comboFor,
@@ -39,6 +40,38 @@ describe("SHORTCUTS registry", () => {
   it("ids are unique", () => {
     const ids = SHORTCUTS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("the shortcut of the local server", () => {
+  it("is in the catalogue and shares its combo with no other entry", () => {
+    // GIVEN the entry that starts and stops the local server
+    const entry = SHORTCUTS.find((s) => s.id === "developer.server_toggle");
+
+    // WHEN its combo is looked up among the other entries, on each platform
+    const others = SHORTCUTS.filter((s) => s.id !== "developer.server_toggle");
+    const sameMac = others.filter((s) => s.combo.mac === entry?.combo.mac).map((s) => s.id);
+    const sameWin = others.filter((s) => s.combo.win === entry?.combo.win).map((s) => s.id);
+
+    // THEN it exists, and no other shortcut answers to the same keys
+    expect(entry?.combo).toEqual({ mac: "⌘+.", win: "Ctrl+." });
+    expect(sameMac).toEqual([]);
+    expect(sameWin).toEqual([]);
+  });
+
+  it("is listed with the developer mode on and left out with it off", () => {
+    // GIVEN the whole catalogue
+    const ids = (developerMode: boolean) =>
+      visibleShortcuts(SHORTCUTS, developerMode).map((s) => s.id);
+
+    // WHEN it is listed for each position of the developer mode
+    const off = ids(false);
+    const on = ids(true);
+
+    // THEN only the developer shortcut differs
+    expect(off).not.toContain("developer.server_toggle");
+    expect(on).toContain("developer.server_toggle");
+    expect(on.length - off.length).toBe(1);
   });
 });
 

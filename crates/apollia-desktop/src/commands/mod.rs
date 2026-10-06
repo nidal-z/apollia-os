@@ -38,6 +38,7 @@ pub mod llm_load;
 pub mod llm_loaded;
 pub mod llm_residency;
 pub mod llm_servers;
+pub mod local_server;
 pub mod mcp;
 pub mod mcp_bridge;
 pub mod mcp_coaching;
@@ -298,14 +299,53 @@ async fn http_request_json(
     path: &str,
     body: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
+    http_request_refusable(port, method, path, body)
+        .await
+        .map_err(|failure| failure.message)
+}
+
+/// Why a request to the internal REST API did not return its JSON.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HttpFailure {
+    /// The HTTP status of a refusal; `None` when no answer was read.
+    pub(crate) status: Option<u16>,
+    /// The text the interface shows.
+    pub(crate) message: String,
+}
+
+impl HttpFailure {
+    fn unanswered(message: String) -> Self {
+        Self {
+            status: None,
+            message,
+        }
+    }
+}
+
+/// `POST path` with a JSON body, for a caller that tells one refusal from
+/// another by its HTTP status.
+pub(crate) async fn http_post_json_refusable(
+    port: u16,
+    path: &str,
+    body: &serde_json::Value,
+) -> Result<serde_json::Value, HttpFailure> {
+    http_request_refusable(port, "POST", path, Some(body)).await
+}
+
+async fn http_request_refusable(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<&serde_json::Value>,
+) -> Result<serde_json::Value, HttpFailure> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
-        .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
+        .map_err(|e| HttpFailure::unanswered(format!("failed to connect to runtime API: {e}")))?;
 
     let io = TokioIo::new(stream);
     let (mut sender, conn) = http1::handshake(io)
         .await
-        .map_err(|e| format!("HTTP handshake failed: {e}"))?;
+        .map_err(|e| HttpFailure::unanswered(format!("HTTP handshake failed: {e}")))?;
 
     tokio::spawn(async move {
         let _ = conn.await;
@@ -313,8 +353,8 @@ async fn http_request_json(
 
     let auth = bridge_auth_header();
     let req = if let Some(json_body) = body {
-        let body_bytes =
-            serde_json::to_vec(json_body).map_err(|e| format!("failed to serialize body: {e}"))?;
+        let body_bytes = serde_json::to_vec(json_body)
+            .map_err(|e| HttpFailure::unanswered(format!("failed to serialize body: {e}")))?;
         let mut builder = hyper::Request::builder()
             .method(method)
             .uri(path)
@@ -325,7 +365,7 @@ async fn http_request_json(
         }
         builder
             .body(Full::new(Bytes::from(body_bytes)))
-            .map_err(|e| format!("failed to build request: {e}"))?
+            .map_err(|e| HttpFailure::unanswered(format!("failed to build request: {e}")))?
     } else {
         let mut builder = hyper::Request::builder()
             .method(method)
@@ -336,20 +376,20 @@ async fn http_request_json(
         }
         builder
             .body(Full::new(Bytes::new()))
-            .map_err(|e| format!("failed to build request: {e}"))?
+            .map_err(|e| HttpFailure::unanswered(format!("failed to build request: {e}")))?
     };
 
     let resp = sender
         .send_request(req)
         .await
-        .map_err(|e| format!("request failed: {e}"))?;
+        .map_err(|e| HttpFailure::unanswered(format!("request failed: {e}")))?;
 
     let status = resp.status();
     let resp_bytes = resp
         .into_body()
         .collect()
         .await
-        .map_err(|e| format!("failed to read response body: {e}"))?
+        .map_err(|e| HttpFailure::unanswered(format!("failed to read response body: {e}")))?
         .to_bytes();
     let body_str = String::from_utf8_lossy(&resp_bytes);
 
@@ -358,12 +398,16 @@ async fn http_request_json(
             .ok()
             .and_then(|j| j.get("error").and_then(|e| e.as_str()).map(String::from))
             .unwrap_or_else(|| format!("API error ({}): {}", status.as_u16(), body_str));
-        return Err(error_msg);
+        return Err(HttpFailure {
+            status: Some(status.as_u16()),
+            message: error_msg,
+        });
     }
 
     // A route that answers `204 No Content` has nothing to parse.
     if resp_bytes.is_empty() {
         return Ok(serde_json::Value::Null);
     }
-    serde_json::from_str(&body_str).map_err(|e| format!("invalid JSON response: {e}"))
+    serde_json::from_str(&body_str)
+        .map_err(|e| HttpFailure::unanswered(format!("invalid JSON response: {e}")))
 }

@@ -8,6 +8,7 @@
     SHORTCUT_CATEGORIES,
     filterShortcuts,
     isMacPlatform,
+    visibleShortcuts,
     withSendKey,
     type ShortcutCategory,
     type ShortcutEntry,
@@ -18,6 +19,7 @@
   import ShortcutCatalogRow from "./ShortcutCatalogRow.svelte";
   import { isReserved, overlapsGlobal } from "./coverage";
   import { chatSendKey } from "$lib/stores/chatSendKey";
+  import { developerMode } from "$lib/stores/developerMode";
 
   const mac = isMacPlatform();
 
@@ -27,13 +29,15 @@
     chat: "settings.shortcuts.category.chat",
     settings: "settings.shortcuts.category.settings",
     companion: "settings.shortcuts.category.companion",
+    developer: "settings.shortcuts.category.developer",
   };
 
   let query = $state("");
 
   let filtered = $derived.by<ShortcutEntry[]>(() => {
     const translate = (key: string) => get(t)(key);
-    return filterShortcuts(withSendKey(SHORTCUTS, $chatSendKey), query, translate, mac);
+    const listed = visibleShortcuts(withSendKey(SHORTCUTS, $chatSendKey), $developerMode);
+    return filterShortcuts(listed, query, translate, mac);
   });
 
   let grouped = $derived.by(() => {

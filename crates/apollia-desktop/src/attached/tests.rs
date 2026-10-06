@@ -542,6 +542,53 @@ async fn test_a_route_command_refused_by_the_daemon_shows_its_message() {
     assert_eq!(error, "unknown server ghost");
 }
 
+#[tokio::test]
+async fn test_a_start_refused_for_a_taken_port_keeps_its_status_attached() {
+    // GIVEN a daemon whose local server cannot open its port, held elsewhere
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/server/start"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(ResponseTemplate::new(409).set_body_json(serde_json::json!({
+            "error": "port 7772 is already in use by another program"
+        })))
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the attached arm asks for the start
+    let failure = link
+        .post_json_refusable("/api/v1/server/start", &serde_json::json!({}))
+        .await
+        .unwrap_err();
+
+    // THEN the refusal keeps the conflict status and the daemon's own words
+    assert_eq!(failure.status, Some(409));
+    assert_eq!(
+        failure.message,
+        "port 7772 is already in use by another program"
+    );
+}
+
+#[test]
+fn test_the_local_server_of_the_developer_screen_passes_the_gate_attached() {
+    // GIVEN the three commands of the bar of the local server
+    let commands = [
+        "get_local_server",
+        "start_local_server",
+        "stop_local_server",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none answers that the service makes it unavailable
+    assert!(refused.is_empty(), "refused: {refused:?}");
+}
+
 #[test]
 fn test_models_mcp_connections_and_notifications_pass_the_gate_attached() {
     // GIVEN the screens of models, MCP servers, connections, notifications

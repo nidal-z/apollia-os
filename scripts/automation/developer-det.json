@@ -1,0 +1,311 @@
+{
+  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the model picker, the link back to the settings)",
+  "stopOnError": false,
+  "notes": [
+    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte and components/developer/localServer.ts.",
+    "The start and the stop are real: they reach the compatible server of the runtime of the seeded home, on the port of its [server] section (7772 unless the seed says otherwise). A machine where another program holds that port shows the taken-port error on the first start and reds the steps that wait for the address; that is the machine, not the product.",
+    "The taken-port state is stubbed: start_local_server rejects with the LocalServerRefusal of crates/apollia-desktop/src/commands/local_server.rs (kind port_in_use). A field renamed there drifts here silently. The stub is cleared before the next start, which is real and clears the error.",
+    "The copy button is clicked, not asserted: the clipboard of the webview may refuse a write that no user gesture started, and the copy itself is held by the Vitest suite.",
+    "The picker of Load a model is opened and closed without choosing: the models of the seed are placeholders, and the loading window is played by llm-det.",
+    "The book leaves the server stopped and the developer mode off, as it found them.",
+    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run."
+  ],
+  "dynamicTestids": [
+    "developer-server-error-port_in_use",
+    "nav-developer",
+    "settings-nav-developer"
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-developer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-developer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-view-server"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-view-documentation"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-pane-server"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-pane-logs"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-bar"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-no-address",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-load-model"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-developer-server-stopped"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-toggle",
+      "checked": true
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-address",
+      "timeoutMs": 10000,
+      "contains": "http://"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-no-address",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-developer-server-running"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-copy"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-toggle",
+      "checked": false
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-no-address",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-address",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_local_server",
+      "reject": {
+        "kind": "port_in_use",
+        "message": "port 7772 is already in use by another program"
+      }
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-toggle",
+      "checked": true
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-error-port_in_use"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-server-no-address"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-developer-server-port-in-use"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_local_server"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-toggle",
+      "checked": true
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-address",
+      "timeoutMs": 10000,
+      "contains": "http://"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-toggle",
+      "checked": false
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-no-address",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-load-model"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "developer-load-model-",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-developer-load-model-picker"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-load-model"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-view-documentation"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-pane-documentation",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-pane-server",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-pane-logs",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-view-server"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-pane-server",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-pane-logs",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-settings-link"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mcp-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-developer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-page",
+      "timeoutMs": 4000
+    }
+  ]
+}

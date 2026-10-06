@@ -13,6 +13,7 @@ import { get } from "svelte/store";
 import { t } from "svelte-i18n";
 import {
   Bot,
+  Code,
   MessageSquare,
   ShieldCheck,
   Plug,
@@ -31,7 +32,6 @@ import {
   ToggleRight,
   Keyboard,
   Info,
-  Code,
   Library,
   KeyRound,
   ScrollText,

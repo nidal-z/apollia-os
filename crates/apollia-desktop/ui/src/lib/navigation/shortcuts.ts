@@ -17,7 +17,8 @@ export type ShortcutCategory =
   | "navigation"
   | "chat"
   | "settings"
-  | "companion";
+  | "companion"
+  | "developer";
 
 export type ShortcutScope = "global" | "contextual";
 
@@ -48,6 +49,7 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
   "chat",
   "settings",
   "companion",
+  "developer",
 ];
 
 export const SHORTCUTS: ShortcutEntry[] = [
@@ -200,7 +202,28 @@ export const SHORTCUTS: ShortcutEntry[] = [
     scope: "global",
     category: "companion",
   },
+
+  // ── Developer ──────────────────────────────────────────────────────
+  {
+    id: "developer.server_toggle",
+    combo: { mac: "⌘+.", win: "Ctrl+." },
+    descriptionKey: "settings.shortcuts.items.developer_server_toggle",
+    scope: "contextual",
+    category: "developer",
+    scopeHintKey: "settings.shortcuts.scope.developer",
+  },
 ];
+
+/**
+ * `entries` as the catalogue lists them for a developer mode: the shortcuts
+ * of the developer screen stay out with the mode off, like the screen.
+ */
+export function visibleShortcuts(
+  entries: readonly ShortcutEntry[],
+  developerMode: boolean,
+): ShortcutEntry[] {
+  return entries.filter((entry) => developerMode || entry.category !== "developer");
+}
 
 /** `true` when running on macOS (best-effort browser detection). */
 /** The combo that sends a message under the send key of Settings > Chat. */
