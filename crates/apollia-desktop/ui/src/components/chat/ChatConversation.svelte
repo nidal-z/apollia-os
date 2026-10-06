@@ -70,7 +70,10 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
-  import { MAIN_PANE, paneLeases, syncConversationLease } from "$lib/chat/modelLease";
+  import { paneLeases, syncConversationLease } from "$lib/chat/modelLease";
+  import { SOLE_SEAT, type PaneSeat } from "$lib/chat/chatPanes";
+  import { paneLoads } from "$lib/stores/chatPanes";
+  import PaneRefusalCard from "./PaneRefusalCard.svelte";
   import { chatTargets } from "$lib/stores/chatTargets";
   import ReloadLastModel from "./ReloadLastModel.svelte";
   import { createModelCapabilities } from "./useModelCapabilities.svelte";
@@ -118,6 +121,8 @@
     onnewChat?: () => void;
     /** Called with the conversation a choice in the selector opened. */
     onopensession?: (sessionId: string) => void;
+    /** The pane of the chat that shows this conversation. */
+    pane?: PaneSeat;
   }
 
   let {
@@ -133,6 +138,7 @@
     onnewChat,
     onopensession,
     inputHidden = false,
+    pane = SOLE_SEAT,
   }: Props = $props();
 
   let messages = $state<ChatMessageView[]>([]);
@@ -178,7 +184,14 @@
   // The conversation holds its local model in memory while it is open here.
   $effect(() => {
     const known = sessionDetail?.id === sessionId ? target : null;
-    void syncConversationLease(paneLeases, MAIN_PANE, sessionId, known, $chatTargets);
+    void syncConversationLease(paneLeases, pane.id, sessionId, known, $chatTargets);
+  });
+
+  // The right panel and the shortcuts read the conversation of the active pane.
+  $effect(() => {
+    if (!pane.active || sessionDetail?.id !== sessionId) return;
+    currentSession.set(sessionDetail);
+    chatConversationStats.set(conversationStats);
   });
 
   async function handleTargetPick(choice: ChatTarget): Promise<void> {
@@ -224,9 +237,6 @@
   const inputDisabled = $derived(
     isProcessing || isStreaming || sessionStatus === "closed",
   );
-
-  // summaryText / summarizedCount derivations removed; the
-  // banner moved to ContextDrawer > Memory tab (MemoryInjectedPanel).
 
   const hasCrossSessionRefs = $derived(
     (conversationStats?.cross_sessions_referenced ?? 0) > 0,
@@ -364,6 +374,7 @@
       liveToolChain = [];
       pendingApproval = null;
       messages = [];
+      paneLoads.dismiss(pane.id);
       void loadSession().then(() => restoreGlobalState());
     }
   });
@@ -371,7 +382,7 @@
   onDestroy(() => {
     scroll.dispose();
     subscriptions.dispose();
-    currentSession.set(null);
+    currentSession.update((shown) => (shown?.id === sessionId ? null : shown));
     closeSessionBuffer(sessionId);
   });
 
@@ -484,7 +495,6 @@
     sessionDetail = detail;
     planMode = detail.plan_mode;
     isProcessing = detail.status === "processing";
-    currentSession.set(detail);
     void loadConversationStats();
     void maybeInheritPlanModeDefault(detail);
   }
@@ -516,7 +526,6 @@
     try {
       const stats = await getConversationStats(sessionId);
       conversationStats = stats;
-      chatConversationStats.set(stats);
     } catch {
       conversationStats = null;
     }
@@ -656,6 +665,10 @@
       renameTrigger={actions.renameTrigger}
       {target}
       ontargetpick={onopensession ? (choice) => void handleTargetPick(choice) : undefined}
+      active={pane.active}
+      loadgate={pane.divided ? (choice) => paneLoads.gate(pane.id, choice) : undefined}
+      onsplit={pane.split}
+      canSplit={pane.canSplit}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
@@ -675,6 +688,8 @@
     turnId={currentTurnId}
     onclose={() => (injectedSheetOpen = false)}
   />
+
+  <PaneRefusalCard {pane} onpick={(choice) => void handleTargetPick(choice)} />
 
   <!-- Agent disparu inline banner. Rendered above the
        messages so the transcript stays readable. -->
@@ -742,7 +757,7 @@
   {/if}
 
   {#if !inputHidden}
-    <ReloadLastModel />
+    <ReloadLastModel listens={pane.active} />
     <ChatInput
       disabled={inputDisabled}
       busy={isProcessing || isStreaming}
@@ -758,6 +773,7 @@
       oncontextinspect={openInjectedSheet}
       {sessionId}
       agentName={sessionAgentName}
+      active={pane.active}
     />
   {/if}
 </div>

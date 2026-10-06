@@ -3951,6 +3951,18 @@
       "label": "Recharger le dernier modèle",
       "reloading": "Rechargement de",
       "refused": "Le dernier modèle n'a pas pu être rechargé tel quel : {error}"
+    },
+    "panes": {
+      "split": "Diviser",
+      "split_full": "{max} conversations côte à côte au plus",
+      "close": "Fermer ce volet",
+      "aria": "Volet {n}",
+      "tabs_aria": "Conversations ouvertes",
+      "untitled": "Nouvelle conversation",
+      "empty": "Choisissez une conversation dans la liste ou démarrez-en une nouvelle.",
+      "refusal_title": "{name} n'a pas été chargé dans ce volet",
+      "refusal_body": "Mémoire insuffisante avec les modèles déjà chargés : estimation {estimated} Go pour {budget} Go (garde-fous « {level} »). Choisissez un modèle déjà chargé, fermez un volet, ou chargez quand même après confirmation.",
+      "refusal_choose": "Choisir un autre modèle"
     }
   },
   "transcriptions": {

@@ -86,6 +86,8 @@
     sessionId?: string | null;
     /** The agent of the conversation, which a batch on a joined file runs. */
     agentName?: string | null;
+    /** Whether text sent to "the composer" lands here: the one of the active pane. */
+    active?: boolean;
   }
 
   let {
@@ -105,6 +107,7 @@
     oncontextinspect,
     sessionId = null,
     agentName = null,
+    active = true,
   }: Props = $props();
 
   const DEFAULT_SUGGESTION_KEYS = [
@@ -189,7 +192,7 @@
 
   onMount(() => {
     const unsubscribeAppend = chatInputAppend.subscribe((req) => {
-      if (req === null) return;
+      if (req === null || !active) return;
       const suffix = value.length === 0 || value.endsWith("\n") ? "" : " ";
       value = `${value}${suffix}${req.text}`;
       autoResize();
