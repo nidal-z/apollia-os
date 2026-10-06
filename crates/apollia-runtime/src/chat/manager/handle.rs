@@ -197,6 +197,7 @@ impl ChatSessionManagerHandle {
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
             pending_injections: HashMap::new(),
+            answer_prefills: HashMap::new(),
             pending_plan_continuations: HashMap::new(),
             config_feed: None,
             plan_mode_default_tx,

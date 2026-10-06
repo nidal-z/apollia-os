@@ -181,7 +181,8 @@ impl ChatSessionManager {
             session.history.retain(|m| m.seq <= user_seq);
         }
 
-        self.rerun_turn(session_id, &user_id, &user_content)
+        let answer_id = uuid::Uuid::new_v4().to_string();
+        self.rerun_turn(session_id, &user_id, &user_content, answer_id)
     }
 
     /// Replace a user message and re-run from it (truncate-in-place).
@@ -238,12 +239,15 @@ impl ChatSessionManager {
     /// `user_message_id`. Mirrors the dispatch half of
     /// [`handle_send_message`](Self::handle_send_message) (fresh run_id,
     /// Processing status, fresh pause token created inside the dispatch) but
-    /// reuses the already-persisted user turn as the prompt.
-    fn rerun_turn(
+    /// reuses the already-persisted user turn as the prompt. The answer is
+    /// persisted under `answer_id`: a fresh one for a regenerated answer, the
+    /// one of the answer being continued otherwise.
+    pub(in crate::chat::manager) fn rerun_turn(
         &mut self,
         session_id: &str,
         user_message_id: &str,
         user_content: &str,
+        answer_id: String,
     ) -> Result<(), ChatError> {
         let now = now_rfc3339();
         let run_id = RunId::new();
@@ -257,7 +261,7 @@ impl ChatSessionManager {
                 message_id: user_message_id.to_string(),
                 started_at: now,
                 run_id: run_id.clone(),
-                answer_id: Some(uuid::Uuid::new_v4().to_string()),
+                answer_id: Some(answer_id),
             });
         }
         if let Err(e) = self

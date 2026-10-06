@@ -286,6 +286,11 @@ pub struct BuiltInChatAgent {
     /// the operator text as reason. `None` for every ordinary turn, so behavior is
     /// unchanged when no injection is pending.
     pending_injection: Option<InjectedInstruction>,
+    /// The answer this turn continues. `Some` only when the user asked for the
+    /// last answer to be continued: the request then ends on that answer, as an
+    /// assistant message the engine prefills, and no message is added to ask
+    /// for the rest.
+    answer_prefill: Option<String>,
     /// Images of the turn: those of the message answered and of the earlier
     /// user messages in the window. Empty for a turn without images.
     turn_images: crate::chat::images::TurnImages,

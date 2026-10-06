@@ -4680,6 +4680,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/continuation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/continuation`: whether the last
+         *     answer can be continued on the model the next turn runs on, and why not.
+         */
+        get: operations["get_continuation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/erase": {
         parameters: {
             query?: never;
@@ -4753,6 +4773,52 @@ export interface paths {
         put?: never;
         /** Handler for `POST /api/v1/sessions/:id/messages`, send message. */
         post: operations["send_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/sessions/{id}/messages/{message_id}`: replace the
+         *     text of an answer, marked edited. No turn is played again.
+         */
+        put: operations["edit_answer"];
+        post?: never;
+        /**
+         * Handler for `DELETE /api/v1/sessions/{id}/messages/{message_id}`: remove a
+         *     message and, for an answer, the tool messages of its turn.
+         */
+        delete: operations["delete_message"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/messages/{message_id}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/messages/{message_id}/continue`.
+         * @description `message_id` is the last answer of the session. Its turn runs again with
+         *     the answer as the prefill, and the answer that lands replaces it under the
+         *     same id.
+         */
+        post: operations["continue_answer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7352,6 +7418,17 @@ export interface components {
             /** @description Provider identifier. */
             provider: string;
         };
+        /** @description Whether the last answer of a conversation can be continued. */
+        Continuation: {
+            /** @description `true` when the model of the conversation continues an answer. */
+            available: boolean;
+            reason?: null | components["schemas"]["ContinuationRefusal"];
+        };
+        /**
+         * @description Why the last answer of a conversation cannot be continued.
+         * @enum {string}
+         */
+        ContinuationRefusal: "engine" | "agent" | "no_model";
         /** @description Statistics of one chat conversation. */
         ConversationStatsView: {
             /**
@@ -7724,6 +7801,15 @@ export interface components {
             /** @description The path removed, as it was asked for. */
             deleted: string;
         };
+        /** @description Answer of `DELETE /api/v1/sessions/{id}/messages/{message_id}`. */
+        DeletedMessages: {
+            /**
+             * Format: int32
+             * @description Messages removed: the one named and, for an answer, the tool messages
+             *     of its turn.
+             */
+            deleted: number;
+        };
         /** @description Answer of `DELETE /api/v1/profiles/{id}`. */
         DeletedProfile: {
             /** @description The identifier removed, as the request named it. */
@@ -7803,6 +7889,11 @@ export interface components {
              *     path means the root of My Drive.
              */
             folder_path?: string | null;
+        };
+        /** @description Request body for `PUT /api/v1/sessions/{id}/messages/{message_id}`. */
+        EditAnswerRequest: {
+            /** @description The new text of the answer. */
+            content: string;
         };
         /** @description The default embeddings model, and whether this machine has its file. */
         EmbeddingDefaultResponse: {
@@ -23290,6 +23381,47 @@ export interface operations {
             };
         };
     };
+    get_continuation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the last answer can be continued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Continuation"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     erase_session: {
         parameters: {
             query?: never;
@@ -23468,6 +23600,189 @@ export interface operations {
                 };
             };
             /** @description The model of the session does not read images */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    edit_answer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description Answer to rewrite */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Answer rewritten */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A user message, or an empty text */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session or message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed or busy */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description Message to remove */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Messages removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedMessages"];
+                };
+            };
+            /** @description Session or message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed or busy */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    continue_answer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description The last answer of the session */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answer being continued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not the last answer, or an empty one */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session or message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed or busy */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model does not continue an answer */
             422: {
                 headers: {
                     [name: string]: unknown;

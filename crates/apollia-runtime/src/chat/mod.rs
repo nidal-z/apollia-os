@@ -45,8 +45,8 @@ pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
 };
 pub use manager::{
-    AgentTaskRun, ChatPlanSnapshot, ChatSessionManagerHandle, ChatToolsConfig, InjectError,
-    PauseError, PendingUserInputView, APOLLIA_CHAT_AGENT_ID,
+    AgentTaskRun, ChatPlanSnapshot, ChatSessionManagerHandle, ChatToolsConfig, Continuation,
+    ContinuationRefusal, InjectError, PauseError, PendingUserInputView, APOLLIA_CHAT_AGENT_ID,
 };
 pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use repository::{

@@ -111,6 +111,8 @@ from .connection_kind import ConnectionKind
 from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
+from .continuation import Continuation
+from .continuation_refusal import ContinuationRefusal
 from .conversation_stats_view import ConversationStatsView
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
@@ -152,6 +154,7 @@ from .delete_server_response import DeleteServerResponse
 from .deleted_artifact import DeletedArtifact
 from .deleted_credential import DeletedCredential
 from .deleted_installed_model import DeletedInstalledModel
+from .deleted_messages import DeletedMessages
 from .deleted_profile import DeletedProfile
 from .deleted_profile_entry import DeletedProfileEntry
 from .dependent_source import DependentSource
@@ -164,6 +167,7 @@ from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .document_attachment import DocumentAttachment
 from .drive_folder_status import DriveFolderStatus
+from .edit_answer_request import EditAnswerRequest
 from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
@@ -707,6 +711,8 @@ __all__ = (
     "ConnectionState",
     "ConnectionTool",
     "ConnectorAccountResponse",
+    "Continuation",
+    "ContinuationRefusal",
     "ConversationStatsView",
     "CostsResponse",
     "CostSummaryRow",
@@ -745,6 +751,7 @@ __all__ = (
     "DeletedArtifact",
     "DeletedCredential",
     "DeletedInstalledModel",
+    "DeletedMessages",
     "DeletedProfile",
     "DeletedProfileEntry",
     "DeletePresetResponse",
@@ -760,6 +767,7 @@ __all__ = (
     "DismissedProposal",
     "DocumentAttachment",
     "DriveFolderStatus",
+    "EditAnswerRequest",
     "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",

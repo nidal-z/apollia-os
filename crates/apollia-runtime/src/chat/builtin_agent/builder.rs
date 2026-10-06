@@ -24,6 +24,7 @@ impl BuiltInChatAgent {
             session_plan_phase: PlanPhase::Done,
             hook_executor: None,
             pending_injection: None,
+            answer_prefill: None,
             turn_images: crate::chat::images::TurnImages::default(),
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
             governance: crate::governance::GovernanceHandle::detached(
@@ -143,6 +144,16 @@ impl BuiltInChatAgent {
     /// Absent for every ordinary turn.
     pub fn with_pending_injection(mut self, injection: Option<InjectedInstruction>) -> Self {
         self.pending_injection = injection;
+        self
+    }
+
+    /// Makes the turn continue `answer`, the last answer of the conversation:
+    /// the request ends on it as an assistant message, which an engine that
+    /// continues an answer prefills. The caller checks the engine does
+    /// ([`apollia_llm::types::CompletionModel::continues_answer`]) before
+    /// asking.
+    pub fn with_answer_prefill(mut self, answer: Option<String>) -> Self {
+        self.answer_prefill = answer;
         self
     }
 

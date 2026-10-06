@@ -126,6 +126,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Operator instruction to consume on a resume turn, when this exchange is a
     /// resume carrying a queued injection. `None` for ordinary turns.
     pub(in crate::chat::manager) pending_injection: Option<InjectedInstruction>,
+    /// The answer the exchange continues, when the user asked for the last
+    /// answer to be continued. `None` for every other turn.
+    pub(in crate::chat::manager) answer_prefill: Option<String>,
     /// Backend the session prefers (the free chat's stored choice), tried
     /// before the default at each call of the turn.
     pub(in crate::chat::manager) preferred_backend: Option<String>,

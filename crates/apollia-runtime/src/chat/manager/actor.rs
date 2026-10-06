@@ -224,6 +224,13 @@ impl ChatSessionManager {
                     let result = self.handle_regenerate_response(&session_id, &message_id);
                     let _ = reply.send(result);
                 }
+                ChatCommand::Answer {
+                    session_id,
+                    action,
+                    reply,
+                } => {
+                    let _ = reply.send(self.handle_answer_action(&session_id, action));
+                }
                 ChatCommand::EditAndResend {
                     session_id,
                     message_id,

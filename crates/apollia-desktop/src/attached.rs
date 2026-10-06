@@ -82,6 +82,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_a2a_skills",
     "list_chat_approval_history",
     "regenerate_chat_response",
+    // The actions under an answer: branch off, continue the last answer,
+    // rewrite an answer, remove a message.
+    "continue_chat_response",
+    "delete_chat_message",
+    "edit_chat_response",
+    "fork_chat_session",
+    "get_chat_continuation",
     // Agents: the registry and the uninstall of an agent.
     "agent_status_snapshot",
     "list_agents",

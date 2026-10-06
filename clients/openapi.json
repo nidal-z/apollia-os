@@ -14052,6 +14052,58 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/continuation": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/continuation`: whether the last\nanswer can be continued on the model the next turn runs on, and why not.",
+        "operationId": "get_continuation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether the last answer can be continued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Continuation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/erase": {
       "post": {
         "tags": [
@@ -14279,6 +14331,244 @@
           },
           "422": {
             "description": "The model of the session does not read images",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/messages/{message_id}": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/messages/{message_id}`: replace the\ntext of an answer, marked edited. No turn is played again.",
+        "operationId": "edit_answer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Answer to rewrite",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Answer rewritten"
+          },
+          "400": {
+            "description": "A user message, or an empty text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or message not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `DELETE /api/v1/sessions/{id}/messages/{message_id}`: remove a\nmessage and, for an answer, the tool messages of its turn.",
+        "operationId": "delete_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message to remove",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Messages removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedMessages"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or message not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/messages/{message_id}/continue": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/messages/{message_id}/continue`.",
+        "description": "`message_id` is the last answer of the session. Its turn runs again with\nthe answer as the prefill, and the answer that lands replaces it under the\nsame id.",
+        "operationId": "continue_answer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "The last answer of the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Answer being continued"
+          },
+          "400": {
+            "description": "Not the last answer, or an empty one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or message not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The model does not continue an answer",
             "content": {
               "application/json": {
                 "schema": {
@@ -21213,6 +21503,39 @@
           }
         }
       },
+      "Continuation": {
+        "type": "object",
+        "description": "Whether the last answer of a conversation can be continued.",
+        "required": [
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "`true` when the model of the conversation continues an answer."
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContinuationRefusal",
+                "description": "Why not, when it does not."
+              }
+            ]
+          }
+        }
+      },
+      "ContinuationRefusal": {
+        "type": "string",
+        "description": "Why the last answer of a conversation cannot be continued.",
+        "enum": [
+          "engine",
+          "agent",
+          "no_model"
+        ]
+      },
       "ConversationStatsView": {
         "type": "object",
         "description": "Statistics of one chat conversation.",
@@ -22094,6 +22417,21 @@
           }
         }
       },
+      "DeletedMessages": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/sessions/{id}/messages/{message_id}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Messages removed: the one named and, for an answer, the tool messages\nof its turn.",
+            "minimum": 0
+          }
+        }
+      },
       "DeletedProfile": {
         "type": "object",
         "description": "Answer of `DELETE /api/v1/profiles/{id}`.",
@@ -22296,6 +22634,19 @@
               "null"
             ],
             "description": "The path the user chose, absent when the default applies. An empty\npath means the root of My Drive."
+          }
+        }
+      },
+      "EditAnswerRequest": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/sessions/{id}/messages/{message_id}`.",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The new text of the answer."
           }
         }
       },

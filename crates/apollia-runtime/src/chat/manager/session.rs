@@ -482,6 +482,7 @@ impl ChatSessionManager {
         }
         self.pause_states.remove(session_id);
         self.pending_injections.remove(session_id);
+        self.answer_prefills.remove(session_id);
         let refused = self.pending_chat_approvals.refuse_session(session_id);
         if refused > 0 {
             debug!(

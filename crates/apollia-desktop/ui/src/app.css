@@ -1460,7 +1460,8 @@
   outline: 2px solid hsl(var(--primary));
   outline-offset: 1px;
 }
-.chat-actions button:disabled {
+.chat-actions button:disabled,
+.chat-actions button[aria-disabled="true"] {
   opacity: 0.4;
   cursor: not-allowed;
 }
