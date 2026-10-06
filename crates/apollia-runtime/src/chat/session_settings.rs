@@ -96,6 +96,7 @@ pub struct SessionSettings {
 
 /// Why settings or notes are refused.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
+#[non_exhaustive]
 pub enum SessionSettingsError {
     /// The instructions are longer than the mission block allows.
     #[error(transparent)]
