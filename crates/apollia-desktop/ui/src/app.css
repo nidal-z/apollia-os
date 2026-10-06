@@ -251,6 +251,9 @@
     --chat-answer-leading: 1.68;
     --chat-bubble-pad-y: 0.625rem;
     --chat-bubble-pad-x: 0.9375rem;
+    /* The narrowest a conversation gets when several sit side by side; under
+       it the pane area scrolls sideways instead of squeezing them. */
+    --chat-pane-min-width: 20rem;
 
     /* ── Hover ── */
     --hover-surface-lift: -2px;
@@ -1149,6 +1152,11 @@
 ::-webkit-scrollbar-corner { background: transparent; }
 .dark ::-webkit-scrollbar-thumb { background: hsl(32 30% 70% / 0.16); }
 .dark ::-webkit-scrollbar-thumb:hover { background: hsl(32 30% 70% / 0.28); }
+
+/* A rail that scrolls without drawing its bar: the tabs and the pane area of
+   the split chat, unless the reader asks for the bar in Settings > Appearance. */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
 /* Apollia resolved color aliases - for inline style and var() usage */
 :root {

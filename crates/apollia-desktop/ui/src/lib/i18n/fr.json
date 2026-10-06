@@ -2821,6 +2821,8 @@
       "view_mode_hint": "En texte brut, une réponse s'affiche telle que reçue, sans mise en forme.",
       "view_mode_markdown": "Rendu Markdown",
       "view_mode_plain": "Texte brut",
+      "tab_scrollbar_label": "Afficher la barre de défilement des onglets",
+      "tab_scrollbar_hint": "En écran divisé, la rangée d'onglets et la zone des volets montrent une barre de défilement dès qu'elles débordent. Elles défilent aussi sans elle.",
       "generation_info_label": "Infos de génération",
       "generation_info_help": "La ligne sous une réponse : sa vitesse, sa longueur, le délai avant le premier mot, sa durée et la raison de sa fin.",
       "generation_info_last": "Dernier message seulement",

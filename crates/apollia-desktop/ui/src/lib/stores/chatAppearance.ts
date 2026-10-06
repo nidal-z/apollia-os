@@ -2,8 +2,9 @@
  * The display preferences of Settings > Appearance: the side of the navigation
  * bar, and how the chat reads (rendered or plain text, text size and weight,
  * column width, density, bubbles or blocks, which answers show their generation
- * figures, how the thread scrolls on send and while an answer arrives, and how
- * reasoning blocks open and fade).
+ * figures, how the thread scrolls on send and while an answer arrives, how
+ * reasoning blocks open and fade, and whether the split chat draws its scroll
+ * bars).
  *
  * Persisted the way the theme is (`theme.ts`): one localStorage entry read at
  * start-up, written on every change, and mirrored onto `<html>` as data
@@ -25,6 +26,8 @@ export interface ChatAppearance {
   navPosition: NavPosition;
   /** An answer rendered as Markdown, or shown as the text received. */
   viewMode: ChatViewMode;
+  /** The tabs and the pane area of the split chat draw a scroll bar on overflow. */
+  tabScrollbar: boolean;
   /** Generation figures under the last answer only, or under every answer. */
   generationInfo: GenerationInfoScope;
   /** On send, the sent message scrolls to the top of the thread. */
@@ -54,6 +57,7 @@ export const CHAT_MESSAGE_STYLES: readonly ChatMessageStyle[] = ["bubble", "bloc
 export const CHAT_APPEARANCE_DEFAULTS: Readonly<ChatAppearance> = Object.freeze({
   navPosition: "left",
   viewMode: "markdown",
+  tabScrollbar: false,
   generationInfo: "last",
   scrollSentToTop: true,
   followGeneration: true,
@@ -107,6 +111,7 @@ export function parseChatAppearance(raw: string | null): ChatAppearance {
   if (typeof p.expandReasoning === "boolean") out.expandReasoning = p.expandReasoning;
   if (oneOf(NAV_POSITIONS, p.navPosition)) out.navPosition = p.navPosition;
   if (oneOf(CHAT_VIEW_MODES, p.viewMode)) out.viewMode = p.viewMode;
+  if (typeof p.tabScrollbar === "boolean") out.tabScrollbar = p.tabScrollbar;
   if (oneOf(GENERATION_INFO_SCOPES, p.generationInfo)) out.generationInfo = p.generationInfo;
   if (typeof p.scrollSentToTop === "boolean") out.scrollSentToTop = p.scrollSentToTop;
   if (typeof p.followGeneration === "boolean") out.followGeneration = p.followGeneration;
@@ -135,6 +140,7 @@ export const reasoningExpandedByDefault: Readable<boolean> = derived(
 );
 export const navPosition: Readable<NavPosition> = derived(chatAppearance, (a) => a.navPosition);
 export const chatViewMode: Readable<ChatViewMode> = derived(chatAppearance, (a) => a.viewMode);
+export const paneScrollbar: Readable<boolean> = derived(chatAppearance, (a) => a.tabScrollbar);
 export const generationInfoScope: Readable<GenerationInfoScope> = derived(
   chatAppearance,
   (a) => a.generationInfo,
