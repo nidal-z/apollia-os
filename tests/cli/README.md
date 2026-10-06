@@ -146,8 +146,8 @@ interactive `chat` REPL is driven under a pty in Track 3.
 The offline track runs on every PR (`cli-e2e` job in `.github/workflows/ci.yml`),
 which builds `apollia-cli`, installs `sqlite3`, verifies the command-coverage
 floor, runs `bash tests/cli/cli-e2e.sh`, and uploads `report/` as an artifact.
-Track 2 runs on the nightly schedule (`cli-e2e-runtime` job in
-`.github/workflows/nightly.yml`: daemon on a throwaway seeded HOME, no model)
+Track 2 runs on the weekly schedule (`cli-e2e-runtime` job in
+`.github/workflows/weekly.yml`: daemon on a throwaway seeded HOME, no model)
 and locally through `just cli-e2e-runtime`. Track 3 needs a real GGUF and stays
 local: `just cli-e2e-model <model.gguf>`, run before releases.
 

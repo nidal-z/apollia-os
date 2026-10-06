@@ -1,8 +1,7 @@
 # The heavy checks that do not fit in the PR loop (under 15 min).
 #
-# The cadence is weekly, not nightly: the file keeps its historical name
-# because GOVERNANCE.md and the agents corpus link it by path, and the schedule
-# below is the authority on when it runs.
+# The cadence is weekly, and the schedule below is the authority on when it
+# runs.
 #
 # Runs:
 #   - cron: every Monday at 06:00 UTC (once a week, which is enough)
@@ -417,7 +416,9 @@ jobs:
   # Advisory report only. cargo-mutants flips operators / deletes lines and
   # checks a test fails; a surviving mutant is an untested behavior. Scoped to
   # the crates that build and test in isolation, with tests restricted to the
-  # mutated package so a run finishes in nightly time.
+  # mutated package so a run finishes within the job. The run is defined by
+  # its command line alone: `--no-config` keeps a `.cargo/mutants.toml` left in
+  # a checkout from changing what is measured.
   mutants:
     name: Mutation Testing (core)
     if: |
@@ -441,7 +442,7 @@ jobs:
           tool: cargo-mutants
       - name: cargo mutants (permissions + core)
         run: |
-          cargo mutants --test-workspace=false -j 2 \
+          cargo mutants --no-config --test-workspace=false -j 2 \
             --package apollia-permissions --package apollia-core \
             --output mutants.out
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

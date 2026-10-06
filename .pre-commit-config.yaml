@@ -378,6 +378,16 @@ repos:
         files: '^(crates/.+\.rs|tests/cli/seed/schemas/.+|scripts/check_data_layout\.py)$'
         pass_filenames: false
 
+      # Reads the index, not the diff: an empty file shows no line in a
+      # review and a binary shows no content, so neither is caught by reading
+      # the change. Measured at 0.3 s on the full tree.
+      - id: check-tracked-inventory
+        name: no tracked file is empty or a binary executable
+        entry: python3 scripts/check_tracked_inventory.py
+        language: system
+        always_run: true
+        pass_filenames: false
+
       - id: check-sqlite-schema-versioning
         name: every new SQLite store opens through the versioned schema layer
         entry: python3 scripts/check_sqlite_schema_versioning.py

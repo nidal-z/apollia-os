@@ -9,9 +9,9 @@
 /// A 503 from the sessions endpoint signals that the chat subsystem is not
 /// configured; the test exits early with a pass in that case.
 #[tokio::test]
-#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
+#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of weekly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_chat_create_session_send_receive() {
-    // GIVEN a runtime and a desktop app already up, as the nightly job starts them
+    // GIVEN a runtime and a desktop app already up, as the weekly job starts them
     // WHEN a free session is created, a message is sent, and the session is read back
     // THEN the message is in the persisted history, and the session closes
     super::with_retry(|| async {
