@@ -8,12 +8,14 @@
   import {
     CircleHelp,
     Menu,
+    PanelLeft,
     PanelRight,
     Search,
     ShieldCheck,
     Settings as SettingsIcon,
   } from "lucide-svelte";
   import { detailSidebar, guideVisible } from "$lib/stores/detailSidebar";
+  import { navPosition } from "$lib/stores/chatAppearance";
   import { onboardingModalOpen } from "$lib/stores/onboarding";
   import { zLayer } from "$lib/design/tokens";
   import { navigateTo } from "$lib/stores/navigation";
@@ -142,7 +144,11 @@
       data-testid="topbar-detail-sidebar-toggle"
       title={$t("topbar.detail_sidebar_aria")}
     >
-      <PanelRight size={14} strokeWidth={1.5} />
+      {#if $navPosition === "right"}
+        <PanelLeft size={14} strokeWidth={1.5} />
+      {:else}
+        <PanelRight size={14} strokeWidth={1.5} />
+      {/if}
     </button>
 
     <UserMenu />

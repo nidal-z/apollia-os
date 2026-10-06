@@ -1,6 +1,7 @@
 <script lang="ts">
   /**
-   * The detail sidebar: a collapsible column on the right of the screen that
+   * The detail sidebar: a collapsible column beside the screen, on the side
+   * opposite the navigation bar (the right unless Appearance says otherwise), that
    * carries the contextual tabs of the current screen (the entry the journal
    * shows more of, the item a batch shows the detail of), the Guide tab last and on every screen. Opened and collapsed from the top bar, by Cmd+/ (Ctrl+/
    * elsewhere) on the Guide tab, and from its own collapse icon. Under the
@@ -8,7 +9,9 @@
    * onboarding veil is shown it rises above it, with the top bar.
    */
   import { t } from "svelte-i18n";
-  import { PanelRightClose } from "lucide-svelte";
+  import { PanelLeftClose, PanelRightClose } from "lucide-svelte";
+  import { navPosition } from "$lib/stores/chatAppearance";
+  import { navSide } from "$lib/layout/navSide";
   import { TabBar } from "$lib/components/ui/tabs";
   import { Button } from "$lib/components/ui/button";
   import { sidebarState } from "$lib/stores/layout";
@@ -26,6 +29,7 @@
   import BatchItemTab from "../../../components/batch/view/BatchItemTab.svelte";
 
   const fullscreen = $derived($sidebarState === "drawer");
+  const side = $derived(navSide($navPosition));
 
   // The journal offers its contextual tab while one of its entries is open.
   const entryOffered = $derived($journalSelection !== null);
@@ -48,7 +52,7 @@
 
 {#if $detailSidebar.open}
   <aside
-    class="flex shrink-0 flex-col overflow-hidden border-l border-border bg-surface-1"
+    class="flex shrink-0 flex-col overflow-hidden {side.detailBorder} border-border bg-surface-1"
     class:relative={!fullscreen}
     class:detail-sidebar-fullscreen={fullscreen}
     style:width={fullscreen ? undefined : `${DETAIL_SIDEBAR_WIDTH_REM}rem`}
@@ -56,6 +60,7 @@
     aria-label={$t("detailSidebar.aria_label")}
     data-testid="detail-sidebar"
     data-tab={activeTab}
+    data-side={side.detail}
   >
     <div class="flex shrink-0 items-end gap-2 px-3 pt-2">
       <TabBar
@@ -75,7 +80,11 @@
         title={$t("detailSidebar.collapse")}
         data-testid="detail-sidebar-collapse"
       >
-        <PanelRightClose size={14} strokeWidth={1.5} />
+        {#if side.detail === "left"}
+          <PanelLeftClose size={14} strokeWidth={1.5} />
+        {:else}
+          <PanelRightClose size={14} strokeWidth={1.5} />
+        {/if}
       </Button>
     </div>
 

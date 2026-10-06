@@ -15,7 +15,8 @@
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
   import { initTheme } from "$lib/stores/theme";
-  import { initChatAppearance } from "$lib/stores/chatAppearance";
+  import { initChatAppearance, navPosition } from "$lib/stores/chatAppearance";
+  import { navSide } from "$lib/layout/navSide";
   import { hydratePlanModeDefault } from "$lib/stores/planModeSetting";
   import { hydrateChatAutoNaming } from "$lib/stores/chatAutoNaming";
   import { startGenerationSpeedListener } from "$lib/chat/autoName";
@@ -218,7 +219,11 @@
     </div>
   {:else}
     <CompanionContextProvider>
-      <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">
+      <div
+        class="flex h-screen w-screen overflow-hidden {navSide($navPosition).shellRow}"
+        data-testid="app-main"
+        data-nav-position={$navPosition}
+      >
         <Sidebar />
         <Main />
       </div>

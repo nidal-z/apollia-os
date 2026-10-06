@@ -5,6 +5,8 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { reachableRoute } from "$lib/navigation/developerRoutes";
   import { PageTransition } from "$lib/components/motion";
+  import { navPosition } from "$lib/stores/chatAppearance";
+  import { navSide } from "$lib/layout/navSide";
   import Topbar from "./Topbar.svelte";
   import DetailSidebar from "./DetailSidebar.svelte";
   import { GovernanceFailClosedBanner, RuntimeStatusBanner } from "$lib/components/feedback";
@@ -81,8 +83,8 @@
   <!-- apollia.toml refused at startup: defaults in force, on every screen. -->
   <ConfigInvalidBanner />
 
-  <!-- Route content, with the detail sidebar on its right. -->
-  <div class="flex min-h-0 w-full flex-1 overflow-hidden">
+  <!-- Route content, with the detail sidebar on the side the navigation leaves free. -->
+  <div class="flex min-h-0 w-full flex-1 overflow-hidden {navSide($navPosition).contentRow}">
     <div class="min-w-0 flex-1 overflow-auto">
       {#key shownRoute}
         <PageTransition>

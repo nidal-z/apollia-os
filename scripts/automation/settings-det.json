@@ -23,9 +23,12 @@
     "The resource monitor and the engine table are played under stubs, because their states depend on the host. get_resource_usage (lib/ipc/system.ts ResourceUsage, VramUsage) is rejected before the first mount of System > Hardware of the boot, which is the only moment resource-monitor-measuring exists (the store keeps its last figures afterwards), then resolved with a dedicated, a unified and an unmeasured video memory in turn; the store reads every two seconds, so each waitFor allows eight. list_engines (EnginesResponse, EngineEntry, EngineVariantUpdate) resolves three llama-server builds, one embedded and in service, one downloaded with an update on the channel, one imported whose banner contradicts its tag; check_engine_updates (EngineCheckResponse) and set_engine_channel (EngineSettings) are stubbed because the real ones fetch the channel manifest over the network, and a real channel write would outlive the section. The block ends on a real list_engines (waitGone engine-row-tag-mismatch) and leaves the developer mode off. These stubs imitate backend types and drift silently if the types change.",
     "System > Engines opens on the engine per format and filters its table. The table shows by default only the builds the host can run, so each time the page is mounted under the stubbed list the compatibility filter is set to all before a CUDA or Vulkan row is waited for (engines-filter-compat). The engine of the GGUF format is chosen under a set_setting stub (lib/ipc/settings.ts ResolvedSetting), because a real write would stay in the seeded apollia.toml and change which binary the next book starts; the removed variant is played by resolving list_engines without the Vulkan build after it was chosen (engine-format-gguf-fell-back), then the list is put back. The MLX line exists on a Mac with an Apple chip only and is left to Vitest. The automatic update is switched under the same stub, and its policy state under a get_resolved_setting stub in patch mode on engines.auto_update, the page being left and reopened because it reads its settings on mount.",
     "Hardware, the graphics devices: the seeded Apple machine shows its single device, its switch disabled and the note that says why; `open_hardware_window` is stubbed (type HardwareWindowOutcome) so no second window opens under the runner; a three-device profile (type HardwareResponse, with its `devices`) and a policy-fixed `llm.devices.disabled` (type ResolvedSetting) are stubbed to reach the policy mention and the note of a device the engine did not list, then cleared. The diagnostic copy of Engines is gone: its facts are copied by `hardware-copy-info`.",
-    "Settings > Developer, mode on: the Engines block carries the engine channel and the automatic update System > Engines shows too (developer-engine-channel-select, developer-engine-auto-update) and the automatic purge; Experimental carries the debugging blocks, the consumption widget and the load settings in presets. Turning developer-resource-widget-switch on writes [desktop] resource_widget of the seeded apollia.toml and mounts sidebar-resource-widget at the foot of the sidebar; a click on it opens System > Hardware on the resource monitor. The book turns the switch back off before it leaves the page, so the later sections render the sidebar without the widget."
+    "Settings > Developer, mode on: the Engines block carries the engine channel and the automatic update System > Engines shows too (developer-engine-channel-select, developer-engine-auto-update) and the automatic purge; Experimental carries the debugging blocks, the consumption widget and the load settings in presets. Turning developer-resource-widget-switch on writes [desktop] resource_widget of the seeded apollia.toml and mounts sidebar-resource-widget at the foot of the sidebar; a click on it opens System > Hardware on the resource monitor. The book turns the switch back off before it leaves the page, so the later sections render the sidebar without the widget.",
+    "Appearance, the display choices: the navigation position, the view mode and the generation info are native <select> played with selectOption and set back to their default; the two scroll switches and the reasoning vignette are <button role=switch> set off then on with setChecked; the message style is a radiogroup whose two buttons are clicked, blocks then bubbles. Every choice is left on its default, since it is kept in the browser storage of the seeded home and the books that follow read the chat in bubbles with the navigation on the left. What a choice does to the chat (plain text, the line under the last answer, the scroll on send, the fade of a live thought) is held by Vitest; this book only proves each control exists and answers."
   ],
   "dynamicTestids": [
+    "appearance-message-style-block",
+    "appearance-message-style-bubble",
     "config-editor-gutter-1",
     "danger-card-clear-logs",
     "danger-card-clear-memories",
@@ -749,6 +752,149 @@
     {
       "kind": "click",
       "testid": "theme-system"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "appearance-nav-position-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-nav-position"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-nav-position-select",
+      "value": "right",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar"
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-navigation-right"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-nav-position-select",
+      "value": "left",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-view-mode"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-view-mode-select",
+      "value": "plain",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-view-mode-select",
+      "value": "markdown",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-generation-info"
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-generation-info-help"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-generation-info-select",
+      "value": "all",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-generation-info-select",
+      "value": "last",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-scroll-sent-top"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-scroll-sent-top-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-scroll-sent-top-toggle",
+      "checked": true
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-follow-generation"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-follow-generation-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-follow-generation-toggle",
+      "checked": true
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-message-style"
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-message-style-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "appearance-message-style-block"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "17c-chat-style-blocks"
+    },
+    {
+      "kind": "click",
+      "testid": "appearance-message-style-bubble"
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-reasoning-vignette"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-reasoning-vignette-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-reasoning-vignette-toggle",
+      "checked": true
     },
     {
       "kind": "sleep",

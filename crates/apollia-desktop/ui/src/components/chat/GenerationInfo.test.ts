@@ -106,8 +106,12 @@ function line(generation: Record<string, unknown>, initiallyExpanded = false): s
   }).body;
 }
 
+// The message is the last answer of its thread, the one that keeps its line
+// under the default "last message only" of Appearance.
 function bubble(message: ChatMessageView): string {
-  return render(ChatMessageBubble, { props: { message, sessionId: "s1" } }).body;
+  return render(ChatMessageBubble, {
+    props: { message, sessionId: "s1", lastAnswerId: message.id },
+  }).body;
 }
 
 function lookup(catalogue: unknown, key: string): unknown {
