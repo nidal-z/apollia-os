@@ -624,6 +624,24 @@
       "remove_confirm_plain": "Remove the connection",
       "remove_confirm_sources": "Remove the connection and {count, plural, one {its source} other {its # sources}}"
     },
+    "try": {
+      "action": "Try",
+      "title": "Try {name}",
+      "subtitle": "A conversation with Apollia, limited to the tools of this connection. Nothing is sent or changed without your consent.",
+      "choose": "Pick a question",
+      "general_label": "General question",
+      "general_question": "What can I do with {name}?",
+      "no_example": "This connection offers no example: Apollia first tells you what it allows.",
+      "own": "Or ask your own",
+      "own_placeholder": "Write a question…",
+      "quoted": "“{question}”",
+      "launch": "Start the trial",
+      "not_found": "This connection no longer exists.",
+      "no_tools": "This connection offers no tool yet.",
+      "native_added_title": "{provider} is added",
+      "native_added_body": "The account {account} is connected. You choose which agents can use it from their card.",
+      "done": "Done"
+    },
     "badge_builtin": "Built in"
   },
   "integrations": {
@@ -668,8 +686,7 @@
         "loading": "Generating suggestions…",
         "error": "Suggestions are not available right now.",
         "empty": "No suggestions - explore the tools from the chat.",
-        "try": "Try",
-        "no_tools": "No tool is available for this connection yet, so the example cannot run."
+        "try": "Try"
       },
       "optional": "optional",
       "auth_help_link": "Where to find your key",

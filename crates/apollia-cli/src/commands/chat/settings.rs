@@ -33,7 +33,8 @@ pub enum ChatSettingsCommand {
     /// `preset`, `thinking`, `reasoning_effort` (`low`, `medium`, `high`),
     /// `temperature`, `max_tokens`, `context_overflow` (`summarize_middle`,
     /// `sliding_window`, `stop_at_limit`), `instructions`,
-    /// `disabled_accesses`, `proposed_accesses` and `profile_access`. `{}`
+    /// `disabled_accesses`, `proposed_accesses`, `only_accesses` and
+    /// `profile_access`. `{}`
     /// returns the conversation to the settings of its agent.
     Set {
         /// Session id.

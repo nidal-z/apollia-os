@@ -351,6 +351,8 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/ui/src/lib/i18n/audit-i18n.test.ts": 12,
     "crates/apollia-desktop/ui/src/lib/i18n/i18n-locale-switch.test.ts": 1,
     "crates/apollia-desktop/ui/src/lib/utils/slugify.test.ts": 3,
+    "crates/apollia-desktop/ui/src/lib/connections/tryConnectorPrompt.test.ts": 4,
+    "crates/apollia-desktop/ui/src/components/connections/tryConnection.test.ts": 4,
     "crates/apollia-llm/tests/interval_junction.rs": 3,
     "crates/apollia-sources/tests/office_reader.rs": 3,
     "crates/apollia-sources/tests/results.rs": 4,

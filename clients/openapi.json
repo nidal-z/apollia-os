@@ -22123,6 +22123,10 @@
             ],
             "description": "Agent name (required when `mode == \"agent\"`)."
           },
+          "limited_to_tools": {
+            "type": "boolean",
+            "description": "Limit the conversation to `tools`: of the accesses of its agent only\nthey are offered, and those the agent does not hold are proposed,\neach of their calls asking for consent. Read back as\n`settings.only_accesses`. Refused when `tools` is empty."
+          },
           "mode": {
             "type": "string",
             "description": "Session mode: `\"libre\"` or `\"agent\"`."
@@ -28932,6 +28936,13 @@
             "format": "int32",
             "description": "Upper bound on the length of an answer, in tokens.",
             "minimum": 0
+          },
+          "only_accesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses the conversation is limited to. When the list is not empty,\nof the accesses of the agent only those it names are kept, and those\nit names that the agent does not hold are proposed: each of their\ncalls asks for consent."
           },
           "preset": {
             "type": [

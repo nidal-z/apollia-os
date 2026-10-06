@@ -187,6 +187,35 @@ pub struct ConnectorEnrichment {
     /// connection's configuration when it is added from this entry.
     #[serde(default)]
     pub tool_families: BTreeMap<String, ActionFamily>,
+    /// Questions the "Try" dialog offers once the connection is added, one per
+    /// tool it exercises. Serialized as:
+    ///
+    /// ```json
+    /// "examples": [
+    ///   {
+    ///     "tool": "notion-search",
+    ///     "label": { "en": "search pages", "fr": "..." },
+    ///     "question": { "en": "Which pages mention the budget?", "fr": "..." }
+    ///   }
+    /// ]
+    /// ```
+    ///
+    /// `tool` is a tool the entry classifies in `tool_families`. An entry
+    /// without examples is tried with a general question about what it allows.
+    #[serde(default)]
+    pub examples: Vec<TryExample>,
+}
+
+/// One question offered to try a connection: the tool it exercises, what that
+/// tool does and the question itself, each text per locale (`"en"`, `"fr"`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TryExample {
+    /// Name of the tool on the server, as `tool_families` keys it.
+    pub tool: String,
+    /// What the tool does, in a few words.
+    pub label: HashMap<String, String>,
+    /// The question a user would ask.
+    pub question: HashMap<String, String>,
 }
 
 /// One distribution of a package's hash lock.
@@ -859,5 +888,42 @@ mod tests {
         assert_eq!(strip_npm_version("@scope/name"), "@scope/name");
         assert_eq!(strip_npm_version("name@1.2"), "name");
         assert_eq!(strip_npm_version("name"), "name");
+    }
+
+    #[test]
+    fn every_listed_entry_offers_examples_on_tools_it_classifies() {
+        // GIVEN the embedded selection
+        let enrichments = load_builtin_enrichments();
+        // WHEN the examples of every listed entry are read
+        for entry in enrichments.iter().filter(|e| e.is_listed()) {
+            // THEN the entry offers at least one
+            assert!(
+                !entry.examples.is_empty(),
+                "{} offers no example to try it",
+                entry.package_identifier
+            );
+            for example in &entry.examples {
+                // AND each exercises a tool the entry classifies
+                assert!(
+                    entry.tool_families.contains_key(&example.tool),
+                    "{}: example on unclassified tool {}",
+                    entry.package_identifier,
+                    example.tool
+                );
+                // AND says what it does and asks its question in both locales
+                for locale in ["en", "fr"] {
+                    for (field, texts) in
+                        [("label", &example.label), ("question", &example.question)]
+                    {
+                        assert!(
+                            texts.get(locale).is_some_and(|t| !t.trim().is_empty()),
+                            "{} {}: {field} missing in {locale}",
+                            entry.package_identifier,
+                            example.tool
+                        );
+                    }
+                }
+            }
+        }
     }
 }

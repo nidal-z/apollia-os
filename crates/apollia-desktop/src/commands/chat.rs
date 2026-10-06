@@ -38,6 +38,10 @@ pub struct CreateSessionRequest {
     /// Tools to make available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
+    /// Limit the conversation to `tools`: nothing else of its agent is
+    /// offered, and a tool the agent does not hold asks at each call.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub limited_to_tools: bool,
     /// The model chosen for the session: the identifier of a language model
     /// of the model index, or `<server>/<model>`. Absent keeps the model of
     /// the agent.
@@ -144,16 +148,19 @@ pub async fn create_chat_session(
         None => None,
     };
 
-    let info = manager
-        .create_session(apollia_runtime::chat::manager::CreateSessionParams {
-            mode,
-            agent_name: request.agent_name,
-            system_prompt: request.system_prompt,
-            tools: request.tools,
-            model,
-        })
-        .await
-        .map_err(|e| e.to_string())?;
+    let params = apollia_runtime::chat::manager::CreateSessionParams {
+        mode,
+        agent_name: request.agent_name,
+        system_prompt: request.system_prompt,
+        tools: request.tools,
+        model,
+    };
+    let info = if request.limited_to_tools {
+        manager.create_limited_session(params).await
+    } else {
+        manager.create_session(params).await
+    }
+    .map_err(|e| e.to_string())?;
 
     Ok(session_info_to_summary(&info))
 }

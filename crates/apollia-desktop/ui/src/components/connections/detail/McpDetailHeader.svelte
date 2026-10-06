@@ -6,7 +6,7 @@
    * the Test / Reconnect actions. Presentation only; the parent owns the flows.
    */
   import { t } from "svelte-i18n";
-  import { RefreshCw, Link as LinkIcon } from "lucide-svelte";
+  import { Play, RefreshCw, Link as LinkIcon } from "lucide-svelte";
   import { DetailHeader } from "$lib/components/operator";
   import type { ConnectionStatus } from "$lib/connections/status";
   import { Badge } from "$lib/components/ui/badge";
@@ -28,9 +28,11 @@
     reconnecting: boolean;
     ontest: () => void;
     onreconnect: () => void;
+    /** "Try": a conversation limited to the tools of this connection. */
+    ontry?: () => void;
   }
 
-  let { label, meta, remote = false, status, sync, testing, reconnecting, ontest, onreconnect }: Props = $props();
+  let { label, meta, remote = false, status, sync, testing, reconnecting, ontest, onreconnect, ontry }: Props = $props();
 </script>
 
 <DetailHeader title={label} titleTestid="mcp-detail-title" {meta}>
@@ -58,7 +60,7 @@
       {testing ? $t("connections.testing") : $t("connections.test")}
     </Button>
     <Button
-      variant="primary-solid"
+      variant={ontry ? "outline" : "primary-solid"}
       size="sm"
       onclick={onreconnect}
       disabled={reconnecting}
@@ -69,5 +71,11 @@
       {/snippet}
       {$t("connections.reconnect")}
     </Button>
+    {#if ontry}
+      <Button variant="primary-solid" size="sm" onclick={ontry} data-testid="mcp-try-btn">
+        {#snippet icon()}<Play size={12} />{/snippet}
+        {$t("connections.try.action")}
+      </Button>
+    {/if}
   {/snippet}
 </DetailHeader>
