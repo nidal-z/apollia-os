@@ -11066,6 +11066,185 @@
         }
       }
     },
+    "/api/v1/packages/examples": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`GET /api/v1/packages/examples`: the example packages the binary carries,\neach with its agents and their mission, the connections it requires\n(present or missing on this machine) and the installed version when the\nuser installed it. None of them is installed until the user chooses it.",
+        "operationId": "list_example_packages",
+        "responses": {
+          "200": {
+            "description": "The examples",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExamplePackage"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/examples/{name}/install": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/examples/{name}/install`: install the example.",
+        "description": "The example is assembled into a package archive and installed like any\npackage file: its preview is computed again and its refusal applies, an\nupdate that adds accesses or connections needs `changesConfirmed`, and the\ninstallation is recorded in the audit journal. Once installed it is\nuninstalled like any package.",
+        "operationId": "install_example_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name of the example",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExampleInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No example of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Older than the installed version, or agent owned elsewhere",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "A confirmation is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store, environment or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal, or no MCP manager for the servers it brings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/examples/{name}/preview": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/examples/{name}/preview`: what the example\ncontains, what it asks for and which connections it requires, as the\npreview of a package file says it. Nothing is written.",
+        "operationId": "preview_example_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name of the example",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No example of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/packages/install": {
       "post": {
         "tags": [
@@ -22107,6 +22286,89 @@
           }
         }
       },
+      "ExampleAgent": {
+        "type": "object",
+        "description": "One agent of an example.",
+        "required": [
+          "id",
+          "name",
+          "mission"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Agent identifier."
+          },
+          "mission": {
+            "type": "string",
+            "description": "What the agent does."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        }
+      },
+      "ExampleInstallRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/packages/examples/{name}/install`.",
+        "properties": {
+          "changesConfirmed": {
+            "type": "boolean",
+            "description": "The user accepted what an update adds."
+          },
+          "depsConfirmed": {
+            "type": "boolean",
+            "description": "The user accepted the Python dependencies the package installs."
+          }
+        }
+      },
+      "ExamplePackage": {
+        "type": "object",
+        "description": "An example as the application proposes it.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "agents",
+          "requires"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExampleAgent"
+            },
+            "description": "Its agents, each with its mission."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the package delivers."
+          },
+          "installedVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Installed version, when the user installed it."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package identifier."
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequiredConnectionPreview"
+            },
+            "description": "The connections it requires, present or missing on this machine."
+          },
+          "version": {
+            "type": "string",
+            "description": "Version the binary carries."
+          }
+        }
+      },
       "ExportAgentRequest": {
         "type": "object",
         "description": "Body of `POST /api/v1/agent-definitions/{name}/export`.",
@@ -25175,7 +25437,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `built_in`, `owned_by_package`,\n`journal_unavailable`, `internal`."
+            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `built_in`, `owned_by_package`,\n`journal_unavailable`, `example`, `internal`."
           },
           "error": {
             "type": "string",

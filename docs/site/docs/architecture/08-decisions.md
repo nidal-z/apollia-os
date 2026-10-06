@@ -904,6 +904,15 @@ nothing more. Like any package, it is recorded in the audit journal, a newer
 installed version is never downgraded, and the user's overrides and the
 disabled state of its agents survive an update.
 
+The example packages follow the same rule, with one difference in what happens
+after. They are declarative packages embedded in the runtime at compile time,
+from one folder of the source tree. The application proposes them and installs
+one only when the user chooses it, after the preview every package gets. An
+example is named to the runtime by its package name, never by a path, so only
+what the binary carries is treated as an example; it is unsigned, and neither
+flagged nor refused for it, for the reason above. Once installed it belongs to
+the user: unlike the guide, it is uninstalled like any package.
+
 A package tool runs with a bare context: no memory, no user profile. One
 exception is decided by the host, never by a package. The onboarding of
 Apollia ships as a declarative agent with one tool that records the profile

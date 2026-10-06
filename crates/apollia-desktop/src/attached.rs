@@ -209,6 +209,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "install_package_file",
     "preview_package_file",
     "trust_package_publisher",
+    // The example packages the Agents screen proposes.
+    "install_example_package",
+    "list_example_packages",
+    "preview_example_package",
     // The user profiles and their facts, over `/api/v1/profiles`.
     "create_profile",
     "delete_profile",

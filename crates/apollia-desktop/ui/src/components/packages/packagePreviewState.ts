@@ -23,8 +23,8 @@ export type PreviewVariant =
   | "refused"
   | "update";
 
-/** How the publisher reads. */
-export type PublisherState = "trusted" | "signed_untrusted" | "unsigned" | "invalid";
+/** How the publisher reads; `shipped` is a package the application carries. */
+export type PublisherState = "trusted" | "signed_untrusted" | "unsigned" | "invalid" | "shipped";
 
 /** The action families, in the order the dialog lists them. */
 export const FAMILY_ORDER = [
@@ -71,8 +71,11 @@ export interface ChangeToAccept {
   missing: boolean;
 }
 
-/** Which variant the preview of `preview` is. */
-export function previewVariant(preview: PackagePreview): PreviewVariant {
+/**
+ * Which variant the preview of `preview` is. A package the application
+ * carries (`shipped`) is not signed and is not warned about for it.
+ */
+export function previewVariant(preview: PackagePreview, shipped = false): PreviewVariant {
   const refusal = preview.refusal ?? null;
   if (refusal !== null) {
     if (refusal.code === "invalid_signature") return "invalid";
@@ -83,15 +86,15 @@ export function previewVariant(preview: PackagePreview): PreviewVariant {
   }
   if (preview.signature.status === "invalid") return "invalid";
   if (preview.update) return "update";
-  if (preview.signature.status === "unsigned") return "unsigned";
+  if (preview.signature.status === "unsigned" && !shipped) return "unsigned";
   return "install";
 }
 
-/** How the publisher of `preview` reads. */
-export function publisherState(preview: PackagePreview): PublisherState {
+/** How the publisher of `preview` reads, for a package the application carries or not. */
+export function publisherState(preview: PackagePreview, shipped = false): PublisherState {
   const { status, trusted } = preview.signature;
   if (status === "invalid") return "invalid";
-  if (status === "unsigned") return "unsigned";
+  if (status === "unsigned") return shipped ? "shipped" : "unsigned";
   return trusted ? "trusted" : "signed_untrusted";
 }
 
@@ -222,9 +225,9 @@ export function fileName(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-/** The detail a user copies to report a refusal: package, file and reason. */
+/** The detail a user copies to report a refusal: package, file when it has one, and reason. */
 export function refusalDetail(preview: PackagePreview, path: string, reason: string): string {
-  const lines = [`${preview.name} ${preview.version}`, path, reason];
+  const lines = [`${preview.name} ${preview.version}`, path, reason].filter((line) => line !== "");
   if (preview.signature.keyFingerprint) lines.push(preview.signature.keyFingerprint);
   return lines.join("\n");
 }

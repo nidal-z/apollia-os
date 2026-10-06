@@ -3,6 +3,9 @@
 //!
 //! - `POST   /api/v1/packages/preview`                        , what a package contains and asks for; nothing is written
 //! - `POST   /api/v1/packages/install`                        , install or update a package
+//! - `GET    /api/v1/packages/examples`                       , the examples the binary proposes
+//! - `POST   /api/v1/packages/examples/{name}/preview`        , what an example contains and asks for; nothing is written
+//! - `POST   /api/v1/packages/examples/{name}/install`        , install an example the user chose
 //! - `GET    /api/v1/packages/trusted-keys`                   , list the trusted publisher keys
 //! - `POST   /api/v1/packages/trusted-keys`                   , import a publisher key
 //! - `DELETE /api/v1/packages/trusted-keys/{fingerprint}`     , remove a publisher key
@@ -35,8 +38,10 @@ use apollia_tools::{
     TrustedKeyOrigin, TrustedKeyRepository,
 };
 
+pub(crate) mod examples;
 pub(crate) mod uninstall;
 
+pub use examples::ExampleInstallRequest;
 pub use uninstall::UninstallRequest;
 
 use crate::api::server::AppState;
@@ -62,7 +67,7 @@ pub struct PackageErrorBody {
     /// `deps_confirmation_required`, `changes_confirmation_required`,
     /// `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
     /// `policy_key`, `not_found`, `built_in`, `owned_by_package`,
-    /// `journal_unavailable`, `internal`.
+    /// `journal_unavailable`, `example`, `internal`.
     pub code: String,
 }
 
@@ -148,6 +153,18 @@ pub fn package_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/packages/preview", post(preview_package::<B>))
         .route("/api/v1/packages/install", post(install_package::<B>))
         .route(
+            "/api/v1/packages/examples",
+            get(examples::list_example_packages::<B>),
+        )
+        .route(
+            "/api/v1/packages/examples/:name/preview",
+            post(examples::preview_example_package::<B>),
+        )
+        .route(
+            "/api/v1/packages/examples/:name/install",
+            post(examples::install_example_package::<B>),
+        )
+        .route(
             "/api/v1/packages/trusted-keys",
             get(list_trusted_keys::<B>).post(trust_key::<B>),
         )
@@ -201,6 +218,19 @@ async fn gather<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     archive: &std::path::Path,
 ) -> Result<Stores, ApiError> {
+    // The native accounts are read only for a package that requires a
+    // connection: reading them opens the account index.
+    let requires_connections = ApoArchive::open(archive)
+        .map(|a| !a.manifest().requires.is_empty())
+        .unwrap_or(false);
+    gather_for(state, requires_connections).await
+}
+
+/// The stores of [`gather`], for a package that requires connections or not.
+async fn gather_for<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    requires_connections: bool,
+) -> Result<Stores, ApiError> {
     let governance = state
         .governance
         .clone()
@@ -220,12 +250,29 @@ async fn gather<B: ExecutionBackend + Clone>(
         .map_err(internal)?
         .with_policy_publishers(&policy.trusted_publishers);
 
-    // The native accounts are read only for a package that requires a
-    // connection: reading them opens the account index.
-    let requires_connections = ApoArchive::open(archive)
-        .map(|a| !a.manifest().requires.is_empty())
-        .unwrap_or(false);
-    let accounts = if requires_connections {
+    let connections = connections_of(state, requires_connections).await?;
+    let tools = match &state.tool_registry_handle {
+        Some(registry) => registry.list().await.map_err(internal)?,
+        None => Vec::new(),
+    };
+    Ok(Stores {
+        governance,
+        packages,
+        agents,
+        trusted_keys,
+        connections,
+        tools,
+    })
+}
+
+/// The connections of this machine. The native accounts are read only when
+/// `with_accounts` says a package requires a connection: reading them opens
+/// the account index.
+async fn connections_of<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    with_accounts: bool,
+) -> Result<Vec<Connection>, ApiError> {
+    let accounts = if with_accounts {
         match crate::api::routes_connections::native_accounts().await {
             Ok(accounts) => accounts,
             Err((_, body)) => {
@@ -241,21 +288,9 @@ async fn gather<B: ExecutionBackend + Clone>(
     } else {
         Vec::new()
     };
-    let connections = crate::api::routes_connections::collect_connections(state, accounts)
+    crate::api::routes_connections::collect_connections(state, accounts)
         .await
-        .map_err(|(_, body)| internal(&body.0.error))?;
-    let tools = match &state.tool_registry_handle {
-        Some(registry) => registry.list().await.map_err(internal)?,
-        None => Vec::new(),
-    };
-    Ok(Stores {
-        governance,
-        packages,
-        agents,
-        trusted_keys,
-        connections,
-        tools,
-    })
+        .map_err(|(_, body)| internal(&body.0.error))
 }
 
 fn package_error(error: PackageError) -> ApiError {
@@ -300,6 +335,9 @@ fn package_error(error: PackageError) -> ApiError {
         }
         PackageError::Environment(_) => {
             api_err(StatusCode::INTERNAL_SERVER_ERROR, "environment", message)
+        }
+        PackageError::Example { .. } => {
+            api_err(StatusCode::INTERNAL_SERVER_ERROR, "example", message)
         }
         _ => internal(message),
     }
@@ -397,6 +435,17 @@ pub(crate) async fn install_package<B: ExecutionBackend + Clone>(
         actor: API_ACTOR.to_owned(),
         origin: PackageOrigin::File,
     };
+    let report = install_archive(&state, stores, path, options).await?;
+    Ok((StatusCode::CREATED, Json(report)))
+}
+
+/// Installs the archive at `path` as `options` say, over `stores`.
+async fn install_archive<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    stores: Stores,
+    path: PathBuf,
+    options: InstallOptions,
+) -> Result<InstallReport, ApiError> {
     let data_dir = state.data_dir.clone();
     let (stores, staged) = tokio::task::spawn_blocking(move || {
         let staged = prepare(&path, &options, &stores.sources(), &data_dir);
@@ -406,7 +455,7 @@ pub(crate) async fn install_package<B: ExecutionBackend + Clone>(
     .map_err(internal)?;
     let staged = staged.map_err(package_error)?;
 
-    let mcp = StateMcp { state: &state };
+    let mcp = StateMcp { state };
     let venvs = state.data_dir.join("venvs");
     let targets = CommitTargets {
         packages: &stores.packages,
@@ -415,10 +464,9 @@ pub(crate) async fn install_package<B: ExecutionBackend + Clone>(
         mcp: state.mcp_handle.as_ref().map(|_| &mcp),
         venvs: &venvs,
     };
-    let report = commit(staged, &targets, API_ACTOR)
+    commit(staged, &targets, API_ACTOR)
         .await
-        .map_err(package_error)?;
-    Ok((StatusCode::CREATED, Json(report)))
+        .map_err(package_error)
 }
 
 /// The `[packages]` section of the organisation policy in force: the empty

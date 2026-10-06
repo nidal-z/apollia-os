@@ -16,7 +16,11 @@
   import { navigateTo } from "$lib/stores/navigation";
   import { declareGuideSubscreen } from "$lib/stores/guideContext";
   import { pendingChatSessionId } from "$lib/stores/chat";
-  import { PACKAGE_INSTALLED_EVENT, openPackagePreview } from "$lib/stores/packagePreview";
+  import {
+    PACKAGE_INSTALLED_EVENT,
+    openExamplePreview,
+    openPackagePreview,
+  } from "$lib/stores/packagePreview";
   import { pendingSheet, takePendingSheet } from "$lib/stores/agentOpen";
   import { ErrorBanner } from "$lib/components/operator";
   import { reportError } from "$lib/errors/reportError";
@@ -27,6 +31,7 @@
     type WorkflowListItem,
     type WorkflowRun,
   } from "$lib/ipc/workflows";
+  import { listExamplePackages, type ExamplePackage } from "$lib/ipc/packageExamples";
   import { startAgentChat } from "$lib/agents/startAgentChat";
   import { takeRequestedAgent } from "$lib/stores/agentFocus";
   import { APOLLIA_AGENT_ID } from "../components/agents/sheet/agentSheet";
@@ -64,6 +69,7 @@
   let workflows = $state<WorkflowListItem[]>([]);
   let workflowsLoading = $state(true);
   let lastRuns = $state<Record<string, WorkflowRun | null>>({});
+  let examples = $state<ExamplePackage[]>([]);
 
   let uninstallConfirmName = $state<string | null>(null);
   let installPackageOpen = $state(false);
@@ -91,10 +97,23 @@
     }
   }
 
+  // The examples the application proposes, each installed or not. A list that
+  // cannot be read leaves the section out and says why.
+  async function refreshExamples(): Promise<void> {
+    try {
+      examples = await listExamplePackages();
+    } catch (err) {
+      examples = [];
+      reportError(err, { surface: "toast" });
+    }
+  }
+
   // Read when the list is shown: at mount, and on the way back from a sheet,
-  // where a run may have been launched or stopped.
+  // where a run may have been launched or stopped, or an example uninstalled.
   $effect(() => {
-    if (view.kind === "list") void refreshWorkflows();
+    if (view.kind !== "list") return;
+    void refreshWorkflows();
+    void refreshExamples();
   });
 
   // The command palette reaches this route by event rather than by import, so
@@ -114,6 +133,7 @@
   $effect(() => {
     const refresh = () => {
       void refreshWorkflows();
+      void refreshExamples();
     };
     window.addEventListener(PACKAGE_INSTALLED_EVENT, refresh);
     return () => {
@@ -298,6 +318,7 @@
         agents={filteredAgents}
         workflows={filteredWorkflows}
         {lastRuns}
+        {examples}
         bind:query
         connecting={$connectionStatus === "connecting"}
         {workflowsLoading}
@@ -306,6 +327,7 @@
         onOpenWorkflow={(workflow, launch) => openWorkflow(workflow.workflowId, workflow.name, launch)}
         onInstallPackageFile={pickPackageFile}
         onCreateAgent={openCreation}
+        onInstallExample={openExamplePreview}
         onOpenLogs={openLogs}
         onRequestUninstallAgent={requestUninstallAgent}
         onStartChat={startChatWithAgent}

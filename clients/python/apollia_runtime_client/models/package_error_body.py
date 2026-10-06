@@ -20,7 +20,7 @@ class PackageErrorBody:
                 `deps_confirmation_required`, `changes_confirmation_required`,
                 `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
                 `policy_key`, `not_found`, `built_in`, `owned_by_package`,
-                `journal_unavailable`, `internal`.
+                `journal_unavailable`, `example`, `internal`.
             error (str): Human-readable description.
     """
 

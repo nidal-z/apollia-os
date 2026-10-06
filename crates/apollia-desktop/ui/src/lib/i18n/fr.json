@@ -883,7 +883,17 @@
     "agents_empty_desc": "Un agent arrive avec un paquet : installez-en un pour commencer.",
     "workflows_empty_title": "Aucun workflow pour l'instant",
     "workflows_empty_desc": "Un workflow arrive avec un paquet.",
-    "row_chat": "Discuter"
+    "row_chat": "Discuter",
+    "examples": {
+      "kicker": "Exemples · {count, plural, one {# proposé} other {# proposés}}",
+      "band": "{names}. Installés seulement si vous le choisissez.",
+      "show": "Voir les exemples",
+      "intro": "Des agents prêts à l'emploi, proposés par Apollia, sans code. Rien n'est installé sans votre choix.",
+      "requires": "Requiert : {list}",
+      "install": "Installer",
+      "installed": "Installé",
+      "open_sheet": "Ouvrir la fiche"
+    }
   },
   "tasks": {
     "subtitle": "Suivez les requêtes envoyées à vos assistants et leurs résultats",
@@ -4864,6 +4874,7 @@
       "version_change": "de la version {from} à la version {to}",
       "origin_files": "ouvert depuis vos fichiers",
       "origin_update": "choisi avec « Mettre à jour… »",
+      "origin_example": "exemple proposé par Apollia",
       "nothing_before_consent": "Rien n'est installé avant votre accord.",
       "install_error": "L'installation n'a pas abouti.",
       "installed_toast": "« {name} » {version} est installé.",
@@ -4876,6 +4887,7 @@
         "signed_untrusted": "Paquet signé, éditeur pas encore de confiance",
         "unsigned": "Paquet non signé",
         "invalid": "Signature invalide",
+        "shipped": "Exemple fourni avec l'application",
         "fingerprint": "Empreinte",
         "trust_button": "Faire confiance à cet éditeur",
         "trust_note": "La liste des éditeurs de confiance se gère dans Autorisations.",

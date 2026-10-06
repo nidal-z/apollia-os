@@ -883,7 +883,17 @@
     "agents_empty_desc": "An agent comes with a package: install one to get started.",
     "workflows_empty_title": "No workflow yet",
     "workflows_empty_desc": "A workflow comes with a package.",
-    "row_chat": "Chat"
+    "row_chat": "Chat",
+    "examples": {
+      "kicker": "Examples · {count, plural, one {# proposed} other {# proposed}}",
+      "band": "{names}. Installed only if you choose to.",
+      "show": "See the examples",
+      "intro": "Ready-to-use agents, proposed by Apollia, with no code. Nothing is installed unless you choose it.",
+      "requires": "Requires: {list}",
+      "install": "Install",
+      "installed": "Installed",
+      "open_sheet": "Open the sheet"
+    }
   },
   "tasks": {
     "subtitle": "Track requests sent to your assistants and their results",
@@ -4864,6 +4874,7 @@
       "version_change": "from version {from} to version {to}",
       "origin_files": "opened from your files",
       "origin_update": "chosen with “Update…”",
+      "origin_example": "example proposed by Apollia",
       "nothing_before_consent": "Nothing is installed before you agree.",
       "install_error": "The installation did not complete.",
       "installed_toast": "“{name}” {version} is installed.",
@@ -4876,6 +4887,7 @@
         "signed_untrusted": "Signed package, publisher not trusted yet",
         "unsigned": "Unsigned package",
         "invalid": "Invalid signature",
+        "shipped": "Example shipped with the application",
         "fingerprint": "Fingerprint",
         "trust_button": "Trust this publisher",
         "trust_note": "The list of trusted publishers is managed in Permissions.",
