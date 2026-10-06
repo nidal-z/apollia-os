@@ -376,8 +376,37 @@ journaled at the next start, dated when it was made. The run
 `governance:policy:organisation` holds `PolicyApplied` at each start (with the
 key fingerprint and the SHA-256 of the policy file), `PolicyChanged` when that
 digest differs from the last one applied, `PolicyUnreadable` with its reason,
-and `FailClosedTriggered` on each entry into fail-closed. `JournalExported`
+`PolicySettingEnforced` for each setting of the compatible server the policy
+fixes against a file that had left the server on and open (the entry names the
+dotted key and holds no value), and `FailClosedTriggered` on each entry into
+fail-closed. `JournalExported`
 goes to `governance:journal:export`.
+
+A change of `apollia.toml` is `ConfigurationChanged`, in the run
+`governance:configuration`, written by the configuration reloader
+(`crates/apollia-runtime/src/config_reload/journal.rs`) each time it applies a
+text. The payload names the dotted keys whose value changed, the origin
+(`editor`, `settings`, `cli`, `api`, `external_file`, `at_startup`) and the
+SHA-256 of the text before and after; it never carries a value. A caller of
+`PUT /api/v1/config` declares its origin; a file found changed by the watcher
+is `external_file`; a file whose fingerprint at startup is not the last one
+journaled is `at_startup`, which is how a write of the CLI made with no
+runtime running is journaled. The keys of that last case come from the copy of
+the last text applied, kept beside the file as `apollia.toml.applied` and
+trusted only when its fingerprint is the journaled one; otherwise the entry
+has no `keys` field.
+
+A request the compatible server received is `ServerCall`, in the run
+`server:calls`, written by a layer above every other layer of its router
+(`crates/apollia-runtime/src/compat_server/journal.rs`), so a request the
+token check refused has its entry too. The payload names the method and the
+path, the model or the agent the request named, the name of the token (never
+its value), the address read when the connection was accepted and whether it
+is the machine or the local network, the status, the tokens the answer stated
+and the duration; a call that started an agent or a workflow adds `task_id`
+and `run_id`. It never carries a message, an answer or a header. The entry of
+a stream is written when the stream closes, with the tokens read in passing
+from its events.
 
 ---
 

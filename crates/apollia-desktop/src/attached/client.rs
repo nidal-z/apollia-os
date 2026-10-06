@@ -122,6 +122,7 @@ impl AttachedClient {
         session_id: &str,
         content: &str,
         images: &[apollia_runtime::chat::images::ImageAttachment],
+        documents: &[apollia_runtime::chat::documents::DocumentAttachment],
     ) -> Result<String, AttachedError> {
         #[derive(serde::Deserialize)]
         struct Accepted {
@@ -131,10 +132,11 @@ impl AttachedClient {
             "/api/v1/sessions/{}/messages",
             urlencoding::encode(session_id)
         );
-        let builder = self
-            .http
-            .post(self.url(&path))
-            .json(&serde_json::json!({ "content": content, "images": images }));
+        let builder = self.http.post(self.url(&path)).json(&serde_json::json!({
+            "content": content,
+            "images": images,
+            "documents": documents,
+        }));
         let accepted: Accepted = self.send_json(builder).await?;
         Ok(accepted.message_id)
     }
@@ -225,6 +227,25 @@ impl AttachedClient {
             .await
             .map_err(AttachedError::Body)?;
         Ok((report, bytes))
+    }
+
+    /// `GET path`, for an answer that is a file: its bytes, under
+    /// [`MAX_FILE_BYTES`].
+    pub(crate) async fn get_for_file(&self, path: &str) -> Result<Vec<u8>, AttachedError> {
+        let response = self
+            .http
+            .get(self.url(path))
+            .bearer_auth(&self.token)
+            .timeout(FILE_REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(AttachedError::Unreachable)?;
+        if !response.status().is_success() {
+            return Err(refusal(response).await);
+        }
+        apollia_core::net::read_capped_bytes(response, MAX_FILE_BYTES)
+            .await
+            .map_err(AttachedError::Body)
     }
 
     /// `PUT path` with a JSON body, its JSON answer read as `T`.

@@ -250,8 +250,7 @@ impl FamilyConsentStore {
         Ok(affected as u32)
     }
 
-    // TEST-ONLY: the listing of one agent's consents, which the
-    // authorizations screen consumes once wired.
+    // TEST-ONLY: the listing of one agent's consents, batch runs included.
     /// Lists the consents of `agent_id`, oldest first.
     ///
     /// # Errors
@@ -259,12 +258,32 @@ impl FamilyConsentStore {
     /// [`PermissionError::Database`] on SQLite error, or
     /// [`PermissionError::InvalidConsent`] for a row this binary cannot read.
     pub fn list_for_agent(&self, agent_id: &str) -> Result<Vec<FamilyConsent>, PermissionError> {
-        let mut stmt = self.db.prepare(
+        self.consents_where("agent_id = ?1", params![agent_id])
+    }
+
+    /// Lists every permanent consent in full, whatever the agent, oldest
+    /// first: what the authorizations screen shows and lets the user
+    /// withdraw. The consents bound to a batch run are left out.
+    ///
+    /// # Errors
+    ///
+    /// [`PermissionError::Database`] on SQLite error, or
+    /// [`PermissionError::InvalidConsent`] for a row this binary cannot read.
+    pub fn list_permanent_consents(&self) -> Result<Vec<FamilyConsent>, PermissionError> {
+        self.consents_where("scope = 'permanent'", params![])
+    }
+
+    fn consents_where(
+        &self,
+        condition: &str,
+        values: &[&dyn rusqlite::ToSql],
+    ) -> Result<Vec<FamilyConsent>, PermissionError> {
+        let mut stmt = self.db.prepare(&format!(
             "SELECT id, agent_id, family, scope, granted_at, granted_by \
-             FROM family_consents WHERE agent_id = ? ORDER BY id ASC",
-        )?;
+             FROM family_consents WHERE {condition} ORDER BY id ASC"
+        ))?;
         let rows = stmt
-            .query_map(params![agent_id], |row| {
+            .query_map(values, |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
                     row.get::<_, String>(1)?,
@@ -645,5 +664,49 @@ mod tests {
         assert!(ConsentFamily::parse("unclassified").is_err());
         assert!(ConsentScope::from_db("session").is_err());
         assert!(ConsentScope::from_db("lot:").is_err());
+    }
+
+    #[test]
+    fn list_permanent_consents_gives_every_agent_and_leaves_batch_runs_out() {
+        // GIVEN two agents with a permanent consent each, and one bound to a
+        // batch run
+        let (mut store, _f) = store();
+        store
+            .grant(
+                "a1",
+                ConsentFamily::SendExternal,
+                &ConsentScope::Permanent,
+                "user",
+            )
+            .expect("grant");
+        store
+            .grant(
+                "a2",
+                ConsentFamily::WriteOrDelete,
+                &ConsentScope::Permanent,
+                "upgrade",
+            )
+            .expect("grant");
+        store
+            .grant("a1", ConsentFamily::WriteOrDelete, &lot("nightly"), "batch")
+            .expect("grant");
+
+        // WHEN the permanent consents are listed in full
+        let listed = store.list_permanent_consents().expect("list");
+
+        // THEN both agents are there with who gave the consent, oldest first,
+        // and the batch run's consent is not
+        let seen: Vec<(&str, ConsentFamily, &str)> = listed
+            .iter()
+            .map(|c| (c.agent_id.as_str(), c.family, c.granted_by.as_str()))
+            .collect();
+        assert_eq!(
+            seen,
+            vec![
+                ("a1", ConsentFamily::SendExternal, "user"),
+                ("a2", ConsentFamily::WriteOrDelete, "upgrade"),
+            ]
+        );
+        assert!(listed.iter().all(|c| c.scope == ConsentScope::Permanent));
     }
 }

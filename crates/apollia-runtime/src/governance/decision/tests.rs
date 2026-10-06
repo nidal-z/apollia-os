@@ -234,6 +234,44 @@ fn test_code_runs_on_allow_rule_in_developer_mode_only() {
     assert_eq!(compound, asked_without_always());
 }
 
+// A tool nobody classified has no family a consent could stand for: a fine
+// rule `allow` naming it lets it run, in developer mode only.
+#[test]
+fn test_unclassified_runs_on_allow_rule_in_developer_mode_only() {
+    // GIVEN an allow rule on a tool of an MCP server nobody classified
+    let tool = "mcp:request-mcp:localhost/echo";
+    let mut state = GovernanceState {
+        rules: vec![rule(5, tool, None, RuleAction::Allow)],
+        ..GovernanceState::default()
+    };
+    let asked = call(tool, ActionFamily::Unclassified, None);
+
+    // WHEN it is decided outside developer mode
+    let outside = decide(&state, &asked, NOW);
+    // THEN it asks without "always", the rule set aside
+    assert_eq!(outside, asked_without_always());
+
+    // WHEN it is decided in developer mode
+    state.developer_mode = true;
+    let inside = decide(&state, &asked, NOW);
+    // THEN the rule lets it run
+    assert_eq!(
+        inside,
+        AccessDecision::Allowed {
+            reason: DecisionReason::Rule { rule_id: 5 }
+        }
+    );
+
+    // WHEN another tool of the same server is decided in developer mode
+    let other = call(
+        "mcp:request-mcp:localhost/delete",
+        ActionFamily::Unclassified,
+        None,
+    );
+    // THEN it still asks without "always"
+    assert_eq!(decide(&state, &other, NOW), asked_without_always());
+}
+
 // Line 4: in developer mode, "always" is offered on a single simple command
 // no rule covers yet, never on a compound one, never outside the mode.
 #[test]

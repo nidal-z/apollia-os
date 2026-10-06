@@ -2,8 +2,13 @@
   "name": "onboarding-full",
   "stopOnError": false,
   "dynamicTestids": [
+    "ai-setup-source-server",
+    "first-agent-card-create",
+    "first-agent-card-example",
+    "first-agent-card-install",
     "onboarding-lang-en",
     "onboarding-lang-fr",
+    "profile-field-role",
     "settings-nav-appearance"
   ],
   "steps": [
@@ -95,11 +100,16 @@
     },
     {
       "kind": "expect",
-      "testid": "stt-section"
+      "testid": "onboarding-step-count",
+      "contains": "2 sur 6"
     },
     {
       "kind": "expect",
-      "testid": "stt-toggle"
+      "testid": "onboarding-progress"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-setup-continue-hint"
     },
     {
       "kind": "screenshot",
@@ -188,7 +198,7 @@
     {
       "kind": "expect",
       "testid": "llm-download-progress",
-      "contains": "Qwen3-4B-Q4_K_M.gguf"
+      "contains": ".gguf"
     },
     {
       "kind": "waitGone",
@@ -200,8 +210,70 @@
       "label": "06d-onb-curated-llm-downloading"
     },
     {
+      "kind": "expect",
+      "testid": "onboarding-model-progress"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-model-progress"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-step-count",
+      "contains": "3 sur 6"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06e-onb-embeddings-while-llm-downloads"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-download-progress",
+      "timeoutMs": 8000
+    },
+    {
       "kind": "clearStubs",
       "command": "start_variant_download"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-download-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-download-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-model-progress",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "curated-llm-list",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",
@@ -215,109 +287,6 @@
     {
       "kind": "screenshot",
       "label": "07-onb-ai-setup-back"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "scan_for_whisper_models",
-      "resolve": []
-    },
-    {
-      "kind": "click",
-      "testid": "onboarding-welcome-cta",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-ai-setup",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07b-onb-ai-setup-again"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "curated-stt-list",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "start_model_download",
-      "reject": "automation: start_model_download refused (seeded fault, curated stt)",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "curated-stt-row",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "stt-download-error",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "expect",
-      "testid": "stt-download-error",
-      "contains": "start_model_download refused"
-    },
-    {
-      "kind": "expect",
-      "testid": "curated-stt-list"
-    },
-    {
-      "kind": "screenshot",
-      "label": "07c-onb-curated-stt-refused"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "start_model_download",
-      "resolve": "automation-curated-stt-download",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "curated-stt-row",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "stt-download-progress",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "expect",
-      "testid": "stt-download-progress",
-      "contains": "ggml-tiny.bin"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "curated-stt-list",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07d-onb-curated-stt-downloading"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "start_model_download"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "scan_for_whisper_models"
-    },
-    {
-      "kind": "click",
-      "testid": "ai-setup-back",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-welcome",
-      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -352,69 +321,285 @@
       "label": "08b-onb-llm-detected-row-picked"
     },
     {
-      "kind": "setChecked",
-      "testid": "stt-toggle",
-      "checked": true
-    },
-    {
-      "kind": "waitFor",
-      "testid": "stt-hotkey-block",
+      "kind": "click",
+      "testid": "ai-setup-continue",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "whisper-model-row",
-      "timeoutMs": 4000
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "whisper-model-row",
-      "timeoutMs": 3000
+      "kind": "waitFor",
+      "testid": "embeddings-model-card",
+      "timeoutMs": 15000
     },
     {
-      "kind": "sleep",
-      "ms": 500
+      "kind": "expect",
+      "testid": "embeddings-model-name"
     },
     {
-      "kind": "selectOption",
-      "testid": "stt-input-device",
-      "index": 0,
-      "timeoutMs": 3000
+      "kind": "expect",
+      "testid": "embeddings-recommended"
     },
     {
-      "kind": "click",
-      "testid": "stt-hotkey-capture",
-      "timeoutMs": 3000
+      "kind": "expect",
+      "testid": "embeddings-model-size",
+      "contains": "tourne sur votre poste"
     },
     {
-      "kind": "press",
-      "testid": "stt-hotkey-capture",
-      "key": "k",
-      "meta": true,
-      "shift": true,
-      "timeoutMs": 3000
+      "kind": "expect",
+      "testid": "embeddings-reason"
     },
     {
-      "kind": "sleep",
-      "ms": 300
+      "kind": "waitFor",
+      "testid": "embeddings-download",
+      "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "stt-hotkey-save",
-      "timeoutMs": 4000
+      "kind": "expect",
+      "testid": "embeddings-import"
     },
     {
-      "kind": "sleep",
-      "ms": 500
+      "kind": "expect",
+      "testid": "embeddings-continue"
     },
     {
       "kind": "screenshot",
-      "label": "08c-onb-stt-configured"
+      "label": "08d-onb-embeddings-offer"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-import",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-error",
+      "contains": "Phi-3-mini-Q4.gguf"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08e-onb-embeddings-import-refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_variant_download",
+      "reject": "automation: start_variant_download refused (seeded fault, embeddings)",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-download",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-error",
+      "contains": "start_variant_download refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_variant_download",
+      "resolve": "automation-embeddings-download",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-download",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-download-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08f-onb-embeddings-downloading"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_variant_download"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-download-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "embeddings-download-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_embeddings_recommendation",
+      "reject": "automation: get_embeddings_recommendation refused (seeded fault, registry unreadable)",
+      "once": true
     },
     {
       "kind": "click",
       "testid": "ai-setup-continue",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-unavailable",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-error",
+      "contains": "get_embeddings_recommendation refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_embeddings_recommendation"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_memory_embeddings_model",
+      "resolve": {
+        "model": "multilingual-e5-small",
+        "dimensions": 384
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-ready",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-model-name",
+      "contains": "Multilingual E5 small"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08f2-onb-embeddings-installed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_memory_embeddings_model"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-skip",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-skip-warning",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip-warning",
+      "contains": "dans vos sources"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip-warning",
+      "contains": "dans la mémoire de vos agents"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip-warning",
+      "contains": "l'écran IA"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-skip-lost"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08g-onb-embeddings-skip-warning"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-continue-without",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -443,16 +628,676 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-finish",
+      "testid": "onboarding-profile-review",
       "timeoutMs": 30000
     },
     {
+      "kind": "expect",
+      "testid": "onboarding-review-skip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-field-role",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-field-role",
+      "text": "Automation QA engineer"
+    },
+    {
       "kind": "screenshot",
-      "label": "11-onb-celebration"
+      "label": "11-onb-profile-review"
     },
     {
       "kind": "click",
-      "testid": "onboarding-finish",
+      "testid": "onboarding-review-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-first-agent",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-step-count",
+      "contains": "5 sur 6"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-cards"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-card-install",
+      "contains": "Installer un agent"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-card-create",
+      "contains": "Créer en décrivant mon besoin"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-card-example",
+      "contains": "Partir d'un exemple"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-skip"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-onb-first-agent-cards"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/automation-first-agent.apo",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "preview_package_file",
+      "resolve": {
+        "name": "paquet-recu",
+        "version": "1.0.0",
+        "description": "A package received from a colleague.",
+        "sdk": ">=0.3",
+        "signature": {
+          "status": "unsigned",
+          "publisher": "Apollia",
+          "declaredPublisher": "Apollia",
+          "keyFingerprint": null,
+          "publicKey": null,
+          "trusted": false,
+          "reason": null
+        },
+        "signatureRequired": false,
+        "agents": [
+          {
+            "id": "paquet-recu",
+            "name": "Agent reçu",
+            "mission": "Answers the questions about the notes.",
+            "examples": [],
+            "access": []
+          }
+        ],
+        "workflows": [],
+        "tools": [],
+        "requires": [],
+        "mcpServers": [],
+        "pip": [],
+        "triggers": [],
+        "installedVersion": null,
+        "update": null,
+        "notices": [],
+        "refusal": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-install",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-title",
+      "contains": "paquet-recu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11c-onb-first-agent-package-preview"
+    },
+    {
+      "kind": "click",
+      "testid": "package-preview-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-skip"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "reject": "no model is configured for the conversation",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-create",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-start-error",
+      "contains": "no model is configured",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-conversation"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-draft"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11d-onb-first-agent-create"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-create-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-cards",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_example_packages",
+      "resolve": [
+        {
+          "name": "veille-web",
+          "version": "1.0.0",
+          "description": "Watches a topic on the web.",
+          "agents": [
+            {
+              "id": "veille-web",
+              "name": "Veille web",
+              "mission": "Searches the web on your topic and writes a summary."
+            }
+          ],
+          "requires": [
+            {
+              "type": "imap",
+              "reason": "Reads the newsletters of your mailbox.",
+              "present": false,
+              "broughtByPackage": false
+            }
+          ],
+          "installedVersion": null
+        },
+        {
+          "name": "qualifier-des-demandes",
+          "version": "1.0.0",
+          "description": "Sorts incoming requests and says what each one needs.",
+          "agents": [
+            {
+              "id": "qualifier-des-demandes",
+              "name": "Qualifier des demandes",
+              "mission": "Reads each request, sorts it and says what it needs next."
+            }
+          ],
+          "requires": [],
+          "installedVersion": null
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "preview_example_package",
+      "argsMatch": {
+        "name": "qualifier-des-demandes"
+      },
+      "resolve": {
+        "name": "qualifier-des-demandes",
+        "version": "1.0.0",
+        "description": "Sorts incoming requests and says what each one needs.",
+        "sdk": ">=0.3",
+        "signature": {
+          "status": "unsigned",
+          "publisher": "Apollia",
+          "declaredPublisher": "Apollia",
+          "keyFingerprint": null,
+          "publicKey": null,
+          "trusted": false,
+          "reason": null
+        },
+        "signatureRequired": false,
+        "agents": [
+          {
+            "id": "qualifier-des-demandes",
+            "name": "Qualifier des demandes",
+            "mission": "Reads each request, sorts it and says what it needs next.",
+            "examples": [],
+            "access": []
+          }
+        ],
+        "workflows": [],
+        "tools": [],
+        "requires": [],
+        "mcpServers": [],
+        "pip": [],
+        "triggers": [],
+        "installedVersion": null,
+        "update": null,
+        "notices": [],
+        "refusal": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "install_example_package",
+      "argsMatch": {
+        "name": "qualifier-des-demandes"
+      },
+      "resolve": {
+        "name": "qualifier-des-demandes",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-example",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-examples",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-example",
+      "nth": 0,
+      "contains": "Veille web"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-example-requires",
+      "contains": "imap"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-agent-example",
+      "nth": 1,
+      "contains": "Qualifier des demandes"
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-examples-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-cards",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-example",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-examples",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-example",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11e-onb-first-agent-example-chosen"
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-example-install",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-title",
+      "contains": "qualifier-des-demandes",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "package-preview-install",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-kept",
+      "contains": "Qualifier des demandes",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "first-agent-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11f-onb-first-agent-kept"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_agent_package_detail",
+      "argsMatch": {
+        "name": "qualifier-des-demandes"
+      },
+      "resolve": {
+        "name": "qualifier-des-demandes",
+        "version": "1.0.0",
+        "description": "Sorts incoming requests and says what each one needs.",
+        "author": "Apollia",
+        "agents": [],
+        "installed_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "root_path": "",
+        "root_missing": false,
+        "manifest": {
+          "package": {
+            "name": "qualifier-des-demandes",
+            "version": "1.0.0"
+          },
+          "requires": [
+            {
+              "type": "io.apollia.automation/browser",
+              "reason": "Pour ouvrir et lire les pages web citées dans les demandes."
+            }
+          ]
+        },
+        "signature": {
+          "status": "unsigned",
+          "publisher": "Apollia",
+          "trusted": false
+        },
+        "embedded": false,
+        "content": {
+          "agents": [],
+          "workflows": [],
+          "tools": []
+        },
+        "automations": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": []
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "fetch_mcp_curated",
+      "resolve": [
+        {
+          "name": "io.apollia.automation/browser",
+          "title": "Navigateur",
+          "description": "Opens and reads web pages.",
+          "version": "1.0.0",
+          "repository_url": null,
+          "website_url": null,
+          "packages": null,
+          "trust_level": "official",
+          "category": "web",
+          "enrichment": null,
+          "is_installed": false,
+          "remotes": [
+            {
+              "type": "streamable-http",
+              "url": "https://browser.automation.invalid/mcp",
+              "headers": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-connection",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-step-count",
+      "contains": "6 sur 6"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-subtitle",
+      "contains": "Qualifier des demandes"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-line",
+      "contains": "Navigateur"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-line-reason",
+      "contains": "pages web"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-line-add"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-skip"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11g-onb-connection-missing"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-kept",
+      "contains": "Qualifier des demandes",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-connection",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_mcp_connection",
+      "resolve": {
+        "kind": "success",
+        "server_info": "navigateur",
+        "protocol_version": "2025-06-18",
+        "tools": [],
+        "test_duration_ms": 5,
+        "live_health": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "add_mcp_server",
+      "resolve": {
+        "name": "navigateur",
+        "health": {
+          "state": "healthy",
+          "verified": true
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_mcp_live_server",
+      "resolve": {
+        "kind": "success",
+        "server_info": "navigateur",
+        "protocol_version": "2025-06-18",
+        "tools": [
+          {
+            "name": "open_page"
+          },
+          {
+            "name": "read_page"
+          }
+        ],
+        "test_duration_ms": 9,
+        "live_health": {
+          "state": "healthy",
+          "verified": true
+        }
+      }
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "mcp:navigateur",
+          "kind": "mcp",
+          "label": "Navigateur",
+          "account": null,
+          "provenance": "selection",
+          "remote": true,
+          "official": true,
+          "state": "connected",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "connection-line-add",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-warning-accept",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11h-onb-connection-add-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-warning-accept",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-done-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-line-present",
+      "contains": "Présente",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connection-line-add",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-skip"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11i-onb-connection-present"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-continue",
       "timeoutMs": 3000
     },
     {
@@ -540,22 +1385,156 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-open-cloud",
+      "testid": "ai-setup-source-server",
       "timeoutMs": 10000
     },
     {
       "kind": "click",
-      "testid": "onboarding-open-cloud",
+      "testid": "ai-setup-source-server",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-page",
-      "timeoutMs": 15000
+      "testid": "onboarding-server-form",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "fill",
+      "testid": "onboarding-server-address",
+      "text": "localhost:9"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-server-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-server-error",
+      "contains": "https://",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "onboarding-server-address",
+      "text": "http://127.0.0.1:9"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-server-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-server-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-server-error",
+      "contains": "127.0.0.1:9",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-server-error-detail"
     },
     {
       "kind": "screenshot",
-      "label": "13-onb-open-cloud-lands-on-llm"
+      "label": "13-onb-server-unreachable"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_llm_server",
+      "resolve": [
+        "automation-model-a",
+        "automation-model-b"
+      ],
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-server-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-server-models",
+      "contains": "automation-model-b",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-server-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "save_llm_server",
+      "resolve": {
+        "name": "127-0-0-1-9",
+        "base_url": "http://127.0.0.1:9",
+        "has_key": false,
+        "api_key_env": null,
+        "enabled": true
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_default_model",
+      "resolve": {
+        "backend": "127-0-0-1-9/automation-model-a",
+        "model_source": "server",
+        "model_id": "127-0-0-1-9/automation-model-a"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-server-model",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-server-chosen",
+      "contains": "automation-model-a",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-onb-server-chosen-in-step"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 15000
     },
     {
       "kind": "goto",
@@ -692,12 +1671,16 @@
     }
   ],
   "notes": [
-    "The footer button is step-dependent (OnboardingModal.svelte): every step but the conversation renders onboarding-skip (abandon onboarding), while the conversation renders onboarding-skip-optional, which drops only the remaining optional questions and still routes to the permissions phase. Abandoning there would skip permissions entirely, so the button is deliberately not the same one.",
-    "The phase that follows the optional skip depends on the agent answering, which a deterministic run has no model for. The script therefore stops at the click plus a screenshot instead of asserting a downstream phase.",
-    "llm-load-model-btn is played through the invoke stub: OnboardingLlmSection.svelte:13 imports plugin-dialog `open`, which is invoke('plugin:dialog|open'), so a once stub resolving ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf skips the OS picker and continues into import_model_file (model_hub.rs:495 copies only when dest differs from source, so the seed's own file is left intact) then selectGgufModel, the same wiring as the llm-model-row click. It sits in the operator ai-setup pass, before any row click, so llmConfiguring is false (OnboardingLlmSection.svelte:143 returns early while a configuration is in flight).",
-    "The onboarding asks no usage profile: the welcome leads straight to the AI setup, and ai-setup-back returns to the welcome. The book walks that pair three times, once bare, once with the whisper scan stubbed empty, once to replay the detected rows, and after the finish it checks that the developer group of the sidebar is absent, the developer mode staying off.",
-    "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts:43), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts:37-41), humanize keeps the raw text on detail (lib/errors/humanize.ts:263-274) and the disclosure at OnboardingModal.svelte:248 renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because onboarding-open-cloud closes the modal (OnboardingModal.svelte:226 passes onclose as onopencloud) and the earlier flow needs the modal.",
-    "curated-llm-row is played through the invoke stub, in the operator ai-setup pass right after the picker import: a once stub rejects start_model_download (lib/ipc/models.ts:102, OnboardingLlmSection.svelte:213-228) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the first row's filename (Qwen3-4B-Q4_K_M.gguf, onboardingCatalogs.ts:38, the first entry fits any machine with 4 GB). No event ever settles that fake id (downloader.rs:159-161), so the block sits last before ai-setup-back, which unmounts the step (OnboardingModal.svelte:221) and resets the state.",
-    "curated-stt-row is played on the second visit of the AI setup: scan_for_whisper_models (lib/ipc/models.ts:84) is stubbed to an empty list before onboarding-welcome-cta mounts the step, which is the only way curated-stt-list renders (aiSetupRules.ts:84, the seed ships ggml-base.bin, copied from tests/cli/seed/files/models/ by build-seed.sh:183); the row then goes through the same reject-then-resolve pair on start_model_download (OnboardingSttSection.svelte:379-393), stt-download-error then stt-download-progress with ggml-tiny.bin (onboardingCatalogs.ts:69). Both stubs are cleared before ai-setup-back, so the pass that follows sees the real scan and its whisper-model-row again."
+    "onboarding-skip (abandon onboarding) sits in the header of the modal and is drawn on every step (OnboardingModal.svelte), the AI setup included. The footer exists on the conversation only and renders onboarding-skip-optional, which skips the questions, all of them optional, and opens the profile review (OnboardingProfileReview.svelte). The review writes nothing by itself: onboarding-review-save writes the default profile, onboarding-review-skip leaves it untouched, and both lead to the first-agent step.",
+    "The skip finalizes the conversation through finalize_onboarding_chat, with no model turn, so the review opens in a deterministic run with an empty proposal; the book fills the role by hand (profile-field-role, a field drawn from the list Rust sends with the default profile) and saves. A proposal filled by the agent needs a model and is played by onboarding-llm.",
+    "llm-load-model-btn is played through the invoke stub: OnboardingLlmSection.svelte imports plugin-dialog `open`, which is invoke('plugin:dialog|open'), so a once stub resolving ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf skips the OS picker and continues into import_model_file (model_hub.rs copies only when dest differs from source, so the seed's own file is left intact) then selectGgufModel, the same wiring as the llm-model-row click. It sits in the first ai-setup pass, before any row click, so llmConfiguring is false (selectGgufModel returns early while a configuration is in flight).",
+    "The onboarding asks no usage profile: the welcome, where the language is chosen, leads straight to the AI setup, and ai-setup-back returns to the welcome. The AI setup is the only step that cannot be passed, and it asks neither for dictation nor for a context window: a recipe cannot name a control that no longer exists, so those absences are held by OnboardingAiSetup.test.ts, and the book checks what is there, ai-setup-continue-hint and a header that counts the steps that exist (onboarding-step-count). ai-setup-continue is open from the first pass because the seed registers a default backend. The book walks the welcome and the AI setup twice, once bare and once to replay the detected rows, and after the finish it checks that the developer group of the sidebar is absent, the developer mode staying off.",
+    "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts), humanize keeps the raw text on detail (lib/errors/humanize.ts) and the disclosure of OnboardingModal.svelte renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because it closes the modal, which the earlier flow needs.",
+    "curated-llm-row is played through the invoke stub, in the first ai-setup pass right after the picker import: a once stub rejects start_variant_download (lib/ipc/modelHub.ts) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the file name of the first row, a .gguf the live recommendation picks for the machine, so the book asserts the extension and not a name. The download is followed outside the step (llmDownload.ts), so the book then leaves the step on it: onboarding-model-progress shows in the header on the AI setup and still on the embeddings step, and embeddings-back finds llm-download-progress where it was. No event ever settles that fake id, so the book ends it with llm-download-cancel, which cancel_model_download refuses for an id it never knew: the step drops the download, the header notice goes and the curated list comes back, which the later passes of the step need.",
+    "The embeddings step (OnboardingEmbeddingsStep.svelte) follows ai-setup-continue. Its recommendation comes from get_embeddings_recommendation, which the runtime answers from its embedded table with no network, so embeddings-model-card renders in a deterministic run. The step was already opened once while the language model downloaded, and it reads its recommendation again each time it opens, so the book waits for embeddings-download rather than expecting it at once. The book plays, in order: the import of a file the registry does not offer (the picker stub resolves the seed's Phi-3-mini-Q4.gguf, embeddingsSetup.ts refuses it before any copy and embeddings-error names it); a download the invoke stub rejects, then one it resolves with a fake id so embeddings-download-progress renders; embeddings-download-cancel, which cancel_model_download refuses for an id it never knew, so the step puts the offer back; three round trips through embeddings-back, the first with get_embeddings_recommendation rejected (embeddings-unavailable, the step stays passable), the second with get_memory_embeddings_model resolving an installed entry (embeddings-ready); and the passing, whose warning lists the two unavailable functions before embeddings-continue-without opens the conversation. No default embeddings model is ever set by this book.",
+    "The server of the AI step is played after the first danger-zone reset, inside the modal, which stays open throughout (OnboardingServerForm.svelte, serverSetup.ts). The first two refusals are real: an address without its scheme is refused by the form before any call, and http://127.0.0.1:9 goes to the backend, where nothing listens, so test_llm_server (commands/llm_servers.rs) rejects with a ServerTestFailure of kind unreachable whose sentence names the address. The listing and the choice are stubbed, a deterministic run having no server: a once stub resolves test_llm_server with two identifiers, then once stubs resolve save_llm_server with a ServerResponse and set_default_model with a DefaultModelResponse (routes_llm/servers.rs, routes_llm/presets.rs), so nothing is written to the seeded store. ai-setup-continue then leads to the embeddings step, and onboarding-skip closes the modal for the reset that follows.",
+    "The first-agent step (OnboardingFirstAgent.svelte, firstAgent.ts) follows the profile review. first-agent-skip keeps no agent, so the connection step after it is passed over and the modal closes; first-agent-continue leads to that step when the agent kept lacks a connection. Its three cards are played in turn. first-agent-card-install goes through the plugin-dialog `open` stub, then preview_package_file is stubbed with a PackagePreview (crates/apollia-runtime/src/packages/preview.rs): no file exists at the path, the book only reads that the preview dialog rises above the modal, and cancels it. first-agent-card-create mounts components/agents/create/CreateAgent.svelte inside the step; create_chat_session is refused once, so the conversation says it could not start and agent-create-cancel returns to the cards with no model turn. The draft and the saved agent are played by agent-create-det on the Agents screen.",
+    "The binary proposes no example of its own yet, so the three example commands are stubbed as in agent-examples-det: list_example_packages answers two ExamplePackage (crates/apollia-runtime/src/packages/examples.rs), and preview_example_package and install_example_package are armed with argsMatch on the chosen name alone, so a call naming the other example would reach the runtime and fail the book. The installation itself writes nothing into the seeded home; the step keeps the agent the preview named in its installed event (first-agent-kept). The real installation of one example and of that one only is held by the runtime tests of packages/examples.rs.",
+    "The connection step (OnboardingConnection.svelte, connectionStep.ts) is the last step built: connection-continue, or connection-skip, closes the modal. Nothing was really installed at the step before, so what the step reads is stubbed: get_agent_package_detail answers an AgentPackageDetail (crates/apollia-runtime/src/agent_packages.rs) whose recorded manifest requires one connection, list_connections answers none, and fetch_mcp_curated answers a selection of one RegistryServerView named as the manifest names it, remote and without authentication. connection-back returns to the first agent, which still names the agent kept. connection-line-add opens the add dialog of the Connections screen (ConnectorWizard.svelte) above the modal; its probe, its addition and its trial are stubbed (test_mcp_connection, add_mcp_server, test_mcp_live_server, shapes of commands/mcp.rs), so nothing is written to the seeded home, and list_connections then answers the Connection added. The book reads that the line turns to present, that connection-skip is still there, and that the modal never closed. The real addition of a connection is played by connections-det."
   ]
 }

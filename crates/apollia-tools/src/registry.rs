@@ -21,6 +21,11 @@ enum ToolRegistryMessage {
     List {
         reply: oneshot::Sender<Vec<ToolDescriptor>>,
     },
+    /// Take a tool out of the catalogue; answers whether it was there.
+    Unregister {
+        name: String,
+        reply: oneshot::Sender<bool>,
+    },
     /// Request the descriptor of a tool by name (agent-facing introspection).
     Describe {
         name: String,
@@ -59,6 +64,13 @@ impl ToolRegistry {
                 ToolRegistryMessage::List { reply } => {
                     let list: Vec<ToolDescriptor> = self.catalogue.values().cloned().collect();
                     let _ = reply.send(list);
+                }
+                ToolRegistryMessage::Unregister { name, reply } => {
+                    let removed = self.catalogue.remove(&name).is_some();
+                    if removed {
+                        tracing::info!(tool = %name, "tool.unregistered");
+                    }
+                    let _ = reply.send(removed);
                 }
                 ToolRegistryMessage::Describe { name, reply } => {
                     let result = self.catalogue.get(&name).cloned();
@@ -163,6 +175,24 @@ impl ToolRegistryHandle {
         reply_rx.await.map_err(|_| ToolRegistryError::ActorGone)
     }
 
+    /// Takes the named tool out of the catalogue, as when the package that
+    /// brought it is uninstalled. Returns whether it was registered.
+    ///
+    /// # Errors
+    ///
+    /// - [`ToolRegistryError::ActorGone`]: the actor task has terminated.
+    pub async fn unregister(&self, name: &str) -> Result<bool, ToolRegistryError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.sender
+            .send(ToolRegistryMessage::Unregister {
+                name: name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ToolRegistryError::ActorGone)?;
+        reply_rx.await.map_err(|_| ToolRegistryError::ActorGone)
+    }
+
     /// Returns the descriptor for the named tool, or `None` if not registered
     /// or the actor has stopped.
     ///
@@ -220,6 +250,7 @@ mod tests {
             tags: vec![],
             family: crate::descriptor::ActionFamily::ExecuteCode,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: None,
             is_read_only: false,
             risk_score: 8,
             approval_risk_level: None,
@@ -276,6 +307,23 @@ mod tests {
             result,
             Err(ToolRegistryError::AlreadyRegistered(_))
         ));
+        registry.shutdown().await;
+    }
+
+    // GIVEN a registered tool
+    // WHEN it is unregistered, twice
+    // THEN it leaves the catalogue the first time and the second finds nothing
+    #[tokio::test]
+    async fn test_unregister_removes_the_tool_once() {
+        let registry = ToolRegistryHandle::start();
+        registry.register(bash_executor_descriptor()).await.unwrap();
+
+        let first = registry.unregister("bash_executor").await.unwrap();
+        let second = registry.unregister("bash_executor").await.unwrap();
+
+        assert!(first);
+        assert!(!second);
+        assert!(registry.get("bash_executor").await.unwrap().is_none());
         registry.shutdown().await;
     }
 

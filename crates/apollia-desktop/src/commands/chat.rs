@@ -17,10 +17,13 @@ use crate::attached::{segment, RuntimeLink};
 /// the chat in `images`.
 pub(crate) mod conversations;
 pub mod export;
+pub mod folders;
 pub mod images;
 pub mod naming;
 mod remote;
 pub mod targets;
+pub mod trash;
+pub mod turn_calls;
 
 /// Request payload for creating a new chat session.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +80,9 @@ pub struct ChatSessionDetail {
     pub plan_phase: String,
     /// Profile the conversation designates; `None` follows the default.
     pub profile_id: Option<String>,
+    /// Profile switch of the conversation: whether the built-in assistant
+    /// receives the profile in its prompt.
+    pub use_profile: bool,
 }
 
 /// Request payload for updating session configuration.
@@ -93,6 +99,9 @@ pub struct UpdateSessionRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub profile_id: Option<Option<String>>,
+    /// Profile switch of the conversation; absent keeps it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_profile: Option<bool>,
 }
 
 /// Individual message view for the frontend.
@@ -267,13 +276,15 @@ pub async fn update_chat_session(
                 available_tools: update.tools,
                 llm_backend,
                 profile_id: update.profile_id,
+                use_profile: update.use_profile,
             },
         )
         .await
         .map_err(|e| e.to_string())
 }
 
-/// Deletes a chat session and all its messages.
+/// Deletes a chat session and all its messages, for good: nothing goes to
+/// the trash. `trash::trash_chat_session` is the removal one comes back from.
 #[tauri::command]
 pub async fn delete_chat_session(
     link: State<'_, RuntimeLink>,
@@ -320,19 +331,24 @@ pub async fn rename_chat_session(
 /// Sends a user message and launches the async response generation.
 ///
 /// `images` travel after the text, for a model that reads images; the runtime
-/// refuses them when the model of the conversation does not.
+/// refuses them when the model of the conversation does not. `documents` are
+/// read by the runtime on reception: their text joins the message.
 #[tauri::command]
 pub async fn send_chat_message(
     link: State<'_, RuntimeLink>,
     session_id: String,
     content: String,
     images: Option<Vec<apollia_runtime::chat::images::ImageAttachment>>,
+    documents: Option<Vec<apollia_runtime::chat::documents::DocumentAttachment>>,
 ) -> Result<String, String> {
     let images = images.unwrap_or_default();
+    let documents = documents.unwrap_or_default();
     let state = match link.inner() {
         RuntimeLink::Embedded(runtime) => runtime,
         RuntimeLink::Attached(remote) => {
-            return Ok(remote.send_message(&session_id, &content, &images).await?);
+            return Ok(remote
+                .send_message(&session_id, &content, &images, &documents)
+                .await?);
         }
     };
     let manager = state
@@ -342,8 +358,10 @@ pub async fn send_chat_message(
 
     let decoded =
         apollia_runtime::chat::images::decode_attachments(&images).map_err(|e| e.to_string())?;
+    let decoded_documents = apollia_runtime::chat::documents::decode_attachments(&documents)
+        .map_err(|e| e.to_string())?;
     let message_id = manager
-        .send_message_with_images(session_id, content, decoded)
+        .send_message_with_attachments(session_id, content, decoded, decoded_documents)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -612,6 +630,7 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         plan_mode: session.plan_mode,
         plan_phase: session.plan_phase.as_sql().to_string(),
         profile_id: session.profile_id,
+        use_profile: session.use_profile,
     }
 }
 

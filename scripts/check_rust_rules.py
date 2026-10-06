@@ -159,6 +159,9 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/api/routes_triggers/support.rs": 1,
     "crates/apollia-runtime/src/api/server.rs": 14,
     "crates/apollia-runtime/src/chat/agent_executor.rs": 1,
+    # The plan cache the runtime opens at boot, forwarded as ORIA's
+    # `with_shared_plan_cache` takes it; the executor holds no lock of its own.
+    "crates/apollia-runtime/src/chat/agent_executor/plan_first.rs": 1,
     "crates/apollia-runtime/src/chat/builtin_agent/mod.rs": 2,
     "crates/apollia-runtime/src/chat/extractor.rs": 4,
     "crates/apollia-runtime/src/chat/manager/handle.rs": 1,
@@ -203,6 +206,7 @@ ARC_MUTEX_ALIASES: set[str] = {
     "crates/apollia-runtime/src/api/server.rs::SharedLlmRouter",
     "crates/apollia-runtime/src/api/server.rs::SharedSttEngine",
     "crates/apollia-runtime/src/api/server.rs::SharedSttRepository",
+    "crates/apollia-runtime/src/chat/agent_executor/plan_first.rs::SharedPlanCache",
     "crates/apollia-runtime/src/session_metrics.rs::SessionMetricsStore",
     "crates/apollia-workspace/src/assembler.rs::SnapshotCache",
 }
@@ -353,8 +357,16 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # request to the engine that holds the model, over HTTP, and the tests
     # read what that engine received (the path, the `model` replaced, the
     # body passed through). The fake engine holds a port-0 bind for the whole
-    # test, never a port released.
+    # test, never a port released. The reasoning tests of the same server
+    # borrow that helper for the engine that answers their recorded replies.
     "crates/apollia-runtime/src/compat_server/relay_tests.rs": 1,
+    # The connection is the subject: a client that goes away has to stop the
+    # run it asked for, and only a real connection closed under the handler
+    # shows it. One helper, a port-0 bind held for the whole test.
+    "crates/apollia-runtime/src/compat_server/agents_tests.rs": 1,
+    # The agent and workflow formats are answered through a real socket: one
+    # helper, a port-0 bind held for the whole test.
+    "crates/apollia-runtime/src/compat_server/agents_formats_tests.rs": 1,
     # The file on disk is the subject: a valid apollia.toml written by another
     # editor has to reach the running runtime through the folder watch. One
     # test, two sites: the wait while the watch is armed, and the poll for the

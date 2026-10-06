@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import { parse } from "svelte/compiler";
-import { llmSectionView, sttSectionView } from "./aiSetupRules";
+import {
+  LANGUAGE_DATA_EXTENSION,
+  canContinueAiStep,
+  isLanguageData,
+  llmSectionView,
+} from "./aiSetupRules";
 
 // DOM rendering is exercised by the gestural corpus of scripts/automation
 // (vitest runs in `node`). These tests lock the branch decisions the template
@@ -62,58 +67,18 @@ describe("OnboardingAiSetup - llmSectionView", () => {
   });
 });
 
-describe("OnboardingAiSetup - sttSectionView", () => {
-  test("an empty scan shows the hint, the catalogue and the add mean", () => {
-    // GIVEN no Whisper model on disk, dictation therefore off
-    const view = sttSectionView(0, false);
-
-    // THEN the section explains the state and offers both ways in
-    expect(view.showEmptyHint).toBe(true);
-    expect(view.showCuratedList).toBe(true);
-    expect(view.showAddMean).toBe(true);
-    expect(view.showDetectedList).toBe(false);
-    // AND the hotkey block stays out: there is nothing to dictate with
-    expect(view.showHotkeyBlock).toBe(false);
-  });
-
-  test("models present with dictation off still render the list and the add mean", () => {
-    // GIVEN Whisper models on disk and a dictation toggle left off, which is
-    // the default whenever the first model found is not the recommended one
-    const view = sttSectionView(2, false);
-
-    // THEN the section still has a body: the list and the way to add a model
-    expect(view.showDetectedList).toBe(true);
-    expect(view.showAddMean).toBe(true);
-    // AND only the hotkey and live-test block, which drives a running
-    // dictation, follows the toggle
-    expect(view.showHotkeyBlock).toBe(false);
-    expect(view.showEmptyHint).toBe(false);
-  });
-
-  test("models present with dictation on add the hotkey block", () => {
-    // GIVEN the same models and dictation enabled
-    const view = sttSectionView(2, true);
-
-    // THEN everything the previous case rendered is still there, plus the
-    // hotkey, microphone and live-test block
-    expect(view.showDetectedList).toBe(true);
-    expect(view.showAddMean).toBe(true);
-    expect(view.showHotkeyBlock).toBe(true);
-  });
-});
-
 // ── The template hangs off the decision, not off the raw scan state ────────
 //
-// The two blocks above test functions. What closed the door on the operator
-// was the markup: the add means lived inside `{#if ggufModels.length === 0 &&
-// !llmSuccess}` and the voice list inside `{:else if sttEnabled}`. So the
-// template is parsed and each region is asked which conditions stand above it.
+// The block above tests a function. What closed the door on the operator was
+// the markup: the add means lived inside `{#if ggufModels.length === 0 &&
+// !llmSuccess}`. So the template is parsed and each region is asked which
+// conditions stand above it.
 
 /**
  * One probe per component of the step.
  *
- * The step is three files: the shell, the language-engine section and the voice
- * section. Every assertion below names the file that carries the code it is
+ * The step is two files: the shell and the language-engine section. Every
+ * assertion below names the file that carries the code it is
  * about, so a region moved between them fails here rather than passing on an
  * empty read.
  */
@@ -245,170 +210,47 @@ function probe(file: string) {
 }
 
 const LLM = probe("./OnboardingLlmSection.svelte");
-const STT = probe("./OnboardingSttSection.svelte");
+const SHELL = probe("./OnboardingAiSetup.svelte");
 
 /** Reactive state that must never gate a list or a way of adding a model. */
-const SCAN_STATE = /ggufModels|whisperModels|llmSuccess|sttEnabled/;
+const SCAN_STATE = /ggufModels|llmSuccess/;
 
 describe("OnboardingAiSetup - template branches", () => {
   test("the walker reads real conditions, and the matcher matches the old ones", () => {
-    // GIVEN two regions that legitimately keep a condition
-    // THEN the walker returns their condition source, so an empty answer below
+    // GIVEN a region that legitimately keeps a condition
+    // THEN the walker returns its condition source, so an empty answer below
     // cannot be an artefact of a walker that finds nothing
-    expect(LLM.conditionsAbove("llm-download-progress")).toContain("llmDownloadId");
-    expect(STT.conditionsAbove("stt-hotkey-block")).toContain("sttView.showHotkeyBlock");
+    expect(LLM.conditionsAbove("llm-download-progress")).toContain("llmDownloading");
 
-    // AND the matcher does match the conditions this lot removed, verbatim
+    // AND the matcher does match the condition that used to gate the add means
     expect(SCAN_STATE.test("ggufModels.length === 0 && !llmSuccess")).toBe(true);
-    expect(SCAN_STATE.test("sttEnabled")).toBe(true);
 
     // AND an absent region is reported as absent, not as unconditioned
     expect(LLM.conditionsAbove("no-such-testid")).toBeNull();
-    expect(STT.conditionsAbove("no-such-testid")).toBeNull();
   });
 
   test("no way of adding a model is gated by what the scan found", () => {
-    // GIVEN the three language-engine add means and the voice one
+    // GIVEN the three language-engine add means
     for (const [where, testid] of [
       [LLM, "llm-load-model-btn"],
       [LLM, "curated-llm-list"],
       [LLM, "search-results"],
-      [STT, "stt-load-model-btn"],
     ] as const) {
       const conditions = where.conditionsAbove(testid);
       // THEN the region exists
       expect(conditions, testid).not.toBeNull();
-      // AND nothing above it depends on the scan or on the dictation toggle
+      // AND nothing above it depends on the scan
       expect(conditions?.filter((c) => SCAN_STATE.test(c)), testid).toEqual([]);
     }
   });
 
-  test("neither detected list is gated by the scan state or the toggle", () => {
-    // GIVEN the two lists of models found on disk
-    for (const [where, testid] of [
-      [LLM, "llm-model-list"],
-      [STT, "whisper-model-list"],
-    ] as const) {
-      const conditions = where.conditionsAbove(testid);
-      // THEN they render off their own decision flag only
-      expect(conditions, testid).not.toBeNull();
-      expect(conditions?.filter((c) => SCAN_STATE.test(c)), testid).toEqual([]);
-    }
-  });
-});
+  test("the detected list is not gated by the scan state", () => {
+    // GIVEN the list of models found on disk
+    const conditions = LLM.conditionsAbove("llm-model-list");
 
-// ── A choice already on screen survives the next scan ──────────────────────
-//
-// Two scan paths reach the voice section, `loadData` and `rescanStt`, and both
-// used to overwrite the selected model and the dictation toggle with the first
-// result of the scan. Five triggers reach those two functions, four of them
-// rendered unconditionally, so a choice could be undone by a button that
-// promises to refresh a list. The decision is now a function, and the two
-// paths delegate to it; both halves are asserted, since a correct decision
-// nothing calls would change nothing.
-
-import { reconcileWhisperScan } from "./aiSetupRules";
-
-describe("OnboardingAiSetup - reconcileWhisperScan", () => {
-  const first = { path: "/models/ggml-base.bin", recommended: false };
-  const second = { path: "/models/ggml-large-v3-turbo-q5_0.bin", recommended: true };
-
-  test("a scan that still reports the chosen model keeps it, toggle included", () => {
-    // GIVEN an operator who picked the second model and turned dictation on,
-    // and a re-scan that reports both models again
-    const choice = reconcileWhisperScan([first, second], second.path, true);
-
-    // THEN the scan changes neither the selection nor the toggle
-    expect(choice.selectedPath).toBe(second.path);
-    expect(choice.dictationEnabled).toBe(true);
-  });
-
-  test("a toggle left off stays off when the chosen model is still there", () => {
-    // GIVEN the same choice with dictation deliberately switched off, on a
-    // model whose scan flag says it is the recommended one
-    const choice = reconcileWhisperScan([first, second], second.path, false);
-
-    // THEN the re-scan does not switch dictation back on from the flag
-    expect(choice.selectedPath).toBe(second.path);
-    expect(choice.dictationEnabled).toBe(false);
-  });
-
-  test("the first scan of a session proposes the first model and its flag", () => {
-    // GIVEN a session where nothing has been chosen yet
-    const choice = reconcileWhisperScan([second, first], null, false);
-
-    // THEN the section opens usable, on the first result and its own flag
-    expect(choice.selectedPath).toBe(second.path);
-    expect(choice.dictationEnabled).toBe(true);
-  });
-
-  test("a chosen model the scan no longer reports falls back on the first", () => {
-    // GIVEN a selection pointing at a file that has left the disk
-    const choice = reconcileWhisperScan([first], "/models/deleted.bin", true);
-
-    // THEN the section falls back rather than pointing at nothing, and the
-    // toggle follows the model it fell back on
-    expect(choice.selectedPath).toBe(first.path);
-    expect(choice.dictationEnabled).toBe(false);
-  });
-
-  test("a scan that finds nothing leaves nothing selected", () => {
-    // GIVEN a scan run after the last voice model was removed
-    const choice = reconcileWhisperScan([], second.path, true);
-
-    // THEN no path is kept, and dictation cannot claim to run
-    expect(choice.selectedPath).toBeNull();
-    expect(choice.dictationEnabled).toBe(false);
-  });
-});
-
-describe("OnboardingAiSetup - both scan paths delegate the choice", () => {
-  const ASSIGNS_VOICE_CHOICE = /(selectedWhisper|sttEnabled)\s*=[^=]/;
-
-  test("the matcher matches where the assignment is, and the walker reads code", () => {
-    // GIVEN the one function that is supposed to assign the voice choice
-    const applier = STT.functionSource("applyWhisperScan");
-
-    // THEN it exists, it is where the assignments live, and it decides through
-    // the exported function, so the absence asserted below is a measurement
-    expect(applier).not.toBeNull();
-    expect(ASSIGNS_VOICE_CHOICE.test(applier ?? "")).toBe(true);
-    expect(applier).toContain("reconcileWhisperScan(");
-    // AND a function that does not exist is reported as absent
-    expect(STT.functionSource("noSuchFunction")).toBeNull();
-  });
-
-  test("neither scan path writes the voice choice itself", () => {
-    // GIVEN the two functions the five triggers of the step reach
-    for (const name of ["loadData", "rescanStt"]) {
-      const source = STT.functionSource(name);
-      // THEN each exists and hands the scan result to the shared applier
-      expect(source, name).not.toBeNull();
-      expect(source, name).toContain("applyWhisperScan(");
-      // AND neither overwrites the selection or the toggle on its own
-      expect(ASSIGNS_VOICE_CHOICE.test(source ?? ""), name).toBe(false);
-    }
-  });
-
-  test("the applier is the only function that writes the voice choice", () => {
-    // GIVEN every top-level function of the instance script
-    const writers = STT.functionNames().filter((name) =>
-      ASSIGNS_VOICE_CHOICE.test(STT.functionSource(name) ?? ""),
-    );
-
-    // THEN exactly one writes it, so no path can grow its own overwrite again
-    expect(writers).toEqual(["applyWhisperScan"]);
-  });
-
-  test("the operator keeps the one write that is his", () => {
-    // GIVEN the row of a detected voice model
-    expect(STT.carriesTestid("whisper-model-row")).toBe(true);
-
-    // THEN clicking it still sets the selection, which is the write the two
-    // scan paths were undoing
-    expect(STT.attributeSource("whisper-model-row", "onclick")).toContain(
-      "selectedWhisper = model",
-    );
+    // THEN it renders off its own decision flag only
+    expect(conditions).not.toBeNull();
+    expect(conditions?.filter((c) => SCAN_STATE.test(c))).toEqual([]);
   });
 });
 
@@ -416,10 +258,10 @@ describe("OnboardingAiSetup - the detected engines stay selectable", () => {
   test("the probes read real attributes and real guards", () => {
     // GIVEN two places that legitimately carry what the tests below ask for
     // THEN the attribute probe returns an expression rather than nothing
-    expect(STT.carriesTestid("stt-toggle")).toBe(true);
-    expect(STT.attributeSource("stt-toggle", "disabled")).toContain("whisperModels.length");
+    expect(LLM.carriesTestid("llm-load-model-btn")).toBe(true);
+    expect(LLM.attributeSource("llm-load-model-btn", "disabled")).toContain("importingLlm");
     // AND the guard probe returns the condition of a leading early return
-    expect(STT.guardExpression("loadSttModelFile")).toBe("importingStt");
+    expect(LLM.guardExpression("loadLlmModel")).toBe("importingLlm || llmDownloading");
     // AND both report absence when there is nothing to read
     expect(LLM.attributeSource("llm-model-row", "no-such-attribute")).toBeNull();
     expect(LLM.guardExpression("noSuchFunction")).toBeNull();
@@ -432,11 +274,8 @@ describe("OnboardingAiSetup - the detected engines stay selectable", () => {
 
     // THEN it still declines a click while a configuration is in flight
     expect(disabled).toContain("llmConfiguring");
-    // AND it no longer locks itself on the success of this session, which is
-    // the answer the two other lists of the step already gave
+    // AND it no longer locks itself on the success of this session
     expect(disabled).not.toContain("llmSuccess");
-    expect(STT.attributeSource("whisper-model-row", "disabled")).toBeNull();
-    expect(STT.attributeSource("curated-stt-row", "disabled")).toBeNull();
   });
 
   test("the click handler no longer refuses a second engine either", () => {
@@ -592,5 +431,119 @@ describe("OnboardingAiSetup - the click handler delegates that lifecycle", () =>
     // THEN none of them sets the lock to a literal: the only writes left mirror
     // the state the run publishes, and every run publishes a released lock
     expect(writers).toEqual([]);
+  });
+});
+
+describe("OnboardingAiSetup - recognition language data", () => {
+  test("the import from disk offers the language data beside the model files", () => {
+    // GIVEN the function behind the "load a model" button, as written
+    const source = LLM.functionSource("loadLlmModel") ?? "";
+
+    // THEN its picker lists the GGUF files and the language data, and the
+    // button that opens it is one of the add means that never disappear
+    expect(source).toMatch(/extensions: \["gguf"\]/);
+    expect(source).toMatch(/extensions: \[LANGUAGE_DATA_EXTENSION\]/);
+    expect(LANGUAGE_DATA_EXTENSION).toBe("traineddata");
+    expect(LLM.conditionsAbove("llm-load-model-btn")).toEqual(["llmView.showAddMeans"]);
+  });
+
+  test("an imported language data file is confirmed, never wired as an engine", () => {
+    // GIVEN the destinations the import answers, on either path separator
+    const data = ["/home/u/.apollia/models/tessdata/fra.traineddata", "C:\\models\\tessdata\\ENG.TRAINEDDATA"];
+    const models = ["/home/u/.apollia/models/phi.gguf", "/models/traineddata/phi.gguf"];
+
+    // THEN only the language data is told apart from a model
+    expect(data.map(isLanguageData)).toEqual([true, true]);
+    expect(models.map(isLanguageData)).toEqual([false, false]);
+    // AND the function returns before the scan and the wiring of an engine,
+    // the confirmation hanging off what it stored
+    const source = LLM.functionSource("loadLlmModel") ?? "";
+    expect(source.indexOf("isLanguageData(dest)")).toBeGreaterThan(-1);
+    expect(source.indexOf("isLanguageData(dest)")).toBeLessThan(source.indexOf("selectGgufModel"));
+    expect(LLM.conditionsAbove("llm-language-data-imported")).toEqual(["languageDataImported"]);
+  });
+});
+
+// ── The only step that cannot be passed ────────────────────────────────────
+//
+// The AI step is the one mandatory step of the first launch. Two halves hold
+// it: the rule that opens "Continue", and a template that offers no way round
+// it. The same template no longer asks for a context window or for dictation,
+// which are settings and not questions of a first launch.
+
+describe("OnboardingAiSetup - the step cannot be passed", () => {
+  const NOTHING = {
+    probing: false,
+    engineWired: false,
+    backendCount: 0,
+    serverChosen: false,
+    downloadInFlight: false,
+  };
+
+  test("without a model or a server, continue stays closed", () => {
+    // GIVEN a machine with no engine wired, no backend and no download
+    // WHEN the step asks whether it may be left
+    // THEN it may not
+    expect(canContinueAiStep(NOTHING)).toBe(false);
+  });
+
+  test("a wired model, a registered server, or a launched download opens it", () => {
+    // GIVEN each of the three things that give the agents something to answer with
+    // WHEN the step asks whether it may be left
+    // THEN each one is enough on its own
+    expect(canContinueAiStep({ ...NOTHING, engineWired: true })).toBe(true);
+    expect(canContinueAiStep({ ...NOTHING, backendCount: 1 })).toBe(true);
+    expect(canContinueAiStep({ ...NOTHING, serverChosen: true })).toBe(true);
+    expect(canContinueAiStep({ ...NOTHING, downloadInFlight: true })).toBe(true);
+  });
+
+  test("nothing opens it while the machine is still being probed", () => {
+    // GIVEN a backend already registered, and a probe that has not answered
+    // WHEN the step asks whether it may be left
+    // THEN it waits for the section to be on screen
+    expect(canContinueAiStep({ ...NOTHING, probing: true, backendCount: 1 })).toBe(false);
+  });
+
+  test("continue is disabled by that rule, and the step offers no skip", () => {
+    // GIVEN the template of the step
+    // WHEN its continue button and its controls are read
+    // THEN the button hangs off the rule
+    expect(SHELL.carriesTestid("ai-setup-continue")).toBe(true);
+    expect(SHELL.attributeSource("ai-setup-continue", "disabled")).toContain("!canContinue");
+    // AND no control of the step or of its section passes it
+    for (const where of [SHELL, LLM]) {
+      expect(where.carriesTestid("ai-setup-skip")).toBe(false);
+    }
+    const shell = readFileSync(
+      fileURLToPath(new URL("./OnboardingAiSetup.svelte", import.meta.url)),
+      "utf8",
+    );
+    expect(shell).not.toMatch(/onskip/);
+  });
+
+  test("the step asks neither for a context window nor for dictation", () => {
+    // GIVEN the sources of the step and of its section
+    const sources = ["./OnboardingAiSetup.svelte", "./OnboardingLlmSection.svelte"].map((file) =>
+      readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8"),
+    );
+
+    // WHEN the controls that left the first launch are looked for
+    // THEN the context window selector is gone, and no window is passed along
+    expect(LLM.carriesTestid("llm-context-window")).toBe(false);
+    for (const source of sources) {
+      expect(source).not.toMatch(/contextWindow|CONTEXT_WINDOW|n_ctx/);
+      // AND the dictation section is gone with everything it wired
+      expect(source).not.toMatch(/OnboardingSttSection|setupWhisperModel|stt-section/);
+    }
+    expect(SHELL.carriesTestid("stt-section")).toBe(false);
+  });
+
+  test("the engine is wired at the default window of the model", () => {
+    // GIVEN the function of the section that wires an engine
+    const source = LLM.functionSource("selectGgufModel");
+
+    // WHEN its call to the setup command is read
+    // THEN it passes the path alone
+    expect(source).toContain("setupLocalLlm(path)");
   });
 });

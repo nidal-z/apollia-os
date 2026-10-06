@@ -61,14 +61,33 @@ export async function governanceListCredentials(
  * `store_unreadable`: the permissions database cannot be read.
  * `policy_invalid`: an organisation policy is deposited and refused; `reason`
  * is its class (`schema`, `signature`, `key` or `owner`).
+ * `journal_unavailable`: the organisation policy requires the journal, and the
+ * journal is absent or could not be opened.
  */
 export type FailClosed =
   | { cause: "store_unreadable"; detail: string }
-  | { cause: "policy_invalid"; reason: string; detail: string };
+  | { cause: "policy_invalid"; reason: string; detail: string }
+  | { cause: "journal_unavailable"; detail: string };
 
-/** The state of governance: `fail_closed` is `null` while it decides normally. */
+/**
+ * What degrades the journal without anything being refused.
+ *
+ * `unsigned`: the journal opened without its signing key; its entries are
+ * chained, so an alteration still shows, and they are not signed.
+ * `daily_export_failed`: the daily export the organisation policy asks for
+ * could not be written to `directory`.
+ */
+export type JournalNotice =
+  | { notice: "unsigned" }
+  | { notice: "daily_export_failed"; directory: string; detail: string };
+
+/**
+ * The state of governance: `fail_closed` is `null` while it decides normally,
+ * `journal_notices` is empty while the journal is in order.
+ */
 export interface GovernanceState {
   fail_closed: FailClosed | null;
+  journal_notices: JournalNotice[];
 }
 
 /**
@@ -78,5 +97,8 @@ export interface GovernanceState {
  */
 export async function governanceState(): Promise<GovernanceState> {
   const raw = await invoke<GovernanceState>("governance_state");
-  return { fail_closed: raw.fail_closed ?? null };
+  return {
+    fail_closed: raw.fail_closed ?? null,
+    journal_notices: raw.journal_notices ?? [],
+  };
 }

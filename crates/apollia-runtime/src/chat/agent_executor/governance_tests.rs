@@ -111,6 +111,8 @@ async fn run_off_chat_write_under(
         granted_tools: vec!["file_write".into()],
         model: None,
         autonomy: AutonomyLevel::Assisted,
+        planning: apollia_tools::PlanningMode::Never,
+        version: String::new(),
     };
     let executor = AgentExecutor::new(
         spec,
@@ -121,6 +123,7 @@ async fn run_off_chat_write_under(
             event_bus: bus,
             todo: None,
             plan: None,
+            plan_cache: None,
         },
         ApolliaContext::default(),
         SessionWiring {
@@ -351,6 +354,8 @@ async fn test_an_unattended_run_allowed_code_once_runs_one_call_and_asks_at_the_
             granted_tools: vec!["bash_executor".into()],
             model: None,
             autonomy: AutonomyLevel::Assisted,
+            planning: apollia_tools::PlanningMode::Never,
+            version: String::new(),
         },
         AgentExecutorDeps {
             llm_router: router,
@@ -359,6 +364,7 @@ async fn test_an_unattended_run_allowed_code_once_runs_one_call_and_asks_at_the_
             event_bus: bus,
             todo: None,
             plan: None,
+            plan_cache: None,
         },
         ApolliaContext::default(),
         SessionWiring {

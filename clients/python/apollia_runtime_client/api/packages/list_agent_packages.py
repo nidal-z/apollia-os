@@ -59,7 +59,8 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ApiErrorBody | list[AgentPackageListItem]]:
-    """`GET /api/v1/agent-packages/installed`: the installed packages.
+    """`GET /api/v1/agent-packages/installed`: the installed packages, each with
+    its publisher, the state of its signature and how much it holds.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -82,7 +83,8 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> ApiErrorBody | list[AgentPackageListItem] | None:
-    """`GET /api/v1/agent-packages/installed`: the installed packages.
+    """`GET /api/v1/agent-packages/installed`: the installed packages, each with
+    its publisher, the state of its signature and how much it holds.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -101,7 +103,8 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[ApiErrorBody | list[AgentPackageListItem]]:
-    """`GET /api/v1/agent-packages/installed`: the installed packages.
+    """`GET /api/v1/agent-packages/installed`: the installed packages, each with
+    its publisher, the state of its signature and how much it holds.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -122,7 +125,8 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> ApiErrorBody | list[AgentPackageListItem] | None:
-    """`GET /api/v1/agent-packages/installed`: the installed packages.
+    """`GET /api/v1/agent-packages/installed`: the installed packages, each with
+    its publisher, the state of its signature and how much it holds.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

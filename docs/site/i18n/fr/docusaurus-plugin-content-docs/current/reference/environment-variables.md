@@ -29,7 +29,7 @@ quoi régler et pourquoi.
 |---|---|---|
 | `APOLLIA_LLAMA_SERVER_BIN` | le moteur livré avec l'artefact | Chemin absolu vers un binaire `llama-server`, prioritaire sur celui embarqué. C'est la façon d'utiliser une compilation à vous, une compilation CUDA sous Linux par exemple. |
 | `APOLLIA_LLAMA_MAX_LOADED` | *(non définie)* | Un plafond explicite du nombre de modèles résidents en mémoire simultanément. Sans elle, le garde-fou de chargement décide : un modèle est jugé avec l'empreinte des modèles déjà résidents ajoutée à la sienne (voir `[llm.guardrails]` dans la référence de configuration). Une valeur nulle ou illisible est ignorée. |
-| `APOLLIA_LLAMA_N_CTX` | `32768` | Fenêtre de contexte en tokens. La valeur par défaut est fixe, elle n'est pas lue dans le modèle. |
+| `APOLLIA_LLAMA_N_CTX` | *(non définie)* | Fenêtre de contexte en tokens, au-dessus de toute autre source. Non définie, la fenêtre est celle du preset, celle du backend, puis le défaut de `[llm.defaults]` dans `apollia.toml`, et 32768 en dernier. |
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | calculé, sinon `999` | Nombre de couches déchargées sur le GPU ; `0` force l'exécution sur CPU. Non définie, le daemon calcule ce nombre à partir du fichier du modèle sur un GPU dédié, et transmet `999` sur Apple Silicon ou sans GPU. |
 | `APOLLIA_LLAMA_N_BATCH` | valeur par défaut du moteur | Taille de batch logique. |
 | `APOLLIA_LLAMA_N_UBATCH` | valeur par défaut du moteur | Taille de micro-batch physique. |

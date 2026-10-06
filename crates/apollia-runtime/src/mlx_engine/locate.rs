@@ -7,11 +7,15 @@
 //!
 //! The package directory is found, in order: the `APOLLIA_MLX_ENGINE_DIR`
 //! override, the newest MLX environment of the engine store, then the one the
-//! application bundles under `python/engines/mlx`. The interpreter is the
+//! application bundles under `python/engines/mlx`. The `[engines] mlx`
+//! setting can ask for the bundled one whatever the store holds. The interpreter is the
 //! `APOLLIA_MLX_PYTHON` override, else the bundled one.
 
 use std::path::{Path, PathBuf};
 
+use apollia_core::config::EngineChoice;
+
+use crate::engine_store::selection::{resolve, Resolved};
 use crate::engine_store::{newest_installed, Engine, Variant};
 
 /// Override of the directory holding the engine's `site-packages`.
@@ -49,6 +53,15 @@ impl MlxLaunch {
         }
     }
 
+    /// The package directory the engine imports from.
+    #[must_use]
+    pub fn site_packages(&self) -> Option<&Path> {
+        self.env
+            .iter()
+            .find(|(name, _)| name == "PYTHONPATH")
+            .map(|(_, value)| Path::new(value.as_str()))
+    }
+
     /// The full argument vector for serving `model_path` on loopback `port`.
     ///
     /// The engine listens on `127.0.0.1` only. Tool calls are parsed by the
@@ -79,12 +92,38 @@ impl MlxLaunch {
 /// The engine of this installation, or `None` when none is present.
 ///
 /// `exe_dir` is the directory of the running executable, `store_root` the
-/// engine store's, and `env` reads the overrides.
+/// engine store's, `choice` the engine the settings name for MLX models, and
+/// `env` reads the overrides. A choice the store cannot honour falls back to
+/// the automatic one.
 pub fn locate(
     exe_dir: Option<&Path>,
     store_root: Option<&Path>,
+    choice: EngineChoice,
     env: impl Fn(&str) -> Option<String>,
 ) -> Option<MlxLaunch> {
+    locate_with_site(exe_dir, store_root, choice, env).map(|(launch, _)| launch)
+}
+
+/// [`locate`] for a launcher: an engine of the engine store is recorded as
+/// used now, which is what the automatic purge orders by.
+pub fn locate_for_launch(
+    exe_dir: Option<&Path>,
+    store_root: Option<&Path>,
+    choice: EngineChoice,
+    env: impl Fn(&str) -> Option<String>,
+) -> Option<MlxLaunch> {
+    let (launch, site_packages) = locate_with_site(exe_dir, store_root, choice, env)?;
+    crate::engine_store::purge::mark_used(&site_packages);
+    Some(launch)
+}
+
+/// The engine and the `site-packages` directory it imports from.
+fn locate_with_site(
+    exe_dir: Option<&Path>,
+    store_root: Option<&Path>,
+    choice: EngineChoice,
+    env: impl Fn(&str) -> Option<String>,
+) -> Option<(MlxLaunch, PathBuf)> {
     let bundled_python_roots: Vec<PathBuf> = exe_dir
         .map(|dir| apollia_core::paths::bundled_resource_dirs(dir, "python"))
         .unwrap_or_default();
@@ -94,7 +133,13 @@ pub fn locate(
         .map(|dir| dir.join("site-packages"))
         .filter(|dir| dir.is_dir())
         .or_else(|| {
-            let package = newest_installed(store_root?, Engine::VllmMlx, Variant::Metal)?;
+            let package = match resolve(store_root, Engine::VllmMlx, choice).resolved {
+                Resolved::Embedded => return None,
+                Resolved::Stored(package) => package,
+                Resolved::Automatic => {
+                    newest_installed(store_root?, Engine::VllmMlx, Variant::Metal)?
+                }
+            };
             Some(package.path.join("site-packages")).filter(|dir| dir.is_dir())
         })
         .or_else(|| {
@@ -120,7 +165,8 @@ pub fn locate(
         site_packages = %site_packages.display(),
         "mlx.engine.located"
     );
-    Some(MlxLaunch::vllm_mlx(python, &site_packages))
+    let launch = MlxLaunch::vllm_mlx(python, &site_packages);
+    Some((launch, site_packages))
 }
 
 #[cfg(test)]
@@ -178,12 +224,12 @@ mod tests {
         let python_s = python.display().to_string();
 
         // WHEN the engine is located, with and without the interpreter
-        let found = locate(None, None, |var| match var {
+        let found = locate(None, None, EngineChoice::Auto, |var| match var {
             ENV_ENGINE_DIR => Some(engine_s.clone()),
             ENV_PYTHON => Some(python_s.clone()),
             _ => None,
         });
-        let without_python = locate(None, None, |var| match var {
+        let without_python = locate(None, None, EngineChoice::Auto, |var| match var {
             ENV_ENGINE_DIR => Some(engine_s.clone()),
             _ => None,
         });
@@ -210,11 +256,68 @@ mod tests {
         std::fs::write(python_root.join(BUNDLED_INTERPRETER), b"").expect("write");
 
         // WHEN the engine is located with no override and an empty store
-        let found =
-            locate(Some(&exe_dir), Some(&tmp.path().join("store")), |_| None).expect("located");
+        let found = locate(
+            Some(&exe_dir),
+            Some(&tmp.path().join("store")),
+            EngineChoice::Auto,
+            |_| None,
+        )
+        .expect("located");
 
         // THEN the bundled interpreter runs the bundled engine
         assert!(found.program.ends_with("python/bin/python3.13"));
         assert!(found.env[0].1.ends_with("engines/mlx/site-packages"));
+    }
+
+    #[test]
+    fn the_embedded_choice_keeps_the_bundled_engine_when_the_store_holds_a_newer_one() {
+        // GIVEN a bundle carrying the interpreter and the engine, and a store
+        // holding a verified MLX environment
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let exe_dir = tmp.path().join("MacOS");
+        let python_root = tmp.path().join("Resources/python");
+        std::fs::create_dir_all(&exe_dir).expect("mkdir");
+        std::fs::create_dir_all(python_root.join("bin")).expect("mkdir");
+        std::fs::create_dir_all(python_root.join("engines/mlx/site-packages")).expect("mkdir");
+        std::fs::write(python_root.join(BUNDLED_INTERPRETER), b"").expect("write");
+        let store = tmp.path().join("store");
+        let stored = store.join("vllm-mlx/0.2.0/metal");
+        std::fs::create_dir_all(stored.join("site-packages")).expect("mkdir");
+        let record = crate::engine_store::InstalledPackage {
+            engine: Engine::VllmMlx,
+            tag: "0.2.0".to_owned(),
+            variant: Variant::Metal,
+            platform: "macos-arm64".to_owned(),
+            sha256: "0".repeat(64),
+            source: crate::engine_store::Source::Downloaded,
+            path: PathBuf::new(),
+        };
+        std::fs::write(
+            stored.join(crate::engine_store::RECORD_FILE),
+            serde_json::to_vec(&record).expect("record"),
+        )
+        .expect("write");
+        let site_packages = |choice| {
+            locate(Some(&exe_dir), Some(&store), choice, |_| None)
+                .expect("located")
+                .env[0]
+                .1
+                .clone()
+        };
+
+        // WHEN the engine is located under each choice
+        let automatic = site_packages(EngineChoice::Auto);
+        let named = site_packages(EngineChoice::Metal);
+        let embedded = site_packages(EngineChoice::Embedded);
+        let removed = site_packages(EngineChoice::Cuda);
+
+        // THEN the automatic choice and the named variant take the store's
+        // environment, the embedded choice keeps the bundled one, and a
+        // variant the store does not hold falls back to the automatic choice
+        let from_store = stored.join("site-packages").display().to_string();
+        assert_eq!(automatic, from_store);
+        assert_eq!(named, from_store);
+        assert!(embedded.ends_with("python/engines/mlx/site-packages"));
+        assert_eq!(removed, automatic);
     }
 }

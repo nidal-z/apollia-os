@@ -5,7 +5,8 @@
    * Drawn from the agent the runtime resolves (package definition, then the
    * user's overrides), in this order: mission and examples; model and where
    * it runs, with the fallback notice; accesses grouped by action family;
-   * sources, the profile among them; activity and changes; memory. The
+   * sources, the profile among them; the standing consents ("always") with
+   * their withdrawal; activity and changes; memory. The
    * built-in Apollia agent has the same sheet as any other.
    *
    * When the runtime holds no definition for an agent, the sheet falls back
@@ -38,6 +39,7 @@
   import SheetMission from "./SheetMission.svelte";
   import SheetModel from "./SheetModel.svelte";
   import SheetAccess from "./SheetAccess.svelte";
+  import SheetAlways from "./SheetAlways.svelte";
   import SheetSources from "./SheetSources.svelte";
   import SheetActivity from "./SheetActivity.svelte";
   import SheetMemory from "./SheetMemory.svelte";
@@ -284,6 +286,7 @@
     <SheetAccess {groups} loading={accessLoading} modified={marked("access")} {remote} />
     <SheetSources {sources} modified={marked("sources")} />
   {/if}
+  <SheetAlways {definitionId} />
   <SheetActivity
     {runs}
     {runsLoading}

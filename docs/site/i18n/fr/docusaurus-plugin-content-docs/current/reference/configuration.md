@@ -101,11 +101,11 @@ avertissement `config.key.retired`.
 | `[hooks]` | Gestionnaires de hooks de cycle de vie (commande ou HTTP). |
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
-| `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
+| `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), la présence de réglages de chargement dans un preset (`preset_load_settings`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
-| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
-| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`. |
-| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
+| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), `chat_debug_blocks`, `resource_widget`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, et `separate_reasoning_content`. |
+| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`, `gguf`, `mlx`, `auto_update`, `auto_purge`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
 Les tableaux ci-dessous suivent le registre des clés du moteur, la liste dont
@@ -169,7 +169,13 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.routing` | table | non définie | Backends qui répondent aux requêtes précises et rapides, et le plafond du routage hybride. |
 | `llm.guardrails.level` | l'une de disabled, lenient, balanced, strict, ceiling | `"balanced"` | Sévérité avec laquelle le lancement d'un modèle local est tenu à la mémoire de la machine ; un niveau inconnu vaut balanced. La politique de l'organisation peut l'imposer. |
 | `llm.guardrails.ceiling_gb` | décimal | non définie | Plus grande estimation, en gigaoctets, que le niveau ceiling lance. La politique de l'organisation peut l'imposer. |
+| `llm.guardrails.bypass` | l'une de confirm, unrestricted | `"confirm"` | Ce que demande d'abord le chargement d'un modèle refusé : confirm, une confirmation explicite, ou unrestricted, rien. La politique de l'organisation peut l'imposer. |
 | `llm.residency.idle_unload_minutes` | entier | `60` | Minutes sans requête au bout desquelles un modèle local que rien ne retient est déchargé ; 0 ne décharge jamais. La politique de l'organisation peut l'imposer. |
+| `llm.defaults.context` | l'une de custom, model_max | `"custom"` | Fenêtre de contexte d'un modèle local que ni APOLLIA_LLAMA_N_CTX, ni un preset, ni son backend ne fixent : custom, la valeur de llm.defaults.context_tokens, ou model_max, la longueur pour laquelle le modèle a été entraîné. La politique de l'organisation peut l'imposer. |
+| `llm.defaults.context_tokens` | entier | `0` | Fenêtre de contexte par défaut, en jetons, quand llm.defaults.context vaut custom ; 0 laisse le moteur la dimensionner à la mémoire de cette machine, modèle par modèle, jusqu'à 32768. La politique de l'organisation peut l'imposer. |
+| `llm.images.limit_side` | booléen | `true` | Réduire une image avant de l'envoyer à un modèle quand son plus grand côté dépasse llm.images.max_side_px. La politique de l'organisation peut l'imposer. |
+| `llm.images.max_side_px` | entier | `2048` | Plus grand côté, en pixels, d'une image envoyée à un modèle ; les proportions sont gardées. La politique de l'organisation peut l'imposer. |
+| `llm.devices.disabled` | liste de chaînes | `[]` | Périphériques graphiques dont le moteur local est tenu à l'écart, chacun nommé comme le moteur le liste (CUDA0, Vulkan1) : un périphérique listé ne reçoit aucune couche et sa mémoire sort de toute estimation ; vide, le moteur garde tous les périphériques. La politique de l'organisation peut l'imposer. |
 
 ### `[api]`
 
@@ -228,6 +234,8 @@ Outils natifs : limites, désactivation statique, et réglages par outil.
 | `tools.web_read.max_response_kb` | entier | `2048` | Plus grande page que lit web_read, en Kio (64 à 32768). |
 | `tools.web_read.ssrf_guard` | booléen | `true` | Refuser une adresse du réseau local ou de la machine elle-même. |
 | `tools.python_interpreter` | chemin | non définie | Interpréteur Python utilisé à la place de celui embarqué. |
+| `tools.new_agent.families` | liste de chaînes | `["read"]` | Familles d'outils qu'un agent créé sans code reçoit en entier, lues sur les outils actifs à sa création : read, read_personal, write_or_delete, send_external, execute_code. La politique de l'organisation peut l'imposer. |
+| `tools.new_agent.access` | liste de chaînes | `[]` | Outils qu'un agent créé sans code reçoit par leur nom, en plus de tools.new_agent.families. La politique de l'organisation peut l'imposer. |
 
 ### `[mcp]`
 
@@ -256,6 +264,7 @@ Valeurs par défaut des sessions de chat.
 | --- | --- | --- | --- |
 | `chat.plan_mode_default` | booléen | `false` | Démarrer chaque nouvelle conversation en mode plan. |
 | `chat.tool_turn_temperature` | décimal | non définie | Température du modèle pour un tour qui propose des outils ; sans valeur, 0.3. |
+| `chat.share_profile_default` | booléen | `true` | Démarrer chaque nouvelle conversation avec le profil partagé avec l'assistant intégré ; une conversation existante garde son propre interrupteur. La politique de l'organisation peut l'imposer. |
 
 ### `[models]`
 
@@ -267,6 +276,7 @@ L'index signé des fiches de modèles, son miroir, le dossier des modèles, et l
 | `models.registry_mirror_url` | chaîne | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Adresse essayée quand l'index ne répond pas ; vide, elle est désactivée. La politique de l'organisation peut l'imposer. |
 | `models.registry_enabled` | booléen | `true` | Lire l'index en ligne des fiches de modèles. La politique de l'organisation peut l'imposer. |
 | `models.dir` | chemin | `""` | Dossier où sont gardés les modèles de langage, leurs projecteurs et les modèles d'embeddings ; vide, il vaut &lt;dossier de données&gt;/models. Le changer ne déplace aucun fichier. La politique de l'organisation peut l'imposer. |
+| `models.preset_load_settings` | booléen | `false` | Permettre de créer ou de modifier un preset avec des réglages de chargement ; éteint, un preset ne prend que des réglages de requête et garde les réglages de chargement qu'il porte. La politique de l'organisation peut l'imposer. |
 | `models.import.require_verified` | booléen | `false` | Refuser un fichier de modèle importé qui ne correspond à aucune fiche signée. La politique de l'organisation peut l'imposer. |
 
 ### `[workflows]`
@@ -289,6 +299,9 @@ Réglages de l'application de bureau que le moteur lit.
 | `desktop.link_preview_enabled` | booléen | `false` | Récupérer l'aperçu d'un lien affiché dans une conversation. La politique de l'organisation peut l'imposer. |
 | `desktop.update_channel` | l'une de stable, preview | `"stable"` | Canal de mise à jour de l'application : stable reçoit les versions publiées, preview aussi les versions d'essai. La politique de l'organisation peut l'imposer. |
 | `desktop.background_service_allowed` | booléen | `true` | Autoriser l'application à installer le moteur comme service de la session de l'utilisateur. La politique de l'organisation peut l'imposer. |
+| `desktop.chat_auto_naming` | l'une de never, auto, always | `"auto"` | Nommer une nouvelle conversation d'après son premier message : jamais, automatiquement quand le modèle génère assez vite, ou toujours. La politique de l'organisation peut l'imposer. |
+| `desktop.chat_debug_blocks` | booléen | `true` | Mode développeur allumé, montrer les données brutes d'une étape d'outil et la trace détaillée dans une conversation. La politique de l'organisation peut l'imposer. |
+| `desktop.resource_widget` | booléen | `false` | Montrer le processeur, la mémoire et la mémoire vidéo utilisés au pied de la barre latérale. La politique de l'organisation peut l'imposer. |
 
 ### `[server]`
 
@@ -304,7 +317,9 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | `server.jit_auto_unload` | booléen | `true` | Décharger les modèles que le serveur compatible a chargés après leur propre délai d'inactivité plutôt que le délai général. La politique de l'organisation peut l'imposer. |
 | `server.jit_idle_ttl_minutes` | entier | `60` | Minutes sans requête après lesquelles un modèle chargé par le serveur compatible est déchargé ; 0 le garde chargé. La politique de l'organisation peut l'imposer. |
 | `server.jit_keep_last_only` | booléen | `true` | Quand le serveur compatible charge un modèle, décharger les autres modèles qu'il a chargés et que rien ne retient. La politique de l'organisation peut l'imposer. |
+| `server.separate_reasoning_content` | booléen | `true` | Garder le raisonnement d'un modèle dans reasoning_content, à part de content, dans les complétions de chat du serveur compatible ; éteint, il revient dans content entre balises think. La politique de l'organisation peut l'imposer. |
 | `server.serve_on_lan` | booléen | `false` | Ouvrir le serveur compatible au réseau local, sur toutes les interfaces ; l'API native reste sur l'interface de boucle locale. Lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
+| `server.allow_request_mcp` | booléen | `false` | Laisser une requête au serveur compatible apporter son propre serveur MCP, joint en HTTP le temps de l'appel ; éteint, une telle requête est refusée. La politique de l'organisation peut l'imposer. |
 
 ### `[engines]`
 
@@ -313,6 +328,10 @@ Réglages des moteurs d'inférence locaux.
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `engines.log_level` | l'une de error, warning, info, debug | `"debug"` | Niveau de journal du moteur local, appliqué au prochain chargement d'un modèle. La politique de l'organisation peut l'imposer. |
+| `engines.gguf` | l'une de auto, embedded, cuda, vulkan, cpu, metal | `"auto"` | Moteur qui sert les modèles GGUF : le choix automatique, le moteur livré avec l'application, ou une variante installée par le magasin de moteurs. Une variante qui n'est plus installée retombe sur le choix automatique. Lu au démarrage suivant. La politique de l'organisation peut l'imposer. |
+| `engines.mlx` | l'une de auto, embedded, metal | `"auto"` | Moteur qui sert les modèles MLX sur un Mac à puce Apple : le choix automatique, le moteur livré avec l'application, ou celui installé par le magasin de moteurs. Lu au démarrage suivant. La politique de l'organisation peut l'imposer. |
+| `engines.auto_update` | booléen | `true` | Télécharger et vérifier la mise à jour d'un moteur choisi quand le canal suivi en annonce une ; éteint, la mise à jour est seulement annoncée. La politique de l'organisation peut l'imposer. |
+| `engines.auto_purge` | booléen | `false` | Après la mise à jour d'un moteur, supprimer les versions de sa variante inutilisées depuis le plus longtemps, au-delà de deux ; la version en service et le moteur livré avec l'application ne sont jamais supprimés. La politique de l'organisation peut l'imposer. |
 
 ### `[author]`
 
@@ -469,8 +488,10 @@ Désactiver un interrupteur vide la partie correspondante de la timeline : la
 piste d'audit et l'historique des coûts sont séparés et n'en sont pas
 affectés. La même séparation vaut pour la rétention : la purge ne supprime que
 depuis le journal d'événements. Le journal d'audit signé est une chaîne de
-hachage que `audit verify` parcourt de bout en bout, il n'est donc jamais
-purgé sur une base temporelle.
+hachage que `audit verify` parcourt de bout en bout : aucune clé
+d'`apollia.toml` ne le purge. Seule une politique d'organisation le fait, par
+sa propre clé `journal.retention_days` : voir
+[Auditer et vérifier](/how-to/audit-and-verify#retention-and-the-organisation-policy).
 
 ### Contenu des prompts (`[llm.observability]`)
 
@@ -578,6 +599,73 @@ sous `LlmModelUnloaded`, avec sa raison : `idle`, `last_conversation`,
 chargé un autre modèle. Les modèles que le serveur compatible a chargés suivent
 leur propre délai, réglé sous `[server]` (voir la référence des points d'accès
 compatibles).
+
+## Défauts des modèles (`[llm.defaults]`, `[llm.images]`)
+
+Ce que reçoit un modèle local quand rien de plus proche de lui ne dit autre
+chose. L'application les montre dans Réglages, Défauts des modèles.
+
+```toml
+[llm.defaults]
+context = "custom"       # ou "model_max"
+context_tokens = 16384   # 0 laisse le moteur dimensionner la fenêtre à cette machine
+
+[llm.images]
+limit_side = true
+max_side_px = 2048
+
+[llm.guardrails]
+bypass = "confirm"       # ou "unrestricted"
+```
+
+La fenêtre de contexte d'un lancement est la première de ces sources qui se
+prononce :
+
+| Ordre | Source |
+| --- | --- |
+| 1 | `APOLLIA_LLAMA_N_CTX` |
+| 2 | la fenêtre du preset du modèle |
+| 3 | le `context_window` du backend |
+| 4 | `[llm.defaults]` |
+| 5 | 32768 jetons, la valeur avec laquelle le moteur est construit |
+
+Avec `context = "custom"` et une valeur, cette valeur s'applique. Avec
+`context_tokens = 0`, le défaut, le moteur dimensionne la fenêtre modèle par
+modèle : la plus longue, jusqu'à 32768 jetons et jamais sous 4096, à laquelle
+l'estimation qu'utilise le garde-fou de chargement tient encore le modèle dans
+la mémoire de la machine. Avec `context = "model_max"`, la fenêtre est la
+longueur pour laquelle le modèle a été entraîné. Chacune est plafonnée à la
+longueur d'entraînement, et un modèle dont l'en-tête ne se lit pas tombe à la
+dernière ligne du tableau. La section est relue à chaque chargement : un
+changement s'applique au prochain modèle chargé.
+
+`[llm.images]` est lue par le chat de l'application : une image dont le plus
+grand côté dépasse `max_side_px` y est ramenée, proportions gardées, avant
+d'être envoyée à un modèle qui lit les images. Avec `limit_side = false`, une
+image voyage à sa taille, jusqu'à ce que le moteur accepte.
+
+`bypass` dit ce que l'application demande avant de charger un modèle que le
+garde-fou a refusé : `confirm` montre une confirmation qui rappelle le risque,
+`unrestricted` charge aussitôt. Le garde-fou lui-même n'est pas affaibli : le
+refus reste affiché, et une requête qui ne confirme pas reste refusée.
+
+`[llm.devices]` nomme les périphériques graphiques dont le moteur local est
+tenu à l'écart, chacun par l'identifiant qu'affiche
+`llama-server --list-devices`. L'application l'écrit depuis Réglages, Matériel,
+où chaque périphérique a son interrupteur.
+
+```toml
+[llm.devices]
+disabled = ["CUDA1"]
+```
+
+Un périphérique listé sort de la liste `--device` avec laquelle le moteur est
+lancé, et sa mémoire sort de l'estimation que lisent le badge de compatibilité,
+le garde-fou de chargement et le plan de déchargement. Tous les périphériques
+listés, le moteur tourne sur le seul processeur (`--device none`, `-ngl 0`).
+Un identifiant que le moteur ne liste pas est ignoré. Une machine à mémoire
+unifiée n'a qu'un périphérique, qui n'est jamais coupé. La section est relue à
+chaque chargement : un changement s'applique au prochain modèle chargé.
 
 ## Dictée (`system.db`, pas `apollia.toml`)
 

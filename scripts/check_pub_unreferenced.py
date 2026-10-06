@@ -134,7 +134,7 @@ DEAD_RATCHET: dict[str, str] = {
         "same dead path as `approve_tool`, on the other half of the pair."
     ),
     "run_task_with_alternatives@apollia-oria": (
-        "the CLI consumes `PlanAlternativesProposed` and nothing emits it; the missing half is the emission, not this method."
+        "plan alternatives were retired from the product with the CLI's --alternatives; this method, its event and its types go together, a removal that reaches apollia-core and the memory schema."
     ),
     "with_style_detection@apollia-workspace": (
         "the style provider was installed only from the context providers of the former projects, retired with them; this builder has no caller."
@@ -154,7 +154,6 @@ DEAD_RATCHET: dict[str, str] = {
 # entry that leaves must leave the list too. The way out of it, item by item,
 # is a `TEST-ONLY:` line above the definition saying why it exists.
 TEST_ONLY_RATCHET: frozenset[str] = frozenset([
-    "backend_names@apollia-llm",
     "build_a2a_context@apollia-runtime", "complete_with_fallback@apollia-llm",
     "context_window_pct@apollia-core", "data_dir_or_err@apollia-core",
     "estimate_tokens@apollia-oria", "filter_kinds@apollia-runtime", "from_config_with_bus@apollia-llm",
@@ -168,7 +167,7 @@ TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "new_with_cwd@apollia-oria", "notify_agent_free@apollia-triggers",
     "observe@apollia-oria", "open_with_signer@apollia-runtime", "parse_tool_name@apollia-mcp",
     "plan_with_tombstones@apollia-runtime", "prune_deleted@apollia-memory", "query_by_task@apollia-llm",
-    "query_last@apollia-tools", "recall_all_for_injection@apollia-memory", "register_tool@apollia-oria",
+    "query_last@apollia-tools", "register_tool@apollia-oria",
     "remove_rule@apollia-permissions", "remove_rules_by_creator@apollia-permissions",
     "reset_timer@apollia-notifications", "seed_session_cost_usd@apollia-llm",
     "set_last_onboarding_session@apollia-memory", "set_section@apollia-aip", "set_turn_id@apollia-aip",

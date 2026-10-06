@@ -8,6 +8,7 @@
     SHORTCUT_CATEGORIES,
     filterShortcuts,
     isMacPlatform,
+    withSendKey,
     type ShortcutCategory,
     type ShortcutEntry,
     type ShortcutScope,
@@ -16,6 +17,7 @@
   import ScopeBadge from "./ScopeBadge.svelte";
   import ShortcutCatalogRow from "./ShortcutCatalogRow.svelte";
   import { isReserved, overlapsGlobal } from "./coverage";
+  import { chatSendKey } from "$lib/stores/chatSendKey";
 
   const mac = isMacPlatform();
 
@@ -31,7 +33,7 @@
 
   let filtered = $derived.by<ShortcutEntry[]>(() => {
     const translate = (key: string) => get(t)(key);
-    return filterShortcuts(SHORTCUTS, query, translate, mac);
+    return filterShortcuts(withSendKey(SHORTCUTS, $chatSendKey), query, translate, mac);
   });
 
   let grouped = $derived.by(() => {

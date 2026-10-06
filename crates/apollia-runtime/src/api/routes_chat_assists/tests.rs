@@ -65,7 +65,7 @@ async fn test_next_steps_on_a_daemon_without_router_come_from_the_heuristic() {
         state_in(&dir),
         "POST",
         "/api/v1/assists/next-steps",
-        Some(json!({ "context": "global_context", "mode": "operator", "facts": {} })),
+        Some(json!({ "context": "global_context", "developerMode": false, "facts": {} })),
     )
     .await;
 

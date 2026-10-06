@@ -23,6 +23,8 @@
   import { chatSessions } from "$lib/stores/sse";
   import { reportError } from "$lib/errors/reportError";
   import { navigateTo } from "$lib/stores/navigation";
+  import { requestSheet } from "$lib/stores/agentOpen";
+  import { openBatch } from "$lib/stores/batchView";
 
   import { Banner } from "$lib/components/ui/banner";
   import RouteTransition from "$lib/components/ui/route-transition/RouteTransition.svelte";
@@ -115,8 +117,10 @@
     if (origin.kind === "conversation") {
       pendingChatSessionId.set(origin.sessionId);
       navigateTo("chat");
-    } else if (origin.kind === "task") {
-      navigateTo("tasks");
+    } else if (origin.kind === "batch") {
+      openBatch(origin.batchId, "history");
+    } else if (origin.kind === "task" && item.agentId) {
+      requestSheet({ kind: "agent", id: item.agentId });
     }
   }
 

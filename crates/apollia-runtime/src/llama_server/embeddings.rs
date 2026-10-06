@@ -121,7 +121,16 @@ impl LlamaServerSupervisor {
         self.stop_embedding("replaced").await;
 
         let port = pick_free_port()?;
-        let args = build_embedding_args(model_path, pooling, n_ctx, port);
+        let mut args = build_embedding_args(model_path, pooling, n_ctx, port);
+        // The embeddings instance is kept off the devices held back too.
+        let (config_file, imposed) = (self.config_file.clone(), self.imposed.clone());
+        let listed = tokio::task::spawn_blocking(move || {
+            super::devices::sync_selection(config_file.as_deref(), &imposed);
+            apollia_llm::hardware::detect().devices
+        })
+        .await
+        .unwrap_or_default();
+        super::devices::push_args(super::devices::launch_list(&listed).as_deref(), &mut args);
         tracing::event!(
             tracing::Level::INFO,
             model = %model_path,

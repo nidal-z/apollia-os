@@ -312,6 +312,19 @@ impl ItemRunner for Arc<WaitsOnce> {
         Ok(())
     }
 
+    async fn allow_original_write(&self, _agent: &str, _location: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn record_original_write(
+        &self,
+        _batch_id: &str,
+        _agent: &str,
+        _location: &str,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
     async fn release(&self, _batch_id: &str) -> Result<(), String> {
         Ok(())
     }
@@ -384,6 +397,7 @@ fn launch() -> BatchLaunch {
             kind: "memory".into(),
             location: "/data/requests.csv".into(),
             options: BTreeMap::new(),
+            write: None,
         },
         grants: vec![],
         concurrency: None,

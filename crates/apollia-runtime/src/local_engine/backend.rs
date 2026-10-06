@@ -55,8 +55,8 @@ pub struct LocalModelBackend<E: LocalEngine> {
     model_id: String,
     model_path: String,
     /// The window this backend asks the supervisor for: its `context_window`
-    /// setting, or the supervisor's default, capped at the model's training
-    /// length. `None` only when neither the setting nor the header is known.
+    /// setting, capped at the model's training length. `None` leaves the
+    /// window to the default of the settings, resolved at every load.
     n_ctx: Option<u32>,
     /// The window the process serving this model is launched with, after the
     /// environment and the model's default preset. Read from `system.db` when
@@ -81,14 +81,13 @@ impl<E: LocalEngine> LocalModelBackend<E> {
         n_ctx: Option<u32>,
     ) -> Arc<Self> {
         let model_path = expand_home(&model_path);
-        let n_ctx = match trained_context(&model_path) {
-            Some(trained) => Some(apollia_llm::context_window::cap_at_trained(
-                n_ctx.unwrap_or_else(|| supervisor.default_n_ctx()),
-                Some(trained),
-            )),
-            None => n_ctx,
-        };
-        let launched_n_ctx = supervisor.launch_window(&backend_name, n_ctx);
+        // The backend's own window, capped at what the model was trained
+        // for. Without one, the engine resolves the default of the settings at
+        // every load, so a change there needs no restart.
+        let n_ctx = n_ctx.map(|asked| {
+            apollia_llm::context_window::cap_at_trained(asked, trained_context(&model_path))
+        });
+        let launched_n_ctx = supervisor.launch_window(&backend_name, &model_path, n_ctx);
         Arc::new(Self {
             supervisor,
             backend_name,

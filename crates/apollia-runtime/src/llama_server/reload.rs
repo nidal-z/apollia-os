@@ -82,11 +82,23 @@ impl LlamaServerSupervisor {
         consent: LoadConsent,
     ) -> Result<ModelLease, LlamaServerError> {
         // The window is the environment's, else the preset's, else `n_ctx`,
-        // else the default. A resident process for the same model launched
-        // under other settings is stopped first, and the relaunch is announced
-        // once the new process is healthy.
+        // else the default of the settings, else the built-in one. A resident
+        // process for the same model launched under other settings is stopped
+        // first, and the relaunch is announced once the new process is healthy.
         let load = self.default_load(backend).await;
-        let n_ctx = self.window_for(&load, n_ctx);
+        // When nothing fixes the window, a process already serving the model
+        // under these settings keeps serving it: a default changed in the
+        // settings applies to the next load, not to a model in memory.
+        let fixed = self.n_ctx_pinned || load.n_ctx.or(n_ctx).is_some_and(|n| n > 0);
+        let resident = if fixed {
+            None
+        } else {
+            self.resident_window(&model_path, &load).await
+        };
+        let n_ctx = match resident {
+            Some(window) => window,
+            None => self.window_for(&model_path, &load, n_ctx).await,
+        };
         let _guard = self.respawn_lock.lock().await;
         // A model the user loaded by hand serves every request for it, under
         // the settings it was loaded with, whatever window the request asks.
@@ -120,11 +132,63 @@ impl LlamaServerSupervisor {
         Ok(lease)
     }
 
-    /// The window a model is launched with: `APOLLIA_LLAMA_N_CTX`, else the
-    /// preset's, else `requested` (the backend's own), else the default.
+    /// The window `model_path` is launched with: `APOLLIA_LLAMA_N_CTX`, else
+    /// the preset's, else `requested` (the backend's own), else the default of
+    /// the settings (`[llm.defaults]`), else the built-in one. See
+    /// [`context_default`](crate::local_engine::context_default).
+    ///
+    /// The settings and the model are only read when nothing above them fixes
+    /// the window.
+    pub async fn window_for(
+        &self,
+        model_path: &str,
+        load: &LoadSettings,
+        requested: Option<u32>,
+    ) -> u32 {
+        let asked = load.n_ctx.or(requested).filter(|n| *n > 0);
+        if self.n_ctx_pinned || asked.is_some() {
+            return self.effective_n_ctx(asked, self.n_ctx);
+        }
+        let model_default = self
+            .sized_windows
+            .window(
+                self.config_file.clone(),
+                self.imposed.clone(),
+                self.n_ctx,
+                model_path,
+            )
+            .await;
+        self.effective_n_ctx(None, model_default)
+    }
+
+    /// The window of a live process serving `model_path` under `load`.
+    async fn resident_window(&self, model_path: &str, load: &LoadSettings) -> Option<u32> {
+        let instances = self.instances.lock().await;
+        instances
+            .iter()
+            .find(|i| i.model_path == model_path && &i.load == load)
+            .map(|i| i.n_ctx)
+    }
+
+    /// [`window_for`](Self::window_for) for a caller off the async workers.
     #[must_use]
-    pub fn window_for(&self, load: &LoadSettings, requested: Option<u32>) -> u32 {
-        self.effective_n_ctx(load.n_ctx.or(requested))
+    pub fn window_for_blocking(
+        &self,
+        model_path: &str,
+        load: &LoadSettings,
+        requested: Option<u32>,
+    ) -> u32 {
+        let asked = load.n_ctx.or(requested).filter(|n| *n > 0);
+        if self.n_ctx_pinned || asked.is_some() {
+            return self.effective_n_ctx(asked, self.n_ctx);
+        }
+        let model_default = self.sized_windows.window_blocking(
+            self.config_file.as_deref(),
+            &self.imposed,
+            self.n_ctx,
+            model_path,
+        );
+        self.effective_n_ctx(None, model_default)
     }
 
     /// Stop every resident process of `model_path` launched under settings

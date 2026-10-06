@@ -1,5 +1,6 @@
 <script module lang="ts">
   import type { ProfileSummaryView } from "$lib/ipc/profile";
+  import type { ConversationStatsView } from "$lib/types";
 
   /**
    * The value of the profile select for a session: its designated profile
@@ -18,6 +19,42 @@
   export function profileIdOf(selection: string): string | null {
     return selection === "" ? null : selection;
   }
+
+  /**
+   * The profile switch of a session: on unless the session stored it off.
+   * Before a conversation exists the switch shows `byDefault`, the position
+   * Settings > Integrations gives every new conversation.
+   */
+  export function profileSwitchOf(
+    session: { use_profile?: boolean } | null,
+    byDefault = true,
+  ): boolean {
+    return session ? session.use_profile !== false : byDefault;
+  }
+
+  /** What writing the profile switch of a session needs from the runtime. */
+  export interface ProfileSwitchEffects {
+    update: (sessionId: string, update: { use_profile: boolean }) => Promise<void>;
+    stats: (sessionId: string) => Promise<ConversationStatsView>;
+  }
+
+  /**
+   * Stores the profile switch of a session, then reads its gauge again so the
+   * indicator follows the switch. The gauge is `null` when it cannot be read;
+   * a refused write throws and nothing is read.
+   */
+  export async function writeProfileSwitch(
+    sessionId: string,
+    on: boolean,
+    effects: ProfileSwitchEffects,
+  ): Promise<ConversationStatsView | null> {
+    await effects.update(sessionId, { use_profile: on });
+    try {
+      return await effects.stats(sessionId);
+    } catch {
+      return null;
+    }
+  }
 </script>
 
 <script lang="ts">
@@ -27,11 +64,12 @@
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
   import type { ChatSessionDetail, UpdateSessionRequest } from "$lib/types";
-  import { updateChatSession } from "$lib/ipc/chat";
+  import { getConversationStats, updateChatSession } from "$lib/ipc/chat";
   import { TOOL_GROUPS, TOOL_CATALOG, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
   import { isSensitiveFamily } from "$lib/tools/action-family";
   import { llmBackends } from "$lib/stores/sse";
-  import { useUserMemory, chatConversationStats } from "$lib/stores/chat";
+  import { useUserMemory, chatConversationStats, currentSession } from "$lib/stores/chat";
+  import { shareProfileDefault, hydrateShareProfileDefault } from "$lib/stores/shareProfileDefault";
   import { developerMode } from "$lib/stores/developerMode";
   import { Card } from "$lib/components/ui/card";
   import { Input } from "$lib/components/ui/input";
@@ -131,6 +169,7 @@
     enabledTools = new Set(session.available_tools ?? []);
     selectedBackend = session.llm_backend ?? null;
     selectedProfile = session.profile_id ?? "";
+    useUserMemory.set(profileSwitchOf(session));
     saveError = null;
     try {
       const stored = window.localStorage.getItem(stepBudgetStorageKey(session.id));
@@ -174,6 +213,29 @@
     }
   }
 
+  /**
+   * The switch acts at once, without the Save button: the runtime reads it at
+   * the next message. A refused write puts the switch back and says why.
+   */
+  async function handleProfileSwitch(on: boolean): Promise<void> {
+    if (!session || isClosed) return;
+    const sessionId = session.id;
+    const previous = $useUserMemory;
+    useUserMemory.set(on);
+    saveError = null;
+    try {
+      const stats = await writeProfileSwitch(sessionId, on, {
+        update: updateChatSession,
+        stats: getConversationStats,
+      });
+      currentSession.update((s) => (s && s.id === sessionId ? { ...s, use_profile: on } : s));
+      if (stats) chatConversationStats.set(stats);
+    } catch (err: unknown) {
+      useUserMemory.set(previous);
+      saveError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   const isOperator = $derived(!$developerMode);
 
   $effect(() => {
@@ -200,6 +262,15 @@
       lastSessionId = session.id;
       syncFromSession();
     }
+  });
+
+  // Before a conversation exists, the switch shows the position a new
+  // conversation is born with; an existing conversation keeps its own.
+  $effect(() => {
+    void hydrateShareProfileDefault();
+  });
+  $effect(() => {
+    if (!session) useUserMemory.set(profileSwitchOf(null, $shareProfileDefault));
   });
 </script>
 
@@ -460,7 +531,8 @@
         <Toggle
           size="sm"
           checked={$useUserMemory}
-          onchange={(checked) => useUserMemory.set(checked)}
+          disabled={isClosed}
+          onchange={handleProfileSwitch}
           data-testid="toggle-user-memory"
         />
       </div>
@@ -497,6 +569,15 @@
           <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-warning"></span>{$t("chat.legend_summary")}</span>
           <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/30"></span>{$t("chat.legend_free")}</span>
         </div>
+        <p
+          class="text-micro-xs text-muted-foreground/60"
+          data-testid="context-profile-indicator"
+          data-injected={$chatConversationStats?.user_memory_injected ? "true" : "false"}
+        >
+          {$chatConversationStats?.user_memory_injected
+            ? $t("chat.context_profile_on")
+            : $t("chat.context_profile_off")}
+        </p>
       </Card>
     {/if}
 

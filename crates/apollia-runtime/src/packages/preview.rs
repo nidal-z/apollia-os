@@ -388,6 +388,19 @@ pub enum PackageOrigin {
     /// signature covers. It installs with no notice about its signature, and a
     /// policy that requires a signature does not refuse it.
     Embedded,
+    /// An example Apollia ships inside its binary and proposes. The binary
+    /// carries it like an embedded package, so its signature is treated the
+    /// same; it is installed only when the user chooses it, and uninstalls
+    /// like any package.
+    Example,
+}
+
+impl PackageOrigin {
+    /// The binary carries the package: it is not signed, and is neither
+    /// flagged nor refused for it.
+    pub fn shipped(self) -> bool {
+        matches!(self, PackageOrigin::Embedded | PackageOrigin::Example)
+    }
 }
 
 /// Builds the preview of `manifest` whose signature reads as `signature`
@@ -399,7 +412,7 @@ pub(crate) fn build(
     sources: &PreviewSources<'_>,
     origin: PackageOrigin,
 ) -> Result<PackagePreview, PackageError> {
-    let embedded = origin == PackageOrigin::Embedded;
+    let embedded = origin.shipped();
     let package = &manifest.package;
     let signature = signature_preview(&package.publisher, signature, sources)?;
     let signature_required = sources.governance.signature_required(&InstallSubject {

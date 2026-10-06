@@ -38,6 +38,7 @@
   import { ActionMenu } from "$lib/components/ui/action-menu";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { contextDrawerOpen } from "$lib/stores/chatLayout";
+  import { chatTrashEnabled, removalConfirmKey } from "$lib/stores/chatTrash";
 
   interface Props {
     session: ChatSessionDetail | null;
@@ -439,7 +440,7 @@
 <ConfirmDialog
   open={deleteConfirmOpen}
   title={$t("chat.delete_confirm_title")}
-  message={$t("chat.delete_confirm_message")}
+  message={$t(removalConfirmKey($chatTrashEnabled))}
   confirmLabel={$t("chat.delete_session")}
   cancelLabel={$t("common.cancel")}
   onclose={() => (deleteConfirmOpen = false)}

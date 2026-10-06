@@ -11,9 +11,16 @@ use rusqlite::{params, Connection};
 use super::types::{ChatError, ChatMode, ChatRole, PlanPhase, SessionConfigUpdate, SessionStatus};
 
 mod approvals;
+mod folders;
 mod forking;
+mod message_search;
 mod profile;
 mod search;
+mod trash;
+
+pub use folders::{ChatFolder, FOLDER_NAME_MAX_CHARS};
+pub use message_search::{MessageSearchHit, MESSAGE_SEARCH_MAX_RESULTS};
+pub use trash::TrashedSession;
 
 /// Raw row from the `chat_sessions` table.
 #[derive(Debug, Clone)]
@@ -50,6 +57,8 @@ pub struct SessionRow {
     pub plan_phase: String,
     /// Profile the conversation designates (nullable: the current default).
     pub profile_id: Option<String>,
+    /// Profile switch of the conversation (on by default).
+    pub use_profile: bool,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -246,6 +255,10 @@ impl ChatSessionRepository {
             parts.push("profile_id = ?");
             values.push(Box::new(profile.clone()));
         }
+        if let Some(use_profile) = update.use_profile {
+            parts.push("use_profile = ?");
+            values.push(Box::new(i64::from(use_profile)));
+        }
 
         if parts.is_empty() {
             return Ok(());
@@ -299,6 +312,11 @@ impl ChatSessionRepository {
             "DELETE FROM chat_sessions_fts WHERE session_id = ?1",
             params![id],
         );
+        tx.execute(
+            "DELETE FROM chat_messages_fts WHERE session_id = ?1",
+            params![id],
+        )
+        .map_err(|e| ChatError::InternalError(format!("delete_session message index: {e}")))?;
 
         let deleted = tx
             .execute("DELETE FROM chat_sessions WHERE id = ?1", params![id])
@@ -313,6 +331,11 @@ impl ChatSessionRepository {
             .map_err(|e| ChatError::InternalError(format!("delete_session commit: {e}")))?;
         if let Some(dir) = self.session_images_dir(id) {
             super::images::remove_session_images(&dir);
+        }
+        if let Some(data_dir) = self.data_dir.as_deref() {
+            super::documents::remove_session_documents(&super::documents::session_documents_dir(
+                data_dir, id,
+            ));
         }
         Ok(())
     }
@@ -393,7 +416,7 @@ impl ChatSessionRepository {
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id
+                        plan_mode, plan_phase, profile_id, use_profile
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -406,21 +429,23 @@ impl ChatSessionRepository {
         Ok(row)
     }
 
-    /// List sessions, optionally filtered by status.
+    /// List sessions, optionally filtered by status. A session in the trash
+    /// is not in the list.
     pub fn list_sessions(&self, status: Option<&str>) -> Result<Vec<SessionRow>, ChatError> {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id
-                 FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
+                        plan_mode, plan_phase, profile_id, use_profile
+                 FROM chat_sessions WHERE status = ?1 AND deleted_at IS NULL
+                 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id
-                 FROM chat_sessions ORDER BY created_at DESC",
+                        plan_mode, plan_phase, profile_id, use_profile
+                 FROM chat_sessions WHERE deleted_at IS NULL ORDER BY created_at DESC",
                 None,
             ),
         };
@@ -511,6 +536,15 @@ impl ChatSessionRepository {
             )
             .map_err(|e| ChatError::InternalError(format!("append_message insert: {e}")))?;
 
+        Self::index_message(
+            &self.conn,
+            params.session_id,
+            next_seq,
+            params.role.as_sql(),
+            params.content,
+        )
+        .map_err(|e| ChatError::InternalError(format!("append_message index: {e}")))?;
+
         Ok(next_seq)
     }
 
@@ -527,15 +561,24 @@ impl ChatSessionRepository {
         from_seq: u32,
         inclusive: bool,
     ) -> Result<u32, ChatError> {
-        let sql = if inclusive {
-            "DELETE FROM chat_messages WHERE session_id = ?1 AND seq >= ?2"
+        let (sql, index_sql) = if inclusive {
+            (
+                "DELETE FROM chat_messages WHERE session_id = ?1 AND seq >= ?2",
+                "DELETE FROM chat_messages_fts WHERE session_id = ?1 AND seq >= ?2",
+            )
         } else {
-            "DELETE FROM chat_messages WHERE session_id = ?1 AND seq > ?2"
+            (
+                "DELETE FROM chat_messages WHERE session_id = ?1 AND seq > ?2",
+                "DELETE FROM chat_messages_fts WHERE session_id = ?1 AND seq > ?2",
+            )
         };
         let deleted = self
             .conn
             .execute(sql, rusqlite::params![session_id, from_seq])
             .map_err(|e| ChatError::InternalError(format!("truncate_messages: {e}")))?;
+        self.conn
+            .execute(index_sql, rusqlite::params![session_id, from_seq])
+            .map_err(|e| ChatError::InternalError(format!("truncate_messages index: {e}")))?;
         Ok(deleted as u32)
     }
 
@@ -701,6 +744,7 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         plan_mode: row.get::<_, i64>(13)? != 0,
         plan_phase: row.get(14)?,
         profile_id: row.get(15)?,
+        use_profile: row.get::<_, i64>(16)? != 0,
     })
 }
 

@@ -24,12 +24,18 @@ vi.mock("@tauri-apps/api/event", () => ({
   emit: vi.fn(async () => {}),
 }));
 
+// The tooltip primitive needs the provider the application shell mounts; here
+// it only has to hand its trigger through, so the "?" of the guardrails is
+// rendered bare.
+vi.mock("$lib/components/ui/tooltip", () => ({
+  Tooltip: (out: unknown, props: { children?: (out: unknown) => void }) => props.children?.(out),
+}));
+
 import Engines from "./Engines.svelte";
 import System from "./System.svelte";
 import { engineRows, variantLabel } from "../../components/settings/system/EngineList.svelte";
 import {
   archLabel,
-  gpuBackend,
   memoryKind,
   vramGb,
 } from "../../components/settings/system/HardwareCard.svelte";
@@ -65,6 +71,7 @@ const ENGINES: EnginesResponse = {
       path: "/app/Contents/Resources/runners/llama-server",
       source: "embedded",
       version: "7001 (0ff1ce0)",
+      in_service: true,
     },
     {
       engine: "vllm-mlx",
@@ -73,6 +80,7 @@ const ENGINES: EnginesResponse = {
       path: "/app/Contents/Resources/python/engines/mlx",
       source: "embedded",
       version: null,
+      in_service: false,
     },
   ],
   channel: "stable",
@@ -131,6 +139,9 @@ function seedHardwarePage(): void {
       accelerator: { kind: "apple_silicon", chip: "M3 Ultra", generation: 3, vram_gb: 222.72 },
       memory_budget_gb: 167,
       total_capacity_gb: 222.7,
+      devices: [
+        { id: "MTL0", name: "Apple M3 Ultra", api: "Metal", vram_gb: 222.72, enabled: true },
+      ],
     }),
   );
   pythonInterpreterStore.set(
@@ -287,8 +298,6 @@ describe("the pure helpers of the two sections", () => {
     expect(memoryKind({ kind: "none" })).toBeNull();
     expect(vramGb({ kind: "none" })).toBeNull();
     expect(vramGb({ kind: "cuda", vram_gb: 24 })).toBe(24);
-    expect(gpuBackend({ kind: "cuda" })).toBe("CUDA");
-    expect(gpuBackend({ kind: "none" })).toBeNull();
     expect(archLabel("aarch64")).toBe("ARM64");
     expect(archLabel("x86_64")).toBe("x86-64");
     expect(archLabel(null)).toBeNull();

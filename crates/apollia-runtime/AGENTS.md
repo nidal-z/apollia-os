@@ -28,12 +28,12 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `TimeoutWatcher` | expiry of `input_required` tasks | no channel; a `tokio::time::interval` scan loop | n/a | `src/timeout_watcher.rs` |
 | `OnDemandBackend` | one per installed agent: builds its backend on the first task, drops it after `[runtime] agent_idle_unload_secs` without a call or when the agent is parked | mpsc | 64 | `src/on_demand.rs` |
 | `BatchActor` | progress of every running batch: starts items up to their concurrency, counts their ends, interrupts past the failure threshold, pauses, resumes, stops and retries a batch, records and withdraws its grants, publishes waiting items and the end of a batch, resumes running batches at start | two mpsc | 64 commands, 256 item ends | `src/batch/actor.rs` |
-| `CompatServerHandle` | the compatible server's listener: opens it at start when `[server] enabled` says so, starts, stops and restarts it on request (binding the loopback interface, or every interface when `[server] serve_on_lan` says so) and writes the switch, keeps the last start error, closes it on `ShutdownRequested` without touching the switch | mpsc | 64 | `src/compat_server/actor.rs` |
+| `CompatServerHandle` | the compatible server's listener: opens it at start when `[server] enabled` says so, starts, stops and restarts it on request (binding the loopback interface, or every interface when `[server] serve_on_lan` says so) and writes the switch, keeps the last start error, closes it on `ShutdownRequested` without touching the switch; its routes run an exposed agent as a batch of one item through `BatchActor`, and an exposed workflow through `WorkflowActor`, and stop the run when the client goes away; each request it receives leaves a `ServerCall` entry in the audit journal, through the journal's own handle (`src/compat_server/journal.rs`) | mpsc | 64 | `src/compat_server/actor.rs` |
 | `GovernanceActor` | what every tool call is decided from: the organisation policy read at boot, the fine rules and standing consents of `governance.db`, the developer mode; publishes it as one state on a `watch` channel that a decision reads without waiting, writes an "always" answered at a prompt as a standing consent, rereads the files when another process changed them | mpsc | 64 | `src/governance/actor.rs` |
-| `ServerTokensHandle` | the tokens of the compatible server in `system.db`: creates one (`apo_` value answered once, only its SHA-256 kept), lists and revokes them, counts those in use, checks a presented token in constant time and stamps its last use; spawned by `CompatServerHandle`, stops when its handles drop | mpsc | 256 | `src/compat_server/tokens.rs` |
+| `ServerTokensHandle` | the tokens of the compatible server in `system.db`: creates one (`apo_` value answered once, only its SHA-256 kept), lists and revokes them, counts those in use, checks a presented token in constant time and stamps its last use, names the token a request presented for the journal; spawned by `CompatServerHandle`, stops when its handles drop | mpsc | 256 | `src/compat_server/tokens.rs` |
 | `ServerLogsHandle` | the logs of the compatible server: a ring of the last 2000 lines (one per request it answered, one per line a local `llama-server` printed), oldest out first; streams them to each subscriber at its level, then the new ones, through a bounded channel of 256 that drops what a slow reader cannot hold; clears the ring and nothing else; writers never wait (`try_send`); spawned by `CompatServerHandle`, stops on `ShutdownRequested` | mpsc | 1024 | `src/compat_server/logs.rs` |
-| `ConfigReloadHandle` | the configuration in force: applies a saved or changed `apollia.toml`, sends its live sections on one `watch` channel each, lists the keys waiting for a restart, publishes `ConfigReloaded` and `ConfigInvalid`; stops on `ShutdownRequested` | mpsc | 16 | `src/config_reload/actor.rs` |
-| `WorkflowActor` | the workflow runs in progress and their cancellation tokens: launches a run after checking its inputs, stops one and answers once it ended, fails at start the runs a stopped process left running; each run reports its steps itself, to `hitl.db` and the bus | mpsc | 64 | `src/workflows/actor.rs` |
+| `ConfigReloadHandle` | the configuration in force: applies a saved or changed `apollia.toml`, sends its live sections on one `watch` channel each, lists the keys waiting for a restart, publishes `ConfigReloaded` and `ConfigInvalid`, journals each change with its origin; stops on `ShutdownRequested` | mpsc | 16 | `src/config_reload/actor.rs` |
+| `WorkflowActor` | the workflow runs in progress and their cancellation tokens: launches a run after checking its inputs, stops one and answers once it ended, fails at start the runs a stopped process left running, takes the workflows of an uninstalled package out of its catalogue; each run reports its steps itself, to `hitl.db` and the bus | mpsc | 64 | `src/workflows/actor.rs` |
 
 Hosted from other crates, started by this one :
 
@@ -129,13 +129,25 @@ OpenAI's `{"error": {"message", "type", "code"}}`, or Anthropic's
 `{"type": "error", "error": {"type", "message"}}` on `/v1/messages` and
 `/v1/messages/count_tokens` (`src/compat_server/errors.rs`). They serve the
 local models only, relayed to the engine that runs them; a remote backend is
-never relayed. Their authentication is
+never relayed. A response or a message that brings an MCP server of its own
+(`[server] allow_request_mcp`, off by default) is not relayed either: the
+runtime connects to the server over HTTP for the length of the call, through
+`McpClientManagerHandle::add_request_server`, and runs the tool loop through
+the agent executor under the agent `request-mcp`, which is stored nowhere
+(`src/compat_server/request_mcp_run.rs`). Its tools are unclassified, the run
+is unattended, and the connection is removed when the call ends or its caller
+goes away. Their authentication is
 not the native API's: with `[server] require_auth`, a request presents a token
 of the server (`apo_...`, `Authorization: Bearer` or `x-api-key`), and the
 internal token never opens them. Each request carries its `CallOrigin`
 (loopback or local network, read from the peer address at accept), and a call
 to an agent or a workflow from the local network goes through
 `admit_agent_call`, which wants a token in use whatever `require_auth` says.
+The organisation policy closes three of their settings and only closes
+(`serve_on_lan`, `require_auth`, `allow_request_mcp`): the actor and
+`LocalModels` resolve them under the `PolicySettings` read at boot, never under
+`PolicySettings::none()`, and a server the file had left open against the policy
+leaves one `PolicySettingEnforced` entry per key (`src/compat_server/policy.rs`).
 None of the rules of this section
 applies to them. They live in `src/compat_server/`, never in `src/api/` and
 never under `/api/v1/`, so `scripts/check_openapi_routes.py` does not read them
@@ -264,6 +276,11 @@ whose keys are `Reloadable` in the key registry on a `tokio::sync::watch`
 channel of its own. A consumer holds that section as a `Live<T>`: it reads
 `get()` at each use, or applies `changed()` between two messages. The keys of
 class `Restart` wait for the next start and are listed by `GET /api/v1/config`.
+Each text applied is written to the signed journal as `ConfigurationChanged`
+(keys, origin, fingerprints, never a value), once the supervisor has handed
+the journal to the reloader with `attach_journal`; a code path that writes the
+file itself shows the written text to `ConfigReloadHandle::saved` with its
+origin, otherwise the watcher finds it and the journal says `external_file`.
 A new consumer of a live section takes a `Live<T>` (a plain value converts,
 for the tests), never a copy made at boot. The subsystems with a reload of
 their own keep it: `POST /api/v1/triggers/reload` (503 when the runtime was

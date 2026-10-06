@@ -293,7 +293,10 @@ BILINGUAL_DATA = (
 #   prompt     French text sent to a model, because the operator writes French
 FRENCH_DATA: dict[str, int] = {
     # locale: the French half of a bilingual surface
-    "crates/apollia-desktop/src/i18n.rs": 16,
+    "crates/apollia-desktop/src/i18n.rs": 17,
+    # The French label and explanation of the trash row of Settings > Chat,
+    # pinned word for word by the test of that row.
+    "crates/apollia-desktop/ui/src/routes/settings/ChatSettings.test.ts": 3,
     "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 3,
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
     "crates/apollia-memory/src/profile_schema.rs": 10,
@@ -315,7 +318,6 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-cli/src/commands/chat_stream.rs": 3,
     "crates/apollia-cli/src/commands/chat_stream/classify.rs": 1,
     "crates/apollia-cli/src/commands/run.rs": 2,
-    "crates/apollia-desktop/ui/src/lib/command-palette/actions.ts": 1,
     "crates/apollia-desktop/ui/tests/settings/hotkey-capture.spec.ts": 1,
     "crates/apollia-llm/src/meta/parse_automation.rs": 30,
     "crates/apollia-memory/src/lib.rs": 1,
@@ -335,13 +337,14 @@ FRENCH_DATA: dict[str, int] = {
     "scripts/check_method_references.py": 18,
     "scripts/check_python_rules.py": 4,
     "tests/cli/seed/files/agents/onboarding-agent/agent.py": 28,
-    "agents/system/onboarding-agent/tools/onboarding.py": 21,
-    "tests/test_onboarding_tool.py": 2,
     # prompt: French text sent to a model, because the operator writes French
     "crates/apollia-runtime/src/chat/title.rs": 17,
     # fixture: French user text, or a multi-byte character, a test feeds to the
     # code under test
     "tests/hitl/hitl_e2e_agent.py": 1,
+    # The accented French words recognition must give back from a scanned page.
+    "crates/apollia-sources/tests/ocr_reader.rs": 9,
+    "crates/apollia-sources/src/indexer/tests/recognition.rs": 2,
     "crates/apollia-cli/src/commands/mod.rs": 2,
     "crates/apollia-core/src/observability.rs": 1,
     "crates/apollia-core/src/utils.rs": 2,

@@ -151,7 +151,7 @@ saying how to grant one.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
-| `file_read` | Read a file, with optional offset and limit for large files. Returns UTF-8 text with line numbers. | `path`, `offset`, `limit` |
+| `file_read` | Read a file, with optional offset and limit for large files. Returns UTF-8 text with line numbers. A PDF, Word (`.docx`), PowerPoint (`.pptx`) or Excel (`.xlsx`, `.xlsm`, `.xls`, `.ods`) document is read as the text it holds, whole or one page, slide or sheet at a time. | `path`, `offset`, `limit`, `page`, `sheet` |
 | `file_write` | Write content to a file, creating intermediate directories and overwriting if it exists. | `path`, `content` |
 | `file_list` | List files and directories with type and size, optionally recursive. | `dir`, `recursive` |
 | `file_edit` | Replace exact text in a file. Fails if `old_text` is not found or is not unique (unless `replace_all`). | `path`, `old_text`, `new_text`, `replace_all` |

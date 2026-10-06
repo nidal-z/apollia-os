@@ -226,6 +226,7 @@ async fn test_listed_engines_carry_the_version_they_state() {
         path: path.display().to_string(),
         source: Source::Downloaded,
         version: None,
+        in_service: false,
     };
 
     // WHEN their versions are read
@@ -239,4 +240,57 @@ async fn test_listed_engines_carry_the_version_they_state() {
     //      engine that states nothing carries none, not its store tag
     let versions: Vec<Option<&str>> = listed.iter().map(|e| e.version.as_deref()).collect();
     assert_eq!(versions, vec![Some("0.9.1"), None]);
+}
+
+#[test]
+fn test_the_engines_the_runtime_starts_are_marked_in_service() {
+    // GIVEN an embedded llama-server binary, a CUDA package of the store
+    //      holding its own, an MLX environment and Node.js
+    let dir = tempfile::tempdir().unwrap();
+    let name = format!("llama-server{}", std::env::consts::EXE_SUFFIX);
+    let embedded = dir.path().join("app").join(&name);
+    let cuda = dir.path().join("llama/b7001/cuda");
+    let mlx = dir.path().join("mlx");
+    let node = dir.path().join("node");
+    for d in [
+        embedded.parent().unwrap(),
+        &cuda,
+        &mlx.join("site-packages"),
+        &node,
+    ] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    std::fs::write(&embedded, b"").unwrap();
+    std::fs::write(cuda.join(&name), b"").unwrap();
+    let entry = |engine, path: &Path, source| EngineEntry {
+        engine,
+        tag: None,
+        variant: None,
+        path: path.display().to_string(),
+        source,
+        version: None,
+        in_service: false,
+    };
+    let mut entries = vec![
+        entry(Engine::LlamaServer, &embedded, Source::Embedded),
+        entry(Engine::LlamaServer, &cuda, Source::Downloaded),
+        entry(Engine::VllmMlx, &mlx, Source::Embedded),
+        entry(Engine::NodeJs, &node, Source::Downloaded),
+    ];
+
+    // WHEN the runtime starts the CUDA binary and that MLX environment
+    mark_in_service(
+        &mut entries,
+        Some(&cuda.join(&name)),
+        Some(&mlx.join("site-packages")),
+    );
+
+    // THEN the CUDA package and the MLX environment are in service, the
+    //      embedded llama-server it passed over and Node.js are not
+    let marks: Vec<bool> = entries.iter().map(|e| e.in_service).collect();
+    assert_eq!(marks, vec![false, true, true, false]);
+
+    // AND with nothing in reach, nothing is marked
+    mark_in_service(&mut entries, None, None);
+    assert!(entries.iter().all(|e| !e.in_service));
 }

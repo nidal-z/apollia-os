@@ -16,7 +16,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 
 use axum::http::HeaderMap;
 use axum::response::Response;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::auth::{presented_token, unauthorized_with};
 use super::tokens::ServerTokensHandle;
@@ -29,7 +29,7 @@ pub const AGENT_TOKEN_REQUIRED: &str =
      token, or in the x-api-key header.";
 
 /// Where a call comes from, read from the peer address of its connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CallOrigin {
     /// The machine itself, through the loopback interface.

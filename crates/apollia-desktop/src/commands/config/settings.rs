@@ -8,7 +8,8 @@
 //!
 //! Neither command reads the runtime: both read and write the `apollia.toml`
 //! of the data directory, which the daemon shares when the application is
-//! attached to one, so they serve both modes.
+//! attached to one, so they serve both modes. A write is then shown to the
+//! runtime, which journals it; the write does not depend on its answer.
 
 use std::path::Path;
 
@@ -63,10 +64,23 @@ pub async fn get_resolved_setting(key: String) -> Result<ResolvedSetting, String
     resolve_at(&default_config_path(), &key)
 }
 
-/// Writes the named setting `key` to `value` and returns it resolved.
+/// Writes the named setting `key` to `value` and returns it resolved. The
+/// write is then shown to the runtime this application drives, which journals
+/// the change as made from the settings.
 #[tauri::command]
-pub async fn set_setting(key: String, value: serde_json::Value) -> Result<ResolvedSetting, String> {
-    write_under(&default_config_path(), &key, value, &policy_in_force())
+pub async fn set_setting(
+    app: tauri::AppHandle,
+    key: String,
+    value: serde_json::Value,
+) -> Result<ResolvedSetting, String> {
+    use tauri::Manager as _;
+
+    let path = default_config_path();
+    let resolved = write_under(&path, &key, value, &policy_in_force())?;
+    if let Some(link) = app.try_state::<crate::attached::RuntimeLink>() {
+        super::file::show_settings_write_on(link.inner(), &path).await;
+    }
+    Ok(resolved)
 }
 
 #[cfg(test)]

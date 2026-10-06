@@ -29,8 +29,7 @@
     traceFor,
     unsubscribeTraceLive,
   } from "$lib/stores/trace";
-  import type { UIMode } from "$lib/stores/mode";
-  import { developerMode } from "$lib/stores/developerMode";
+  import { chatDebugBlocks } from "$lib/stores/developerSettings";
   import TraceEventCard from "./TraceEventCard.svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
@@ -40,7 +39,7 @@
     /** "task" / "chat" / "standalone" - decides the container rendering. */
     context?: "task" | "chat" | "standalone";
     /** Override of the skin the developer mode picks. Inherited otherwise. */
-    skin?: UIMode | undefined;
+    skin?: "builder" | "operator" | undefined;
     /** "live" = subscribed to SSE, "replay" = static loading only. */
     mode?: "live" | "replay";
   }
@@ -53,7 +52,7 @@
   }: Props = $props();
 
   const traceState = $derived(traceFor(taskId));
-  const effectiveSkin = $derived<UIMode>(skin ?? ($developerMode ? "builder" : "operator"));
+  const effectiveSkin = $derived<"builder" | "operator">(skin ?? ($chatDebugBlocks ? "builder" : "operator"));
 
   /**
    * Pair started ↔ completed/denied events.

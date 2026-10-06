@@ -170,6 +170,20 @@ impl ChatSessionManager {
                 .set_plan_mode(&session_id, true, plan_phase)?;
         }
 
+        // A new session is born with the profile switch `[chat]
+        // share_profile_default` states; the column is born on, so only an
+        // off default is written.
+        let use_profile = self.shares_profile_by_default();
+        if !use_profile {
+            self.repository.update_session_config(
+                &session_id,
+                &SessionConfigUpdate {
+                    use_profile: Some(false),
+                    ..SessionConfigUpdate::default()
+                },
+            )?;
+        }
+
         // Build in-memory session
         let session = ChatSession {
             id: session_id.clone(),
@@ -191,6 +205,7 @@ impl ChatSessionManager {
             plan_mode,
             plan_phase,
             profile_id: None,
+            use_profile,
         };
 
         let info = session_to_info(&session);
@@ -248,6 +263,9 @@ impl ChatSessionManager {
         }
         if let Some(profile) = update.profile_id {
             session.profile_id = profile;
+        }
+        if let Some(use_profile) = update.use_profile {
+            session.use_profile = use_profile;
         }
 
         info!(session_id = %session_id, "chat.session.config.updated");
@@ -441,6 +459,7 @@ impl ChatSessionManager {
             plan_mode,
             plan_phase,
             profile_id: row.profile_id,
+            use_profile: row.use_profile,
         };
 
         Some(SessionDetail {
@@ -457,7 +476,7 @@ impl ChatSessionManager {
     /// injection, and refuses any pending tool approval (so a loop blocked on
     /// approval unblocks). Called when a session closes or is deleted; without
     /// it these maps leak entries for the lifetime of the actor.
-    fn purge_session_runtime_state(&mut self, session_id: &str) {
+    pub(in crate::chat::manager) fn purge_session_runtime_state(&mut self, session_id: &str) {
         if let Some(token) = self.pause_tokens.remove(session_id) {
             token.cancel();
         }
@@ -571,6 +590,11 @@ impl ChatSessionManager {
                 session: session.clone(),
                 message_count,
             });
+        }
+
+        // A session in the trash is resumed only once restored.
+        if self.repository.is_trashed(session_id)? {
+            return Err(ChatError::SessionNotFound(session_id.to_string()));
         }
 
         // Load from SQLite.

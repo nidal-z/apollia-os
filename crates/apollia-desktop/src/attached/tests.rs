@@ -50,7 +50,7 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         .filter(|command| gate(LinkMode::Attached, command).is_err())
         .collect();
 
-    // THEN none is refused, and the chat, agents, tasks, approvals and
+    // THEN none is refused, and the chat, agents, workflows, tasks, approvals and
     // questions to the user are among them
     assert!(refused.is_empty(), "refused: {refused:?}");
     for command in [
@@ -58,10 +58,9 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         "pause_chat_session",
         "list_chat_sessions",
         "list_agents",
-        "install_agent",
+        "launch_workflow",
         "list_tasks",
         "get_task_timeline",
-        "cancel_task",
         "list_pending_approvals",
         "list_pending_decisions",
         "decide_pending_decision",
@@ -115,13 +114,16 @@ async fn test_sessions_are_listed_over_http_with_the_token() {
 
 #[tokio::test]
 async fn test_a_message_is_sent_and_a_turn_paused_over_http() {
-    // GIVEN a daemon accepting a message and a pause on one session
+    // GIVEN a daemon accepting a message with a document, and a pause, on one
+    // session
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/api/v1/sessions/s-1/messages"))
-        .and(body_json(
-            serde_json::json!({ "content": "Bonjour", "images": [] }),
-        ))
+        .and(body_json(serde_json::json!({
+            "content": "Bonjour",
+            "images": [],
+            "documents": [{ "name": "devis.pdf", "data": "JVBERg==" }],
+        })))
         .respond_with(
             ResponseTemplate::new(202)
                 .set_body_json(serde_json::json!({ "message_id": "m-9", "status": "processing" })),
@@ -139,8 +141,15 @@ async fn test_a_message_is_sent_and_a_turn_paused_over_http() {
         .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
 
-    // WHEN a message is sent, then the turn paused
-    let message_id = client.send_message("s-1", "Bonjour", &[]).await.unwrap();
+    // WHEN a message is sent with its document, then the turn paused
+    let documents = [apollia_runtime::chat::documents::DocumentAttachment {
+        name: "devis.pdf".into(),
+        data: "JVBERg==".into(),
+    }];
+    let message_id = client
+        .send_message("s-1", "Bonjour", &[], &documents)
+        .await
+        .unwrap();
     client.pause_session("s-1").await.unwrap();
 
     // THEN the daemon's message id is returned and both calls reached it
@@ -361,12 +370,12 @@ async fn test_a_task_already_gone_reads_as_a_refusal_with_its_status() {
         .await;
     let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
 
-    // WHEN the attached arm cancels it
+    // WHEN the client asks for its cancellation
     let result = client
         .delete::<serde_json::Value>("/api/v1/tasks/t-1")
         .await;
 
-    // THEN the status survives, which is what turns it into `false`
+    // THEN the status survives, for the caller to read
     assert!(matches!(
         result,
         Err(AttachedError::Refused { status: 404, .. })
@@ -544,14 +553,9 @@ fn test_a_window_command_runs_attached_and_carries_its_reason() {
 // ── Permissions ──────────────────────────────────────────────────────────
 
 #[test]
-fn test_the_proposed_rules_pass_the_gate_attached() {
-    // GIVEN the commands of the proposed rules
-    let commands = [
-        "list_proposed_permission_rules",
-        "apply_proposed_permission_rule",
-        "dismiss_proposed_permission_rule",
-        "add_permission_prefix_rule",
-    ];
+fn test_the_rule_of_an_approval_card_passes_the_gate_attached() {
+    // GIVEN the command that writes a rule from an approval card
+    let commands = ["add_permission_prefix_rule"];
 
     // WHEN each is gated while attached
     let refused: Vec<&str> = commands
@@ -687,6 +691,7 @@ async fn test_each_conversation_command_reaches_its_daemon_route_with_the_token(
         tools: None,
         llm_backend: None,
         profile_id: None,
+        use_profile: None,
     };
 
     // WHEN the attached arm of each command runs, with identifiers that need

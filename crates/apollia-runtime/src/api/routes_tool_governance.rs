@@ -80,6 +80,11 @@ pub struct GovernanceStateBody {
     /// fails closed, every sensitive tool call and every new connection is
     /// refused; reading continues.
     pub fail_closed: Option<crate::governance::FailClosed>,
+    /// What degrades the journal without anything being refused: it opened
+    /// without its signing key, or the daily export the organisation policy
+    /// asks for cannot be written. Empty for a journal in order.
+    #[serde(default)]
+    pub journal_notices: Vec<crate::audit_journal::JournalNotice>,
 }
 
 /// Build the tool governance router.
@@ -317,7 +322,8 @@ pub(crate) async fn list_governance_audit<B: ExecutionBackend + Clone>(
     .map_err(refusal)
 }
 
-/// `GET /api/v1/governance/state`: whether governance fails closed, and why.
+/// `GET /api/v1/governance/state`: whether governance fails closed, and why,
+/// and what degrades the journal without refusing anything.
 #[utoipa::path(
     get,
     path = "/api/v1/governance/state",
@@ -338,6 +344,11 @@ pub(crate) async fn get_governance_state<B: ExecutionBackend + Clone>(
     let gate = crate::governance::tool_gate(state.governance.as_ref(), &state.data_dir, &[]);
     Json(GovernanceStateBody {
         fail_closed: gate.fail_closed,
+        journal_notices: state
+            .audit_journal
+            .as_ref()
+            .map(crate::audit_journal::AuditJournalHandle::notices)
+            .unwrap_or_default(),
     })
 }
 

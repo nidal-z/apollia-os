@@ -63,6 +63,7 @@ mod hitl;
 mod hooks;
 pub mod keys;
 mod llm;
+mod llm_defaults;
 mod llm_residency;
 mod llm_section;
 mod mcp;
@@ -106,11 +107,19 @@ pub use autonomy::{
 };
 pub use chat::ChatConfig;
 pub use default_file::{default_file_text, write_default_file_if_absent};
-pub use desktop::{DesktopConfig, UpdateChannel};
-pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
+pub use desktop::{ChatAutoNaming, DesktopConfig, UpdateChannel};
+pub use engines::{
+    EngineChoice, EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS, GGUF_ENGINE_CHOICES,
+    MLX_ENGINE_CHOICES,
+};
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
+pub use llm_defaults::{
+    ContextDefault, LlmDefaultsConfig, LlmDevicesConfig, LlmImagesConfig, CONTEXT_MODES,
+    CONTEXT_MODE_KEY, CONTEXT_TOKENS_KEY, DEFAULT_IMAGE_MAX_SIDE_PX, DISABLED_DEVICES_KEY,
+    IMAGE_LIMIT_KEY, IMAGE_MAX_SIDE_KEY, LOAD_BYPASS_KEY, LOAD_BYPASS_MODES,
+};
 pub use llm_residency::{LlmResidencyConfig, DEFAULT_IDLE_UNLOAD_MINUTES, IDLE_UNLOAD_KEY};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
@@ -120,6 +129,7 @@ pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{
     default_models_dir, models_dir, resolve_models_dir, ModelsConfig, ModelsImportConfig,
     DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL, MODELS_DIR_KEY, MODELS_DIR_NAME,
+    PRESET_LOAD_SETTINGS_KEY,
 };
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
@@ -128,14 +138,15 @@ pub(crate) use retired::warn_retired_keys;
 pub use root::ApolliaConfig;
 pub use runtime::RuntimeConfig;
 pub use server::{
-    ServerConfig, DEFAULT_COMPAT_SERVER_PORT, DEFAULT_JIT_IDLE_TTL_MINUTES, JIT_AUTO_UNLOAD_KEY,
-    JIT_IDLE_TTL_KEY, JIT_KEEP_LAST_ONLY_KEY, JIT_LOADING_KEY,
+    ServerConfig, ALLOW_REQUEST_MCP_KEY, DEFAULT_COMPAT_SERVER_PORT, DEFAULT_JIT_IDLE_TTL_MINUTES,
+    JIT_AUTO_UNLOAD_KEY, JIT_IDLE_TTL_KEY, JIT_KEEP_LAST_ONLY_KEY, JIT_LOADING_KEY,
+    SEPARATE_REASONING_KEY,
 };
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
     ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
 };
-pub use tools::ToolsConfig;
+pub use tools::{NewAgentConfig, ToolsConfig, NEW_AGENT_ACCESS_KEY, NEW_AGENT_FAMILIES_KEY};
 pub use triggers::TriggersConfig;
 pub use validate::{validate, ConfigDiagnostic};
 pub use web::{

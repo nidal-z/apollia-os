@@ -1,4 +1,4 @@
-//! `apollia-os chat` hygiene verbs: delete, rename, export.
+//! `apollia-os chat` hygiene verbs: list, delete, rename, export.
 
 use std::path::{Path, PathBuf};
 
@@ -55,6 +55,7 @@ pub async fn run_hygiene(
     json: bool,
 ) -> i32 {
     match cmd {
+        ChatHygieneCommand::List { db } => run_chat_list(db.as_deref(), json),
         ChatHygieneCommand::Delete {
             session_id,
             confirm,
@@ -76,6 +77,93 @@ pub async fn run_hygiene(
         }
         ChatHygieneCommand::Config { command } => {
             crate::commands::chat_config::run(command, socket, json).await
+        }
+    }
+}
+
+/// One line of `chat list`: a session and the folder it is in.
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+pub(super) struct ListedSession {
+    id: String,
+    title: Option<String>,
+    folder: Option<String>,
+    mode: String,
+    status: String,
+    created_at: String,
+}
+
+/// The sessions of `repo` as `chat list` shows them, the most recent first.
+pub(super) fn listed_sessions(
+    repo: &ChatSessionRepository,
+) -> Result<Vec<ListedSession>, apollia_runtime::chat::ChatError> {
+    let mut folders = repo.session_folder_names()?;
+    Ok(repo
+        .list_sessions(None)?
+        .into_iter()
+        .map(|row| ListedSession {
+            folder: folders.remove(&row.id),
+            id: row.id,
+            title: row.title.filter(|title| !title.trim().is_empty()),
+            mode: row.mode,
+            status: row.status,
+            created_at: row.created_at,
+        })
+        .collect())
+}
+
+/// The table `chat list` prints. The id is whole: `delete`, `rename` and
+/// `export` take it as it is shown.
+pub(super) fn format_session_list(sessions: &[ListedSession]) -> String {
+    use std::fmt::Write as _;
+    if sessions.is_empty() {
+        return "No sessions found.\n".to_owned();
+    }
+    let id_width = sessions
+        .iter()
+        .map(|s| s.id.chars().count())
+        .max()
+        .unwrap_or(2)
+        .max(2);
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "{:<id_width$}  {:<20}  {:<10}  {:<40}  DATE",
+        "ID", "FOLDER", "STATUS", "TITLE"
+    );
+    let _ = writeln!(out, "{}", "-".repeat(id_width + 100));
+    for s in sessions {
+        let folder =
+            crate::commands::truncate_for_display(s.folder.as_deref().unwrap_or("-"), 20, 20, "");
+        let title =
+            crate::commands::truncate_for_display(s.title.as_deref().unwrap_or("-"), 40, 40, "");
+        let _ = writeln!(
+            out,
+            "{:<id_width$}  {:<20}  {:<10}  {:<40}  {}",
+            s.id, folder, s.status, title, s.created_at
+        );
+    }
+    out
+}
+
+pub(super) fn run_chat_list(db: Option<&Path>, json: bool) -> i32 {
+    let Some(repo) = open_chat_repo(db, json) else {
+        return exit_codes::GENERAL_ERROR;
+    };
+    match listed_sessions(&repo) {
+        Ok(sessions) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&sessions).unwrap_or_default()
+                );
+            } else {
+                print!("{}", format_session_list(&sessions));
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => {
+            emit_chat_error(format!("list failed: {e}"), json);
+            exit_codes::GENERAL_ERROR
         }
     }
 }

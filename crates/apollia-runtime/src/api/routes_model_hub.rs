@@ -1,6 +1,7 @@
 //! Model Hub routes, hardware detection, HF registry search.
 //!
 //! - `GET /api/v1/llm/hardware`                 , hardware profile (RAM, CPU, GPU)
+//! - `GET /api/v1/llm/hardware/usage`           , memory, processor and video memory in use
 //! - `GET /api/v1/llm/registry/search`          , search the official publishers and the recognised converters
 //! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
 //! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
@@ -32,6 +33,7 @@ pub mod dictation;
 pub mod embedding_default;
 pub mod embeddings;
 pub mod installed;
+pub mod usage;
 
 // ─────────────────────────────────────────────
 // Response types
@@ -46,6 +48,13 @@ pub struct HardwareResponse {
     #[schema(value_type = Object)]
     pub accelerator: AcceleratorProfile,
     pub memory_budget_gb: f64,
+    /// The graphics devices, one by one: the identifier the engine lists each
+    /// under (absent when the engine could not be asked), its name, the
+    /// interface the engine drives it through, its memory in GB, and whether
+    /// the engine may load onto it. The accelerator, the budget and the
+    /// capacity already leave out the memory of the devices held back.
+    #[schema(value_type = Vec<Object>)]
+    pub devices: Vec<apollia_llm::hardware::GpuDevice>,
     /// What a model can occupy on this machine, in GB rounded to the tenth:
     /// the card plus the usable share of system memory on a discrete
     /// accelerator, the memory budget otherwise. A model under it is one the
@@ -64,6 +73,7 @@ impl From<HardwareProfile> for HardwareResponse {
             cpu_cores: p.cpu_cores,
             accelerator: p.accelerator,
             memory_budget_gb: p.memory_budget_gb,
+            devices: p.devices,
         }
     }
 }
@@ -123,11 +133,18 @@ pub struct RecommendQuery {
     )
 )]
 pub async fn get_hardware<B: ExecutionBackend + Clone>(
-    State(_state): State<AppState<B>>,
+    State(state): State<AppState<B>>,
 ) -> Json<HardwareResponse> {
-    let profile = tokio::task::spawn_blocking(apollia_llm::hardware::detect)
-        .await
-        .unwrap_or_else(|_| apollia_llm::hardware::detect());
+    // The devices held back are a setting: read again here, so a switch
+    // flipped in the settings shows in the very next read of the hardware.
+    let config_path = state.config_path.clone();
+    let imposed = state.inference_governance.imposed_settings();
+    let profile = tokio::task::spawn_blocking(move || {
+        crate::llama_server::devices::sync_selection(config_path.as_deref(), &imposed);
+        apollia_llm::hardware::detect()
+    })
+    .await
+    .unwrap_or_else(|_| apollia_llm::hardware::detect());
 
     Json(HardwareResponse::from(profile))
 }
@@ -423,6 +440,10 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     let router = Router::new()
         .route("/api/v1/llm/hardware", get(get_hardware::<B>))
         .route(
+            "/api/v1/llm/hardware/usage",
+            get(usage::get_resource_usage::<B>),
+        )
+        .route(
             "/api/v1/llm/embeddings",
             get(embeddings::list_embedding_models::<B>),
         )
@@ -484,6 +505,7 @@ mod tests {
                 compute_capability: (8, 9),
             },
             memory_budget_gb: 12.0,
+            devices: Vec::new(),
         };
         let expected =
             apollia_llm::recommend::MemoryArchitecture::of(&profile).total_capacity_gb(&profile);
@@ -509,6 +531,7 @@ mod tests {
             cpu_cores: 8,
             accelerator: AcceleratorProfile::None,
             memory_budget_gb: 19.2,
+            devices: Vec::new(),
         }
     }
 

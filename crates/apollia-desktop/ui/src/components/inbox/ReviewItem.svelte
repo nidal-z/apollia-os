@@ -64,13 +64,20 @@
         return $t("review.origin.unknown");
     }
   });
-  const openKey = $derived(
-    origin.kind === "conversation"
-      ? "review.open.conversation"
-      : origin.kind === "task"
-        ? "review.open.task"
-        : null,
-  );
+  // A conversation and a batch are opened where they live; a paused task is
+  // read on the sheet of its agent, so it has a link only when the agent is known.
+  const openKey = $derived.by(() => {
+    switch (origin.kind) {
+      case "conversation":
+        return "review.open.conversation";
+      case "batch":
+        return "review.open.batch";
+      case "task":
+        return item.agentId ? "review.open.agent" : null;
+      default:
+        return null;
+    }
+  });
 
   // A long command is folded in the list: its first lines, then the whole of it
   // on request, and the answers only once it is whole on screen.

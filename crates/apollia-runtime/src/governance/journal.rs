@@ -1,6 +1,8 @@
 //! What governance writes to the journal on its own: the events the stores of
 //! `governance.db` left in their outbox, the organisation policy applied at
-//! each start, and every entry into fail-closed.
+//! each start, each setting it closed against the user's file, every entry
+//! into fail-closed, and what happens to the journal
+//! itself (an opening without its key, a daily export written or failed).
 //!
 //! The runtime is the one writer of the signed journal. A rule or a consent
 //! changed by another process (the command line, the desktop) waits in the
@@ -13,7 +15,7 @@ use apollia_permissions::{JournalOutbox, PolicyVerdict};
 
 use crate::audit_journal::{AuditJournalHandle, JournalEntryKind};
 use crate::governance::fail_closed::FailClosed;
-use crate::governance::record::{GovernanceEvent, GovernanceRecord, POLICY_RUN_ID};
+use crate::governance::record::{ExportFilters, GovernanceEvent, GovernanceRecord, POLICY_RUN_ID};
 
 /// Moves the events waiting in the outbox of `db` to `journal`, oldest
 /// first, and removes them from the outbox once the journal holds them.
@@ -155,6 +157,18 @@ async fn last_applied_digest(journal: &AuditJournalHandle) -> Option<String> {
         })
 }
 
+/// Records that the organisation policy fixed the setting `key` against what
+/// the user's file says, and that what it had opened was closed.
+pub(crate) fn record_setting_enforced(journal: &AuditJournalHandle, key: &str) {
+    append(
+        journal,
+        &GovernanceEvent::PolicySettingEnforced {
+            key: key.to_owned(),
+        },
+        now(),
+    );
+}
+
 /// Records that governance entered `state`.
 pub(crate) fn record_fail_closed(journal: &AuditJournalHandle, state: &FailClosed) {
     append(
@@ -162,6 +176,86 @@ pub(crate) fn record_fail_closed(journal: &AuditJournalHandle, state: &FailClose
         &GovernanceEvent::FailClosedTriggered {
             cause: state.cause().to_owned(),
             detail: state.detail(),
+        },
+        now(),
+    );
+}
+
+/// Records that the journal was exported: in which format, how many entries,
+/// narrowed to what, and whether the detail of each entry went with it.
+pub(crate) fn record_export(
+    journal: &AuditJournalHandle,
+    format: &str,
+    entries: u64,
+    filters: ExportFilters,
+    detail: bool,
+) {
+    append(
+        journal,
+        &GovernanceEvent::JournalExported {
+            format: format.to_owned(),
+            entries,
+            actor: "user".to_owned(),
+            filters,
+            detail,
+        },
+        now(),
+    );
+}
+
+/// Records that the journal opened without its signing key.
+pub(crate) fn record_unsigned(journal: &AuditJournalHandle) {
+    append(
+        journal,
+        &GovernanceEvent::JournalUnsigned {
+            detail: "the signing key could not be read or created: entries are chained, not signed"
+                .to_owned(),
+        },
+        now(),
+    );
+}
+
+/// Records that the daily file of `day` was written, with `entries` entries,
+/// at the request of the organisation policy.
+pub(crate) fn record_daily_export(
+    journal: &AuditJournalHandle,
+    day: chrono::NaiveDate,
+    entries: u64,
+) {
+    let instant = |day: chrono::NaiveDate| {
+        day.and_hms_opt(0, 0, 0).map(|start| {
+            start
+                .and_utc()
+                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        })
+    };
+    append(
+        journal,
+        &GovernanceEvent::JournalExported {
+            format: "json".to_owned(),
+            entries,
+            actor: "policy".to_owned(),
+            filters: ExportFilters {
+                since: instant(day),
+                until: day.succ_opt().and_then(instant),
+                ..ExportFilters::default()
+            },
+            detail: false,
+        },
+        now(),
+    );
+}
+
+/// Records that the daily export could not be written.
+pub(crate) fn record_daily_export_failed(
+    journal: &AuditJournalHandle,
+    failure: &crate::audit_journal::DailyExportFailure,
+) {
+    append(
+        journal,
+        &GovernanceEvent::JournalExportFailed {
+            directory: failure.directory.clone(),
+            detail: failure.detail.clone(),
         },
         now(),
     );

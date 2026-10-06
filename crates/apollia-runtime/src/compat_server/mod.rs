@@ -38,39 +38,86 @@
 //! by default, only the last one stays (see [`crate::residency::origin`]). A
 //! model of a remote backend is never relayed.
 //!
+//! The agents and workflows the user marked exposed are served as models too,
+//! named `apollia/<id>` ([`ExposedAgents`]). A chat completion on one runs the
+//! agent as a batch of one item, or the workflow through its engine, and
+//! answers as a model would: the steps in `reasoning_content`, the answer in
+//! `content`, an `approval_pending` error when the agent waits for a decision.
+//!
+//! A response or a message may bring an MCP server of its own when `[server]
+//! allow_request_mcp` is on, which it is not by default. The request is then
+//! not relayed: the runtime connects to the server over HTTP for the length of
+//! the call and runs the tool loop itself, under governance (see the
+//! `request_mcp_run` module).
+//!
 //! Every request it answers, and every line the local `llama-server` prints,
 //! enters a bounded ring of recent lines that the native API streams (see
 //! [`ServerLogsHandle`]); clearing it never touches the audit journal.
+//!
+//! Every request also leaves one signed entry in the audit journal, in the
+//! run [`SERVER_CALLS_RUN_ID`]: who called, from where, what it named and how
+//! it was answered, never what was said ([`ServerCallRecord`]).
+//!
+//! The organisation policy closes three of its settings, and only closes: the
+//! local network, a server without a token, the MCP servers a request brings
+//! (see the `policy` module). A setting it fixes is read from it, whatever the
+//! file says, and the state of the server names it.
 //!
 //! [`CompatServerHandle`] is the actor that owns the listener. Every path its
 //! router mounts is listed on the public page of compatible endpoints, which
 //! `scripts/check_compat_routes.py` holds.
 
 mod actor;
+mod agent_call;
+mod agent_reply;
+mod agent_reply_messages;
+mod agent_reply_responses;
+mod agent_run;
+mod agent_turn;
+mod agents;
 mod auth;
 mod cors;
 mod errors;
+mod journal;
 mod logs;
 mod models;
 mod origin;
+mod policy;
+mod reasoning;
 mod relay;
+mod request_mcp;
+mod request_mcp_run;
 mod router;
 mod tokens;
 
+#[cfg(test)]
+mod agents_formats_tests;
+#[cfg(test)]
+mod agents_tests;
 #[cfg(test)]
 mod auth_tests;
 #[cfg(test)]
 mod jit_tests;
 #[cfg(test)]
+mod journal_tests;
+#[cfg(test)]
 mod lan_tests;
 #[cfg(test)]
 mod logs_tests;
 #[cfg(test)]
+mod policy_tests;
+#[cfg(test)]
+mod reasoning_tests;
+#[cfg(test)]
 mod relay_tests;
+#[cfg(test)]
+mod request_mcp_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use actor::{CompatServerHandle, CompatServerStatus};
+pub use actor::{CompatServerHandle, CompatServerStatus, ServerRecords, ServerSettings};
+pub use agents::ExposedAgents;
+pub use journal::{ServerCallRecord, ServerCallTarget, SERVER_CALLS_RUN_ID};
 pub use logs::{
     ServerLogLevel, ServerLogLine, ServerLogSource, ServerLogSubscription, ServerLogsError,
     ServerLogsHandle, DEFAULT_CAPACITY as SERVER_LOGS_CAPACITY,
@@ -78,6 +125,10 @@ pub use logs::{
 pub use models::LocalModels;
 pub use origin::{
     admit_agent_call, admits_agent_call, reachable_address, CallOrigin, AGENT_TOKEN_REQUIRED,
+};
+pub use policy::ServerPolicyLocks;
+pub use request_mcp_run::{
+    LaunchedRequest, LaunchedRequestRunner, RequestAgentRunner, RequestMcp, REQUEST_AGENT_ID,
 };
 pub use tokens::{CreatedServerToken, ServerTokensError, ServerTokensHandle, SERVER_TOKEN_PREFIX};
 

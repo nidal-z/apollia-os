@@ -149,6 +149,9 @@ pub(crate) fn emit_a2a_completion_events(
                 task_id: task_id.clone().into(),
                 agent_id: agent_id.into(),
                 tool_name,
+                tool_call_id: Some(parent_id.clone()),
+                family: None,
+                target: None,
                 output_json: output_str,
                 exit_code: None,
                 duration_ms,
@@ -170,6 +173,9 @@ pub(crate) fn emit_a2a_completion_events(
                 task_id: task_id.clone().into(),
                 agent_id: agent_id.into(),
                 tool_name,
+                tool_call_id: Some(parent_id.clone()),
+                family: None,
+                target: None,
                 output_json: Some(format!("{{\"error\":{:?}}}", e.to_string())),
                 exit_code: None,
                 duration_ms,
@@ -195,6 +201,10 @@ pub(crate) struct ToolCompletionEvent {
     pub(crate) tool_name: String,
     pub(crate) duration_ms: u64,
     pub(crate) run_id: Option<apollia_core::events::RunId>,
+    /// Action family of the tool, under its wire name, when it is registered.
+    pub(crate) family: Option<String>,
+    /// What the call acted on, when the tool designates a target argument.
+    pub(crate) target: Option<String>,
 }
 /// Emits `ToolCallCompleted` or `ToolCallDenied` for a registry tool call result.
 ///
@@ -212,10 +222,15 @@ pub(crate) fn emit_tool_completion_events(
         tool_name,
         duration_ms,
         run_id,
+        family,
+        target,
     } = ev;
     match result {
         Ok(value) => {
             let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                tool_call_id: Some(parent_id.clone()),
+                family,
+                target,
                 parent_event_id: parent_id,
                 task_id: task_id.into(),
                 agent_id: agent_id.into(),
@@ -249,6 +264,9 @@ pub(crate) fn emit_tool_completion_events(
         }
         Err(e) => {
             let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                tool_call_id: Some(parent_id.clone()),
+                family,
+                target,
                 parent_event_id: parent_id,
                 task_id: task_id.into(),
                 agent_id: agent_id.into(),
@@ -488,3 +506,6 @@ pub(crate) fn epoch_secs_to_ymd(secs: u64) -> (i32, u32, u32) {
 pub(crate) fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }
+
+#[cfg(test)]
+mod tests;

@@ -24,6 +24,7 @@ describe("settings router", () => {
       "chat",
       "stt",
       "model-defaults",
+      "integrations",
       "notifications",
       "developer",
       "configuration",
@@ -31,8 +32,6 @@ describe("settings router", () => {
       "hardware",
       "llm",
       "model-hub",
-      "tools",
-      "permissions",
     ]);
   });
 

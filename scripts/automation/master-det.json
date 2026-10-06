@@ -69,6 +69,9 @@
     "danger-card-factory-reset",
     "dashboard-agent-row-seed-classifier",
     "empty-state-plan-cache",
+    "engine-format-gguf",
+    "engine-format-gguf-fell-back",
+    "engine-format-gguf-select",
     "env-input-BRAVE_API_KEY",
     "env-toggle-BRAVE_API_KEY",
     "global-event-agent.degraded",
@@ -105,11 +108,11 @@
     "nav-dashboard",
     "nav-inbox",
     "nav-integrations",
+    "nav-journal",
     "nav-llm",
     "nav-memory",
     "nav-observability",
     "nav-settings",
-    "nav-tasks",
     "nav-transcriptions",
     "oauth-add-account-google",
     "oauth-add-account-microsoft",
@@ -129,9 +132,6 @@
     "operator-approval-always-send_email",
     "operator-approval-code-bash_executor",
     "operator-approval-refuse-bash_executor",
-    "package-detail-tab-agents",
-    "package-detail-tab-overview",
-    "package-detail-tab-triggers",
     "period-14d",
     "period-30d",
     "period-365d",
@@ -166,24 +166,10 @@
     "settings-nav-model-defaults",
     "settings-nav-model-hub",
     "settings-nav-notifications",
-    "settings-nav-permissions",
     "settings-nav-profile",
     "settings-nav-stt",
-    "settings-nav-tools",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
-    "task-detail-tab-output",
-    "task-detail-tab-overview",
-    "task-detail-tab-technical",
-    "task-detail-tab-trace",
-    "tasks-filter-all",
-    "tasks-filter-approval",
-    "tasks-filter-done",
-    "tasks-filter-error",
-    "tasks-filter-running",
-    "tasks-filter-todo",
-    "tasks-split-filter-all",
-    "tasks-split-filter-done",
     "theme-dark",
     "theme-light",
     "theme-system",
@@ -308,15 +294,6 @@
     {
       "kind": "waitFor",
       "testid": "agents-page",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "nav-tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
       "timeoutMs": 8000
     },
     {
@@ -1344,12 +1321,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "tasks-page",
+      "testid": "agents-page",
       "timeoutMs": 10000
     },
     {
       "kind": "screenshot",
-      "label": "04f-sheet-task-row-opens-tasks"
+      "label": "04f-sheet-task-row-opens-agent-sheet"
     },
     {
       "kind": "goto",
@@ -1698,6 +1675,10 @@
     {
       "kind": "expect",
       "testid": "chat-active-list"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-sort-trigger"
     },
     {
       "kind": "waitFor",
@@ -3335,6 +3316,503 @@
     },
     {
       "kind": "click",
+      "testid": "chat-trash-open",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-trash-list"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-trash-hint"
+    },
+    {
+      "kind": "screenshot",
+      "label": "40b-trash-holds-the-deleted-conversation"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-restore",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40c-trash-empty-after-restore"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-active-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40d-conversation-restored-in-the-list"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-delete",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-delete-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-delete-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "conversation-row-delete-confirm",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-open",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-erase",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-erase-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40e-trash-erase-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-erase-dialog-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-trash-erase-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-trash-row"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-erase",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-erase-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-erase-dialog-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40f-trash-empty-after-permanent-delete"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-active-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-new-folder-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-loose-sessions"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-conversation-item"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-folder-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-rename-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-folder-rename-input",
+      "text": "Coverage folder"
+    },
+    {
+      "kind": "screenshot",
+      "label": "40g-new-folder-named-in-place"
+    },
+    {
+      "kind": "press",
+      "testid": "chat-folder-rename-input",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-rename-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-folder-toggle"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-folder-count"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40h-folder-created-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-move",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-move-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "conversation-row-move-out"
+    },
+    {
+      "kind": "screenshot",
+      "label": "40i-move-to-lists-the-folder"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-move-to",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40j-conversation-in-the-folder"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40k-folder-folded"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": "sovereign"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-search-titles",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-row",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40l-search-by-title"
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": "explicit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-search-messages",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-excerpt",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40m-search-in-the-messages-with-excerpt"
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": "zzz-no-match-xyz"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-search-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-menu-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-folder-menu-delete"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-folder-delete-note"
+    },
+    {
+      "kind": "screenshot",
+      "label": "40n-folder-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-menu-rename",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-rename-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "press",
+      "testid": "chat-folder-rename-input",
+      "key": "Escape"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-rename-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-move",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-move-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-move-out",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-move",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-move-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-move-to",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-menu-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-menu-delete",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-row",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40o-folder-deleted-conversations-kept"
+    },
+    {
+      "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 4000
     },
@@ -3888,9 +4366,41 @@
       "testid": "apollia-chat-pinned"
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "package-list-row",
-      "timeoutMs": 4000
+      "kind": "expect",
+      "testid": "agents-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "workflows-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-row-chat",
+      "nth": 0
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "agents-install-apo-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 1000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
     },
     {
       "kind": "fill",
@@ -4019,6 +4529,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "timeoutMs": 2500,
       "nth": 0
@@ -4083,6 +4603,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 1,
       "timeoutMs": 2500
@@ -4096,6 +4626,16 @@
       "kind": "waitGone",
       "testid": "agent-uninstall-confirm",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4116,6 +4656,16 @@
     {
       "kind": "screenshot",
       "label": "05e-agent-uninstall-disarmed (changing agent retires the armed confirm)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4218,6 +4768,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 0,
       "timeoutMs": 2500
@@ -4259,6 +4819,16 @@
       "kind": "waitFor",
       "testid": "agent-detail-activity",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4306,6 +4876,16 @@
     },
     {
       "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 2,
       "timeoutMs": 2500
@@ -4324,6 +4904,16 @@
       "kind": "waitFor",
       "testid": "agent-sheet-mission",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4352,98 +4942,8 @@
     },
     {
       "kind": "click",
-      "testid": "package-list-row",
+      "testid": "agent-sheet-back",
       "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-package-overview"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-agents",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-package-agents"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-triggers",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-package-triggers"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-overview",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 900,
-      "height": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12b-agents-narrow-list-folded"
-    },
-    {
-      "kind": "click",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12c-agents-narrow-drawer-open"
-    },
-    {
-      "kind": "click",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "split-sidebar-backdrop",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 1280,
-      "height": 800
-    },
-    {
-      "kind": "waitGone",
-      "testid": "split-open-sidebar",
-      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -4810,39 +5310,6 @@
       "label": "13k-install-package-closed"
     },
     {
-      "kind": "stubInvoke",
-      "command": "plugin:dialog|open",
-      "resolve": "${HOME}/.apollia/fixtures/missing-agent.py",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "agents-install-button",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-install-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-install-error-details",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 200
-    },
-    {
-      "kind": "screenshot",
-      "label": "13l-agent-install-error-details (picker answered with a path that does not exist)"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "plugin:dialog|open"
-    },
-    {
       "kind": "click",
       "testidPrefix": "agent-list-row",
       "timeoutMs": 2500,
@@ -4883,6 +5350,16 @@
     {
       "kind": "screenshot",
       "label": "16-agent-activity-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -4950,814 +5427,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-05-tasks-det"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-tasks-operator-list"
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-filter-bar"
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-filter-all"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-todo",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-filter-todo"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-running",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-filter-running"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-approval",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-filter-approval"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-done",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-filter-done"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-error",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-filter-error"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-table",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-tasks-populated"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-refresh",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-table",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "list_tasks",
-      "reject": "seeded tasks failure: list_tasks rejected by the recipe"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-refresh",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-load-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07a1-tasks-load-error (list_tasks rejected by a stub)"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-load-error-detail-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 150
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-load-error-detail",
-      "contains": "list_tasks rejected by the recipe"
-    },
-    {
-      "kind": "screenshot",
-      "label": "07a2-tasks-load-error-detail-open (the raw rejection text)"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-load-error-detail-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-load-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-load-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07a3-tasks-load-retry-still-failing (stub still armed)"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "list_tasks"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-load-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "tasks-load-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-table",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07a4-tasks-load-retried (seeded rows back after clearStubs)"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-new",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07b-assign-task-opens-agent-picker"
-    },
-    {
-      "kind": "press",
-      "key": "Escape",
-      "testid": "quickpicker-textarea"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 700,
-      "height": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-fab",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07c-tasks-fab-narrow (700 px: the md:hidden FAB is on screen)"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-fab",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "press",
-      "key": "Escape",
-      "testid": "quickpicker-textarea"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "resizeWindow",
-      "width": 1280,
-      "height": 800
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-task-detail-overview"
-    },
-    {
-      "kind": "expect",
-      "testid": "task-detail"
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-split-sidebar"
-    },
-    {
-      "kind": "expect",
-      "testid": "tasks-split-list"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "tasks-split-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "expect",
-      "testid": "task-overview-input"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-overview-output",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-split-filter-done",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-split-filter-done"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-split-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-detail-tab-output",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-output-tab",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-task-output"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "smart-output-raw-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "smart-output-raw-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "10b-task-output-raw (the seeded markdown output shown as source)"
-    },
-    {
-      "kind": "click",
-      "testid": "smart-output-raw-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "10c-task-output-formatted-again"
-    },
-    {
-      "kind": "click",
-      "testid": "task-detail-tab-trace",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-trace-tab",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-task-trace"
-    },
-    {
-      "kind": "click",
-      "testid": "task-detail-tab-overview",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-overview-input",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-back-to-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-back-to-list"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-running",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12a-running-task-detail"
-    },
-    {
-      "kind": "captureText",
-      "testid": "task-detail-title",
-      "as": "running-task-title"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-stop",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-stop",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "12b-running-task-stopped"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-back-to-list",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-error",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-retry",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "screenshot",
-      "label": "12c-failed-task-retried"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-back-to-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-done",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-delete",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-delete",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-delete-confirm-cancel",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "task-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12d-delete-cancelled"
-    },
-    {
-      "kind": "click",
-      "testid": "task-delete",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "task-delete-confirm-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitGone",
-      "testid": "task-delete-confirm",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12e-done-task-deleted"
-    },
-    {
-      "kind": "click",
-      "testid": "tasks-filter-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13-tasks-builder-list"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "task-row",
-      "nth": 0,
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-detail-title",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-task-detail-builder"
-    },
-    {
-      "kind": "click",
-      "testid": "task-detail-tab-technical",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "task-technical-tab",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "15-task-technical-builder"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "16-back-operator"
-    },
-    {
-      "kind": "screenshot",
-      "label": "section-06-automations-det"
+      "label": "section-05-automations-det"
     },
     {
       "kind": "goto",
@@ -6791,7 +6461,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-07-inbox-det"
+      "label": "section-06-inbox-det"
     },
     {
       "kind": "goto",
@@ -7437,7 +7107,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-08-notifications-det"
+      "label": "section-07-notifications-det"
     },
     {
       "kind": "goto",
@@ -8259,7 +7929,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-09-memory-det"
+      "label": "section-08-memory-det"
     },
     {
       "kind": "goto",
@@ -9080,7 +8750,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-10-connections-det"
+      "label": "section-09-connections-det"
     },
     {
       "kind": "goto",
@@ -11850,7 +11520,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-11-observability-det"
+      "label": "section-10-observability-det"
     },
     {
       "kind": "goto",
@@ -12626,7 +12296,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-12-coach-det"
+      "label": "section-11-coach-det"
     },
     {
       "kind": "goto",
@@ -12969,7 +12639,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-13-settings-det"
+      "label": "section-12-settings-det"
     },
     {
       "kind": "goto",
@@ -13065,6 +12735,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "reject": "automation stub: measurement withheld"
+    },
+    {
       "kind": "press",
       "key": "R",
       "mod": true,
@@ -13090,6 +12765,29 @@
       "kind": "waitFor",
       "testid": "advanced-section",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-measuring",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01a-resource-monitor-measuring"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-ram",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "resource-monitor-measuring",
+      "timeoutMs": 4000
     },
     {
       "kind": "expect",
@@ -13153,6 +12851,15 @@
       "label": "03b-nav-chat"
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-auto-naming",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-auto-naming-group"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-stt"
     },
@@ -13175,6 +12882,146 @@
     {
       "kind": "screenshot",
       "label": "04b-nav-model-defaults"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-images",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-image-limit",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-image-side",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-context",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails-help",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrail-selector",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-bypass",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-unload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.images.limit_side"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.defaults.context"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.guardrails.level"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.guardrails.bypass"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "llm.residency.idle_unload_minutes"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-stt"
+    },
+    {
+      "kind": "sleep",
+      "ms": 350
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-defaults"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-images-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-context-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-guardrails-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-bypass-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-defaults-unload-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b3-model-defaults-policy-locked"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resolved_setting"
     },
     {
       "kind": "click",
@@ -13211,30 +13058,6 @@
     {
       "kind": "screenshot",
       "label": "06-nav-model-hub"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-tools"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-nav-tools"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-nav-permissions"
     },
     {
       "kind": "click",
@@ -13563,8 +13386,95 @@
       "ms": 300
     },
     {
+      "kind": "waitFor",
+      "testid": "developer-on-demand",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-jit-idle-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-experimental",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
       "label": "19-developer-mode-on"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engines"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-log-level-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-channel"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-channel-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-auto-update"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-auto-purge-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-debug-blocks-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-preset-load-settings-help"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-resource-widget-switch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-resource-widget",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "19b-developer-resource-widget"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-resource-widget"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-resource-widget-switch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-resource-widget-switch"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-resource-widget",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -13611,6 +13521,31 @@
     {
       "kind": "screenshot",
       "label": "21-settings-saved-hint"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-trash-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "21b-chat-trash-off"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-trash-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
     },
     {
       "kind": "click",
@@ -13688,6 +13623,269 @@
       "kind": "waitFor",
       "testid": "hardware-processor",
       "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-list",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-gpu-row"
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-gpu-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-gpu-single-note"
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-gpu-restore-default"
+    },
+    {
+      "kind": "expect",
+      "testid": "hardware-community-link"
+    },
+    {
+      "kind": "click",
+      "testid": "hardware-copy-info",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "24-hardware-info-copied"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "open_hardware_window",
+      "resolve": "focused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "hardware-open-window",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "argsMatch": {
+        "key": "llm.devices.disabled"
+      },
+      "resolve": {
+        "key": "llm.devices.disabled",
+        "value": [
+          "CUDA1"
+        ],
+        "source": "policy"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hardware_profile",
+      "resolve": {
+        "total_ram_gb": 64.0,
+        "available_ram_gb": 40.0,
+        "cpu_model": "AMD Ryzen 9 7950X",
+        "cpu_cores": 32,
+        "accelerator": {
+          "kind": "cuda",
+          "device_name": "NVIDIA GeForce RTX 4090",
+          "vram_gb": 24.0,
+          "compute_capability": [
+            8,
+            9
+          ]
+        },
+        "memory_budget_gb": 24.0,
+        "total_capacity_gb": 62.4,
+        "devices": [
+          {
+            "id": "CUDA0",
+            "name": "NVIDIA GeForce RTX 4090",
+            "api": "CUDA",
+            "vram_gb": 24.0,
+            "enabled": true
+          },
+          {
+            "id": "CUDA1",
+            "name": "NVIDIA GeForce RTX 3090",
+            "api": "CUDA",
+            "vram_gb": 24.0,
+            "enabled": false
+          },
+          {
+            "id": null,
+            "name": "Intel Arc A380",
+            "api": "Vulkan",
+            "vram_gb": 6.0,
+            "enabled": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-hardware"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-policy",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "system-info-refresh-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-unlisted-note",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-count",
+      "contains": "3",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "24-hardware-three-gpus-policy"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resolved_setting"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hardware_profile"
+    },
+    {
+      "kind": "click",
+      "testid": "system-info-refresh-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hardware-gpu-single-note",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-ram",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-ram-value"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-vram"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-cpu"
+    },
+    {
+      "kind": "expect",
+      "testid": "resource-monitor-cpu-value"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "dedicated",
+          "used_gb": 3.5,
+          "total_gb": 8.0
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-value",
+      "contains": "3.5",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-cpu-value",
+      "contains": "37",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "24a-resource-monitor-dedicated-vram"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "unified"
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-unified",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resource_usage",
+      "resolve": {
+        "ram_used_gb": 12.5,
+        "ram_total_gb": 32.0,
+        "cpu_percent": 37.0,
+        "vram": {
+          "kind": "unmeasured"
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor-vram-unmeasured",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resource_usage"
     },
     {
       "kind": "screenshot",
@@ -14414,30 +14612,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-tools"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "43-builder-nav-tools"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "44-builder-nav-permissions"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines"
     },
     {
@@ -14740,9 +14914,164 @@
       "timeoutMs": 20000
     },
     {
+      "kind": "expect",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
       "kind": "click",
-      "testid": "about-copy-diagnostics",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-in-service",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-filter-compat",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-compat",
+      "value": "all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-available",
+      "contains": "b7100",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-update-latest"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56a-engines-update-available"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "reject": "automation stub: channel unreachable",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-check-error",
+      "contains": "channel unreachable",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56b-engines-check-refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-selection"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-format-gguf"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_setting",
+      "resolve": {
+        "key": "engines.gguf",
+        "value": "vulkan",
+        "source": "user"
+      },
+      "argsMatch": {
+        "key": "engines.gguf"
+      },
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engine-format-gguf-select",
+      "value": "vulkan"
     },
     {
       "kind": "sleep",
@@ -14750,7 +15079,566 @@
     },
     {
       "kind": "screenshot",
-      "label": "56-about-diagnostic-copied"
+      "label": "56e-engines-format-gguf-vulkan-chosen"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-format-gguf-fell-back",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56f-engines-format-variant-removed"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_setting",
+      "resolve": {
+        "key": "engines.gguf",
+        "value": "embedded",
+        "source": "user"
+      },
+      "argsMatch": {
+        "key": "engines.gguf"
+      },
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engine-format-gguf-select",
+      "value": "embedded"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-format-gguf-fell-back",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-latest",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-auto-update"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_setting",
+      "resolve": {
+        "key": "engines.auto_update",
+        "value": false,
+        "source": "user"
+      },
+      "argsMatch": {
+        "key": "engines.auto_update"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-auto-update-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "56g-engines-auto-update-off"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_setting",
+      "resolve": {
+        "key": "engines.auto_update",
+        "value": true,
+        "source": "user"
+      },
+      "argsMatch": {
+        "key": "engines.auto_update"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-auto-update-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "fill",
+      "testid": "engines-search",
+      "text": "zzz-no-engine-xyz"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-list-no-match",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-filters"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56h-engines-search-no-match"
+    },
+    {
+      "kind": "fill",
+      "testid": "engines-search",
+      "text": ""
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engines-list-no-match",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-type",
+      "value": "inference"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-version"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-type",
+      "value": "all"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-compat",
+      "value": "compatible"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-in-service"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56i-engines-compatible-only"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_resolved_setting",
+      "patch": {
+        "source": "policy"
+      },
+      "argsMatch": {
+        "key": "engines.auto_update"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-hardware"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "advanced-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-auto-update-policy",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56j-engines-auto-update-imposed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_resolved_setting"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-channel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-filter-compat",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-compat",
+      "value": "all"
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-channel-select"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-source",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-tag"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-row-tag-mismatch"
+    },
+    {
+      "kind": "screenshot",
+      "label": "56c-engines-developer-channel-sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_engines",
+      "resolve": {
+        "engines": [
+          {
+            "engine": "llama-server",
+            "variant": "metal",
+            "source": "embedded",
+            "tag": null,
+            "version": "7001 (0ff1ce0)",
+            "in_service": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "source": "downloaded",
+            "tag": "b7001",
+            "version": "7001 (0ff1ce0)",
+            "in_service": false
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "source": "imported",
+            "tag": "b6900",
+            "version": "6800 (deadbee)",
+            "in_service": false
+          }
+        ],
+        "channel": "preview",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7200",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ],
+        "cuda_proposable": false,
+        "dictation": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_engine_channel",
+      "resolve": {
+        "channel": "preview",
+        "base_url": ""
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "preview",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7200",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-channel-select",
+      "value": "preview"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-update-available",
+      "contains": "b7200",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56d-engines-channel-preview"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_engines"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "set_engine_channel"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "engines-check-updates"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "engine-row-tag-mismatch",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_engine_updates"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "click",
@@ -14860,7 +15748,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-14-profile-det"
+      "label": "section-13-profile-det"
     },
     {
       "kind": "goto",
@@ -14953,11 +15841,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "01c-enrichment-resume-opens-onboarding"
+      "label": "01c-enrichment-resume-opens-conversation"
     },
     {
       "kind": "click",
-      "testid": "onboarding-skip",
+      "testid": "onboarding-skip-optional",
       "timeoutMs": 4000
     },
     {
@@ -15313,7 +16201,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-15-llm-det"
+      "label": "section-14-llm-det"
     },
     {
       "kind": "goto",
@@ -16124,7 +17012,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-16-model-hub-det"
+      "label": "section-15-model-hub-det"
     },
     {
       "kind": "goto",
@@ -16793,7 +17681,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-17-stt-det"
+      "label": "section-16-stt-det"
     },
     {
       "kind": "goto",
@@ -17578,7 +18466,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-18-tools-det"
+      "label": "section-17-tools-det"
     },
     {
       "kind": "goto",
@@ -18528,7 +19416,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-19-permissions-det"
+      "label": "section-18-permissions-det"
     },
     {
       "kind": "goto",
@@ -18545,7 +19433,7 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 4000
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -18571,388 +19459,337 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "authorizations-page",
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
+      "kind": "waitFor",
+      "testid": "authorizations-policy",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-permissions",
+      "testid": "authorizations-policy-body",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-list-all",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-detail",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-detail-selection",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rules",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "authorizations-rule",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-effect",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-withdraw",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-builtin-tools",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-add-rule",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-edit",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-duplicate",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-detail",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-authorizations-rules-for-every-agent (withdraw present, no add, no edit)"
+    },
+    {
+      "kind": "fill",
+      "testid": "authorizations-filter",
+      "text": "zzz-no-such-agent"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-list-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-filter-no-match"
+    },
+    {
+      "kind": "fill",
+      "testid": "authorizations-filter",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "authorizations-list-agent",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "authorizations-list-agent",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-open-sheet",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rules",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "authorizations-rule",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-agent-apollia (web_search rule of the seeded agent)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-withdraw"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-undo",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-rule-withdrawn-in-place"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-undo"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-undo",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-withdraw",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-rule-withdrawal-undone"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-revoke-all-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-what-rules"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-what-always"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-what-both"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-scope-agent"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "authorizations-revoke-all-agent",
+      "value": "apollia:chat",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-revoke-all-summary",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-revoke-all-one-agent"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-scope-all"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-revoke-all-confirm",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-revoke-all-every-agent-not-confirmed (confirm present but NEVER clicked)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-revoke-all-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-revoke-all-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-policy-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "policy-page",
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "01-permissions-operator"
-    },
-    {
-      "kind": "expect",
-      "testid": "settings-permissions"
+      "kind": "goto",
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-count",
+      "testid": "authorizations-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "governance_list_permission_rules",
+      "reject": "seeded governance failure",
+      "once": true
+    },
+    {
+      "kind": "goto",
+      "route": "policy"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "policy-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "authorizations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-load-error",
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "permission-rule-card",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-scope",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-revoke",
-      "timeoutMs": 4000
-    },
-    {
       "kind": "screenshot",
-      "label": "02-permission-rules (4 seeded rules; revoke present but NOT clicked)"
+      "label": "09-authorizations-load-error"
+    },
+    {
+      "kind": "goto",
+      "route": "policy"
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-filter-scope",
-      "timeoutMs": 4000
+      "testid": "policy-page",
+      "timeoutMs": 15000
     },
     {
-      "kind": "waitFor",
-      "testid": "permissions-filter-tool",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-scope",
-      "value": "project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-filter-scope-project (file_edit rule)"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-scope",
-      "value": "agent",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-scope",
-      "value": "global",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-scope",
-      "value": "",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-tool",
-      "value": "web_search",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-filter-tool-web-search"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-filter-tool",
-      "value": "",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-count",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-toggle"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-form",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-tool",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-action",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-scope",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-arg-prefix",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-rule-add-form"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permission-rule-add-tool",
-      "value": "web_search",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-action-deny",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-action-allow",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 150
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-action-deny",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permission-rule-add-scope",
-      "value": "project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-project-path",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "fill",
-      "testid": "permission-rule-add-project-path",
-      "text": "/tmp/apollia-demo-project",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "fill",
-      "testid": "permission-rule-add-arg-prefix",
-      "text": "rm",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-submit",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "expect",
-      "testid": "permission-rule-add-submit"
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-add-submit",
-      "timeoutMs": 4000
+      "kind": "goto",
+      "route": "authorizations"
     },
     {
       "kind": "waitGone",
-      "testid": "permission-rule-add-form",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "06b-rule-added"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-session-auths",
+      "testid": "authorizations-load-error",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "session-auths-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "session-auth-row",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auth-revoke",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-session-auths (3 seeded chat auths; revoke present but NOT clicked)"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-chat",
+      "testid": "authorizations-list",
       "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-chat-permissions (apollia:chat agent rule)"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-audit",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-permissions-audit (5 seeded audit rows)"
     },
     {
       "kind": "click",
-      "testid": "permissions-reload",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 700
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-permissions-reloaded"
+      "testidPrefix": "authorizations-list-agent",
+      "nth": 0
     },
     {
       "kind": "click",
-      "testid": "permissions-revoke-all",
-      "timeoutMs": 4000
+      "testid": "authorizations-open-sheet"
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-revoke-all-dialog",
-      "timeoutMs": 4000
+      "testid": "agent-sheet",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-revoke-all-scope-select",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-revoke-all-dialog-open"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "permissions-revoke-all-scope-select",
-      "value": "all",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
+      "testid": "agent-sheet-always",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-revoke-all-confirm",
-      "timeoutMs": 4000
+      "testid": "agent-sheet-always-empty",
+      "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
-      "label": "12-revoke-all-scope-all-not-confirmed (confirm present but NEVER clicked)"
-    },
-    {
-      "kind": "click",
-      "testid": "dialog-close",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitGone",
-      "testid": "permissions-revoke-all-dialog",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13-revoke-all-cancelled"
+      "label": "10-agent-sheet-standing-consents"
     },
     {
       "kind": "goto",
@@ -18961,7 +19798,7 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 4000
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -18981,98 +19818,178 @@
       "ms": 800
     },
     {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
       "kind": "goto",
-      "route": "settings"
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "authorizations-page",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-add-rule",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-permissions"
+      "testid": "authorizations-list-all"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-permissions",
-      "timeoutMs": 15000
+      "testid": "authorizations-rule-edit",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-duplicate",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-detail",
+      "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
-      "label": "14-permissions-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-count",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-session-auths",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auths-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-chat",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-permission-rules-list",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-audit",
-      "timeoutMs": 4000
+      "label": "11-developer-mode-rules (edit, duplicate, technical detail)"
     },
     {
       "kind": "click",
-      "testid": "permission-rule-add-toggle"
+      "testid": "authorizations-add-rule"
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rule-add-form",
+      "testid": "authorizations-rule-dialog",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-dialog-intro",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-family",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-prefix",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-problem",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-rule-dialog-add (no tool yet: the problem is said)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-effect-allow"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-effect-deny"
     },
     {
       "kind": "selectOption",
-      "testid": "permission-rule-add-scope",
-      "value": "project",
-      "timeoutMs": 4000
+      "testid": "authorizations-rule-tool",
+      "value": "web_search",
+      "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testid": "permission-rule-add-project-path",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "15-rule-add-form-builder (scope=project reveals project-path)"
+      "kind": "fill",
+      "testid": "authorizations-rule-prefix",
+      "text": "rm"
     },
     {
       "kind": "click",
-      "testid": "permission-rule-add-cancel"
+      "testid": "authorizations-rule-scope-agent"
     },
     {
-      "kind": "sleep",
-      "ms": 300
+      "kind": "selectOption",
+      "testid": "authorizations-rule-agent",
+      "value": "apollia:chat",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-scope-all"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-save"
     },
     {
       "kind": "waitGone",
-      "testid": "permission-rule-add-form",
-      "timeoutMs": 4000
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-rule-added-for-every-agent"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-duplicate"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-dialog-intro",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-rule-dialog-duplicate (prefilled from the rule)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-edit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-rule-dialog-edit"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-rule-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-rule-dialog",
+      "timeoutMs": 6000
     },
     {
       "kind": "goto",
@@ -19081,7 +19998,7 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 4000
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -19101,6 +20018,50 @@
       "ms": 800
     },
     {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "authorizations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-add-rule",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-back-to-developer-mode-off"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-open-connections"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "section-19-journal-det"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main"
+    },
+    {
       "kind": "goto",
       "route": "settings"
     },
@@ -19111,150 +20072,1798 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-permissions"
+      "testid": "settings-nav-developer"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-permissions",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": [
+        {
+          "seq": 3,
+          "run_id": "run-journal-det",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "tool_call_completed",
+          "payload": {
+            "agent_id": "apollia:chat",
+            "tool_name": "file_read",
+            "tool_call_id": "call-det-1",
+            "family": "read",
+            "target": "notes/plan.md",
+            "success": true
+          },
+          "prev_hash": "sha256:0002",
+          "hash": "sha256:0003",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "read",
+            "what": "Tool call finished",
+            "tool": "file_read",
+            "target": "notes/plan.md",
+            "outcome": "success",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 2,
+          "run_id": "run-journal-det",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused",
+            "agent_id": "apollia:chat",
+            "access_id": "http_fetch",
+            "family": "send_external"
+          },
+          "prev_hash": "sha256:0001",
+          "hash": "sha256:0002",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 1,
+          "run_id": "governance:connections",
+          "ts": "2026-10-01T15:46:00Z",
+          "kind": "connection_added",
+          "payload": {
+            "event": "added",
+            "connection_id": "mcp:drive",
+            "actor": "user"
+          },
+          "prev_hash": "sha256:0000",
+          "hash": "sha256:0001",
+          "summary": {
+            "agent": null,
+            "nature": "access_change",
+            "family": null,
+            "what": "Connection added",
+            "tool": null,
+            "target": "mcp:drive",
+            "outcome": "success",
+            "ts": "2026-10-01T15:46:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_journal_entry",
+      "resolve": {
+        "seq": 3,
+        "run_id": "run-journal-det",
+        "ts": "2026-10-02T12:32:00Z",
+        "kind": "tool_call_completed",
+        "payload": {
+          "agent_id": "apollia:chat",
+          "tool_name": "file_read",
+          "tool_call_id": "call-det-1",
+          "family": "read",
+          "target": "notes/plan.md",
+          "success": true
+        },
+        "prev_hash": "sha256:0002",
+        "hash": "sha256:0003",
+        "summary": {
+          "agent": "apollia:chat",
+          "nature": "action",
+          "family": "read",
+          "what": "Tool call finished",
+          "tool": "file_read",
+          "target": "notes/plan.md",
+          "outcome": "success",
+          "ts": "2026-10-02T12:32:00Z"
+        },
+        "tool_call": {
+          "tool_call_id": "call-det-1",
+          "arguments": {
+            "path": "notes/plan.md",
+            "offset": 0
+          },
+          "output": {
+            "content": "the plan of the week"
+          },
+          "status": "success"
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "nav-journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "16-back-operator"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
+      "kind": "waitFor",
+      "testid": "journal-filters",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions",
-      "timeoutMs": 3000
+      "testid": "journal-count",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-revoke",
-      "timeoutMs": 4000
+      "testid": "journal-list",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 4000
+      "testid": "journal-day",
+      "timeoutMs": 6000
     },
     {
-      "kind": "click",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 3000
+      "kind": "waitFor",
+      "testid": "journal-entry",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-sentence",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-target",
+      "timeoutMs": 6000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-state",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitGone",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-revoke",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "permission-rule-revoke-confirm-confirm",
-      "timeoutMs": 3000
+      "testid": "journal-entry-detail",
+      "timeoutMs": 2000
     },
     {
       "kind": "waitGone",
-      "testid": "permission-rule-revoke-confirm-cancel",
-      "timeoutMs": 4000
+      "testid": "journal-fold-all",
+      "timeoutMs": 2000
     },
     {
       "kind": "screenshot",
-      "label": "10-rule-revoked"
+      "label": "01-journal-list"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0
     },
     {
       "kind": "waitFor",
-      "testid": "session-auth-revoke",
+      "testid": "detail-sidebar-entry",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-detail",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-target",
+      "timeoutMs": 6000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-parameters",
+      "timeoutMs": 6000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-output",
+      "timeoutMs": 6000,
+      "contains": "the plan of the week"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-detail-technical",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-journal-see-more (target, parameters, output)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar-entry",
       "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "session-auth-revoke",
-      "timeoutMs": 4000
+      "testid": "journal-entry-toggle",
+      "nth": 2
     },
     {
-      "kind": "sleep",
-      "ms": 600
+      "kind": "waitFor",
+      "testid": "journal-detail-record",
+      "timeoutMs": 6000,
+      "contains": "mcp:drive"
     },
     {
-      "kind": "screenshot",
-      "label": "11-session-auth-revoked"
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 2
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar-entry",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_journal_entry"
     },
     {
       "kind": "stubInvoke",
-      "command": "governance_list_permission_rules",
-      "reject": "seeded governance failure",
+      "command": "get_journal_entry",
+      "resolve": null
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-unavailable",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar-entry",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-agent",
+      "value": "apollia:chat",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-family",
+      "value": "read",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-nature",
+      "value": "action",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-result",
+      "value": "success",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-period",
+      "value": "all",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-journal-filters"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-filters-clear"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_journal_entries"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": []
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-result",
+      "value": "refused",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-empty-filtered",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-filters-clear"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_journal_entries"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "reject": "seeded journal failure",
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-result",
+      "value": "failure",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-load-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": [
+        {
+          "seq": 100,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0099",
+          "hash": "sha256:0100",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 99,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0098",
+          "hash": "sha256:0099",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 98,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0097",
+          "hash": "sha256:0098",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 97,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0096",
+          "hash": "sha256:0097",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 96,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0095",
+          "hash": "sha256:0096",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 95,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0094",
+          "hash": "sha256:0095",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 94,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0093",
+          "hash": "sha256:0094",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 93,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0092",
+          "hash": "sha256:0093",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 92,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0091",
+          "hash": "sha256:0092",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 91,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0090",
+          "hash": "sha256:0091",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 90,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0089",
+          "hash": "sha256:0090",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 89,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0088",
+          "hash": "sha256:0089",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 88,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0087",
+          "hash": "sha256:0088",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 87,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0086",
+          "hash": "sha256:0087",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 86,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0085",
+          "hash": "sha256:0086",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 85,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0084",
+          "hash": "sha256:0085",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 84,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0083",
+          "hash": "sha256:0084",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 83,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0082",
+          "hash": "sha256:0083",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 82,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0081",
+          "hash": "sha256:0082",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 81,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0080",
+          "hash": "sha256:0081",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 80,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0079",
+          "hash": "sha256:0080",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 79,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0078",
+          "hash": "sha256:0079",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 78,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0077",
+          "hash": "sha256:0078",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 77,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0076",
+          "hash": "sha256:0077",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 76,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0075",
+          "hash": "sha256:0076",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 75,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0074",
+          "hash": "sha256:0075",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 74,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0073",
+          "hash": "sha256:0074",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 73,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0072",
+          "hash": "sha256:0073",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 72,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0071",
+          "hash": "sha256:0072",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 71,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0070",
+          "hash": "sha256:0071",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 70,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0069",
+          "hash": "sha256:0070",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 69,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0068",
+          "hash": "sha256:0069",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 68,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0067",
+          "hash": "sha256:0068",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 67,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0066",
+          "hash": "sha256:0067",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 66,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0065",
+          "hash": "sha256:0066",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 65,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0064",
+          "hash": "sha256:0065",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 64,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0063",
+          "hash": "sha256:0064",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 63,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0062",
+          "hash": "sha256:0063",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 62,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0061",
+          "hash": "sha256:0062",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 61,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0060",
+          "hash": "sha256:0061",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 60,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0059",
+          "hash": "sha256:0060",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 59,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0058",
+          "hash": "sha256:0059",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 58,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0057",
+          "hash": "sha256:0058",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 57,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0056",
+          "hash": "sha256:0057",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 56,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0055",
+          "hash": "sha256:0056",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 55,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0054",
+          "hash": "sha256:0055",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 54,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0053",
+          "hash": "sha256:0054",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 53,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0052",
+          "hash": "sha256:0053",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 52,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0051",
+          "hash": "sha256:0052",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 51,
+          "run_id": "run-journal-page",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused"
+          },
+          "prev_hash": "sha256:0050",
+          "hash": "sha256:0051",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        }
+      ],
+      "once": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "journal-filter-result",
+      "value": "refused",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-load-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-load-older",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": [
+        {
+          "seq": 1,
+          "run_id": "governance:connections",
+          "ts": "2026-10-01T15:46:00Z",
+          "kind": "connection_added",
+          "payload": {
+            "event": "added",
+            "connection_id": "mcp:drive",
+            "actor": "user"
+          },
+          "prev_hash": "sha256:0000",
+          "hash": "sha256:0001",
+          "summary": {
+            "agent": null,
+            "nature": "access_change",
+            "family": null,
+            "what": "Connection added",
+            "tool": null,
+            "target": "mcp:drive",
+            "outcome": "success",
+            "ts": "2026-10-01T15:46:00Z"
+          }
+        }
+      ],
       "once": true
     },
     {
       "kind": "click",
-      "testid": "permissions-reload",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permissions-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-permissions-rules-load-error"
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-error-details-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "screenshot",
-      "label": "12b-permissions-rules-load-error-details-open"
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-error-details-toggle",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "permissions-reload",
-      "timeoutMs": 4000
+      "testid": "journal-load-older"
     },
     {
       "kind": "waitGone",
-      "testid": "permissions-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rules-list",
+      "testid": "journal-load-older",
       "timeoutMs": 6000
     },
     {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_journal_entries",
+      "resolve": [
+        {
+          "seq": 3,
+          "run_id": "run-journal-det",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "tool_call_completed",
+          "payload": {
+            "agent_id": "apollia:chat",
+            "tool_name": "file_read",
+            "tool_call_id": "call-det-1",
+            "family": "read",
+            "target": "notes/plan.md",
+            "success": true
+          },
+          "prev_hash": "sha256:0002",
+          "hash": "sha256:0003",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "read",
+            "what": "Tool call finished",
+            "tool": "file_read",
+            "target": "notes/plan.md",
+            "outcome": "success",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 2,
+          "run_id": "run-journal-det",
+          "ts": "2026-10-02T12:32:00Z",
+          "kind": "rule_refused",
+          "payload": {
+            "event": "rule_refused",
+            "agent_id": "apollia:chat",
+            "access_id": "http_fetch",
+            "family": "send_external"
+          },
+          "prev_hash": "sha256:0001",
+          "hash": "sha256:0002",
+          "summary": {
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "send_external",
+            "what": "Call refused by a rule",
+            "tool": "http_fetch",
+            "target": null,
+            "outcome": "refused",
+            "ts": "2026-10-02T12:32:00Z"
+          }
+        },
+        {
+          "seq": 1,
+          "run_id": "governance:connections",
+          "ts": "2026-10-01T15:46:00Z",
+          "kind": "connection_added",
+          "payload": {
+            "event": "added",
+            "connection_id": "mcp:drive",
+            "actor": "user"
+          },
+          "prev_hash": "sha256:0000",
+          "hash": "sha256:0001",
+          "summary": {
+            "agent": null,
+            "nature": "access_change",
+            "family": null,
+            "what": "Connection added",
+            "tool": null,
+            "target": "mcp:drive",
+            "outcome": "success",
+            "ts": "2026-10-01T15:46:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_journal_entry",
+      "resolve": {
+        "seq": 3,
+        "run_id": "run-journal-det",
+        "ts": "2026-10-02T12:32:00Z",
+        "kind": "tool_call_completed",
+        "payload": {
+          "agent_id": "apollia:chat",
+          "tool_name": "file_read",
+          "tool_call_id": "call-det-1",
+          "family": "read",
+          "target": "notes/plan.md",
+          "success": true
+        },
+        "prev_hash": "sha256:0002",
+        "hash": "sha256:0003",
+        "summary": {
+          "agent": "apollia:chat",
+          "nature": "action",
+          "family": "read",
+          "what": "Tool call finished",
+          "tool": "file_read",
+          "target": "notes/plan.md",
+          "outcome": "success",
+          "ts": "2026-10-02T12:32:00Z"
+        },
+        "tool_call": {
+          "tool_call_id": "call-det-1",
+          "arguments": {
+            "path": "notes/plan.md",
+            "offset": 0
+          },
+          "output": {
+            "content": "the plan of the week"
+          },
+          "status": "success"
+        }
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-fold-all",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry-detail",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-technical",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-raw-arguments",
+      "timeoutMs": 6000,
+      "contains": "notes/plan.md"
+    },
+    {
       "kind": "screenshot",
-      "label": "12c-permissions-rules-reloaded"
+      "label": "04-journal-developer-mode (unfolded by default, technical details)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-fold-all"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-entry-detail",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-entry-toggle",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-detail-technical",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-fold-all",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-journal-back-to-developer-mode-off"
     }
   ]
 }

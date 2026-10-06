@@ -254,3 +254,41 @@ test("the file name is the last segment of either separator", () => {
   expect(fileName("/Users/me/Downloads/crm-1.0.0.apo")).toBe("crm-1.0.0.apo");
   expect(fileName("C:\\Users\\me\\crm.apo")).toBe("crm.apo");
 });
+
+describe("a package the application carries", () => {
+  const unsigned = {
+    status: "unsigned" as const,
+    publisher: "Apollia",
+    declaredPublisher: "Apollia",
+    trusted: false,
+  };
+
+  test("an example is unsigned and is not warned about for it", () => {
+    // GIVEN the preview of an unsigned package
+    const p = preview({ signature: unsigned });
+    // WHEN it is read as a file, then as an example the application carries
+    // THEN only the file takes the unsigned variant and the unknown publisher
+    expect(previewVariant(p)).toBe("unsigned");
+    expect(publisherState(p)).toBe("unsigned");
+    expect(previewVariant(p, true)).toBe("install");
+    expect(publisherState(p, true)).toBe("shipped");
+    expect(canProceed(p, new Set())).toBe(true);
+  });
+
+  test("a refusal still wins over the origin", () => {
+    // GIVEN an example whose agent another package already owns
+    const p = preview({ signature: unsigned, refusal: { code: "agent_taken", agent: "crm-agent", owner: "other" } });
+    // WHEN its variant is read as an example
+    // THEN it is refused like any package
+    expect(previewVariant(p, true)).toBe("refused");
+    expect(canProceed(p, new Set())).toBe(false);
+  });
+
+  test("the detail of a refusal leaves out the path an example does not have", () => {
+    // GIVEN an example, which has no file
+    const p = preview({ signature: unsigned });
+    // WHEN the detail of its refusal is written
+    // THEN it names the package and the reason, with no empty line
+    expect(refusalDetail(p, "", "already installed elsewhere")).toBe("crm 1.0.0\nalready installed elsewhere");
+  });
+});

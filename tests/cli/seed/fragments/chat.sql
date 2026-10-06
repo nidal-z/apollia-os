@@ -4,11 +4,9 @@
 --   * chat_sessions  -> conversation-row-* / chat-active-list is populated,
 --                        so the session list is not the empty state.
 --   * chat_messages  -> seed-session-1 renders a real conversation history.
---   * chat_tool_authorizations -> session-auths-list in Settings > Permissions
---                        renders (restore_sessions hydrates these in-memory at
---                        boot, then list_active_chat_session_authorizations
---                        surfaces them; only status='active' sessions are
---                        restored, hence every seeded session is 'active').
+--   * chat_tool_authorizations -> restore_sessions hydrates these in-memory
+--                        at boot; only status='active' sessions are restored,
+--                        hence every seeded session is 'active'.
 --   * session_plans + session_plan_steps -> chat-inspector-plan-tab shows a
 --                        plan for seed-session-2.
 --

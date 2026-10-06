@@ -78,6 +78,7 @@ impl ChatSessionRepository {
             plan_mode: row.plan_mode,
             plan_phase,
             profile_id: row.profile_id,
+            use_profile: row.use_profile,
         })
     }
 
@@ -165,6 +166,9 @@ impl ChatSessionRepository {
                 .map_err(|e| {
                     ChatError::InternalError(format!("create_fork_session copy message: {e}"))
                 })?;
+            Self::index_message(&tx, child_id, seq, &msg.role, &msg.content).map_err(|e| {
+                ChatError::InternalError(format!("create_fork_session index message: {e}"))
+            })?;
         }
 
         tx.commit()
@@ -184,7 +188,7 @@ impl ChatSessionRepository {
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
                         closed_at, llm_backend, summary, title, parent_session_id, fork_depth,
-                        plan_mode, plan_phase, profile_id
+                        plan_mode, plan_phase, profile_id, use_profile
                  FROM chat_sessions
                  WHERE parent_session_id = ?1
                  ORDER BY created_at ASC",

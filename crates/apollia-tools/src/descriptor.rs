@@ -33,6 +33,12 @@ pub struct ToolDescriptor {
     /// Where [`Self::family`] comes from.
     #[serde(default)]
     pub family_source: FamilySource,
+    /// Name of the argument that says what a call acts on: a path, a
+    /// recipient, an address. Never an argument that carries content. `None`
+    /// for a tool with no such argument, and for every MCP tool, whose
+    /// arguments nobody has designated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_arg: Option<String>,
     /// If `true`, this tool does not modify any state and may be executed concurrently
     /// alongside other read-only tools. Defaults to `false`: if this flag is omitted,
     /// the tool is treated as mutating and never parallelised.
@@ -87,6 +93,19 @@ pub enum ActionFamily {
 }
 
 impl ActionFamily {
+    /// The name the family carries on the wire and in the journal.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ActionFamily::Read => "read",
+            ActionFamily::ReadPersonal => "read_personal",
+            ActionFamily::WriteOrDelete => "write_or_delete",
+            ActionFamily::SendExternal => "send_external",
+            ActionFamily::ExecuteCode => "execute_code",
+            ActionFamily::Unclassified => "unclassified",
+            ActionFamily::Exempt => "exempt",
+        }
+    }
+
     /// The family a standing consent covers for this tool, `None` for a tool
     /// that is unclassified or exempt, which no standing consent can cover.
     pub fn consent_family(self) -> Option<apollia_permissions::ConsentFamily> {
@@ -151,6 +170,10 @@ impl ApprovalRiskLevel {
     }
 }
 
+/// Longest target kept, in characters. A target names a place; anything longer
+/// is cut rather than stored whole.
+pub const MAX_TARGET_CHARS: usize = 200;
+
 /// Upper bound of the [`ToolDescriptor::risk_score`] scale.
 ///
 /// The scale is 0 to 10 and [`ApprovalRiskLevel::from_risk_score`] reads it that
@@ -193,6 +216,42 @@ impl ToolDescriptor {
         }
 
         Ok(())
+    }
+
+    /// What a call with `args` acts on, read from the argument
+    /// [`Self::target_arg`] names and from no other.
+    ///
+    /// An address is reduced to its host, so a query string never travels; a
+    /// list of recipients is joined; any other value is taken as text. `None`
+    /// when the tool designates no argument, or when the call does not carry it.
+    pub fn call_target(&self, args: &serde_json::Value) -> Option<String> {
+        let value = args.get(self.target_arg.as_deref()?)?;
+        let text = match value {
+            serde_json::Value::String(text) => text.trim().to_owned(),
+            serde_json::Value::Array(items) => items
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", "),
+            _ => return None,
+        };
+        if text.is_empty() {
+            return None;
+        }
+        // Only a value written as `scheme://` is read as an address: a Windows
+        // path such as `C:\dir` parses as one too, and is a path.
+        let address = text
+            .contains("://")
+            .then(|| url::Url::parse(&text).ok())
+            .flatten();
+        let target = match address {
+            Some(address) => match address.host_str() {
+                Some(host) => host.to_owned(),
+                None => address.path().to_owned(),
+            },
+            None => text,
+        };
+        Some(target.chars().take(MAX_TARGET_CHARS).collect())
     }
 }
 
@@ -282,6 +341,7 @@ mod tests {
             tags: vec!["shell".to_string()],
             family: ActionFamily::ExecuteCode,
             family_source: FamilySource::Builtin,
+            target_arg: None,
             is_read_only: false,
             risk_score: 0,
             approval_risk_level: None,
@@ -448,6 +508,58 @@ mod tests {
         assert!(!d.reject_reason_required);
         assert_eq!(d.family, ActionFamily::Unclassified);
         assert_eq!(d.family_source, FamilySource::Unsourced);
+        assert_eq!(d.target_arg, None);
+    }
+
+    #[test]
+    fn a_call_target_is_the_designated_argument_and_nothing_else() {
+        // GIVEN a tool that designates `path`, called with a path and a content
+        let mut d = make_valid_descriptor();
+        d.target_arg = Some("path".to_string());
+        let args = json!({ "path": "/home/u/notes.md", "content": "the whole letter" });
+        // WHEN the target of the call is read
+        let target = d.call_target(&args);
+        // THEN it is the path, and the content is nowhere in it
+        assert_eq!(target.as_deref(), Some("/home/u/notes.md"));
+    }
+
+    #[test]
+    fn an_address_is_reduced_to_its_host() {
+        // GIVEN a tool that designates `url`, called with a query string
+        let mut d = make_valid_descriptor();
+        d.target_arg = Some("url".to_string());
+        let args = json!({ "url": "https://example.org/search?q=my+illness&token=abc" });
+        // WHEN the target of the call is read
+        let target = d.call_target(&args);
+        // THEN only the host is kept
+        assert_eq!(target.as_deref(), Some("example.org"));
+    }
+
+    #[test]
+    fn recipients_are_joined_and_a_long_target_is_cut() {
+        // GIVEN a tool that designates `to`
+        let mut d = make_valid_descriptor();
+        d.target_arg = Some("to".to_string());
+        // WHEN it is called with a list of recipients, then with a very long one
+        let joined = d.call_target(&json!({ "to": ["a@example.org", "b@example.org"] }));
+        let long = d.call_target(&json!({ "to": "x".repeat(MAX_TARGET_CHARS + 50) }));
+        // THEN the list reads as one line and the long value is cut
+        assert_eq!(joined.as_deref(), Some("a@example.org, b@example.org"));
+        assert_eq!(long.map(|t| t.chars().count()), Some(MAX_TARGET_CHARS));
+    }
+
+    #[test]
+    fn a_tool_without_a_designated_argument_has_no_target() {
+        // GIVEN a tool that designates nothing, and one whose argument is absent
+        let plain = make_valid_descriptor();
+        let mut designated = make_valid_descriptor();
+        designated.target_arg = Some("path".to_string());
+        // WHEN their targets are read
+        let none = plain.call_target(&json!({ "path": "/tmp/a" }));
+        let absent = designated.call_target(&json!({ "command": "ls" }));
+        // THEN neither has one
+        assert_eq!(none, None);
+        assert_eq!(absent, None);
     }
 
     #[test]
@@ -494,6 +606,7 @@ mod tests {
             // THEN the wire identifier is the documented one and nothing is lost
             assert_eq!(json, wire);
             assert_eq!(back, family);
+            assert_eq!(family.as_str(), wire);
         }
     }
 

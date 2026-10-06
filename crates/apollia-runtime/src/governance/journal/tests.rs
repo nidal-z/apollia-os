@@ -144,6 +144,8 @@ async fn test_each_nature_is_chained_and_signed() {
         format: "csv".into(),
         entries: 12,
         actor: "user".into(),
+        filters: Default::default(),
+        detail: false,
     };
 
     // WHEN each event is recorded

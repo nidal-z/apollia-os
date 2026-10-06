@@ -19,13 +19,14 @@
 //! Whisper STT still lives in `apollia-runner`; only the LLM engine moves here.
 
 mod config;
+pub mod devices;
 mod embeddings;
 mod engine_facts;
 mod explicit;
 mod guard;
 mod load_settings;
 mod loaded;
-mod locate;
+pub(crate) mod locate;
 mod log_level;
 mod ngl;
 mod parallel;
@@ -60,7 +61,7 @@ use apollia_core::EventBusSender;
 use config::{build_args, display_opt, env_getter, resolve_env_overrides};
 #[cfg(test)]
 use locate::env_or_store_binary;
-use locate::locate_llama_server_binary;
+use locate::locate_for_launch;
 
 /// Errors from spawning or supervising the embedded `llama-server`.
 #[derive(Debug, Error)]
@@ -256,6 +257,9 @@ pub struct LlamaServerSupervisor {
     residency: std::sync::OnceLock<Arc<crate::residency::Residency>>,
     /// The guardrail settings the organisation policy fixes, over the file.
     imposed: apollia_core::config::PolicySettings,
+    /// The window each model gets from the default of the settings, kept so a
+    /// request to a resident model does not probe its file again.
+    sized_windows: Arc<crate::local_engine::context_default::SizedWindows>,
     /// Where each line the processes print goes besides tracing: the logs of
     /// the compatible server, once it is started.
     line_sink: OnceLock<crate::compat_server::ServerLogsHandle>,
@@ -277,7 +281,8 @@ impl LlamaServerSupervisor {
         config_file: Option<PathBuf>,
         imposed: apollia_core::config::PolicySettings,
     ) -> Result<Arc<Self>, LlamaServerError> {
-        let bin_path = locate_llama_server_binary()?;
+        let choices = crate::engine_store::EngineChoices::read(config_file.as_deref(), &imposed);
+        let bin_path = locate_for_launch(choices.gguf)?;
         // The reported window must be the one the server will actually launch
         // with, otherwise an `APOLLIA_LLAMA_N_CTX` override would leave the
         // router sizing compaction against a value no process ever used. The
@@ -286,6 +291,9 @@ impl LlamaServerSupervisor {
         let n_ctx = resolve_env_overrides(&config, env_getter).n_ctx;
         let max_loaded = resolve_max_loaded(env_getter);
         let n_ctx_pinned = env_getter(config::ENV_N_CTX).is_some();
+        // The devices held back count in every estimate from the first one,
+        // before any model is loaded.
+        devices::sync_selection(config_file.as_deref(), &imposed);
         Ok(Arc::new(Self {
             bin_path,
             n_ctx,
@@ -302,6 +310,7 @@ impl LlamaServerSupervisor {
             config_file,
             residency: std::sync::OnceLock::new(),
             imposed,
+            sized_windows: Arc::default(),
             line_sink: OnceLock::new(),
         }))
     }
@@ -311,17 +320,16 @@ impl LlamaServerSupervisor {
         self.n_ctx
     }
 
-    /// The window a backend asking for `requested` is actually launched with.
-    ///
-    /// The backend's own `context_window` (chosen at onboarding or in the
-    /// settings) wins over the default; `APOLLIA_LLAMA_N_CTX` wins over both.
-    /// A preset's window comes in as `requested`, see `window_for`.
+    /// The window a launch asking for `requested` gets, `model_default` being
+    /// what the model receives when nothing asks: `APOLLIA_LLAMA_N_CTX` wins
+    /// over both. A preset's window comes in as `requested`, see `window_for`.
     #[must_use]
-    fn effective_n_ctx(&self, requested: Option<u32>) -> u32 {
-        if self.n_ctx_pinned {
-            return self.n_ctx;
-        }
-        requested.filter(|n| *n > 0).unwrap_or(self.n_ctx)
+    fn effective_n_ctx(&self, requested: Option<u32>, model_default: u32) -> u32 {
+        crate::local_engine::context_default::resolve(
+            self.n_ctx_pinned.then_some(self.n_ctx),
+            requested,
+            model_default,
+        )
     }
 
     /// The explicit ceiling on resident models, `None` when the load
@@ -498,6 +506,7 @@ impl LlamaServerSupervisor {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            sized_windows: Arc::default(),
             line_sink: OnceLock::new(),
         }
     }
@@ -530,6 +539,7 @@ impl LlamaServerSupervisor {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            sized_windows: Arc::default(),
             line_sink: OnceLock::new(),
         })
     }
@@ -821,6 +831,7 @@ mod test_support {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            sized_windows: Arc::default(),
             line_sink: std::sync::OnceLock::new(),
         }
     }

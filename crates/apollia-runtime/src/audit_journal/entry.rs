@@ -132,12 +132,37 @@ pub enum JournalEntryKind {
     /// A deposited policy was refused at startup. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     PolicyUnreadable,
+    /// The organisation policy fixed a setting the user's file sets
+    /// otherwise, and what the setting had opened was closed at startup. The
+    /// payload is a [`crate::governance::GovernanceRecord`]: it names the
+    /// setting.
+    PolicySettingEnforced,
     /// Governance entered fail-closed: it refuses what is sensitive. The
     /// payload is a [`crate::governance::GovernanceRecord`].
     FailClosedTriggered,
     /// The journal was exported. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     JournalExported,
+    /// Entries older than the retention of the organisation policy were
+    /// removed. The payload is a [`crate::governance::GovernanceRecord`]: it
+    /// carries the anchor of the prefix removed, which is where verification
+    /// starts from.
+    JournalPurged,
+    /// The journal opened without its signing key: entries are chained and
+    /// not signed. The payload is a [`crate::governance::GovernanceRecord`].
+    JournalUnsigned,
+    /// The daily export the organisation policy asks for could not be
+    /// written. The payload is a [`crate::governance::GovernanceRecord`].
+    JournalExportFailed,
+    /// `apollia.toml` changed. The payload is a
+    /// [`crate::config_reload::ConfigChangeRecord`]: the paths of the keys,
+    /// the origin, the fingerprint of the file before and after, never a value.
+    ConfigurationChanged,
+    /// A request reached the compatible server. The payload is a
+    /// [`crate::compat_server::ServerCallRecord`]: the endpoint, the model or
+    /// the agent named, the name of the token, where the call came from, the
+    /// status, the tokens and the duration, never a message nor an answer.
+    ServerCall,
     /// A run-scoped event with no explicit mapping; `raw_kind` keeps the
     /// original variant name so coverage stays auditable.
     Unknown {
@@ -194,8 +219,14 @@ impl JournalEntryKind {
             JournalEntryKind::PolicyApplied => "policy_applied",
             JournalEntryKind::PolicyChanged => "policy_changed",
             JournalEntryKind::PolicyUnreadable => "policy_unreadable",
+            JournalEntryKind::PolicySettingEnforced => "policy_setting_enforced",
             JournalEntryKind::FailClosedTriggered => "fail_closed_triggered",
             JournalEntryKind::JournalExported => "journal_exported",
+            JournalEntryKind::JournalPurged => "journal_purged",
+            JournalEntryKind::JournalUnsigned => "journal_unsigned",
+            JournalEntryKind::JournalExportFailed => "journal_export_failed",
+            JournalEntryKind::ConfigurationChanged => "configuration_changed",
+            JournalEntryKind::ServerCall => "server_call",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
     }
@@ -246,8 +277,14 @@ impl JournalEntryKind {
             "policy_applied" => JournalEntryKind::PolicyApplied,
             "policy_changed" => JournalEntryKind::PolicyChanged,
             "policy_unreadable" => JournalEntryKind::PolicyUnreadable,
+            "policy_setting_enforced" => JournalEntryKind::PolicySettingEnforced,
             "fail_closed_triggered" => JournalEntryKind::FailClosedTriggered,
             "journal_exported" => JournalEntryKind::JournalExported,
+            "journal_purged" => JournalEntryKind::JournalPurged,
+            "journal_unsigned" => JournalEntryKind::JournalUnsigned,
+            "journal_export_failed" => JournalEntryKind::JournalExportFailed,
+            "configuration_changed" => JournalEntryKind::ConfigurationChanged,
+            "server_call" => JournalEntryKind::ServerCall,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
             },
@@ -468,8 +505,8 @@ mod tests {
         }
     }
 
-    // The kinds of consents, refusals, rules, batches and policy round-trip
-    // through their stable tags.
+    // The kinds of consents, refusals, rules, batches, policy,
+    // configuration and server calls round-trip through their stable tags.
     #[test]
     fn test_decision_and_policy_kinds_tags_round_trip() {
         // GIVEN the kinds and their expected tags
@@ -485,10 +522,25 @@ mod tests {
             (JournalEntryKind::PolicyChanged, "policy_changed"),
             (JournalEntryKind::PolicyUnreadable, "policy_unreadable"),
             (
+                JournalEntryKind::PolicySettingEnforced,
+                "policy_setting_enforced",
+            ),
+            (
                 JournalEntryKind::FailClosedTriggered,
                 "fail_closed_triggered",
             ),
             (JournalEntryKind::JournalExported, "journal_exported"),
+            (JournalEntryKind::JournalPurged, "journal_purged"),
+            (JournalEntryKind::JournalUnsigned, "journal_unsigned"),
+            (
+                JournalEntryKind::JournalExportFailed,
+                "journal_export_failed",
+            ),
+            (
+                JournalEntryKind::ConfigurationChanged,
+                "configuration_changed",
+            ),
+            (JournalEntryKind::ServerCall, "server_call"),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

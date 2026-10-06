@@ -60,6 +60,13 @@ DECLARED_UNCOVERABLE = {
         "(crates/apollia-cli/src/commands/start/runner.rs), so the tool is not "
         "registered on the path `apollia-os eval run` drives"
     ),
+    "source_search": (
+        "the task-mode runner builds its source access with "
+        "SourceAccess::memory_only "
+        "(crates/apollia-cli/src/commands/start/runner.rs), which carries no "
+        "search over indexable sources, so the tool is not registered on the "
+        "path `apollia-os eval run` drives"
+    ),
 }
 
 WORKSPACE_ROOT = "/tmp/apollia-eval-tools/"

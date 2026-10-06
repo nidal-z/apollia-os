@@ -463,7 +463,7 @@ impl Reasoner {
     /// Validate a raw JSON plan returned by the LLM.
     ///
     /// 6 sequential validations, returning `Err` at the first problem encountered:
-    /// 1. Strip any Markdown backticks and parse the JSON
+    /// 1. Strip any reasoning block and Markdown backticks, and parse the JSON
     /// 2. Deserialize the [`PlanStep`] array from the `"steps"` field
     /// 3. Check that all `step_id`s are unique
     /// 4. Check that each `depends_on` references a `step_id` present in the plan
@@ -476,8 +476,9 @@ impl Reasoner {
         raw: &str,
         task_id: &str,
     ) -> Result<ExecutionPlan, PlanValidationError> {
-        // 1. Strip Markdown backticks and trim whitespace
-        let clean = raw
+        // 1. Strip the reasoning blocks, then Markdown backticks and whitespace
+        let without_reasoning = strip_reasoning(raw);
+        let clean = without_reasoning
             .trim()
             .trim_start_matches("```json")
             .trim_start_matches("```")
@@ -542,19 +543,12 @@ impl Reasoner {
             },
         );
 
-        let llm_backend_names = if ctx.llm_backend_names.is_empty() {
-            "No LLM models available.".to_string()
-        } else {
-            ctx.llm_backend_names.join(", ")
-        };
-
         let max_steps = self.max_steps.to_string();
         apollia_prompts::render(
             apollia_prompts::blocks::PLANNER_SYSTEM_PROMPT,
             &[
                 ("max_steps", max_steps.as_str()),
                 ("tool_names", tool_names.as_str()),
-                ("llm_backend_names", llm_backend_names.as_str()),
                 ("memory_summary", memory_summary.as_str()),
                 ("recent_history", ""),
             ],
@@ -584,6 +578,34 @@ impl Reasoner {
 
         format!("Agent system prompt:\n{system_prompt}\n\nTask: {task_input}")
     }
+}
+
+/// `raw` without its reasoning: every `<think>...</think>` block, and an
+/// unclosed `<think>` with all that follows it.
+///
+/// An OpenAI-compatible server that separates the reasoning of a thinking
+/// model returns it apart from the content, and the client puts it back in
+/// front, inside these tags. The plan is what comes after.
+fn strip_reasoning(raw: &str) -> std::borrow::Cow<'_, str> {
+    const OPEN: &str = "<think>";
+    const CLOSE: &str = "</think>";
+    if !raw.contains(OPEN) {
+        return std::borrow::Cow::Borrowed(raw);
+    }
+    let mut kept = String::with_capacity(raw.len());
+    let mut rest = raw;
+    while let Some(start) = rest.find(OPEN) {
+        kept.push_str(&rest[..start]);
+        match rest[start + OPEN.len()..].find(CLOSE) {
+            Some(end) => rest = &rest[start + OPEN.len() + end + CLOSE.len()..],
+            None => {
+                rest = "";
+                break;
+            }
+        }
+    }
+    kept.push_str(rest);
+    std::borrow::Cow::Owned(kept)
 }
 
 // ─────────────────────────────────────────────
@@ -858,6 +880,32 @@ mod tests {
         assert_eq!(result.unwrap().steps[0].step_id, "s1");
     }
 
+    #[test]
+    fn test_a_plan_after_a_reasoning_block_is_read() {
+        // GIVEN the content of a thinking model, its reasoning put in front
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+        let raw = "<think>The user wants one step.\nI will read the file.</think>\n\n{\"steps\":[{\"step_id\":\"s1\",\"description\":\"d\",\"depends_on\":[]}]}";
+
+        // WHEN it is parsed as a plan
+        let result = reasoner.parse_and_validate(raw, "task-001");
+
+        // THEN the plan that follows the reasoning is read
+        assert_eq!(result.expect("plan").steps[0].step_id, "s1");
+    }
+
+    #[test]
+    fn test_a_reasoning_block_left_open_is_not_read_as_a_plan() {
+        // GIVEN a reasoning block that never closes, a plan-like text inside it
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+        let raw = "<think>maybe {\"steps\":[]}";
+
+        // WHEN it is parsed as a plan
+        let result = reasoner.parse_and_validate(raw, "task-001");
+
+        // THEN nothing is left to read, and the answer is refused
+        assert!(matches!(result, Err(PlanValidationError::InvalidJson(_))));
+    }
+
     // Cardinality ceiling: max_steps is enforced, not only a prompt hint.
 
     /// GIVEN a Reasoner with max_steps = 2
@@ -1012,22 +1060,20 @@ mod tests {
         assert_eq!(steps[0].model_hint, Some("fast-7b".to_string()));
     }
 
-    // ─── Prompt contient {llm_backend_names} ───
-
     /// GIVEN the shared PLANNER_SYSTEM_PROMPT block
     /// WHEN inspecting its content
-    /// THEN it carries the {llm_backend_names} placeholder and a model_hint hint
+    /// THEN it offers no model to pick and asks for no model per step
     #[test]
-    fn test_prompt_contains_llm_backend_names_placeholder() {
-        // GIVEN / WHEN / THEN
-        assert!(
-            apollia_prompts::blocks::PLANNER_SYSTEM_PROMPT.contains("{llm_backend_names}"),
-            "PLANNER_SYSTEM_PROMPT must contain {{llm_backend_names}} placeholder"
-        );
-        assert!(
-            apollia_prompts::blocks::PLANNER_SYSTEM_PROMPT.contains("model_hint"),
-            "PLANNER_SYSTEM_PROMPT must mention model_hint"
-        );
+    fn test_planner_prompt_names_no_model_per_step() {
+        // GIVEN
+        let prompt = apollia_prompts::blocks::PLANNER_SYSTEM_PROMPT;
+
+        // WHEN
+        let offers_models = prompt.contains("{llm_backend_names}");
+        let asks_for_a_model = prompt.contains("model_hint");
+
+        // THEN
+        assert!(!offers_models && !asks_for_a_model);
     }
 
     // Two plans generated in parallel

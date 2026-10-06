@@ -10,6 +10,8 @@
  * one surface to audit for overlaps and renames.
  */
 
+import type { ChatSendKey } from "$lib/stores/chatSendKey";
+
 export type ShortcutCategory =
   | "global"
   | "navigation"
@@ -65,6 +67,13 @@ export const SHORTCUTS: ShortcutEntry[] = [
     category: "global",
   },
   {
+    id: "chat.new_conversation",
+    combo: { mac: "⌘+T", win: "Ctrl+T" },
+    descriptionKey: "settings.shortcuts.items.chat_new_conversation",
+    scope: "global",
+    category: "global",
+  },
+  {
     id: "app.quit",
     combo: { mac: "⌘+Q", win: "Ctrl+Q" },
     descriptionKey: "settings.shortcuts.items.app_quit",
@@ -113,7 +122,7 @@ export const SHORTCUTS: ShortcutEntry[] = [
   },
   {
     id: "chat.send",
-    combo: { mac: "⌘+Enter", win: "Ctrl+Enter" },
+    combo: { mac: "Enter", win: "Enter" },
     descriptionKey: "settings.shortcuts.items.chat_send",
     scope: "contextual",
     category: "chat",
@@ -186,6 +195,21 @@ export const SHORTCUTS: ShortcutEntry[] = [
 ];
 
 /** `true` when running on macOS (best-effort browser detection). */
+/** The combo that sends a message under the send key of Settings > Chat. */
+export function sendShortcutCombo(mode: ChatSendKey): ShortcutCombo {
+  return mode === "mod-enter"
+    ? { mac: "⌘+Enter", win: "Ctrl+Enter" }
+    : { mac: "Enter", win: "Enter" };
+}
+
+/** `entries` with the send entry showing the send key in force. */
+export function withSendKey(
+  entries: readonly ShortcutEntry[],
+  mode: ChatSendKey,
+): ShortcutEntry[] {
+  return entries.map((e) => (e.id === "chat.send" ? { ...e, combo: sendShortcutCombo(mode) } : e));
+}
+
 export function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
   // navigator.platform is deprecated but still the most reliable signal across

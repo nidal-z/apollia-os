@@ -51,7 +51,13 @@ impl ChatSessionManager {
             let is_first_message = session.history.len() == 1;
             let history: Vec<ChatMessage> =
                 session.history[..session.history.len().saturating_sub(1)].to_vec();
-            let session_plan_mode = session.plan_mode;
+            // The conversation that creates an agent: a free chat created with
+            // the draft tool in its list. It drafts and does nothing else, so
+            // it never plans.
+            let agent_draft = declarative.is_none()
+                && session.mode == ChatMode::Libre
+                && crate::chat::agent_draft_tool::is_draft_session(&session.available_tools);
+            let session_plan_mode = session.plan_mode && !agent_draft;
             let turn_id = session
                 .active_exchange
                 .as_ref()
@@ -68,17 +74,25 @@ impl ChatSessionManager {
             };
             // A declarative agent is isolated as the companion is: no
             // principle 6 injection, no prefix rule of Apollia.
-            let is_companion = session.mode == ChatMode::Companion || declarative.is_some();
-            // The principle 6 injections gathered here (user memory, and the
-            // past sessions block on the first message) are made by the
-            // executor for the Apollia agent only. Companion sessions are
-            // isolated from both: the companion helps with the platform, not
-            // with the user's personal context.
+            // So is the conversation that creates an agent: it describes an
+            // agent, not the person.
+            let is_companion =
+                session.mode == ChatMode::Companion || declarative.is_some() || agent_draft;
+            // The principle 6 injections gathered here (the profile of the
+            // conversation while its switch is on, and the past sessions block
+            // on the first message) are made by the executor for the Apollia
+            // agent only. Companion sessions are isolated from both: the
+            // companion helps with the platform, not with the user's personal
+            // context.
             let apollia_context = if is_companion {
                 ApolliaContext::default()
             } else {
                 ApolliaContext {
-                    user_memory: self.user_memory.clone(),
+                    user_memory: crate::chat::profile_injection::switched_store(
+                        session,
+                        self.user_memory.as_ref(),
+                    ),
+                    profile_id: session.profile_id.clone(),
                     past_sessions: if is_first_message {
                         self.build_cross_session_context(content)
                     } else {
@@ -96,6 +110,9 @@ impl ChatSessionManager {
             // default.
             let available_tools = match &declarative {
                 Some(agent) => apollia_tools::AgentAccess::of(agent),
+                // The draft tool belongs to the loop; no access is offered
+                // beside it.
+                None if agent_draft => apollia_tools::AgentAccess::Listed(Vec::new()),
                 None => {
                     super::super::apollia_agent::apollia_access(self.governance_db_path.as_deref())
                         .unwrap_or_else(|| {
@@ -180,7 +197,8 @@ impl ChatSessionManager {
                 run_id: run_id.clone(),
                 user_msg,
                 tx,
-                todo: self.todo_handle.clone(),
+                // A draft keeps no task list.
+                todo: self.todo_handle.clone().filter(|_| !agent_draft),
                 plan: self.plan_handle.clone(),
                 session_plan_mode,
                 session_plan_phase,
@@ -190,6 +208,7 @@ impl ChatSessionManager {
                 preferred_backend,
                 turn_id,
                 turn_images,
+                agent_draft,
             }));
         }
 

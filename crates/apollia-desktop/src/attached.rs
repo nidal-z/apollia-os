@@ -14,6 +14,7 @@
 //! registered command.
 
 mod client;
+mod error;
 mod proxy;
 mod relay;
 
@@ -22,6 +23,7 @@ use apollia_runtime::embedded::RuntimeHandle;
 use tauri::Manager;
 
 pub(crate) use client::AttachedClient;
+pub(crate) use error::AttachedError;
 
 /// Capacity of the local bus the relay publishes the daemon's events on, the
 /// same order as the runtime's own bus.
@@ -38,7 +40,9 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// `get_companion_context` needs none: it answers from a table of help texts
 /// compiled into this binary. `get_resolved_setting` and `set_setting` need
 /// none: they read and write the `apollia.toml` of the data directory, never
-/// the runtime, and neither does `get_models_dir`, which reads the same file.
+/// the runtime (`set_setting` then shows its write to the runtime, in either
+/// mode, for the journal), and neither does `get_models_dir`, which reads the
+/// same file.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
     "create_chat_session",
@@ -56,30 +60,38 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "generate_chat_session_name",
     "rename_chat_session",
     "update_chat_session",
+    // The trash of the conversations: send one there, list it, restore one.
+    "list_trashed_chat_sessions",
+    "restore_chat_session",
+    "trash_chat_session",
+    // The folders of the conversation list, and the search in the messages.
+    "create_chat_folder",
+    "delete_chat_folder",
+    "list_chat_folders",
+    "move_chat_session_to_folder",
+    "rename_chat_folder",
+    "search_chat_messages",
     // The agents and the models the selector of a conversation offers.
     "list_chat_targets",
+    // The model calls behind the total of one answer.
+    "list_turn_llm_calls",
     // The chat: a turn played again, a decision on a tool call, and the
     // skills of the worker agents.
     "authorize_chat_tool",
     "edit_and_resend_chat_message",
     "list_a2a_skills",
     "regenerate_chat_response",
-    // Agents: the registry, the install and the uninstall of an agent.
+    // Agents: the registry and the uninstall of an agent.
     "agent_status_snapshot",
-    "install_agent",
     "list_agents",
     "uninstall_agent",
     // Agents: the update, restart included, over
     // `PUT /api/v1/agents/installed/{name}`.
     "update_agent",
-    // Tasks: the list, the launch, the detail, the cancellation.
-    "cancel_task",
+    // Tasks: the list and the detail.
     "get_task_timeline",
     "list_tasks",
-    "submit_task",
-    // Tasks: the deletion of a stored record and the delegation tree, over
-    // `/api/v1/tasks/{id}/record` and `/api/v1/tasks/{id}/delegation-tree`.
-    "delete_task",
+    // Tasks: the delegation tree, over `/api/v1/tasks/{id}/delegation-tree`.
     "get_delegation_tree",
     // Approvals: the task pauses waiting for a decision.
     "list_pending_approvals",
@@ -100,6 +112,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_default_llm_backend",
     "unload_loaded_model",
     "update_llm_backend",
+    // A server declared from the interface: test, save, and the default model.
+    "save_llm_server",
+    "set_default_model",
+    "test_llm_server",
     // MCP servers and the curated catalogue.
     "add_mcp_server",
     "fetch_mcp_curated",
@@ -135,6 +151,31 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
+    // Workflows: the list, one workflow, its runs, a launch and a stop, over
+    // `/api/v1/workflows` and `/api/v1/workflow-runs`.
+    "cancel_workflow_run",
+    "get_workflow",
+    "get_workflow_run",
+    "launch_workflow",
+    "list_workflow_runs",
+    "list_workflows",
+    // The launch of a batch: the sources of the registry, the preview of a
+    // workbook, the sensitive accesses of the agent and the launch, over
+    // `/api/v1/sources` and `/api/v1/batches`.
+    "launch_batch",
+    "list_batch_accesses",
+    "list_batch_sources",
+    // The view of a batch and the history of the batches: one batch with its
+    // items, the list, pause, resume, stop and retry, the export, and the
+    // decision an item waits on, over `/api/v1/batches` and
+    // `/api/v1/pending-decisions`.
+    "batch_item_decision",
+    "control_batch",
+    "decide_batch_item",
+    "export_batch",
+    "get_batch",
+    "list_batches",
+    "preview_batch_source",
     // Notifications.
     "create_notification_channel",
     "delete_notification_channel",
@@ -169,6 +210,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_agent_definition",
     "get_agent_model_fallback",
     "list_agent_changes",
+    "get_journal_entry",
+    "list_journal_entries",
     // The adjustment of an agent on its sheet: its overrides, the return to
     // defaults, its model and the presets to choose from.
     "clear_agent_model",
@@ -177,6 +220,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "reset_agent_overrides",
     "set_agent_model",
     "set_agent_override",
+    // The creation of an agent without code: the validated sheet, sent to
+    // the runtime that stores it.
+    "create_agent_definition",
     // The export of an agent from its sheet: the runtime builds and signs the
     // archive, this process writes the file the user chose.
     "export_agent",
@@ -185,6 +231,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "install_package_file",
     "preview_package_file",
     "trust_package_publisher",
+    // The example packages the Agents screen proposes.
+    "install_example_package",
+    "list_example_packages",
+    "preview_example_package",
     // The user profiles and their facts, over `/api/v1/profiles`.
     "create_profile",
     "delete_profile",
@@ -211,6 +261,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
+    // Models: the embeddings model recommended for this machine, and the one
+    // search by meaning uses, over `/api/v1/llm/embeddings`.
+    "get_embeddings_recommendation",
+    "set_default_embeddings_model",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
     // Named settings of `apollia.toml`, read with their source and written
@@ -267,16 +321,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "factory_reset",
     "mark_onboarded",
     "reset_onboarding",
-    // Permissions: the rules the onboarding agent proposed and a rule written
-    // from an approval card.
+    // Permissions: a rule written from an approval card.
     "add_permission_prefix_rule",
-    "apply_proposed_permission_rule",
-    "dismiss_proposed_permission_rule",
-    "list_proposed_permission_rules",
-    // Tool governance: the tools, their configuration, the permission rules
-    // and the audit, over `/api/v1/governance`.
+    // Tool governance: the tools, their configuration and the permission
+    // rules, over `/api/v1/governance`.
     "governance_get_tool_config",
-    "governance_list_audit",
     "governance_list_permission_rules",
     "governance_list_tools",
     "governance_revoke_all_rules",
@@ -316,9 +365,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // folders, and copies and registers the models it will load.
     "get_ai_setup_info",
     "scan_for_gguf_models",
-    "scan_for_whisper_models",
     "setup_local_llm",
-    "setup_whisper_model",
     // MCP: the secret of a server, and the public registry joined with the
     // servers installed.
     "delete_mcp_secret",
@@ -365,12 +412,18 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // that runs its tools: the observability policy over
     // `/api/v1/config/observability`, the Python interpreter over
     // `/api/v1/config/python-interpreter`, the security posture over
-    // `/api/v1/security-posture`, and the engines of the machine with their
-    // versions over `/api/v1/engines`.
+    // `/api/v1/security-posture`, the engines of the machine with their
+    // versions over `/api/v1/engines`, the channel they follow over
+    // `/api/v1/engines/settings`, their update check over
+    // `/api/v1/engines/check`, and the resources the machine is using over
+    // `/api/v1/llm/hardware/usage`.
+    "check_engine_updates",
     "get_observability_config",
     "get_python_interpreter",
+    "get_resource_usage",
     "get_security_posture",
     "list_engines",
+    "set_engine_channel",
     "set_observability_config",
     "set_python_interpreter",
     // The editor of `apollia.toml`, over `/api/v1/config`: the file with its
@@ -401,6 +454,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "restart_apollia",
         "stops the daemon through its own route, then relaunches this window, which starts the service again and attaches",
+    ),
+    (
+        "open_hardware_window",
+        "opens or brings forward a window of this application; what it shows is read by routed commands",
     ),
     (
         "quit_app",
@@ -437,6 +494,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "link_preview",
         "fetches the card of a link the window shows",
+    ),
+    (
+        "take_opened_package_files",
+        "hands over the package files the system opened in this window",
     ),
     (
         "get_api_port",
@@ -547,53 +608,6 @@ pub(crate) enum LinkMode {
     Attached,
 }
 
-/// Why an attached command did not complete.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub(crate) enum AttachedError {
-    /// The command reads state that only exists when the runtime runs in this
-    /// process, and no HTTP route serves it yet.
-    #[error("{command} is unavailable while Apollia runs as a service")]
-    NotRouted {
-        /// The command refused.
-        command: String,
-    },
-    /// The HTTP stack could not be initialised.
-    #[error("the HTTP client cannot be initialised")]
-    Client(#[source] reqwest::Error),
-    /// The runtime did not answer: stopped, restarting, or past the deadline.
-    #[error("the Apollia service does not answer")]
-    Unreachable(#[source] reqwest::Error),
-    /// The runtime answered with an error status.
-    #[error("the Apollia service refused the request ({status}): {message}")]
-    Refused {
-        /// The HTTP status.
-        status: u16,
-        /// The runtime's own message, empty when its body held none.
-        message: String,
-    },
-    /// The runtime answered a body this application cannot read.
-    #[error("the Apollia service answered an unreadable body")]
-    Body(#[source] apollia_core::net::ReadCappedError),
-}
-
-impl AttachedError {
-    /// The text the interface shows, in its language.
-    pub(crate) fn for_display(&self, locale: crate::i18n::UiLocale) -> String {
-        match self {
-            Self::NotRouted { command } => crate::i18n::attached_unavailable(locale, command),
-            Self::Refused { message, .. } if !message.is_empty() => message.clone(),
-            other => other.to_string(),
-        }
-    }
-}
-
-impl From<AttachedError> for String {
-    fn from(error: AttachedError) -> Self {
-        error.for_display(crate::i18n::locale())
-    }
-}
-
 /// Whether `command` may run in `mode`.
 ///
 /// # Errors
@@ -697,7 +711,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
     let setup_bus = bus.clone();
     let dictation: crate::commands::stt::SttFlowState =
         std::sync::Arc::new(std::sync::Mutex::new(None));
-    let app = tauri::Builder::default()
+    let app = crate::package_open::attach(tauri::Builder::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -719,6 +733,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
         .setup(move |app| {
             crate::i18n::attach_listener(app);
             crate::tray::setup_tray(app)?;
+            crate::package_open::launch(app.handle());
             #[cfg(target_os = "macos")]
             crate::tray::setup_app_menu(app)?;
 
@@ -757,7 +772,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
 
     match app {
         Ok(app) => {
-            let _ = app.run_return(|_, _| {});
+            let _ = app.run_return(|app, event| crate::package_open::on_run_event(app, &event));
             std::process::exit(0)
         }
         Err(error) => {

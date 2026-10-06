@@ -1,14 +1,15 @@
 <script lang="ts">
   /**
-   * AgentListRow - one assistant in the sidebar listbox.
+   * AgentListRow - one agent in the Agents column of the screen.
    *
    * Rendered as an accessible `role="option"` with a single roving-tabindex
-   * main button (the primary control); right-click / the context-menu key
-   * opens the row's actions. There is no start nor stop: an agent is loaded by
-   * its first task and released once idle.
+   * main button (the primary control), which opens the sheet; right-click /
+   * the context-menu key opens the row's actions, and "Chat" starts a
+   * conversation with the agent. There is no start nor stop: an agent is
+   * loaded by its first task and released once idle.
    */
   import { t } from "svelte-i18n";
-  import { Sparkles, ScrollText, Settings, Trash2 } from "lucide-svelte";
+  import { MessageSquare, Sparkles, ScrollText, Settings, Trash2 } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { StatusDot } from "$lib/components/operator";
   import type { ActionMenuItem } from "$lib/components/ui/action-menu";
@@ -23,6 +24,8 @@
     onOpenLogs: (agentId: string) => void;
     onOpenSettings: (agent: AgentListItem) => void;
     onRequestUninstall: (agent: AgentListItem) => void;
+    /** Starts a conversation with the agent. */
+    onStartChat: (name: string) => void;
   }
 
   let {
@@ -32,6 +35,7 @@
     onOpenLogs,
     onOpenSettings,
     onRequestUninstall,
+    onStartChat,
   }: Props = $props();
 
   const available = $derived(availability(agent) !== "unavailable");
@@ -114,4 +118,16 @@
       </span>
     </Button>
   </AgentRowContextMenu>
+  {#if available}
+    <Button
+      variant="outline"
+      size="sm"
+      class="shrink-0"
+      onclick={() => onStartChat(agent.name)}
+      data-testid="agent-row-chat"
+    >
+      {#snippet icon()}<MessageSquare size={11} />{/snippet}
+      {$t("agents.row_chat")}
+    </Button>
+  {/if}
 </div>

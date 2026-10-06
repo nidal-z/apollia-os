@@ -18,7 +18,7 @@ class ConversationStatsView:
         cross_sessions_referenced (int): Number of past sessions referenced via cross-session recall.
         message_count (int): Total number of messages in the session.
         summarized_count (int): Number of messages that have been summarized.
-        user_memory_injected (bool): Whether the user profile was injected into the system prompt.
+        user_memory_injected (bool): Whether the assistant's prompt carries the profile of the conversation.
     """
 
     context_usage_pct: float

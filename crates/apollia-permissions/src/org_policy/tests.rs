@@ -667,3 +667,114 @@ fn test_a_guardrail_level_the_guardrail_does_not_know_is_invalid_schema() {
     // THEN it is refused for its schema
     assert_eq!(reason_of(&verdict), Some(PolicyInvalidReason::Schema));
 }
+
+// ---- The compatible server: three settings a policy closes ----
+
+/// What fixing `key` at `closing` does to a user file that says the opposite:
+/// the value resolved under the signed policy, and the answer to a write.
+fn fix_server_setting(
+    key: &str,
+    closing: bool,
+) -> (
+    apollia_core::config::ResolvedSetting,
+    Result<apollia_core::config::ResolvedSetting, apollia_core::config::SettingError>,
+    String,
+) {
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(
+        root.path(),
+        &format!("{MINIMAL_POLICY}[settings]\n\"{key}\" = {closing}\n"),
+    );
+    let field = key.strip_prefix("server.").unwrap();
+    let config = root.path().join("apollia.toml");
+    std::fs::write(&config, format!("[server]\n{field} = {}\n", !closing)).unwrap();
+
+    let imposed = load(&dir).imposed_settings();
+    let resolved = apollia_core::config::resolve_setting(&config, key, &imposed).unwrap();
+    let written =
+        apollia_core::config::write_setting(&config, key, serde_json::json!(!closing), &imposed);
+    (resolved, written, std::fs::read_to_string(&config).unwrap())
+}
+
+#[test]
+fn test_a_policy_closes_the_server_to_the_local_network() {
+    // GIVEN a signed policy fixing `server.serve_on_lan` off, and a user file
+    //   that opened the server to the local network
+    // WHEN the setting is resolved under the policy, then written
+    let (resolved, written, file) = fix_server_setting("server.serve_on_lan", false);
+
+    // THEN it is off with the source policy, the write is refused, and the
+    //   file is left as it was
+    assert_eq!(resolved.value, serde_json::json!(false));
+    assert_eq!(resolved.source, apollia_core::config::SettingSource::Policy);
+    assert!(
+        matches!(&written, Err(apollia_core::config::SettingError::LockedByPolicy { key }) if key == "server.serve_on_lan"),
+        "{written:?}"
+    );
+    assert_eq!(file, "[server]\nserve_on_lan = true\n");
+}
+
+#[test]
+fn test_a_policy_requires_the_token_of_the_server() {
+    // GIVEN a signed policy fixing `server.require_auth` on, and a user file
+    //   that turned the token check off
+    // WHEN the setting is resolved under the policy, then written
+    let (resolved, written, file) = fix_server_setting("server.require_auth", true);
+
+    // THEN it is on with the source policy, the write is refused, and the
+    //   file is left as it was
+    assert_eq!(resolved.value, serde_json::json!(true));
+    assert_eq!(resolved.source, apollia_core::config::SettingSource::Policy);
+    assert!(
+        matches!(&written, Err(apollia_core::config::SettingError::LockedByPolicy { key }) if key == "server.require_auth"),
+        "{written:?}"
+    );
+    assert_eq!(file, "[server]\nrequire_auth = false\n");
+}
+
+#[test]
+fn test_a_policy_refuses_the_mcp_servers_a_request_brings() {
+    // GIVEN a signed policy fixing `server.allow_request_mcp` off, and a user
+    //   file that allowed them
+    // WHEN the setting is resolved under the policy, then written
+    let (resolved, written, file) = fix_server_setting("server.allow_request_mcp", false);
+
+    // THEN it is off with the source policy, the write is refused, and the
+    //   file is left as it was
+    assert_eq!(resolved.value, serde_json::json!(false));
+    assert_eq!(resolved.source, apollia_core::config::SettingSource::Policy);
+    assert!(
+        matches!(&written, Err(apollia_core::config::SettingError::LockedByPolicy { key }) if key == "server.allow_request_mcp"),
+        "{written:?}"
+    );
+    assert_eq!(file, "[server]\nallow_request_mcp = true\n");
+}
+
+#[test]
+fn test_a_policy_that_would_open_the_server_is_invalid_schema() {
+    // GIVEN three signed policies, each fixing a server setting at the value
+    //   that opens
+    let opening = [
+        ("server.serve_on_lan", true),
+        ("server.require_auth", false),
+        ("server.allow_request_mcp", true),
+    ];
+    for (key, value) in opening {
+        let root = tempfile::tempdir().unwrap();
+        let dir = write_policy_dir(
+            root.path(),
+            &format!("{MINIMAL_POLICY}[settings]\n\"{key}\" = {value}\n"),
+        );
+
+        // WHEN it is read
+        let verdict = load(&dir);
+
+        // THEN it is refused for its schema, and it fixes nothing
+        assert_eq!(
+            reason_of(&verdict),
+            Some(PolicyInvalidReason::Schema),
+            "{key}"
+        );
+        assert!(!verdict.imposed_settings().locks(key), "{key}");
+    }
+}

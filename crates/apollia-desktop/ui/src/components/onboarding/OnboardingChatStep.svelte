@@ -1,25 +1,31 @@
 <script lang="ts">
   import { decideSkip } from "./skipDecision";
+  import { isInFlight } from "./llmDownload";
+  import { llmDownload } from "./llmDownloadLive";
   /**
-   * Onboarding step 4 - Agent chat.
+   * First-launch step 4 - Agent chat, then the profile read over.
    *
-   * Final step of the onboarding flow. Spawns an `onboarding-agent` chat
-   * session and renders the conversation in the modal. The agent collects
-   * the fields of the default profile (name, role, function, tools,
-   * preferences, free text), all optional. It writes `onboarding.completed_at` at
-   * closure, which the supervisor turns into the `OnboardingCompleted` runtime
-   * event (handled by the parent modal). The user can end early via the
-   * explicit "finish" button, which nudges the agent to close.
+   * Spawns an `onboarding-agent` chat session and renders the conversation in
+   * the modal. The agent asks a few questions, every one of them optional, and
+   * writes nothing: at the end it proposes a profile, which stays in the
+   * conversation as the output of its `propose_profile` call. When the
+   * conversation is over (`onboarding.completed_at`, stamped by the agent or
+   * by the skip button), this step reads that proposal and:
+   *
+   *   - on first launch, shows it in {@link OnboardingProfileReview}, where
+   *     "Save" writes the default profile and "Skip without saving" writes
+   *     nothing;
+   *   - when Settings > Profile asked for a profile to be completed, hands it
+   *     back to that page, which shows it in its own form for the same review.
    *
    * Safety net: if no LLM backend is registered when this step mounts
    * (e.g. the user skipped AI Setup), we surface the situation explicitly
    * instead of letting the first message silently fail.
    */
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
   import ChatConversation from "../chat/ChatConversation.svelte";
-  import OnboardingPermissionStep from "./OnboardingPermissionStep.svelte";
-  import OnboardingConfetti from "./OnboardingConfetti.svelte";
+  import OnboardingProfileReview from "./OnboardingProfileReview.svelte";
   import {
     checkOnboardingFinalized,
     finalizeOnboardingChat,
@@ -30,26 +36,32 @@
   } from "$lib/ipc/onboarding";
   import { get } from "svelte/store";
   import { deriveLlmState } from "$lib/onboarding/llmState";
+  import {
+    extractProposal,
+    knownFieldsLine,
+    type EnrichmentRequest,
+    type ProfileProposal,
+  } from "$lib/onboarding/profileProposal";
   import { isChatComplete, runDirectSkip } from "$lib/onboarding/skipFlow";
   import {
     llmBackends,
     llmBackendsHydrated,
     refreshLlmBackends,
   } from "$lib/stores/sse";
-  import { onboardingResumeMode } from "$lib/stores/onboarding";
+  import { pendingProfileProposal, profileEnrichment } from "$lib/stores/onboarding";
   import { Button } from "$lib/components/ui/button";
-  import { AlertCircle, Check, CheckCircle2, Loader2 } from "lucide-svelte";
+  import { AlertCircle, Check, Loader2 } from "lucide-svelte";
+  import { fieldLabel } from "../settings/profile/profileForm";
 
   interface Props {
     onback: () => void;
-    /** Called when the user clicks "Terminer" or auto-close fires. */
+    /** Called once the profile was saved or skipped. */
     onclose: () => void;
     /**
-     * Incremented by the orchestrator's footer to request an early wrap-up:
-     * skip the remaining OPTIONAL questions and route forward to the
-     * permissions phase. It must never abandon onboarding (that would skip
-     * permissions). Each increment finalizes the chat directly through the
-     * backend, with no model turn (conversational nudge as fallback only).
+     * Incremented by the orchestrator's footer to skip the questions: each
+     * increment ends the conversation directly through the backend, with no
+     * model turn (conversational nudge as fallback only), and opens the
+     * review on whatever was proposed so far.
      */
     skipSignal?: number;
     /**
@@ -67,39 +79,38 @@
   let bootstrapError = $state<string | null>(null);
   let userTurns = $state(0);
   let agentFinalized = $state(false);
+  let proposal = $state<ProfileProposal | null>(null);
+  // The profile Settings > Profile asked to complete; `null` on first launch.
+  let enrichment = $state<EnrichmentRequest | null>(null);
+  // Set by "Back" on the review: the conversation is shown again until the
+  // person asks for the proposal once more.
+  let reviewClosed = $state(false);
+  // Set once the proposal was read after the end of the conversation, so the
+  // form never opens on a proposal that is still on its way.
+  let proposalRead = $state(false);
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let bootstrapStarted = false;
 
-  // Visual progress bar. The flow now has two phases: a mandatory 3-question
-  // calibration, then an optional profile enrichment (~a handful of turns).
-  // It's a UI hint, NOT a completion criterion.
-  const TOTAL_TURNS = 8;
+  // Visual progress bar: the agent asks at most four questions. It's a UI
+  // hint, NOT a completion criterion.
+  const TOTAL_TURNS = 5;
   // The first user message is the auto-kick greeting injected by this
   // component to prime the agent. We don't count it when judging whether
   // the user has actually engaged.
   const KICK_MESSAGES = 1;
   // Minimum *real* user replies (excluding the kick) required before we
-  // trust the agent's `completed_at` signal - guards against stale memory
-  // state from a previous broken session triggering the wrap-up panel
-  // before the conversation has even started.
-  const MIN_REAL_REPLIES = 2;
-  // Number of real replies after which calibration (name/role/hitl/
-  // sovereignty) is complete and the conversation has moved into the
-  // optional Tier 2 enrichment phase.
-  const CALIBRATION_REPLIES = 3;
-  // Safety net: how many real replies the user types before we let the
-  // wrap-up panel appear *without* the agent's authoritative
-  // `onboarding.completed_at` signal. Deliberately generous now that the
-  // conversation runs through the optional enrichment: the real exits are
-  // the agent's closing call and the explicit "finish" button, so this
-  // backstop should almost never fire before either.
+  // trust the agent's `completed_at` signal: a proposal cannot come before
+  // the person said anything.
+  const MIN_REAL_REPLIES = 1;
+  // Safety net: how many real replies the user types before the review opens
+  // *without* the `onboarding.completed_at` signal. Deliberately generous:
+  // the real exits are the agent's proposal and the two explicit buttons.
   const SAFETY_REPLIES = 12;
 
   const turnIndex = $derived(Math.min(userTurns, TOTAL_TURNS));
   const realReplies = $derived(Math.max(0, userTurns - KICK_MESSAGES));
-  // Set when the operator explicitly skipped the optional questions: an
-  // explicit user action, so it bypasses the MIN_REAL_REPLIES stale-memory
-  // guard (which only exists to distrust a leftover `completed_at`).
+  // Set when the person explicitly skipped the questions: an explicit action,
+  // so it bypasses the MIN_REAL_REPLIES guard.
   let skippedDirectly = $state(false);
   const completed = $derived(
     isChatComplete(
@@ -111,51 +122,33 @@
   // Tri-state: "checking" until the backend list has been hydrated once, so
   // an engine still registering (store-hydration race after AI setup) shows a
   // neutral starting status instead of a destructive "no engine" card.
-  const llmState = $derived(deriveLlmState($llmBackendsHydrated, $llmBackends.length));
+  // A fourth state while the model chosen at the AI step is still arriving:
+  // the conversation starts by itself the moment it is wired.
+  const llmState = $derived(
+    deriveLlmState($llmBackendsHydrated, $llmBackends.length, isInFlight($llmDownload)),
+  );
   const llmReady = $derived(llmState === "ready");
 
-  // Phase caption + explicit early-finish. Calibration first, then optional
-  // enrichment. The user can end at any time once calibration is under way;
-  // the agent will still refuse to close before name + role are collected.
-  const enrichmentPhase = $derived(realReplies >= CALIBRATION_REPLIES);
   let finishing = $state(false);
   const canFinishEarly = $derived(
-    sessionId !== null && !completed && !bootstrapping && realReplies >= MIN_REAL_REPLIES,
+    sessionId !== null && !bootstrapping && realReplies >= MIN_REAL_REPLIES && !agentFinalized,
   );
 
   async function finishEarly(): Promise<void> {
     if (!sessionId || finishing) return;
     finishing = true;
     try {
-      // Nudge the agent to wrap up. It closes through its tool once the
-      // mandatory keys are present, which writes `onboarding.completed_at`.
+      // Nudge the agent to propose now, from what was already said.
       await sendChatMessage(sessionId, $t("onboarding_chat.finish_early_message"));
     } catch {
-      // Non-fatal: the agent may still close on a later turn.
+      // Non-fatal: the agent may still propose on a later turn.
     } finally {
       finishing = false;
     }
   }
 
-  // Permissions step: between agent finalisation and the wrap-up, the agent
-  // may have persisted a list of permission rule proposals under
-  // `onboarding.proposed_rules`. The OnboardingPermissionStep component
-  // surfaces them as inline approval cards. This flag is true while there
-  // is at least one proposal still pending.
-  let permissionsPending = $state(false);
-
-  // Show the wrap-up panel either because the agent wrote
-  // `onboarding.completed_at` to memory (authoritative signal AFTER the
-  // user has actually answered) or because the conversation ran the full
-  // 4 turns without a finalize tag (safety net - never leave the user
-  // stranded in chat).
-  // Wrap-up is suppressed while permission cards are still pending so the
-  // user is forced to triage them before clicking "Terminer".
-  const showPermissions = $derived(
-    completed && sessionId !== null && permissionsPending,
-  );
-  const showWrapUp = $derived(
-    completed && sessionId !== null && !showPermissions,
+  const showReview = $derived(
+    completed && sessionId !== null && proposalRead && !reviewClosed,
   );
 
   $effect(() => {
@@ -165,30 +158,35 @@
     }
   });
 
-  // The moment the flow completes, enter the permissions sub-step. Keyed on
-  // `completed` (not just `agentFinalized`) so the permissions phase ALWAYS
-  // runs before the wrap-up, including the safety-net completion path. The
-  // OnboardingPermissionStep component loads the proposals list and calls
-  // oncomplete() immediately if it's empty (no cards to show), which unblocks
-  // the wrap-up. This is what guarantees permissions are never skipped.
-  let permissionsEntered = false;
+  // The moment the conversation is over, read the proposal it holds. A
+  // conversation asked for by Settings > Profile hands it back to that page
+  // and closes; nothing is written here either way.
+  let handedOver = false;
   $effect(() => {
-    if (completed && !permissionsEntered) {
-      permissionsEntered = true;
-      permissionsPending = true;
-    }
+    if (!completed || !sessionId || handedOver) return;
+    handedOver = true;
+    void readProposal().then(() => {
+      proposalRead = true;
+      if (!enrichment) return;
+      pendingProfileProposal.set({ profileId: enrichment.profileId, proposal: proposal ?? {} });
+      onclose();
+    });
   });
 
-  // Forward wrap-up requested from the orchestrator footer ("skip the optional
-  // questions"). Finalize directly through the backend command: no model turn,
-  // the completion key is stamped and the flow routes into the permissions
-  // phase immediately. Never dismisses onboarding. On failure, fall back to
-  // the conversational nudge so the user is never stranded.
+  // "Skip the questions", requested from the orchestrator footer. Finalize
+  // directly through the backend command: no model turn, the completion key
+  // is stamped and the review opens immediately. On failure, fall back to the
+  // conversational nudge so the user is never stranded.
   let lastSkipSignal = 0;
   $effect(() => {
     const signal = skipSignal;
     if (signal > lastSkipSignal) {
       lastSkipSignal = signal;
+      if (reviewClosed) {
+        // Back on the conversation after a first look: show the review again.
+        void reopenReview();
+        return;
+      }
       switch (decideSkip({ sessionId, completed })) {
         case "finalize":
           void skipDirectly();
@@ -207,34 +205,45 @@
     if (path === "finalized") {
       agentFinalized = true;
       skippedDirectly = true;
-      if (pollTimer !== undefined) {
-        clearInterval(pollTimer);
-        pollTimer = undefined;
-      }
+      stopPolling();
     }
   }
 
-  async function pollSession(): Promise<void> {
+  /** Show the review again, on the latest proposal of the conversation. */
+  async function reopenReview(): Promise<void> {
+    await readProposal();
+    reviewClosed = false;
+  }
+
+  function stopPolling(): void {
+    if (pollTimer !== undefined) {
+      clearInterval(pollTimer);
+      pollTimer = undefined;
+    }
+  }
+
+  /** Read the latest proposal the conversation holds, if any. */
+  async function readProposal(): Promise<void> {
     if (!sessionId) return;
     try {
       const detail = await getChatSession(sessionId);
       userTurns = detail.messages.filter((m) => m.role === "user").length;
+      proposal = extractProposal(detail.messages) ?? proposal;
     } catch {
-      // Non-critical - retry on next tick.
+      // Non-critical: the review opens on what was read so far.
     }
+  }
 
-    // Authoritative completion signal: the agent has written
-    // `onboarding.completed_at` to its semantic memory. Once true, we stop
-    // polling and switch to the wrap-up panel.
+  async function pollSession(): Promise<void> {
+    await readProposal();
+
+    // The conversation is over once `onboarding.completed_at` is in the
+    // agent's memory, which its proposal writes last.
     if (!agentFinalized) {
       try {
-        const done = await checkOnboardingFinalized();
-        if (done) {
+        if (await checkOnboardingFinalized()) {
           agentFinalized = true;
-          if (pollTimer !== undefined) {
-            clearInterval(pollTimer);
-            pollTimer = undefined;
-          }
+          stopPolling();
         }
       } catch {
         // Non-critical - try again next tick.
@@ -242,21 +251,25 @@
     }
   }
 
-  async function handleFinish(): Promise<void> {
-    // The modal hands back to a fully usable application: nothing launches on
-    // its own after this point.
-    onclose();
+  /** The first message: a greeting, plus what the profile to complete already holds. */
+  function kickMessage(request: EnrichmentRequest | null): string {
+    const known = request
+      ? knownFieldsLine(request.fields, (field) => fieldLabel(field, $locale))
+      : "";
+    return known
+      ? $t("onboarding_chat.kick_message_resume", { values: { known } })
+      : $t("onboarding_chat.kick_message");
   }
 
   async function startChat(): Promise<void> {
     bootstrapping = true;
     bootstrapError = null;
     try {
-      // Resume mode (from the "complete your profile" entry point) keeps the
-      // already-collected profile; a normal launch resets for a fresh run.
-      const resume = get(onboardingResumeMode);
-      const result = resume ? await resumeOnboarding() : await triggerOnboarding();
-      onboardingResumeMode.set(false);
+      // A request from Settings > Profile completes an existing profile; a
+      // normal launch is a fresh run. Neither touches a profile.
+      enrichment = get(profileEnrichment);
+      const result = enrichment ? await resumeOnboarding() : await triggerOnboarding();
+      profileEnrichment.set(null);
       sessionId = result.session_id;
       bootstrapping = false;
 
@@ -267,10 +280,10 @@
       // Translated, and not for cosmetics: this is the first message of the
       // conversation, so it is what the model reads to decide which language
       // to answer in. Hardcoded in French, it made the agent greet an English
-      // user in French and keep going in French for the whole calibration,
+      // user in French and keep going in French for the whole conversation,
       // whatever language they had just picked two screens earlier.
       try {
-        await sendChatMessage(result.session_id, $t("onboarding_chat.kick_message"));
+        await sendChatMessage(result.session_id, kickMessage(enrichment));
       } catch {
         /* ignore */
       }
@@ -292,9 +305,7 @@
     // this store (component-local success flag only); refresh eagerly instead
     // of waiting for the 10 s watchdog.
     void refreshLlmBackends();
-    return () => {
-      if (pollTimer !== undefined) clearInterval(pollTimer);
-    };
+    return stopPolling;
   });
 </script>
 
@@ -303,7 +314,7 @@
     {#each Array(TOTAL_TURNS) as _, i}
       <span
         class="chat-progress-pip"
-        class:active={i < turnIndex}
+        class:active={i < turnIndex || completed}
         aria-current={i === turnIndex && !completed ? "step" : undefined}
       ></span>
     {/each}
@@ -311,53 +322,16 @@
       <Check size={12} aria-hidden="true" />
     </span>
   </div>
-  {#if sessionId && !completed}
-    <p class="chat-phase" data-testid="onboarding-chat-phase">
-      {enrichmentPhase
-        ? $t("onboarding_chat.phase_enrichment")
-        : $t("onboarding_chat.phase_calibration")}
-    </p>
-  {/if}
 
-  {#if showPermissions}
-    <!-- Permission cards take over the modal once the agent finalises. We
-         intentionally hide the chat body to avoid any visual overlap with
-         the cards or the (translucent) wrap-up panel below. -->
+  {#if showReview && !enrichment}
+    <!-- The proposal replaces the conversation: the person reads it over in
+         the profile form, and nothing is written before "Save". -->
     <div class="chat-body chat-body-stage">
-      <OnboardingPermissionStep
-        oncomplete={() => (permissionsPending = false)}
+      <OnboardingProfileReview
+        {proposal}
+        ondone={onclose}
+        onback={() => (reviewClosed = true)}
       />
-    </div>
-  {:else if showWrapUp}
-    <!-- Final celebration screen. Replaces the chat entirely so the user
-         sees a clean confirmation without the previous Q&A bleeding through. -->
-    <div class="chat-body chat-body-stage">
-      <div class="celebration" data-testid="onboarding-celebration">
-        {#if agentFinalized}
-          <OnboardingConfetti />
-        {/if}
-        <div class="celebration-icon">
-          <CheckCircle2 size={32} strokeWidth={2} aria-hidden="true" />
-        </div>
-        <h3 class="celebration-title">
-          {agentFinalized
-            ? $t("onboarding_chat.wrapup_title_finalized")
-            : $t("onboarding_chat.wrapup_title_safety")}
-        </h3>
-        <p class="celebration-detail">
-          {agentFinalized
-            ? $t("onboarding_chat.wrapup_detail_finalized")
-            : $t("onboarding_chat.wrapup_detail_safety")}
-        </p>
-        <Button
-          variant="primary-gradient"
-          size="lg"
-          onclick={handleFinish}
-          data-testid="onboarding-finish"
-        >
-          {$t("onboarding_chat.finish")}
-        </Button>
-      </div>
     </div>
   {:else}
     <div class="chat-body">
@@ -366,6 +340,12 @@
           <Loader2 size={20} class="animate-spin" aria-hidden="true" />
           <p class="chat-status-title">{$t("onboarding_chat.llm_starting_title")}</p>
           <p class="chat-status-detail">{$t("onboarding_chat.llm_starting_detail")}</p>
+        </div>
+      {:else if llmState === "downloading"}
+        <div class="chat-status" data-testid="onboarding-chat-llm-downloading">
+          <Loader2 size={20} class="animate-spin" aria-hidden="true" />
+          <p class="chat-status-title">{$t("onboarding_chat.llm_downloading_title")}</p>
+          <p class="chat-status-detail">{$t("onboarding_chat.llm_downloading_detail")}</p>
         </div>
       {:else if llmState === "none"}
         <div class="chat-status" data-testid="onboarding-chat-no-llm">
@@ -391,7 +371,7 @@
         </div>
       {:else if sessionId}
         <p class="chat-banner" data-testid="onboarding-chat-banner">
-          {$t("onboarding_chat.permission_banner")}
+          {$t("onboarding_chat.review_banner")}
         </p>
         <ChatConversation
           {sessionId}
@@ -399,13 +379,21 @@
           embedded={true}
           hideConfig={true}
         />
-        {#if canFinishEarly}
+        {#if reviewClosed}
           <div class="chat-finish-bar">
-            <span class="chat-finish-hint">
-              {enrichmentPhase
-                ? $t("onboarding_chat.finish_early_hint_enrichment")
-                : $t("onboarding_chat.finish_early_hint_calibration")}
-            </span>
+            <span class="chat-finish-hint">{$t("onboarding_chat.review_again_hint")}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onclick={reopenReview}
+              data-testid="onboarding-review-open"
+            >
+              {$t("onboarding_chat.review_again")}
+            </Button>
+          </div>
+        {:else if canFinishEarly}
+          <div class="chat-finish-bar">
+            <span class="chat-finish-hint">{$t("onboarding_chat.finish_early_hint")}</span>
             <Button
               variant="outline"
               size="sm"
@@ -484,77 +472,11 @@
     flex-direction: column;
   }
 
-  /* When the chat body hosts the permission cards or the celebration
-     screen instead of the conversation, centre the content vertically
-     and give it room to breathe - no chat history, no banner, no
-     overflow blending. */
+  /* When the chat body hosts the profile review instead of the
+     conversation: no chat history, no banner, the form owns the scroll. */
   .chat-body-stage {
     align-items: stretch;
-    justify-content: center;
-    overflow-y: auto;
     background: hsl(var(--card));
-  }
-
-  .celebration {
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: 2.5rem 1.75rem;
-    text-align: center;
-  }
-  .celebration-icon {
-    width: 3.5rem;
-    height: 3.5rem;
-    border-radius: 999px;
-    background: hsl(var(--success) / 0.15);
-    color: hsl(var(--success));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: celebration-pop var(--motion-slow) var(--ease-spring) both;
-  }
-  @keyframes celebration-pop {
-    from {
-      opacity: 0;
-      transform: scale(0.5);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .celebration-icon {
-      animation: none;
-    }
-  }
-  .celebration-title {
-    margin: 0;
-    font-size: var(--text-heading-md);
-    font-weight: 600;
-    color: hsl(var(--foreground));
-  }
-  .celebration-detail {
-    margin: 0;
-    max-width: 32rem;
-    font-size: var(--text-body-md);
-    line-height: 1.5;
-    color: hsl(var(--muted-foreground));
-  }
-
-  .chat-phase {
-    margin: 0;
-    padding: 0.3rem 1rem 0;
-    text-align: center;
-    font-size: var(--text-caption);
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: hsl(var(--muted-foreground));
   }
 
   .chat-banner {
@@ -618,7 +540,4 @@
   .chat-status-error .chat-status-detail {
     color: hsl(var(--muted-foreground));
   }
-
-  /* (Legacy `.chat-wrapup` styles removed - the celebration screen now
-     replaces the chat body entirely instead of stacking under it.) */
 </style>

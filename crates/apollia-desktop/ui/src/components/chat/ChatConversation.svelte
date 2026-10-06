@@ -15,7 +15,7 @@
     getPendingChatApprovalForSession,
     getPendingUserInputForSession, removePendingUserInput,
   } from "$lib/stores/chat";
-  import { developerMode } from "$lib/stores/developerMode";
+  import { chatDebugBlocks } from "$lib/stores/developerSettings";
   import { planModeDefault } from "$lib/stores/planModeSetting";
   import { setPlanMode } from "$lib/ipc/planMode";
   import type {
@@ -51,8 +51,9 @@
   import {
     type PendingAttachment,
     composeUserPayload,
+    documentPayloads,
     imagePayloads,
-    sentImagesMetadata,
+    sentAttachmentsMetadata,
   } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
@@ -66,6 +67,7 @@
   import { classifySessionError } from "$lib/stores/runtimeHealth";
   import { agents } from "$lib/stores/sse";
   import { triggerAutoName } from "$lib/chat/autoName";
+  import { noteSessionActivity } from "$lib/stores/chatSessions";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
@@ -246,7 +248,7 @@
 
   /** Reasoning skin for the live timeline (mirrors the finalized sequence). */
   const liveSkin = $derived<"builder" | "operator">(
-    $developerMode ? "builder" : "operator",
+    $chatDebugBlocks ? "builder" : "operator",
   );
 
   // The live chain is rendered in invocation order (no dedup): each tool call
@@ -530,6 +532,7 @@
     if (isFirstUserMessage) {
       triggerAutoName(sessionId, content);
     }
+    noteSessionActivity(sessionId);
 
     // Attachments v1: inline small payloads as fenced blocks, reference larger
     // files by absolute path. The backend sees a single user message - the
@@ -542,7 +545,7 @@
       id: `temp-${Date.now()}`, role: "user", content: payload,
       tool_calls: null, tool_name: null,
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
-      metadata: sentImagesMetadata(attachments),
+      metadata: sentAttachmentsMetadata(attachments),
     };
     pendingError = null;
     messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
@@ -550,7 +553,8 @@
     await tick(); scroll.toBottom(true);
 
     try {
-      await sendChatMessage(sessionId, payload, imagePayloads(attachments));
+      const documents = documentPayloads(attachments);
+      await sendChatMessage(sessionId, payload, imagePayloads(attachments), documents);
     } catch (err: unknown) {
       isProcessing = false;
       const errMsg: ChatMessageView = {
@@ -759,7 +763,6 @@
       <NextStepsPanel
         scopeKey={sessionEndScope}
         context="session_end"
-        mode={$developerMode ? "builder" : "operator"}
         facts={nextStepsFacts}
         title={$t("next_steps.session_title")}
       />
@@ -778,6 +781,8 @@
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
       imageSupport={images.value}
+      {sessionId}
+      agentName={sessionAgentName}
     />
   {/if}
 </div>

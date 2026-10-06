@@ -188,7 +188,8 @@ describe("To review - each item with its answers, on the card of the chat", () =
     expect(batchOut).toContain("Waiting for the access send_email");
     expect(batchOut).toContain('data-testid="operator-approval-always-send_email"');
     expect(pauseOut).toContain("From a paused task");
-    expect(pauseOut).toContain("Open the tasks");
+    expect(batchOut).toContain("Open the batch");
+    expect(pauseOut).toContain("Open the agent");
     expect(pauseOut).toContain("Confirm sending the quote?");
     expect(pauseOut).toContain('data-testid="operator-approval-accept-agent_action"');
     expect(pauseOut).not.toContain('data-testid="operator-approval-always-agent_action"');

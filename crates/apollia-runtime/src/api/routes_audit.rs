@@ -2,7 +2,9 @@
 //!
 //! - `GET /api/v1/audit?limit=N`, last N tool invocations (default 20)
 //! - `GET /api/v1/audit/stats`  , aggregate counts (total, unique tools, agents)
-//! - `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
+//! - `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal,
+//!   each entry with its summary, narrowed by agent, family, nature, result and period
+//! - `GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail
 //!
 //! Both routes return 503 when no `AuditTrailHandle` is configured in `AppState`
 //! (e.g. unit tests or a runtime started without a data directory).
@@ -17,7 +19,10 @@ use apollia_tools::ToolInvocationRecord;
 
 use crate::api::server::AppState;
 use crate::audit_journal::entry::{JournalEntry, JournalEntryKind};
-use crate::audit_journal::{JournalAnchor, VerifyChainReport, VerifyJournalReport};
+use crate::audit_journal::{
+    JournalAnchor, JournalCriteria, JournalEntryDetail, JournalFilter, JournalLine,
+    VerifyChainReport, VerifyJournalReport,
+};
 use crate::coordinator::ExecutionBackend;
 use crate::replay::{
     ReplayBundle, ReplayCaptureError, ReplayFailReason, ReplayHarness, ReplayReport,
@@ -57,9 +62,20 @@ pub struct JournalPageQuery {
     /// How many entries to skip, newest first. Defaults to 0.
     #[serde(default)]
     pub offset: u32,
-    /// Comma-separated agent names. When set, the page holds the runs of those
-    /// agents' tasks only.
+    /// Comma-separated agent names. When set, the page holds the entries that
+    /// name one of those agents and the runs of their tasks.
     pub agents: Option<String>,
+    /// Comma-separated action families (`read`, `write_or_delete`, ...).
+    pub family: Option<String>,
+    /// Comma-separated natures: `action`, `access_change`, `policy`, `system`.
+    pub nature: Option<String>,
+    /// Comma-separated results: `success`, `failure`, `refused`.
+    pub result: Option<String>,
+    /// Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339
+    /// instant.
+    pub since: Option<String>,
+    /// End of the period, excluded: a day or an RFC 3339 instant.
+    pub until: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -362,34 +378,53 @@ pub struct AuditJournalResponse {
     pub entries: Vec<JournalEntry>,
 }
 
+/// Response body for `GET /api/v1/audit/journal/:run_id/entries/:seq`.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct AuditJournalEntryDetailResponse {
+    /// The chained entry, with its `summary` and, when it is about a tool
+    /// call, a `tool_call` holding the full `arguments`, `output` and `status`.
+    #[schema(value_type = Object)]
+    pub entry: JournalEntryDetail,
+}
+
 /// Response body for `GET /api/v1/audit/journal`.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AuditJournalPageResponse {
-    /// Journal entries, newest global position first.
+    /// Journal entries, newest global position first. Each one is the chained
+    /// entry with a `summary` beside its fields: agent, nature, family, what
+    /// happened, tool, target, outcome and date, without content.
     #[schema(value_type = Vec<Object>)]
-    pub entries: Vec<JournalEntry>,
+    pub entries: Vec<JournalLine>,
     /// Number of entries in this page.
     pub count: usize,
 }
 
 /// `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
-/// across every run.
+/// across every run, each entry with its summary.
 ///
 /// This is the only read of the journal that does not need a run id up front:
 /// `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-/// and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
-/// the journal is not configured.
+/// and `GET /api/v1/audit` answers the separate tool-invocation trail. The
+/// filters are applied before paging, so `limit` and `offset` count matching
+/// entries. 400 on a filter value that cannot be read, 503 when the journal is
+/// not configured.
 #[utoipa::path(
     get,
     path = "/api/v1/audit/journal",
     tag = "audit",
     params(
         ("limit" = Option<u32>, Query, description = "Maximum number of entries to return (default 20, capped at 500)"),
-        ("offset" = Option<u32>, Query, description = "Number of entries to skip, newest first (default 0). Page through the journal by advancing it."),
-        ("agents" = Option<String>, Query, description = "Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included."),
+        ("offset" = Option<u32>, Query, description = "Number of matching entries to skip, newest first (default 0). Page through the journal by advancing it."),
+        ("agents" = Option<String>, Query, description = "Comma-separated agent names. When set, only the entries that name one of those agents, and the runs of their tasks, are paged."),
+        ("family" = Option<String>, Query, description = "Comma-separated action families: `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code`, `unclassified`, `exempt`."),
+        ("nature" = Option<String>, Query, description = "Comma-separated natures: `action`, `access_change`, `policy`, `system`."),
+        ("result" = Option<String>, Query, description = "Comma-separated results: `success`, `failure`, `refused`."),
+        ("since" = Option<String>, Query, description = "Start of the period, included: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant."),
+        ("until" = Option<String>, Query, description = "End of the period, excluded: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant."),
     ),
     responses(
-        (status = 200, description = "A page of hash-chained journal entries", body = AuditJournalPageResponse),
+        (status = 200, description = "A page of hash-chained journal entries, each with its summary", body = AuditJournalPageResponse),
+        (status = 400, description = "A filter value that cannot be read", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "Audit journal not configured, or `agents` given with no task repository to resolve them", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -410,18 +445,40 @@ pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
     // history, which `offset` walks past.
     let limit = params.limit.min(500) as usize;
     let offset = params.offset as usize;
-    let agents: Vec<String> = params
-        .agents
-        .as_deref()
-        .unwrap_or_default()
-        .split(',')
-        .map(str::trim)
-        .filter(|a| !a.is_empty())
-        .map(str::to_owned)
-        .collect();
-    let entries = if agents.is_empty() {
-        handle.query_page(limit, offset).await
-    } else {
+    let filter = resolve_filter(
+        &state,
+        JournalCriteria {
+            agents: params.agents.as_deref(),
+            families: params.family.as_deref(),
+            natures: params.nature.as_deref(),
+            outcomes: params.result.as_deref(),
+            since: params.since.as_deref(),
+            until: params.until.as_deref(),
+        },
+    )
+    .await?;
+    let entries = handle.query_lines(filter, limit, offset).await;
+    let count = entries.len();
+
+    Ok(Json(AuditJournalPageResponse { entries, count }))
+}
+
+/// The filter `criteria` describe, with the runs of the tasks of its agents
+/// resolved. 400 on a value that cannot be read, 503 when agents are named and
+/// no task repository can resolve them.
+pub(crate) async fn resolve_filter<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    criteria: JournalCriteria<'_>,
+) -> Result<JournalFilter, (StatusCode, Json<ErrorResponse>)> {
+    let mut filter = JournalFilter::from_criteria(criteria).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+    })?;
+    if !filter.agents.is_empty() {
         let repo = state.task_repository.as_ref().ok_or_else(|| {
             (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -430,7 +487,7 @@ pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
                 }),
             )
         })?;
-        let runs = repo.run_ids_for_agents(&agents).await.map_err(|e| {
+        filter.agent_runs = repo.run_ids_for_agents(&filter.agents).await.map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
@@ -438,11 +495,53 @@ pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
                 }),
             )
         })?;
-        handle.query_page_of_runs(runs, limit, offset).await
-    };
-    let count = entries.len();
+    }
+    Ok(filter)
+}
 
-    Ok(Json(AuditJournalPageResponse { entries, count }))
+/// `GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail.
+///
+/// The page gives each entry a summary without content. This gives the entry
+/// whole and, for a tool call, the full arguments and the full output of that
+/// call, joined by the run and the call identifier from the entries the run
+/// captured for replay. 404 when the run has no such entry, 503 when the
+/// journal is not configured.
+#[utoipa::path(
+    get,
+    path = "/api/v1/audit/journal/{run_id}/entries/{seq}",
+    tag = "audit",
+    params(
+        ("run_id" = String, Path, description = "Run the entry belongs to"),
+        ("seq" = u64, Path, description = "Sequence number of the entry within its run"),
+    ),
+    responses(
+        (status = 200, description = "The entry, its summary, and the arguments and output of its tool call when it is about one", body = AuditJournalEntryDetailResponse),
+        (status = 404, description = "The run has no such entry", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Audit journal not configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn show_audit_entry<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path((run_id, seq)): Path<(String, u64)>,
+) -> Result<Json<AuditJournalEntryDetailResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let handle = state.audit_journal.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "audit journal not available".to_string(),
+            }),
+        )
+    })?;
+
+    match handle.entry_detail(&run_id, seq).await {
+        Some(entry) => Ok(Json(AuditJournalEntryDetailResponse { entry })),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "not_found".to_string(),
+            }),
+        )),
+    }
 }
 
 /// `GET /api/v1/audit/journal/:run_id`, the full journal for a run.
@@ -651,6 +750,9 @@ fn incomplete_trace_response(
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod no_erase_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1201,5 +1303,340 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["code"].as_str().unwrap(), "run_not_found");
+    }
+
+    /// A journal holding one write by `quotes` (asked, started, captured,
+    /// ended), one failed fetch by `invoices`, a consent `quotes` refused, a
+    /// secret set on a connection, and a policy applied.
+    async fn journal_of_several_natures() -> crate::audit_journal::AuditJournalHandle {
+        use crate::audit_journal::{JournalEntryDraft, JournalEntryKind as K};
+        let journal = open_temp_journal().await;
+        let drafts = [
+            (
+                "run-1",
+                "2026-10-01T08:00:00Z",
+                K::LlmCompletion,
+                serde_json::json!({
+                    "content": "", "model_id": "m",
+                    "tool_calls": [{ "id": "c0", "name": "file_write",
+                        "arguments": { "path": "/home/u/a.md", "content": "SECRET-ARGUMENT" } }],
+                }),
+            ),
+            (
+                "run-1",
+                "2026-10-01T08:00:01Z",
+                K::ToolCallStarted,
+                serde_json::json!({
+                    "tool_name": "file_write", "agent_id": "quotes", "tool_call_id": "c0",
+                    "family": "write_or_delete", "target": "/home/u/a.md",
+                }),
+            ),
+            (
+                "run-1",
+                "2026-10-01T08:00:02Z",
+                K::ToolOutput,
+                serde_json::json!({
+                    "tool_call_id": "c0", "tool_name": "file_write",
+                    "output": "SECRET-OUTPUT", "status": "success",
+                }),
+            ),
+            (
+                "run-1",
+                "2026-10-01T08:00:03Z",
+                K::ToolCallCompleted,
+                serde_json::json!({
+                    "tool_name": "file_write", "agent_id": "quotes", "tool_call_id": "c0",
+                    "family": "write_or_delete", "target": "/home/u/a.md", "success": true,
+                }),
+            ),
+            (
+                "run-2",
+                "2026-10-02T08:00:00Z",
+                K::ToolCallCompleted,
+                serde_json::json!({
+                    "tool_name": "http_fetch", "agent_id": "invoices", "tool_call_id": "e9",
+                    "family": "send_external", "target": "example.org", "success": false,
+                }),
+            ),
+            (
+                "governance:quotes",
+                "2026-10-03T08:00:00Z",
+                K::ConsentAnswered,
+                serde_json::json!({
+                    "event": "consent_answered", "agent_id": "quotes", "access_id": "gmail.send",
+                    "family": "send_external", "answer": "refuse",
+                }),
+            ),
+            (
+                "connection:mcp:notes",
+                "2026-10-04T08:00:00Z",
+                K::ConnectionSecretSet,
+                serde_json::json!({
+                    "event": "secret_set", "connection_id": "mcp:notes", "key": "NOTES_TOKEN",
+                    "actor": "api",
+                }),
+            ),
+            (
+                "governance:policy:organisation",
+                "2026-10-05T08:00:00Z",
+                K::PolicyApplied,
+                serde_json::json!({
+                    "event": "policy_applied", "key_fingerprint": "ab", "policy_digest": "d1",
+                    "publisher": "Acme IT", "signed_at": "2026-10-01T00:00:00Z",
+                }),
+            ),
+        ];
+        for (run, ts, kind, payload) in drafts {
+            journal.append(JournalEntryDraft {
+                run_id: run.to_string(),
+                ts: ts.to_string(),
+                kind,
+                payload,
+            });
+        }
+        journal
+    }
+
+    /// GETs `uri` on a router over `journal`, with a task repository that
+    /// knows no task. Returns the status and the JSON body.
+    async fn get_journal(
+        journal: crate::audit_journal::AuditJournalHandle,
+        uri: &str,
+    ) -> (StatusCode, serde_json::Value) {
+        let db = std::env::temp_dir().join(format!("apollia_jq_{}.db", uuid::Uuid::new_v4()));
+        let repo = apollia_tools::TaskRepository::open(&db).await.unwrap();
+        let mut state = test_app_state_with_audit(None);
+        state.audit_journal = Some(journal);
+        state.task_repository = Some(Arc::new(repo));
+        let router = APIServer::build_router_for_test(state);
+        let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        let status = resp.status();
+        let body = axum::body::to_bytes(resp.into_body(), 65536).await.unwrap();
+        (status, serde_json::from_slice(&body).unwrap())
+    }
+
+    /// The `kind` of each entry of a page, in order.
+    fn kinds(page: &serde_json::Value) -> Vec<&str> {
+        page["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["kind"].as_str().unwrap())
+            .collect()
+    }
+
+    // Every entry of a page carries its summary beside its chained fields.
+    #[tokio::test]
+    async fn test_list_audit_journal_gives_each_entry_its_summary() {
+        // GIVEN a journal holding a finished write on a path
+        let journal = journal_of_several_natures().await;
+
+        // WHEN the page of the successful actions is read
+        let (status, page) = get_journal(
+            journal,
+            "/api/v1/audit/journal?nature=action&result=success",
+        )
+        .await;
+
+        // THEN the one entry comes chained, with a summary that says who did
+        // what to what and how it ended
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(page["count"], 1);
+        let entry = &page["entries"][0];
+        assert_eq!(entry["run_id"], "run-1");
+        assert_eq!(entry["seq"], 3);
+        assert!(entry["hash"].as_str().is_some_and(|h| !h.is_empty()));
+        assert_eq!(
+            entry["summary"],
+            serde_json::json!({
+                "agent": "quotes", "nature": "action", "family": "write_or_delete",
+                "what": "Tool call finished", "tool": "file_write", "target": "/home/u/a.md",
+                "outcome": "success", "ts": "2026-10-01T08:00:03Z",
+            })
+        );
+    }
+
+    // Each filter narrows the page, and they add up.
+    #[tokio::test]
+    async fn test_list_audit_journal_filters_by_family_nature_result_and_period() {
+        let cases: [(&str, &[&str]); 9] = [
+            (
+                "family=send_external",
+                &["consent_answered", "tool_call_completed"],
+            ),
+            ("nature=access_change", &["connection_secret_set"]),
+            ("nature=policy", &["policy_applied"]),
+            (
+                "nature=policy,access_change",
+                &["policy_applied", "connection_secret_set"],
+            ),
+            ("result=refused", &["consent_answered"]),
+            ("result=failure", &["tool_call_completed"]),
+            (
+                "since=2026-10-04",
+                &["policy_applied", "connection_secret_set"],
+            ),
+            (
+                "since=2026-10-02&until=2026-10-04",
+                &["consent_answered", "tool_call_completed"],
+            ),
+            (
+                "nature=action&family=write_or_delete&result=success&until=2026-10-02",
+                &["tool_call_completed"],
+            ),
+        ];
+        for (query, expected) in cases {
+            // GIVEN a journal holding actions, an access change and a policy entry
+            let journal = journal_of_several_natures().await;
+
+            // WHEN the page is read under each filter
+            let (status, page) =
+                get_journal(journal, &format!("/api/v1/audit/journal?{query}")).await;
+
+            // THEN it holds the matching entries only, newest first
+            assert_eq!(status, StatusCode::OK, "{query}");
+            assert_eq!(kinds(&page), expected, "{query}");
+        }
+    }
+
+    // The agent filter keeps what names the agent, in whatever run it sits.
+    #[tokio::test]
+    async fn test_list_audit_journal_keeps_what_names_the_agent() {
+        // GIVEN a journal where `quotes` acted in a run and answered a consent
+        // recorded in its governance run
+        let journal = journal_of_several_natures().await;
+
+        // WHEN the page of that agent is read
+        let (status, page) = get_journal(journal, "/api/v1/audit/journal?agents=quotes").await;
+
+        // THEN its consent and its call are there, and nothing of `invoices`
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            kinds(&page),
+            [
+                "consent_answered",
+                "tool_call_completed",
+                "tool_call_started"
+            ]
+        );
+    }
+
+    // The filters apply before paging: limit and offset count matching entries.
+    #[tokio::test]
+    async fn test_list_audit_journal_pages_the_matching_entries() {
+        // GIVEN a journal with four action entries among others
+        // WHEN the actions are read one per page
+        let mut seen = Vec::new();
+        for offset in 0..4 {
+            let journal = journal_of_several_natures().await;
+            let (_, page) = get_journal(
+                journal,
+                &format!("/api/v1/audit/journal?nature=action&limit=1&offset={offset}"),
+            )
+            .await;
+            seen.extend(kinds(&page).into_iter().map(str::to_owned));
+        }
+
+        // THEN the pages hold the four actions in order and nothing else
+        assert_eq!(
+            seen,
+            [
+                "consent_answered",
+                "tool_call_completed",
+                "tool_call_completed",
+                "tool_call_started"
+            ]
+        );
+    }
+
+    // A filter value nobody defined is a 400 that names it.
+    #[tokio::test]
+    async fn test_list_audit_journal_refuses_an_unreadable_filter() {
+        for (query, named) in [
+            ("nature=everything", "everything"),
+            ("result=ok", "ok"),
+            ("since=last-week", "last-week"),
+        ] {
+            // GIVEN a journal
+            let journal = journal_of_several_natures().await;
+
+            // WHEN the page is asked with a value that cannot be read
+            let (status, body) =
+                get_journal(journal, &format!("/api/v1/audit/journal?{query}")).await;
+
+            // THEN 400, and the error names the value
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{query}");
+            assert!(body["error"].as_str().unwrap().contains(named), "{body}");
+        }
+    }
+
+    // No summary of a page holds what a call wrote or returned.
+    #[tokio::test]
+    async fn test_no_summary_of_a_page_holds_an_argument_or_an_output() {
+        // GIVEN a journal whose run kept a model response and a tool output
+        let journal = journal_of_several_natures().await;
+
+        // WHEN the whole journal is read
+        let (_, page) = get_journal(journal, "/api/v1/audit/journal?limit=100").await;
+
+        // THEN every entry has a summary, and none says the argument or the output
+        let entries = page["entries"].as_array().unwrap();
+        assert_eq!(entries.len(), 8);
+        for entry in entries {
+            let said = entry["summary"].to_string();
+            assert!(entry["summary"]["what"]
+                .as_str()
+                .is_some_and(|w| !w.is_empty()));
+            assert!(!said.contains("SECRET"), "{said}");
+        }
+    }
+
+    // The detail of a call gives its arguments and output, joined on demand.
+    #[tokio::test]
+    async fn test_show_audit_entry_joins_the_arguments_and_output_of_a_call() {
+        // GIVEN a journal holding a finished write, at seq 3 of run-1
+        let journal = journal_of_several_natures().await;
+
+        // WHEN its detail is read
+        let (status, body) = get_journal(journal, "/api/v1/audit/journal/run-1/entries/3").await;
+
+        // THEN the entry comes with its summary and the full call
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["entry"]["kind"], "tool_call_completed");
+        assert_eq!(body["entry"]["summary"]["target"], "/home/u/a.md");
+        assert_eq!(
+            body["entry"]["tool_call"],
+            serde_json::json!({
+                "tool_call_id": "c0",
+                "arguments": { "path": "/home/u/a.md", "content": "SECRET-ARGUMENT" },
+                "output": "SECRET-OUTPUT",
+                "status": "success",
+            })
+        );
+    }
+
+    // The detail of an entry that is not a call has no call, and an entry the
+    // run does not have is a 404.
+    #[tokio::test]
+    async fn test_show_audit_entry_without_a_call_and_unknown_entry() {
+        // GIVEN a journal holding a secret set on a connection
+        // WHEN its detail is read, then the detail of a missing entry
+        let (status, body) = get_journal(
+            journal_of_several_natures().await,
+            "/api/v1/audit/journal/connection:mcp:notes/entries/0",
+        )
+        .await;
+        let (missing, _) = get_journal(
+            journal_of_several_natures().await,
+            "/api/v1/audit/journal/run-1/entries/99",
+        )
+        .await;
+
+        // THEN the first is the entry whole without a call, the second a 404
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["entry"]["payload"]["key"], "NOTES_TOKEN");
+        assert!(body["entry"]["tool_call"].is_null());
+        assert_eq!(missing, StatusCode::NOT_FOUND);
     }
 }

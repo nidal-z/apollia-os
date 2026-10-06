@@ -257,9 +257,59 @@ mod tests {
         #[cfg(feature = "web-search")]
         expected.push("web_search");
 
-        let tools = AgentAccess::of(&apollia).tools(&registry).await;
+        let tools = AgentAccess::of(&apollia)
+            .tools(&registry, &apollia_tools::DefaultAccess::default())
+            .await;
 
         assert_eq!(tools, expected);
         registry.shutdown().await;
+    }
+
+    #[test]
+    fn every_native_tool_designates_its_target_argument_or_none() {
+        // GIVEN the native tools, and the argument each one acts on, copied here
+        // by hand: a path, a folder or an address, never a content
+        #[allow(unused_mut)]
+        let mut expected: Vec<(&str, Option<&str>)> = vec![
+            ("bash_executor", None),
+            ("python_executor", None),
+            ("file_read", Some("path")),
+            ("file_write", Some("path")),
+            ("file_edit", Some("path")),
+            ("file_list", Some("dir")),
+            ("file_glob", Some("path")),
+            ("file_grep", Some("path")),
+            ("http_fetch", Some("url")),
+            ("memory_search", None),
+            ("source_search", None),
+            ("notebook_read", Some("path")),
+            ("notebook_edit", Some("path")),
+            ("ask_user", None),
+            ("code_context", Some("folder")),
+        ];
+        #[cfg(feature = "web-search")]
+        expected.push(("web_search", None));
+        #[cfg(feature = "web-read")]
+        expected.push(("web_read", Some("url")));
+
+        // WHEN the descriptors registered at boot are read
+        let descriptors = native_tool_descriptors();
+        let actual: Vec<(&str, Option<&str>)> = descriptors
+            .iter()
+            .map(|d| (d.name.as_str(), d.target_arg.as_deref()))
+            .collect();
+
+        // THEN each designates exactly the argument of the table, and that
+        // argument is one its input schema declares
+        assert_eq!(actual, expected);
+        for d in &descriptors {
+            if let Some(arg) = d.target_arg.as_deref() {
+                assert!(
+                    d.input_schema["properties"].get(arg).is_some(),
+                    "{} designates `{arg}`, which its schema does not declare",
+                    d.name
+                );
+            }
+        }
     }
 }

@@ -143,6 +143,13 @@ impl Supervisor {
             )
             .await;
 
+        // The journal is open: the reloader writes to it the change of
+        // `apollia.toml` made while the runtime was stopped, then every
+        // change it applies.
+        if let (Some(reload), Some(journal)) = (&config_reload, &governance.audit_journal) {
+            reload.attach_journal(journal.clone()).await;
+        }
+
         // Phase 8e: the folders the former settings named, added once as
         // folder connections through the admission and the journal.
         crate::connections::folder_import::import_legacy_folders(
@@ -185,8 +192,22 @@ impl Supervisor {
                 triggers.definitions,
             )
             .await;
-        let compat_server = self.spawn_compat_server(&inference, &core.event_sender);
         let batches = executors.batches.take();
+        // The compatible server runs an exposed agent as a batch of one item,
+        // and an exposed workflow through the workflow engine.
+        let exposed_agents = crate::compat_server::ExposedAgents::new(
+            self.config.data_dir.clone(),
+            core.event_sender.clone(),
+        )
+        .with_batches(batches.clone(), stores.task_repository.clone())
+        .with_workflows(executors.workflows.clone())
+        .with_request_mcp(self.request_mcp(&core, &inference, &governance, &executors));
+        let compat_server = self.spawn_compat_server(
+            &core,
+            &inference,
+            exposed_agents,
+            governance.audit_journal.clone(),
+        );
         let mut state = self.app_state(
             &core,
             &inference,

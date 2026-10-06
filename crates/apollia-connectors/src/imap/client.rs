@@ -4,7 +4,8 @@
 //! read-only: nothing changes in it, flags included. `SELECT` is never sent,
 //! and neither is any command that writes (`STORE`, `EXPUNGE`, `COPY`,
 //! `MOVE`, `APPEND`). A message is fetched with `BODY.PEEK`, which leaves it
-//! unread. Each call opens its own session and logs out at the end.
+//! unread, and a folder is counted with `STATUS`, which does not open it. Each
+//! call opens its own session and logs out at the end.
 //!
 //! The server's certificate is checked against the root certificates of the
 //! system. The password goes on the wire inside the TLS session and nowhere
@@ -28,7 +29,8 @@ use tokio_rustls::TlsConnector;
 use super::account::ImapAccount;
 use super::error::ImapError;
 use super::mail::{
-    message_from_raw, summary_from_header, MailFolder, MailMessage, MailQuery, MailSummary,
+    message_from_raw, summary_from_header, FolderCount, FolderUids, MailFolder, MailMessage,
+    MailQuery, MailSummary,
 };
 use super::store::ConnectionProbe;
 
@@ -226,6 +228,121 @@ impl ImapClient {
         .await
     }
 
+    /// How many messages `folder` holds, and how many are unread, as the
+    /// server's `STATUS` answers it. The folder is not opened.
+    ///
+    /// # Errors
+    /// [`ImapError::FolderRefused`], and the connection failures of
+    /// [`Self::check`].
+    pub async fn folder_count(
+        &self,
+        account: &ImapAccount,
+        password: &str,
+        folder: &str,
+    ) -> Result<FolderCount, ImapError> {
+        let folder = folder.to_owned();
+        self.call(account, password, move |session| {
+            Box::pin(async move {
+                let status = session
+                    .status(&folder, "(MESSAGES UNSEEN)")
+                    .await
+                    .map_err(|e| folder_failure(&folder, e))?;
+                Ok(FolderCount {
+                    messages: status.exists,
+                    unread: status.unseen.unwrap_or(0),
+                })
+            })
+        })
+        .await
+    }
+
+    /// Every message of a folder matching `query`, newest first, whatever
+    /// the limit of the query, with the validity of the folder's identifiers.
+    ///
+    /// # Errors
+    /// [`ImapError::InvalidQuery`], [`ImapError::FolderRefused`],
+    /// [`ImapError::Protocol`] when the server gives no `UIDVALIDITY`, and the
+    /// connection failures of [`Self::check`].
+    pub async fn matching_uids(
+        &self,
+        account: &ImapAccount,
+        password: &str,
+        query: &MailQuery,
+    ) -> Result<FolderUids, ImapError> {
+        let criteria = query.criteria()?;
+        let folder = query.folder().to_owned();
+        self.call(account, password, move |session| {
+            Box::pin(async move {
+                let uid_validity = examine_validity(session, &folder).await?;
+                let mut uids: Vec<u32> = session
+                    .uid_search(&criteria)
+                    .await
+                    .map_err(protocol)?
+                    .into_iter()
+                    .collect();
+                uids.sort_unstable_by_key(|u| std::cmp::Reverse(*u));
+                Ok(FolderUids { uid_validity, uids })
+            })
+        })
+        .await
+    }
+
+    /// The messages `listed` names in `folder`, decoded, in the order listed.
+    /// They stay unread. A message removed since its identifier was listed is
+    /// left out.
+    ///
+    /// # Errors
+    /// [`ImapError::Protocol`] when the folder's `UIDVALIDITY` is no longer
+    /// the one the identifiers were listed under, which means they name other
+    /// messages now; [`ImapError::FolderRefused`], and the connection failures
+    /// of [`Self::check`].
+    pub async fn read_many(
+        &self,
+        account: &ImapAccount,
+        password: &str,
+        folder: &str,
+        listed: &FolderUids,
+    ) -> Result<Vec<MailMessage>, ImapError> {
+        if listed.uids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let folder = folder.to_owned();
+        let uid_validity = listed.uid_validity;
+        let uids = listed.uids.clone();
+        self.call(account, password, move |session| {
+            Box::pin(async move {
+                let current = examine_validity(session, &folder).await?;
+                if current != uid_validity {
+                    return Err(ImapError::Protocol {
+                        detail: format!(
+                            "the identifiers of `{folder}` changed while it was read \
+                             (UIDVALIDITY {uid_validity} became {current})"
+                        ),
+                    });
+                }
+                let fetches: Vec<_> = session
+                    .uid_fetch(uid_set(&uids), "(UID BODY.PEEK[])")
+                    .await
+                    .map_err(protocol)?
+                    .try_collect()
+                    .await
+                    .map_err(protocol)?;
+                let mut messages = Vec::with_capacity(uids.len());
+                for uid in &uids {
+                    let raw = fetches
+                        .iter()
+                        .find(|f| f.uid == Some(*uid))
+                        .and_then(async_imap::types::Fetch::body);
+                    if let Some(raw) = raw {
+                        messages.push(message_from_raw(*uid, &folder, raw)?);
+                    }
+                }
+                Ok(messages)
+            })
+        })
+        .await
+    }
+
     /// Open a session, run `work` in it, log out, all within
     /// [`CALL_TIMEOUT`].
     async fn call<T, F>(
@@ -323,15 +440,32 @@ async fn examine(session: &mut ImapSession, folder: &str) -> Result<(), ImapErro
         .examine(folder)
         .await
         .map(|_mailbox| ())
-        .map_err(|e| match e {
-            async_imap::error::Error::No(detail) | async_imap::error::Error::Bad(detail) => {
-                ImapError::FolderRefused {
-                    folder: folder.to_owned(),
-                    detail,
-                }
-            }
-            other => protocol(other),
+        .map_err(|e| folder_failure(folder, e))
+}
+
+/// Open `folder` read-only and answer the validity of its identifiers.
+async fn examine_validity(session: &mut ImapSession, folder: &str) -> Result<u32, ImapError> {
+    session
+        .examine(folder)
+        .await
+        .map_err(|e| folder_failure(folder, e))?
+        .uid_validity
+        .ok_or_else(|| ImapError::Protocol {
+            detail: format!("the server gave no UIDVALIDITY for `{folder}`"),
         })
+}
+
+/// A refusal of `folder` by the server, or a protocol failure.
+fn folder_failure(folder: &str, err: async_imap::error::Error) -> ImapError {
+    match err {
+        async_imap::error::Error::No(detail) | async_imap::error::Error::Bad(detail) => {
+            ImapError::FolderRefused {
+                folder: folder.to_owned(),
+                detail,
+            }
+        }
+        other => protocol(other),
+    }
 }
 
 fn protocol(err: async_imap::error::Error) -> ImapError {

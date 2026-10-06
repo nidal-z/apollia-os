@@ -16,7 +16,6 @@ import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 import {
   LayoutDashboard,
   Bot,
-  ListChecks,
   MessageSquare,
   ShieldCheck,
   Plug,
@@ -28,6 +27,10 @@ import {
   Mic,
   Paintbrush,
   Landmark,
+  Library,
+  KeyRound,
+  ScrollText,
+  Layers,
 } from "lucide-svelte";
 import type { Route } from "$lib/stores/navigation";
 
@@ -42,16 +45,20 @@ export interface RouteMeta {
 export const routeMeta: Record<Route, RouteMeta> = {
   dashboard: { labelKey: "nav.dashboard", parent: null, icon: LayoutDashboard, homeFor: ["operator", "builder"] },
   agents: { labelKey: "nav.agents", parent: null, icon: Bot },
-  tasks: { labelKey: "nav.tasks", parent: null, icon: ListChecks },
+  batches: { labelKey: "batch_history.title", parent: "agents", icon: Layers },
+  batch: { labelKey: "batch_view.title_loading", parent: "batches", icon: Layers },
   chat: { labelKey: "nav.chat", parent: null, icon: MessageSquare },
   inbox: { labelKey: "nav.inbox", parent: null, icon: ShieldCheck },
   integrations: { labelKey: "nav.connections", parent: null, icon: Plug },
   llm: { labelKey: "nav.llm", parent: null, icon: Brain },
+  library: { labelKey: "nav.library", parent: null, icon: Library },
   automations: { labelKey: "nav.automations", parent: null, icon: Repeat },
   memory: { labelKey: "nav.memory", parent: null, icon: Database },
   transcriptions: { labelKey: "nav.transcriptions", parent: null, icon: Mic },
   observability: { labelKey: "nav.observability", parent: null, icon: Activity },
   policy: { labelKey: "nav.policy", parent: null, icon: Landmark },
+  authorizations: { labelKey: "nav.authorizations", parent: null, icon: KeyRound },
+  journal: { labelKey: "nav.journal", parent: null, icon: ScrollText },
   settings: { labelKey: "nav.settings", parent: null, icon: Settings },
   design: { labelKey: "topbar.route.design", parent: null, icon: Paintbrush },
   "design-motion": { labelKey: "topbar.route.design_motion", parent: "design", icon: Paintbrush },

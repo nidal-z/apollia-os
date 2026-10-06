@@ -86,6 +86,7 @@ fn descriptor(id: &str) -> ToolDescriptor {
         tags: vec!["imap".to_owned(), "mail".to_owned(), "read".to_owned()],
         family: ActionFamily::ReadPersonal,
         family_source: FamilySource::Builtin,
+        target_arg: Some("account".to_owned()),
         is_read_only: true,
         risk_score: 1,
         approval_risk_level: Some(ApprovalRiskLevel::Low),
@@ -163,7 +164,7 @@ impl DispatchableExecutor for ImapToolExecutor {
 }
 
 /// Admission over the organisation policy deposited on the machine.
-fn deposited_policy() -> PolicyAdmission {
+pub(super) fn deposited_policy() -> PolicyAdmission {
     let location = apollia_permissions::policy_location();
     PolicyAdmission::new(Arc::new(apollia_permissions::load_policy(
         &location.dir,

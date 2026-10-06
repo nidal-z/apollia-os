@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { openNewChatRequested } from "$lib/stores/chat";
   import { onMount } from "svelte";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { isLoading, t } from "svelte-i18n";
@@ -18,7 +17,10 @@
   import { initTheme } from "$lib/stores/theme";
   import { initChatAppearance } from "$lib/stores/chatAppearance";
   import { hydratePlanModeDefault } from "$lib/stores/planModeSetting";
+  import { hydrateChatAutoNaming } from "$lib/stores/chatAutoNaming";
+  import { startGenerationSpeedListener } from "$lib/chat/autoName";
   import { hydrateDeveloperMode } from "$lib/stores/developerMode";
+  import { hydrateDeveloperSettings } from "$lib/stores/developerSettings";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingModalOpen } from "$lib/stores/onboarding";
   import type { OnboardingState } from "$lib/types";
@@ -30,6 +32,7 @@
   import { getSttConfig } from "$lib/ipc/models";
   import { getOnboardingState, markOnboarded } from "$lib/ipc/onboarding";
   import { automationScript } from "$lib/ipc/system";
+  import { mountPackageOpening } from "$lib/packages/packageOpening";
 
   let ready = $state(false);
   let prevLlmCount = 0;
@@ -38,20 +41,6 @@
 
   function handleAncillaryKeydown(event: KeyboardEvent) {
     const mod = isMac ? event.metaKey : event.ctrlKey;
-    // Cmd/Ctrl+T: create a new task (navigates to /tasks and opens dialog).
-    if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "t") {
-      const target = event.target as HTMLElement | null;
-      const isEditing =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable);
-      if (isEditing) return;
-      event.preventDefault();
-      navigateTo("chat");
-      openNewChatRequested.set(Date.now());
-      return;
-    }
     // Cmd/Ctrl+Shift+A: toggle the artifacts tab of the context drawer.
     if (mod && event.shiftKey && !event.altKey && event.key.toLowerCase() === "a") {
       event.preventDefault();
@@ -74,6 +63,14 @@
     initChatAppearance();
     void hydratePlanModeDefault();
     void hydrateDeveloperMode();
+    void hydrateDeveloperSettings();
+    void hydrateChatAutoNaming();
+    let unlistenSpeed: (() => void) | null = null;
+    void startGenerationSpeedListener()
+      .then((fn) => {
+        unlistenSpeed = fn;
+      })
+      .catch(() => {});
     const cleanup = createSSEConnection();
     // Phase-0 shortcut dispatcher: the single window keydown listener that
     // routes chords to handlers surfaces register via `registerShortcutHandler`.
@@ -141,7 +138,7 @@
       });
 
     // Live channel - supervisor emits OnboardingRequired at first launch and
-    // OnboardingCompleted once the agent writes onboarding.completed_at.
+    // OnboardingCompleted once the phase machine reaches its last phase.
     let unlistenRuntime: UnlistenFn | null = null;
     void listen<{ category: string; event_type: string }>(
       "runtime-event",
@@ -179,12 +176,18 @@
 
     window.addEventListener("keydown", handleAncillaryKeydown);
 
+    // A package file opened from the system, or dropped on the window, opens
+    // its preview.
+    const stopPackageOpening = mountPackageOpening();
+
     return () => {
       cleanup?.();
+      stopPackageOpening();
       window.removeEventListener("keydown", handleAncillaryKeydown);
       disposeGlobalHandlers();
       disposeShortcutDispatcher();
       unlistenRuntime?.();
+      unlistenSpeed?.();
       unsubscribeLlm();
     };
   });

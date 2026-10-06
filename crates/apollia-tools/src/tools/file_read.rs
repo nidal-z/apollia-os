@@ -1,4 +1,10 @@
 //! Read files inside the agent's sandbox with offset/limit support.
+//!
+//! A text file is read as UTF-8. An office document (PDF, Word, PowerPoint, a
+//! workbook) is read as the text its reader extracts, whole or one page, slide
+//! or sheet at a time; see [`document`].
+
+mod document;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
 use crate::sandbox_path::{SandboxRoot, SandboxSpec};
@@ -48,9 +54,29 @@ pub enum FileReadError {
     #[error("I/O error on '{path}': {cause}")]
     IoError { path: String, cause: String },
 
-    /// File contains non-UTF-8 data (binary file).
+    /// File contains non-UTF-8 data (binary file) and is of no format a
+    /// reader extracts text from.
     #[error("file is binary (not valid UTF-8): '{path}'")]
     BinaryFile { path: String },
+
+    /// The document is of a format a reader opens, and the reader could not
+    /// read it: protected by a password, damaged, or over a cap.
+    #[error("document '{path}' cannot be read: {cause}")]
+    UnreadableDocument { path: String, cause: String },
+
+    /// The page, slide or sheet asked for is not in the document.
+    #[error("'{path}' has no {part}; it holds {available}")]
+    PartNotFound {
+        path: String,
+        /// What was asked for, such as `page 7` or `sheet "Totals"`.
+        part: String,
+        /// What the document holds, such as `3 pages` or its sheet names.
+        available: String,
+    },
+
+    /// `page` or `sheet` was given for a file that has none.
+    #[error("'{path}' has no pages and no sheets: read it without `page` and `sheet`")]
+    NoParts { path: String },
 }
 
 /// Input for a file read operation.
@@ -64,6 +90,13 @@ pub struct FileReadInput {
     /// Max lines to return. None = all remaining lines.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
+    /// Page of a PDF document, or slide of a presentation, to read alone
+    /// (1-based). None = the whole document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<u32>,
+    /// Sheet of a workbook to read alone, by its name. None = every sheet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheet: Option<String>,
 }
 
 /// Output of a file read operation.
@@ -75,6 +108,10 @@ pub struct FileReadOutput {
     pub total_lines: u32,
     /// Whether the output was truncated by the limit parameter.
     pub truncated: bool,
+    /// For an office document, what it holds: `3 pages`, `12 slides`, or the
+    /// names of its sheets. Absent for a text file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parts: Option<String>,
 }
 
 impl FileRead {
@@ -125,29 +162,7 @@ impl FileRead {
                     path: input.path.clone(),
                 })?;
 
-        let mut file = fs::File::open(&resolved_path)
-            .await
-            .map_err(|e| match e.kind() {
-                std::io::ErrorKind::NotFound => FileReadError::NotFound {
-                    path: input.path.clone(),
-                },
-                _ => FileReadError::IoError {
-                    path: input.path.clone(),
-                    cause: e.to_string(),
-                },
-            })?;
-
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)
-            .await
-            .map_err(|e| FileReadError::IoError {
-                path: input.path.clone(),
-                cause: e.to_string(),
-            })?;
-
-        let content = String::from_utf8(buffer).map_err(|_| FileReadError::BinaryFile {
-            path: input.path.clone(),
-        })?;
+        let (content, parts) = self.read_text(&resolved_path, &input).await?;
 
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len() as u32;
@@ -185,6 +200,7 @@ impl FileRead {
             content: output_content,
             total_lines,
             truncated,
+            parts,
         };
 
         #[cfg(feature = "memory-search")]
@@ -202,12 +218,62 @@ impl FileRead {
         Ok(output)
     }
 
+    /// The text of the file at `resolved`: the text an office document's
+    /// reader extracts (with what the document holds), or the file as UTF-8.
+    async fn read_text(
+        &self,
+        resolved: &std::path::Path,
+        input: &FileReadInput,
+    ) -> Result<(String, Option<String>), FileReadError> {
+        let part = document::PartRequest {
+            page: input.page,
+            sheet: input.sheet.as_deref(),
+        };
+        if apollia_sources::is_office_document(resolved) {
+            let (text, parts) = document::extract(resolved, &input.path, &part).await?;
+            return Ok((text, Some(parts)));
+        }
+
+        let mut file = fs::File::open(resolved).await.map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => FileReadError::NotFound {
+                path: input.path.clone(),
+            },
+            _ => FileReadError::IoError {
+                path: input.path.clone(),
+                cause: e.to_string(),
+            },
+        })?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)
+            .await
+            .map_err(|e| FileReadError::IoError {
+                path: input.path.clone(),
+                cause: e.to_string(),
+            })?;
+
+        match String::from_utf8(buffer) {
+            Ok(_) if part.is_some() => Err(FileReadError::NoParts {
+                path: input.path.clone(),
+            }),
+            Ok(content) => Ok((content, None)),
+            // A CSV file saved in another encoding is still a table: its
+            // reader replaces the bytes that are not UTF-8.
+            Err(_) if apollia_sources::is_readable_document(resolved) => {
+                let (text, parts) = document::extract(resolved, &input.path, &part).await?;
+                Ok((text, Some(parts)))
+            }
+            Err(_) => Err(FileReadError::BinaryFile {
+                path: input.path.clone(),
+            }),
+        }
+    }
+
     /// Return the tool descriptor for registration in the ToolRegistry.
     pub fn descriptor() -> ToolDescriptor {
         ToolDescriptor {
             name: "file_read".to_string(),
             version: "1.0.0".to_string(),
-            description: "Read the contents of a file inside the agent's sandbox. Supports offset/limit for reading portions of large files. Returns file content as UTF-8 text with line numbers prepended.".to_string(),
+            description: "Read the contents of a file inside the agent's sandbox. Supports offset/limit for reading portions of large files. Returns file content as UTF-8 text with line numbers prepended. Also reads the text of PDF, Word (.docx), PowerPoint (.pptx) and Excel (.xlsx, .xlsm, .xls, .ods) documents: whole, or one page, slide or sheet with `page` or `sheet`.".to_string(),
             kind: ToolKind::Native,
             input_schema: json!({
                 "type": "object",
@@ -225,6 +291,15 @@ impl FileRead {
                         "type": "integer",
                         "description": "Max lines to return. None = all remaining lines.",
                         "minimum": 1
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "For a PDF document or a presentation: the page or slide to read alone (1-based). None = the whole document.",
+                        "minimum": 1
+                    },
+                    "sheet": {
+                        "type": "string",
+                        "description": "For a workbook: the name of the sheet to read alone. None = every sheet."
                     }
                 },
                 "required": ["path"]
@@ -243,6 +318,10 @@ impl FileRead {
                     "truncated": {
                         "type": "boolean",
                         "description": "Whether the output was truncated by the limit parameter"
+                    },
+                    "parts": {
+                        "type": "string",
+                        "description": "For an office document, what it holds: its number of pages or slides, or the names of its sheets"
                     }
                 },
                 "required": ["content", "total_lines", "truncated"]
@@ -251,6 +330,7 @@ impl FileRead {
             tags: vec!["file".to_string(), "read".to_string()],
             family: crate::descriptor::ActionFamily::Read,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: Some("path".to_string()),
             is_read_only: true,
             risk_score: 0,
             approval_risk_level: None,
@@ -289,6 +369,8 @@ mod tests {
             path: "hello.txt".to_string(),
             offset: None,
             limit: None,
+            page: None,
+            sheet: None,
         };
         let result = file_read.run(input).await;
 
@@ -320,6 +402,8 @@ mod tests {
             path: "big.txt".to_string(),
             offset: Some(10),
             limit: Some(5),
+            page: None,
+            sheet: None,
         };
         let result = file_read.run(input).await;
 
@@ -345,6 +429,8 @@ mod tests {
             path: "missing.txt".to_string(),
             offset: None,
             limit: None,
+            page: None,
+            sheet: None,
         };
         let result = file_read.run(input).await;
 
@@ -375,6 +461,8 @@ mod tests {
             path: "binary.bin".to_string(),
             offset: None,
             limit: None,
+            page: None,
+            sheet: None,
         };
         let result = file_read.run(input).await;
 
@@ -400,6 +488,8 @@ mod tests {
             path: "../escape".to_string(),
             offset: None,
             limit: None,
+            page: None,
+            sheet: None,
         };
         let result = file_read.run(input).await;
 
@@ -432,6 +522,8 @@ mod tests {
                 path: "link/secret.txt".to_string(),
                 offset: None,
                 limit: None,
+                page: None,
+                sheet: None,
             })
             .await;
 
@@ -461,6 +553,8 @@ mod tests {
                 path: "link/f.txt".to_string(),
                 offset: None,
                 limit: None,
+                page: None,
+                sheet: None,
             })
             .await;
 
@@ -499,6 +593,8 @@ mod tests {
             path: "file.txt".to_string(),
             offset: None,
             limit: None,
+            page: None,
+            sheet: None,
         };
         let result = file_read.run(input).await;
 

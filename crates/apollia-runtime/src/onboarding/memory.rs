@@ -198,19 +198,28 @@ fn write_u64(repo: &UserMemoryRepository, key: &str, value: u64) -> Result<(), O
 /// Without this, two sources of stale state make a fresh session look already
 /// finished on arrival:
 ///   1. `UserMemoryRepository` keeps `onboarding_topic_*` marks across runs.
-///   2. The onboarding agent's semantic DB keeps `user.*` entries from prior
-///      conversations, which mark the matching topics as covered again.
+///   2. The memory of the onboarding agent keeps the completion it recorded
+///      at the end of the previous conversation.
 ///
-/// This helper:
-///   - Forgets every `onboarding_topic_{topic}` entry in the user repo.
-///   - Forgets every `user.*` and meta `onboarding.*` key in the agent's
-///     semantic namespace.
+/// This helper forgets every `onboarding_topic_{topic}` entry in the user
+/// repo, then calls [`forget_agent_entries`]. The profiles are not touched:
+/// the agent never writes them.
 pub fn reset_onboarding_progress(repo: &UserMemoryRepository, memory_dir: &Path) {
     for topic in &ONBOARDING_TOPICS {
         let key = format!("onboarding_topic_{topic}");
         let _ = repo.forget(&key);
     }
+    forget_agent_entries(memory_dir);
+}
 
+/// Forgets what the onboarding agent recorded in its own memory: the meta
+/// `onboarding.*` keys, the completion among them, and the `user.*` entries an
+/// older agent kept there.
+///
+/// Every conversation starts with it, the one that completes a profile
+/// included: a completion left by the previous conversation would otherwise
+/// close the new one before the person has answered.
+pub fn forget_agent_entries(memory_dir: &Path) {
     // Both filename/namespace pairs are wiped - the manifest namespace was
     // renamed from "onboarding-agent" to "onboarding" in v2.x and an install
     // upgraded across that change can have entries in either file. Forgetting
@@ -480,6 +489,21 @@ mod finalize_tests {
 
         // WHEN checking finalization without any database
         // THEN the gate stays closed
+        assert!(!check_finalized_in(dir.path()));
+    }
+
+    #[test]
+    fn test_forgetting_the_agent_entries_reopens_the_gate() {
+        // GIVEN a memory directory where a previous conversation was completed
+        let dir = tempfile::tempdir().expect("tempdir");
+        finalize_in(dir.path()).expect("finalize");
+        assert!(check_finalized_in(dir.path()));
+
+        // WHEN the entries of the agent are forgotten, as every new
+        // conversation does
+        forget_agent_entries(dir.path());
+
+        // THEN the gate is closed again
         assert!(!check_finalized_in(dir.path()));
     }
 }

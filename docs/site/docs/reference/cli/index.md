@@ -156,6 +156,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os permissions audit`↴](#apollia-os-permissions-audit)
 * [`apollia-os permissions add`↴](#apollia-os-permissions-add)
 * [`apollia-os chat`↴](#apollia-os-chat)
+* [`apollia-os chat list`↴](#apollia-os-chat-list)
 * [`apollia-os chat delete`↴](#apollia-os-chat-delete)
 * [`apollia-os chat rename`↴](#apollia-os-chat-rename)
 * [`apollia-os chat export`↴](#apollia-os-chat-export)
@@ -329,7 +330,7 @@ Apollia OS CLI binary (apollia-os)
 * `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
 * `onboard` - Launch onboarding or re-onboarding on a specific topic
 * `permissions` - Permission rule management (list, revoke, audit)
-* `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
+* `chat` - Interactive chat REPL + persisted session hygiene (list, delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
 * `package` - Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
@@ -428,10 +429,7 @@ Use the positional `<INPUT>` for free-text input (react/conversational agents). 
 * `--detach` - Submit the task and return immediately without waiting for the result.
 
    The task ID is printed so it can be tracked with `apollia-os task status <id>`.
-* `--alternatives` - Display two alternative plans (conservative vs. exploratory) and choose which one to execute before submitting the task.
-
-   Requires the runtime to support plan alternatives (ORIA engine with LLM).
-* `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit. Incompatible with --alternatives
+* `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit
 * `--autonomy <LEVEL>` - Autonomy tier for this run (default: assisted).
 
    Controls the execution budget, memory injection, and verification. Accepted values: assisted, supervised, bounded_autonomous, long_autonomous.
@@ -521,14 +519,14 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). A source is an identifier of `source list`, `profile` or `memory`; the runtime refuses any other. The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy`, `planning` (never, auto or always) and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). A source is an identifier of `source list`, `profile` or `memory`; the runtime refuses any other. The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
-* `<FIELD>` - Field to override: name, mission, examples, access, sources, autonomy or profile
+* `<FIELD>` - Field to override: name, mission, examples, access, sources, autonomy, planning or profile
 * `<VALUES>` - The value, or the items of a list
 
 
@@ -1198,7 +1196,7 @@ Audit trail (list, stats, export, verify, show, replay)
 * `list` - List recent audit events (default)
 * `journal` - Browse the hash-chained journal across every run, newest first
 * `stats` - Display audit statistics
-* `export` - Export the audit trail as JSON, up to `--limit` events
+* `export` - Export the hash-chained journal to a file, as CSV or JSON
 * `verify` - Verify the audit journal's hash chains and signatures
 * `anchor` - Print the exportable head anchor of the global chain
 * `replay` - Replay a captured run and detect divergences
@@ -1224,7 +1222,7 @@ List recent audit events (default)
 
 Browse the hash-chained journal across every run, newest first.
 
-Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing.
+Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing. Each entry is printed as its summary: when, who, what, on what, with which result, and never the content of a call. The filters add up, and `--limit` and `--offset` count the entries that pass them.
 
 **Usage:** `apollia-os audit journal [OPTIONS]`
 
@@ -1236,7 +1234,12 @@ Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), 
 * `--offset <OFFSET>` - Number of entries to skip, newest first. Page through with it
 
   Default value: `0`
-* `--agent <AGENT>` - Keep the runs of this agent's tasks only. Repeat it for several agents
+* `--agent <AGENT>` - Keep what names this agent, and the runs of its tasks. Repeat it for several agents
+* `--family <FAMILY>` - Keep this action family: read, read_personal, write_or_delete, send_external, execute_code. Repeat it for several
+* `--nature <NATURE>` - Keep this nature: action, access_change, policy, system. Repeat it for several
+* `--result <RESULT>` - Keep this result: success, failure, refused. Repeat it for several
+* `--since <DATE>` - Start of the period, included: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--until <DATE>` - End of the period, excluded: YYYY-MM-DD (UTC) or an RFC 3339 instant
 
 
 
@@ -1250,16 +1253,30 @@ Display audit statistics
 
 ## `apollia-os audit export`
 
-Export the audit trail as JSON, up to `--limit` events
+Export the hash-chained journal to a file, as CSV or JSON.
 
-**Usage:** `apollia-os audit export [OPTIONS]`
+The file holds every entry that passes the filters, newest first, each as its summary: when, who, what, on what, with which result, and its place in the chain. `--detail` adds the payload of each entry and the arguments and output of each tool call, which may hold personal data. The filters are those of `audit journal`. The file is written on this machine, and the export is itself recorded in the journal.
+
+**Usage:** `apollia-os audit export [OPTIONS] --format <FORMAT> --output <PATH>`
 
 ###### **Options:**
 
-* `--output <PATH>` - Destination file (default: stdout)
-* `--limit <LIMIT>` - Maximum number of events to include (default: 10000)
+* `--format <FORMAT>` - Format of the file
 
-  Default value: `10000`
+  Possible values:
+  - `csv`:
+    Comma-separated values, UTF-8, one header row
+  - `json`:
+    One JSON document with the entries
+
+* `--detail` - Add the detail of each entry: its payload, and the arguments and output of its tool call. May hold personal data
+* `--agent <AGENT>` - Keep what names this agent, and the runs of its tasks. Repeat it for several agents
+* `--family <FAMILY>` - Keep this action family: read, read_personal, write_or_delete, send_external, execute_code. Repeat it for several
+* `--nature <NATURE>` - Keep this nature: action, access_change, policy, system. Repeat it for several
+* `--result <RESULT>` - Keep this result: success, failure, refused. Repeat it for several
+* `--since <DATE>` - Start of the period, included: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--until <DATE>` - End of the period, excluded: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--output <PATH>` - File the export is written to
 
 
 
@@ -1305,7 +1322,7 @@ Compares the replayed run against its captured trace across every category: LLM 
 
 Show a run's full journal, including the model's LLM completions.
 
-Unlike `audit list`/`export` (the tool-only audit trail), this reads the hash-chained journal so the captured reasoning (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
+Unlike `audit list` (the tool-only audit trail), this reads the hash-chained journal so the captured reasoning (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
 
 **Usage:** `apollia-os audit show <RUN_OR_TASK>`
 
@@ -2543,7 +2560,7 @@ Persists into `governance.db` directly (no runtime required). The rule applies t
 
 ## `apollia-os chat`
 
-Interactive chat REPL + persisted session hygiene (delete, rename, export).
+Interactive chat REPL + persisted session hygiene (list, delete, rename, export).
 
 Without a subcommand: launches the REPL (resume with `--resume <id>`, or list recent sessions with `--list`). With a subcommand: operates on `~/.apollia/chat.db` directly; no runtime required.
 
@@ -2551,7 +2568,8 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 ###### **Subcommands:**
 
-* `delete` - Delete a persisted chat session and all of its messages
+* `list` - List the persisted chat sessions, each with the folder it is in
+* `delete` - Delete a persisted chat session and all of its messages, for good
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
 * `capabilities` - Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images
@@ -2564,9 +2582,25 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 
 
+## `apollia-os chat list`
+
+List the persisted chat sessions, each with the folder it is in.
+
+Reads the chat database, no runtime required. A session the desktop application sent to its trash is not listed.
+
+**Usage:** `apollia-os chat list [OPTIONS]`
+
+###### **Options:**
+
+* `--db <PATH>` - Override the chat database path (default: `~/.apollia/chat.db`)
+
+
+
 ## `apollia-os chat delete`
 
-Delete a persisted chat session and all of its messages
+Delete a persisted chat session and all of its messages, for good.
+
+Nothing goes to the trash of the desktop application: a session deleted here cannot be restored. A session already in that trash is erased the same way.
 
 **Usage:** `apollia-os chat delete [OPTIONS] <SESSION_ID>`
 

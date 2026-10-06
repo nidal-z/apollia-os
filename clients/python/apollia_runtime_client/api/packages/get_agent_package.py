@@ -71,7 +71,8 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AgentPackageDetail | ApiErrorBody]:
     """`GET /api/v1/agent-packages/installed/{name}`: one installed package, its
-    manifest as recorded.
+    manifest as recorded, its publisher, what it installed by kind, and the
+    automations that would go with it.
 
     Args:
         name (str):
@@ -101,7 +102,8 @@ def sync(
     client: AuthenticatedClient | Client,
 ) -> AgentPackageDetail | ApiErrorBody | None:
     """`GET /api/v1/agent-packages/installed/{name}`: one installed package, its
-    manifest as recorded.
+    manifest as recorded, its publisher, what it installed by kind, and the
+    automations that would go with it.
 
     Args:
         name (str):
@@ -126,7 +128,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
 ) -> Response[AgentPackageDetail | ApiErrorBody]:
     """`GET /api/v1/agent-packages/installed/{name}`: one installed package, its
-    manifest as recorded.
+    manifest as recorded, its publisher, what it installed by kind, and the
+    automations that would go with it.
 
     Args:
         name (str):
@@ -154,7 +157,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
 ) -> AgentPackageDetail | ApiErrorBody | None:
     """`GET /api/v1/agent-packages/installed/{name}`: one installed package, its
-    manifest as recorded.
+    manifest as recorded, its publisher, what it installed by kind, and the
+    automations that would go with it.
 
     Args:
         name (str):

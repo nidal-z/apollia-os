@@ -485,7 +485,6 @@ pub(crate) fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
         execution_mode: ExecutionMode::Orchestrated,
         available_tools: vec![],
         manifest_system_prompt: None,
-        llm_backend_names: vec![],
     }
 }
 
@@ -2017,7 +2016,7 @@ mod tests {
         assert!(!StepError::ApprovalChannelClosed.is_retryable());
     }
 
-    // Multi-model dispatch via model_hint
+    // A step runs on the model of its agent, never on a model of its own
 
     /// Build a plan with an LLM step and an optional `model_hint`.
     fn make_llm_plan(step_id: &str, model_hint: Option<&str>) -> ExecutionPlan {
@@ -2080,14 +2079,13 @@ mod tests {
         }
     }
 
-    /// Step with model_hint dispatches to the named backend.
-    ///
     /// GIVEN an LlmRouter with backends "default" and "fast"
-    ///   AND an LLM PlanStep with model_hint = Some("fast")
+    ///   AND an LLM PlanStep naming "fast" in its model_hint, its agent naming
+    ///   no model
     /// WHEN actor.execute() is called
-    /// THEN the response comes from the "fast" backend
+    /// THEN the response comes from the "default" backend: the hint is not read
     #[tokio::test]
-    async fn test_story227_ac1_model_hint_dispatches_to_named_backend() {
+    async fn test_a_step_model_hint_is_not_read() {
         // GIVEN
         let plan = make_llm_plan("s1", Some("fast"));
         let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
@@ -2135,8 +2133,66 @@ mod tests {
         assert_eq!(result.status, TaskStatus::Completed);
         let output_debug = format!("{:?}", result.output);
         assert!(
+            output_debug.contains("response-from-default"),
+            "the hint must not pick the backend, got: {output_debug}"
+        );
+    }
+
+    /// GIVEN an LlmRouter with backends "default" and "fast"
+    ///   AND an LLM PlanStep without a model_hint, its agent's model being "fast"
+    /// WHEN actor.execute() is called
+    /// THEN the response comes from "fast", the model of the agent
+    #[tokio::test]
+    async fn test_a_step_runs_on_the_model_of_its_agent() {
+        // GIVEN
+        let plan = make_llm_plan("s1", None);
+        let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+        let mut backends = HashMap::new();
+        backends.insert(
+            "default".to_string(),
+            Arc::new(TaggedMockModel {
+                tag: "default".into(),
+            }) as Arc<dyn apollia_llm::CompletionModel>,
+        );
+        backends.insert(
+            "fast".to_string(),
+            Arc::new(TaggedMockModel { tag: "fast".into() })
+                as Arc<dyn apollia_llm::CompletionModel>,
+        );
+        let llm = LlmRouter::with_backends(backends, "default");
+        let proxy = MockToolProxy {
+            response: "unused".into(),
+        };
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+        let mut manifest = make_manifest();
+        manifest.llm_backend = Some("fast".into());
+        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, manifest);
+
+        // WHEN
+        let result = actor
+            .execute(
+                StepDeps {
+                    tool_proxy: &proxy,
+                    llm_router: &llm,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &resilience,
+            )
+            .await;
+
+        // THEN
+        assert_eq!(result.status, TaskStatus::Completed);
+        let output_debug = format!("{:?}", result.output);
+        assert!(
             output_debug.contains("response-from-fast"),
-            "expected output from 'fast' backend, got: {output_debug}"
+            "expected output from the agent's model, got: {output_debug}"
         );
     }
 

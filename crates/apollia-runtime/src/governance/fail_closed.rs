@@ -1,9 +1,10 @@
 //! Governance that fails closed.
 //!
 //! When what governance decides from cannot be read, a failure never becomes
-//! a permission. Two causes put governance in that state: `governance.db`
-//! exists and cannot be read, or an organisation policy is deposited and
-//! refused (its schema, its signature, its key or its owner). While it lasts,
+//! a permission. Three causes put governance in that state: `governance.db`
+//! exists and cannot be read, an organisation policy is deposited and
+//! refused (its schema, its signature, its key or its owner), or the policy
+//! requires the journal and the journal is not open. While it lasts,
 //! every sensitive tool call and every new connection is refused; reading
 //! continues.
 //!
@@ -39,6 +40,12 @@ pub enum FailClosed {
         /// What exactly was refused.
         detail: String,
     },
+    /// The organisation policy requires the journal, and the journal is
+    /// absent or could not be opened: nothing sensitive runs unrecorded.
+    JournalUnavailable {
+        /// What is missing.
+        detail: String,
+    },
 }
 
 impl FailClosed {
@@ -48,6 +55,7 @@ impl FailClosed {
         match self {
             Self::StoreUnreadable { .. } => "store_unreadable",
             Self::PolicyInvalid { .. } => "policy_invalid",
+            Self::JournalUnavailable { .. } => "journal_unavailable",
         }
     }
 
@@ -61,6 +69,25 @@ impl FailClosed {
             Self::PolicyInvalid { reason, detail } => {
                 format!("the organisation policy is refused ({reason}): {detail}")
             }
+            Self::JournalUnavailable { detail } => {
+                format!("the organisation policy requires the journal: {detail}")
+            }
+        }
+    }
+
+    /// The state a policy that requires the journal puts governance in when
+    /// the journal is not open, `None` for a policy that does not require it,
+    /// a policy absent or refused, or a journal that is open. A journal open
+    /// without its signing key is open: its chain is still verified.
+    #[must_use]
+    pub fn from_journal(verdict: &PolicyVerdict, journal_open: bool) -> Option<Self> {
+        match verdict {
+            PolicyVerdict::Valid(valid) if valid.policy.journal.required && !journal_open => {
+                Some(Self::JournalUnavailable {
+                    detail: "the journal is absent or could not be opened".to_owned(),
+                })
+            }
+            _ => None,
         }
     }
 

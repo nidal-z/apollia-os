@@ -1,71 +1,83 @@
 <script lang="ts">
   /**
-   * Onboarding step 3 - AI Setup.
+   * First-launch step 2 - the language model.
    *
-   * The shell: the machine probe, the two sections, and the navigation. The
-   * language-engine half lives in `OnboardingLlmSection.svelte`, the voice half
-   * in `OnboardingSttSection.svelte`, and the decisions both make in
-   * `aiSetupRules.ts`.
+   * The shell: the machine probe, the choice between a model on this computer
+   * and a server, and the navigation. The first lives in
+   * `OnboardingLlmSection.svelte`, the second in `OnboardingServerForm.svelte`,
+   * and the decisions in `aiSetupRules.ts` and `serverSetup.ts`.
+   *
+   * This is the only step that cannot be passed, so it carries no "skip":
+   * "Continue" opens once a model is wired, a server model is chosen, or a
+   * download was launched. Nothing else is asked here, and nothing here
+   * leaves the first launch: the server is declared inside the step. The context window
+   * follows the default of the model, and dictation is set up in the settings.
    *
    * Designed to render inline inside the {@link OnboardingModal} overlay
    * (no own backdrop or fixed positioning).
    */
-  import { get } from "svelte/store";
-  import { t, locale } from "svelte-i18n";
-  import {
-    getAiSetupInfo,
-    setupWhisperModel,
-    type SystemInfo,
-    type WhisperModelInfo,
-  } from "$lib/ipc/models";
-  import { AlertCircle, MemoryStick, MonitorCog } from "lucide-svelte";
+  import { t } from "svelte-i18n";
+  import { getAiSetupInfo, type SystemInfo } from "$lib/ipc/models";
+  import { Laptop, MemoryStick, MonitorCog, Server } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
   import { llmBackends } from "$lib/stores/sse";
-  import { navigateTo } from "$lib/stores/navigation";
   import OnboardingLlmSection from "./OnboardingLlmSection.svelte";
-  import OnboardingSttSection from "./OnboardingSttSection.svelte";
+  import OnboardingServerForm from "./OnboardingServerForm.svelte";
+  import { canContinueAiStep, type AiSource } from "./aiSetupRules";
+  import { isInFlight } from "./llmDownload";
+  import { llmDownload } from "./llmDownloadLive";
   import { ramLabel, osLabel } from "./onboardingFormat";
+  import { serverSetup } from "./serverSetupLive";
   import "./onboarding-ai-setup.css";
 
   interface Props {
-    onnext: () => void;
+    /**
+     * Advances, with the size of the language model wired or being downloaded
+     * here when there is one.
+     */
+    onnext: (languageModelBytes: number | null) => void;
     onback: () => void;
-    onskip: () => void;
-    /** Called when the user wants to add a cloud backend; modal should close. */
-    onopencloud: () => void;
   }
 
-  const { onnext, onback, onskip, onopencloud }: Props = $props();
+  const { onnext, onback }: Props = $props();
 
-  /** Base app locale (e.g. "fr", "en") to seed the STT transcription language,
-   * so dictation transcribes in the user's language instead of English. */
-  function currentLocale(): string | undefined {
-    const l = get(locale);
-    return l ? l.split("-")[0] : undefined;
-  }
+  const SOURCES: { id: AiSource; icon: typeof Laptop; title: string; body: string }[] = [
+    {
+      id: "local",
+      icon: Laptop,
+      title: "onboarding.ai_setup.source.local_title",
+      body: "onboarding.ai_setup.source.local_body",
+    },
+    {
+      id: "server",
+      icon: Server,
+      title: "onboarding.ai_setup.source.server_title",
+      body: "onboarding.ai_setup.source.server_body",
+    },
+  ];
 
   let loading = $state(true);
   let sysInfo = $state<SystemInfo | null>(null);
 
   /** Set by the language-engine section when it wires an engine this session. */
   let llmSuccess = $state(false);
-  /** Mirrors the voice section, which the step persists before it advances. */
-  let voice = $state<{ enabled: boolean; model: WhisperModelInfo | null }>({
-    enabled: false,
-    model: null,
-  });
+  /** Size of the file of that engine, `null` for a server or a backend already there. */
+  let llmSizeBytes = $state<number | null>(null);
 
-  let advancing = $state(false);
-  let advanceError = $state<string | null>(null);
+  /** Which of the two the step shows. A server already chosen is shown again. */
+  let source = $state<AiSource>($serverSetup.chosen === null ? "local" : "server");
 
-  /**
-   * The continue button should only enable once the runtime can actually
-   * answer the agent's first turn - i.e. either the local LLM was wired up
-   * during this session, or a backend (cloud or pre-existing local) is
-   * already registered in the runtime.
-   */
-  const hasUsableLlm = $derived(llmSuccess || $llmBackends.length > 0);
+  const downloading = $derived(isInFlight($llmDownload));
+  const canContinue = $derived(
+    canContinueAiStep({
+      probing: loading,
+      engineWired: llmSuccess,
+      backendCount: $llmBackends.length,
+      serverChosen: $serverSetup.chosen !== null,
+      downloadInFlight: downloading,
+    }),
+  );
 
   $effect(() => {
     void probeMachine();
@@ -75,30 +87,16 @@
     try {
       sysInfo = await getAiSetupInfo();
     } catch {
-      /* the sections render without the chips */
+      /* the section renders without the chips */
     } finally {
       loading = false;
     }
   }
 
-  function openCloudSettings(): void {
-    navigateTo("llm");
-    onopencloud();
-  }
-
-  async function handleContinue(): Promise<void> {
-    if (advancing) return;
-    advancing = true;
-    advanceError = null;
-    try {
-      if (voice.enabled && voice.model) {
-        await setupWhisperModel(voice.model.path, currentLocale());
-      }
-      onnext();
-    } catch (err: unknown) {
-      advanceError = err instanceof Error ? err.message : String(err);
-      advancing = false;
-    }
+  function handleContinue(): void {
+    // The next step sizes its own recommendation beside this model, wired or
+    // still on its way.
+    onnext(llmSizeBytes ?? (downloading ? $llmDownload.sizeBytes : null));
   }
 </script>
 
@@ -132,39 +130,60 @@
       <span>{$t("onboarding.ai_setup.scanning")}</span>
     </div>
   {:else}
-    <OnboardingLlmSection
-      {sysInfo}
-      onconfigured={(configured) => (llmSuccess = configured)}
-      onopencloud={openCloudSettings}
-    />
+    <div
+      class="source-cards"
+      role="radiogroup"
+      aria-label={$t("onboarding.ai_setup.source.label")}
+      data-testid="ai-setup-source"
+    >
+      {#each SOURCES as { id, icon: SourceIcon, title, body } (id)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={source === id}
+          class="source-card"
+          class:source-card-chosen={source === id}
+          onclick={() => (source = id)}
+          data-testid={`ai-setup-source-${id}`}
+        >
+          <SourceIcon size={16} strokeWidth={2} aria-hidden="true" />
+          <span class="source-card-text">
+            <span class="source-card-title">{$t(title)}</span>
+            <span class="source-card-body">{$t(body)}</span>
+          </span>
+        </button>
+      {/each}
+    </div>
 
-    <OnboardingSttSection
-      {sysInfo}
-      locale={currentLocale}
-      onchange={(choice) => (voice = choice)}
-    />
+    {#if source === "local"}
+      <OnboardingLlmSection
+        {sysInfo}
+        onconfigured={(configured, sizeBytes) => {
+          llmSuccess = configured;
+          llmSizeBytes = sizeBytes;
+        }}
+      />
+    {:else}
+      <OnboardingServerForm setup={serverSetup} />
+    {/if}
   {/if}
 
-  {#if advanceError}
-    <p class="inline-error" role="alert" data-testid="advance-error">
-      <AlertCircle size={12} />{advanceError}
-    </p>
-  {/if}
+  <p class="empty-hint" data-testid="ai-setup-continue-hint">
+    {downloading
+      ? $t("onboarding.ai_setup.continue_while_downloading")
+      : $t("onboarding.ai_setup.continue_hint")}
+  </p>
 
   <footer class="setup-footer">
-    <Button variant="ghost" size="sm" class="btn-secondary" onclick={onback} disabled={advancing} data-testid="ai-setup-back">
+    <Button variant="ghost" size="sm" class="btn-secondary" onclick={onback} data-testid="ai-setup-back">
       ← {$t("common.back")}
     </Button>
     <div class="footer-right">
-      <Button variant="ghost" size="sm" class="btn-tertiary" onclick={onskip} disabled={advancing} data-testid="ai-setup-skip">
-        {$t("onboarding.ai_setup.configure_later")}
-      </Button>
       <Button
         variant="primary-gradient"
         size="default"
         onclick={handleContinue}
-        disabled={advancing || loading || !hasUsableLlm}
-        loading={advancing}
+        disabled={!canContinue}
         data-testid="ai-setup-continue"
       >
         {$t("common.continue")}

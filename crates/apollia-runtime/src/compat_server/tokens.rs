@@ -73,6 +73,7 @@ enum Command {
     Revoke(TokenSelector, Reply<ServerTokenRow>),
     ActiveCount(Reply<u64>),
     Verify(String, oneshot::Sender<bool>),
+    NameOf(String, oneshot::Sender<Option<String>>),
 }
 
 /// Handle to the token actor.
@@ -176,6 +177,15 @@ impl ServerTokensHandle {
         }
         rx.await.unwrap_or(false)
     }
+
+    /// The name of the token in use `presented` is, for the journal: never
+    /// its value. `None` for a value that is no token in use, and on any
+    /// failure. Its last use is left as it is: only [`Self::verify`] stamps.
+    pub(crate) async fn name_of(&self, presented: String) -> Option<String> {
+        let (reply, rx) = oneshot::channel();
+        self.tx.send(Command::NameOf(presented, reply)).await.ok()?;
+        rx.await.ok().flatten()
+    }
 }
 
 async fn run(store: Result<ServerTokenRepository, String>, mut rx: mpsc::Receiver<Command>) {
@@ -200,6 +210,9 @@ async fn run(store: Result<ServerTokenRepository, String>, mut rx: mpsc::Receive
             }
             Command::Verify(presented, reply) => {
                 let _ = reply.send(store.is_ok_and(|s| verify(s, &presented)));
+            }
+            Command::NameOf(presented, reply) => {
+                let _ = reply.send(store.ok().and_then(|s| name_of(s, &presented)));
             }
         }
     }
@@ -235,9 +248,10 @@ fn revoke(
     Ok(row)
 }
 
-/// Compares the hash of `presented` with every hash in use, each in constant
-/// time and without stopping at the first match.
-fn verify(store: &ServerTokenRepository, presented: &str) -> bool {
+/// The token in use whose hash is the hash of `presented`: every hash in use
+/// is compared, each in constant time and without stopping at the first
+/// match.
+fn matching(store: &ServerTokenRepository, presented: &str) -> Option<i64> {
     let active = match store.active_hashes() {
         Ok(active) => active,
         Err(error) => {
@@ -246,7 +260,7 @@ fn verify(store: &ServerTokenRepository, presented: &str) -> bool {
                 error = %error,
                 "compat_server.tokens.read_failed"
             );
-            return false;
+            return None;
         }
     };
     let presented = hash_hex(presented);
@@ -256,7 +270,12 @@ fn verify(store: &ServerTokenRepository, presented: &str) -> bool {
             matched = Some(*id);
         }
     }
-    let Some(id) = matched else {
+    matched
+}
+
+/// Whether `presented` is a token in use; a match stamps its last use.
+fn verify(store: &ServerTokenRepository, presented: &str) -> bool {
+    let Some(id) = matching(store, presented) else {
         return false;
     };
     if let Err(error) = store.touch(id) {
@@ -268,4 +287,13 @@ fn verify(store: &ServerTokenRepository, presented: &str) -> bool {
         );
     }
     true
+}
+
+/// The name of the token in use `presented` is.
+fn name_of(store: &ServerTokenRepository, presented: &str) -> Option<String> {
+    let id = matching(store, presented)?;
+    let rows = store.list().ok()?;
+    rows.into_iter()
+        .find(|row| row.id == id)
+        .map(|row| row.name)
 }

@@ -196,9 +196,6 @@ pub(super) fn report_completed_task(
 ///
 /// When `terminal_only` is `true`, intermediate events are suppressed and only
 /// the final agent output is printed (used by the default non-`--stream` path).
-///
-/// When `alternatives` is `true`, the stream pauses on `plan_alternatives_generated`
-/// and prompts the operator for a plan choice before continuing.
 /// Parameters for [`stream_task`].
 pub(super) struct StreamTaskArgs<'a> {
     /// Connected runtime client.
@@ -211,8 +208,6 @@ pub(super) struct StreamTaskArgs<'a> {
     pub(super) start: Instant,
     /// Suppress intermediate events, surfacing only the final output.
     pub(super) terminal_only: bool,
-    /// Pause on `plan_alternatives_generated` and prompt for a choice.
-    pub(super) alternatives: bool,
     /// Pause on `plan_approval_required` and prompt for an approve/reject decision.
     pub(super) plan: bool,
 }
@@ -224,7 +219,6 @@ pub(super) async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
         json,
         start,
         terminal_only,
-        alternatives,
         plan,
     } = args;
 
@@ -243,9 +237,7 @@ pub(super) async fn stream_task(args: StreamTaskArgs<'_>) -> i32 {
         }
     };
 
-    let mut state = if alternatives {
-        RunDisplayState::with_alternatives(json)
-    } else if plan {
+    let mut state = if plan {
         RunDisplayState::with_plan(json)
     } else {
         RunDisplayState::new(json, terminal_only)

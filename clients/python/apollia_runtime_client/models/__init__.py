@@ -23,13 +23,20 @@ from .agent_model_fallback_response import AgentModelFallbackResponse
 from .agent_model_response import AgentModelResponse
 from .agent_origin_dto import AgentOriginDto
 from .agent_package_agent import AgentPackageAgent
+from .agent_package_automation import AgentPackageAutomation
+from .agent_package_content import AgentPackageContent
+from .agent_package_counts import AgentPackageCounts
 from .agent_package_detail import AgentPackageDetail
 from .agent_package_detail_manifest import AgentPackageDetailManifest
 from .agent_package_install_body import AgentPackageInstallBody
 from .agent_package_install_report import AgentPackageInstallReport
+from .agent_package_item import AgentPackageItem
 from .agent_package_list_item import AgentPackageListItem
 from .agent_package_preview import AgentPackagePreview
 from .agent_package_preview_body import AgentPackagePreviewBody
+from .agent_package_requirement import AgentPackageRequirement
+from .agent_package_signature import AgentPackageSignature
+from .agent_package_tool import AgentPackageTool
 from .agent_package_trigger import AgentPackageTrigger
 from .agent_package_trigger_config import AgentPackageTriggerConfig
 from .agent_package_uninstalled import AgentPackageUninstalled
@@ -44,6 +51,8 @@ from .applied_proposal import AppliedProposal
 from .artifact import Artifact
 from .audit_entry_dto import AuditEntryDto
 from .audit_event_response import AuditEventResponse
+from .audit_journal_entry_detail_response import AuditJournalEntryDetailResponse
+from .audit_journal_entry_detail_response_entry import AuditJournalEntryDetailResponseEntry
 from .audit_journal_page_response import AuditJournalPageResponse
 from .audit_journal_page_response_entries_item import AuditJournalPageResponseEntriesItem
 from .audit_journal_response import AuditJournalResponse
@@ -70,6 +79,7 @@ from .channel_delete_response import ChannelDeleteResponse
 from .channel_response import ChannelResponse
 from .channel_response_config import ChannelResponseConfig
 from .chat_approval_history_entry import ChatApprovalHistoryEntry
+from .chat_folder import ChatFolder
 from .chat_plan_snapshot import ChatPlanSnapshot
 from .chat_plan_snapshot_plan_type_0 import ChatPlanSnapshotPlanType0
 from .chat_request import ChatRequest
@@ -105,6 +115,7 @@ from .conversation_stats_view import ConversationStatsView
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
+from .create_agent_request import CreateAgentRequest
 from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
 from .create_companion_session_body import CreateCompanionSessionBody
@@ -129,6 +140,7 @@ from .decide_request import DecideRequest
 from .decide_request_answers_type_0_item import DecideRequestAnswersType0Item
 from .decide_request_value_type_0 import DecideRequestValueType0
 from .decide_response import DecideResponse
+from .declared_origin import DeclaredOrigin
 from .default_model_response import DefaultModelResponse
 from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
@@ -150,6 +162,7 @@ from .dictation_models_response_models_item import DictationModelsResponseModels
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
 from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
+from .document_attachment import DocumentAttachment
 from .drive_folder_status import DriveFolderStatus
 from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
@@ -167,6 +180,9 @@ from .engine_source import EngineSource
 from .engine_variant import EngineVariant
 from .engines_response import EnginesResponse
 from .events_response import EventsResponse
+from .example_agent import ExampleAgent
+from .example_install_request import ExampleInstallRequest
+from .example_package import ExamplePackage
 from .export_agent_request import ExportAgentRequest
 from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
@@ -174,9 +190,12 @@ from .fail_closed_type_0 import FailClosedType0
 from .fail_closed_type_0_cause import FailClosedType0Cause
 from .fail_closed_type_1 import FailClosedType1
 from .fail_closed_type_1_cause import FailClosedType1Cause
+from .fail_closed_type_2 import FailClosedType2
+from .fail_closed_type_2_cause import FailClosedType2Cause
 from .fire_response import FireResponse
 from .fit_dto import FitDto
 from .folder_error_body import FolderErrorBody
+from .folder_name_body import FolderNameBody
 from .fork_session_request import ForkSessionRequest
 from .generate_next_steps_body import GenerateNextStepsBody
 from .generate_title_body import GenerateTitleBody
@@ -192,6 +211,7 @@ from .guardrail_refused_body import GuardrailRefusedBody
 from .guardrail_verdict_dto import GuardrailVerdictDto
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
+from .hardware_response_devices_item import HardwareResponseDevicesItem
 from .health_response import HealthResponse
 from .image_attachment import ImageAttachment
 from .imap_account_body import ImapAccountBody
@@ -232,6 +252,15 @@ from .item_preview import ItemPreview
 from .journal_anchor import JournalAnchor
 from .journal_break import JournalBreak
 from .journal_break_reason import JournalBreakReason
+from .journal_export_format import JournalExportFormat
+from .journal_nature import JournalNature
+from .journal_notice_type_0 import JournalNoticeType0
+from .journal_notice_type_0_notice import JournalNoticeType0Notice
+from .journal_notice_type_1 import JournalNoticeType1
+from .journal_notice_type_1_notice import JournalNoticeType1Notice
+from .journal_outcome import JournalOutcome
+from .journal_start import JournalStart
+from .journal_summary import JournalSummary
 from .last_loaded_model_response import LastLoadedModelResponse
 from .last_loaded_model_response_load import LastLoadedModelResponseLoad
 from .lease_response import LeaseResponse
@@ -273,6 +302,7 @@ from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
 from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
+from .message_search_hit import MessageSearchHit
 from .migration_issue import MigrationIssue
 from .migration_report import MigrationReport
 from .migration_status import MigrationStatus
@@ -388,6 +418,8 @@ from .resilience_status_response_circuit_breakers_item import (
 )
 from .resolved_agent_response import ResolvedAgentResponse
 from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
+from .resource_usage_response import ResourceUsageResponse
+from .resource_usage_response_vram import ResourceUsageResponseVram
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
@@ -406,10 +438,12 @@ from .server_log_line import ServerLogLine
 from .server_log_source import ServerLogSource
 from .server_model import ServerModel
 from .server_models_response import ServerModelsResponse
+from .server_policy_locks import ServerPolicyLocks
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .server_token_view import ServerTokenView
 from .servers_list_response import ServersListResponse
+from .session_folder_body import SessionFolderBody
 from .session_metrics import SessionMetrics
 from .session_model_capabilities import SessionModelCapabilities
 from .session_workspace import SessionWorkspace
@@ -443,6 +477,7 @@ from .source_index_response import SourceIndexResponse
 from .source_kind_dto import SourceKindDto
 from .source_preview_response import SourcePreviewResponse
 from .source_response import SourceResponse
+from .source_write import SourceWrite
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
@@ -487,6 +522,9 @@ from .timeline_response import TimelineResponse
 from .todo_read_response import TodoReadResponse
 from .todo_read_response_items_item import TodoReadResponseItemsItem
 from .token_usage_response import TokenUsageResponse
+from .tool_call_detail import ToolCallDetail
+from .tool_call_detail_arguments_type_0 import ToolCallDetailArgumentsType0
+from .tool_call_detail_output_type_0 import ToolCallDetailOutputType0
 from .tool_config_body import ToolConfigBody
 from .tool_config_body_config_type_0 import ToolConfigBodyConfigType0
 from .tool_enabled_body import ToolEnabledBody
@@ -503,6 +541,7 @@ from .transcriptions_list_response import TranscriptionsListResponse
 from .transcriptions_list_response_transcriptions_item import (
     TranscriptionsListResponseTranscriptionsItem,
 )
+from .trashed_session import TrashedSession
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
 from .trigger_definition_response_workflow_inputs_type_0 import (
@@ -520,6 +559,8 @@ from .uninstall_report import UninstallReport
 from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
+from .unread_page_response import UnreadPageResponse
+from .unread_reason_dto import UnreadReasonDto
 from .update_agent_request import UpdateAgentRequest
 from .update_agent_response import UpdateAgentResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -551,6 +592,7 @@ from .workflow_run_view_inputs import WorkflowRunViewInputs
 from .workflow_run_view_output_type_0 import WorkflowRunViewOutputType0
 from .workflow_step_view import WorkflowStepView
 from .workflow_view import WorkflowView
+from .write_destination import WriteDestination
 
 __all__ = (
     "A2AAgentDto",
@@ -576,13 +618,20 @@ __all__ = (
     "AgentModelResponse",
     "AgentOriginDto",
     "AgentPackageAgent",
+    "AgentPackageAutomation",
+    "AgentPackageContent",
+    "AgentPackageCounts",
     "AgentPackageDetail",
     "AgentPackageDetailManifest",
     "AgentPackageInstallBody",
     "AgentPackageInstallReport",
+    "AgentPackageItem",
     "AgentPackageListItem",
     "AgentPackagePreview",
     "AgentPackagePreviewBody",
+    "AgentPackageRequirement",
+    "AgentPackageSignature",
+    "AgentPackageTool",
     "AgentPackageTrigger",
     "AgentPackageTriggerConfig",
     "AgentPackageUninstalled",
@@ -597,6 +646,8 @@ __all__ = (
     "Artifact",
     "AuditEntryDto",
     "AuditEventResponse",
+    "AuditJournalEntryDetailResponse",
+    "AuditJournalEntryDetailResponseEntry",
     "AuditJournalPageResponse",
     "AuditJournalPageResponseEntriesItem",
     "AuditJournalResponse",
@@ -623,6 +674,7 @@ __all__ = (
     "ChannelResponse",
     "ChannelResponseConfig",
     "ChatApprovalHistoryEntry",
+    "ChatFolder",
     "ChatPlanSnapshot",
     "ChatPlanSnapshotPlanType0",
     "ChatRequest",
@@ -658,6 +710,7 @@ __all__ = (
     "CostsResponse",
     "CostSummaryRow",
     "CountedLanguageModel",
+    "CreateAgentRequest",
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
     "CreateCompanionSessionBody",
@@ -682,6 +735,7 @@ __all__ = (
     "DecideRequestAnswersType0Item",
     "DecideRequestValueType0",
     "DecideResponse",
+    "DeclaredOrigin",
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
@@ -703,6 +757,7 @@ __all__ = (
     "DictationModelsResponseReasonType0",
     "DirectoryRemoved",
     "DismissedProposal",
+    "DocumentAttachment",
     "DriveFolderStatus",
     "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",
@@ -720,6 +775,9 @@ __all__ = (
     "EnginesResponse",
     "EngineVariant",
     "EventsResponse",
+    "ExampleAgent",
+    "ExampleInstallRequest",
+    "ExamplePackage",
     "ExportAgentRequest",
     "ExportFormat",
     "ExportMemoryNamespaceResponse200",
@@ -727,9 +785,12 @@ __all__ = (
     "FailClosedType0Cause",
     "FailClosedType1",
     "FailClosedType1Cause",
+    "FailClosedType2",
+    "FailClosedType2Cause",
     "FireResponse",
     "FitDto",
     "FolderErrorBody",
+    "FolderNameBody",
     "ForkSessionRequest",
     "GeneratedTitle",
     "GenerateNextStepsBody",
@@ -745,6 +806,7 @@ __all__ = (
     "GuardrailVerdictDto",
     "HardwareResponse",
     "HardwareResponseAccelerator",
+    "HardwareResponseDevicesItem",
     "HealthResponse",
     "ImageAttachment",
     "ImapAccountBody",
@@ -785,6 +847,15 @@ __all__ = (
     "JournalAnchor",
     "JournalBreak",
     "JournalBreakReason",
+    "JournalExportFormat",
+    "JournalNature",
+    "JournalNoticeType0",
+    "JournalNoticeType0Notice",
+    "JournalNoticeType1",
+    "JournalNoticeType1Notice",
+    "JournalOutcome",
+    "JournalStart",
+    "JournalSummary",
     "LastLoadedModelResponse",
     "LastLoadedModelResponseLoad",
     "LeaseResponse",
@@ -826,6 +897,7 @@ __all__ = (
     "MemorySearchResultView",
     "MemoryWiped",
     "MessageDto",
+    "MessageSearchHit",
     "MigrationIssue",
     "MigrationReport",
     "MigrationStatus",
@@ -937,6 +1009,8 @@ __all__ = (
     "ResilienceStatusResponseCircuitBreakersItem",
     "ResolvedAgentResponse",
     "ResolvedAgentResponseDefinition",
+    "ResourceUsageResponse",
+    "ResourceUsageResponseVram",
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",
@@ -955,10 +1029,12 @@ __all__ = (
     "ServerLogSource",
     "ServerModel",
     "ServerModelsResponse",
+    "ServerPolicyLocks",
     "ServerProbeErrorResponse",
     "ServerResponse",
     "ServersListResponse",
     "ServerTokenView",
+    "SessionFolderBody",
     "SessionMetrics",
     "SessionModelCapabilities",
     "SessionWorkspace",
@@ -992,6 +1068,7 @@ __all__ = (
     "SourceKindDto",
     "SourcePreviewResponse",
     "SourceResponse",
+    "SourceWrite",
     "SseMailboxEvent",
     "SseTaskEvent",
     "StartAgentRequest",
@@ -1036,6 +1113,9 @@ __all__ = (
     "TodoReadResponse",
     "TodoReadResponseItemsItem",
     "TokenUsageResponse",
+    "ToolCallDetail",
+    "ToolCallDetailArgumentsType0",
+    "ToolCallDetailOutputType0",
     "ToolConfigBody",
     "ToolConfigBodyConfigType0",
     "ToolEnabledBody",
@@ -1050,6 +1130,7 @@ __all__ = (
     "TranscribeAudioBodySource",
     "TranscriptionsListResponse",
     "TranscriptionsListResponseTranscriptionsItem",
+    "TrashedSession",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
     "TriggerDefinitionResponseWorkflowInputsType0",
@@ -1065,6 +1146,8 @@ __all__ = (
     "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
+    "UnreadPageResponse",
+    "UnreadReasonDto",
     "UpdateAgentRequest",
     "UpdateAgentResponse",
     "UpdateArtifactRequest",
@@ -1096,4 +1179,5 @@ __all__ = (
     "WorkflowRunViewOutputType0",
     "WorkflowStepView",
     "WorkflowView",
+    "WriteDestination",
 )

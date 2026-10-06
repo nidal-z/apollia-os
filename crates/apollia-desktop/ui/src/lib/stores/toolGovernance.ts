@@ -17,7 +17,7 @@ export interface CredentialTestResultDto {
   error: string | null;
 }
 
-/** Global store of the `/settings/tools` page. */
+/** Global store of the built-in tools catalogue, shown on the Connections screen. */
 export const tools = writable<ToolStatusDto[]>([]);
 export const loadingTools = writable<boolean>(false);
 export const toolsError = writable<string | null>(null);

@@ -62,6 +62,17 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "apo"
+        ],
+        "name": "Apollia package",
+        "description": "Apollia package",
+        "mimeType": "application/x-apollia-package",
+        "role": "Viewer"
+      }
+    ],
     "resources": [
       "apollia-os*",
       "runners/**/*",

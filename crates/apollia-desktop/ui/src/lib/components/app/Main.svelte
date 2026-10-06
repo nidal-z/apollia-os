@@ -11,10 +11,12 @@
   import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import Dashboard from "../../../routes/Dashboard.svelte";
   import Agents from "../../../routes/Agents.svelte";
-  import Tasks from "../../../routes/Tasks.svelte";
+  import Batches from "../../../routes/Batches.svelte";
+  import Batch from "../../../routes/Batch.svelte";
   import Inbox from "../../../routes/Inbox.svelte";
   import Llm from "../../../routes/Llm.svelte";
   import Automations from "../../../routes/Automations.svelte";
+  import Library from "../../../routes/Library.svelte";
   import Memory from "../../../routes/Memory.svelte";
   import Observability from "../../../routes/Observability.svelte";
   import Chat from "../../../routes/Chat.svelte";
@@ -23,6 +25,8 @@
   import Transcriptions from "../../../routes/Transcriptions.svelte";
   import Connections from "../../../routes/Connections.svelte";
   import Policy from "../../../routes/Policy.svelte";
+  import Authorizations from "../../../routes/Authorizations.svelte";
+  import Journal from "../../../routes/Journal.svelte";
   import Design from "../../../routes/Design.svelte";
   import DesignMotion from "../../../routes/DesignMotion.svelte";
   import DesignEmptyStates from "../../../routes/DesignEmptyStates.svelte";
@@ -86,14 +90,18 @@
             <Dashboard />
           {:else if shownRoute === "agents"}
             <Agents />
-          {:else if shownRoute === "tasks"}
-            <Tasks />
+          {:else if shownRoute === "batches"}
+            <Batches />
+          {:else if shownRoute === "batch"}
+            <Batch />
           {:else if shownRoute === "chat"}
             <Chat />
           {:else if shownRoute === "inbox"}
             <Inbox />
           {:else if shownRoute === "llm"}
             <Llm />
+          {:else if shownRoute === "library"}
+            <Library />
           {:else if shownRoute === "automations"}
             <Automations />
           {:else if shownRoute === "memory"}
@@ -106,6 +114,10 @@
             <Connections />
           {:else if shownRoute === "policy"}
             <Policy />
+          {:else if shownRoute === "authorizations"}
+            <Authorizations />
+          {:else if shownRoute === "journal"}
+            <Journal />
           {:else if isDev && shownRoute === "design"}
             <Design />
           {:else if isDev && shownRoute === "design-motion"}

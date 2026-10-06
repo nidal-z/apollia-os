@@ -325,9 +325,9 @@ async fn test_a_code_folder_is_added_whatever_the_mode_but_never_without_its_con
 }
 
 #[tokio::test]
-async fn test_the_index_of_a_source_answers_its_state_counts_and_skipped_files() {
-    // GIVEN a runtime with a folder source whose index holds one document
-    // and left one file out for its size
+async fn test_the_index_of_a_source_answers_its_state_counts_skipped_files_and_unread_pages() {
+    // GIVEN a runtime with a folder source whose index holds one document,
+    // two of its pages unread, and left one file out for its size
     let dir = tempfile::tempdir().unwrap();
     let state = state(&dir, false).await;
     let (_, created) = call(
@@ -342,15 +342,24 @@ async fn test_the_index_of_a_source_answers_its_state_counts_and_skipped_files()
     index
         .upsert_document(
             &apollia_sources::index::DocumentRecord {
-                path: "/docs/a.txt".into(),
+                path: "/docs/scan.pdf".into(),
                 fingerprint: "f".into(),
                 modified_at: "2026-10-04T00:00:00Z".into(),
             },
             &[apollia_sources::chunk::Chunk {
                 text: "Minutes of the meeting".into(),
-                location: apollia_sources::chunk::Location::Lines { first: 1, last: 1 },
+                location: apollia_sources::chunk::Location::Page { page: 1 },
             }],
             None,
+        )
+        .unwrap();
+    index
+        .set_unread_pages(
+            "/docs/scan.pdf",
+            &[
+                (2, apollia_sources::index::UnreadReason::OcrUnavailable),
+                (3, apollia_sources::index::UnreadReason::NotRead),
+            ],
         )
         .unwrap();
     index
@@ -372,7 +381,8 @@ async fn test_the_index_of_a_source_answers_its_state_counts_and_skipped_files()
     .await;
     let (unknown, _) = call(state, "GET", "/api/v1/sources/src-absent/index", None).await;
 
-    // THEN the state, the counts and the file left out are answered, and the
+    // THEN the state, the counts, the file left out and the two pages are
+    // answered, the one that waits for recognition named as such, and the
     // unknown source is not found
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["id"], id.as_str());
@@ -382,6 +392,13 @@ async fn test_the_index_of_a_source_answers_its_state_counts_and_skipped_files()
     assert_eq!(
         body["skipped"],
         json!([{ "path": "/docs/archive.zip.txt", "sizeBytes": 62914560, "reason": "too_large" }])
+    );
+    assert_eq!(
+        body["unreadPages"],
+        json!([
+            { "path": "/docs/scan.pdf", "page": 2, "reason": "ocr_unavailable" },
+            { "path": "/docs/scan.pdf", "page": 3, "reason": "not_read" }
+        ])
     );
     assert_eq!(unknown, StatusCode::NOT_FOUND);
 }

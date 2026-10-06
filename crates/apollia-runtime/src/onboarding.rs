@@ -21,7 +21,7 @@ pub mod memory;
 pub mod state;
 
 use memory::{
-    check_finalized_in, finalize_in, load_state_from_memory, persist_state,
+    check_finalized_in, finalize_in, forget_agent_entries, load_state_from_memory, persist_state,
     reset_onboarding_progress,
 };
 use state::{OnboardingError, OnboardingPhase, OnboardingState, TriggerResult};
@@ -70,7 +70,7 @@ impl Onboarding<'_> {
     ///
     /// # Errors
     ///
-    /// [`OnboardingError::UnknownPhase`] for a name outside the six,
+    /// [`OnboardingError::UnknownPhase`] for a name the flow does not know,
     /// [`OnboardingError::InvalidTransition`] for a phase out of sequence.
     pub async fn advance(&self, target_phase: &str) -> Result<OnboardingState, OnboardingError> {
         let target = OnboardingPhase::parse(target_phase)
@@ -108,8 +108,9 @@ impl Onboarding<'_> {
     }
 
     /// Opens a conversation with the onboarding agent: a full run (`topic`
-    /// `None`), one topic again, or, with `resume`, the enrichment of a
-    /// profile already collected, which keeps what the agent learnt.
+    /// `None`), one topic again, or, with `resume`, the completion of a
+    /// profile that already exists. No mode touches a profile: the agent
+    /// proposes, and the person saves.
     ///
     /// # Errors
     ///
@@ -129,8 +130,12 @@ impl Onboarding<'_> {
 
         // A fresh full run wipes the topic marks and the agent's entries of a
         // previous run, which would otherwise show the progress at 100% before
-        // the first message. A resume keeps them.
-        if topic.is_none() && !resume {
+        // the first message. A resume keeps the topic marks and forgets only
+        // the completion the agent recorded, which would close the new
+        // conversation before the first answer.
+        if resume {
+            forget_agent_entries(&self.memory_dir);
+        } else if topic.is_none() {
             if let Ok(repo) = self.repo() {
                 if let Ok(repo) = repo.lock() {
                     reset_onboarding_progress(&repo, &self.memory_dir);
@@ -145,7 +150,7 @@ impl Onboarding<'_> {
         }
 
         // The onboarding agent is a declarative agent: its mission is the
-        // system prompt and its tool records the profile, both read when each
+        // system prompt and its tool proposes the profile, both read when each
         // message is sent, so the session carries no prompt of its own.
         let mode = if resume {
             "resume"
@@ -264,7 +269,12 @@ fn apply_phase_transition(
     onboarding.phase = target.clone();
     if matches!(
         target,
-        OnboardingPhase::GuidedTour | OnboardingPhase::Graduation | OnboardingPhase::Done
+        OnboardingPhase::FirstAgent
+            | OnboardingPhase::Connection
+            | OnboardingPhase::FirstTask
+            | OnboardingPhase::GuidedTour
+            | OnboardingPhase::Graduation
+            | OnboardingPhase::Done
     ) {
         for topic in &ONBOARDING_TOPICS {
             let _ = repo.mark_topic_covered(topic);
@@ -273,5 +283,32 @@ fn apply_phase_transition(
     if *target == OnboardingPhase::Done {
         onboarding.completed = true;
         onboarding.completed_at = Some(chrono::Utc::now().to_rfc3339());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_a_resumed_conversation_does_not_inherit_the_previous_completion() {
+        // GIVEN a completion recorded by the previous conversation
+        let dir = tempfile::tempdir().expect("tempdir");
+        finalize_in(dir.path()).expect("finalize");
+        let (events, _rx) = crate::EventBus::new();
+        let onboarding = Onboarding {
+            user_memory: None,
+            chat_manager: None,
+            events: &events,
+            memory_dir: dir.path().to_path_buf(),
+        };
+
+        // WHEN the conversation is resumed to complete a profile; without a
+        // chat subsystem the session itself is refused
+        let refused = onboarding.trigger(None, true).await;
+
+        // THEN the stale completion is gone before any session opens
+        assert!(matches!(refused, Err(OnboardingError::ChatNotAvailable)));
+        assert!(!onboarding.is_finalized().await.expect("read"));
     }
 }

@@ -47,6 +47,7 @@ mod fail_closed;
 mod forbidden;
 pub(crate) mod inference_policy;
 mod journal;
+mod journal_policy;
 #[cfg(test)]
 mod no_policy;
 pub(crate) mod policy_admission;
@@ -72,7 +73,8 @@ pub use forbidden::{mailbox_refusal, ForbiddenConnections, FORBIDDEN_CONNECTION_
 pub use inference_policy::{
     InferenceGovernance, REMOTE_SERVER_DENIED_REASON, SERVER_NOT_ALLOWED_REASON,
 };
-pub(crate) use journal::record_policy_at_startup;
+pub(crate) use journal::{record_export, record_policy_at_startup, record_setting_enforced};
+pub(crate) use journal_policy::{record_journal_state_at_startup, start_journal_policy};
 #[cfg(test)]
 pub use no_policy::NoPolicyGovernance;
 pub use policy_admission::{
@@ -80,7 +82,8 @@ pub use policy_admission::{
     POLICY_REFUSAL_PREFIX, REMOTE_DENIED_REASON,
 };
 pub use record::{
-    governance_run_id, package_run_id, AccessChange, GovernanceEvent, GovernanceRecord,
-    OverrideChange, GLOBAL_RULES_RUN_ID, JOURNAL_EXPORT_RUN_ID, POLICY_RUN_ID,
+    governance_run_id, package_run_id, AccessChange, ExportFilters, GovernanceEvent,
+    GovernanceRecord, OverrideChange, PurgeAnchor, RunCut, GLOBAL_RULES_RUN_ID,
+    JOURNAL_EXPORT_RUN_ID, JOURNAL_STATE_RUN_ID, POLICY_RUN_ID,
 };
 pub use tool_attributes::{tool_attributes, ToolAttributes};

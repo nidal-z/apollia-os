@@ -34,7 +34,9 @@ export interface FailClosedBanner {
  *
  * An unreadable database can be repaired in place, so the banner offers to
  * read it again. A refused policy is read once at start and only the IT
- * department corrects it, so the banner opens the policy instead.
+ * department corrects it, so the banner opens the policy instead. A journal
+ * the policy requires and that is not open is the same case: the policy says
+ * what is required, and the journal is opened at start.
  */
 export function failClosedBanner(failClosed: FailClosed | null): FailClosedBanner | null {
   if (failClosed === null) return null;
@@ -43,6 +45,13 @@ export function failClosedBanner(failClosed: FailClosed | null): FailClosedBanne
       reasonKey: "governance.fail_closed.store_unreadable",
       policyReasonKey: null,
       action: "retry",
+    };
+  }
+  if (failClosed.cause === "journal_unavailable") {
+    return {
+      reasonKey: "governance.fail_closed.journal_unavailable",
+      policyReasonKey: null,
+      action: "view_policy",
     };
   }
   return {

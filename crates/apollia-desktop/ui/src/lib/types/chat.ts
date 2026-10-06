@@ -40,6 +40,11 @@ export interface ChatSessionDetail {
    * the current default profile.
    */
   profile_id?: string | null;
+  /**
+   * Profile switch of the conversation: whether the built-in assistant
+   * receives the profile in its prompt. Absent reads as on.
+   */
+  use_profile?: boolean;
 }
 
 /** Plan-mode lifecycle phase of a chat session. */
@@ -57,6 +62,8 @@ export interface UpdateSessionRequest {
   llm_backend?: string | null;
   /** Profile of the conversation; `null` returns it to the default profile. */
   profile_id?: string | null;
+  /** Profile switch of the conversation. */
+  use_profile?: boolean;
 }
 
 /** What the model of a conversation can do, as the composer reads it. */
@@ -74,6 +81,12 @@ export interface ChatModelCapabilities {
 /** One stored image of a conversation, its media type and base64 bytes. */
 export interface ChatImageData {
   mime_type: string;
+  data: string;
+}
+
+/** One document sent with a message: its file name and base64 bytes. */
+export interface ChatDocumentData {
+  name: string;
   data: string;
 }
 

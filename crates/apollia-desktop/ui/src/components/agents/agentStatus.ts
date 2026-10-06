@@ -1,13 +1,12 @@
 /**
  * Pure status helpers for the Agents surface.
  *
- * These map an `AgentListItem` (or a `PackageRuntimeState`) onto its
- * availability and the display tokens the UI needs: a human label, a badge tone, a status-dot
+ * These map an `AgentListItem` onto its availability and the display tokens
+ * the UI needs: a human label, a badge tone, a status-dot
  * color, and the short class label. Kept free of Svelte / i18n coupling (the
  * translator is injected) so they are unit-testable in isolation.
  */
 import type { AgentListItem } from "$lib/types";
-import type { PackageRuntimeState } from "$lib/stores/agentPackages";
 
 /** Minimal translator shape: key (+ optional interpolation) in, string out. */
 export type Translate = (
@@ -15,7 +14,7 @@ export type Translate = (
   options?: { values?: Record<string, string | number> },
 ) => string;
 
-/** Badge / dot tone shared by agents and packages. */
+/** Badge / dot tone of an agent. */
 export type StatusTone = "success" | "warning" | "neutral";
 
 /**
@@ -92,25 +91,4 @@ export function agentClassLabel(a: AgentListItem): string | null {
     default:
       return a.agent_class ?? null;
   }
-}
-
-/** Badge tone for an aggregated package state. */
-export function packageStatusTone(s: PackageRuntimeState): StatusTone {
-  if (s.status === "available") return "success";
-  if (s.status === "partial") return "warning";
-  return "neutral";
-}
-
-/** Human-readable label for an aggregated package state. */
-export function packageStatusLabel(s: PackageRuntimeState, t: Translate): string {
-  if (s.status === "available") return t("agents.status_available");
-  if (s.status === "partial") return t("agents.pkg_status_partial");
-  return t("agents.status_unavailable");
-}
-
-/** Status-dot color for an aggregated package state. */
-export function packageStatusColor(s: PackageRuntimeState): string {
-  if (s.status === "available") return "hsl(var(--success))";
-  if (s.status === "partial") return "hsl(var(--warning))";
-  return "hsl(var(--muted-foreground))";
 }

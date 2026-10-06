@@ -46,7 +46,11 @@ pub(in crate::supervisor) async fn open_audit_trail(
 /// [`load_or_create_journal_key`]), generated on first boot. A local file
 /// rather than the OS keychain so a dev rebuild never blocks startup on a
 /// keychain-access prompt. Falls back to an unsigned journal (logged) if the
-/// key is unavailable, so the hash chain and `audit verify` keep working.
+/// key is unavailable, so the hash chain and `audit verify` keep working: the
+/// handle reports that state, which the window shows and the journal records.
+///
+/// `None` is a journal that could not be opened at all. Under an organisation
+/// policy that requires the journal, governance fails closed on it.
 pub(in crate::supervisor) async fn open_audit_journal(
     data_dir: &std::path::Path,
 ) -> Option<AuditJournalHandle> {

@@ -5,22 +5,36 @@
    * Drives the new-user flow as a sequence of dedicated screens, each
    * implemented as a self-contained component:
    *
-   *   1. {@link OnboardingWelcome}  - intro and consent to start
-   *   2. {@link OnboardingAiSetup}  - local LLM (GGUF) + STT (Whisper)
-   *   3. {@link OnboardingChatStep} - agent-driven chat (calibration +
-   *                                   optional enrichment) then the
-   *                                   proposed-permission triage
+   *   1. {@link OnboardingWelcome}  - the language of the interface
+   *   2. {@link OnboardingAiSetup}  - the language model, the only step that
+   *                                   cannot be passed
+   *   3. {@link OnboardingEmbeddingsStep} - the model search by meaning
+   *                                   uses, recommended for this machine
+   *   4. {@link OnboardingChatStep} - a short agent-driven chat, then the
+   *                                   proposed profile read over before it
+   *                                   is saved
+   *   5. {@link OnboardingFirstAgent} - a first agent: installed from a
+   *                                   package, created by describing the
+   *                                   need, or taken from an example
+   *   6. {@link OnboardingConnection} - the connections that agent requires
+   *                                   and this machine lacks; passed over
+   *                                   when there is none
    *
-   * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`. No step asks
-   * for a usage profile: the developer mode is a setting, off by default.
+   * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`, and the
+   * progress counts that list: a step is announced once it is built. No step
+   * asks for a usage profile: the developer mode is a setting, off by default.
    *
-   * The phase machine in `apollia_runtime::onboarding` is updated in lockstep via `advance_onboarding_phase`, so the backend
-   * still owns analytics/persistence even though navigation is local.
+   * The header carries what holds on every step: the progress, "configure
+   * later", and the download of the language model, which goes on while the
+   * steps after the AI setup are done.
    *
-   * This is a first-run vitrine surface: the card entrance, the signature
-   * gradient hairline under the header, the spring-loaded stepper, and the
-   * directional step swap lean on the expressive-depth tokens. All motion
-   * collapses under reduced-motion.
+   * The phase machine in `apollia_runtime::onboarding` has one phase per step
+   * and only moves from a phase to the next, so each move of the modal walks
+   * the phases between the one stored and the one of the step that opens. A
+   * restart then reopens exactly on the step that was left.
+   *
+   * The card entrance and the directional step swap lean on the
+   * expressive-depth tokens. All motion collapses under reduced-motion.
    */
   import { onMount, untrack } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -34,15 +48,33 @@
     getOnboardingState,
   } from "$lib/ipc/onboarding";
   import { skipOnboarding } from "$lib/onboarding/skipOnboarding";
+  import { get } from "svelte/store";
+  import { onboardingFirstAgent, profileEnrichment } from "$lib/stores/onboarding";
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
   import { ErrorBanner } from "$lib/components/operator";
+  import { AlertCircle, Check, Download } from "lucide-svelte";
   import OnboardingWelcome from "./OnboardingWelcome.svelte";
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
+  import OnboardingEmbeddingsStep from "./OnboardingEmbeddingsStep.svelte";
   import OnboardingChatStep from "./OnboardingChatStep.svelte";
+  import OnboardingFirstAgent from "./OnboardingFirstAgent.svelte";
+  import OnboardingConnection from "./OnboardingConnection.svelte";
   import {
+    loadConnectionProposal,
+    nothingToPropose,
+    type ConnectionProposal,
+  } from "./connectionStep";
+  import { connectionSources } from "./connectionStepLive";
+  import type { FirstAgentView } from "./firstAgent";
+  import { downloadNotice } from "./llmDownload";
+  import { llmDownload } from "./llmDownloadLive";
+  import {
+    ONBOARDING_PHASE_ORDER,
     ONBOARDING_STEPS,
+    nextStep,
     phaseOfStep,
+    phasePath,
     stepOfPhase,
     type OnboardingStep,
   } from "./onboardingSteps";
@@ -63,8 +95,12 @@
   let unlistenRuntime: UnlistenFn | null = null;
   let rootEl = $state<HTMLDivElement | null>(null);
   // Bumped by the footer during the chat step to ask the chat to skip the
-  // remaining OPTIONAL questions and move forward to the permissions phase.
+  // questions and open the profile review.
   let chatSkipSignal = $state(0);
+  // Size of the language model wired at the AI step, which the embeddings
+  // step sizes its recommendation beside; `null` leaves the runtime to count
+  // the largest language model installed.
+  let languageModelBytes = $state<number | null>(null);
   // Why inline and not a toast: the overlay sits at `z-index: 80` and the
   // toast container at `--z-toast: 40` (`app.css`), so a toast fired from
   // inside this modal is painted underneath it.
@@ -72,8 +108,25 @@
   // Set once the conversation reports it never started: Escape becomes an exit
   // again, because there is no turn left to interrupt by accident.
   let chatStranded = $state(false);
+  // What the first-agent step shows. The creation of an agent brings its
+  // conversation and its draft side by side: the card widens for it.
+  let firstAgentView = $state<FirstAgentView>("cards");
+  // What the connection step shows, read before it opens: the step is passed
+  // over when the agent kept requires no connection this machine lacks.
+  let connectionProposal = $state<ConnectionProposal | null>(null);
+  const creatingAgent = $derived(currentStep === "first-agent" && firstAgentView === "create");
+  // Opened by Settings > Profile to complete a profile, not by a first launch:
+  // the modal goes straight to the conversation and leaves the first-launch
+  // state (phase, skipped flag) alone.
+  const enriching = get(profileEnrichment) !== null;
 
   const stepIndex = $derived(STEPS.findIndex((s) => s.id === currentStep));
+  const modelNotice = $derived(downloadNotice($llmDownload));
+
+  // The phase the backend stands on, and the chain of moves asked of it. One
+  // chain, so two quick moves of the modal reach the backend in their order.
+  let backendPhase = "welcome";
+  let backendSync: Promise<void> = Promise.resolve();
 
   // The chat is the only step that absolutely demands a focus trap that
   // swallows Escape (otherwise users may dismiss the agent dialog mid-turn
@@ -85,25 +138,46 @@
     }
   }
 
-  // Best-effort backend phase sync. The phase machine validates strict
-  // transitions (Welcome -> AiSetup -> Acquaintance -> ...),
-  // so we map each frontend step to the matching legal target.
-  async function syncBackendPhase(target: OnboardingPhase): Promise<void> {
-    try {
-      await advanceOnboardingPhase(target);
-    } catch {
-      // Non-blocking: the phase machine may already be ahead (e.g. user
-      // restarted onboarding from settings). Don't surface to the user.
-    }
+  // Best-effort backend phase sync. The phase machine only moves from one
+  // phase to the next, so every phase between the stored one and the target
+  // is walked in order.
+  function syncBackendPhase(target: OnboardingPhase): void {
+    backendSync = backendSync.then(async () => {
+      for (const phase of phasePath(backendPhase, target)) {
+        try {
+          await advanceOnboardingPhase(phase);
+          backendPhase = phase;
+        } catch {
+          // Non-blocking: the backend was unreachable, or the onboarding was
+          // reset under the modal. Navigation stays local; nothing to show.
+          return;
+        }
+      }
+    });
   }
 
   function goTo(step: Step): void {
     navDir = STEPS.findIndex((s) => s.id === step) >= stepIndex ? 1 : -1;
     currentStep = step;
-    untrack(() => {
-      const target = phaseOfStep(step);
-      if (target) void syncBackendPhase(target);
-    });
+    // A profile completed from the settings leaves the first-launch phase alone.
+    if (enriching) return;
+    untrack(() => syncBackendPhase(phaseOfStep(step)));
+  }
+
+  // Reads what the connection step would show; `true` when it is nothing.
+  async function connectionIsPassed(): Promise<boolean> {
+    connectionProposal = await loadConnectionProposal(get(onboardingFirstAgent), connectionSources);
+    return nothingToPropose(connectionProposal);
+  }
+
+  // On to the step after `step`; after the last one built the first launch
+  // is over and the modal closes.
+  async function advanceFrom(step: Step): Promise<void> {
+    const passed: Step[] = [];
+    if (nextStep(step) === "connection" && (await connectionIsPassed())) passed.push("connection");
+    const next = nextStep(step, passed);
+    if (next === null) onclose();
+    else goTo(next);
   }
 
   // Skipping is what writes `onboarding_skipped`, and that flag is the one
@@ -121,12 +195,24 @@
   }
 
   // On mount, snap to the step that matches the persisted backend phase.
-  // This makes the flow resumable across app restarts and after users
-  // bounce out to /llm to add a cloud backend.
+  // This makes the flow resumable across app restarts.
   async function restoreStepFromBackend(): Promise<void> {
+    if (enriching) {
+      currentStep = "chat";
+      return;
+    }
     try {
       const state = await getOnboardingState();
-      currentStep = stepOfPhase(state.phase);
+      backendPhase = state.phase;
+      const step = stepOfPhase(state.phase);
+      // Resumed on the connection step with nothing left to propose: back on
+      // the first agent, which names the agent kept and offers to continue.
+      currentStep = step === "connection" && (await connectionIsPassed()) ? "first-agent" : step;
+      // A first launch that has not reached the first-agent step yet keeps
+      // no agent: one kept by an earlier run is not the one of this run.
+      if (ONBOARDING_PHASE_ORDER.indexOf(state.phase) < ONBOARDING_PHASE_ORDER.indexOf("first_agent")) {
+        onboardingFirstAgent.clear();
+      }
     } catch {
       // Backend unreachable - keep the default "welcome" step.
     }
@@ -134,7 +220,7 @@
 
   onMount(() => {
     rootEl?.focus();
-    void restoreStepFromBackend();
+    backendSync = restoreStepFromBackend();
 
     void listen<{ category: string; event_type: string }>(
       "runtime-event",
@@ -150,6 +236,9 @@
 
     return () => {
       unlistenRuntime?.();
+      // A request the conversation never took (the modal was closed before
+      // it started) must not turn the next first-launch run into a resume.
+      profileEnrichment.set(null);
     };
   });
 </script>
@@ -161,28 +250,70 @@
   tabindex="-1"
   role="dialog"
   aria-modal="true"
-  aria-labelledby="onboarding-modal-title"
+  aria-label={$t("onboarding_modal.title")}
   class="onboarding-overlay"
   data-testid="onboarding-modal"
 >
   <div
     class="onboarding-card"
-    class:onboarding-card-tall={currentStep === "ai-setup" || currentStep === "chat"}
+    class:onboarding-card-tall={currentStep === "ai-setup" || currentStep === "chat" || creatingAgent}
+    class:onboarding-card-wide={creatingAgent}
   >
     <header class="onboarding-card-header">
-      <h2 id="onboarding-modal-title" class="onboarding-card-title">
-        {$t("onboarding_modal.title")}
-      </h2>
-      <ol class="onboarding-steps" aria-label={$t("onboarding_modal.progress_label")}>
+      <div class="onboarding-card-bar">
+        <p class="onboarding-step-count" data-testid="onboarding-step-count">
+          {$t("onboarding_modal.step_count", {
+            values: {
+              current: stepIndex + 1,
+              total: STEPS.length,
+              label: $t(STEPS[stepIndex].labelKey),
+            },
+          })}
+        </p>
+        <div class="onboarding-card-actions">
+          {#if modelNotice}
+            <!-- The download goes on while the next steps are done: what it
+                 has reached stays in sight on each of them. -->
+            <span
+              class="onboarding-model-notice"
+              class:is-ready={modelNotice.tone === "ready"}
+              class:is-failed={modelNotice.tone === "failed"}
+              role="status"
+              data-testid="onboarding-model-progress"
+            >
+              {#if modelNotice.tone === "ready"}
+                <Check size={12} strokeWidth={2.5} aria-hidden="true" />
+              {:else if modelNotice.tone === "failed"}
+                <AlertCircle size={12} strokeWidth={2} aria-hidden="true" />
+              {:else}
+                <Download size={12} strokeWidth={2} aria-hidden="true" />
+              {/if}
+              {$t(modelNotice.key, { values: modelNotice.values })}
+            </span>
+          {/if}
+          <button
+            type="button"
+            class="onboarding-skip"
+            data-testid="onboarding-skip"
+            onclick={handleSkip}
+          >
+            {$t("onboarding_modal.skip_later")}
+          </button>
+        </div>
+      </div>
+      <ol
+        class="onboarding-steps"
+        aria-label={$t("onboarding_modal.progress_label")}
+        data-testid="onboarding-progress"
+      >
         {#each STEPS as step, i (step.id)}
           <li
             class="onboarding-step"
             class:done={i < stepIndex}
             class:active={i === stepIndex}
             aria-current={i === stepIndex ? "step" : undefined}
-            title={$t(step.labelKey)}
           >
-            <span class="onboarding-step-dot">{i + 1}</span>
+            <span class="onboarding-step-bar" aria-hidden="true"></span>
             <span class="onboarding-step-label">{$t(step.labelKey)}</span>
           </li>
         {/each}
@@ -191,12 +322,12 @@
 
     <div
       class="onboarding-card-body"
-      class:onboarding-card-body-flush={currentStep === "chat"}
+      class:onboarding-card-body-flush={currentStep === "chat" || creatingAgent}
     >
       {#key currentStep}
         <div
           class="onboarding-panel"
-          class:onboarding-panel-flush={currentStep === "chat"}
+          class:onboarding-panel-flush={currentStep === "chat" || creatingAgent}
           in:fly={rm({ x: 12 * navDir, duration: duration.base, easing: cubicOut })}
           out:fly={rm({ x: -12 * navDir, duration: duration.fast, easing: cubicOut })}
         >
@@ -204,20 +335,39 @@
             <OnboardingWelcome onnext={() => goTo("ai-setup")} />
           {:else if currentStep === "ai-setup"}
             <OnboardingAiSetup
-              onnext={() => goTo("chat")}
+              onnext={(bytes) => {
+                languageModelBytes = bytes;
+                goTo("embeddings");
+              }}
               onback={() => goTo("welcome")}
-              onskip={() => goTo("chat")}
-              onopencloud={onclose}
+            />
+          {:else if currentStep === "embeddings"}
+            <OnboardingEmbeddingsStep
+              {languageModelBytes}
+              onnext={() => goTo("chat")}
+              onback={() => goTo("ai-setup")}
             />
           {:else if currentStep === "chat"}
             <OnboardingChatStep
-              onback={() => goTo("ai-setup")}
+              onback={() => goTo("embeddings")}
               skipSignal={chatSkipSignal}
               onstranded={() => {
                 chatStranded = true;
-                void handleSkip();
+                if (enriching) onclose();
+                else void handleSkip();
               }}
-              {onclose}
+              onclose={enriching ? onclose : () => advanceFrom("chat")}
+            />
+          {:else if currentStep === "first-agent"}
+            <OnboardingFirstAgent
+              bind:view={firstAgentView}
+              onnext={() => advanceFrom("first-agent")}
+            />
+          {:else if currentStep === "connection" && connectionProposal}
+            <OnboardingConnection
+              proposal={connectionProposal}
+              onnext={() => advanceFrom("connection")}
+              onback={() => goTo("first-agent")}
             />
           {/if}
         </div>
@@ -246,12 +396,11 @@
       </div>
     {/if}
 
-    <footer class="onboarding-card-footer">
-      {#if currentStep === "chat"}
-        <!-- During the conversation the only remaining questions are OPTIONAL.
-             "Configure later" here must skip just those and still route to the
-             permissions phase, never abandon onboarding (which would skip
-             permissions entirely). -->
+    {#if currentStep === "chat"}
+      <!-- During the conversation every question is optional: skipping them
+           opens the profile review, where the person fills the form by hand
+           or leaves without saving. -->
+      <footer class="onboarding-card-footer">
         <button
           type="button"
           class="onboarding-skip"
@@ -260,17 +409,8 @@
         >
           {$t("onboarding_modal.skip_optional")}
         </button>
-      {:else}
-        <button
-          type="button"
-          class="onboarding-skip"
-          data-testid="onboarding-skip"
-          onclick={handleSkip}
-        >
-          {$t("onboarding_modal.skip_later")}
-        </button>
-      {/if}
-    </footer>
+      </footer>
+    {/if}
   </div>
 </div>
 
@@ -323,79 +463,86 @@
     height: min(86vh, 760px);
   }
 
+  /* The creation of an agent shows its conversation beside its draft. */
+  .onboarding-card-wide {
+    max-width: 1040px;
+  }
+
   .onboarding-card-header {
-    position: relative;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.875rem 1.25rem;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.875rem 1.5rem 0.75rem;
     border-bottom: 1px solid hsl(var(--border) / 0.7);
     flex-shrink: 0;
   }
 
-  /* Signature gradient hairline under the header (hero surface leans richer). */
-  .onboarding-card-header::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 1.5px;
-    background: linear-gradient(
-      90deg,
-      hsl(var(--grad-a) / 0.6),
-      hsl(var(--grad-b) / 0.3) 36%,
-      transparent 76%
-    );
+  .onboarding-card-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
-  .onboarding-card-title {
+  .onboarding-step-count {
     margin: 0;
-    font-size: var(--text-heading-sm);
-    font-weight: 600;
-    color: hsl(var(--foreground));
-    letter-spacing: -0.01em;
+    font-size: var(--text-caption);
+    color: hsl(var(--muted-foreground));
+  }
+
+  .onboarding-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .onboarding-model-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: var(--text-caption);
+    color: hsl(var(--muted-foreground));
+    font-variant-numeric: tabular-nums;
+  }
+  .onboarding-model-notice.is-ready {
+    color: hsl(var(--text-success));
+  }
+  .onboarding-model-notice.is-failed {
+    color: hsl(var(--text-danger));
   }
 
   .onboarding-steps {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    align-items: flex-start;
+    gap: 0.375rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
   .onboarding-step {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    flex-direction: column;
+    gap: 0.375rem;
     font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
     transition: color var(--motion-fast) ease;
   }
 
-  .onboarding-step-dot {
-    width: 1.375rem;
-    height: 1.375rem;
+  .onboarding-step-bar {
+    height: 3px;
     border-radius: 999px;
-    border: 1px solid hsl(var(--border));
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--text-caption);
-    font-weight: 600;
-    transition:
-      background 180ms var(--ease-spring),
-      color var(--motion-fast) ease,
-      border-color var(--motion-fast) ease,
-      box-shadow 180ms var(--ease-spring);
+    background: hsl(var(--border));
+    transition: background var(--motion-fast) ease;
   }
 
   .onboarding-step-label {
     font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Hide step labels on narrow widths to keep the rail compact. */
@@ -408,20 +555,9 @@
   .onboarding-step.active {
     color: hsl(var(--foreground));
   }
-  .onboarding-step.active .onboarding-step-dot {
+  .onboarding-step.active .onboarding-step-bar,
+  .onboarding-step.done .onboarding-step-bar {
     background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.14);
-  }
-
-  .onboarding-step.done {
-    color: hsl(var(--muted-foreground));
-  }
-  .onboarding-step.done .onboarding-step-dot {
-    background: hsl(var(--primary) / 0.18);
-    color: hsl(var(--primary));
-    border-color: hsl(var(--primary) / 0.35);
   }
 
   .onboarding-card-body {
@@ -488,7 +624,8 @@
     .onboarding-card {
       animation: none;
     }
-    .onboarding-step-dot {
+    .onboarding-step,
+    .onboarding-step-bar {
       transition: none;
     }
   }

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { t, locale } from "svelte-i18n";
-  import { Plus, Search } from "lucide-svelte";
-  import { connectionStatus } from "$lib/stores/sse";
+  import { Plus, Search, Trash2 } from "lucide-svelte";
+  import { connectionStatus, refreshChatSessionsViaIpc } from "$lib/stores/sse";
   import {
     activeChatSessions,
     closedChatSessions,
@@ -12,7 +12,8 @@
   import { chatSessions } from "$lib/stores/sse";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary } from "$lib/types";
-  import { deleteChatSession, renameChatSession } from "$lib/ipc/chat";
+  import { renameChatSession } from "$lib/ipc/chat";
+  import { removeConversation } from "$lib/stores/chatTrash";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
@@ -20,9 +21,13 @@
   import {
     decoratedSessions,
     markSessionRead,
+    sessionSort,
     sidebarDensity,
-    type DecoratedSession,
+    sidebarSessions,
   } from "$lib/stores/chatSessions";
+  import ConversationList from "../components/chat/ConversationList.svelte";
+  import ConversationSortMenu from "../components/chat/ConversationSortMenu.svelte";
+  import ConversationTrash from "../components/chat/ConversationTrash.svelte";
   import {
     toggleSessionsSidebar,
     openSessionsDrawer,
@@ -49,19 +54,21 @@
 
   // Operator design-system primitives - V3 Chat Refonte v2.
   import {
-    ConversationRow,
     Journal,
     PlanDagPanel,
     type JournalEvent,
     type JournalMode,
-    type ConversationState,
   } from "$lib/components/operator";
+  import { llmJournalEvents, readGeneration } from "$lib/chat/generationStats";
+  import { loadTurnCalls, turnCallsOf } from "$lib/chat/turnCalls.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
 
   let selectedSessionId = $state<string | null>(null);
   let showNewChatPicker = $state(false);
   let sessionSearchQuery = $state("");
+  // The left rail shows the trash in place of the list while this is on.
+  let showTrash = $state(false);
   // The journal follows the developer mode: the technical reading when it
   // is on, the plain one otherwise. There is no per-screen switch.
   const journalMode = $derived<JournalMode>($developerMode ? "builder" : "operator");
@@ -235,10 +242,11 @@
   function closeConversation() { selectedSessionId = null; }
 
   async function handleDeleteSession(sessionId: string): Promise<void> {
+    // To the trash when the choice of Settings > Chat is on, for good otherwise.
     try {
-      await deleteChatSession(sessionId);
+      await removeConversation(sessionId);
     } catch (err: unknown) {
-      console.error("delete_chat_session failed:", err);
+      console.error("removing the chat session failed:", err);
       return;
     }
     chatSessions.update((sessions) => sessions.filter((s) => s.id !== sessionId));
@@ -263,44 +271,12 @@
   // Re-uses the existing `decoratedSessions` store: the SSE wiring stays
   // owned by `chatSessions` upstream - this view is purely presentational.
 
-  function relativeTime(iso: string | null | undefined): string {
-    if (!iso) return "-";
-    const d = new Date(iso).getTime();
-    if (Number.isNaN(d)) return "-";
-    const diffSec = Math.max(1, Math.round((Date.now() - d) / 1000));
-    if (diffSec < 60) return `${diffSec}s`;
-    const min = Math.round(diffSec / 60);
-    if (min < 60) return `${min}min`;
-    const h = Math.round(min / 60);
-    if (h < 24) return `${h}h`;
-    const day = Math.round(h / 24);
-    return `${day}j`;
-  }
-
-  function rowState(s: DecoratedSession, isSelected: boolean): ConversationState {
-    if (isSelected) return "active";
-    if (s.archived) return "archived";
-    if (s.status === "closed") return "closed";
-    if (s.pinned) return "pinned";
-    if (s.unread) return "unread";
-    return "default";
-  }
-
   const filteredSessions = $derived(
-    $decoratedSessions
-      .filter((s) => !s.archived)
-      .filter((s) => {
-        if (!sessionSearchQuery.trim()) return true;
-        const q = sessionSearchQuery.toLowerCase();
-        const hay = [
-          s.title ?? "",
-          s.agent_name ?? "",
-          s.last_message_preview ?? "",
-          s.mode,
-        ].join(" ").toLowerCase();
-        return hay.includes(q);
-      }),
+    sidebarSessions($decoratedSessions, sessionSearchQuery, $sessionSort),
   );
+  // Every conversation the list can show: a search in the messages may find
+  // one the title filter left out.
+  const listedSessions = $derived(sidebarSessions($decoratedSessions, "", $sessionSort));
 
   // Live agent activity events for the right Journal panel.
   // Source: `currentSession` (set by ChatConversation.applySessionDetail on every
@@ -318,6 +294,7 @@
   }
 
   function buildJournalFromMessages(
+    sessionId: string,
     messages: ChatMessageView[],
     mode: JournalMode,
   ): JournalEvent[] {
@@ -325,6 +302,18 @@
     const out: JournalEvent[] = [];
     for (const m of messages) {
       const time = fmtTime(m.created_at);
+      // The model calls of the turn, once read: one event per call.
+      const held = m.role === "assistant" ? turnCallsOf(sessionId, m.id) : undefined;
+      if (held?.status === "ready") {
+        out.push(
+          ...llmJournalEvents(held.calls, {
+            developer: isBuilder,
+            loc: $locale ?? "en",
+            time,
+            translate: $t,
+          }),
+        );
+      }
       // Tool calls - surface each one as a dedicated tool event.
       const calls = m.tool_calls ?? [];
       for (const tc of calls) {
@@ -407,9 +396,26 @@
 
   const journalEvents = $derived<JournalEvent[]>(
     $currentSession && $currentSession.id === selectedSessionId
-      ? buildJournalFromMessages($currentSession.messages ?? [], journalMode)
+      ? buildJournalFromMessages($currentSession.id, $currentSession.messages ?? [], journalMode)
       : [],
   );
+
+  // The panel reads the model calls of the latest turns when it is shown; an
+  // older turn joins once its detail was opened under its answer.
+  const JOURNAL_TURNS_READ = 12;
+  $effect(() => {
+    const session = $currentSession;
+    if (!session || session.id !== selectedSessionId) return;
+    if (railTab !== "journal" || !$contextDrawerOpen) return;
+    const answers = (session.messages ?? [])
+      .filter((m) => m.role === "assistant" && readGeneration(m.metadata) !== null)
+      .slice(-JOURNAL_TURNS_READ);
+    untrack(() => {
+      for (const m of answers) {
+        if (turnCallsOf(session.id, m.id) === undefined) void loadTurnCalls(session.id, m.id);
+      }
+    });
+  });
 </script>
 
 <!-- Chat-route command palette enrichment + Help dialog. -->
@@ -457,13 +463,22 @@
     aria-label={$t("chat.conversations_aria")}
     aria-hidden={!panesInline && !$sessionsDrawerOpen}
   >
+    {#if showTrash}
+      <ConversationTrash
+        onback={() => (showTrash = false)}
+        onrestored={() => void refreshChatSessionsViaIpc()}
+      />
+    {:else}
     <div class="px-3.5 pt-4 pb-2">
-      <h2
-        class="mb-3 text-heading-sm font-semibold tracking-[-0.2px] text-foreground"
-        data-testid="chat-header"
-      >
-        {$t("chat.title")}
-      </h2>
+      <div class="mb-3 flex items-center justify-between gap-2">
+        <h2
+          class="text-heading-sm font-semibold tracking-[-0.2px] text-foreground"
+          data-testid="chat-header"
+        >
+          {$t("chat.title")}
+        </h2>
+        <ConversationSortMenu />
+      </div>
 
       <div class="relative mb-2.5">
         <Search
@@ -491,7 +506,7 @@
       </Button>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto" data-testid="chat-active-list">
+    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="chat-active-list">
       {#if $connectionStatus === "connecting"}
         <div class="space-y-1 px-3 py-2">
           {#each { length: 4 } as _}
@@ -502,31 +517,30 @@
             </div>
           {/each}
         </div>
-      {:else if filteredSessions.length === 0}
-        <div class="px-4 py-6 text-center text-caption text-muted-foreground">
-          {#if sessionSearchQuery.trim()}
-            {$t("chat.no_results")}
-          {:else}
-            {$t("chat.no_sessions")}
-          {/if}
-        </div>
       {:else}
-        {#each filteredSessions as session (session.id)}
-          <ConversationRow
-            title={session.title ?? session.agent_name ?? $t("chat.untitled_session")}
-            lastMessage={session.last_message_preview ?? undefined}
-            timestamp={relativeTime(session.lastActivityAt)}
-            state={rowState(session, session.id === selectedSessionId)}
-            live={session.status === "processing"}
-            onclick={() => { navigateToSession(session.id); closeSessionsDrawer(); }}
-            onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
-            ondelete={() => void handleDeleteSession(session.id)}
-            onconfigure={() => { openConfig(session.id); closeSessionsDrawer(); }}
-            density={$sidebarDensity}
-          />
-        {/each}
+        <ConversationList
+          sessions={filteredSessions}
+          listed={listedSessions}
+          query={sessionSearchQuery}
+          {selectedSessionId}
+          density={$sidebarDensity}
+          onselect={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
+          onrename={(id, title) => void handleRenameSession(id, title)}
+          ondelete={(id) => void handleDeleteSession(id)}
+          onconfigure={(id) => { openConfig(id); closeSessionsDrawer(); }}
+        />
       {/if}
     </div>
+    <button
+      type="button"
+      class="flex items-center gap-2 border-t border-border px-3.5 py-2.5 text-left text-body-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
+      onclick={() => (showTrash = true)}
+      data-testid="chat-trash-open"
+    >
+      <Trash2 size={13} strokeWidth={1.75} aria-hidden="true" />
+      {$t("chat.trash.open")}
+    </button>
+    {/if}
   </aside>
 
   <!-- ── Center: thread + composer ─────────────────────────────────────── -->

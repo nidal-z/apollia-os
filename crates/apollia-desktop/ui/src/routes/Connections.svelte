@@ -26,7 +26,6 @@
   import MailboxDialog from "../components/integrations/MailboxDialog.svelte";
   import FolderConnectionDialog from "../components/connections/catalogue/FolderConnectionDialog.svelte";
   import { chooseAndAddFolder, type FolderOutcome } from "$lib/connections/folderConnection";
-  import { openSettingsWindow } from "$lib/stores/settingsWindow";
   import {
     listMcpServers,
     listMcpEnrichments,
@@ -539,7 +538,7 @@
   onchooseanother={() => void addFolder()}
   onopenrule={() => {
     closeFolderDialog();
-    openSettingsWindow("permissions");
+    navigateTo("authorizations");
   }}
 />
 

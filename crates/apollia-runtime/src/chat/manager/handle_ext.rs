@@ -201,6 +201,17 @@ impl ChatSessionManagerHandle {
         let _ = self.tx.send(ChatCommand::SetPackageTools { host }).await;
     }
 
+    /// Take the tools of `package`, just uninstalled, out of what every run
+    /// that starts afterwards can call.
+    pub async fn retire_package_tools(&self, package: &str) {
+        let _ = self
+            .tx
+            .send(ChatCommand::RetirePackageTools {
+                package: package.to_owned(),
+            })
+            .await;
+    }
+
     /// Hand over the live sections of the configuration: from then on a
     /// change of `[tools]`, `[chat]`, `[filesystem]`, `[mcp]` or `[hooks]`
     /// applies to the next conversation and the next exchange.

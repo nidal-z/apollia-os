@@ -23,6 +23,7 @@ fn descriptor(name: &str) -> ToolDescriptor {
         tags: vec![],
         family: apollia_tools::ActionFamily::Unclassified,
         family_source: apollia_tools::FamilySource::Unsourced,
+        target_arg: None,
         is_read_only: true,
         risk_score: 1,
         approval_risk_level: None,

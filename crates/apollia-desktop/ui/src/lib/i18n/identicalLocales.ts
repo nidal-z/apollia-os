@@ -19,6 +19,8 @@
  * identifier, a code fragment, or a placeholder the runtime fills.
  */
 export const IDENTICAL_BY_NATURE: string[] = [
+  "authorizations.apollia_name", // Apollia
+  "chat.generation.seconds", // {value} s
   "connections.capabilities.group_gdocs", // Google Docs
   "connections.capabilities.group_gdrive", // Google Drive
   "connections.capabilities.group_gforms", // Google Forms
@@ -35,12 +37,15 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dashboard.headline_greeting", // {greeting}.
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
+  "dev.workflows.depth", // depth
+  "dev.workflows.parent_run", // parent_run_id
+  "dev.workflows.run_id", // run_id
+  "dev.workflows.workflow_id", // workflow_id
   "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
   "observability.type_llm", // LLM
-  "onboarding_permissions.scope_label", // {scope}
   "settings.integrations.drive.placeholder", // Apollia
   "settings.integrations.field.client_id", // Client ID
   "settings.integrations.placeholder.api_key", // AIzaSy…
@@ -50,6 +55,8 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.language_fr", // Français
   "settings.llm_dialog.field_top_k", // Top-K
   "settings.llm_dialog.field_top_p", // Top-P
+  "settings.model_defaults.images.unit", // pixels
+  "settings.model_defaults.unload.unit", // minutes
   "settings.model_hub.detail.param_top_k", // top_k
   "settings.model_hub.detail.param_top_p", // top_p
   "settings.hardware.gpu", // GPU
@@ -62,7 +69,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.stt_metal", // Metal
   "settings.tools_page.bash_executor_title", // Bash
   "settings.tools_page.python_executor_title", // Python
-  "tasks.tech_agent_id", // Agent ID
   "tools.body.exit_code", // exit {code}
   "tools.body.progress_fraction", // {done} / {total}
   "tools.body.url_label", // URL
@@ -86,21 +92,22 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "agent_detail.execution_mode_direct", // Direct
   "agent_detail.messages_title", // Messages
   "agent_detail.tags_title", // Tags
-  "agents.agents_word", // agents
+  "agents.column_agents", // Agents
+  "agents.column_workflows", // Workflows
   "agents.install.done_agents_many", // {n} agents
   "agents.install.done_agents_one", // {n} agent
   "agents.install.done_triggers_many", // {n} triggers
   "agents.install.done_triggers_one", // {n} trigger
   "agents.install.endpoint", // Endpoint
   "agents.install.section_agents", // Agents ({n})
+  "agents.kicker_agent", // Agent
   "agents.logs", // Logs
-  "agents.page_title", // Assistants
-  "agents.tab_agents", // Agents
-  "agents.tab_triggers", // Triggers
-  "agents.triggers_word", // triggers
+  "agents.title", // Agents
   "automations.status.active", // Active
   "automations.target_prefix", // Assistant
   "automations.wizard.step_agent", // Assistant
+  "batch_launch.agent.title", // Agent
+  "batch_launch.source.title", // Source
   "chat.activity.sources", // Sources
   "chat.assistant", // Assistant
   "chat.citations_aria", // Citations
@@ -135,9 +142,22 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
+  "dev.journal.arguments", // Arguments
   "inbox.row.type_question", // question
   "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
+  "journal.detail.action", // Action
+  "journal.detail.agent", // Agent
+  "journal.filter.agent", // Agent
+  "journal.filter.nature", // Nature
+  "journal.nature.action", // Actions
+  "journal.title", // Journal
+  "library.detail.agents", // Agents
+  "library.detail.workflows", // Workflows
+  "library.kind.agent", // agent
+  "library.kind.workflow", // workflow
+  "library.uninstall.leaving.agents", // {count, plural, one {# agent} other {# agents}}
+  "library.uninstall.leaving.workflows", // {count, plural, one {# workflow} other {# workflows}}
   "llm.ping_ok", // Ping OK ({latency}ms)
   "llm.table.backend", // Backend
   "llm.table.tokens", // Tokens
@@ -149,7 +169,9 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
   "nav.chat", // Chat
+  "nav.journal", // Journal
   "nav.sidebar.chat", // Chat
+  "nav.sidebar.journal", // Journal
   "nav.sidebar.transcriptions", // Transcriptions
   "nav.transcriptions", // Transcriptions
   "notifications.field_type", // Type
@@ -165,8 +187,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "observability.task_timeline_fact_backend", // Backend
   "onboarding.ai_setup.backends_count", // {count, plural, one {# backend} other {# backends}}
   "onboarding.ai_setup.gated", // gated
-  "onboarding_stt.mic_label", // Microphone
-  "onboarding_welcome.feature_local_title", // Local-first
   "packages.preview.content.kind_agent", // Agent
   "packages.preview.content.kind_workflow", // Workflow
   "packages.preview.version", // version {version}
@@ -189,6 +209,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.credential.absent", // Absent
   "settings.developer.mcp.kind_agent", // Agent
   "settings.developer.mcp.kind_workflow", // Workflow
+  "settings.engines.channel_stable", // Stable
+  "settings.developer.on_demand.idle_unit", // minutes
   "settings.general.application_title", // Application
   "settings.general.channel_stable", // Stable
   "settings.general.interface_title", // Interface
@@ -204,9 +226,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
   "settings.nav.notifications", // Notifications
-  "settings.permissions.add.action_label", // Action
-  "settings.permissions.scope_agent", // Chat / agent
-  "settings.permissions.session_badge", // Session
   "settings.profile.source.agent", // agent
   "settings.profile.source.onboarding", // onboarding
   "settings.shortcuts.category.chat", // Chat
@@ -220,8 +239,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.stt_microphone", // Microphone
   "settings.system_version", // Version
   "settings.tool_config.field.timeout_secs", // Timeout (s)
-  "tasks.col_agent", // Agent
-  "tasks.tab_trace", // Trace
   "tools.body.content_type_label", // Type
   "tools.body.http_status_info", // Information
   "tools.body.http_status_redirect", // Redirection
@@ -236,6 +253,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "triggers.field_target_agent", // Agent
   "triggers.interval_unit_minutes", // minutes
   "triggers.workflow_label", // Workflow
+  "workflows.kicker", // Workflow
 ];
 
 /** The two lists together, as the guard reads them. */

@@ -5,12 +5,23 @@
   export function conversationRowPad(density: SidebarDensity): "snug" | "compact" {
     return density === "sm" ? "compact" : "snug";
   }
+
+  /** A folder the row can be moved to. */
+  export interface MoveTarget {
+    id: string;
+    name: string;
+  }
+
+  /** Whether the row offers "Move to": it can be moved and a folder exists. */
+  export function offersMove(canMove: boolean, folders: readonly MoveTarget[]): boolean {
+    return canMove && folders.length > 0;
+  }
 </script>
 
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { tick } from "svelte";
-  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, Settings2 } from "lucide-svelte";
+  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, Settings2, Folder, FolderInput, FileText, ChevronRight } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
@@ -46,6 +57,14 @@
     onconfigure?: () => void;
     /** List density, from `sidebarDensity`. */
     density?: SidebarDensity;
+    /** The passage of a message that matched a search, shown under the row. */
+    excerpt?: string;
+    /** The folders "Move to" offers. */
+    folders?: readonly MoveTarget[];
+    /** The folder the conversation is in, `null` when it is in none. */
+    folderId?: string | null;
+    /** Optional move action: a folder id, or `null` for out of any folder. */
+    onmove?: (folderId: string | null) => void;
   }
 
   let {
@@ -60,7 +79,13 @@
     ondelete,
     onconfigure,
     density = "md",
+    excerpt,
+    folders = [],
+    folderId = null,
+    onmove,
   }: Props = $props();
+
+  const canMove = $derived(offersMove(Boolean(onmove), folders));
 
   const isActive = $derived(rowStateProp === "active");
   const isClosed = $derived(rowStateProp === "closed");
@@ -68,15 +93,27 @@
   const isPinned = $derived(rowStateProp === "pinned");
   const isUnread = $derived(rowStateProp === "unread" || (unreadCount !== undefined && unreadCount > 0));
 
-  const hasMenu = $derived(Boolean(onrename || ondelete || onconfigure));
+  const hasMenu = $derived(Boolean(onrename || ondelete || onconfigure || canMove));
 
   // Kebab menu open state - bound to the canonical ActionMenu/Popover. Kept
   // only to reset the delete-confirmation step whenever the menu closes (e.g.
   // the user dismisses by clicking outside while the confirm strip is shown).
   let menuOpen = $state(false);
   $effect(() => {
-    if (!menuOpen) confirmingDelete = false;
+    if (!menuOpen) {
+      confirmingDelete = false;
+      choosingFolder = false;
+    }
   });
+
+  // "Move to" step, rendered inside the same popover: the folders, the
+  // current one checked, then "Out of any folder".
+  let choosingFolder = $state(false);
+
+  function moveTo(target: string | null, close: () => void): void {
+    close();
+    if (target !== folderId) onmove?.(target);
+  }
 
   // Inline edit state - entered via double-click on the title or the
   // kebab "Renommer" entry. Enter/blur commits, Escape cancels.
@@ -136,7 +173,7 @@
   function onRowClick(ev: MouseEvent | KeyboardEvent): void {
     const target = ev.target as HTMLElement | null;
     if (target?.closest("[data-conversation-row-actions]")) return;
-    if (editing || confirmingDelete) return;
+    if (editing || confirmingDelete || choosingFolder) return;
     onclick?.(ev);
   }
   function onRowKeydown(ev: KeyboardEvent): void {
@@ -206,6 +243,14 @@
         </span>
       {/if}
     </div>
+    {#if excerpt}
+      <p
+        class="mt-1 line-clamp-2 text-micro-lg text-foreground/80"
+        data-testid="conversation-row-excerpt"
+      >
+        {excerpt}
+      </p>
+    {/if}
   </div>
   {#if unreadCount !== undefined && unreadCount > 0}
     <span
@@ -259,6 +304,46 @@
                 <X size={11} /> {$t("common.cancel")}
               </Button>
             </div>
+          {:else if choosingFolder}
+            <div data-testid="conversation-row-move-menu">
+              <p class="px-2 pb-1 pt-0.5 text-micro-lg text-muted-foreground">
+                {$t("chat.folders.move_to")}
+              </p>
+              <ul class="flex flex-col gap-0.5" role="menu">
+                {#each folders as folder (folder.id)}
+                  <li role="none">
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={folder.id === folderId}
+                      onclick={() => moveTo(folder.id, close)}
+                      class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted {folder.id === folderId ? 'bg-muted' : ''}"
+                      data-testid="conversation-row-move-to"
+                      data-folder-id={folder.id}
+                    >
+                      <Folder size={12} />
+                      <span class="min-w-0 flex-1 truncate">{folder.name}</span>
+                      {#if folder.id === folderId}<Check size={12} />{/if}
+                    </button>
+                  </li>
+                {/each}
+                <li role="separator" class="my-0.5 border-t border-border"></li>
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={folderId === null}
+                    onclick={() => moveTo(null, close)}
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted"
+                    data-testid="conversation-row-move-out"
+                  >
+                    <FileText size={12} />
+                    <span class="flex-1">{$t("chat.folders.no_folder")}</span>
+                    {#if folderId === null}<Check size={12} />{/if}
+                  </button>
+                </li>
+              </ul>
+            </div>
           {:else}
             <ul class="flex flex-col gap-0.5" role="menu" data-testid="conversation-row-menu">
               {#if onconfigure}
@@ -284,6 +369,22 @@
                     data-testid="conversation-row-menu-rename"
                   >
                     <Edit3 size={12} /> {$t("chat.rename_session")}
+                  </button>
+                </li>
+              {/if}
+              {#if canMove}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-haspopup="menu"
+                    onclick={() => { choosingFolder = true; }}
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-body-xs text-foreground hover:bg-muted"
+                    data-testid="conversation-row-menu-move"
+                  >
+                    <FolderInput size={12} />
+                    <span class="flex-1">{$t("chat.folders.move_to")}</span>
+                    <ChevronRight size={12} class="text-muted-foreground" />
                   </button>
                 </li>
               {/if}

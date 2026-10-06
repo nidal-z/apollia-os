@@ -27,30 +27,23 @@
     return acc.vram_gb && acc.vram_gb > 0 ? acc.vram_gb : null;
   }
 
-  /** The backend the engine drives the GPU with. */
-  export function gpuBackend(acc: AcceleratorProfile): string | null {
-    if (acc.kind === "apple_silicon") return "Metal";
-    if (acc.kind === "cuda") return "CUDA";
-    if (acc.kind === "generic") return "Vulkan";
-    return null;
-  }
 </script>
 
 <script lang="ts">
   /**
-   * HardwareCard - System > Hardware: the processor, the memory and the GPU,
-   * all read from the single hardware probe the inference sizes models with
-   * (`get_hardware_profile`). Nothing here probes on its own.
+   * HardwareCard - System > Hardware: the processor and the memory, read from
+   * the single hardware probe the inference sizes models with
+   * (`get_hardware_profile`). Nothing here probes on its own. The graphics
+   * devices are listed one by one by `GpuDevices`.
    */
   import { t } from "svelte-i18n";
-  import { Cpu, MemoryStick, MonitorCog } from "lucide-svelte";
+  import { Cpu, MemoryStick } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Badge } from "$lib/components/ui/badge";
   import { ErrorBanner } from "$lib/components/operator";
   import SettingsSection from "../SettingsSection.svelte";
   import SettingsFieldRow from "../SettingsFieldRow.svelte";
   import type { HardwareProfile } from "$lib/ipc/modelHub";
-  import { chipLabel } from "../model-hub/helpers";
 
   interface Props {
     hardware: HardwareProfile | null;
@@ -77,7 +70,6 @@
 {:else if hardware}
   {@const kind = memoryKind(hardware.accelerator)}
   {@const vram = vramGb(hardware.accelerator)}
-  {@const backend = gpuBackend(hardware.accelerator)}
   <div class="grid gap-4 md:grid-cols-2">
     <SettingsSection title={$t("settings.hardware.processor")} data-testid="hardware-processor">
       {#snippet icon()}<Cpu size={15} strokeWidth={1.75} />{/snippet}
@@ -139,28 +131,6 @@
     </SettingsSection>
   </div>
 
-  <SettingsSection title={$t("settings.hardware.gpu")} data-testid="hardware-gpu">
-    {#snippet icon()}<MonitorCog size={15} strokeWidth={1.75} />{/snippet}
-    {#if backend}
-      <div>
-        <p class="text-body-sm font-medium text-foreground" data-testid="hardware-gpu-count">
-          {$t("settings.hardware.gpu_detected", { values: { backend } })}
-        </p>
-        <p class="text-body-sm text-foreground" data-testid="hardware-gpu-name">
-          {chipLabel(hardware.accelerator, $t("settings.hardware.no_gpu"))}
-        </p>
-        {#if vram !== null}
-          <p class="text-caption text-muted-foreground">
-            {$t("settings.hardware.gpu_vram", { values: { size: gb(vram), backend } })}
-          </p>
-        {/if}
-      </div>
-    {:else}
-      <p class="text-body-sm text-muted-foreground" data-testid="hardware-gpu-none">
-        {$t("settings.hardware.no_gpu")}
-      </p>
-    {/if}
-  </SettingsSection>
 {:else if error}
   <ErrorBanner message={error} data-testid="hardware-error" />
 {/if}

@@ -308,7 +308,9 @@ Rules :
   otherwise compose at the call site.
 - The interface vocabulary is data, in `src/lib/i18n/glossary.json`: one object
   per locale (`fr`, `en`), each with `objects` and `screens` (the official word
-  per id, same ids in both), `developer_mode`, `chat_steps_panel`, `banned` (terms
+  per id, same ids in both), `developer_mode`, `chat_steps_panel`,
+  `search_by_meaning` and `search_by_meaning_model` (the words for the
+  embeddings model and what it serves), `banned` (terms
   kept out outside developer mode), `banned_synonyms` (`assistant` for agent),
   `permitted_formats` and `exemptions`. Use those words; never ban a word inline.
 - `scripts/check_ui_vocabulary.py` holds both catalogues to that list. A text
@@ -349,9 +351,11 @@ organization policy can impose it and Rust readers see the same value.
   Builder wording the developer wording. Do not collapse one branch into the
   other when fusing duplicated screens; the paired components stay two
   components, chosen by the switch.
-- `crates/apollia-desktop/ui/src/lib/stores/mode.ts` (`uiMode`) is an
-  adapter kept while its readers move to `developerMode`: it reads
-  `"builder"` when the switch is on. Do not add a reader to it.
+- **No second store.** The adapter that named the former modes is gone:
+  `developerMode` is the only store a screen reads. A component that still
+  takes a `"builder" | "operator"` skin derives it from `$developerMode` at
+  its call site. The runtime follows the same value: the next steps request
+  carries `developerMode`, never a mode name.
 
 ---
 

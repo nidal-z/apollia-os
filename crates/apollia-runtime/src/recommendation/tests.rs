@@ -11,6 +11,7 @@ fn roomy_machine() -> HardwareProfile {
         cpu_cores: 8,
         accelerator: AcceleratorProfile::None,
         memory_budget_gb: 38.0,
+        devices: Vec::new(),
     }
 }
 
@@ -75,6 +76,7 @@ async fn offline_the_selection_is_cut_to_what_fits_when_asked() {
         cpu_cores: 4,
         accelerator: AcceleratorProfile::None,
         memory_budget_gb: 4.8,
+        devices: Vec::new(),
     };
     let options = ResolveOptions {
         hub_base: Some(UNREACHABLE_HUB.to_owned()),

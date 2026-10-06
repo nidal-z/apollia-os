@@ -394,10 +394,10 @@ marked `hand` only because the automaton frames the whole window.
 | 50 | `controle-approuver-ou-refuser-une-action-2.png` | Inbox → To do, expand the pending approval. | The expanded approval card with its risk badge | see N4 | panel | auto |
 | 51 | `controle-approuver-ou-refuser-une-action-3.png` | Click Refuse. | The Reject action dialog: textarea, character counter, Cancel / Confirm | type the row-50 reason (98 characters, so the counter reads `98 / 500`) | dialog | auto |
 | 52 | `controle-approuver-ou-refuser-une-action-4.png` | Inbox → To do, Recent history block. | 4 rows with different icons, the rejection showing its reason in red | none, the seed writes the history | panel | auto once a pending item exists, see N4 |
-| 53 | `controle-configurer-les-permissions-de-fichiers-1.png` | Settings → Permissions. | The permission rule cards with their scope badges. 4 rules covering all three badges: Everywhere (2), This project, Chat / agent | none | panel | auto |
-| 54 | `controle-configurer-les-permissions-de-fichiers-1bis.png` | Click **Revoke all**. | The dialog: scope selector, affected-rule count, Revoke | pick scope **project**; do **not** confirm | dialog | auto |
-| 55 | `controle-configurer-les-permissions-de-fichiers-2.png` | Cancel, then hover a rule card and click Revoke. | The card mid-revoke and the confirmation toast | revoke the `bash_executor` rule, so the toast names `bash_executor` | panel | auto |
-| 56 | `controle-configurer-les-permissions-de-fichiers-3.png` | Same page, Active sessions section. | The session entries with their orange Session badge and Revoke button. 5 authorizations across 3 sessions | none | panel | auto |
+| 53 | `controle-configurer-les-permissions-de-fichiers-1.png` | Permissions screen (route `authorizations`). | The organization policy panel, the list (rules for every agent, then one row per agent) and the fine rules for every agent, a Withdraw on each | none | panel | auto |
+| 54 | `controle-configurer-les-permissions-de-fichiers-1bis.png` | Click **Revoke all**. | The dialog: what is withdrawn, the scope (every agent or one), the count, Revoke all | do **not** confirm | dialog | auto |
+| 55 | `controle-configurer-les-permissions-de-fichiers-2.png` | Cancel the dialog. | The fine rules for every agent, each with its effect badge and its Withdraw | none | panel | auto |
+| 56 | `controle-configurer-les-permissions-de-fichiers-3.png` | Same screen, click the first agent of the list. | The agent: its accesses by family, its "always" consents, its fine rules, Open the sheet | none | panel | auto |
 
 Row 54 mutates the seed. Shoot it after 52, 53 and 55, or reload the seed.
 
@@ -410,7 +410,7 @@ Row 54 mutates the seed. Shoot it after 52, 53 and 55, or reload the seed.
 | 59 | `integration-cabler-son-propre-serveur-mcp-3.png` | Same form, transport **streamable-http**. | URL and authentication headers | URL and header from the values table | dialog | auto |
 | 60 | `integration-comprendre-la-portee-d-une-integration-1.png` | My Assistants → `apollia-guide` → Tools tab. | Required and optional tools with their approval badges | none | panel | auto |
 | 61 | `integration-comprendre-les-permissions-mcp-1.png` | Ask the row-60 question in a chat with the MCP server connected. | The approval popup: tool title, exposed parameters, Allow once / Deny, the scope note | the row-60 question | panel | hand, see N3 |
-| 62 | `integration-comprendre-les-permissions-mcp-2.png` | Settings → Permissions. | The rules stacked, a Revoke on each row | none | panel | auto |
+| 62 | `integration-comprendre-les-permissions-mcp-2.png` | Permissions screen (route `authorizations`). | The fine rules, a Withdraw on each row | none | panel | auto |
 | 63 | `integration-google-workspace-1.png` | Connections → Google Workspace card. | The card selected (Not connected), the right panel with the connect action | see N6 | page | hand, see N6 |
 | 64 | `integration-google-workspace-2.png` | Click Connect, follow to the Google consent screen. | Google's consent screen listing the requested permissions | see N6 | dialog | hand, see N6 |
 | 65 | `integration-google-workspace-3.png` | Return to Apollia after consent. | The Drive folder dialog, the drive.file scope explanation, the Folder path field | see N6 | dialog | hand, see N6 |

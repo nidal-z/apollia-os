@@ -29,9 +29,10 @@ impl ChatSessionManager {
                     session_id,
                     content,
                     images,
+                    documents,
                     reply,
                 } => {
-                    let result = self.handle_send_message(&session_id, &content, images);
+                    let result = self.handle_send_message(&session_id, &content, images, documents);
                     let _ = reply.send(result);
                 }
                 ChatCommand::ResolveTool {
@@ -88,6 +89,28 @@ impl ChatSessionManager {
                 ChatCommand::DeleteSession { session_id, reply } => {
                     let result = self.handle_delete_session(&session_id);
                     let _ = reply.send(result);
+                }
+                ChatCommand::TrashSession { session_id, reply } => {
+                    let _ = reply.send(self.handle_trash_session(&session_id));
+                }
+                ChatCommand::RestoreSession { session_id, reply } => {
+                    let _ = reply.send(self.handle_restore_session(&session_id));
+                }
+                ChatCommand::ListTrashedSessions { reply } => {
+                    let _ = reply.send(self.handle_list_trashed_sessions());
+                }
+                ChatCommand::Folders { action, reply } => {
+                    let _ = reply.send(match action {
+                        Some(action) => self.handle_folder_action(action),
+                        None => self.repository.list_folders(),
+                    });
+                }
+                ChatCommand::SearchMessages {
+                    query,
+                    limit,
+                    reply,
+                } => {
+                    let _ = reply.send(self.repository.search_messages(&query, limit));
                 }
                 ChatCommand::RenameSession {
                     session_id,
@@ -252,17 +275,6 @@ impl ChatSessionManager {
                     let result = self.handle_list_children(&session_id);
                     let _ = reply.send(result);
                 }
-                ChatCommand::ListSessionAuthorizations { reply } => {
-                    let _ = reply.send(self.handle_list_session_authorizations());
-                }
-                ChatCommand::RevokeSessionAuthorization {
-                    session_id,
-                    tool_name,
-                    reply,
-                } => {
-                    let _ = reply
-                        .send(self.handle_revoke_session_authorization(&session_id, &tool_name));
-                }
                 ChatCommand::ListA2ASkills { reply } => {
                     self.handle_list_a2a_skills(reply);
                 }
@@ -286,6 +298,13 @@ impl ChatSessionManager {
                 ChatCommand::SetPackageTools { host } => {
                     info!("chat.package_tools.set");
                     self.package_tools = Some(host);
+                }
+                ChatCommand::RetirePackageTools { package } => {
+                    info!(package = %package, "chat.package_tools.retired");
+                    self.package_tools = self.package_tools.take().map(|host| {
+                        Arc::new(crate::package_tools::WithoutPackage::new(host, &package))
+                            as Arc<dyn crate::package_tools::PackageToolHost>
+                    });
                 }
                 ChatCommand::FollowConfig { feed } => {
                     info!("chat.config.followed");

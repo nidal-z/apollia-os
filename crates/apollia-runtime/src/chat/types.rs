@@ -66,6 +66,16 @@ pub struct ChatSession {
     /// default profile. Persisted across restarts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile_id: Option<String>,
+    /// Whether the built-in assistant receives the profile of the
+    /// conversation in its prompt: the switch of the conversation, on until
+    /// the user turns it off. Persisted across restarts.
+    #[serde(default = "profile_switch_on")]
+    pub use_profile: bool,
+}
+
+/// A conversation is born with its profile switch on.
+fn profile_switch_on() -> bool {
+    true
 }
 
 /// Lifecycle phase of a session running in plan mode.
@@ -574,6 +584,12 @@ pub enum ChatError {
     /// An internal error occurred (SQLite, serialization, etc.).
     #[error("internal error: {0}")]
     InternalError(String),
+    /// The requested folder of the conversation list does not exist.
+    #[error("folder not found: {0}")]
+    FolderNotFound(String),
+    /// The name given to a folder is refused: blank, or too long.
+    #[error("invalid folder name: {0}")]
+    InvalidFolderName(String),
     /// An approve or reject was requested on a session that is not awaiting
     /// approval. The soft plan gate only resolves from the awaiting-approval
     /// phase, so this fails fast instead of starting execution out of order.
@@ -595,6 +611,11 @@ pub enum ChatError {
     /// decodable, or in a format the engine of the model does not read.
     #[error("image refused: {0}")]
     ImageRejected(String),
+    /// A document of a message is refused: too many, too large, empty, of a
+    /// format no reader opens, or one its reader could not read (protected by
+    /// a password, damaged).
+    #[error("document refused: {0}")]
+    DocumentRejected(String),
     /// The hybrid routing cost ceiling was reached and `ceiling_action` is `HardStop`.
     ///
     /// The run stopped cleanly with no data loss. It can be resumed in a new run
@@ -689,6 +710,9 @@ pub struct SessionConfigUpdate {
     pub llm_backend: Option<Option<String>>,
     /// Profile the conversation designates.
     pub profile_id: Option<Option<String>>,
+    /// Profile switch of the conversation: whether the built-in assistant
+    /// receives the profile in its prompt.
+    pub use_profile: Option<bool>,
 }
 
 /// Detailed session view for single-session responses.
@@ -822,6 +846,7 @@ mod tests {
             plan_mode: false,
             plan_phase: PlanPhase::Done,
             profile_id: None,
+            use_profile: true,
         };
 
         // WHEN we serialize and deserialize

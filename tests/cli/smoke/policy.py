@@ -210,7 +210,7 @@ ARGV: dict[str, list[str]] = {
     "agent update": ["seed-classifier", "@SEED_AGENT_DIR@"],
     "agent start": ["@SEED_AGENT_DIR@"],
     # Writes that must land inside the throwaway HOME, never the caller's cwd.
-    "audit export": ["--output", "@RUN_DIR@/audit-export.json"],
+    "audit export": ["--format", "json", "--output", "@RUN_DIR@/audit-export.json"],
     "profile export": ["--output", "@RUN_DIR@/profile.json"],
     "profile import": ["--input", "@RUN_DIR@/profile-in.json"],
     "memory import": [

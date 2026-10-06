@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, test, expect, vi, beforeAll } from "vitest";
 import { render as renderToString } from "svelte/server";
 import { waitLocale } from "svelte-i18n";
@@ -32,7 +34,10 @@ vi.mock("@tauri-apps/plugin-notification", () => ({
 import ChatConfigPanelBody, {
   profileIdOf,
   profileSelection,
+  profileSwitchOf,
+  writeProfileSwitch,
 } from "./ChatConfigPanelBody.svelte";
+import { chatConversationStats } from "$lib/stores/chat";
 import type { ProfileSummaryView } from "$lib/ipc/profile";
 import { developerMode } from "$lib/stores/developerMode";
 import { isSensitiveFamily } from "$lib/tools/action-family";
@@ -199,5 +204,102 @@ describe("ChatConfigPanelBody - the conversation designates its profile", () => 
     expect(selection).toBe("");
     expect(profileIdOf(selection)).toBeNull();
     expect(profileIdOf("p-form")).toBe("p-form");
+  });
+});
+
+describe("ChatConfigPanelBody - the profile switch is stored with the conversation", () => {
+  const stats = (injected: boolean) => ({
+    message_count: 2,
+    summarized_count: 0,
+    context_usage_pct: 12,
+    user_memory_injected: injected,
+    cross_sessions_referenced: 0,
+  });
+
+  test("a conversation is on until it stored the switch off", () => {
+    // GIVEN a session that never stored the switch, one on, one off
+    // WHEN the switch of each is read
+    // THEN only the stored "off" reads as off
+    expect(profileSwitchOf(libreSession())).toBe(true);
+    expect(profileSwitchOf({ ...libreSession(), use_profile: true })).toBe(true);
+    expect(profileSwitchOf({ ...libreSession(), use_profile: false })).toBe(false);
+    expect(profileSwitchOf(null)).toBe(true);
+  });
+
+  test("before a conversation exists the switch shows the default of the settings", () => {
+    // GIVEN no session yet, and the default of Settings > Integrations on, then off
+    // WHEN the switch is read
+    // THEN it starts where the default says
+    expect(profileSwitchOf(null, true)).toBe(true);
+    expect(profileSwitchOf(null, false)).toBe(false);
+  });
+
+  test("an existing conversation keeps its own switch, whatever the default", () => {
+    // GIVEN conversations that stored their switch, and the opposite default
+    // WHEN the switch of each is read
+    // THEN each keeps what it stored
+    expect(profileSwitchOf({ ...libreSession(), use_profile: true }, false)).toBe(true);
+    expect(profileSwitchOf({ ...libreSession(), use_profile: false }, true)).toBe(false);
+    expect(profileSwitchOf(libreSession(), false)).toBe(true);
+  });
+
+  test("the panel seeds the switch from the default while no conversation is open", () => {
+    // GIVEN the source of the panel
+    const panel = readFileSync(
+      resolve(__dirname, "ChatConfigPanelBody.svelte"),
+      "utf8",
+    );
+
+    // WHEN its wiring of the default is read
+    // THEN it reads the setting, and applies it only without a session
+    expect(panel).toContain("hydrateShareProfileDefault()");
+    expect(panel).toContain(
+      "if (!session) useUserMemory.set(profileSwitchOf(null, $shareProfileDefault));",
+    );
+  });
+
+  test("turning the switch off writes it to the session, then reads the gauge again", async () => {
+    // GIVEN a runtime that stores the switch and answers the gauge
+    const update = vi.fn(async () => {});
+    const read = vi.fn(async () => stats(false));
+
+    // WHEN the switch of "s-1" is turned off
+    const gauge = await writeProfileSwitch("s-1", false, { update, stats: read });
+
+    // THEN the session update carries the switch alone, and the gauge read after it is returned
+    expect(update).toHaveBeenCalledWith("s-1", { use_profile: false });
+    expect(read).toHaveBeenCalledWith("s-1");
+    expect(update.mock.invocationCallOrder[0]).toBeLessThan(read.mock.invocationCallOrder[0]);
+    expect(gauge?.user_memory_injected).toBe(false);
+  });
+
+  test("a refused write throws and the gauge is not read", async () => {
+    // GIVEN a runtime that refuses the session update
+    const update = vi.fn(async () => {
+      throw new Error("SESSION_CLOSED");
+    });
+    const read = vi.fn(async () => stats(true));
+
+    // WHEN the switch is written
+    const attempt = writeProfileSwitch("s-1", false, { update, stats: read });
+
+    // THEN the refusal reaches the caller, which puts the switch back
+    await expect(attempt).rejects.toThrow("SESSION_CLOSED");
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  test("the gauge says whether the profile is in the prompt", () => {
+    // GIVEN the gauge of a conversation whose prompt carries the profile, then not
+    developerMode.set(false);
+    chatConversationStats.set(stats(true));
+    const carried = tagOf(render(), "context-profile-indicator");
+    chatConversationStats.set(stats(false));
+    const absent = tagOf(render(), "context-profile-indicator");
+    chatConversationStats.set(null);
+
+    // WHEN the panel renders each
+    // THEN the indicator follows the gauge
+    expect(carried).toContain('data-injected="true"');
+    expect(absent).toContain('data-injected="false"');
   });
 });

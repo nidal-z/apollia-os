@@ -9,11 +9,19 @@ export interface TriggerResult {
   topic?: string;
 }
 
-/** Ordered phases of the onboarding flow that the interface reaches. */
+/**
+ * Ordered phases of the onboarding flow: one per step of the first launch,
+ * then the three that close it.
+ */
 export type OnboardingPhase =
   | "welcome"
   | "ai_setup"
+  | "embeddings"
   | "acquaintance"
+  | "first_agent"
+  | "connection"
+  | "first_task"
+  | "guided_tour"
   | "graduation"
   | "done";
 

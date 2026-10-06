@@ -17,6 +17,9 @@ pub(super) struct Executors {
     pub(super) batches: Option<crate::batch::BatchHandle>,
     pub(super) workflows: Option<crate::workflows::WorkflowHandle>,
     pub(super) trigger_engine: TriggerEngineHandle,
+    /// Runs the agent executor for a request to the compatible server that
+    /// brings an MCP server; `None` without the executor or the task store.
+    pub(super) request_runner: Option<Arc<dyn crate::compat_server::RequestAgentRunner>>,
 }
 
 impl Supervisor {
@@ -120,8 +123,9 @@ impl Supervisor {
         // The batch engine runs an agent without code on every item of a
         // source; it needs the task store and the agent executor, and resumes
         // the batches left running as soon as it starts. It reads workbooks
-        // (`spreadsheet`) and CSV files (`csv`); a launch on any other kind
-        // answers that it is unknown.
+        // (`spreadsheet`), CSV files (`csv`), and the one item a single
+        // request carries (`request`); a launch on any other kind answers
+        // that it is unknown.
         // Governance says which accesses of the agent are sensitive.
         // One agent executor path, shared by batches, workflow steps and
         // triggers; `None` without the executor or the task store.
@@ -131,7 +135,15 @@ impl Supervisor {
             stores.task_repository.as_ref(),
             &core.event_sender,
             &self.config.obs_config,
-        );
+        )
+        .map(|launcher| crate::agents::task::AgentTaskLauncher {
+            plan_cache: stores.plan_cache.clone(),
+            ..launcher
+        });
+        let request_runner = launcher.clone().map(|launcher| {
+            Arc::new(crate::compat_server::LaunchedRequestRunner::new(launcher))
+                as Arc<dyn crate::compat_server::RequestAgentRunner>
+        });
         let batches = match (&stores.task_repository, &launcher) {
             (Some(repo), Some(launcher)) => Some(crate::batch::BatchHandle::spawn(
                 repo.clone(),
@@ -195,6 +207,7 @@ impl Supervisor {
             batches,
             workflows,
             trigger_engine,
+            request_runner,
         }
     }
 }
@@ -253,7 +266,16 @@ fn batch_runner<B: crate::coordinator::ExecutionBackend>(
 /// The batch source kinds this runtime reads.
 fn batch_sources() -> apollia_core::batch_source::SourceRegistry {
     let mut registry = apollia_core::batch_source::SourceRegistry::new();
-    if let Err(error) = apollia_sources::register_table_sources(&mut registry) {
+    let registered = apollia_sources::register_table_sources(&mut registry)
+        .and_then(|()| crate::connectors_bridge::register_mail_source(&mut registry));
+    if let Err(error) = registered {
+        tracing::event!(
+            tracing::Level::ERROR,
+            error = %error,
+            "batch.source_registration_failed"
+        );
+    }
+    if let Err(error) = crate::batch::register_request_source(&mut registry) {
         tracing::event!(
             tracing::Level::ERROR,
             error = %error,

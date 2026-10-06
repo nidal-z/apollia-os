@@ -8,6 +8,13 @@ use serde::{Deserialize, Serialize};
 /// accepts, from the quietest to the most verbose.
 pub const ENGINE_LOG_LEVELS: &[&str] = &["error", "warning", "info", "debug"];
 
+/// The values `engines.gguf` accepts: the automatic choice, the engine the
+/// application ships, or a variant the engine store holds.
+pub const GGUF_ENGINE_CHOICES: &[&str] = &["auto", "embedded", "cuda", "vulkan", "cpu", "metal"];
+
+/// The values `engines.mlx` accepts. The MLX engine has one variant.
+pub const MLX_ENGINE_CHOICES: &[&str] = &["auto", "embedded", "metal"];
+
 /// Settings of the local inference engines (`[engines]` section in
 /// `apollia.toml`).
 ///
@@ -19,7 +26,7 @@ pub const ENGINE_LOG_LEVELS: &[&str] = &["error", "warning", "info", "debug"];
 /// [`resolve_setting`](super::resolve_setting) under `engines.<field>`.
 /// Unknown keys are refused, so a typo fails instead of writing a value
 /// nothing reads.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnginesConfig {
     /// Log level of the local engine, applied when a model is next loaded or
@@ -27,6 +34,92 @@ pub struct EnginesConfig {
     /// the device a model loads onto and how many layers it offloads.
     #[serde(default)]
     pub log_level: EngineLogLevel,
+    /// The engine that serves GGUF models. Read when the runtime starts.
+    #[serde(default)]
+    pub gguf: EngineChoice,
+    /// The engine that serves MLX models, on a Mac with Apple Silicon. Read
+    /// when the runtime starts.
+    #[serde(default)]
+    pub mlx: EngineChoice,
+    /// Whether an update of a chosen engine the followed channel announces is
+    /// downloaded and verified without being asked. On by default; off, the
+    /// update is only announced.
+    #[serde(default = "default_auto_update")]
+    pub auto_update: bool,
+    /// Whether, after an update of an engine, the builds of its variant left
+    /// unused the longest are deleted beyond two. Off by default. The build in
+    /// service and the engine shipped with the application are never deleted.
+    #[serde(default)]
+    pub auto_purge: bool,
+}
+
+const fn default_auto_update() -> bool {
+    true
+}
+
+impl Default for EnginesConfig {
+    fn default() -> Self {
+        Self {
+            log_level: EngineLogLevel::default(),
+            gguf: EngineChoice::default(),
+            mlx: EngineChoice::default(),
+            auto_update: default_auto_update(),
+            auto_purge: false,
+        }
+    }
+}
+
+/// Which engine serves a model format.
+///
+/// A named variant designates the newest verified build of that variant in
+/// the engine store. When the store no longer holds one, the automatic choice
+/// applies again, with a warning.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EngineChoice {
+    /// The runtime chooses: the accelerated build of the store when the
+    /// hardware calls for it, the shipped engine otherwise. The default.
+    #[default]
+    Auto,
+    /// The engine shipped with the application, whatever the store holds.
+    Embedded,
+    /// The CUDA build of the store.
+    Cuda,
+    /// The Vulkan build of the store.
+    Vulkan,
+    /// The processor-only build of the store.
+    Cpu,
+    /// The Metal build of the store.
+    Metal,
+}
+
+impl EngineChoice {
+    /// Reads a wire name, `None` for anything else.
+    #[must_use]
+    pub fn from_wire(name: &str) -> Option<Self> {
+        match name {
+            "auto" => Some(Self::Auto),
+            "embedded" => Some(Self::Embedded),
+            "cuda" => Some(Self::Cuda),
+            "vulkan" => Some(Self::Vulkan),
+            "cpu" => Some(Self::Cpu),
+            "metal" => Some(Self::Metal),
+            _ => None,
+        }
+    }
+
+    /// The wire name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Embedded => "embedded",
+            Self::Cuda => "cuda",
+            Self::Vulkan => "vulkan",
+            Self::Cpu => "cpu",
+            Self::Metal => "metal",
+        }
+    }
 }
 
 /// How much the local engine writes to its log.
@@ -105,6 +198,45 @@ mod tests {
         // THEN the engine logs at debug, verbosity 4
         assert_eq!(engines.log_level, EngineLogLevel::Debug);
         assert_eq!(engines.log_level.llama_verbosity(), 4);
+    }
+
+    #[test]
+    fn test_engines_config_defaults_to_the_automatic_engines_kept_up_to_date() {
+        // GIVEN an [engines] section that names only the log level
+        let content = "[engines]\nlog_level = \"info\"\n";
+
+        // WHEN it is read
+        let engines = EnginesConfig::from_toml_str(content).unwrap();
+
+        // THEN each format is served by the automatic choice, updates are on,
+        // and the defaults of the structure say the same
+        assert_eq!(engines.gguf, EngineChoice::Auto);
+        assert_eq!(engines.mlx, EngineChoice::Auto);
+        assert!(engines.auto_update);
+        assert!(EnginesConfig::default().auto_update);
+    }
+
+    #[test]
+    fn test_engines_config_reads_the_engine_of_each_format() {
+        // GIVEN a section choosing an engine per format and turning updates off
+        let content = "[engines]\ngguf = \"cuda\"\nmlx = \"embedded\"\nauto_update = false\n";
+
+        // WHEN it is read, and a variant no engine has is asked for
+        let engines = EnginesConfig::from_toml_str(content).unwrap();
+        let unknown = EnginesConfig::from_toml_str("[engines]\ngguf = \"opencl\"\n");
+
+        // THEN the choices are the file's, the unknown variant is refused, and
+        // every accepted value reads back to itself
+        assert_eq!(engines.gguf, EngineChoice::Cuda);
+        assert_eq!(engines.mlx, EngineChoice::Embedded);
+        assert!(!engines.auto_update);
+        assert!(unknown.is_err());
+        for name in GGUF_ENGINE_CHOICES.iter().chain(MLX_ENGINE_CHOICES) {
+            assert_eq!(
+                EngineChoice::from_wire(name).map(EngineChoice::as_str),
+                Some(*name)
+            );
+        }
     }
 
     #[test]

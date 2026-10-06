@@ -219,6 +219,7 @@ struct ChatSessionManager {
 }
 
 mod actor;
+mod agent_draft;
 mod agent_task;
 mod apollia_agent;
 mod authz;
@@ -228,7 +229,9 @@ mod control;
 mod declarative;
 mod disabled;
 mod dispatcher;
+mod documents;
 mod exchange;
+mod folders;
 mod handle;
 mod handle_ext;
 mod images;
@@ -237,9 +240,14 @@ mod live_config;
 mod plan;
 mod session;
 mod sources;
+mod trash;
 mod types;
 mod user_input;
 
+#[cfg(test)]
+mod agent_draft_tests;
+#[cfg(test)]
+mod documents_tests;
 #[cfg(test)]
 mod images_tests;
 #[cfg(test)]
@@ -252,6 +260,8 @@ mod preferred_backend_tests;
 mod profile_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod trash_tests;
 
 pub(in crate::chat::manager) use dispatcher::{
     now_rfc3339, resolve_workspace_for_session, session_to_info,
@@ -278,10 +288,20 @@ pub(in crate::chat::manager) fn package_executors(
         .unwrap_or_default()
 }
 
+/// The default access in force, as `[tools.new_agent]` states it; the reading
+/// family when the chat was given no configuration.
+pub(in crate::chat::manager) fn default_access_of(
+    cfg: Option<&ChatToolsConfig>,
+) -> apollia_tools::DefaultAccess {
+    cfg.map(|cfg| apollia_tools::DefaultAccess::from_config(&cfg.tools_config.new_agent))
+        .unwrap_or_default()
+}
+
 pub use agent_task::AgentTaskRun;
 pub use command::ChatCommand;
+pub use folders::FolderAction;
 pub use handle::ChatSessionManagerHandle;
 pub use types::{
     ChatPlanSnapshot, ChatToolsConfig, CreateSessionParams, InjectError, PauseError,
-    PendingUserInputView, SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
+    PendingUserInputView, APOLLIA_CHAT_AGENT_ID,
 };

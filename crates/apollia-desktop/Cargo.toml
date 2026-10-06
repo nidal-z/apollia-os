@@ -19,6 +19,9 @@ rust-version.workspace = true
 default = ["cloud"]
 ## Turns on the HTTP backends (OpenAI-compatible servers, Ollama).
 cloud = ["apollia-runtime/cloud"]
+## Optical character recognition of scanned pages and pictures in sources.
+## Compiles Tesseract from source and links it statically; off by default.
+ocr = ["apollia-runtime/ocr"]
 
 [dependencies]
 reqwest          = { workspace = true }
@@ -72,6 +75,12 @@ zip              = { workspace = true }
 # can target the app window by id (already in the tree via tauri).
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { workspace = true }
+
+# Windows and Linux only: a second launch hands its arguments to the running
+# application and exits. macOS keeps one process per application on its own and
+# delivers an opened file as an event.
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

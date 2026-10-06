@@ -69,9 +69,9 @@ impl CompletionModel for Recording {
     }
 }
 
-type Requests = Arc<Mutex<Vec<Vec<LlmMessage>>>>;
+pub(super) type Requests = Arc<Mutex<Vec<Vec<LlmMessage>>>>;
 
-fn spawn(dir: &tempfile::TempDir) -> (ChatSessionManagerHandle, Requests) {
+pub(super) fn spawn(dir: &tempfile::TempDir) -> (ChatSessionManagerHandle, Requests) {
     let requests: Requests = Arc::new(Mutex::new(Vec::new()));
     let mut backends: std::collections::HashMap<String, Arc<dyn CompletionModel>> =
         std::collections::HashMap::new();
@@ -145,7 +145,7 @@ fn with_default_vision_model(dir: &tempfile::TempDir) {
     .expect("backend row");
 }
 
-async fn free_chat(handle: &ChatSessionManagerHandle) -> String {
+pub(super) async fn free_chat(handle: &ChatSessionManagerHandle) -> String {
     handle
         .create_session(CreateSessionParams {
             mode: ChatMode::Libre,
@@ -166,7 +166,7 @@ fn two_images() -> Vec<MessageImage> {
     ]
 }
 
-async fn wait_idle(handle: &ChatSessionManagerHandle, id: &str) -> bool {
+pub(super) async fn wait_idle(handle: &ChatSessionManagerHandle, id: &str) -> bool {
     poll_until_async(Duration::from_secs(10), || async {
         handle
             .get_session(id.to_owned())

@@ -129,7 +129,16 @@ pub async fn run(cmd: &ToolsCommand, socket: Option<PathBuf>, json: bool) -> i32
         ToolsCommand::List => run_list(json),
         ToolsCommand::Enable { name } => run_set_enabled(name, true, json),
         ToolsCommand::Disable { name } => run_set_enabled(name, false, json),
-        ToolsCommand::Config { command } => run_config(command, json),
+        ToolsCommand::Config { command } => {
+            let code = run_config(command, json);
+            if code == crate::exit_codes::SUCCESS && matches!(command, ToolsConfigCmd::Set { .. }) {
+                // The runtime journals the change as made by the command line.
+                if let Some(path) = apollia_core::paths::config_file() {
+                    crate::commands::config::show_to_runtime(&path, socket).await;
+                }
+            }
+            code
+        }
         ToolsCommand::Reload => run_reload(json),
         ToolsCommand::Credentials { command } => run_credentials(command, json).await,
         ToolsCommand::Show { tool_name } => run_describe(socket, tool_name, json).await,

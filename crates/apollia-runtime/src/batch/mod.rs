@@ -33,6 +33,14 @@
 //! [`RuntimeEvent::BatchItemAwaitingApproval`] asks for the decision. When a
 //! batch ends, [`RuntimeEvent::BatchEnded`] carries its counters.
 //!
+//! On request at launch ([`SourceDescriptor::write`]), the answer of every
+//! completed item is written back into its source, one column per field of the
+//! answer, once the batch has ended. The destination is fixed
+//! when the source is opened at launch: a copy of the file by default, the
+//! original only when the launch asks for it and grants
+//! [`SOURCE_WRITE_ACCESS`], which governance decides and the journal records.
+//! A source that cannot write refuses the option at launch.
+//!
 //! [`RuntimeEvent::BatchItemAwaitingApproval`]: apollia_core::RuntimeEvent::BatchItemAwaitingApproval
 //! [`RuntimeEvent::BatchEnded`]: apollia_core::RuntimeEvent::BatchEnded
 
@@ -40,7 +48,9 @@ mod access;
 mod actor;
 mod control;
 mod export;
+mod request_source;
 mod runner;
+mod write_back;
 
 #[cfg(test)]
 mod control_tests;
@@ -48,6 +58,8 @@ mod control_tests;
 mod export_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod write_back_tests;
 
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -61,8 +73,14 @@ use tokio::sync::{mpsc, oneshot};
 use crate::eventbus::EventBusSender;
 
 pub use access::BatchAccess;
+pub(crate) use export::csv_line;
 pub use export::{export, BatchExport, ExportError, ExportFormat, XLSX_CELL_MAX};
+pub use request_source::{register_request_source, RequestSource, REQUEST_SOURCE_KIND};
 pub use runner::AgentItemRunner;
+pub use write_back::{
+    answer_cells, SourceWrite, WriteBackError, WriteDestination, Written, MAX_COLUMNS,
+    SOURCE_WRITE_ACCESS,
+};
 
 /// Items of one batch run at once when the launch names no concurrency.
 pub const DEFAULT_CONCURRENCY: u32 = 1;
@@ -88,6 +106,10 @@ pub struct SourceDescriptor {
     /// Options the kind understands, such as a sheet or a header row.
     #[serde(default)]
     pub options: BTreeMap<String, String>,
+    /// Writes the answer of every completed item back into the source, in
+    /// columns added to it; nothing is written when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub write: Option<SourceWrite>,
 }
 
 /// What a batch is launched with.
@@ -99,7 +121,8 @@ pub struct BatchLaunch {
     /// Where the items come from.
     pub source: SourceDescriptor,
     /// The sensitive accesses granted for the duration of the batch, by
-    /// their id as `GET /api/v1/batches/accesses` lists them.
+    /// their id as `GET /api/v1/batches/accesses` lists them, and
+    /// `source:write` when the results go into the original file.
     #[serde(default)]
     pub grants: Vec<String>,
     /// How many items run at once, 1 to 16; 1 when absent.
@@ -202,6 +225,25 @@ pub trait ItemRunner: Send + Sync + 'static {
         batch_id: &str,
         agent: &str,
         grants: &[BatchAccess],
+    ) -> impl Future<Output = Result<(), String>> + Send;
+
+    /// Asks governance whether `agent` may have the results of a batch
+    /// written into the original file at `location`, the user having granted
+    /// it at launch. Called before anything is recorded; an error is the
+    /// reason of the refusal.
+    fn allow_original_write(
+        &self,
+        agent: &str,
+        location: &str,
+    ) -> impl Future<Output = Result<(), String>> + Send;
+
+    /// Records in the journal that the batch `batch_id` of `agent` writes its
+    /// results into the original file at `location`.
+    fn record_original_write(
+        &self,
+        batch_id: &str,
+        agent: &str,
+        location: &str,
     ) -> impl Future<Output = Result<(), String>> + Send;
 
     /// Withdraws every consent given for the batch `batch_id`.

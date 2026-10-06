@@ -217,15 +217,18 @@ applies deciding :
 5. **Standing consent** of the agent for the family, or a grant of the run (a
    batch grants the accesses of its agent for its items). Allowed.
 6. **Otherwise asked**, with three answers: once, always, refuse. A tool
-   nobody classified lands here, without "always".
+   nobody classified lands here, without "always", unless a fine rule `allow`
+   names it in developer mode, which lets it run: it has no family a consent
+   could stand for, so the rule is the only thing that answers for it.
 
 The decision carries its reason (policy, rule, fail closed, consent) and the
 answers offered.
 
 Governance that cannot read what it decides from fails closed, never open: a
-`governance.db` that exists and cannot be read, or a policy present and
-refused, refuses every sensitive call (line 5 and 6 above become a refusal)
-and every new connection, while reading continues. A database that stops
+`governance.db` that exists and cannot be read, a policy present and
+refused, or a journal the policy requires (`journal.required = true`) that is
+absent or could not be opened, refuses every sensitive call (line 5 and 6
+above become a refusal) and every new connection, while reading continues. A database that stops
 being readable keeps its last state in force, its deny rules and its disabled
 tools included; one unreadable at startup keeps only the `[tools] disabled`
 list of `apollia.toml`. The runs that build their own dispatcher (the agent
@@ -285,9 +288,43 @@ not the primary control. The primary control against an over-broad grant is the
 permission scoping above, not the classifier. Default patterns are deliberately
 left empty to preserve the opt-in, local-first posture.
 
-Audit table is append-only. Never delete a row programmatically.
-Retention is time-based via `[audit].retention_days` in the config, not a
-manual purge command.
+### What the journal promises, and what it does not
+
+The audit journal (`audit_journal.db`, `apollia_runtime::audit_journal`) is
+append-only, hash-chained per run and across runs, and signed when its key can
+be read. The promise made to whoever answers for a fleet is exact, and no
+wider than this:
+
+- **No erase function.** Nothing in the interface, the command line or the API
+  removes an entry: no route under `/api/v1/audit` answers `DELETE` (a test
+  lists them), and no `audit` subcommand or desktop command deletes. Never add
+  one, and never delete a row programmatically.
+- **Alteration is detected, not prevented.** The journal and its HMAC key live
+  in the user's own folder, on the user's own machine. The user can delete or
+  rewrite the file. What the chain guarantees is that an entry changed,
+  removed or reordered shows in `audit verify`; it does not stop the change.
+  A holder of the key can re-sign a rewritten chain.
+- **Only an anchor kept elsewhere detects truncation.** A journal cut at its
+  end is a shorter chain that still verifies against itself. The head anchor
+  (`audit anchor`, and the `anchor` of each daily export file) is what shows
+  it, and only when a copy of it sits outside the machine.
+- **Retention belongs to the organisation policy.** `journal.retention_days`
+  of the signed policy is the only thing that removes entries, at startup and then
+  once a day: the entries older than that many days leave after a signed
+  `journal_purged` entry that carries the anchor of what left, and
+  verification starts from that entry and reports where. Without a policy, or
+  without that key, nothing is ever removed. There is no retention key in
+  `apollia.toml` and no purge command.
+
+The same section of the policy sets the rest: `journal.required = true` fails
+closed without a journal (above); a journal that opens without its signing key
+stays usable, says so in the window and records `journal_unsigned`, because
+its chain is still verified; `journal.export.detail` forbids or requires the
+detail of an export, and an export asked the other way is refused;
+`journal.export.daily_summary_dir` receives one summary file per UTC day with
+the head anchor, caught up at startup before the retention runs. A folder that
+cannot be written is said in the window and recorded as
+`journal_export_failed`; it refuses nothing.
 
 
 
@@ -358,6 +395,18 @@ Rules, held by `scripts/check_http_clients.py` :
 - Never read a response body with `.text()`, `.bytes()` or `.json()`. Read it
   with `apollia_core::net::read_capped_{bytes,text,json}`, which refuse an
   oversized body mid-stream instead of buffering it and measuring afterwards.
+- One exception sits between the two builders, and it is written here rather
+  than tolerated: the MCP server a request to the compatible server brings
+  with it (`[server] allow_request_mcp`, off by default). Its address comes
+  from a third party, so the redirect policy is the one of
+  `safe_client_builder`, every hop public; but trying a server on this machine
+  is the first use of such a request, so the initial check is
+  `assert_public_or_loopback`: the loopback interface is let through, the
+  private network, a link-local address and an internal domain stay refused.
+  The client is built by `request_supplied_client_builder` and handed to the
+  transport (`StreamableHttpTransport::with_client`); the transport never
+  builds one for an address a request gave. A server on this machine cannot
+  redirect at all, since every hop must be public.
 - Two paths in the runtime carry an agent payload straight to the network: the
   webhook notification channel and the `PreToolUse` / `PostToolUse` HTTP hook
   handler. Both apply the initial check and the per-hop one. A hook answer that

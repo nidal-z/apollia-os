@@ -13,7 +13,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use apollia_core::config::{resolve_setting, PolicySettings, ServerConfig, JIT_LOADING_KEY};
+use apollia_core::config::{
+    resolve_setting, PolicySettings, ServerConfig, ALLOW_REQUEST_MCP_KEY, JIT_LOADING_KEY,
+    SEPARATE_REASONING_KEY,
+};
 use apollia_core::llm_backend::LlmBackendRepository;
 use apollia_llm::model_index::{
     IndexedModel, ModelCategory, ModelFormat, ModelIndex, INDEX_FILE_NAME,
@@ -34,11 +37,15 @@ pub struct LocalModels {
     llama: Option<Arc<LlamaServerSupervisor>>,
     mlx: Option<Arc<MlxEngineSupervisor>>,
     models_dir: Option<PathBuf>,
-    /// `apollia.toml`, whose `[server] jit_loading` is read at every request.
+    /// `apollia.toml`, whose `[server] jit_loading` and
+    /// `separate_reasoning_content` are read at every request.
     /// `None` holds the default, on.
     settings: Option<PathBuf>,
     /// `system.db`, whose backend row of a model gives its load preset.
     system_db: Option<PathBuf>,
+    /// The settings the organisation policy fixes: a setting it fixes is read
+    /// from it, whatever the file says.
+    policy: PolicySettings,
 }
 
 /// Why a request's model could not be held.
@@ -102,7 +109,15 @@ impl LocalModels {
             models_dir,
             settings: None,
             system_db: None,
+            policy: PolicySettings::none(),
         }
+    }
+
+    /// Reads the settings `policy` fixes from it rather than from the file.
+    #[must_use]
+    pub fn under_policy(mut self, policy: PolicySettings) -> Self {
+        self.policy = policy;
+        self
     }
 
     /// Reads `[server] jit_loading` in `settings` and the load presets in
@@ -211,16 +226,49 @@ impl LocalModels {
     /// Whether `[server] jit_loading` is on now; the default, on, when the
     /// file cannot be read.
     fn jit_loading(&self) -> bool {
-        let default = ServerConfig::default().jit_loading;
+        self.switch(JIT_LOADING_KEY, ServerConfig::default().jit_loading)
+    }
+
+    /// Whether `[server] separate_reasoning_content` is on now, read at every
+    /// request; the default, on, when the file cannot be read.
+    pub(crate) fn separates_reasoning(&self) -> bool {
+        self.switch(
+            SEPARATE_REASONING_KEY,
+            ServerConfig::default().separate_reasoning_content,
+        )
+    }
+
+    /// Whether `[server] allow_request_mcp` is on now, read at every request;
+    /// the default, off, when the file cannot be read. The organisation
+    /// policy that fixes it off wins over the file.
+    pub(crate) fn allows_request_mcp(&self) -> bool {
+        self.switch(
+            ALLOW_REQUEST_MCP_KEY,
+            ServerConfig::default().allow_request_mcp,
+        )
+    }
+
+    /// Whether the organisation policy fixes `[server] allow_request_mcp`, so
+    /// that no setting of the user turns it on.
+    pub(crate) fn request_mcp_fixed_by_policy(&self) -> bool {
+        self.policy.locks(ALLOW_REQUEST_MCP_KEY)
+    }
+
+    /// The boolean setting `key` of the file now, `default` when the file
+    /// cannot be read or the runtime was given none.
+    fn switch(&self, key: &str, default: bool) -> bool {
+        if let Some(imposed) = self.policy.imposed(key) {
+            return imposed.as_bool().unwrap_or(default);
+        }
         let Some(path) = &self.settings else {
             return default;
         };
-        match resolve_setting(path, JIT_LOADING_KEY, &PolicySettings::none()) {
+        match resolve_setting(path, key, &self.policy) {
             Ok(resolved) => resolved.value.as_bool().unwrap_or(default),
             Err(error) => {
                 tracing::event!(
                     tracing::Level::WARN,
-                    key = JIT_LOADING_KEY,
+                    key = key,
                     error = %error,
                     "compat_server.models.setting_unreadable"
                 );
@@ -288,7 +336,7 @@ impl LocalModels {
     /// The backend row of the model `id`, written when it has none yet: the
     /// key its load preset is kept under. The identifier itself when there is
     /// no `system.db` or the row cannot be written.
-    async fn backend_row(&self, id: &str) -> String {
+    pub(crate) async fn backend_row(&self, id: &str) -> String {
         let (Some(system_db), Some(models_dir)) = (self.system_db.clone(), self.models_dir.clone())
         else {
             return id.to_owned();

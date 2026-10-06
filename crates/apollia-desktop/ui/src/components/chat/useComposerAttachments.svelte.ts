@@ -20,10 +20,18 @@ import {
   readAsBase64,
   refusalMessageKey,
   INLINE_MAX_BYTES,
+  MAX_DOCUMENTS_PER_MESSAGE,
+  MAX_DOCUMENT_BYTES,
   MAX_IMAGES_PER_MESSAGE,
   MAX_IMAGE_BYTES,
 } from "$lib/chat/attachments";
-import { browserImageCodec, imageMimeOf, prepareImage } from "$lib/chat/imagePrepare";
+import {
+  DEFAULT_IMAGE_MAX_SIDE,
+  browserImageCodec,
+  imageMimeOf,
+  prepareImage,
+} from "$lib/chat/imagePrepare";
+import { readImageSideLimit } from "$lib/settings/modelDefaults";
 
 export interface ComposerAttachments {
   /** The queue, in the order the operator built it. */
@@ -44,17 +52,26 @@ export interface ComposerAttachments {
 /**
  * `imageSupport` reads what the model of the conversation does with images at
  * the moment a file arrives: `null` (not known) keeps the path-or-refuse rule.
+ * `imageSideLimit` reads the largest side an image keeps (Settings > Model
+ * defaults), `null` when images are not held to one; a read that fails holds
+ * to the default ceiling.
  */
 export function createComposerAttachments(
   imageSupport: () => ImageSupport | null = () => null,
+  imageSideLimit: () => Promise<number | null> = readImageSideLimit,
 ): ComposerAttachments {
   let items = $state<PendingAttachment[]>([]);
   let dragOver = $state(false);
 
   function refuse(reason: AttachmentRefusal, name: string): void {
+    const document = reason === "document_limit" || reason === "document_too_large";
     addToast(
       get(t)(refusalMessageKey(reason), {
-        values: { name, max: MAX_IMAGES_PER_MESSAGE, mb: MAX_IMAGE_BYTES / (1024 * 1024) },
+        values: {
+          name,
+          max: document ? MAX_DOCUMENTS_PER_MESSAGE : MAX_IMAGES_PER_MESSAGE,
+          mb: (document ? MAX_DOCUMENT_BYTES : MAX_IMAGE_BYTES) / (1024 * 1024),
+        },
       }),
       "error",
     );
@@ -73,6 +90,7 @@ export function createComposerAttachments(
       };
       const support = imageSupport();
       const queuedImages = items.filter((a) => a.form === "image").length;
+      const queuedDocuments = items.filter((a) => a.form === "document").length;
       if (kind === "image") {
         candidate.previewUrl = URL.createObjectURL(file);
       }
@@ -84,7 +102,10 @@ export function createComposerAttachments(
       const dropPath: unknown = (file as File & { path?: unknown }).path;
       if (typeof dropPath === "string" && dropPath) candidate.absolutePath = dropPath;
 
-      if (kind !== "image" && file.size <= INLINE_MAX_BYTES) {
+      // A document the runtime reads travels as its bytes, up to its own
+      // ceiling; anything else is read only while small enough to go inline.
+      const readCeiling = kind === "document" ? MAX_DOCUMENT_BYTES : INLINE_MAX_BYTES;
+      if (kind !== "image" && file.size <= readCeiling) {
         try {
           candidate.base64 = await readAsBase64(file);
         } catch {
@@ -94,11 +115,13 @@ export function createComposerAttachments(
       // To a model that reads images, the image travels as its bytes, in a
       // format the engine decodes; past the ceiling it is not even read.
       if (kind === "image" && support?.vision && queuedImages < MAX_IMAGES_PER_MESSAGE) {
+        const maxSide = await imageSideLimit().catch(() => DEFAULT_IMAGE_MAX_SIDE);
         const prepared = await prepareImage(
           file,
           candidate.mime,
           support.formats,
           browserImageCodec,
+          maxSide,
         );
         if (!prepared.ok) {
           if (candidate.previewUrl) URL.revokeObjectURL(candidate.previewUrl);
@@ -112,6 +135,7 @@ export function createComposerAttachments(
       const intake = intakeAttachment(candidate, {
         vision: support?.vision ?? false,
         queuedImages,
+        queuedDocuments,
       });
       if (!intake.accepted) {
         // The file is dropped rather than queued: a chip the send would not

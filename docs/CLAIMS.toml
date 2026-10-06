@@ -347,27 +347,28 @@ where the change gets noticed.
 [[claim]]
 id = "memory-injection-confined-to-builtin-assistant"
 scope = "public"
-symbol = "inject_memory"
+symbol = "profile_injection::switched_store"
 status = "wired"
-proof = "crates/apollia-core/src/config/autonomy.rs"
+proof = "crates/apollia-runtime/src/chat/profile_injection.rs"
 evidence = ""
 note = """
 Principle 6 said memory is never injected automatically. Three paths do inject,
-and only two of them sit in the built-in assistant. `long_autonomous` sets
-`inject_memory: true`, read in the react loop and applied by the prompt builder,
-which appends a persona brief. Separately, and not gated by any tier, the chat
-manager appends past session summaries on the first message of a free session,
-see `cross-session-recall-injects-summaries`. The third sits outside the
-assistant: the desktop prompt-rewrite command carries the Work section of the
-user profile into its own one-shot system prompt, see
+and only two of them sit in the built-in assistant. The chat manager hands the
+profile store to the executor of a free chat while the profile switch of the
+conversation is on (`switched_store`), the executor keeps it for the Apollia
+agent alone, and the prompt builder appends a brief of the profile the
+conversation designates, at every tier. Separately, the chat manager appends
+past session summaries on the first message of a free session, see
+`cross-session-recall-injects-summaries`. The third sits outside the assistant:
+the desktop prompt-rewrite command carries the role, the function and the tools
+of that profile into its own one-shot system prompt, see
 `rewrite-injects-work-context`.
 
 The invariant survives, because no agent execution path reaches any of the
-three. What was wrong is the wording, which claimed more than the code delivers,
-and which named only the first. This claim guards the boundary: if
-`inject_memory` is ever read outside the built-in assistant, or if a lower tier
-turns it on, one of the eight principles becomes false and the sentence has to
-change with it.
+three. This claim guards the gate: if the chat dispatch stops calling
+`switched_store`, either the profile is injected whatever the switch says or it
+is never injected, and in both cases the page that describes a switch the user
+controls becomes false.
 """
 
 [[claim]]
@@ -1123,19 +1124,20 @@ connection that already exists.
 """
 
 [[claim]]
-id = "audit-export-pages-past-the-server-ceiling"
+id = "audit-export-holds-no-content-without-detail"
 scope = "public"
-symbol = "SERVER_LIMIT_CAP"
+symbol = "summary_of"
 status = "wired"
-proof = "crates/apollia-cli/src/commands/audit.rs"
+proof = "crates/apollia-runtime/src/audit_journal/export.rs"
 evidence = ""
 note = """
-The endpoint clamps one query to 500 and, until an `offset` parameter existed,
-had no way to reach anything older: the trail was structurally unexportable past
-its newest page, on a product that maps Article 14. The CLI now pages until a
-short page comes back, and this constant is the page size it respects. If the
-loop goes, the export silently becomes the newest 500 events under a filename
-that claims to be an archive.
+An export of the journal leaves the application as a file that circulates, so
+what it holds by default is the summary of each entry and its place in the
+chain: `summary_of` copies neither the payload of the entry nor the arguments
+and the output of its call, which only `detailed` adds, on request. If the
+summary ever takes the payload along, every export handed to an audit carries
+the content of the calls, personal data included, under an option the reader
+never asked for.
 """
 
 [[claim]]
@@ -1400,11 +1402,11 @@ status = "wired"
 proof = "crates/apollia-desktop/src/commands/onboarding.rs"
 evidence = "onboarding.completed_at"
 note = """
-The page promises that skipping the optional questions ends the interview with
-no extra AI turn. Before this command existed, the skip button sent the chat
+The page promises that skipping the questions ends the conversation with no
+extra AI turn and opens the profile form at once. Before this command existed, the skip button sent the chat
 message "C'est bon pour moi, terminons." and burned one or more inference
 turns waiting for the agent to close; there was no backend path that finalized
-without a model turn. The command stamps the exact key the wrap-up gate reads
+without a model turn. The command stamps the exact key the review gate reads
 from the agent's semantic memory. If this evidence stops matching, the button
 is back to nudging the model and the sentence overstates the flow.
 """
@@ -1473,7 +1475,8 @@ proof = "crates/apollia-llm/src/meta/rewrite_input.rs"
 evidence = "pub struct WorkContext"
 note = """
 Third exception to Principle 6 (memory injection): the prompt rewrite carries
-the Work section of the user profile when the operator triggers it. Four anchors,
+the role, the function and the tools of the profile of the conversation when the
+operator triggers it. Four anchors,
 one per page that states the exception: docs/explanation/the-8-principles.md and
 docs/architecture/07-crosscutting-concepts.md, each with its French mirror under
 i18n/fr. The exception lives in the desktop rewrite command, not in the
@@ -1492,8 +1495,8 @@ evidence = ""
 note = """
 The corpus called one thing "the audit trail" and described the other. There are
 two registers: the flat `tool_invocations` table, which has no `prev_hash` and no
-signature, and the hash-chained journal. `audit list`, `audit stats` and
-`audit export` reach the flat one through this reader; `audit verify`,
+signature, and the hash-chained journal. `audit list` and `audit stats` reach
+the flat one through this reader; `audit verify`, `audit export`,
 `audit show` and `audit anchor` reach the journal. If `query_page` ever loses its
 caller in `list_audit`, the pages that now say which command reads which register
 are describing a path that stopped existing.

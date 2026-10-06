@@ -1,13 +1,15 @@
 //! The conversations of the chat as the list manages them: change a session's
 //! configuration, rename it, name it from its first message, and erase it.
 //!
-//! - `PATCH  /api/v1/sessions/{id}`                , instructions, tools, server, profile
+//! - `PATCH  /api/v1/sessions/{id}`                , instructions, tools, server, profile, profile switch
 //! - `PUT    /api/v1/sessions/{id}/title`          , the title the user typed
 //! - `POST   /api/v1/sessions/{id}/title/generate` , a title drawn by the model
 //! - `POST   /api/v1/sessions/{id}/erase`          , the session and its messages
 //!
 //! `DELETE /api/v1/sessions/{id}` closes a session and keeps its history;
-//! erasing is a separate action, so the two never share a verb.
+//! erasing is a separate action, so the two never share a verb. Sending a
+//! session to the trash, from where it is restored, is a third one, in
+//! `trash.rs`.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -46,6 +48,10 @@ pub struct UpdateSessionBody {
     )]
     #[schema(value_type = Option<String>)]
     pub profile_id: Option<Option<String>>,
+    /// Profile switch of the conversation: whether the built-in assistant
+    /// receives the profile in its prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_profile: Option<bool>,
 }
 
 /// Reads a present field, `null` included, as `Some`: an absent `profile_id`
@@ -95,14 +101,14 @@ pub fn conversations_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>
         .route("/api/v1/sessions/:id/erase", post(erase_session::<B>))
 }
 
-type Refusal = (StatusCode, Json<ApiErrorBody>);
+pub(super) type Refusal = (StatusCode, Json<ApiErrorBody>);
 
-fn chat_refusal(error: crate::chat::ChatError) -> Refusal {
+pub(super) fn chat_refusal(error: crate::chat::ChatError) -> Refusal {
     let (status, Json(body)) = chat_error_to_response(error);
     (status, Json(ApiErrorBody { error: body.error }))
 }
 
-fn manager<B: ExecutionBackend + Clone>(
+pub(super) fn manager<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
 ) -> Result<&ChatSessionManagerHandle, Refusal> {
     state.chat_manager.as_ref().ok_or_else(|| {
@@ -130,7 +136,7 @@ fn title_refusal(error: TitleError) -> Refusal {
     )
 }
 
-fn done(status: &str) -> axum::response::Response {
+pub(super) fn done(status: &str) -> axum::response::Response {
     (
         StatusCode::OK,
         Json(serde_json::json!({ "status": status })),
@@ -171,6 +177,7 @@ pub async fn update_session<B: ExecutionBackend + Clone>(
                 available_tools: body.tools,
                 llm_backend,
                 profile_id: body.profile_id,
+                use_profile: body.use_profile,
             },
         )
         .await

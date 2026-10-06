@@ -270,6 +270,65 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`POST /api/v1/agent-definitions`: create an agent without code.",
+        "operationId": "create_agent_definition",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Agent created; the agent in force",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedAgentResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Too many agents hold identifiers derived from this name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "An empty name or mission, or a source the registry does not hold",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal, or the source registry a sources list needs, not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/agent-definitions/{name}": {
@@ -483,7 +542,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources, autonomy or profile",
+            "description": "name, mission, examples, access, sources, autonomy, planning or profile",
             "required": true,
             "schema": {
               "type": "string"
@@ -562,7 +621,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources, autonomy or profile",
+            "description": "name, mission, examples, access, sources, autonomy, planning or profile",
             "required": true,
             "schema": {
               "type": "string"
@@ -618,7 +677,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "`GET /api/v1/agent-packages/installed`: the installed packages.",
+        "summary": "`GET /api/v1/agent-packages/installed`: the installed packages, each with\nits publisher, the state of its signature and how much it holds.",
         "operationId": "list_agent_packages",
         "responses": {
           "200": {
@@ -722,7 +781,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "`GET /api/v1/agent-packages/installed/{name}`: one installed package, its\nmanifest as recorded.",
+        "summary": "`GET /api/v1/agent-packages/installed/{name}`: one installed package, its\nmanifest as recorded, its publisher, what it installed by kind, and the\nautomations that would go with it.",
         "operationId": "get_agent_package",
         "parameters": [
           {
@@ -817,7 +876,7 @@
             }
           },
           "403": {
-            "description": "The package carries Apollia",
+            "description": "The package is part of Apollia",
             "content": {
               "application/json": {
                 "schema": {
@@ -1699,7 +1758,7 @@
         "summary": "`POST /api/v1/assists/next-steps`: up to three next steps cards, drawn by\nthe daemon's default model or by the heuristic.",
         "operationId": "generate_next_steps",
         "requestBody": {
-          "description": "`context`, `mode` and the `facts` the window computed, each optional",
+          "description": "`context`, `developerMode` and the `facts` the window computed, each optional",
           "content": {
             "application/json": {
               "schema": {
@@ -1868,13 +1927,144 @@
         }
       }
     },
+    "/api/v1/audit/export": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /api/v1/audit/export`: the journal as a file, narrowed by the filters\nof `GET /api/v1/audit/journal`.",
+        "description": "Every entry that passes the filters is in the file, newest first: the\nexport is not paged. Each entry is its summary (when, who, what, on what,\nwith which result) and its place in the chain (run, sequence, kind, hash),\nwithout content. With `detail=true` each entry also holds its payload and,\nfor a tool call, its arguments and its output. `csv` is UTF-8 with one\nheader row, `json` is one document with the entries. The file is offered\nas `journal.<format>`, and the export is recorded in the journal. 400 on a\nformat or a filter value that cannot be read, 403 when the organisation\npolicy forbids the detail and it is asked, or requires it and it is not,\n503 when the journal is not configured.",
+        "operationId": "export_audit_journal",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`csv` or `json`.",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/JournalExportFormat"
+            }
+          },
+          {
+            "name": "detail",
+            "in": "query",
+            "description": "`true` to add, to each entry, its payload and the arguments and output\nof its tool call. Those may hold personal data. Defaults to `false`.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "agents",
+            "in": "query",
+            "description": "Comma-separated agent names. When set, the export holds the entries\nthat name one of those agents and the runs of their tasks.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "description": "Comma-separated action families (`read`, `write_or_delete`, ...).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nature",
+            "in": "query",
+            "description": "Comma-separated natures: `action`, `access_change`, `policy`, `system`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "description": "Comma-separated results: `success`, `failure`, `refused`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339\ninstant.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "End of the period, excluded: a day or an RFC 3339 instant.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The filtered journal as a CSV or JSON file",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A format or a filter value that cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The organisation policy forbids the detail and it was asked, or requires it and it was not",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not configured, or `agents` given with no task repository to resolve them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit/journal": {
       "get": {
         "tags": [
           "audit"
         ],
-        "summary": "`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal\nacross every run.",
-        "description": "This is the only read of the journal that does not need a run id up front:\n`GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,\nand `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when\nthe journal is not configured.",
+        "summary": "`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal\nacross every run, each entry with its summary.",
+        "description": "This is the only read of the journal that does not need a run id up front:\n`GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,\nand `GET /api/v1/audit` answers the separate tool-invocation trail. The\nfilters are applied before paging, so `limit` and `offset` count matching\nentries. 400 on a filter value that cannot be read, 503 when the journal is\nnot configured.",
         "operationId": "list_audit_journal",
         "parameters": [
           {
@@ -1891,7 +2081,7 @@
           {
             "name": "offset",
             "in": "query",
-            "description": "Number of entries to skip, newest first (default 0). Page through the journal by advancing it.",
+            "description": "Number of matching entries to skip, newest first (default 0). Page through the journal by advancing it.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -1902,7 +2092,52 @@
           {
             "name": "agents",
             "in": "query",
-            "description": "Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included.",
+            "description": "Comma-separated agent names. When set, only the entries that name one of those agents, and the runs of their tasks, are paged.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "family",
+            "in": "query",
+            "description": "Comma-separated action families: `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code`, `unclassified`, `exempt`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nature",
+            "in": "query",
+            "description": "Comma-separated natures: `action`, `access_change`, `policy`, `system`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "description": "Comma-separated results: `success`, `failure`, `refused`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Start of the period, included: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "End of the period, excluded: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1911,11 +2146,21 @@
         ],
         "responses": {
           "200": {
-            "description": "A page of hash-chained journal entries",
+            "description": "A page of hash-chained journal entries, each with its summary",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuditJournalPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A filter value that cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -1965,6 +2210,70 @@
           },
           "404": {
             "description": "Run has no entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/journal/{run_id}/entries/{seq}": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail.",
+        "description": "The page gives each entry a summary without content. This gives the entry\nwhole and, for a tool call, the full arguments and the full output of that\ncall, joined by the run and the call identifier from the entries the run\ncaptured for replay. 404 when the run has no such entry, 503 when the\njournal is not configured.",
+        "operationId": "show_audit_entry",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "description": "Run the entry belongs to",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seq",
+            "in": "path",
+            "description": "Sequence number of the entry within its run",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entry, its summary, and the arguments and output of its tool call when it is about one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditJournalEntryDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The run has no such entry",
             "content": {
               "application/json": {
                 "schema": {
@@ -2928,6 +3237,7 @@
           "config"
         ],
         "summary": "`PUT /api/v1/config`: saves a whole text through the writer.",
+        "description": "The change is written to the signed journal under the origin the caller\ndeclares. A caller that wrote the file itself, as the command line does,\npresents the text it wrote with its own fingerprint: nothing is written\nagain, and the change it made is journaled under its origin instead of as\na file changed from outside.",
         "operationId": "save_config",
         "requestBody": {
           "content": {
@@ -4677,7 +4987,7 @@
         "tags": [
           "governance"
         ],
-        "summary": "`GET /api/v1/governance/state`: whether governance fails closed, and why.",
+        "summary": "`GET /api/v1/governance/state`: whether governance fails closed, and why,\nand what degrades the journal without refusing anything.",
         "operationId": "get_governance_state",
         "responses": {
           "200": {
@@ -6097,6 +6407,37 @@
         }
       }
     },
+    "/api/v1/llm/hardware/usage": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/hardware/usage`, measure the machine once.",
+        "operationId": "get_resource_usage",
+        "responses": {
+          "200": {
+            "description": "Memory, processor and video memory in use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceUsageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The measurement did not complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/installed-models": {
       "get": {
         "tags": [
@@ -6854,7 +7195,7 @@
             }
           },
           "422": {
-            "description": "Empty name or model, or a system prompt among the settings",
+            "description": "Empty name or model, a system prompt among the settings, or load settings while models.preset_load_settings is off",
             "content": {
               "application/json": {
                 "schema": {
@@ -6937,7 +7278,7 @@
             }
           },
           "422": {
-            "description": "Empty name, or a system prompt among the settings",
+            "description": "Empty name, a system prompt among the settings, or other load settings than the ones held while models.preset_load_settings is off",
             "content": {
               "application/json": {
                 "schema": {
@@ -10666,6 +11007,185 @@
         }
       }
     },
+    "/api/v1/packages/examples": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`GET /api/v1/packages/examples`: the example packages the binary carries,\neach with its agents and their mission, the connections it requires\n(present or missing on this machine) and the installed version when the\nuser installed it. None of them is installed until the user chooses it.",
+        "operationId": "list_example_packages",
+        "responses": {
+          "200": {
+            "description": "The examples",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExamplePackage"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/examples/{name}/install": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/examples/{name}/install`: install the example.",
+        "description": "The example is assembled into a package archive and installed like any\npackage file: its preview is computed again and its refusal applies, an\nupdate that adds accesses or connections needs `changesConfirmed`, and the\ninstallation is recorded in the audit journal. Once installed it is\nuninstalled like any package.",
+        "operationId": "install_example_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name of the example",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExampleInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No example of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Older than the installed version, or agent owned elsewhere",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "A confirmation is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store, environment or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal, or no MCP manager for the servers it brings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/examples/{name}/preview": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/examples/{name}/preview`: what the example\ncontains, what it asks for and which connections it requires, as the\npreview of a package file says it. Nothing is written.",
+        "operationId": "preview_example_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name of the example",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No example of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/packages/install": {
       "post": {
         "tags": [
@@ -11008,7 +11528,7 @@
             }
           },
           "403": {
-            "description": "The package carries Apollia",
+            "description": "The package is part of Apollia",
             "content": {
               "application/json": {
                 "schema": {
@@ -12828,6 +13348,197 @@
         }
       }
     },
+    "/api/v1/sessions/folders": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/folders`, the folders in the order of\nthe list, each with the conversations it holds.",
+        "operationId": "list_chat_folders",
+        "responses": {
+          "200": {
+            "description": "The folders of the conversation list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatFolder"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/folders`, create a folder, placed\nafter the existing ones.",
+        "operationId": "create_chat_folder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderNameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Folder created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatFolder"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Blank or oversized name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/folders/{id}": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/folders/{id}`, rename a folder.",
+        "operationId": "rename_chat_folder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Folder id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderNameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Folder renamed"
+          },
+          "400": {
+            "description": "Blank or oversized name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Folder not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `DELETE /api/v1/sessions/folders/{id}`, remove a folder. Its\nconversations are kept and go back out of any folder.",
+        "operationId": "delete_chat_folder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Folder id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder removed, its conversations kept"
+          },
+          "404": {
+            "description": "Folder not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/plan-mode-default": {
       "get": {
         "tags": [
@@ -12882,6 +13593,95 @@
         "responses": {
           "200": {
             "description": "Recent session summaries"
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/search": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/search`, the conversations whose\nmessages contain every word of `q`, the best match first, each with an\nexcerpt. A word is matched from its start, and a conversation in the\ntrash is never answered.",
+        "operationId": "search_chat_messages",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "The words searched in the messages",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Most conversations answered (default 20, at most 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The conversations found, each with an excerpt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageSearchHit"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/trash": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/trash`, the conversations in the trash,\nthe last removed first.",
+        "operationId": "list_trashed_sessions",
+        "responses": {
+          "200": {
+            "description": "The conversations in the trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrashedSession"
+                  }
+                }
+              }
+            }
           },
           "503": {
             "description": "Chat subsystem unavailable",
@@ -13238,6 +14038,61 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/folder": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/folder`, put the conversation in a\nfolder, or out of any folder.",
+        "operationId": "set_session_folder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation moved"
+          },
+          "404": {
+            "description": "Session or folder not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/fork": {
       "post": {
         "tags": [
@@ -13334,7 +14189,7 @@
             }
           },
           "400": {
-            "description": "An image is refused: too many, too large, or not decodable",
+            "description": "An image or a document is refused: too many, too large, not decodable, or a document its reader cannot read",
             "content": {
               "application/json": {
                 "schema": {
@@ -14058,6 +14913,51 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/restore": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/restore`, take the session out of\nthe trash, back into the list with its messages.",
+        "operationId": "restore_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session restored"
+          },
+          "404": {
+            "description": "No such session in the trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/resume": {
       "post": {
         "tags": [
@@ -14398,6 +15298,51 @@
           },
           "500": {
             "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/trash": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/trash`, send the session to the\ntrash: it leaves the list and keeps its messages.",
+        "operationId": "trash_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session sent to the trash"
+          },
+          "404": {
+            "description": "Session not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -14837,7 +15782,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The state of the source's index, its counts and the files it left out",
+            "description": "The state of the source's index, its counts, the files it left out and the pages it could not read",
             "content": {
               "application/json": {
                 "schema": {
@@ -17935,6 +18880,104 @@
           }
         }
       },
+      "AgentPackageAutomation": {
+        "type": "object",
+        "description": "An automation that starts an agent or a workflow of a package: it goes\nwith the package.",
+        "required": [
+          "id",
+          "target"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Trigger identifier."
+          },
+          "target": {
+            "type": "string",
+            "description": "The agent, or the workflow as `<package>/<workflow>`, it starts."
+          }
+        }
+      },
+      "AgentPackageContent": {
+        "type": "object",
+        "description": "What a package installed, by kind.",
+        "required": [
+          "agents",
+          "workflows",
+          "tools",
+          "connections_brought",
+          "connections_required"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageItem"
+            },
+            "description": "Its agents."
+          },
+          "connections_brought": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The connections it brought: they go with it."
+          },
+          "connections_required": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageRequirement"
+            },
+            "description": "The connections it requires: they stay."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageTool"
+            },
+            "description": "Its Python tools."
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageItem"
+            },
+            "description": "Its workflows."
+          }
+        }
+      },
+      "AgentPackageCounts": {
+        "type": "object",
+        "description": "How many items of each kind a package installed.",
+        "required": [
+          "agents",
+          "workflows",
+          "tools",
+          "connections"
+        ],
+        "properties": {
+          "agents": {
+            "type": "integer",
+            "description": "Agents.",
+            "minimum": 0
+          },
+          "connections": {
+            "type": "integer",
+            "description": "Connections, brought and required together.",
+            "minimum": 0
+          },
+          "tools": {
+            "type": "integer",
+            "description": "Python tools.",
+            "minimum": 0
+          },
+          "workflows": {
+            "type": "integer",
+            "description": "Workflows.",
+            "minimum": 0
+          }
+        }
+      },
       "AgentPackageDetail": {
         "type": "object",
         "description": "An installed package, in full.",
@@ -17948,7 +18991,10 @@
           "updated_at",
           "root_path",
           "root_missing",
-          "manifest"
+          "manifest",
+          "signature",
+          "embedded",
+          "content"
         ],
         "properties": {
           "agents": {
@@ -17962,9 +19008,24 @@
             "type": "string",
             "description": "Author from its manifest."
           },
+          "automations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageAutomation"
+            },
+            "description": "The automations that start one of its agents or workflows: they go\nwith it. Filled by the route, which holds the trigger store."
+          },
+          "content": {
+            "$ref": "#/components/schemas/AgentPackageContent",
+            "description": "What it installed, by kind."
+          },
           "description": {
             "type": "string",
             "description": "Description from its manifest."
+          },
+          "embedded": {
+            "type": "boolean",
+            "description": "Apollia ships it inside its binary: it is never uninstalled."
           },
           "installed_at": {
             "type": "string",
@@ -17985,6 +19046,10 @@
           "root_path": {
             "type": "string",
             "description": "Its folder."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/AgentPackageSignature",
+            "description": "Its publisher and the state of its signature."
           },
           "updated_at": {
             "type": "string",
@@ -18058,6 +19123,29 @@
           }
         }
       },
+      "AgentPackageItem": {
+        "type": "object",
+        "description": "An agent or a workflow of a package.",
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What it is for, in one line; empty when the manifest does not say."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier: the agent id, or the workflow name inside its package."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        }
+      },
       "AgentPackageListItem": {
         "type": "object",
         "description": "An installed package in the listing.",
@@ -18069,7 +19157,10 @@
           "agents",
           "installed_at",
           "root_path",
-          "root_missing"
+          "root_missing",
+          "signature",
+          "embedded",
+          "counts"
         ],
         "properties": {
           "agent_count": {
@@ -18084,9 +19175,17 @@
             },
             "description": "Its agents."
           },
+          "counts": {
+            "$ref": "#/components/schemas/AgentPackageCounts",
+            "description": "How many agents, workflows, tools and connections it holds."
+          },
           "description": {
             "type": "string",
             "description": "Description from its manifest."
+          },
+          "embedded": {
+            "type": "boolean",
+            "description": "Apollia ships it inside its binary: it is never uninstalled."
           },
           "installed_at": {
             "type": "string",
@@ -18103,6 +19202,10 @@
           "root_path": {
             "type": "string",
             "description": "Its folder."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/AgentPackageSignature",
+            "description": "Its publisher and the state of its signature."
           },
           "version": {
             "type": "string",
@@ -18190,6 +19293,77 @@
           "path": {
             "type": "string",
             "description": "The package folder on this machine, the one holding `agent.toml`."
+          }
+        }
+      },
+      "AgentPackageRequirement": {
+        "type": "object",
+        "description": "A connection a package requires. It belongs to the user and stays when\nthe package is uninstalled.",
+        "required": [
+          "type",
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why the package needs it."
+          },
+          "type": {
+            "type": "string",
+            "description": "Connection type, as the package names it."
+          }
+        }
+      },
+      "AgentPackageSignature": {
+        "type": "object",
+        "description": "Who published an installed package, as recorded at its installation.",
+        "required": [
+          "publisher",
+          "signed",
+          "trusted"
+        ],
+        "properties": {
+          "key_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SHA-256 fingerprint of the signing key, when the package is signed."
+          },
+          "publisher": {
+            "type": "string",
+            "description": "Name to show for the publisher: the label of the keyring when the key\nthat signed the package is trusted, otherwise the name the package\ndeclares, which nothing verifies."
+          },
+          "signed": {
+            "type": "boolean",
+            "description": "The package carried a signature that held."
+          },
+          "trusted": {
+            "type": "boolean",
+            "description": "The key that signed it is in the keyring of trusted publishers."
+          }
+        }
+      },
+      "AgentPackageTool": {
+        "type": "object",
+        "description": "A Python tool of a package.",
+        "required": [
+          "name",
+          "description",
+          "family"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What it does; empty when the manifest does not say."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external` or `execute_code`; empty when the manifest does not\ndescribe the tool."
+          },
+          "name": {
+            "type": "string",
+            "description": "Tool name inside its package."
           }
         }
       },
@@ -18648,6 +19822,19 @@
           }
         }
       },
+      "AuditJournalEntryDetailResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/audit/journal/:run_id/entries/:seq`.",
+        "required": [
+          "entry"
+        ],
+        "properties": {
+          "entry": {
+            "type": "object",
+            "description": "The chained entry, with its `summary` and, when it is about a tool\ncall, a `tool_call` holding the full `arguments`, `output` and `status`."
+          }
+        }
+      },
       "AuditJournalPageResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/audit/journal`.",
@@ -18666,7 +19853,7 @@
             "items": {
               "type": "object"
             },
-            "description": "Journal entries, newest global position first."
+            "description": "Journal entries, newest global position first. Each one is the chained\nentry with a `summary` beside its fields: agent, nature, family, what\nhappened, tool, target, outcome and date, without content."
           }
         }
       },
@@ -18927,7 +20114,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them."
+            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them, and\n`source:write` when the results go into the original file."
           },
           "maxFailures": {
             "type": [
@@ -19248,6 +20435,38 @@
           }
         }
       },
+      "ChatFolder": {
+        "type": "object",
+        "description": "A folder of the conversation list.",
+        "required": [
+          "id",
+          "name",
+          "position",
+          "session_ids"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Folder identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name the user gave it."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Place in the list, the lowest first."
+          },
+          "session_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The conversations in the folder, the ones in the trash left out."
+          }
+        }
+      },
       "ChatPlanSnapshot": {
         "type": "object",
         "description": "Snapshot of a session's plan plus its current plan-mode phase.\n\nThe phase is the authoritative gate state: a persisted plan keeps its\n`awaiting_approval` status forever, but once approved the session moves to\n`executing` then `done`. The desktop hydrates the plan tab from `plan` and\ndecides whether to show the approval card from `phase`, never from the\nplan's own status.",
@@ -19486,7 +20705,8 @@
           "port",
           "serveOnLan",
           "address",
-          "activeTokens"
+          "activeTokens",
+          "imposedByPolicy"
         ],
         "properties": {
           "activeTokens": {
@@ -19498,6 +20718,10 @@
           "address": {
             "type": "string",
             "description": "The address a client copies: `http://127.0.0.1:<port>` on the machine\nalone, `http://<IPv4 address on the local network>:<port>` otherwise."
+          },
+          "imposedByPolicy": {
+            "$ref": "#/components/schemas/ServerPolicyLocks",
+            "description": "For each setting the organisation policy can fix, whether it does."
           },
           "lastError": {
             "type": [
@@ -19671,6 +20895,10 @@
           "sha256"
         ],
         "properties": {
+          "origin": {
+            "$ref": "#/components/schemas/DeclaredOrigin",
+            "description": "Where the change comes from, for the journal: `editor`, `settings`,\n`cli` or `api`. A caller that names none is `api`."
+          },
           "sha256": {
             "type": "string",
             "description": "SHA-256 of the text the change was made from, as `GET` returned it."
@@ -19959,7 +21187,7 @@
           },
           "user_memory_injected": {
             "type": "boolean",
-            "description": "Whether the user profile was injected into the system prompt."
+            "description": "Whether the assistant's prompt carries the profile of the conversation."
           }
         }
       },
@@ -20048,6 +21276,48 @@
           "source": {
             "type": "string",
             "description": "`query` when the caller gave its size, `installed` when it is the\nlargest language model of the model index."
+          }
+        }
+      },
+      "CreateAgentRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/agent-definitions`.",
+        "required": [
+          "name",
+          "mission"
+        ],
+        "properties": {
+          "access": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses granted. Absent, the agent reads by default, as any agent\ncreated without code; a list, even empty, replaces that default."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Example requests."
+          },
+          "mission": {
+            "type": "string",
+            "description": "What the agent is for, used as its instructions."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name. The identifier of the agent is derived from it."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sources checked: identifiers of `GET /api/v1/sources`, `profile` or\n`memory`."
           }
         }
       },
@@ -20168,7 +21438,7 @@
           },
           "load": {
             "type": "object",
-            "description": "Load settings. Never a system prompt."
+            "description": "Load settings, written only while models.preset_load_settings is on. Never a system prompt."
           },
           "model_id": {
             "type": "string",
@@ -20582,6 +21852,16 @@
           }
         }
       },
+      "DeclaredOrigin": {
+        "type": "string",
+        "description": "The origin a caller of the save route may declare. The two origins the\nruntime finds by itself are not among them.",
+        "enum": [
+          "editor",
+          "settings",
+          "cli",
+          "api"
+        ]
+      },
       "DefaultModelResponse": {
         "type": "object",
         "description": "The default model of the machine.",
@@ -20924,6 +22204,24 @@
           }
         }
       },
+      "DocumentAttachment": {
+        "type": "object",
+        "description": "One document as a client sends it.",
+        "required": [
+          "name",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "Bytes of the document, in standard base64."
+          },
+          "name": {
+            "type": "string",
+            "description": "File name of the document, with its extension, such as `invoice.pdf`."
+          }
+        }
+      },
       "DriveFolderStatus": {
         "type": "object",
         "description": "The Drive folder of one connected Google account.",
@@ -21064,12 +22362,17 @@
         "required": [
           "engine",
           "path",
-          "source"
+          "source",
+          "in_service"
         ],
         "properties": {
           "engine": {
             "$ref": "#/components/schemas/EngineName",
             "description": "Engine."
+          },
+          "in_service": {
+            "type": "boolean",
+            "description": "True for the build this runtime starts for the model format it serves:\nthe `llama-server` binary it resolves, the MLX environment it imports."
           },
           "path": {
             "type": "string",
@@ -21269,6 +22572,89 @@
           }
         }
       },
+      "ExampleAgent": {
+        "type": "object",
+        "description": "One agent of an example.",
+        "required": [
+          "id",
+          "name",
+          "mission"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Agent identifier."
+          },
+          "mission": {
+            "type": "string",
+            "description": "What the agent does."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        }
+      },
+      "ExampleInstallRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/packages/examples/{name}/install`.",
+        "properties": {
+          "changesConfirmed": {
+            "type": "boolean",
+            "description": "The user accepted what an update adds."
+          },
+          "depsConfirmed": {
+            "type": "boolean",
+            "description": "The user accepted the Python dependencies the package installs."
+          }
+        }
+      },
+      "ExamplePackage": {
+        "type": "object",
+        "description": "An example as the application proposes it.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "agents",
+          "requires"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExampleAgent"
+            },
+            "description": "Its agents, each with its mission."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the package delivers."
+          },
+          "installedVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Installed version, when the user installed it."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package identifier."
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequiredConnectionPreview"
+            },
+            "description": "The connections it requires, present or missing on this machine."
+          },
+          "version": {
+            "type": "string",
+            "description": "Version the binary carries."
+          }
+        }
+      },
       "ExportAgentRequest": {
         "type": "object",
         "description": "Body of `POST /api/v1/agent-definitions/{name}/export`.",
@@ -21341,6 +22727,26 @@
                 "description": "The reason class: `schema`, `signature`, `key` or `owner`."
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "The organisation policy requires the journal, and the journal is\nabsent or could not be opened: nothing sensitive runs unrecorded.",
+            "required": [
+              "detail",
+              "cause"
+            ],
+            "properties": {
+              "cause": {
+                "type": "string",
+                "enum": [
+                  "journal_unavailable"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "description": "What is missing."
+              }
+            }
           }
         ],
         "description": "Why governance fails closed."
@@ -21389,6 +22795,19 @@
           "error": {
             "type": "string",
             "description": "What went wrong, for a person. For `admission_refused`, the reason\nthe admission gave, as is."
+          }
+        }
+      },
+      "FolderNameBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/sessions/folders` and of\n`PUT /api/v1/sessions/folders/{id}`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the folder: not blank, 100 characters at most."
           }
         }
       },
@@ -21509,6 +22928,13 @@
                 "description": "Why governance fails closed, `null` while it decides normally. While it\nfails closed, every sensitive tool call and every new connection is\nrefused; reading continues."
               }
             ]
+          },
+          "journal_notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JournalNotice"
+            },
+            "description": "What degrades the journal without anything being refused: it opened\nwithout its signing key, or the daily export the organisation policy\nasks for cannot be written. Empty for a journal in order."
           }
         }
       },
@@ -21607,6 +23033,7 @@
           "cpu_cores",
           "accelerator",
           "memory_budget_gb",
+          "devices",
           "total_capacity_gb"
         ],
         "properties": {
@@ -21624,6 +23051,13 @@
           },
           "cpu_model": {
             "type": "string"
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The graphics devices, one by one: the identifier the engine lists each\nunder (absent when the engine could not be asked), its name, the\ninterface the engine drives it through, its memory in GB, and whether\nthe engine may load onto it. The accelerator, the budget and the\ncapacity already leave out the memory of the devices held back."
           },
           "memory_budget_gb": {
             "type": "number",
@@ -22558,6 +23992,165 @@
           "per_run_broken"
         ]
       },
+      "JournalExportFormat": {
+        "type": "string",
+        "description": "A file format the journal is exported in.",
+        "enum": [
+          "csv",
+          "json"
+        ]
+      },
+      "JournalNature": {
+        "type": "string",
+        "description": "What kind of fact an entry records.",
+        "enum": [
+          "action",
+          "access_change",
+          "policy",
+          "system"
+        ]
+      },
+      "JournalNotice": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The journal opened without its signing key: its entries are chained,\nso an alteration still shows, and they are not signed.",
+            "required": [
+              "notice"
+            ],
+            "properties": {
+              "notice": {
+                "type": "string",
+                "enum": [
+                  "unsigned"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The daily export the organisation policy asks for could not be\nwritten.",
+            "required": [
+              "directory",
+              "detail",
+              "notice"
+            ],
+            "properties": {
+              "detail": {
+                "type": "string",
+                "description": "What the write failed on."
+              },
+              "directory": {
+                "type": "string",
+                "description": "The folder the policy designates."
+              },
+              "notice": {
+                "type": "string",
+                "enum": [
+                  "daily_export_failed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "One thing a window says about a degraded journal."
+      },
+      "JournalOutcome": {
+        "type": "string",
+        "description": "How what an entry records ended.",
+        "enum": [
+          "success",
+          "failure",
+          "refused"
+        ]
+      },
+      "JournalStart": {
+        "type": "object",
+        "description": "Where the verification of a purged journal starts: the first entry kept,\nwhich follows the anchor the last purge entry carries.",
+        "required": [
+          "global_seq",
+          "ts",
+          "purged_at"
+        ],
+        "properties": {
+          "global_seq": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Global sequence number of the first entry verified.",
+            "minimum": 0
+          },
+          "purged_at": {
+            "type": "string",
+            "description": "When the purge that set this start was made (RFC3339)."
+          },
+          "ts": {
+            "type": "string",
+            "description": "Date of the first entry verified (RFC3339)."
+          }
+        }
+      },
+      "JournalSummary": {
+        "type": "object",
+        "description": "One journal entry, said in a line and without content.",
+        "required": [
+          "nature",
+          "what",
+          "ts"
+        ],
+        "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent the entry is about, when it is about one."
+          },
+          "family": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Action family concerned (`read`, `write_or_delete`, ...), when there is one."
+          },
+          "nature": {
+            "$ref": "#/components/schemas/JournalNature",
+            "description": "What kind of fact the entry records."
+          },
+          "outcome": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JournalOutcome",
+                "description": "How it ended. `None` for an entry that records no ending, such as the\nstart of a call."
+              }
+            ]
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What was acted on: a path, a recipient, the host of an address, a\nconnection. Never an argument that carries content."
+          },
+          "tool": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tool concerned, when there is one."
+          },
+          "ts": {
+            "type": "string",
+            "description": "When, RFC 3339 UTC."
+          },
+          "what": {
+            "type": "string",
+            "description": "What happened, in a few words."
+          }
+        }
+      },
       "LastLoadedModelResponse": {
         "type": "object",
         "description": "Response of `GET /api/v1/llm/loaded-models/last`.",
@@ -23421,6 +25014,43 @@
           }
         }
       },
+      "MessageSearchHit": {
+        "type": "object",
+        "description": "A conversation that contains the words searched.",
+        "required": [
+          "session_id",
+          "created_at",
+          "excerpt"
+        ],
+        "properties": {
+          "agent_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent of the conversation, when it has one."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO-8601 creation timestamp of the conversation."
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "The passage of the best matching message, on one line."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session identifier."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title the user or the model gave the conversation, when it has one."
+          }
+        }
+      },
       "MigrationIssue": {
         "type": "object",
         "description": "One item the migration did not carry over.",
@@ -23980,11 +25610,15 @@
       },
       "OnboardingPhase": {
         "type": "string",
-        "description": "The six ordered phases of the onboarding flow.",
+        "description": "The ordered phases of the onboarding flow: the seven steps of the first\nlaunch, each resumed exactly where it was left, then the three that close\nit.",
         "enum": [
           "welcome",
           "ai_setup",
+          "embeddings",
           "acquaintance",
+          "first_agent",
+          "connection",
+          "first_task",
           "guided_tour",
           "graduation",
           "done"
@@ -24143,7 +25777,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `built_in`, `owned_by_package`,\n`journal_unavailable`, `internal`."
+            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `built_in`, `owned_by_package`,\n`journal_unavailable`, `example`, `internal`."
           },
           "error": {
             "type": "string",
@@ -25745,6 +27379,7 @@
           "access",
           "sources",
           "autonomy",
+          "planning",
           "overridden",
           "definition"
         ],
@@ -25807,7 +27442,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`profile`."
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`planning`, `profile`."
           },
           "package": {
             "type": [
@@ -25815,6 +27450,10 @@
               "null"
             ],
             "description": "Package the agent came with."
+          },
+          "planning": {
+            "type": "string",
+            "description": "Whether the agent plans a task before acting on it: `never`, `auto` or\n`always`. The user's, else the package's, else `auto`."
           },
           "profile": {
             "type": [
@@ -25833,6 +27472,37 @@
           "version": {
             "type": "string",
             "description": "Version of the definition."
+          }
+        }
+      },
+      "ResourceUsageResponse": {
+        "type": "object",
+        "description": "The memory and the processor in use at the time of the request.",
+        "required": [
+          "ram_used_gb",
+          "ram_total_gb",
+          "cpu_percent",
+          "vram"
+        ],
+        "properties": {
+          "cpu_percent": {
+            "type": "number",
+            "format": "float",
+            "description": "Processor load over every core, from 0 to 100."
+          },
+          "ram_total_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "System memory installed, in GB."
+          },
+          "ram_used_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "System memory in use, in GB."
+          },
+          "vram": {
+            "type": "object",
+            "description": "Video memory in use: `{\"kind\":\"dedicated\",\"used_gb\":..,\"total_gb\":..}`\non an NVIDIA card, `{\"kind\":\"unified\"}` where the graphics processor\nshares the system memory, `{\"kind\":\"unmeasured\"}` anywhere else."
           }
         }
       },
@@ -26038,6 +27708,13 @@
             "type": "string",
             "description": "Text content of the user message."
           },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentAttachment"
+            },
+            "description": "Documents sent with the message (PDF, Word, PowerPoint, workbook, CSV):\nthe runtime extracts their text on reception. At most four, each at\nmost 20 MiB once decoded."
+          },
           "images": {
             "type": "array",
             "items": {
@@ -26212,6 +27889,29 @@
           }
         }
       },
+      "ServerPolicyLocks": {
+        "type": "object",
+        "description": "Which settings of the compatible server the organisation policy imposes.\nAn imposed setting cannot be written: the value in force is the policy's.",
+        "required": [
+          "serveOnLan",
+          "requireAuth",
+          "allowRequestMcp"
+        ],
+        "properties": {
+          "allowRequestMcp": {
+            "type": "boolean",
+            "description": "`server.allow_request_mcp`: the policy refuses the MCP servers a\nrequest brings."
+          },
+          "requireAuth": {
+            "type": "boolean",
+            "description": "`server.require_auth`: the policy requires a token on every request."
+          },
+          "serveOnLan": {
+            "type": "boolean",
+            "description": "`server.serve_on_lan`: the policy keeps the server on the machine."
+          }
+        }
+      },
       "ServerProbeErrorResponse": {
         "type": "object",
         "description": "Body of a failed server call: a readable message and a stable kind.",
@@ -26326,6 +28026,19 @@
               "$ref": "#/components/schemas/ServerResponse"
             },
             "description": "Every declared server, sorted by name."
+          }
+        }
+      },
+      "SessionFolderBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/sessions/{id}/folder`.",
+        "properties": {
+          "folder_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The folder the conversation goes in; `null` takes it out of any\nfolder."
           }
         }
       },
@@ -26638,7 +28351,7 @@
         "properties": {
           "value": {
             "type": "object",
-            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.\nA `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`."
+            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a mode for `planning`, a profile identifier for `profile`,\na list of strings for `examples`, `access` and `sources`.\nA `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`."
           }
         }
       },
@@ -26965,6 +28678,17 @@
             "propertyNames": {
               "type": "string"
             }
+          },
+          "write": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SourceWrite",
+                "description": "Writes the answer of every completed item back into the source, in\ncolumns added to it; nothing is written when absent."
+              }
+            ]
           }
         }
       },
@@ -26976,7 +28700,8 @@
           "indexState",
           "documents",
           "chunks",
-          "skipped"
+          "skipped",
+          "unreadPages"
         ],
         "properties": {
           "chunks": {
@@ -27005,6 +28730,13 @@
               "$ref": "#/components/schemas/SkippedFileResponse"
             },
             "description": "Files left out of the index."
+          },
+          "unreadPages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnreadPageResponse"
+            },
+            "description": "Pages of indexed documents that hold no text: those waiting for\noptical character recognition, and those it cannot read."
           }
         }
       },
@@ -27155,6 +28887,26 @@
               "null"
             ],
             "description": "What the source points at: a folder connection, a file path, a mail\nconnection, a memory space."
+          }
+        }
+      },
+      "SourceWrite": {
+        "type": "object",
+        "description": "What a launch writes back into its source.",
+        "required": [
+          "columns"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The columns added, one per field of the answer, in order. An answer\nthat is not an object of these fields is written whole in the first."
+          },
+          "destination": {
+            "$ref": "#/components/schemas/WriteDestination",
+            "description": "`copy` when absent."
           }
         }
       },
@@ -28060,6 +29812,40 @@
           }
         }
       },
+      "ToolCallDetail": {
+        "type": "object",
+        "description": "The arguments and the output of one tool call.",
+        "required": [
+          "tool_call_id"
+        ],
+        "properties": {
+          "arguments": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Full arguments of the call. `None` when no model response of the run\ncarries this call, as for a tool an agent's own code called."
+          },
+          "output": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Full output of the call. `None` when the run captured none."
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How the call ended, as the capture wrote it: `success`, `error` or\n`rejected`."
+          },
+          "tool_call_id": {
+            "type": "string",
+            "description": "Identifier of the call within its run."
+          }
+        }
+      },
       "ToolConfigBody": {
         "type": "object",
         "description": "Request and answer body of `/api/v1/governance/tools/{name}/config`.",
@@ -28217,6 +30003,48 @@
               "type": "object"
             },
             "description": "List of transcription rows."
+          }
+        }
+      },
+      "TrashedSession": {
+        "type": "object",
+        "description": "A conversation in the trash.",
+        "required": [
+          "id",
+          "mode",
+          "created_at",
+          "deleted_at"
+        ],
+        "properties": {
+          "agent_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent of the conversation, when it has one."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO-8601 creation timestamp."
+          },
+          "deleted_at": {
+            "type": "string",
+            "description": "ISO-8601 timestamp of the move to the trash."
+          },
+          "id": {
+            "type": "string",
+            "description": "Session identifier."
+          },
+          "mode": {
+            "type": "string",
+            "description": "Mode string (`\"libre\"`, `\"agent\"` or `\"companion\"`)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title the user or the model gave it, when it has one."
           }
         }
       },
@@ -28666,6 +30494,39 @@
           }
         }
       },
+      "UnreadPageResponse": {
+        "type": "object",
+        "description": "A page of an indexed document that holds no text in the index.",
+        "required": [
+          "path",
+          "page",
+          "reason"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Page number, from 1; a picture file is its page 1.",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string",
+            "description": "Path of the document on this machine."
+          },
+          "reason": {
+            "$ref": "#/components/schemas/UnreadReasonDto",
+            "description": "Why it was not read."
+          }
+        }
+      },
+      "UnreadReasonDto": {
+        "type": "string",
+        "description": "Why a page of an indexed document holds no text.",
+        "enum": [
+          "ocr_unavailable",
+          "not_read"
+        ]
+      },
       "UpdateAgentRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/agents/installed/{name}`.",
@@ -28878,7 +30739,7 @@
           },
           "load": {
             "type": "object",
-            "description": "Load settings. Never a system prompt."
+            "description": "Load settings, written only while models.preset_load_settings is on. Never a system prompt."
           },
           "name": {
             "type": "string",
@@ -28924,6 +30785,13 @@
               "type": "string"
             },
             "description": "New list of tools available in the session."
+          },
+          "use_profile": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Profile switch of the conversation: whether the built-in assistant\nreceives the profile in its prompt."
           }
         }
       },
@@ -29132,6 +31000,17 @@
             "format": "int64",
             "description": "Number of distinct runs covered by the global chain.",
             "minimum": 0
+          },
+          "start": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JournalStart",
+                "description": "Where the verification started, when a purge by retention removed the\nbeginning of the journal. `None` for a journal verified from its\norigin."
+              }
+            ]
           }
         }
       },
@@ -29431,6 +31310,14 @@
             "description": "`<package>/<workflow>`."
           }
         }
+      },
+      "WriteDestination": {
+        "type": "string",
+        "description": "Where the results of a batch are written.",
+        "enum": [
+          "copy",
+          "original"
+        ]
       }
     },
     "securitySchemes": {

@@ -299,6 +299,7 @@ impl ChatSessionManagerHandle {
                 session_id,
                 content,
                 images,
+                documents: None,
                 reply: reply_tx,
             })
             .await
@@ -412,42 +413,6 @@ impl ChatSessionManagerHandle {
             .await
             .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
 
-        reply_rx
-            .await
-            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
-    }
-
-    /// List the in-memory (scope=session) authorizations on active sessions.
-    /// Returns an empty vector if the actor does not respond.
-    pub async fn list_session_authorizations(&self) -> Vec<SessionAuthorizationView> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(ChatCommand::ListSessionAuthorizations { reply: reply_tx })
-            .await
-            .is_err()
-        {
-            return Vec::new();
-        }
-        reply_rx.await.unwrap_or_default()
-    }
-
-    /// Remove a `scope=session` authorization from an active session.
-    /// Returns `true` if the entry existed and was removed.
-    pub async fn revoke_session_authorization(
-        &self,
-        session_id: String,
-        tool_name: String,
-    ) -> Result<bool, ChatError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(ChatCommand::RevokeSessionAuthorization {
-                session_id,
-                tool_name,
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
         reply_rx
             .await
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?

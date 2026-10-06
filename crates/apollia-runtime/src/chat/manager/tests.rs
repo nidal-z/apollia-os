@@ -420,6 +420,7 @@ async fn test_resolve_tool_approval() {
         plan_mode: false,
         plan_phase: PlanPhase::Done,
         profile_id: None,
+        use_profile: true,
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -504,6 +505,7 @@ async fn test_always_accept_grants_no_tool_by_name() {
         plan_mode: false,
         plan_phase: PlanPhase::Done,
         profile_id: None,
+        use_profile: true,
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -997,6 +999,7 @@ pub(super) fn manager_with_session_in_phase(
         plan_mode: true,
         plan_phase: phase,
         profile_id: None,
+        use_profile: true,
     };
     manager.sessions.insert("sess-1".into(), session);
     (manager, event_rx)
@@ -1194,6 +1197,7 @@ async fn test_message_during_awaiting_starts_revision_turn() {
             "sess-1",
             "Please plan the work: audit the repo, fix the tests, then open a PR",
             Vec::new(),
+            None,
         )
         .expect("send ok");
 
@@ -1635,7 +1639,7 @@ async fn test_companion_send_without_llm_resets_status_to_active() {
     }
 
     // WHEN a message is sent and the dispatch fails
-    let result = manager.handle_send_message("sess-1", "hello", Vec::new());
+    let result = manager.handle_send_message("sess-1", "hello", Vec::new(), None);
 
     // THEN the error surfaces AND the session is reset to Active (not stuck
     // Processing), with the active exchange cleared
@@ -1684,6 +1688,7 @@ async fn test_validate_create_request_accepts_a_declarative_agent_outside_the_re
         sources: Vec::new(),
         model: None,
         autonomy: apollia_core::AutonomyLevel::Assisted,
+        planning: apollia_tools::PlanningMode::Auto,
         profile: None,
         overridden: Vec::new(),
         definition: serde_json::json!({}),

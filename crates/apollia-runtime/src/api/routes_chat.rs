@@ -37,11 +37,13 @@ use crate::coordinator::ExecutionBackend;
 
 pub mod approval_history;
 pub mod conversations;
+pub mod folders;
 pub mod pause;
 pub mod plan;
 pub mod session_reads;
 mod session_route;
 mod sse;
+pub mod trash;
 pub mod turns;
 pub mod user_inputs;
 
@@ -75,6 +77,11 @@ pub struct SendMessageRequest {
     /// eight, each at most 10 MiB once decoded.
     #[serde(default)]
     pub images: Vec<crate::chat::images::ImageAttachment>,
+    /// Documents sent with the message (PDF, Word, PowerPoint, workbook, CSV):
+    /// the runtime extracts their text on reception. At most four, each at
+    /// most 20 MiB once decoded.
+    #[serde(default)]
+    pub documents: Vec<crate::chat::documents::DocumentAttachment>,
 }
 
 /// Response body for `POST /api/v1/sessions/:id/messages`.
@@ -390,7 +397,7 @@ pub async fn close_session<B: ExecutionBackend + Clone>(
     request_body = SendMessageRequest,
     responses(
         (status = 202, description = "Message accepted", body = SendMessageResponse),
-        (status = 400, description = "An image is refused: too many, too large, or not decodable", body = crate::api::openapi::ApiErrorBody),
+        (status = 400, description = "An image or a document is refused: too many, too large, not decodable, or a document its reader cannot read", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "Session not found", body = crate::api::openapi::ApiErrorBody),
         (status = 409, description = "Session closed or busy", body = crate::api::openapi::ApiErrorBody),
         (status = 422, description = "The model of the session does not read images", body = crate::api::openapi::ApiErrorBody),
@@ -419,8 +426,12 @@ pub async fn send_message<B: ExecutionBackend + Clone>(
         Ok(images) => images,
         Err(e) => return chat_error_to_response(e).into_response(),
     };
+    let documents = match crate::chat::documents::decode_attachments(&body.documents) {
+        Ok(documents) => documents,
+        Err(e) => return chat_error_to_response(e).into_response(),
+    };
     match manager
-        .send_message_with_images(id, body.content, images)
+        .send_message_with_attachments(id, body.content, images, documents)
         .await
     {
         Ok(message_id) => (
@@ -731,10 +742,13 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::NoLlmConfigured => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::BudgetExhausted => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+        ChatError::FolderNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        ChatError::InvalidFolderName(_) => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::NotAwaitingApproval { .. } => (StatusCode::CONFLICT, err.to_string()),
         ChatError::CostCeilingExceeded { .. } => (StatusCode::PAYMENT_REQUIRED, err.to_string()),
         ChatError::ImagesNotSupported { .. } => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
         ChatError::ImageRejected(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::DocumentRejected(_) => (StatusCode::BAD_REQUEST, err.to_string()),
     };
     (status, Json(ErrorResponse { error: msg }))
 }

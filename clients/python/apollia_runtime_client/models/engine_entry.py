@@ -20,6 +20,8 @@ class EngineEntry:
 
     Attributes:
         engine (EngineName): An inference engine the store can hold.
+        in_service (bool): True for the build this runtime starts for the model format it serves:
+            the `llama-server` binary it resolves, the MLX environment it imports.
         path (str): Where it lives.
         source (EngineSource): How an engine reached this machine.
         tag (None | str | Unset): Upstream tag; unknown for an embedded engine.
@@ -30,6 +32,7 @@ class EngineEntry:
     """
 
     engine: EngineName
+    in_service: bool
     path: str
     source: EngineSource
     tag: None | str | Unset = UNSET
@@ -39,6 +42,8 @@ class EngineEntry:
 
     def to_dict(self) -> dict[str, Any]:
         engine = self.engine.value
+
+        in_service = self.in_service
 
         path = self.path
 
@@ -69,6 +74,7 @@ class EngineEntry:
         field_dict.update(
             {
                 "engine": engine,
+                "in_service": in_service,
                 "path": path,
                 "source": source,
             }
@@ -86,6 +92,8 @@ class EngineEntry:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
         engine = EngineName(d.pop("engine"))
+
+        in_service = d.pop("in_service")
 
         path = d.pop("path")
 
@@ -128,6 +136,7 @@ class EngineEntry:
 
         engine_entry = cls(
             engine=engine,
+            in_service=in_service,
             path=path,
             source=source,
             tag=tag,

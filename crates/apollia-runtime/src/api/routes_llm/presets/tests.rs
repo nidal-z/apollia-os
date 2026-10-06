@@ -63,7 +63,17 @@ fn state_with_repo(dir: &tempfile::TempDir) -> AppState<MockBackend> {
     state
 }
 
-// GIVEN a runtime with no preset
+/// The same runtime, reading a configuration file where "load settings in
+/// presets" has the value `on`.
+fn state_with_load_settings(dir: &tempfile::TempDir, on: bool) -> AppState<MockBackend> {
+    let mut state = state_with_repo(dir);
+    let path = dir.path().join("apollia.toml");
+    std::fs::write(&path, format!("[models]\npreset_load_settings = {on}\n")).unwrap();
+    state.config_path = Some(path);
+    state
+}
+
+// GIVEN a runtime with no preset, load settings in presets on
 // WHEN a default preset is created, a second one created as default, the
 //      first renamed, the list read for that model, and the second deleted
 // THEN each call answers its status, the default moved to the second, and
@@ -72,7 +82,7 @@ fn state_with_repo(dir: &tempfile::TempDir) -> AppState<MockBackend> {
 async fn test_preset_routes_create_list_update_delete() {
     // GIVEN
     let dir = tempfile::tempdir().unwrap();
-    let state = state_with_repo(&dir);
+    let state = state_with_load_settings(&dir, true);
 
     // WHEN
     let (created, first) = call(
@@ -507,4 +517,153 @@ async fn test_agent_model_assignment_is_recorded_in_the_history_of_the_agent() {
             (json!("model"), json!("removed")),
         ]
     );
+}
+
+#[tokio::test]
+async fn test_with_load_settings_off_a_preset_is_written_with_request_settings_only() {
+    // GIVEN a runtime where "load settings in presets" is off, as it is by
+    // default, holding a preset written earlier with a context length
+    let dir = tempfile::tempdir().unwrap();
+    let on = state_with_load_settings(&dir, true);
+    let (_, held) = call(
+        on,
+        "POST",
+        "/api/v1/llm/presets",
+        Some(json!({
+            "name": "wide",
+            "model_source": "local",
+            "model_id": "qwen3-8b",
+            "load": { "context_length": 16384 },
+            "request": { "temperature": 0.2 }
+        })),
+    )
+    .await;
+    let state = state_with_load_settings(&dir, false);
+    let unset = state_with_repo(&dir);
+    let uri = format!("/api/v1/llm/presets/{}", held["id"]);
+
+    // WHEN a preset is created with request settings only, one with load
+    // settings, with and without a configuration file, and the held preset is
+    // modified with request settings only, then with another context length
+    let (created, plain) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/llm/presets",
+        Some(json!({
+            "name": "warm",
+            "model_source": "local",
+            "model_id": "qwen3-8b",
+            "request": { "temperature": 0.9 }
+        })),
+    )
+    .await;
+    let with_load = json!({
+        "name": "narrow",
+        "model_source": "local",
+        "model_id": "qwen3-8b",
+        "load": { "context_length": 4096 },
+        "request": { "temperature": 0.9 }
+    });
+    let (refused, refusal) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/llm/presets",
+        Some(with_load.clone()),
+    )
+    .await;
+    let (refused_unset, _) = call(unset, "POST", "/api/v1/llm/presets", Some(with_load)).await;
+    let (updated, kept) = call(
+        state.clone(),
+        "PUT",
+        &uri,
+        Some(json!({ "name": "wide", "request": { "temperature": 0.5 } })),
+    )
+    .await;
+    let (changed, _) = call(
+        state.clone(),
+        "PUT",
+        &uri,
+        Some(json!({
+            "name": "wide",
+            "load": { "context_length": 4096 },
+            "request": { "temperature": 0.5 }
+        })),
+    )
+    .await;
+    let (_, list) = call(state, "GET", "/api/v1/llm/presets", None).await;
+
+    // THEN only request settings were written: the creation with load
+    // settings is refused by an error naming the setting, the modification
+    // changed the temperature and kept the context length already held, and
+    // no preset named `narrow` exists
+    assert_eq!(created, StatusCode::CREATED);
+    assert_eq!(plain["load"], json!({}));
+    assert_eq!(plain["request"], json!({ "temperature": 0.9 }));
+    assert_eq!(refused, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(
+        refusal["error"]
+            .as_str()
+            .unwrap()
+            .contains("models.preset_load_settings"),
+        "{refusal}"
+    );
+    assert_eq!(refused_unset, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(updated, StatusCode::OK);
+    assert_eq!(kept["request"], json!({ "temperature": 0.5 }));
+    assert_eq!(kept["load"], json!({ "context_length": 16384 }));
+    assert_eq!(changed, StatusCode::UNPROCESSABLE_ENTITY);
+    let names: Vec<&str> = list["presets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["warm", "wide"]);
+    assert_eq!(
+        list["presets"][1]["load"],
+        json!({ "context_length": 16384 })
+    );
+}
+
+#[tokio::test]
+async fn test_with_load_settings_on_a_preset_is_written_with_its_load_settings_too() {
+    // GIVEN a runtime where "load settings in presets" is on
+    let dir = tempfile::tempdir().unwrap();
+    let state = state_with_load_settings(&dir, true);
+
+    // WHEN a preset is created with load and request settings, then modified
+    // with another context length
+    let (created, preset) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/llm/presets",
+        Some(json!({
+            "name": "wide",
+            "model_source": "local",
+            "model_id": "qwen3-8b",
+            "load": { "context_length": 16384 },
+            "request": { "temperature": 0.2 }
+        })),
+    )
+    .await;
+    let (updated, changed) = call(
+        state,
+        "PUT",
+        &format!("/api/v1/llm/presets/{}", preset["id"]),
+        Some(json!({
+            "name": "wide",
+            "load": { "context_length": 4096 },
+            "request": { "temperature": 0.5 }
+        })),
+    )
+    .await;
+
+    // THEN both kinds of settings were written, at the creation and at the
+    // modification
+    assert_eq!(created, StatusCode::CREATED);
+    assert_eq!(preset["load"], json!({ "context_length": 16384 }));
+    assert_eq!(preset["request"], json!({ "temperature": 0.2 }));
+    assert_eq!(updated, StatusCode::OK);
+    assert_eq!(changed["load"], json!({ "context_length": 4096 }));
+    assert_eq!(changed["request"], json!({ "temperature": 0.5 }));
 }
