@@ -906,6 +906,24 @@
       "install": "Install",
       "installed": "Installed",
       "open_sheet": "Open the sheet"
+    },
+    "trial": {
+      "action": "Try with the example",
+      "title": "Try with the example",
+      "what": "Apollia copies the demonstration dataset into the folder you choose: a workbook of made-up requests and a small folder of reference documents.",
+      "fictional": "Everything is made up for the trial, no real data. Nothing is copied until you confirm.",
+      "destination": "Destination folder",
+      "folder_name": "Apollia, example",
+      "choose": "Choose…",
+      "choose_title": "Choose where to copy the example",
+      "copy": "Copy the example",
+      "copied_title": "Example copied",
+      "copied_where": "The demonstration dataset is in {folder}.",
+      "kept": "{count, plural, one {# file was already there and was left as it is.} other {# files were already there and were left as they are.}}",
+      "proposal": "The workbook holds {count, plural, one {# request} other {# requests}}: the batch gives back a table, one line per request, with its sources. The folder of reference documents is what the agent checks each request against.",
+      "also_source": "Also add the folder as a source",
+      "later": "Later",
+      "launch": "Launch the batch on the workbook"
     }
   },
   "inbox": {
@@ -3374,7 +3392,7 @@
       },
       "server": {
         "address_label": "Server address",
-          "address_hint": "The address the server gives its clients, with http:// or https:// and its port, for example {example}.",
+        "address_hint": "The address the server gives its clients, with http:// or https:// and its port, for example {example}.",
         "key_label": "Key",
         "key_hint": "Only if the server asks for one. Apollia keeps it with its secrets, never in plain text in its configuration.",
         "test": "Test",

@@ -20,7 +20,9 @@
     PACKAGE_INSTALLED_EVENT,
     openExamplePreview,
     openPackagePreview,
+    packagePreviewRequest,
   } from "$lib/stores/packagePreview";
+  import { openBatch } from "$lib/stores/batchView";
   import { pendingSheet, takePendingSheet } from "$lib/stores/agentOpen";
   import { ErrorBanner } from "$lib/components/operator";
   import { reportError } from "$lib/errors/reportError";
@@ -39,6 +41,15 @@
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
   import AgentsOverview from "../components/agents/AgentsOverview.svelte";
+  import ExampleTrialDialog from "../components/agents/ExampleTrialDialog.svelte";
+  import BatchLaunchDialog from "../components/batch/BatchLaunchDialog.svelte";
+  import type { ExampleCard } from "../components/agents/agentExamples";
+  import {
+    trialAfterInstall,
+    trialStart,
+    type InstalledPackage,
+    type Trial,
+  } from "../components/agents/exampleTrial";
   import AgentDetailPane from "../components/agents/AgentDetailPane.svelte";
   import WorkflowSheet from "../components/workflows/WorkflowSheet.svelte";
   import CreateAgent from "../components/agents/create/CreateAgent.svelte";
@@ -75,6 +86,12 @@
   let installPackageOpen = $state(false);
   let logsAgentId = $state<string | null>(null);
   let logsOpen = $state(false);
+
+  // "Try with the example": the example whose installation the trial waits
+  // for, the trial whose copy dialog is open, and the batch it then launches.
+  let awaitedTrial = $state<string | null>(null);
+  let trial = $state<Trial | null>(null);
+  let trialBatch = $state<{ agent: string; workbook: string } | null>(null);
 
   // The installed workflows, with the most recent run of each. A workflow
   // whose runs cannot be read is listed without one.
@@ -131,15 +148,45 @@
   });
 
   $effect(() => {
-    const refresh = () => {
+    const refresh = (event: Event) => {
       void refreshWorkflows();
       void refreshExamples();
+      // The installation a trial asked for is done: its copy dialog opens.
+      const installed = (event as CustomEvent<InstalledPackage | null>).detail ?? null;
+      const next = trialAfterInstall(awaitedTrial, installed);
+      if (next !== null) {
+        awaitedTrial = null;
+        trial = next;
+      }
     };
     window.addEventListener(PACKAGE_INSTALLED_EVENT, refresh);
     return () => {
       window.removeEventListener(PACKAGE_INSTALLED_EVENT, refresh);
     };
   });
+
+  // A preview closed without installing leaves no trial waiting behind it.
+  $effect(() => {
+    if ($packagePreviewRequest === null) awaitedTrial = null;
+  });
+
+  // "Try with the example" on a card: an example not installed yet goes
+  // through the preview every package gets, and the copy dialog follows its
+  // installation; an installed one opens the copy dialog at once.
+  function tryExample(card: ExampleCard): void {
+    const start = trialStart(card);
+    if (start.kind === "install") {
+      openExamplePreview(start.example);
+      awaitedTrial = start.example;
+    } else if (start.kind === "copy") {
+      trial = start.trial;
+    }
+  }
+
+  function launchTrialBatch(agent: string, workbook: string): void {
+    trial = null;
+    trialBatch = { agent, workbook };
+  }
 
   // Agents that take a message; the others stay reachable from their package.
   const allAgents = $derived($agents.filter((a) => a.agent_type !== "worker"));
@@ -328,6 +375,7 @@
         onInstallPackageFile={pickPackageFile}
         onCreateAgent={openCreation}
         onInstallExample={openExamplePreview}
+        onTryExample={tryExample}
         onOpenLogs={openLogs}
         onRequestUninstallAgent={requestUninstallAgent}
         onStartChat={startChatWithAgent}
@@ -374,6 +422,16 @@
 {#if logsAgentId}
   <AgentLogs agentId={logsAgentId} open={logsOpen} onclose={() => (logsOpen = false)} />
 {/if}
+
+<ExampleTrialDialog {trial} onclose={() => (trial = null)} onLaunchBatch={launchTrialBatch} />
+
+<BatchLaunchDialog
+  open={trialBatch !== null}
+  agent={trialBatch?.agent ?? null}
+  file={trialBatch?.workbook ?? null}
+  onclose={() => (trialBatch = null)}
+  onlaunched={(batch) => openBatch(batch.batchId, "launch")}
+/>
 
 <InstallPackageDialog
   open={installPackageOpen}

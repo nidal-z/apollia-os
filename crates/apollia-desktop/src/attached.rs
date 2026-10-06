@@ -478,6 +478,7 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "install_update",
         "replaces this application, not the daemon",
     ),
+    ("copy_example_dataset", "writes files this application carries into a folder the user chose"),
     (
         "get_cli_status",
         "reads the command-line link this application installs",

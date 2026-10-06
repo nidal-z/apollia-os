@@ -906,6 +906,24 @@
       "install": "Installer",
       "installed": "Installé",
       "open_sheet": "Ouvrir la fiche"
+    },
+    "trial": {
+      "action": "Essayer avec l'exemple",
+      "title": "Essayer avec l'exemple",
+      "what": "Apollia copie le jeu de démonstration dans le dossier que vous choisissez : un classeur de demandes fictives et un petit dossier de référentiel.",
+      "fictional": "Tout est inventé pour l'essai, aucune donnée réelle. Rien n'est copié tant que vous ne confirmez pas.",
+      "destination": "Dossier de destination",
+      "folder_name": "Apollia, exemple",
+      "choose": "Choisir…",
+      "choose_title": "Choisir où copier l'exemple",
+      "copy": "Copier l'exemple",
+      "copied_title": "Exemple copié",
+      "copied_where": "Le jeu de démonstration est dans {folder}.",
+      "kept": "{count, plural, one {# fichier était déjà là et a été laissé tel quel.} other {# fichiers étaient déjà là et ont été laissés tels quels.}}",
+      "proposal": "Le classeur contient {count, plural, one {# demande} other {# demandes}} : le lot rend un tableau, une ligne par demande, avec ses sources. Le dossier de référentiel est ce à quoi l'agent confronte chaque demande.",
+      "also_source": "Ajouter aussi le dossier comme source",
+      "later": "Plus tard",
+      "launch": "Lancer le lot sur le classeur"
     }
   },
   "inbox": {
@@ -3374,7 +3392,7 @@
       },
       "server": {
         "address_label": "Adresse du serveur",
-          "address_hint": "L'adresse que le serveur donne à ses clients, avec http:// ou https:// et son port, par exemple {example}.",
+        "address_hint": "L'adresse que le serveur donne à ses clients, avec http:// ou https:// et son port, par exemple {example}.",
         "key_label": "Clé",
         "key_hint": "Seulement si le serveur en demande une. Apollia la garde avec ses secrets, jamais en clair dans sa configuration.",
         "test": "Tester",
