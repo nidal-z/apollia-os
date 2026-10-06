@@ -26,7 +26,6 @@ import {
   Bell,
   Activity,
   HardDrive,
-  Download,
 } from "lucide-svelte";
 import type { SettingsSubRoute } from "$lib/stores/settings";
 
@@ -64,7 +63,6 @@ export const SETTINGS_NAV: SettingsNavCluster[] = [
         icon: Code,
         developerOnly: true,
       },
-      { key: "model-hub", labelKey: "settings.nav.model_hub", icon: Download },
     ],
   },
   {

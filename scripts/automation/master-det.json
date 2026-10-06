@@ -4,6 +4,8 @@
   "dynamicTestids": [
     "ai-category-all",
     "ai-category-draft",
+    "ai-discover-category-embeddings",
+    "ai-discover-category-language",
     "ai-model-menu-copy_id",
     "ai-model-menu-copy_path",
     "ai-model-menu-delete",
@@ -174,7 +176,6 @@
     "settings-nav-hardware",
     "settings-nav-hardware-shortcut",
     "settings-nav-model-defaults",
-    "settings-nav-model-hub",
     "settings-nav-notifications",
     "settings-nav-profile",
     "settings-nav-stt",
@@ -13342,18 +13343,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-model-hub"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-nav-model-hub"
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-engines"
     },
     {
@@ -15021,18 +15010,6 @@
     {
       "kind": "screenshot",
       "label": "42-builder-nav-developer-configuration"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-model-hub"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "41-builder-nav-model-hub"
     },
     {
       "kind": "click",
@@ -18121,335 +18098,841 @@
       "ms": 800
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_model_cards",
+      "resolve": {
+        "status": "ok",
+        "origin": "primary",
+        "message": null,
+        "cards": [
+          {
+            "id": "automation/alpha-8b",
+            "kind": "language",
+            "label": "Automation Alpha 8B",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "A compact model that reasons and calls tools.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/alpha-8b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": true,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 8,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/alpha-8b-GGUF"
+            ]
+          },
+          {
+            "id": "automation/beta-70b",
+            "kind": "language",
+            "label": "Automation Beta 70B",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "A large model for long documents.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/beta-70b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": true,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 64,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/beta-70b-GGUF"
+            ]
+          },
+          {
+            "id": "automation-embed-small",
+            "kind": "embeddings",
+            "label": "Automation Embed Small",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "Searches by meaning in a hundred languages.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-embed-small",
+            "capabilities": {
+              "tools": false,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 1,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/embed-small-GGUF"
+            ]
+          }
+        ],
+        "publishers": {
+          "official": [
+            {
+              "publisher": "Automation Labs",
+              "orgs": [
+                "automation"
+              ]
+            }
+          ],
+          "converters": [
+            "automation-mlx"
+          ]
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "recommend_models",
+      "resolve": {
+        "status": "ok",
+        "models": [],
+        "hardware": {
+          "total_ram_gb": 32.0,
+          "available_ram_gb": 20.0,
+          "cpu_model": "Automation CPU",
+          "cpu_cores": 10,
+          "accelerator": {
+            "kind": "apple_silicon",
+            "chip": "Automation M",
+            "generation": 4
+          },
+          "memory_budget_gb": 21.3,
+          "total_capacity_gb": 21.3,
+          "devices": []
+        },
+        "selection": [
+          {
+            "id": "automation-alpha",
+            "label": "Automation Alpha",
+            "publisher": "Automation Labs",
+            "released": "2026-04-29",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "superseded": false,
+            "variants": [
+              {
+                "name": "Automation Alpha 8B",
+                "params_b": 8.0,
+                "gguf_repos": [
+                  "automation/alpha-8b-GGUF"
+                ],
+                "mlx_repos": [
+                  "automation-mlx/alpha-8b-4bit"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "automation-beta",
+            "label": "Automation Beta",
+            "publisher": "Automation Labs",
+            "released": "2026-06-10",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "superseded": false,
+            "variants": [
+              {
+                "name": "Automation Beta 70B",
+                "params_b": 70.0,
+                "gguf_repos": [
+                  "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_embeddings_recommendation",
+      "resolve": {
+        "models": [
+          {
+            "id": "automation-embed-large",
+            "label": "Automation Embed Large",
+            "publisher": "Automation Labs",
+            "license": "mit",
+            "repo": "automation/embed-large-GGUF",
+            "file": "embed-large-Q8_0.gguf",
+            "quantization": "Q8_0",
+            "size_bytes": 635000000,
+            "sha256": "00",
+            "dimensions": 1024,
+            "context_length": 8192
+          },
+          {
+            "id": "automation-embed-small",
+            "label": "Automation Embed Small",
+            "publisher": "Automation Labs",
+            "license": "mit",
+            "repo": "automation/embed-small-GGUF",
+            "file": "embed-small-q8_0.gguf",
+            "quantization": "Q8_0",
+            "size_bytes": 130000000,
+            "sha256": "11",
+            "dimensions": 384,
+            "context_length": 512
+          }
+        ],
+        "recommended": "automation-embed-small",
+        "reason": {
+          "kind": "fits_beside",
+          "language_gb": 5.0,
+          "embeddings_gb": 0.2,
+          "capacity_gb": 21.3
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hardware_profile",
+      "resolve": {
+        "total_ram_gb": 32.0,
+        "available_ram_gb": 20.0,
+        "cpu_model": "Automation CPU",
+        "cpu_cores": 10,
+        "accelerator": {
+          "kind": "apple_silicon",
+          "chip": "Automation M",
+          "generation": 4
+        },
+        "memory_budget_gb": 21.3,
+        "total_capacity_gb": 21.3,
+        "devices": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "argsMatch": {
+        "repoId": "automation/alpha-8b-GGUF"
+      },
+      "resolve": {
+        "repo_id": "automation/alpha-8b-GGUF",
+        "author": "automation",
+        "publisher_kind": "official",
+        "downloads": 872724,
+        "likes": 127,
+        "last_modified": "2026-08-20T10:00:00Z",
+        "license": "apache-2.0",
+        "tags": [
+          "gguf"
+        ],
+        "gated": false,
+        "total_size_bytes": null,
+        "gguf_files": [],
+        "generation_config": null,
+        "compatibility_issue": null,
+        "model_type": "automation-arch",
+        "capabilities": {
+          "tools": true,
+          "reasoning": true,
+          "vision": false
+        },
+        "variants": [
+          {
+            "repo_id": "automation/alpha-8b-GGUF",
+            "format": "gguf",
+            "level": "q4",
+            "quantization": "Q4_K_M",
+            "origin_file": "alpha-8b-Q4_K_M.gguf",
+            "files": [
+              "alpha-8b-Q4_K_M.gguf"
+            ],
+            "size_bytes": 5000000000,
+            "weights_bytes": 5000000000,
+            "sha256": null,
+            "memory_gb": 6.2,
+            "compatibility": "fits",
+            "fully_offloaded": true,
+            "downloaded": false,
+            "recommended": true
+          },
+          {
+            "repo_id": "automation/alpha-8b-GGUF",
+            "format": "gguf",
+            "level": "fp16",
+            "quantization": "BF16",
+            "origin_file": "alpha-8b-BF16.gguf",
+            "files": [
+              "alpha-8b-BF16.gguf"
+            ],
+            "size_bytes": 48000000000,
+            "weights_bytes": 48000000000,
+            "sha256": null,
+            "memory_gb": 52.0,
+            "compatibility": "too_large",
+            "fully_offloaded": false,
+            "downloaded": false,
+            "recommended": false
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "argsMatch": {
+        "repoId": "automation-mlx/alpha-8b-4bit"
+      },
+      "resolve": {
+        "repo_id": "automation-mlx/alpha-8b-4bit",
+        "author": "automation-mlx",
+        "publisher_kind": "converter",
+        "downloads": 872724,
+        "likes": 127,
+        "last_modified": "2026-08-20T10:00:00Z",
+        "license": "apache-2.0",
+        "tags": [
+          "gguf"
+        ],
+        "gated": false,
+        "total_size_bytes": null,
+        "gguf_files": [],
+        "generation_config": null,
+        "compatibility_issue": null,
+        "model_type": "automation-arch",
+        "capabilities": {
+          "tools": true,
+          "reasoning": true,
+          "vision": false
+        },
+        "variants": [
+          {
+            "repo_id": "automation-mlx/alpha-8b-4bit",
+            "format": "mlx",
+            "level": "q4",
+            "quantization": "4bit",
+            "origin_file": "config.json",
+            "files": [
+              "config.json"
+            ],
+            "size_bytes": 4600000000,
+            "weights_bytes": 4600000000,
+            "sha256": null,
+            "memory_gb": 5.8,
+            "compatibility": "fits",
+            "fully_offloaded": true,
+            "downloaded": false,
+            "recommended": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "argsMatch": {
+        "repoId": "automation/beta-70b-GGUF"
+      },
+      "resolve": {
+        "repo_id": "automation/beta-70b-GGUF",
+        "author": "automation",
+        "publisher_kind": "official",
+        "downloads": 872724,
+        "likes": 127,
+        "last_modified": "2026-08-20T10:00:00Z",
+        "license": "apache-2.0",
+        "tags": [
+          "gguf"
+        ],
+        "gated": false,
+        "total_size_bytes": null,
+        "gguf_files": [],
+        "generation_config": null,
+        "compatibility_issue": null,
+        "model_type": "automation-arch",
+        "capabilities": {
+          "tools": true,
+          "reasoning": true,
+          "vision": false
+        },
+        "variants": [
+          {
+            "repo_id": "automation/beta-70b-GGUF",
+            "format": "gguf",
+            "level": "q4",
+            "quantization": "Q4_K_M",
+            "origin_file": "beta-70b-Q4_K_M.gguf",
+            "files": [
+              "beta-70b-Q4_K_M.gguf"
+            ],
+            "size_bytes": 42000000000,
+            "weights_bytes": 42000000000,
+            "sha256": null,
+            "memory_gb": 46.0,
+            "compatibility": "too_large",
+            "fully_offloaded": false,
+            "downloaded": false,
+            "recommended": false
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "reject": "automation: the publishers are unreachable offline"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_variant_download",
+      "resolve": "automation-download-1"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_token",
+      "resolve": null
+    },
+    {
       "kind": "goto",
-      "route": "settings"
+      "route": "llm"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "llm-page",
       "timeoutMs": 15000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-model-hub"
+      "testid": "ai-discover-btn",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "model-hub-page",
-      "timeoutMs": 20000
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-model-hub-operator"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "installed-models-section",
+      "testid": "ai-discover-window",
       "timeoutMs": 8000
     },
     {
+      "kind": "expect",
+      "testid": "ai-discover-column"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-search"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-category-language"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-category-embeddings"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-selection-mark"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-refresh"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-format"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-sort"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-fits"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-results"
+    },
+    {
       "kind": "waitFor",
-      "testid": "installed-models-total",
+      "testid": "ai-discover-capacity",
+      "contains": "21.3",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "installed-models-list",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "installed-model-row-",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "installed-model-size-",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "installed-model-inuse-",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "installed-model-delete-",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-installed-models"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "installed-model-delete-",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "installed-model-delete-dialog",
+      "testid": "ai-discover-result",
+      "nth": 1,
       "timeoutMs": 6000
     },
     {
       "kind": "expect",
-      "testid": "installed-model-delete-dialog-confirm"
-    },
-    {
-      "kind": "expect",
-      "testid": "installed-model-delete-dialog-cancel"
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-installed-delete-dialog-boundary"
-    },
-    {
-      "kind": "click",
-      "testid": "installed-model-delete-dialog-cancel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "click",
-      "testid": "hf-token-toggle"
+      "testid": "ai-discover-result-publisher",
+      "nth": 0,
+      "contains": "Automation Labs"
     },
     {
       "kind": "waitFor",
-      "testid": "general-hf-token-input",
+      "testid": "ai-discover-card-name",
+      "contains": "Automation Alpha 8B",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-variant",
+      "nth": 1,
       "timeoutMs": 6000
     },
     {
       "kind": "expect",
-      "testid": "general-models-dir-path"
+      "testid": "ai-discover-card-downloads",
+      "contains": "872"
     },
     {
       "kind": "expect",
-      "testid": "general-models-dir-change"
+      "testid": "ai-discover-card-likes",
+      "contains": "127"
     },
     {
-      "kind": "fill",
-      "testid": "general-hf-token-input",
-      "text": "hf_automationDummyTokenNotReal"
+      "kind": "expect",
+      "testid": "ai-discover-card"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-figures"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-updated"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-selection"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-facts"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-download"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-copy"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-close"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-format"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-size"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-description",
+      "contains": "reasons and calls tools"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-publisher",
+      "contains": "Automation Labs"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-parameters",
+      "contains": "8 billion"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-architecture",
+      "contains": "automation-arch"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-domain",
+      "contains": "Language model"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-format",
+      "contains": "GGUF"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-memory",
+      "contains": "8"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-license",
+      "contains": "apache-2.0"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-capabilities",
+      "contains": "Tools"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-recommended",
+      "contains": "Recommended"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-verdict",
+      "nth": 0,
+      "contains": "Fits this computer"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-verdict",
+      "nth": 1,
+      "contains": "Too large"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-download",
+      "contains": "Download 5.0 GB"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-discover-selection"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-card-copy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-variant-pick",
+      "nth": 1,
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "general-hf-token-unsaved",
+      "testid": "ai-discover-download",
+      "contains": "anyway",
       "timeoutMs": 3000
     },
     {
       "kind": "expect",
-      "testid": "general-hf-token-save"
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-hf-token-general"
+      "testid": "ai-discover-status",
+      "contains": "too large"
     },
     {
       "kind": "click",
-      "testid": "settings-nav-model-hub"
+      "testid": "ai-discover-download",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "model-hub-search-input",
+      "testid": "ai-discover-too-large-dialog",
       "timeoutMs": 6000
     },
     {
-      "kind": "fill",
-      "testid": "model-hub-search-input",
-      "text": "qwen3"
-    },
-    {
-      "kind": "click",
-      "testid": "model-hub-search-btn"
-    },
-    {
-      "kind": "sleep",
-      "ms": 2200
-    },
-    {
       "kind": "screenshot",
-      "label": "05-search-results"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "model-filter-sort",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "expect",
-      "testid": "model-filter-language"
-    },
-    {
-      "kind": "expect",
-      "testid": "model-filter-license"
-    },
-    {
-      "kind": "expect",
-      "testid": "model-filter-type"
-    },
-    {
-      "kind": "expect",
-      "testid": "model-filter-gated"
-    },
-    {
-      "kind": "expect",
-      "testid": "model-filter-incompatible"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-sort",
-      "index": 0
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-language",
-      "index": 0
+      "label": "02-discover-too-large"
     },
     {
       "kind": "click",
-      "testid": "model-filter-incompatible",
+      "testid": "ai-discover-too-large-dialog-cancel",
       "timeoutMs": 3000
     },
     {
-      "kind": "sleep",
-      "ms": 200
+      "kind": "waitGone",
+      "testid": "ai-discover-too-large-dialog",
+      "timeoutMs": 6000
     },
     {
-      "kind": "screenshot",
-      "label": "06-filters"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-license",
-      "value": "open"
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-type",
-      "value": "instruct"
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-gated",
-      "value": "open"
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-filters-applied"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-license",
-      "value": "any"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-type",
-      "value": "any"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-gated",
-      "value": "any"
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-filters-reset"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "model-card-",
-      "nth": 0,
-      "timeoutMs": 8000
+      "kind": "expect",
+      "testid": "ai-discover-download",
+      "contains": "anyway"
     },
     {
       "kind": "click",
-      "testidPrefix": "model-card-",
+      "testid": "ai-discover-download",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-too-large-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-too-large-dialog-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-too-large-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-status",
+      "contains": "Downloading",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-variant-pick",
       "nth": 0,
       "timeoutMs": 3000
     },
     {
-      "kind": "sleep",
-      "ms": 1500
+      "kind": "waitFor",
+      "testid": "ai-discover-download",
+      "contains": "Download 5.0 GB",
+      "timeoutMs": 3000
     },
     {
-      "kind": "screenshot",
-      "label": "09-model-card-expanded"
+      "kind": "click",
+      "testid": "ai-discover-download",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "model-variant-",
+      "testid": "ai-discover-status",
+      "contains": "Downloading",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "emitEvent",
+      "event": "model-download-progress",
+      "payload": {
+        "id": "automation-download-1",
+        "downloaded_bytes": 1000000000,
+        "total_bytes": 5000000000,
+        "speed_bps": 25000000,
+        "dest_path": "${HOME}/.apollia/models/alpha-8b-Q4_K_M.gguf",
+        "status": "in_progress"
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-downloads-count",
+      "contains": "1",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "ai-discover-fits",
+      "checked": true
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-result",
+      "nth": 1,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-result",
       "nth": 0,
-      "timeoutMs": 8000
+      "contains": "Automation Alpha 8B"
     },
     {
-      "kind": "screenshot",
-      "label": "10-model-variants"
+      "kind": "setChecked",
+      "testid": "ai-discover-fits",
+      "checked": false
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "model-variant-download-",
+      "testid": "ai-discover-result",
+      "nth": 1,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "ai-discover-sort",
+      "value": "updated"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-result",
+      "nth": 0,
+      "contains": "Automation Beta 70B",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "ai-discover-sort",
+      "value": "best_match"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-result",
+      "nth": 0,
+      "contains": "Automation Alpha 8B",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
       "nth": 0,
       "timeoutMs": 3000
     },
     {
-      "kind": "screenshot",
-      "label": "11-download-button-boundary"
+      "kind": "selectOption",
+      "testid": "ai-discover-format",
+      "value": "mlx"
     },
     {
       "kind": "waitFor",
-      "testid": "model-load-more",
-      "timeoutMs": 4000
+      "testid": "ai-discover-variant-format",
+      "contains": "MLX",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-format",
+      "contains": "MLX"
     },
     {
       "kind": "screenshot",
-      "label": "12-load-more-boundary"
+      "label": "03-discover-format-mlx"
     },
     {
-      "kind": "fill",
-      "testid": "model-hub-search-input",
-      "text": "zzzqwptnonexistentmodelxyz123"
-    },
-    {
-      "kind": "click",
-      "testid": "model-hub-search-btn"
-    },
-    {
-      "kind": "sleep",
-      "ms": 2200
+      "kind": "selectOption",
+      "testid": "ai-discover-format",
+      "value": "gguf"
     },
     {
       "kind": "waitFor",
-      "testid": "model-results-empty",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13-results-empty"
+      "testid": "ai-discover-variant-format",
+      "contains": "GGUF",
+      "timeoutMs": 6000
     },
     {
       "kind": "stubInvoke",
@@ -18457,294 +18940,1340 @@
       "resolve": {
         "models": [
           {
-            "repo_id": "automation/stub-alpha-instruct",
+            "repo_id": "automation/alpha-8b-GGUF",
             "author": "automation",
-            "downloads": 120000,
-            "likes": 12,
+            "publisher_kind": "official",
+            "downloads": 872724,
+            "likes": 127,
+            "last_modified": "2026-08-20T10:00:00Z",
             "license": "apache-2.0",
             "tags": [
-              "gguf",
-              "text-generation",
-              "instruct"
+              "gguf"
             ],
-            "gated": true,
-            "total_size_bytes": 2500000000,
-            "gguf_files": [
-              {
-                "filename": "stub-alpha-instruct-Q4_K_M.gguf",
-                "size_bytes": 2500000000,
-                "size_human": "2.3 GB",
-                "compatibility": "fits",
-                "download_url": "https://huggingface.co/automation/stub-alpha-instruct/resolve/main/stub-alpha-instruct-Q4_K_M.gguf"
-              }
-            ],
+            "gated": false,
+            "total_size_bytes": null,
+            "gguf_files": [],
             "generation_config": null,
             "compatibility_issue": null,
-            "model_type": "Qwen3ForCausalLM"
+            "model_type": "automation-arch",
+            "capabilities": {
+              "tools": true,
+              "reasoning": true,
+              "vision": false
+            },
+            "variants": [],
+            "in_selection": true,
+            "card": {
+              "repo_id": "automation/alpha-8b-GGUF",
+              "source_url": "https://example.invalid/automation/alpha-8b-GGUF",
+              "owner": "automation",
+              "publisher_kind": "official",
+              "origin_repo": null,
+              "origin_card_id": null,
+              "format": "gguf",
+              "description": {
+                "fr": "The original repository of Automation Alpha 8B.",
+                "en": "The original repository of Automation Alpha 8B."
+              },
+              "author_fields": [],
+              "defaults": null,
+              "parameters": 8190000000,
+              "architecture": "automation-arch",
+              "context_length": 32768,
+              "capabilities": {
+                "tools": true,
+                "reasoning": false,
+                "vision": false
+              },
+              "license": "apache-2.0",
+              "variants": [
+                {
+                  "repo_id": "automation/alpha-8b-GGUF",
+                  "format": "gguf",
+                  "level": "q4",
+                  "quantization": "Q4_K_M",
+                  "origin_file": "alpha-8b-Q4_K_M.gguf",
+                  "files": [
+                    "alpha-8b-Q4_K_M.gguf"
+                  ],
+                  "size_bytes": 5000000000,
+                  "weights_bytes": 5000000000,
+                  "sha256": null,
+                  "memory_gb": 6.2,
+                  "compatibility": "fits",
+                  "fully_offloaded": true,
+                  "downloaded": false,
+                  "recommended": true
+                }
+              ],
+              "size_bytes": 5000000000,
+              "last_modified": "2026-09-01T00:00:00Z"
+            }
           },
           {
-            "repo_id": "automation/stub-beta-instruct",
-            "author": "automation",
-            "downloads": 80000,
-            "likes": 12,
-            "license": "mit",
-            "tags": [
-              "gguf",
-              "text-generation",
-              "instruct"
-            ],
-            "gated": true,
-            "total_size_bytes": 2500000000,
-            "gguf_files": [
-              {
-                "filename": "stub-beta-instruct-Q4_K_M.gguf",
-                "size_bytes": 2500000000,
-                "size_human": "2.3 GB",
-                "compatibility": "fits",
-                "download_url": "https://huggingface.co/automation/stub-beta-instruct/resolve/main/stub-beta-instruct-Q4_K_M.gguf"
-              }
-            ],
-            "generation_config": null,
-            "compatibility_issue": null,
-            "model_type": "Qwen3ForCausalLM"
-          }
-        ],
-        "next_cursor": "automation-page-2"
-      },
-      "once": true
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "search_hf_models",
-      "resolve": {
-        "models": [
-          {
-            "repo_id": "automation/stub-gamma-instruct",
-            "author": "automation",
-            "downloads": 40000,
-            "likes": 12,
+            "repo_id": "automation-mlx/alpha-8b-GGUF",
+            "author": "automation-mlx",
+            "publisher_kind": "converter",
+            "downloads": 872724,
+            "likes": 127,
+            "last_modified": "2026-08-20T10:00:00Z",
             "license": "apache-2.0",
             "tags": [
-              "gguf",
-              "text-generation",
-              "instruct"
+              "gguf"
             ],
-            "gated": true,
-            "total_size_bytes": 2500000000,
-            "gguf_files": [
-              {
-                "filename": "stub-gamma-instruct-Q4_K_M.gguf",
-                "size_bytes": 2500000000,
-                "size_human": "2.3 GB",
-                "compatibility": "fits",
-                "download_url": "https://huggingface.co/automation/stub-gamma-instruct/resolve/main/stub-gamma-instruct-Q4_K_M.gguf"
-              }
-            ],
+            "gated": false,
+            "total_size_bytes": null,
+            "gguf_files": [],
             "generation_config": null,
             "compatibility_issue": null,
-            "model_type": "Qwen3ForCausalLM"
+            "model_type": "automation-arch",
+            "capabilities": {
+              "tools": true,
+              "reasoning": true,
+              "vision": false
+            },
+            "variants": [],
+            "in_selection": false,
+            "card": {
+              "repo_id": "automation-mlx/alpha-8b-GGUF",
+              "source_url": "https://example.invalid/automation-mlx/alpha-8b-GGUF",
+              "owner": "automation-mlx",
+              "publisher_kind": "converter",
+              "origin_repo": "automation/alpha-8b",
+              "origin_card_id": null,
+              "format": "gguf",
+              "description": {
+                "fr": "A conversion of Automation Alpha 8B.",
+                "en": "A conversion of Automation Alpha 8B."
+              },
+              "author_fields": [],
+              "defaults": null,
+              "parameters": 8190000000,
+              "architecture": "automation-arch",
+              "context_length": 32768,
+              "capabilities": {
+                "tools": true,
+                "reasoning": false,
+                "vision": false
+              },
+              "license": "apache-2.0",
+              "variants": [
+                {
+                  "repo_id": "automation-mlx/alpha-8b-GGUF",
+                  "format": "gguf",
+                  "level": "q4",
+                  "quantization": "Q4_K_M",
+                  "origin_file": "alpha-8b-Q4_K_M.gguf",
+                  "files": [
+                    "alpha-8b-Q4_K_M.gguf"
+                  ],
+                  "size_bytes": 5000000000,
+                  "weights_bytes": 5000000000,
+                  "sha256": null,
+                  "memory_gb": 6.2,
+                  "compatibility": "fits",
+                  "fully_offloaded": true,
+                  "downloaded": false,
+                  "recommended": true
+                }
+              ],
+              "size_bytes": 5000000000,
+              "last_modified": "2026-09-01T00:00:00Z"
+            }
           }
         ],
-        "next_cursor": null
+        "format": "gguf",
+        "sort": "best_match",
+        "capacity_gb": 21.3,
+        "unreachable": []
       }
     },
     {
       "kind": "fill",
-      "testid": "model-hub-search-input",
-      "text": "automation stub page"
-    },
-    {
-      "kind": "click",
-      "testid": "model-hub-search-btn",
-      "timeoutMs": 3000
+      "testid": "ai-discover-search",
+      "text": "alpha"
     },
     {
       "kind": "waitFor",
-      "testid": "model-load-more",
-      "timeoutMs": 6000
+      "testid": "ai-discover-count",
+      "contains": "2 models",
+      "timeoutMs": 8000
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "model-card-",
+      "kind": "expect",
+      "testid": "ai-discover-result-publisher-kind",
+      "nth": 0,
+      "contains": "Official publisher"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-result-publisher-kind",
       "nth": 1,
-      "timeoutMs": 4000
+      "contains": "Recognized converter"
     },
     {
-      "kind": "screenshot",
-      "label": "13b-load-more-stubbed-page-1"
+      "kind": "expect",
+      "testid": "ai-discover-result-selection",
+      "contains": "Apollia selection"
     },
     {
       "kind": "click",
-      "testid": "model-load-more",
+      "testid": "ai-discover-result-open",
+      "nth": 1,
       "timeoutMs": 3000
     },
     {
-      "kind": "waitGone",
-      "testid": "model-load-more",
+      "kind": "waitFor",
+      "testid": "ai-discover-card-publisher-kind",
+      "contains": "Recognized converter",
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "model-card-",
-      "nth": 2,
-      "timeoutMs": 4000
+      "kind": "expect",
+      "testid": "ai-discover-card-description",
+      "contains": "A conversion of Automation Alpha 8B"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-parameters",
+      "contains": "8.2 billion"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-recommended"
     },
     {
       "kind": "screenshot",
-      "label": "13c-load-more-appended-page-2"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "model-filter-gated",
-      "value": "open",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "model-results-no-match",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "model-results-clear-filters",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13d-filters-no-match"
-    },
-    {
-      "kind": "click",
-      "testid": "model-results-clear-filters",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "model-results-no-match",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "model-results",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "model-card-",
-      "nth": 2,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "13e-filters-cleared"
+      "label": "04-discover-search"
     },
     {
       "kind": "clearStubs",
       "command": "search_hf_models"
     },
     {
-      "kind": "goto",
-      "route": "settings"
+      "kind": "stubInvoke",
+      "command": "search_hf_models",
+      "resolve": {
+        "models": [],
+        "format": "gguf",
+        "sort": "best_match",
+        "capacity_gb": 21.3,
+        "unreachable": []
+      }
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-discover-search",
+      "text": "no-model-has-this-name"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-model-hub"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "model-hub-page",
-      "timeoutMs": 20000
+      "testid": "ai-discover-empty",
+      "contains": "no-model-has-this-name",
+      "timeoutMs": 8000
     },
     {
       "kind": "expect",
-      "testid": "installed-models-section"
+      "testid": "ai-discover-card-empty"
     },
     {
       "kind": "expect",
-      "testid": "model-hub-search-input"
+      "testid": "ai-discover-close-empty"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "search_hf_models"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "search_hf_models",
+      "reject": "huggingface answered with an error: automation 500"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-discover-search",
+      "text": "broken"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-search-error",
+      "contains": "automation 500",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "search_hf_models"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "search_hf_models",
+      "reject": "search is unavailable offline"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-discover-search",
+      "text": "beta"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-offline",
+      "contains": "searching needs the network",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
-      "label": "14-model-hub-builder"
+      "label": "05-discover-search-offline"
     },
     {
-      "kind": "goto",
-      "route": "settings"
+      "kind": "clearStubs",
+      "command": "list_model_cards"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "recommend_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_embeddings_recommendation"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hardware_profile"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hf_model"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_model_cards",
+      "resolve": {
+        "status": "ok",
+        "origin": "primary",
+        "message": null,
+        "cards": [
+          {
+            "id": "automation/alpha-8b",
+            "kind": "language",
+            "label": "Automation Alpha 8B",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "A compact model that reasons and calls tools.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/alpha-8b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": true,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 8,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/alpha-8b-GGUF"
+            ]
+          },
+          {
+            "id": "automation/beta-70b",
+            "kind": "language",
+            "label": "Automation Beta 70B",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "A large model for long documents.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/beta-70b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": true,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 64,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/beta-70b-GGUF"
+            ]
+          },
+          {
+            "id": "automation-embed-small",
+            "kind": "embeddings",
+            "label": "Automation Embed Small",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "Searches by meaning in a hundred languages.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-embed-small",
+            "capabilities": {
+              "tools": false,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 1,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/embed-small-GGUF"
+            ]
+          }
+        ],
+        "publishers": {
+          "official": [
+            {
+              "publisher": "Automation Labs",
+              "orgs": [
+                "automation"
+              ]
+            }
+          ],
+          "converters": [
+            "automation-mlx"
+          ]
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "recommend_models",
+      "resolve": {
+        "status": "unreachable",
+        "detail": "automation: network cut",
+        "hardware": {
+          "total_ram_gb": 32.0,
+          "available_ram_gb": 20.0,
+          "cpu_model": "Automation CPU",
+          "cpu_cores": 10,
+          "accelerator": {
+            "kind": "apple_silicon",
+            "chip": "Automation M",
+            "generation": 4
+          },
+          "memory_budget_gb": 21.3,
+          "total_capacity_gb": 21.3,
+          "devices": []
+        },
+        "selection": [
+          {
+            "id": "automation-alpha",
+            "label": "Automation Alpha",
+            "publisher": "Automation Labs",
+            "released": "2026-04-29",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "superseded": false,
+            "variants": [
+              {
+                "name": "Automation Alpha 8B",
+                "params_b": 8.0,
+                "gguf_repos": [
+                  "automation/alpha-8b-GGUF"
+                ],
+                "mlx_repos": [
+                  "automation-mlx/alpha-8b-4bit"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "automation-beta",
+            "label": "Automation Beta",
+            "publisher": "Automation Labs",
+            "released": "2026-06-10",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "superseded": false,
+            "variants": [
+              {
+                "name": "Automation Beta 70B",
+                "params_b": 70.0,
+                "gguf_repos": [
+                  "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_embeddings_recommendation",
+      "resolve": {
+        "models": [
+          {
+            "id": "automation-embed-large",
+            "label": "Automation Embed Large",
+            "publisher": "Automation Labs",
+            "license": "mit",
+            "repo": "automation/embed-large-GGUF",
+            "file": "embed-large-Q8_0.gguf",
+            "quantization": "Q8_0",
+            "size_bytes": 635000000,
+            "sha256": "00",
+            "dimensions": 1024,
+            "context_length": 8192
+          },
+          {
+            "id": "automation-embed-small",
+            "label": "Automation Embed Small",
+            "publisher": "Automation Labs",
+            "license": "mit",
+            "repo": "automation/embed-small-GGUF",
+            "file": "embed-small-q8_0.gguf",
+            "quantization": "Q8_0",
+            "size_bytes": 130000000,
+            "sha256": "11",
+            "dimensions": 384,
+            "context_length": 512
+          }
+        ],
+        "recommended": "automation-embed-small",
+        "reason": {
+          "kind": "fits_beside",
+          "language_gb": 5.0,
+          "embeddings_gb": 0.2,
+          "capacity_gb": 21.3
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hardware_profile",
+      "resolve": {
+        "total_ram_gb": 32.0,
+        "available_ram_gb": 20.0,
+        "cpu_model": "Automation CPU",
+        "cpu_cores": 10,
+        "accelerator": {
+          "kind": "apple_silicon",
+          "chip": "Automation M",
+          "generation": 4
+        },
+        "memory_budget_gb": 21.3,
+        "total_capacity_gb": 21.3,
+        "devices": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "reject": "automation: the publishers are unreachable offline"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-discover-search",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-selection-mark",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-refresh",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-offline",
+      "contains": "the selection stays readable",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-result",
+      "nth": 1,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card-name",
+      "contains": "Automation Beta 70B",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-status",
+      "contains": "Offline",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-download",
+      "contains": "Download"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-discover-offline"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_model_cards"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "recommend_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_embeddings_recommendation"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hardware_profile"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hf_model"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_model_cards",
+      "resolve": {
+        "status": "ok",
+        "origin": "primary",
+        "message": null,
+        "cards": [
+          {
+            "id": "automation/alpha-8b",
+            "kind": "language",
+            "label": "Automation Alpha 8B",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "A compact model that reasons and calls tools.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/alpha-8b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": true,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 8,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/alpha-8b-GGUF"
+            ]
+          },
+          {
+            "id": "automation/beta-70b",
+            "kind": "language",
+            "label": "Automation Beta 70B",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "A large model for long documents.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/beta-70b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": true,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 64,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/beta-70b-GGUF"
+            ]
+          },
+          {
+            "id": "automation-embed-small",
+            "kind": "embeddings",
+            "label": "Automation Embed Small",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "Searches by meaning in a hundred languages.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-embed-small",
+            "capabilities": {
+              "tools": false,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 1,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/embed-small-GGUF"
+            ]
+          }
+        ],
+        "publishers": {
+          "official": [
+            {
+              "publisher": "Automation Labs",
+              "orgs": [
+                "automation"
+              ]
+            }
+          ],
+          "converters": [
+            "automation-mlx"
+          ]
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "recommend_models",
+      "resolve": {
+        "status": "ok",
+        "models": [],
+        "hardware": {
+          "total_ram_gb": 32.0,
+          "available_ram_gb": 20.0,
+          "cpu_model": "Automation CPU",
+          "cpu_cores": 10,
+          "accelerator": {
+            "kind": "apple_silicon",
+            "chip": "Automation M",
+            "generation": 4
+          },
+          "memory_budget_gb": 21.3,
+          "total_capacity_gb": 21.3,
+          "devices": []
+        },
+        "selection": [
+          {
+            "id": "automation-alpha",
+            "label": "Automation Alpha",
+            "publisher": "Automation Labs",
+            "released": "2026-04-29",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "superseded": false,
+            "variants": [
+              {
+                "name": "Automation Alpha 8B",
+                "params_b": 8.0,
+                "gguf_repos": [
+                  "automation/alpha-8b-GGUF"
+                ],
+                "mlx_repos": [
+                  "automation-mlx/alpha-8b-4bit"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "automation-beta",
+            "label": "Automation Beta",
+            "publisher": "Automation Labs",
+            "released": "2026-06-10",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "superseded": false,
+            "variants": [
+              {
+                "name": "Automation Beta 70B",
+                "params_b": 70.0,
+                "gguf_repos": [
+                  "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_embeddings_recommendation",
+      "resolve": {
+        "models": [
+          {
+            "id": "automation-embed-large",
+            "label": "Automation Embed Large",
+            "publisher": "Automation Labs",
+            "license": "mit",
+            "repo": "automation/embed-large-GGUF",
+            "file": "embed-large-Q8_0.gguf",
+            "quantization": "Q8_0",
+            "size_bytes": 635000000,
+            "sha256": "00",
+            "dimensions": 1024,
+            "context_length": 8192
+          },
+          {
+            "id": "automation-embed-small",
+            "label": "Automation Embed Small",
+            "publisher": "Automation Labs",
+            "license": "mit",
+            "repo": "automation/embed-small-GGUF",
+            "file": "embed-small-q8_0.gguf",
+            "quantization": "Q8_0",
+            "size_bytes": 130000000,
+            "sha256": "11",
+            "dimensions": 384,
+            "context_length": 512
+          }
+        ],
+        "recommended": "automation-embed-small",
+        "reason": {
+          "kind": "fits_beside",
+          "language_gb": 5.0,
+          "embeddings_gb": 0.2,
+          "capacity_gb": 21.3
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hardware_profile",
+      "resolve": {
+        "total_ram_gb": 32.0,
+        "available_ram_gb": 20.0,
+        "cpu_model": "Automation CPU",
+        "cpu_cores": 10,
+        "accelerator": {
+          "kind": "apple_silicon",
+          "chip": "Automation M",
+          "generation": 4
+        },
+        "memory_budget_gb": 21.3,
+        "total_capacity_gb": 21.3,
+        "devices": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "argsMatch": {
+        "repoId": "automation/alpha-8b-GGUF"
+      },
+      "resolve": {
+        "repo_id": "automation/alpha-8b-GGUF",
+        "author": "automation",
+        "publisher_kind": "official",
+        "downloads": 872724,
+        "likes": 127,
+        "last_modified": "2026-08-20T10:00:00Z",
+        "license": "apache-2.0",
+        "tags": [
+          "gguf"
+        ],
+        "gated": false,
+        "total_size_bytes": null,
+        "gguf_files": [],
+        "generation_config": null,
+        "compatibility_issue": null,
+        "model_type": "automation-arch",
+        "capabilities": {
+          "tools": true,
+          "reasoning": true,
+          "vision": false
+        },
+        "variants": [
+          {
+            "repo_id": "automation/alpha-8b-GGUF",
+            "format": "gguf",
+            "level": "q4",
+            "quantization": "Q4_K_M",
+            "origin_file": "alpha-8b-Q4_K_M.gguf",
+            "files": [
+              "alpha-8b-Q4_K_M.gguf"
+            ],
+            "size_bytes": 5000000000,
+            "weights_bytes": 5000000000,
+            "sha256": null,
+            "memory_gb": 6.2,
+            "compatibility": "fits",
+            "fully_offloaded": true,
+            "downloaded": false,
+            "recommended": true
+          },
+          {
+            "repo_id": "automation/alpha-8b-GGUF",
+            "format": "gguf",
+            "level": "fp16",
+            "quantization": "BF16",
+            "origin_file": "alpha-8b-BF16.gguf",
+            "files": [
+              "alpha-8b-BF16.gguf"
+            ],
+            "size_bytes": 48000000000,
+            "weights_bytes": 48000000000,
+            "sha256": null,
+            "memory_gb": 52.0,
+            "compatibility": "too_large",
+            "fully_offloaded": false,
+            "downloaded": false,
+            "recommended": false
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "argsMatch": {
+        "repoId": "automation-mlx/alpha-8b-4bit"
+      },
+      "resolve": {
+        "repo_id": "automation-mlx/alpha-8b-4bit",
+        "author": "automation-mlx",
+        "publisher_kind": "converter",
+        "downloads": 872724,
+        "likes": 127,
+        "last_modified": "2026-08-20T10:00:00Z",
+        "license": "apache-2.0",
+        "tags": [
+          "gguf"
+        ],
+        "gated": false,
+        "total_size_bytes": null,
+        "gguf_files": [],
+        "generation_config": null,
+        "compatibility_issue": null,
+        "model_type": "automation-arch",
+        "capabilities": {
+          "tools": true,
+          "reasoning": true,
+          "vision": false
+        },
+        "variants": [
+          {
+            "repo_id": "automation-mlx/alpha-8b-4bit",
+            "format": "mlx",
+            "level": "q4",
+            "quantization": "4bit",
+            "origin_file": "config.json",
+            "files": [
+              "config.json"
+            ],
+            "size_bytes": 4600000000,
+            "weights_bytes": 4600000000,
+            "sha256": null,
+            "memory_gb": 5.8,
+            "compatibility": "fits",
+            "fully_offloaded": true,
+            "downloaded": false,
+            "recommended": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "argsMatch": {
+        "repoId": "automation/beta-70b-GGUF"
+      },
+      "resolve": {
+        "repo_id": "automation/beta-70b-GGUF",
+        "author": "automation",
+        "publisher_kind": "official",
+        "downloads": 872724,
+        "likes": 127,
+        "last_modified": "2026-08-20T10:00:00Z",
+        "license": "apache-2.0",
+        "tags": [
+          "gguf"
+        ],
+        "gated": false,
+        "total_size_bytes": null,
+        "gguf_files": [],
+        "generation_config": null,
+        "compatibility_issue": null,
+        "model_type": "automation-arch",
+        "capabilities": {
+          "tools": true,
+          "reasoning": true,
+          "vision": false
+        },
+        "variants": [
+          {
+            "repo_id": "automation/beta-70b-GGUF",
+            "format": "gguf",
+            "level": "q4",
+            "quantization": "Q4_K_M",
+            "origin_file": "beta-70b-Q4_K_M.gguf",
+            "files": [
+              "beta-70b-Q4_K_M.gguf"
+            ],
+            "size_bytes": 42000000000,
+            "weights_bytes": 42000000000,
+            "sha256": null,
+            "memory_gb": 46.0,
+            "compatibility": "too_large",
+            "fully_offloaded": false,
+            "downloaded": false,
+            "recommended": false
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "reject": "automation: the publishers are unreachable offline"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-refresh",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-offline",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-category-embeddings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-result",
+      "nth": 1,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-result",
+      "nth": 0,
+      "contains": "Automation Embed Small"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-result-recommended",
+      "contains": "Recommended for this computer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card-name",
+      "contains": "Automation Embed Small",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-domain",
+      "contains": "Search by meaning"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-purpose",
+      "contains": "by meaning"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-recommended-here"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-description",
+      "contains": "a hundred languages"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-pick",
+      "contains": "Automation Embed Small"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-download",
+      "contains": "Download 0.1 GB"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-discover-search-by-meaning"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-category-language",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card-name",
+      "contains": "Automation Alpha 8B",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hf_model"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "argsMatch": {
+        "repoId": "automation/beta-70b-GGUF"
+      },
+      "resolve": {
+        "repo_id": "automation/beta-70b-GGUF",
+        "author": "automation",
+        "publisher_kind": "official",
+        "downloads": 872724,
+        "likes": 127,
+        "last_modified": "2026-08-20T10:00:00Z",
+        "license": "apache-2.0",
+        "tags": [
+          "gguf"
+        ],
+        "gated": true,
+        "total_size_bytes": null,
+        "gguf_files": [],
+        "generation_config": null,
+        "compatibility_issue": null,
+        "model_type": "automation-arch",
+        "capabilities": {
+          "tools": true,
+          "reasoning": true,
+          "vision": false
+        },
+        "variants": [
+          {
+            "repo_id": "automation/beta-70b-GGUF",
+            "format": "gguf",
+            "level": "q4",
+            "quantization": "Q4_K_M",
+            "origin_file": "beta-70b-Q4_K_M.gguf",
+            "files": [
+              "beta-70b-Q4_K_M.gguf"
+            ],
+            "size_bytes": 4000000000,
+            "weights_bytes": 4000000000,
+            "sha256": null,
+            "memory_gb": 5.0,
+            "compatibility": "fits",
+            "fully_offloaded": true,
+            "downloaded": false,
+            "recommended": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "reject": "automation: the publishers are unreachable offline"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-window",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-window",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-result",
+      "nth": 1,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-download",
+      "contains": "Download 4.0 GB",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-download",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 4000
+      "timeoutMs": 8000
     },
     {
-      "kind": "click",
-      "testid": "settings-nav-developer"
+      "kind": "waitGone",
+      "testid": "ai-discover-window",
+      "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
+      "kind": "screenshot",
+      "label": "08-discover-restricted-needs-token"
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "llm"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "llm-page",
       "timeoutMs": 15000
     },
     {
+      "kind": "stubInvoke",
+      "command": "cancel_model_download",
+      "resolve": null
+    },
+    {
       "kind": "click",
-      "testid": "settings-nav-model-hub"
+      "testid": "topbar-downloads",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "model-hub-page",
-      "timeoutMs": 20000
+      "testid": "downloads-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "downloads-group-active",
+      "contains": "alpha-8b-Q4_K_M.gguf",
+      "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
-      "label": "15-back-operator"
+      "label": "09-downloads-panel"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "download-cancel-",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "emitEvent",
+      "event": "model-download-progress",
+      "payload": {
+        "id": "automation-download-1",
+        "downloaded_bytes": 1000000000,
+        "total_bytes": 5000000000,
+        "speed_bps": 0,
+        "dest_path": "${HOME}/.apollia/models/alpha-8b-Q4_K_M.gguf",
+        "status": "cancelled"
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "downloads-group-finished",
+      "contains": "alpha-8b-Q4_K_M.gguf",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "press",
+      "key": "Escape"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_model_cards"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "recommend_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_embeddings_recommendation"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hardware_profile"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hf_model"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "search_hf_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_variant_download"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "cancel_model_download"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hf_token"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",

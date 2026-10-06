@@ -274,8 +274,8 @@ different stories, and the reader notices.
 | Onboarding, profile card | **Operator** |
 | Onboarding, LLM model | **Qwen3 14B** (8.4 GB) |
 | Onboarding, speech model | **base** (142 MB) |
-| Model Hub, model to download | **Qwen3 14B** (8.4 GB) |
-| Model Hub, model to set as default | **Qwen3 14B** |
+| Discover models, model to download | **Qwen3 14B** (8.4 GB) |
+| AI screen, model to set as default | **Qwen3 14B** |
 | Chat question, row 23 and 24 | `Summarise the three conversion failures from batch 3 and tell me which one blocks batch 4.` |
 | Chat question, row 25 (reasoning) | `Read reports/atlas-audit.md and tell me how many pages need a manual pass.` |
 | Chat question, row 61 (MCP approval) | `List the files under legacy/ using the filesystem connector.` |
@@ -330,8 +330,8 @@ only opens once per profile reload.
 | 6 | `installation-configurer-votre-profil-6.png` | Answer all four questions, reach the end of calibration. | The permission rule cards the agent proposes | Answer with the four onboarding values above | dialog | hand, see N2 |
 | 7 | `installation-configurer-votre-profil-7.png` | Finish onboarding. Settings → Profile. | Identity (Maya, Head of operations, Consulting), Goals, Agent supervision | none, the values are the ones just entered | panel | auto |
 | 8 | `installation-connecter-un-modele-distant-1.png` | AI → Servers → **Add a server**. | The form, empty, Address, Name and Key visible | leave every field empty | panel | auto |
-| 9 | `installation-telecharger-des-modeles-locaux-1.png` | Settings → Model Hub. | The available-models list: Name, Size, Type, Status | none | panel | auto |
-| 10 | `installation-telecharger-des-modeles-locaux-1bis.png` | Same page, scroll to Installed models. | The installed list with the **In use** badge on the active model | none, the seed installs two | panel | auto |
+| 9 | `installation-telecharger-des-modeles-locaux-1.png` | AI → Discover models. | The discovery window: the Apollia selection on the left, the card of the chosen model and its download options | none | panel | auto |
+| 10 | `installation-telecharger-des-modeles-locaux-1bis.png` | AI screen, before the window opens. | The models of this computer, with the **Default** badge on the active model | none, the seed installs two | panel | auto |
 | 11 | `installation-telecharger-des-modeles-locaux-2.png` | Click Download on a model row. | The row with a progress bar and a Cancel button | **Qwen3 14B**; capture around 40 % | panel | hand, see N1 |
 
 ## Cross-cutting

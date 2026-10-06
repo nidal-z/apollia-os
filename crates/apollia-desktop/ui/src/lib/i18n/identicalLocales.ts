@@ -54,14 +54,7 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.language_fr", // Français
   "settings.model_defaults.images.unit", // pixels
   "settings.model_defaults.unload.unit", // minutes
-  "settings.model_hub.detail.param_top_k", // top_k
-  "settings.model_hub.detail.param_top_p", // top_p
   "settings.hardware.gpu", // GPU
-  "settings.model_hub.filters.lang_de", // Deutsch
-  "settings.model_hub.filters.lang_en", // English
-  "settings.model_hub.filters.lang_es", // Español
-  "settings.model_hub.filters.lang_fr", // Français
-  "settings.model_hub.filters.lang_pt", // Português
   "settings.stt_cuda", // CUDA
   "settings.stt_metal", // Metal
   "settings.tools_page.bash_executor_title", // Bash
@@ -209,10 +202,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.general.interface_title", // Interface
   "settings.hardware.architecture", // Architecture
   "settings.hardware.compatible", // Compatible
-  "settings.model_hub.detail.param_max_tokens", // max tokens
-  "settings.model_hub.detail.param_temperature", // temperature
-  "settings.model_hub.filters.type_base", // Base
-  "settings.model_hub.filters.type_instruct", // Instruct / Chat
   "settings.nav.chat", // Chat
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections

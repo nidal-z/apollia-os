@@ -47,9 +47,8 @@ describe("settings navigation column", () => {
     const layout = SETTINGS_NAV.map((g) => [g.labelKey, g.entries.map((e) => e.key)]);
 
     // THEN Settings comes first, Integrations follows the model defaults,
-    // Notifications sits just before Developer, which
-    // closes its use-ranked part, the sections leaving the settings follow, and
-    // System holds Engines and Hardware
+    // Notifications sits just before Developer, which closes its use-ranked
+    // part, Configuration follows, and System holds Engines and Hardware
     expect(layout).toEqual([
       [
         "settings.nav.cluster_settings",
@@ -64,7 +63,6 @@ describe("settings navigation column", () => {
           "notifications",
           "developer",
           "configuration",
-          "model-hub",
         ],
       ],
       ["settings.nav.cluster_system", ["engines", "hardware"]],
