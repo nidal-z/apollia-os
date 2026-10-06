@@ -108,6 +108,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "automations.status.active", // Active
   "automations.target_prefix", // Assistant
   "automations.wizard.step_agent", // Assistant
+  "batch_launch.agent.title", // Agent
+  "batch_launch.source.title", // Source
   "chat.activity.sources", // Sources
   "chat.assistant", // Assistant
   "chat.citations_aria", // Citations

@@ -17,6 +17,7 @@ pub mod authorizations;
 #[cfg(debug_assertions)]
 pub mod automation;
 pub mod background_service;
+pub mod batches;
 pub mod chat;
 pub mod cli;
 pub mod config;

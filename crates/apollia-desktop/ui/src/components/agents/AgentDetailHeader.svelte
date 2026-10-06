@@ -37,6 +37,7 @@
   import type { AgentActions } from "./useAgentActions.svelte";
   import AdjustActions from "./sheet/AdjustActions.svelte";
   import ExportAgent from "./sheet/ExportAgent.svelte";
+  import LaunchBatchButton from "../batch/LaunchBatchButton.svelte";
   import type { AgentAdjust } from "./sheet/useAgentAdjust.svelte";
   import type { AgentListItem } from "$lib/types";
   import {
@@ -258,6 +259,7 @@
       {/if}
       <ExportAgent name={agent.name} disabled={busy || updating} />
       <AdjustActions {adjust} />
+      <LaunchBatchButton agent={agent.name} />
       <Button
         variant="outline"
         size="sm"
