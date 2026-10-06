@@ -70,7 +70,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.stt_metal", // Metal
   "settings.tools_page.bash_executor_title", // Bash
   "settings.tools_page.python_executor_title", // Python
-  "tasks.tech_agent_id", // Agent ID
   "tools.body.exit_code", // exit {code}
   "tools.body.progress_fraction", // {done} / {total}
   "tools.body.url_label", // URL
@@ -243,8 +242,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.stt_microphone", // Microphone
   "settings.system_version", // Version
   "settings.tool_config.field.timeout_secs", // Timeout (s)
-  "tasks.col_agent", // Agent
-  "tasks.tab_trace", // Trace
   "tools.body.content_type_label", // Type
   "tools.body.http_status_info", // Information
   "tools.body.http_status_redirect", // Redirection

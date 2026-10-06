@@ -56,7 +56,6 @@
   const ROUTE_ALLOWLIST: Record<string, { route: Route }> = {
     "/dashboard": { route: "dashboard" },
     "/agents": { route: "agents" },
-    "/tasks": { route: "tasks" },
     "/chat": { route: "chat" },
     "/automations": { route: "automations" },
     "/automations?wizard=open": { route: "automations" },

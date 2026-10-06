@@ -65,7 +65,6 @@ describe("sidebar and breadcrumb name every common route identically", () => {
       "memory",
       "observability",
       "settings",
-      "tasks",
       "transcriptions",
     ]);
   });

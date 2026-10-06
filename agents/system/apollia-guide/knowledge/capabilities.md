@@ -69,7 +69,6 @@ Use only these routes in an action block:
 - `/dashboard`: what is running and what needs you.
 - `/chat`: talk with Apollia or with an agent.
 - `/agents`: the agents, their cards, installing a package.
-- `/tasks`: the tasks agents ran, with their results.
 - `/inbox`: the approvals and questions waiting for you.
 - `/automations`: schedules, intervals, file watches and webhooks.
 - `/integrations`: MCP servers and connected accounts.

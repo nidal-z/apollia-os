@@ -69,6 +69,13 @@ export const SHORTCUTS: ShortcutEntry[] = [
     category: "global",
   },
   {
+    id: "chat.new_conversation",
+    combo: { mac: "⌘+T", win: "Ctrl+T" },
+    descriptionKey: "settings.shortcuts.items.chat_new_conversation",
+    scope: "global",
+    category: "global",
+  },
+  {
     id: "app.quit",
     combo: { mac: "⌘+Q", win: "Ctrl+Q" },
     descriptionKey: "settings.shortcuts.items.app_quit",

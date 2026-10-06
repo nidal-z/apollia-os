@@ -14,7 +14,6 @@ import { t } from "svelte-i18n";
 import {
   LayoutDashboard,
   Bot,
-  ListChecks,
   MessageSquare,
   ShieldCheck,
   Plug,
@@ -25,7 +24,6 @@ import {
   Activity,
   Settings as SettingsIcon,
   Mic,
-  Plus,
   Moon,
   Terminal,
   RefreshCcw,
@@ -125,7 +123,6 @@ export function buildPaletteActions(): PaletteAction[] {
     // ── Pages ─────────────────────────────────────────────────────
     nav("nav.dashboard", "dashboard", "nav.dashboard", LayoutDashboard, ["home"]),
     nav("nav.agents", "agents", "nav.agents", Bot, ["assistants", "bots"]),
-    nav("nav.tasks", "tasks", "nav.tasks", ListChecks, ["tasks", "activity"]),
     nav("nav.chat", "chat", "nav.chat", MessageSquare, ["chat", "conversation"]),
     nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),
     nav("nav.integrations", "integrations", "nav.connections", Plug, ["integrations", "mcp"]),
@@ -146,18 +143,6 @@ export function buildPaletteActions(): PaletteAction[] {
       label: tr("chat.new_chat"),
       keywords: ["chat", "new", "conversation", "nouveau"],
       icon: MessageSquare,
-      shortcut: [modKey, "K"],
-      kind: "actions",
-      execute: () => {
-        navigateTo("chat");
-        openNewChatRequested.set(Date.now());
-      },
-    },
-    {
-      id: "tasks.new",
-      label: tr("tasks.create_task_cta"),
-      keywords: ["task", "new", "create", "tâche"],
-      icon: Plus,
       shortcut: [modKey, "T"],
       kind: "actions",
       execute: () => {

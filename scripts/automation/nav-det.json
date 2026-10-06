@@ -22,7 +22,6 @@
     "nav-memory",
     "nav-observability",
     "nav-settings",
-    "nav-tasks",
     "nav-transcriptions",
     "settings-nav-developer"
   ],
@@ -105,15 +104,6 @@
     {
       "kind": "waitFor",
       "testid": "agents-page",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "nav-tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
       "timeoutMs": 8000
     },
     {

@@ -21,8 +21,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::agent_packages::uninstall::uninstall_agent,
         commands::agents::lifecycle::update_agent,
         commands::tasks::list_tasks,
-        commands::tasks::submit_task,
-        commands::tasks::delete_task,
         commands::tasks::get_task_timeline,
         commands::tasks::get_delegation_tree,
         commands::hitl::list_pending_approvals,
@@ -298,8 +296,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::plan_mode::reject_plan,
         commands::plan_mode::list_plan_mutations,
         commands::plan_mode::get_chat_plan,
-        // Tasks
-        commands::tasks::cancel_task,
         // Memory
         commands::memory::maintenance::clear_memory,
         commands::memory::maintenance::purge_memory,

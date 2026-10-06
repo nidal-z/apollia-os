@@ -1,8 +1,8 @@
-// Shared status vocabulary for the Tasks detail surface.
+// Status vocabulary of a run listed on an agent's sheet.
 //
-// Maps the runtime `TaskSummary["status"]` to display concerns (sidebar rail
-// colour, Badge variant, status Lucide icon, i18n key) so the nav row and the
-// detail header stay in lockstep. Colours are token references, never raw palette.
+// Maps the runtime `TaskSummary["status"]` to display concerns (rail colour,
+// Badge variant, status Lucide icon, i18n key). Colours are token references,
+// never raw palette.
 
 import { Activity, CheckCircle, Clock, XCircle, AlertTriangle, Ban } from "lucide-svelte";
 import type { Icon } from "lucide-svelte";
