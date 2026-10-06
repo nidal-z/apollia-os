@@ -10,6 +10,8 @@
 #   Track 2 - RUNTIME (gated APOLLIA_REQUIRE_RUNTIME=1): daemon booted on a
 #     seeded HOME, so status/list surfaces return seeded state; plus CRUD and
 #     the runtime-only leaves.
+#     It ends on a second daemon and a second seeded HOME, where a package
+#     holding an agent and a workflow is installed, run and uninstalled.
 #   Track 3 - LLM CAPTURE (gated APOLLIA_REQUIRE_RUNTIME=1 + a real model):
 #     non-deterministic commands (run --stream, chat REPL, llm chat, do,
 #     explain). Asserts STRUCTURE only (exit, streaming, timing); the full
@@ -336,6 +338,44 @@ if [[ "$REQUIRE_RUNTIME" == "1" ]]; then
         printf '%s\n' "$seed_err" >&2
         CURRENT_TRACK="runtime"
         _record_fail "seed build (Track 2)" "$seed_err"
+    fi
+
+    # Track 2, packaged agent and workflow. A daemon of its own, on its own
+    # seeded HOME, started once the daemon above has stopped: two daemons at
+    # once cannot be told apart on Windows, where the pipe is named after the
+    # user and not after --socket. It is started twice, because the runtime
+    # hands the workflows of the installed packages to its engine when it
+    # starts: the package is installed under the first, and run under the
+    # second. No model is wired on this HOME, so neither boot loads one.
+    echo
+    echo "$(bold "═══ Track 2 - RUNTIME (packaged agent and workflow) ═══")"
+    CURRENT_TRACK="runtime"
+    SEED_PKG="$RUN_TMP/seed-packaged"
+    if seed_err=$(build_seed_home "$SEED_PKG" 2>&1); then
+        use_profile "$SEED_PKG"
+        for PACKAGED_PHASE in install run; do
+            "$BIN" start --socket "$SOCK" --port 0 >"$RUN_TMP/daemon-packaged-$PACKAGED_PHASE.log" 2>&1 &
+            DAEMON_PID=$!
+            if wait_for_socket "$SOCK" 30; then
+                _pass "daemon started + socket ready ($PACKAGED_PHASE)" "pid=$DAEMON_PID"
+                # shellcheck source=tracks/track2_packaged.sh
+                source "$TRACK_DIR/track2_packaged.sh"
+                "$BIN" --socket "$SOCK" stop >/dev/null 2>&1 || true
+                # The next start binds the same socket: wait for this process
+                # to be gone rather than for the stop command to return.
+                wait "$DAEMON_PID" 2>/dev/null || true
+                DAEMON_PID=""
+            else
+                daemon_tail=$(/usr/bin/tail -30 "$RUN_TMP/daemon-packaged-$PACKAGED_PHASE.log" 2>/dev/null)
+                _record_fail "daemon start ($PACKAGED_PHASE)" "daemon.log (tail): $daemon_tail"
+                echo "--- daemon.log (tail) ---"; printf '%s\n' "$daemon_tail"; echo "--- end ---"
+                break
+            fi
+        done
+        restore_profile
+    else
+        printf '%s\n' "$seed_err" >&2
+        _record_fail "seed build (Track 2, packaged)" "$seed_err"
     fi
 else
     echo

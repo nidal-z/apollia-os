@@ -53,6 +53,7 @@ pub mod package_files;
 pub mod plan_mode;
 pub mod project_migration;
 pub mod recommend;
+pub mod sources;
 pub mod stt;
 pub mod tasks;
 pub mod tool_governance;
