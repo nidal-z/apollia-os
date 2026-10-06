@@ -24,6 +24,9 @@ just desktop-dev-automation-seeded-llama scripts/automation/chat-llm.json ~/.apo
 
 # Destructive suite (disposable seed HOME) needs the opt-in flag:
 APOLLIA_AUTOMATION_ALLOW_DESTRUCTIVE=1 just desktop-dev-automation-seeded scripts/automation/destructive.json
+
+# The first launch, timed, on a blank home (see "The first launch, timed"):
+just desktop-dev-automation-first-run scripts/automation/first-run-llm.json ~/.apollia/models/<model>.gguf
 ```
 
 The recipes swap `HOME` to a throwaway `.apollia-seed-home` (the real `~/.apollia`
@@ -46,6 +49,55 @@ same from one run to the next; the seed's `apollia.toml` pins
 `tool_turn_temperature = 0.0` for the same reason. For a dense model a
 full 131072 KV cache can be heavy; override with `CTX=32768`. The free-chat
 prompt is ~13.5k tokens (the loaded tool surface), so keep a comfortable margin.
+
+## The first launch, timed
+
+`first-run-llm.json` holds the first launch to its promise: from the window to
+the first result of a task in at most five minutes, downloads excluded. It
+plays the seven steps of the first launch (language, AI, embeddings model, who
+I am, first agent, connection, first task) with the example that qualifies
+requests, launches the batch on the demonstration workbook, waits for the
+first row read as succeeded, and fails past 300 seconds.
+
+It does not run under the seeded recipes. The seed holds a backend already
+declared and placeholder model files, so nothing of a first launch would be
+measured there. Its own recipe builds a home with nothing in it but the two
+model files, and removes that home at the start of every run:
+
+```sh
+just desktop-dev-automation-first-run scripts/automation/first-run-llm.json \
+  ~/.apollia/models/<model>.gguf [~/.apollia/models/multilingual-e5-small-q8_0.gguf]
+```
+
+- **The home** is `.apollia-first-run-home` at the root of the checkout,
+  ignored by git. No `onboarding.completed_at`, no `apollia.toml`, no agent.
+- **The two model files are cloned into its models folder**, not linked: the
+  scan of that folder skips a symbolic link, and a hard link would let a write
+  through to the real file. A copy-on-write clone (`cp -c` on APFS,
+  `cp --reflink=auto` on Linux) costs no bytes; on a file system with neither
+  the files are copied, and a large model then takes its time before the run.
+  None of that is counted: the application is not started yet.
+- **The embeddings file must be `multilingual-e5-small-q8_0.gguf`**, under
+  that name. The embeddings step recognises a model by the file name the
+  registry gives it, and the recipe imports that one through a stubbed picker.
+  The recipe refuses before building anything when the file is missing.
+- **The application loads the language model itself**, with the engine it
+  finds, where the `-seeded-llama` recipe starts a `llama-server` beside it.
+  That loading is part of a first launch and is counted. The engine takes a
+  free port of its own, so only 5173 and 7771 have to be free.
+- **The network is in reach.** The recipe does not point the registry at a
+  dead address, and the agent of the example reads public pages while it
+  qualifies. A run without the network measures a failure, not a first launch.
+
+Read the verdict in `.apollia-automation/report.json`: `ok`, and the measure
+under `captures.first_run_ms`, in milliseconds, recorded whether the budget
+held or not. An overrun is a finding about the product, to report with its
+number; the recipe is not where it gets fixed.
+
+What the clock counts is said by its step, `expectElapsed` (see the script
+contract below): the time since the webview started loading the interface.
+What the process does before its window exists is not counted, and neither is
+the compilation `cargo tauri dev` does first.
 
 ## Running it on Linux and Windows
 
@@ -174,6 +226,10 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,
   `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, and `master-llm` (an
   aggregate of chat/hitl/coach, 197 steps).
+- **First launch** (needs `desktop-dev-automation-first-run`, a blank home and
+  two model files): `first-run-llm`, the timed first launch described above.
+  Written against the source and statically validated; its first runtime
+  round is still to come.
 
 The whole corpus was last run green on 2026-07-28 against the redesigned UI:
 14 suites, 3056 steps, 0 failures. The LLM ones ran on
@@ -192,7 +248,8 @@ A script is `{ name, stopOnError?, destructive?, steps: [...] }`. Step kinds
 (see `crates/apollia-desktop/ui/src/lib/automation/types.ts` for the full typed
 contract): `goto`, `waitFor`, `waitGone`, `click`, `fill`, `sendChat`, `expect`,
 `captureText`, `screenshot`, `sleep`, `awaitTurn`, `setChecked`, `selectOption`,
-`press`, `stubInvoke`, `clearStubs`, `resizeWindow`, `fault`, `emitEvent`. Targets are an exact
+`press`, `stubInvoke`, `clearStubs`, `clearToasts`, `resizeWindow`, `fault`, `emitEvent`,
+`expectElapsed`. Targets are an exact
 `testid` or a `testidPrefix` (+ optional `nth`, negative counts from the end).
 `awaitTurn` drives a chat/agent turn to completion and auto-accepts HITL cards;
 `sendChat` targets the chat composer (`chat-input`).
@@ -201,7 +258,7 @@ read that fragment before the step passes, which is how a recipe waits for a
 count or a status to change (the topbar's agents-at-work chip going back to
 `1 agent`) instead of sleeping for a guessed duration.
 
-Five kinds act on the harness rather than on the DOM:
+Six kinds act on the harness rather than on the DOM:
 
 - **`stubInvoke { command, resolve? | reject? | patch?, once?, argsMatch? }`**
   answers one Tauri command from the script. Every webview call, the
@@ -246,6 +303,16 @@ Five kinds act on the harness rather than on the DOM:
   product cannot produce on demand (a consent card on a seeded session, which
   only a live tool call raises). The payload imitates a backend type and
   the script's `notes` name it, for the same drift reason as a `stubInvoke`.
+
+- **`expectElapsed { maxMs, as }`** holds a duration to a budget. It reads the
+  time elapsed since the webview started loading the interface
+  (`performance.now()`), fails when it exceeds `maxMs`, and records the
+  measure, in milliseconds, under `captures[as]` of the report whichever way
+  the verdict falls. Place it right after the wait that closes what is being
+  timed, and keep screenshots after it: a window capture costs about a second
+  on macOS and would be counted. The clock starts with the window, so the
+  boot of the process before it and the compilation are outside the measure,
+  and a reload of the webview starts it again.
 
 Two more substitutions concern file inputs, whose chooser is served by wry as
 a modal `NSOpenPanel` that would freeze the boot: a `fill` on an

@@ -228,6 +228,24 @@ export interface ClearToastsStep {
   kind: "clearToasts";
 }
 
+/**
+ * Hold the time elapsed since the launch to a budget.
+ *
+ * The clock starts when the webview starts loading the interface, which is
+ * the launch as a recipe can observe it: what the process does before its
+ * window exists is not counted, and neither is a compilation. The step fails
+ * past `maxMs`, and records the measure in the report either way, in
+ * milliseconds, under `captures[as]`. Place it right after the wait that
+ * closes the promise being measured.
+ */
+export interface ExpectElapsedStep {
+  kind: "expectElapsed";
+  /** Budget in milliseconds; the step fails when the elapsed time exceeds it. */
+  maxMs: number;
+  /** Key under which the measured milliseconds are recorded in the report. */
+  as: string;
+}
+
 export type Step =
   | GotoStep
   | WaitForStep
@@ -246,6 +264,7 @@ export type Step =
   | StubInvokeStep
   | ClearStubsStep
   | ClearToastsStep
+  | ExpectElapsedStep
   | ResizeWindowStep
   | FaultStep
   | EmitEventStep;

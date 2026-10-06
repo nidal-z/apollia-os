@@ -182,6 +182,7 @@ sdk/build/
 
 # Throwaway seeded data ecosystem for automation verification (build-seed.sh)
 .apollia-seed-home/
+.apollia-first-run-home/
 
 # CLI E2E suite report output (regenerated each run)
 tests/cli/report/

@@ -1,0 +1,297 @@
+{
+  "name": "first-run-llm (the first launch, from the window to the first result of a task, held to five minutes)",
+  "stopOnError": true,
+  "notes": [
+    "Played by `just desktop-dev-automation-first-run`, never by the seeded recipes: it needs a home no launch has touched, with a language model and the embeddings model multilingual-e5-small-q8_0.gguf already in its models folder. The seeded home holds placeholder model files and a backend already declared, so the AI step would wire nothing.",
+    "What is measured: the time from the moment the window starts loading the interface to the first row of the batch read as succeeded, model loading included, downloads excluded since both model files are there before the launch. The budget is 300000 ms (expectElapsed); the measure is in captures.first_run_ms of the report, whichever way the verdict falls. The wait for the first result allows ten minutes so that an overrun is measured rather than cut at the budget.",
+    "No screenshot comes before the measure: a window capture costs about a second on macOS and would be counted. The only pause counted is the 800 ms between the opening turn of the conversation and the first answer, without which the answer can reach a session still marked busy.",
+    "The seven steps: the language (onboarding-lang-en); the AI (the largest GGUF of the models folder, first row of the scan, wired by a click); the embeddings model (imported from the models folder through the file picker, answered by a once stub of plugin:dialog|open: a source already in that folder is not copied); who I am (the opening turn of the agent, one real answer, then onboarding-skip-optional, since every question is optional, and the review saved); the first agent (the example qualify-requests, third of the list because the examples are embedded in the order of their folder names, installed through the preview every package gets); the connection (the example requires a browser connection the selection does not offer, so its line is read and the step continued); the first task (the demonstration dataset copied into the throwaway home, its reference folder kept as a source, the batch launched on the copied workbook).",
+    "The batch is launched without granting anything: the example declares reading accesses only (web_search, web_read, source_search). It reads public pages, so the run needs the network, which is why the first-run recipe does not point the registry at a dead address.",
+    "Nothing here is stubbed but the file picker. A step that fails stops the run: the steps after it would only wait out their timeouts on a modal that did not move."
+  ],
+  "dynamicTestids": [
+    "batch-tab-all",
+    "batch-tab-completed",
+    "first-agent-card-example",
+    "onboarding-lang-en"
+  ],
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-welcome"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-step-count",
+      "contains": "1 of 7"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-lang-en"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-welcome-cta"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-model-list",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "llm-model-row",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-success",
+      "timeoutMs": 300000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-embeddings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-import",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/multilingual-e5-small-q8_0.gguf",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-import"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-ready",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-continue"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-chat-step"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-chat-banner",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 300000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "sendChat",
+      "text": "My name is Ada. I am a programme officer at a regional fund, and I qualify the grant requests that associations send us."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip-optional"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-profile-review",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-review-save",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-first-agent",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-card-example"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-examples",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-example",
+      "nth": 2
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-example-install"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "package-preview-title",
+      "contains": "qualify-requests",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "package-preview-install",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "package-preview-dialog",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-kept",
+      "contains": "Qualify requests",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-continue"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-connection",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-subtitle",
+      "contains": "Qualify requests"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-line"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-continue"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-dialog",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "fill",
+      "testid": "example-trial-destination",
+      "text": "${HOME}/first-run-example"
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-copy"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-copied",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-launch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-source-chosen",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-confirm",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-page",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-tab-completed",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-item",
+      "timeoutMs": 600000
+    },
+    {
+      "kind": "expectElapsed",
+      "maxMs": 300000,
+      "as": "first_run_ms"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-first-result"
+    },
+    {
+      "kind": "captureText",
+      "testid": "batch-item-output",
+      "nth": 0,
+      "as": "first_result"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-tab-all"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-batch-at-work"
+    }
+  ]
+}
