@@ -4,7 +4,12 @@ import {
   tryQuestions,
   type TryConnectorPromptDeps,
 } from "./tryConnectorPrompt";
-import type { ChatSessionSummary, Connection, TryExample } from "$lib/types";
+import type {
+  ChatSessionSummary,
+  Connection,
+  CreateSessionRequest,
+  TryExample,
+} from "$lib/types";
 
 const SESSION: ChatSessionSummary = {
   id: "sess-1",
@@ -40,6 +45,7 @@ const FOLDER = connection("folder:f1", ["file_read", "file_list"], { kind: "fold
 interface Recorder {
   deps: TryConnectorPromptDeps;
   createdWith: string[][];
+  requests: CreateSessionRequest[];
   sent: Array<[string, string]>;
   named: Array<[string, string]>;
   remembered: string[];
@@ -50,6 +56,7 @@ interface Recorder {
 function recorder(overrides: Partial<TryConnectorPromptDeps> = {}): Recorder {
   const r: Recorder = {
     createdWith: [],
+    requests: [],
     sent: [],
     named: [],
     remembered: [],
@@ -59,8 +66,9 @@ function recorder(overrides: Partial<TryConnectorPromptDeps> = {}): Recorder {
   };
   r.deps = {
     loadConnections: async () => ({ status: "ready", connections: [GOOGLE, NOTION, FOLDER] }),
-    createSession: async (tools) => {
-      r.createdWith.push(tools);
+    createSession: async (request) => {
+      r.requests.push(request);
+      r.createdWith.push(request.tools ?? []);
       return SESSION;
     },
     sendMessage: async (id, prompt) => {
@@ -94,6 +102,13 @@ describe("tryConnectorPrompt", () => {
     // THEN the session is limited to those tools, the prompt is sent and the route changes
     expect(ok).toBe(true);
     expect(r.createdWith).toEqual([["mcp:notion/search", "mcp:notion/fetch"]]);
+    expect(r.requests).toEqual([
+      {
+        mode: "libre",
+        tools: ["mcp:notion/search", "mcp:notion/fetch"],
+        limited_to_tools: true,
+      },
+    ]);
     expect(r.sent).toEqual([["sess-1", "List my databases"]]);
     expect(r.named).toEqual([["sess-1", "List my databases"]]);
     expect(r.remembered).toEqual(["sess-1"]);

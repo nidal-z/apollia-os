@@ -6,7 +6,10 @@
  * carries examples, a general question about what the connection allows
  * otherwise, or types their own. Trying it opens a conversation with Apollia
  * limited to the tools of that connection, read from the connection list,
- * sends the question, and routes to that conversation. Nothing is sent, and
+ * sends the question, and routes to that conversation. The limit is asked of
+ * the runtime when the conversation is created: nothing else Apollia holds is
+ * offered there, and a tool of the connection Apollia does not hold asks
+ * before each call. Nothing is sent, and
  * the operator stays where they were, when the connection is gone, exposes no
  * tool, or the session cannot be created: they are told why instead of
  * landing on an empty chat.
@@ -16,13 +19,18 @@
  * out of reach of every guard.
  */
 import type { ConnectionListState } from "$lib/connections/connectionList";
-import type { ChatSessionSummary, Connection, TryExample } from "$lib/types";
+import type {
+  ChatSessionSummary,
+  Connection,
+  CreateSessionRequest,
+  TryExample,
+} from "$lib/types";
 
 export interface TryConnectorPromptDeps {
   /** The connection list, by its loader. */
   loadConnections: () => Promise<ConnectionListState>;
-  /** Creates a conversation with Apollia limited to `tools`. Rejects when the backend refused it. */
-  createSession: (tools: string[]) => Promise<ChatSessionSummary>;
+  /** Creates the conversation `request` describes. Rejects when the backend refused it. */
+  createSession: (request: CreateSessionRequest) => Promise<ChatSessionSummary>;
   /** Sends the prompt as the opening message of the session. */
   sendMessage: (sessionId: string, prompt: string) => Promise<unknown>;
   /** Starts naming the session from its opening prompt. */
@@ -71,7 +79,7 @@ export async function tryConnectorPrompt(
       deps.report(new Error(deps.noToolsMessage));
       return false;
     }
-    session = await deps.createSession(tools);
+    session = await deps.createSession({ mode: "libre", tools, limited_to_tools: true });
   } catch (err) {
     deps.report(err);
     return false;

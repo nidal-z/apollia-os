@@ -12,7 +12,9 @@
 //! the mission of the agent and never replace it. An access switched off is
 //! taken out of the agent's list for the conversation; an access the agent
 //! does not hold may be proposed for it, and each of its calls then asks.
-//! Neither writes a rule nor a consent.
+//! A conversation may also be limited to a list of accesses: of what the
+//! agent holds only they are kept, and the others of the list are proposed.
+//! None of the three writes a rule or a consent.
 //!
 //! The model of the conversation, its profile and the profile switch of the
 //! built-in assistant are columns of their own and are not settings.
@@ -25,7 +27,8 @@ use serde::{Deserialize, Serialize};
 /// Longest notes a conversation keeps, in characters.
 pub const SESSION_NOTES_MAX_CHARS: usize = 20_000;
 
-/// Most accesses a conversation switches off, and most it proposes.
+/// Most accesses a conversation switches off, most it proposes, and most it
+/// is limited to.
 pub const SESSION_ACCESSES_MAX: usize = 256;
 
 /// What a conversation does when it reaches the context limit of its model.
@@ -86,6 +89,12 @@ pub struct SessionSettings {
     /// the model may call them and each call asks for consent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub proposed_accesses: Vec<String>,
+    /// Accesses the conversation is limited to. When the list is not empty,
+    /// of the accesses of the agent only those it names are kept, and those
+    /// it names that the agent does not hold are proposed: each of their
+    /// calls asks for consent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub only_accesses: Vec<String>,
     /// For an installed agent, whether it may read the user profile in this
     /// conversation, whatever its own profile source says. Left out, the
     /// source of the agent decides. The profile is read by a tool and never
@@ -142,6 +151,7 @@ impl SessionSettings {
         }
         self.disabled_accesses = checked_accesses(self.disabled_accesses)?;
         self.proposed_accesses = checked_accesses(self.proposed_accesses)?;
+        self.only_accesses = checked_accesses(self.only_accesses)?;
         Ok(self)
     }
 
@@ -185,11 +195,20 @@ impl SessionSettings {
         self.context_overflow.unwrap_or_default().into()
     }
 
-    /// `accesses` with the proposed ones added and the switched-off ones
+    /// Whether the conversation is limited to a list of accesses.
+    pub fn is_limited(&self) -> bool {
+        !self.only_accesses.is_empty()
+    }
+
+    /// `accesses` cut down to the list the conversation is limited to when
+    /// it has one, with the proposed ones added and the switched-off ones
     /// taken out. A proposed access already held is not repeated; switching
     /// off wins over proposing.
     pub fn apply_to_accesses(&self, mut accesses: Vec<String>) -> Vec<String> {
-        for proposed in &self.proposed_accesses {
+        if self.is_limited() {
+            accesses.retain(|name| self.only_accesses.contains(name));
+        }
+        for proposed in self.only_accesses.iter().chain(&self.proposed_accesses) {
             if !accesses.contains(proposed) {
                 accesses.push(proposed.clone());
             }
@@ -198,14 +217,16 @@ impl SessionSettings {
         accesses
     }
 
-    /// The proposed accesses the agent does not hold in `granted`: those
-    /// whose every call asks.
+    /// The accesses the conversation proposes, or is limited to, that the
+    /// agent does not hold in `granted`: those whose every call asks.
     pub fn proposed_beyond(&self, granted: &[String]) -> Vec<String> {
-        self.proposed_accesses
-            .iter()
-            .filter(|proposed| !granted.contains(proposed))
-            .cloned()
-            .collect()
+        let mut beyond: Vec<String> = Vec::new();
+        for proposed in self.only_accesses.iter().chain(&self.proposed_accesses) {
+            if !granted.contains(proposed) && !beyond.contains(proposed) {
+                beyond.push(proposed.clone());
+            }
+        }
+        beyond
     }
 
     /// Whether an installed agent may read the user profile in this
@@ -338,6 +359,7 @@ mod tests {
             instructions: Some("Answer in one sentence.".into()),
             disabled_accesses: vec!["web_fetch".into()],
             proposed_accesses: vec!["file_write".into()],
+            only_accesses: vec!["mcp:notion/search".into()],
             profile_access: Some(false),
         };
 
@@ -449,6 +471,30 @@ mod tests {
             vec!["file_read".to_string(), "file_write".to_string()]
         );
         assert_eq!(asks, vec!["file_write".to_string()]);
+    }
+
+    #[test]
+    fn test_a_limited_conversation_keeps_its_list_and_asks_for_what_the_agent_does_not_hold() {
+        // GIVEN an agent granted two accesses, and a conversation limited to
+        // one of them and to the tool of a server the agent does not hold
+        let granted = vec!["file_read".to_string(), "web_fetch".to_string()];
+        let settings = SessionSettings {
+            only_accesses: vec!["mcp:notion/search".into(), "file_read".into()],
+            ..SessionSettings::default()
+        };
+
+        // WHEN the settings are applied to the list
+        let offered = settings.apply_to_accesses(granted.clone());
+        let asks = settings.proposed_beyond(&granted);
+
+        // THEN nothing outside the list is left, the access the agent held
+        // is kept as granted, and the other one asks at each call
+        assert!(settings.is_limited());
+        assert_eq!(
+            offered,
+            vec!["file_read".to_string(), "mcp:notion/search".to_string()]
+        );
+        assert_eq!(asks, vec!["mcp:notion/search".to_string()]);
     }
 
     #[test]

@@ -69,6 +69,12 @@ pub struct CreateSessionRequest {
     /// List of tool names available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
+    /// Limit the conversation to `tools`: of the accesses of its agent only
+    /// they are offered, and those the agent does not hold are proposed,
+    /// each of their calls asking for consent. Read back as
+    /// `settings.only_accesses`. Refused when `tools` is empty.
+    #[serde(default)]
+    pub limited_to_tools: bool,
     /// The model of the session: the identifier of a language model of the
     /// model index, `<server>/<model>` for a model of a declared server, or
     /// the name of a backend. Absent keeps the model of the agent.
@@ -197,16 +203,19 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
         Some(model) => Some(session_route::session_route(&state, model).await),
         None => None,
     };
-    match manager
-        .create_session(crate::chat::manager::CreateSessionParams {
-            mode,
-            agent_name: body.agent_name,
-            system_prompt: body.system_prompt,
-            tools: body.tools,
-            model,
-        })
-        .await
-    {
+    let params = crate::chat::manager::CreateSessionParams {
+        mode,
+        agent_name: body.agent_name,
+        system_prompt: body.system_prompt,
+        tools: body.tools,
+        model,
+    };
+    let created = if body.limited_to_tools {
+        manager.create_limited_session(params).await
+    } else {
+        manager.create_session(params).await
+    };
+    match created {
         Ok(info) => (StatusCode::CREATED, Json(info)).into_response(),
         Err(e) => chat_error_to_response(e).into_response(),
     }

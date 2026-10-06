@@ -459,7 +459,7 @@
     tryLaunching = true;
     const opened = await tryConnectorPrompt(connectionId, prompt, {
       loadConnections: () => loadConnections(),
-      createSession: (tools) => createChatSession({ mode: "libre", tools }),
+      createSession: createChatSession,
       sendMessage: sendChatMessage,
       nameSession: triggerAutoName,
       rememberSession: (sessionId) => pendingChatSessionId.set(sessionId),

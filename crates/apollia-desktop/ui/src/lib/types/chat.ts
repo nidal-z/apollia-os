@@ -163,6 +163,9 @@ export interface CreateSessionRequest {
   agent_name?: string;
   system_prompt?: string;
   tools?: string[];
+  /** Limits the conversation to `tools`: nothing else of its agent is
+   * offered, and a tool the agent does not hold asks at each call. */
+  limited_to_tools?: boolean;
   /** The model of the session: the index identifier of a local language
    * model, or `<server>/<model>`. Absent keeps the agent's model. */
   model?: string;

@@ -172,6 +172,7 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
+        limited_to_tools: false,
         model: None,
     };
 
@@ -180,6 +181,39 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
 
     // THEN the daemon's session is returned
     assert_eq!(info.id, "s-new");
+}
+
+#[tokio::test]
+async fn test_a_session_limited_to_its_tools_hands_the_limit_to_the_daemon() {
+    // GIVEN a daemon creating sessions only when the request carries the
+    // tools and says the conversation is limited to them
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sessions"))
+        .and(wiremock::matchers::body_partial_json(serde_json::json!({
+            "mode": "libre",
+            "tools": ["mcp:notion/search"],
+            "limited_to_tools": true
+        })))
+        .respond_with(ResponseTemplate::new(201).set_body_json(session("s-try")))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+    let request = crate::commands::chat::CreateSessionRequest {
+        mode: "libre".to_owned(),
+        agent_name: None,
+        system_prompt: None,
+        tools: vec!["mcp:notion/search".to_owned()],
+        limited_to_tools: true,
+        model: None,
+    };
+
+    // WHEN the attached arm creates the conversation that tries a connection
+    let info = client.create_session(&request).await.unwrap();
+
+    // THEN the daemon received the limit and answered its session
+    assert_eq!(info.id, "s-try");
 }
 
 #[tokio::test]
@@ -202,6 +236,7 @@ async fn test_a_session_created_with_a_model_hands_the_model_to_the_daemon() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
+        limited_to_tools: false,
         model: Some("Qwen3-4B-Q4_K_M.gguf".to_owned()),
     };
 
