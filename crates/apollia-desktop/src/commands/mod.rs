@@ -12,6 +12,7 @@ pub mod agent_export;
 pub mod agent_packages;
 pub mod agent_sheet;
 pub mod agents;
+pub mod ai_model_detail;
 pub mod ai_models;
 pub mod artifacts;
 pub mod authorizations;

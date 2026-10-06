@@ -10,12 +10,28 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { ModelSource, ResolvedAgent } from "$lib/ipc/agentSheet";
 
+/** The request settings of a preset, by the keys the routes carry. */
+export interface PresetRequestSettings {
+  temperature?: number;
+  max_tokens?: number;
+  stop?: string[];
+  top_k?: number;
+  top_p?: number;
+  min_p?: number;
+  repeat_penalty?: number;
+  presence_penalty?: number;
+  json_schema?: unknown;
+}
+
 /** A preset of a model, as `GET /api/v1/llm/presets` lists it. */
 export interface ModelPreset {
   id: number;
   name: string;
   model_source: ModelSource;
   model_id: string;
+  /** Load settings, by the keys the local engine reads. */
+  load: Record<string, unknown>;
+  request: PresetRequestSettings;
   is_model_default: boolean;
 }
 

@@ -33,10 +33,13 @@
     onunload: (model: LoadedModel) => void;
     /** Called with the model and whether it is to be kept in memory. */
     onpin: (model: LoadedModel, pinned: boolean) => void;
+    /** Opens the panel of a loaded model. */
+    onopen: (model: LoadedModel) => void;
     onretry: () => void;
   }
 
-  let { view, error, unloading, pins, pinning, onunload, onpin, onretry }: Props = $props();
+  let { view, error, unloading, pins, pinning, onunload, onpin, onopen, onretry }: Props =
+    $props();
 
   const lang = $derived($locale ?? "fr");
   const models = $derived(view?.models ?? []);
@@ -123,9 +126,14 @@
               {/if}
             </div>
             <div class="flex items-center gap-2">
-              <span class="truncate text-sm font-medium text-foreground" data-testid="ai-loaded-name">
+              <button
+                type="button"
+                class="truncate rounded-sm text-left text-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                onclick={() => onopen(item)}
+                data-testid="ai-loaded-name"
+              >
                 {item.modelId ?? item.model}
-              </span>
+              </button>
               {#each capabilitiesOf(item.capabilities) as capability (capability)}
                 <CapabilityIcon {capability} />
               {/each}

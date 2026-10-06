@@ -3,7 +3,8 @@
    * The detail sidebar: a collapsible column beside the screen, on the side
    * opposite the navigation bar (the right unless Appearance says otherwise), that
    * carries the contextual tabs of the current screen (the entry the journal
-   * shows more of, the item a batch shows the detail of), the Guide tab last and on every screen. Opened and collapsed from the top bar, by Cmd+/ (Ctrl+/
+   * shows more of, the item a batch shows the detail of, the model the AI
+   * screen opens the panel of), the Guide tab last and on every screen. Opened and collapsed from the top bar, by Cmd+/ (Ctrl+/
    * elsewhere) on the Guide tab, and from its own collapse icon. Under the
    * `md` breakpoint it covers the window so the guide stays usable. While the
    * onboarding veil is shown it rises above it, with the top bar.
@@ -24,9 +25,11 @@
   } from "$lib/stores/detailSidebar";
   import { journalSelection } from "$lib/stores/journalSelection";
   import { batchItemSelection } from "$lib/stores/batchView";
+  import { aiModelSelection } from "$lib/stores/aiModelPanel";
   import GuideTab from "../../../components/companion/GuideTab.svelte";
   import JournalEntryTab from "../../../components/journal/JournalEntryTab.svelte";
   import BatchItemTab from "../../../components/batch/view/BatchItemTab.svelte";
+  import ModelPanel from "../../../components/ai/ModelPanel.svelte";
 
   const fullscreen = $derived($sidebarState === "drawer");
   const side = $derived(navSide($navPosition));
@@ -35,17 +38,23 @@
   const entryOffered = $derived($journalSelection !== null);
   // The view of a batch offers its own while one of its items is open.
   const itemOffered = $derived($batchItemSelection !== null);
-  const activeTab = $derived(shownTab($detailSidebar.tab, entryOffered, itemOffered));
+  // The AI screen offers its own while the panel of one of its models is open.
+  const modelOffered = $derived($aiModelSelection !== null);
+  const activeTab = $derived(
+    shownTab($detailSidebar.tab, entryOffered, itemOffered, modelOffered),
+  );
 
   const tabs = $derived([
     ...(entryOffered ? [{ key: "entry", label: $t("journal.tab_entry") }] : []),
     ...(itemOffered ? [{ key: "item", label: $t("batch_view.item.tab") }] : []),
+    ...(modelOffered ? [{ key: "model", label: $t("ai.panel.sidebar_tab") }] : []),
     { key: "guide", label: $t("detailSidebar.tab_guide") },
   ]);
 
   function showTab(key: string): void {
     if (key === "entry") detailSidebar.openEntry();
     else if (key === "item") detailSidebar.openItem();
+    else if (key === "model") detailSidebar.openModel();
     else detailSidebar.openGuide();
   }
 </script>
@@ -93,6 +102,8 @@
         <JournalEntryTab />
       {:else if activeTab === "item"}
         <BatchItemTab />
+      {:else if activeTab === "model"}
+        <ModelPanel />
       {:else}
         <GuideTab />
       {/if}

@@ -2,6 +2,7 @@
   "name": "master-det (per-page deterministic suite, one boot, no model) [SCAN cap=3000ms]",
   "stopOnError": false,
   "dynamicTestids": [
+    "ai-capability-tools",
     "ai-category-all",
     "ai-category-draft",
     "ai-discover-category-embeddings",
@@ -12,6 +13,30 @@
     "ai-model-menu-pin",
     "ai-model-menu-reveal",
     "ai-model-menu-source",
+    "ai-panel-dev-type-draft",
+    "ai-panel-dev-type-none",
+    "ai-panel-inference-field-max_tokens",
+    "ai-panel-inference-field-min_p",
+    "ai-panel-inference-field-stop",
+    "ai-panel-inference-field-temperature",
+    "ai-panel-inference-field-top_k",
+    "ai-panel-inference-section-sampling",
+    "ai-panel-inference-section-sampling-toggle",
+    "ai-panel-inference-section-settings",
+    "ai-panel-inference-section-settings-toggle",
+    "ai-panel-inference-section-structured",
+    "ai-panel-inference-section-structured-toggle",
+    "ai-panel-load-field-flash_attn",
+    "ai-panel-load-field-n_ctx",
+    "ai-panel-load-field-n_gpu_layers",
+    "ai-panel-load-field-seed",
+    "ai-panel-load-help",
+    "ai-panel-load-section-advanced",
+    "ai-panel-load-section-advanced-toggle",
+    "ai-panel-load-section-context",
+    "ai-panel-load-section-context-toggle",
+    "ai-panel-tab-inference",
+    "ai-panel-tab-load",
     "appearance-message-style-block",
     "appearance-message-style-bubble",
     "approval-card-file_write",
@@ -17507,6 +17532,384 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "ai-model-settings-btn",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "detail-sidebar",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-name",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-use-in-chat"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-load-btn",
+      "contains": "Load"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-tabbar"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-info",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-info-row",
+      "nth": 0,
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-info-row",
+      "nth": 1,
+      "contains": "Phi-3-mini-Q4.gguf"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-info-row",
+      "nth": 2,
+      "contains": "GGUF"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-info-row",
+      "nth": 6,
+      "contains": "Language models"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-info-row",
+      "nth": 7,
+      "contains": "GB"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-identifier",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-copy-id"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-dev-type",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-dev-source",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b-model-panel-info (developer mode off)"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-tab-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-presets"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-preset-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-preset-set-default"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-load-section-context"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-load-section-advanced"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-load-field-n_ctx",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-load-field-seed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03c-model-panel-loading-folded"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-load-section-context-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-load-field-n_ctx",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-load-field-n_gpu_layers"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-load-section-advanced-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-load-field-seed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-load-field-flash_attn",
+      "contains": "Auto"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-load-help",
+      "nth": 0
+    },
+    {
+      "kind": "screenshot",
+      "label": "03d-model-panel-loading-unfolded"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-load-section-context-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-load-field-n_ctx",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-load-section-advanced-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-load-field-seed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-tab-inference",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-inference",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-inference-section-settings"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-inference-section-sampling"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-inference-section-structured"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-inference-field-temperature",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-structured-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-inference-section-settings-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-inference-field-temperature",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-inference-field-max_tokens"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-inference-field-stop"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-inference-section-sampling-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-inference-field-top_k",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-inference-field-min_p"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-inference-section-structured-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-structured-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-structured-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-structured-schema",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-structured-help",
+      "contains": "JSON Schema"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03e-model-panel-inference-unfolded"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-inference-section-structured-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-structured-schema",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-inference-section-sampling-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-inference-field-top_k",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-inference-section-settings-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-inference-field-temperature",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-preset-save-as",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-preset-name",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-preset-name-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-preset-name-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-preset-name-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-preset-name",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-row",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "goto",
       "route": "settings"
     },
@@ -17625,6 +18028,116 @@
       "testid": "ai-loaded-kept"
     },
     {
+      "kind": "click",
+      "testid": "ai-loaded-name",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-load-btn",
+      "contains": "Unload"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-dev-type",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-dev-source"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-dev-type-none",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-dev-type-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-dev-type-none",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-dev-type-draft"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_installed_model_category_override",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-dev-type-draft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "clearStubs",
+      "command": "set_installed_model_category_override"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-dev-source-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-dev-source-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-dev-source-enable"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-model-panel-developer-sections"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-dev-type-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-dev-type-none",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-dev-source-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-dev-source-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "clearStubs",
       "command": "list_loaded_models"
     },
@@ -17635,6 +18148,194 @@
     {
       "kind": "screenshot",
       "label": "04-ai-screen-developer-mode"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_installed_models",
+      "resolve": [
+        {
+          "id": "Qwen3-4B-MLX-4bit",
+          "path": "${HOME}/.apollia/models/Qwen3-4B-MLX-4bit",
+          "name": "Qwen3-4B-MLX-4bit",
+          "size_bytes": 2500000000,
+          "kind": "llm",
+          "format": "mlx",
+          "category": "language",
+          "parameters": "4B",
+          "modified_at": null,
+          "pinned_at": null,
+          "origin_verified": true,
+          "in_use": false,
+          "used_by": null,
+          "capabilities": {
+            "tools": true,
+            "reasoning": true,
+            "vision": false
+          },
+          "source_url": null,
+          "embedding_entry": null,
+          "default_chat": false,
+          "default_search": false
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_installed_model_detail",
+      "resolve": {
+        "id": "Qwen3-4B-MLX-4bit",
+        "file": "Qwen3-4B-MLX-4bit",
+        "format": "mlx",
+        "quantization": "4bit",
+        "architecture": "qwen3",
+        "detected_category": "language",
+        "category_override": null,
+        "source_file_override": null,
+        "source_candidates": [],
+        "author_fields": [
+          {
+            "name": "enable_thinking",
+            "type": "booleen",
+            "default": true,
+            "explanation": "The model thinks before it answers.",
+            "source": "https://huggingface.co/Qwen/Qwen3-4B/blob/main/tokenizer_config.json"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_model_presets",
+      "resolve": []
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-row",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-info-row",
+      "nth": 2,
+      "contains": "MLX"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-info-row",
+      "nth": 3,
+      "contains": "4bit"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-info-row",
+      "nth": 4,
+      "contains": "qwen3"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-capability-tools",
+      "nth": -1
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-tab-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-load-none",
+      "timeoutMs": 3000,
+      "contains": "No configurable parameters"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-load-section-context",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-model-panel-mlx-no-load-setting (stubbed list_installed_models)"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-tab-inference",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-author-fields",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-author-name",
+      "contains": "enable_thinking"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-author-default",
+      "contains": "on"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-author-explanation",
+      "contains": "thinks before it answers"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04d-model-panel-author-fields (stubbed get_installed_model_detail)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_installed_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_installed_model_detail"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_model_presets"
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
     },
     {
       "kind": "stubInvoke",

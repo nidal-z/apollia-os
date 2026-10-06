@@ -20,6 +20,7 @@
  */
 export const IDENTICAL_BY_NATURE: string[] = [
   "ai.installed.group", // {label} · {count}
+  "ai.panel.inference.structured.placeholder", // { "type": "object", "properties": {} }
   "authorizations.apollia_name", // Apollia
   "chat.generation.seconds", // {value} s
   "connections.capabilities.group_gdocs", // Google Docs
@@ -78,6 +79,10 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "ai.category.embeddings", // Embeddings
   "ai.installed.col_actions", // Actions
   "ai.kind.embeddings", // Embeddings
+  "ai.panel.auto", // Auto
+  "ai.panel.info.architecture", // Architecture
+  "ai.panel.info.format", // Format
+  "ai.panel.preset.label", // Preset
   "a11y.actions_menu", // Actions
   "agent_adjust.grant_group_agents", // Agents
   "agent_adjust.grant_group_workflows", // Workflows
@@ -131,6 +136,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.mcp_settings.transport", // Transport
   "connections.mailbox.port_label", // Port
   "detailSidebar.tab_guide", // Guide
+  "dev.ai.panel.type.embeddings.label", // Embeddings
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention

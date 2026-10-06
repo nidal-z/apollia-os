@@ -4969,6 +4969,38 @@
           "invalid_json_object": "Type a JSON object, between braces.",
           "reserved_field": "The fields model, messages, stream, stream_options, tools and tool_choice cannot be added here."
         }
+      },
+      "panel": {
+        "type": {
+          "title": "Model type",
+          "hint": "Corrects the category Apollia files this model under.",
+          "none": {
+            "label": "No override",
+            "explanation": "Apollia files this model by what its file declares."
+          },
+          "language": {
+            "label": "Language model",
+            "explanation": "The model answers in conversations and makes the agents work."
+          },
+          "embeddings": {
+            "label": "Embeddings",
+            "explanation": "The model serves search by meaning in the sources and the memory. It does not converse."
+          },
+          "dictation": {
+            "label": "Dictation",
+            "explanation": "The model transcribes voice into text."
+          },
+          "draft": {
+            "label": "Draft",
+            "explanation": "A small model of the same family as a larger one, used to speed up its answers."
+          }
+        },
+        "source": {
+          "title": "Source file",
+          "hint": "Loads another weights file of this same model, already on this computer, in place of the indexed file.",
+          "enable": "Enable override",
+          "empty": "No other weights file of this model is on this computer."
+        }
       }
     },
     "developer": {
@@ -5300,6 +5332,210 @@
         "message": "This variant weighs {size} GB, while this computer can give a model about {capacity} GB. It may fail to load. The recommended variant, when there is one, is the one that fits.",
         "message_unknown": "This variant weighs {size} GB and exceeds the memory this computer can give a model. It may fail to load.",
         "confirm": "Download anyway"
+      }
+    },
+    "panel": {
+      "sidebar_tab": "Model",
+      "open": "Model settings",
+      "open_named": "Settings of {name}",
+      "auto": "Auto",
+      "on": "On",
+      "off": "Off",
+      "tab": {
+        "info": "Info",
+        "load": "Loading",
+        "inference": "Inference"
+      },
+      "head": {
+        "use_in_chat": "Use in a new conversation",
+        "load": "Load",
+        "reason_embeddings": "This model serves search by meaning: it does not converse and loads by itself.",
+        "reason_dictation": "This model serves dictation: it does not converse and loads by itself."
+      },
+      "info": {
+        "model": "Model",
+        "file": "File",
+        "format": "Format",
+        "quantization": "Quantization",
+        "architecture": "Architecture",
+        "capabilities": "Capabilities",
+        "domain": "Domain",
+        "size": "Size on disk",
+        "unknown": "Not stated",
+        "no_capability": "None known",
+        "usage_title": "Identifier",
+        "usage_hint": "The name an agent or a request names this model by."
+      },
+      "preset": {
+        "label": "Preset",
+        "none": "No preset: everything is automatic",
+        "default_explanation": "This preset applies to this model when no other is chosen.",
+        "save_as": "Save as a preset",
+        "save": "Save changes",
+        "set_default": "Set as default for this model",
+        "name_label": "Preset name",
+        "name_placeholder": "Preset name",
+        "save_confirm": "Save",
+        "error_name_empty": "Give the preset a name.",
+        "error_name_taken": "This model already has a preset of that name.",
+        "saved": "Preset \"{name}\" saved.",
+        "default_set": "\"{name}\" is now the default preset of this model.",
+        "invalid": "A setting cannot be read. Correct it, then save again.",
+        "load_settings_refused": "Load settings are not saved to a preset while \"Load settings in presets\" is off (Settings, Developer)."
+      },
+      "error": {
+        "integer": "Enter a whole number.",
+        "number": "Enter a number.",
+        "range": "This value is outside the accepted limits.",
+        "choice": "Choose one of the values offered.",
+        "schema_json": "This text is not valid JSON.",
+        "schema_object": "Enter a JSON Schema, between braces."
+      },
+      "load": {
+        "none": "No configurable parameters",
+        "readonly": "Everything is automatic. To fix these settings in a preset, turn on \"Load settings in presets\" (Settings, Developer). For one load only, go through \"Load\".",
+        "relaunch_warning": "This model is in memory: it will be relaunched to take these load settings.",
+        "section": {
+          "context": "Context and offload",
+          "advanced": "Advanced"
+        },
+        "field": {
+          "n_ctx": {
+            "label": "Context length",
+            "help": "The number of tokens the model keeps in mind in one request. The larger it is, the more memory it takes."
+          },
+          "n_gpu_layers": {
+            "label": "GPU offload",
+            "help": "The number of layers of the model placed on the graphics card. -1 places them all."
+          },
+          "n_threads": {
+            "label": "CPU thread pool size",
+            "help": "The number of processor threads used for computation."
+          },
+          "n_batch": {
+            "label": "Evaluation batch size",
+            "help": "The number of tokens evaluated at once when the prompt is read."
+          },
+          "n_ubatch": {
+            "label": "Physical batch size",
+            "help": "The number of tokens the engine really processes in one pass."
+          },
+          "n_parallel": {
+            "label": "Max concurrency",
+            "help": "The number of requests the model serves at the same time. Each takes its share of the context."
+          },
+          "kv_unified": {
+            "label": "Unified context cache",
+            "help": "One context cache shared by every concurrent request, instead of a fixed share each."
+          },
+          "ctx_checkpoints": {
+            "label": "Context checkpoints",
+            "help": "The number of checkpoints kept per request, to avoid reading a long context all over again."
+          },
+          "reasoning_budget": {
+            "label": "Reasoning budget",
+            "help": "The number of tokens the model may spend thinking. -1 does not limit it, 0 keeps it from thinking."
+          },
+          "reasoning_budget_message": {
+            "label": "Reasoning budget message",
+            "help": "The text added when the reasoning budget is spent."
+          },
+          "rope_freq_base": {
+            "label": "RoPE frequency base",
+            "help": "The base frequency of position encoding. Leave \"Auto\" for the one of the model."
+          },
+          "rope_freq_scale": {
+            "label": "RoPE frequency scale",
+            "help": "The factor applied to the frequency of position encoding. Leave \"Auto\" for the one of the model."
+          },
+          "kv_offload": {
+            "label": "Offload context cache to GPU memory",
+            "help": "Keeps the context cache in the memory of the graphics card. Off, it stays in system memory."
+          },
+          "mlock": {
+            "label": "Keep model in memory",
+            "help": "Keeps the system from moving the model to disk when memory runs short."
+          },
+          "mmap": {
+            "label": "Try mmap()",
+            "help": "The system reads the file of the model as needed instead of loading it whole."
+          },
+          "seed": {
+            "label": "Seed",
+            "help": "The number that fixes the randomness of the engine. Leave \"Auto\" for a random seed."
+          },
+          "chat_template": {
+            "label": "Chat template",
+            "help": "The Jinja template that lays out the messages for the model. Leave \"Auto\" for the one of the model."
+          },
+          "flash_attn": {
+            "label": "Flash attention",
+            "help": "A faster and leaner way to compute attention, when the hardware allows it."
+          },
+          "cache_type_k": {
+            "label": "K cache quantization type",
+            "help": "The precision of the keys of the context cache. Less precise, it takes less memory."
+          },
+          "cache_type_v": {
+            "label": "V cache quantization type",
+            "help": "The precision of the values of the context cache. Less precise, it takes less memory."
+          }
+        }
+      },
+      "inference": {
+        "section": {
+          "settings": "Settings",
+          "sampling": "Sampling",
+          "structured": "Structured output"
+        },
+        "field": {
+          "temperature": {
+            "label": "Temperature",
+            "help": "The share of randomness in the answers. Low, the model is more consistent; high, more varied."
+          },
+          "max_tokens": {
+            "label": "Limit response length",
+            "help": "The number of tokens an answer does not exceed."
+          },
+          "stop": {
+            "label": "Stop strings",
+            "help": "The texts that end the answer as soon as the model writes them. One per line."
+          },
+          "top_k": {
+            "label": "Top K sampling",
+            "help": "The model only chooses among the k most likely words."
+          },
+          "repeat_penalty": {
+            "label": "Repeat penalty",
+            "help": "Discourages the model from repeating words already written. 1 changes nothing."
+          },
+          "presence_penalty": {
+            "label": "Presence penalty",
+            "help": "Encourages the model to bring up what it has not talked about yet."
+          },
+          "top_p": {
+            "label": "Top P sampling",
+            "help": "The model only chooses among the words that gather this share of the probability."
+          },
+          "min_p": {
+            "label": "Min P sampling",
+            "help": "Sets aside the words whose probability is below this share of that of the most likely word."
+          }
+        },
+        "structured": {
+          "label": "Structured output",
+          "help": "Advanced: you can provide a JSON Schema to enforce a particular output format from the model. Read the documentation to learn more.",
+          "schema_label": "JSON Schema",
+          "placeholder": "{ \"type\": \"object\", \"properties\": {} }"
+        },
+        "author": {
+          "title": "Author fields",
+          "hint": "What the author of the model sets by default. Read only: nothing is changed or sent from here.",
+          "default": "Default: {value}",
+          "values": "Values: {values}",
+          "on": "on",
+          "off": "off"
+        }
       }
     }
   },

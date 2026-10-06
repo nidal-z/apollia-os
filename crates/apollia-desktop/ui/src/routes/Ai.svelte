@@ -5,11 +5,11 @@
    *
    * The column also lists the servers: choosing one, or adding one, replaces
    * the models of this computer by that server in the content. "Discover
-   * models" opens the discovery window over the screen. The panel of a model
-   * is not here yet; the management of the engines stays in Settings until
-   * the screen takes them.
+   * models" opens the discovery window over the screen. A click on a model,
+   * loaded or installed, opens its panel in the detail sidebar; the
+   * management of the engines stays in Settings until the screen takes them.
    */
-  import { onMount } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
   import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
@@ -29,6 +29,8 @@
     setEmbeddingsDefault,
     setInstalledModelPinned,
   } from "$lib/ipc/aiModels";
+  import { aiModelSelection, aiModelsChanged } from "$lib/stores/aiModelPanel";
+  import { detailSidebar } from "$lib/stores/detailSidebar";
   import { openExternalUrl } from "$lib/utils/externalLink";
   import { reportError } from "$lib/errors/reportError";
   import { addToast } from "$lib/components/ui/toast";
@@ -37,11 +39,13 @@
   import LoadedModelsSection from "../components/ai/LoadedModelsSection.svelte";
   import InstalledModelsSection from "../components/ai/InstalledModelsSection.svelte";
   import DiscoverWindow from "../components/ai/DiscoverWindow.svelte";
+  import ModelLoadDialog from "../components/chat/ModelLoadDialog.svelte";
   import ServersNav from "../components/ai/ServersNav.svelte";
   import ServersSection from "../components/ai/ServersSection.svelte";
   import type { ServersView } from "../components/ai/servers";
   import { servers } from "../components/ai/serversLive";
   import { unloadErrorKey } from "../components/ai/loadedModels";
+  import { panelSelection } from "../components/ai/modelDetail";
   import {
     CATEGORY_FILTERS,
     categoryCount,
@@ -72,7 +76,47 @@
   /** What the content shows in place of the models of this computer, if anything. */
   let serversView = $state<ServersView | null>(null);
 
+  /** Identifier of the model whose panel is open, if any. */
+  let openId = $state<string | null>(null);
+
   const loadedPaths = $derived(new Set((loaded?.models ?? []).map((m) => m.modelPath)));
+  const panelShown = $derived($detailSidebar.open && $detailSidebar.tab === "model");
+
+  // The panel follows the lists: a model unloaded, renamed by an override or
+  // deleted is read again, and a model that left the list closes its panel.
+  $effect(() => {
+    const selection = panelSelection(installed, loadedPaths, openId);
+    aiModelSelection.set(selection);
+    if (selection === null && openId !== null && installedError === null) {
+      untrack(closePanel);
+    }
+  });
+
+  // The panel changed what the screen lists: both lists are read again.
+  $effect(() => {
+    if ($aiModelsChanged === 0) return;
+    untrack(() => void Promise.all([loadInstalled(), loadLoaded()]));
+  });
+
+  function openPanel(model: InstalledModel): void {
+    serversView = null;
+    openId = model.id;
+    detailSidebar.openModel();
+  }
+
+  /** The panel of a loaded model is the panel of the installed model it is. */
+  function openLoaded(model: LoadedModel): void {
+    const found = installed.find((m) => m.path === model.modelPath);
+    if (found) openPanel(found);
+  }
+
+  function closePanel(): void {
+    openId = null;
+    aiModelSelection.set(null);
+    detailSidebar.closeModel();
+  }
+
+  onDestroy(closePanel);
 
   async function loadInstalled(): Promise<void> {
     try {
@@ -340,6 +384,7 @@
         {pinning}
         onunload={unload}
         onpin={pin}
+        onopen={openLoaded}
         onretry={loadLoaded}
       />
       <InstalledModelsSection
@@ -351,7 +396,9 @@
         {modelsDir}
         error={installedError}
         {importing}
+        openId={panelShown ? openId : null}
         {onselect}
+        onopen={openPanel}
         onimport={importFile}
         ondiscover={discover}
         onrevealfolder={revealFolder}
@@ -367,6 +414,8 @@
   onclose={() => (discovering = false)}
   ondownloaded={() => void loadInstalled()}
 />
+
+<ModelLoadDialog />
 
 <ConfirmDialog
   open={searchTarget !== null}

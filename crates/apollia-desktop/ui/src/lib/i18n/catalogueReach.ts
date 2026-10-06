@@ -225,6 +225,16 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "lib/utils/bashDescriber.ts",
   },
   {
+    pattern: new RegExp(
+      `^ai\\.panel\\.((load|inference)\\.(field\\.${SEG}\\.(label|help)|section\\.${SEG})|info\\.${SEG})$`,
+    ),
+    builtBy: "components/ai/modelDetail.ts, components/ai/Model{Load,Inference}Tab.svelte",
+  },
+  {
+    pattern: new RegExp(`^dev\\.ai\\.panel\\.type\\.${SEG}\\.(label|explanation)$`),
+    builtBy: "components/ai/modelDetail.ts",
+  },
+  {
     pattern: new RegExp(`^transcriptions\\.source_${SEG}$`),
     builtBy: "components/stt/TranscriptCard.svelte",
   },

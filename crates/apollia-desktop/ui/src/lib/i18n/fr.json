@@ -4969,6 +4969,38 @@
           "invalid_json_object": "Saisissez un objet JSON, entre accolades.",
           "reserved_field": "Les champs model, messages, stream, stream_options, tools et tool_choice ne peuvent pas être ajoutés ici."
         }
+      },
+      "panel": {
+        "type": {
+          "title": "Type du modèle",
+          "hint": "Corrige la catégorie dans laquelle Apollia range ce modèle.",
+          "none": {
+            "label": "Aucune surcharge",
+            "explanation": "Apollia range ce modèle d'après ce que son fichier déclare."
+          },
+          "language": {
+            "label": "Modèle de langage",
+            "explanation": "Le modèle répond dans les conversations et fait travailler les agents."
+          },
+          "embeddings": {
+            "label": "Embeddings",
+            "explanation": "Le modèle sert à chercher par le sens dans les sources et la mémoire. Il ne converse pas."
+          },
+          "dictation": {
+            "label": "Dictée",
+            "explanation": "Le modèle transcrit la voix en texte."
+          },
+          "draft": {
+            "label": "Brouillon",
+            "explanation": "Un petit modèle de la même famille qu'un plus grand, employé pour accélérer ses réponses."
+          }
+        },
+        "source": {
+          "title": "Fichier source",
+          "hint": "Charge un autre fichier de poids de ce même modèle, déjà présent sur ce poste, à la place du fichier indexé.",
+          "enable": "Activer la surcharge",
+          "empty": "Aucun autre fichier de poids de ce modèle n'est présent sur ce poste."
+        }
       }
     },
     "developer": {
@@ -5300,6 +5332,210 @@
         "message": "Cette variante pèse {size} Go, alors que ce poste peut donner environ {capacity} Go à un modèle. Elle risque de ne pas se charger. La variante recommandée, quand il y en a une, est celle qui tient.",
         "message_unknown": "Cette variante pèse {size} Go et dépasse la mémoire que ce poste peut donner à un modèle. Elle risque de ne pas se charger.",
         "confirm": "Télécharger quand même"
+      }
+    },
+    "panel": {
+      "sidebar_tab": "Modèle",
+      "open": "Réglages du modèle",
+      "open_named": "Réglages de {name}",
+      "auto": "Auto",
+      "on": "Activé",
+      "off": "Désactivé",
+      "tab": {
+        "info": "Infos",
+        "load": "Chargement",
+        "inference": "Inférence"
+      },
+      "head": {
+        "use_in_chat": "Utiliser dans une nouvelle conversation",
+        "load": "Charger",
+        "reason_embeddings": "Ce modèle sert à la recherche par le sens : il ne converse pas et se charge de lui-même.",
+        "reason_dictation": "Ce modèle sert à la dictée : il ne converse pas et se charge de lui-même."
+      },
+      "info": {
+        "model": "Modèle",
+        "file": "Fichier",
+        "format": "Format",
+        "quantization": "Quantification",
+        "architecture": "Architecture",
+        "capabilities": "Capacités",
+        "domain": "Domaine",
+        "size": "Taille sur disque",
+        "unknown": "Non renseigné",
+        "no_capability": "Aucune connue",
+        "usage_title": "Identifiant",
+        "usage_hint": "Le nom par lequel un agent ou une requête désigne ce modèle."
+      },
+      "preset": {
+        "label": "Preset",
+        "none": "Aucun preset : tout est automatique",
+        "default_explanation": "Ce preset s'applique à ce modèle quand aucun autre n'est choisi.",
+        "save_as": "Enregistrer comme preset",
+        "save": "Enregistrer les modifications",
+        "set_default": "Définir par défaut pour ce modèle",
+        "name_label": "Nom du preset",
+        "name_placeholder": "Nom du preset",
+        "save_confirm": "Enregistrer",
+        "error_name_empty": "Donnez un nom au preset.",
+        "error_name_taken": "Ce modèle a déjà un preset de ce nom.",
+        "saved": "Preset « {name} » enregistré.",
+        "default_set": "« {name} » est désormais le preset par défaut de ce modèle.",
+        "invalid": "Un réglage ne peut pas être lu. Corrigez-le, puis enregistrez de nouveau.",
+        "load_settings_refused": "Les réglages de chargement ne sont pas enregistrés dans un preset tant que le réglage « Réglages de chargement dans les presets » est éteint (Réglages, Développeur)."
+      },
+      "error": {
+        "integer": "Saisissez un nombre entier.",
+        "number": "Saisissez un nombre.",
+        "range": "Cette valeur sort des limites acceptées.",
+        "choice": "Choisissez une des valeurs proposées.",
+        "schema_json": "Ce texte n'est pas du JSON valide.",
+        "schema_object": "Saisissez un schéma JSON, entre accolades."
+      },
+      "load": {
+        "none": "Aucun réglage configurable",
+        "readonly": "Tout est automatique. Pour fixer ces réglages dans un preset, allumez « Réglages de chargement dans les presets » (Réglages, Développeur). Pour un seul chargement, passez par « Charger ».",
+        "relaunch_warning": "Ce modèle est en mémoire : il sera relancé pour prendre ces réglages de chargement.",
+        "section": {
+          "context": "Contexte et déchargement",
+          "advanced": "Avancé"
+        },
+        "field": {
+          "n_ctx": {
+            "label": "Longueur de contexte",
+            "help": "Le nombre de jetons que le modèle garde en tête dans une requête. Plus il est grand, plus il faut de mémoire."
+          },
+          "n_gpu_layers": {
+            "label": "Déchargement GPU",
+            "help": "Le nombre de couches du modèle placées sur la carte graphique. -1 les place toutes."
+          },
+          "n_threads": {
+            "label": "Fils de calcul du processeur",
+            "help": "Le nombre de fils du processeur employés pour le calcul."
+          },
+          "n_batch": {
+            "label": "Taille du lot d'évaluation",
+            "help": "Le nombre de jetons évalués d'un coup à la lecture du prompt."
+          },
+          "n_ubatch": {
+            "label": "Taille du lot physique",
+            "help": "Le nombre de jetons que le moteur traite réellement en une passe."
+          },
+          "n_parallel": {
+            "label": "Requêtes simultanées",
+            "help": "Le nombre de requêtes que le modèle sert en même temps. Chacune prend sa part du contexte."
+          },
+          "kv_unified": {
+            "label": "Cache de contexte unifié",
+            "help": "Un seul cache de contexte partagé par toutes les requêtes simultanées, au lieu d'une part fixe chacune."
+          },
+          "ctx_checkpoints": {
+            "label": "Points de reprise du contexte",
+            "help": "Le nombre de points de reprise gardés par requête, pour éviter de relire tout un long contexte."
+          },
+          "reasoning_budget": {
+            "label": "Budget de raisonnement",
+            "help": "Le nombre de jetons que le modèle peut employer à réfléchir. -1 ne le limite pas, 0 l'empêche de réfléchir."
+          },
+          "reasoning_budget_message": {
+            "label": "Message de fin de budget de raisonnement",
+            "help": "Le texte ajouté quand le budget de raisonnement est épuisé."
+          },
+          "rope_freq_base": {
+            "label": "Fréquence de base RoPE",
+            "help": "La fréquence de base du codage des positions. Laissez « Auto » pour celle du modèle."
+          },
+          "rope_freq_scale": {
+            "label": "Échelle de fréquence RoPE",
+            "help": "Le facteur appliqué à la fréquence du codage des positions. Laissez « Auto » pour celui du modèle."
+          },
+          "kv_offload": {
+            "label": "Cache de contexte sur la carte graphique",
+            "help": "Garde le cache de contexte dans la mémoire de la carte graphique. Désactivé, il reste en mémoire vive."
+          },
+          "mlock": {
+            "label": "Garder le modèle en mémoire vive",
+            "help": "Empêche le système de déplacer le modèle sur le disque quand la mémoire manque."
+          },
+          "mmap": {
+            "label": "Lire le fichier à la demande",
+            "help": "Le système lit le fichier du modèle au fur et à mesure au lieu de le charger en entier."
+          },
+          "seed": {
+            "label": "Graine",
+            "help": "Le nombre qui fixe le hasard du moteur. Laissez « Auto » pour une graine aléatoire."
+          },
+          "chat_template": {
+            "label": "Gabarit de conversation",
+            "help": "Le gabarit Jinja qui met en forme les messages pour le modèle. Laissez « Auto » pour celui du modèle."
+          },
+          "flash_attn": {
+            "label": "Attention rapide",
+            "help": "Une façon plus rapide et plus économe de calculer l'attention, quand le matériel la permet."
+          },
+          "cache_type_k": {
+            "label": "Quantification du cache K",
+            "help": "La précision des clés du cache de contexte. Moins précise, elle prend moins de mémoire."
+          },
+          "cache_type_v": {
+            "label": "Quantification du cache V",
+            "help": "La précision des valeurs du cache de contexte. Moins précise, elle prend moins de mémoire."
+          }
+        }
+      },
+      "inference": {
+        "section": {
+          "settings": "Réglages",
+          "sampling": "Échantillonnage",
+          "structured": "Sortie structurée"
+        },
+        "field": {
+          "temperature": {
+            "label": "Température",
+            "help": "La part de hasard dans les réponses. Basse, le modèle est plus constant ; haute, plus varié."
+          },
+          "max_tokens": {
+            "label": "Limite de longueur de réponse",
+            "help": "Le nombre de jetons qu'une réponse ne dépasse pas."
+          },
+          "stop": {
+            "label": "Chaînes d'arrêt",
+            "help": "Les textes qui mettent fin à la réponse dès que le modèle les écrit. Une par ligne."
+          },
+          "top_k": {
+            "label": "Top-k",
+            "help": "Le modèle ne choisit que parmi les k mots les plus probables."
+          },
+          "repeat_penalty": {
+            "label": "Pénalité de répétition",
+            "help": "Décourage le modèle de répéter les mots déjà écrits. 1 ne change rien."
+          },
+          "presence_penalty": {
+            "label": "Pénalité de présence",
+            "help": "Encourage le modèle à aborder ce dont il n'a pas encore parlé."
+          },
+          "top_p": {
+            "label": "Top-p",
+            "help": "Le modèle ne choisit que parmi les mots qui rassemblent cette part de la probabilité."
+          },
+          "min_p": {
+            "label": "Min-p",
+            "help": "Écarte les mots dont la probabilité est inférieure à cette part de celle du mot le plus probable."
+          }
+        },
+        "structured": {
+          "label": "Sortie structurée",
+          "help": "Avancé : vous pouvez fournir un schéma JSON pour imposer un format de sortie au modèle. Lisez la documentation pour en savoir plus.",
+          "schema_label": "Schéma JSON",
+          "placeholder": "{ \"type\": \"object\", \"properties\": {} }"
+        },
+        "author": {
+          "title": "Champs de l'auteur",
+          "hint": "Ce que l'auteur du modèle prévoit par défaut. En lecture seule : rien n'est modifié ni envoyé d'ici.",
+          "default": "Par défaut : {value}",
+          "values": "Valeurs : {values}",
+          "on": "activé",
+          "off": "désactivé"
+        }
       }
     }
   },
