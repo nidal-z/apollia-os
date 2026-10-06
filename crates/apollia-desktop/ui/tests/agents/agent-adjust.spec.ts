@@ -142,7 +142,7 @@ test.describe("agent adjustment", () => {
       .click();
     await page.getByTestId("agent-adjust-grant-confirm").click();
     await page
-      .locator('[data-testid="agent-adjust-source"][data-source="profile"]')
+      .locator('[data-testid="agent-sheet-source"][data-source="profile"]')
       .getByTestId("agent-adjust-source-check")
       .click();
     await expect(page.getByTestId("agent-adjust-pending")).toContainText("3");

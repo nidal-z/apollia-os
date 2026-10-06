@@ -147,6 +147,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_connections",
     "list_imap_providers",
     "remove_folder_connection",
+    // The registry of sources, what an agent may consult once checked, and
+    // where the index of each stands.
+    "add_source",
+    "get_source_index",
+    "list_source_folder_kinds",
+    "list_sources",
+    "remove_source",
     // The report of the migration of the former projects.
     "get_project_migration_report",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.

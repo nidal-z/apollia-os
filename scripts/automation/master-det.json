@@ -162,6 +162,7 @@
     "settings-nav-notifications",
     "settings-nav-profile",
     "settings-nav-stt",
+    "sidebar-connection-folder:automation",
     "sidebar-mcp-automation-stub-mcp",
     "sidebar-mcp-seed-stub",
     "theme-dark",
@@ -4427,6 +4428,38 @@
       "testid": "apollia-chat-pinned"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_sources",
+      "resolve": [
+        {
+          "id": "src-automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "group": null,
+          "reference": "folder:automation",
+          "indexState": "keywords_only",
+          "addedAt": "2026-10-01T08:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_source_index",
+      "resolve": {
+        "id": "src-automation",
+        "indexState": "keywords_only",
+        "documents": 12,
+        "chunks": 40,
+        "skipped": [
+          {
+            "path": "/automation/recording.mov",
+            "sizeBytes": 60000000,
+            "reason": "too_large"
+          }
+        ]
+      }
+    },
+    {
       "kind": "click",
       "testid": "agent-adjust-open",
       "timeoutMs": 2500
@@ -4468,7 +4501,201 @@
       "kind": "click",
       "testidPrefix": "agent-adjust-source-check",
       "timeoutMs": 2500,
+      "nth": -1
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet-source-state",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-status"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-source-skipped",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sheet-source-skipped-list",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-sheet-source-open-ai"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a-apollia-adjust-sources (stubbed registry: one folder searched by keywords only, one file left out)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-source-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-remove-dialog-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": []
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sources-add",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sources-add-menu",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-sources-add-choice",
+      "timeoutMs": 2500,
       "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-source-pick-connections"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-pick-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "folder:automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "account": null,
+          "path": "/automation/folder",
+          "provenance": "custom",
+          "remote": false,
+          "official": false,
+          "state": "connected",
+          "tools": [
+            {
+              "id": "mcp:automation/read_file",
+              "family": "read",
+              "familySource": "server",
+              "prechecked": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sources-add",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-sources-add-menu",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-sources-add-choice",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-pick-candidate",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-source-pick-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-pick-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-adjust-source-check",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-source-grant-reading",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a2-apollia-adjust-source-reading-note (checked folder the agent cannot read)"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-adjust-source-check",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-source-grant-reading",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_source_index"
     },
     {
       "kind": "click",
@@ -11329,6 +11556,157 @@
     {
       "kind": "clearStubs",
       "command": "oauth_set_drive_folder"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "folder:automation",
+          "kind": "folder",
+          "label": "Automation folder",
+          "account": null,
+          "path": "/automation/folder",
+          "provenance": "custom",
+          "remote": false,
+          "official": false,
+          "state": "connected",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-sidebar-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-connection-folder:automation",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_sources",
+      "resolve": [
+        {
+          "id": "src-automation",
+          "kind": "folder",
+          "label": "Automation documents",
+          "group": null,
+          "reference": "folder:automation",
+          "indexState": "ready",
+          "addedAt": "2026-10-01T08:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-folder-remove-source"
+    },
+    {
+      "kind": "screenshot",
+      "label": "47-folder-connection-removal-lists-its-sources"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_folder_connection",
+      "resolve": {
+        "id": "folder:automation",
+        "kind": "folder",
+        "label": "Automation folder",
+        "account": null,
+        "path": "/automation/folder",
+        "provenance": "custom",
+        "remote": false,
+        "official": false,
+        "state": "connected",
+        "tools": []
+      },
+      "argsMatch": {
+        "connectionId": "folder:automation",
+        "confirm": true
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "remove_folder_connection",
+      "reject": "automation: remove_folder_connection was not called with the confirmation the dialog gave"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-folder-remove-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connection-folder-remove-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "remove_folder_connection"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
     },
     {
       "kind": "goto",
