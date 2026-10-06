@@ -18,7 +18,7 @@
 
   /** What a step names: its tool, its step, or nothing more than its kind. */
   function stepName(step: TaskTimelineEvent): string {
-    const named = step as unknown as Record<string, unknown>;
+    const named: Record<string, unknown> = { ...step };
     const name = ["tool_name", "tool", "step_id"].find((key) => typeof named[key] === "string");
     return name === undefined ? "" : (named[name] as string);
   }
