@@ -24,6 +24,7 @@
   import { t } from "svelte-i18n";
   import { slide, fly } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
+  import { chatDebugBlocks } from "$lib/stores/developerSettings";
 
   interface Props {
     message: Pick<ChatMessageView, "id" | "tool_calls" | "metadata">;
@@ -108,8 +109,10 @@
     }
   }
 
+  // The raw data of a step is a debugging block: the developer mode shows
+  // it unless its switch of the experimental settings is off.
   const skin = $derived<"builder" | "operator">(
-    isOperator ? "operator" : "builder",
+    isOperator || !$chatDebugBlocks ? "operator" : "builder",
   );
 </script>
 

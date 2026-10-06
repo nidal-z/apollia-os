@@ -15,7 +15,7 @@
 mod locate;
 mod room;
 
-pub use locate::{locate, MlxLaunch, ENV_ENGINE_DIR, ENV_PYTHON};
+pub use locate::{locate, locate_for_launch, MlxLaunch, ENV_ENGINE_DIR, ENV_PYTHON};
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -195,7 +195,7 @@ impl MlxEngineSupervisor {
         let store_root =
             apollia_core::paths::data_dir().map(|d| crate::engine_store::store_root(&d));
         let choices = crate::engine_store::EngineChoices::read(config_file.as_deref(), &imposed);
-        let launch = locate(
+        let launch = locate_for_launch(
             exe_dir.as_deref(),
             store_root.as_deref(),
             choices.mlx,

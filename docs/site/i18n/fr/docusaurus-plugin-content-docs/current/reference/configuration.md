@@ -101,11 +101,11 @@ avertissement `config.key.retired`.
 | `[hooks]` | Gestionnaires de hooks de cycle de vie (commande ou HTTP). |
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
-| `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
+| `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), la présence de réglages de chargement dans un preset (`preset_load_settings`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
-| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
+| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), `chat_debug_blocks`, `resource_widget`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
 | `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, et `separate_reasoning_content`. |
-| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`, `gguf`, `mlx`, `auto_update`). |
+| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`, `gguf`, `mlx`, `auto_update`, `auto_purge`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
 Les tableaux ci-dessous suivent le registre des clés du moteur, la liste dont
@@ -273,6 +273,7 @@ L'index signé des fiches de modèles, son miroir, le dossier des modèles, et l
 | `models.registry_mirror_url` | chaîne | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Adresse essayée quand l'index ne répond pas ; vide, elle est désactivée. La politique de l'organisation peut l'imposer. |
 | `models.registry_enabled` | booléen | `true` | Lire l'index en ligne des fiches de modèles. La politique de l'organisation peut l'imposer. |
 | `models.dir` | chemin | `""` | Dossier où sont gardés les modèles de langage, leurs projecteurs et les modèles d'embeddings ; vide, il vaut &lt;dossier de données&gt;/models. Le changer ne déplace aucun fichier. La politique de l'organisation peut l'imposer. |
+| `models.preset_load_settings` | booléen | `false` | Permettre de créer ou de modifier un preset avec des réglages de chargement ; éteint, un preset ne prend que des réglages de requête et garde les réglages de chargement qu'il porte. La politique de l'organisation peut l'imposer. |
 | `models.import.require_verified` | booléen | `false` | Refuser un fichier de modèle importé qui ne correspond à aucune fiche signée. La politique de l'organisation peut l'imposer. |
 
 ### `[workflows]`
@@ -296,6 +297,8 @@ Réglages de l'application de bureau que le moteur lit.
 | `desktop.update_channel` | l'une de stable, preview | `"stable"` | Canal de mise à jour de l'application : stable reçoit les versions publiées, preview aussi les versions d'essai. La politique de l'organisation peut l'imposer. |
 | `desktop.background_service_allowed` | booléen | `true` | Autoriser l'application à installer le moteur comme service de la session de l'utilisateur. La politique de l'organisation peut l'imposer. |
 | `desktop.chat_auto_naming` | l'une de never, auto, always | `"auto"` | Nommer une nouvelle conversation d'après son premier message : jamais, automatiquement quand le modèle génère assez vite, ou toujours. La politique de l'organisation peut l'imposer. |
+| `desktop.chat_debug_blocks` | booléen | `true` | Mode développeur allumé, montrer les données brutes d'une étape d'outil et la trace détaillée dans une conversation. La politique de l'organisation peut l'imposer. |
+| `desktop.resource_widget` | booléen | `false` | Montrer le processeur, la mémoire et la mémoire vidéo utilisés au pied de la barre latérale. La politique de l'organisation peut l'imposer. |
 
 ### `[server]`
 
@@ -324,6 +327,7 @@ Réglages des moteurs d'inférence locaux.
 | `engines.gguf` | l'une de auto, embedded, cuda, vulkan, cpu, metal | `"auto"` | Moteur qui sert les modèles GGUF : le choix automatique, le moteur livré avec l'application, ou une variante installée par le magasin de moteurs. Une variante qui n'est plus installée retombe sur le choix automatique. Lu au démarrage suivant. La politique de l'organisation peut l'imposer. |
 | `engines.mlx` | l'une de auto, embedded, metal | `"auto"` | Moteur qui sert les modèles MLX sur un Mac à puce Apple : le choix automatique, le moteur livré avec l'application, ou celui installé par le magasin de moteurs. Lu au démarrage suivant. La politique de l'organisation peut l'imposer. |
 | `engines.auto_update` | booléen | `true` | Télécharger et vérifier la mise à jour d'un moteur choisi quand le canal suivi en annonce une ; éteint, la mise à jour est seulement annoncée. La politique de l'organisation peut l'imposer. |
+| `engines.auto_purge` | booléen | `false` | Après la mise à jour d'un moteur, supprimer les versions de sa variante inutilisées depuis le plus longtemps, au-delà de deux ; la version en service et le moteur livré avec l'application ne sont jamais supprimés. La politique de l'organisation peut l'imposer. |
 
 ### `[author]`
 

@@ -101,6 +101,29 @@ pub fn locate(
     choice: EngineChoice,
     env: impl Fn(&str) -> Option<String>,
 ) -> Option<MlxLaunch> {
+    locate_with_site(exe_dir, store_root, choice, env).map(|(launch, _)| launch)
+}
+
+/// [`locate`] for a launcher: an engine of the engine store is recorded as
+/// used now, which is what the automatic purge orders by.
+pub fn locate_for_launch(
+    exe_dir: Option<&Path>,
+    store_root: Option<&Path>,
+    choice: EngineChoice,
+    env: impl Fn(&str) -> Option<String>,
+) -> Option<MlxLaunch> {
+    let (launch, site_packages) = locate_with_site(exe_dir, store_root, choice, env)?;
+    crate::engine_store::purge::mark_used(&site_packages);
+    Some(launch)
+}
+
+/// The engine and the `site-packages` directory it imports from.
+fn locate_with_site(
+    exe_dir: Option<&Path>,
+    store_root: Option<&Path>,
+    choice: EngineChoice,
+    env: impl Fn(&str) -> Option<String>,
+) -> Option<(MlxLaunch, PathBuf)> {
     let bundled_python_roots: Vec<PathBuf> = exe_dir
         .map(|dir| apollia_core::paths::bundled_resource_dirs(dir, "python"))
         .unwrap_or_default();
@@ -142,7 +165,8 @@ pub fn locate(
         site_packages = %site_packages.display(),
         "mlx.engine.located"
     );
-    Some(MlxLaunch::vllm_mlx(python, &site_packages))
+    let launch = MlxLaunch::vllm_mlx(python, &site_packages);
+    Some((launch, site_packages))
 }
 
 #[cfg(test)]

@@ -29,7 +29,7 @@
     traceFor,
     unsubscribeTraceLive,
   } from "$lib/stores/trace";
-  import { developerMode } from "$lib/stores/developerMode";
+  import { chatDebugBlocks } from "$lib/stores/developerSettings";
   import TraceEventCard from "./TraceEventCard.svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
@@ -52,7 +52,7 @@
   }: Props = $props();
 
   const traceState = $derived(traceFor(taskId));
-  const effectiveSkin = $derived<"builder" | "operator">(skin ?? ($developerMode ? "builder" : "operator"));
+  const effectiveSkin = $derived<"builder" | "operator">(skin ?? ($chatDebugBlocks ? "builder" : "operator"));
 
   /**
    * Pair started ↔ completed/denied events.

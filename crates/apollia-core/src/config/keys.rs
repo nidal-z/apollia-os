@@ -177,6 +177,7 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it.")),
     locked(key("models.registry_enabled", Boolean, Some("true"), Reloadable, "Read the online index of model cards.")),
     locked(key("models.dir", Path, Some("\"\""), Reloadable, "Folder the language models, their projectors and the embedding models are kept in; empty means <data dir>/models. Changing it moves no file.")),
+    locked(key("models.preset_load_settings", Boolean, Some("false"), Reloadable, "Let a preset be created or modified with load settings; off, a preset takes request settings only and keeps the load settings it holds.")),
     locked(key("models.import.require_verified", Boolean, Some("false"), Reloadable, "Refuse an imported model file that matches no signed card.")),
     // [workflows]
     key("workflows.max_steps", Integer, Some("200"), Restart, "Steps a workflow run may take."),
@@ -188,6 +189,8 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("desktop.update_channel", Enum(&["stable", "preview"]), Some("\"stable\""), Reloadable, "Update channel of the application: stable receives the published versions, preview the trial versions as well.")),
     locked(key("desktop.background_service_allowed", Boolean, Some("true"), Reloadable, "Allow the application to install the engine as a service of the user's session.")),
     locked(key("desktop.chat_auto_naming", Enum(&["never", "auto", "always"]), Some("\"auto\""), Reloadable, "Name a new conversation from its first message: never, automatically when the model generates fast enough, or always.")),
+    locked(key("desktop.chat_debug_blocks", Boolean, Some("true"), Reloadable, "With the developer mode on, show the raw data of a tool step and the detailed trace in a conversation.")),
+    locked(key("desktop.resource_widget", Boolean, Some("false"), Reloadable, "Show the processor, the memory and the video memory in use at the foot of the sidebar.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),
@@ -204,6 +207,7 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("engines.gguf", Enum(&["auto", "embedded", "cuda", "vulkan", "cpu", "metal"]), Some("\"auto\""), Restart, "Engine that serves GGUF models: the automatic choice, the engine shipped with the application, or a variant installed by the engine store. A variant no longer installed falls back to the automatic choice. Read at the next start.")),
     locked(key("engines.mlx", Enum(&["auto", "embedded", "metal"]), Some("\"auto\""), Restart, "Engine that serves MLX models on a Mac with Apple Silicon: the automatic choice, the engine shipped with the application, or the one installed by the engine store. Read at the next start.")),
     locked(key("engines.auto_update", Boolean, Some("true"), Reloadable, "Download and verify the update of a chosen engine when the followed channel announces one; off, the update is only announced.")),
+    locked(key("engines.auto_purge", Boolean, Some("false"), Reloadable, "After an update of an engine, delete the builds of its variant left unused the longest, beyond two; the build in service and the shipped engine are never deleted.")),
     // [author]
     locked(key("author.name", KeyType::String, Some("\"\""), Reloadable, "Publisher name of the agents exported from this machine; empty asks at export.")),
     // [observability]

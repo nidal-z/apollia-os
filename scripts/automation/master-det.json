@@ -14081,6 +14081,78 @@
       "label": "19-developer-mode-on"
     },
     {
+      "kind": "expect",
+      "testid": "developer-engines"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-log-level-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-channel"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-channel-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-auto-update"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-auto-purge-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-debug-blocks-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-preset-load-settings-help"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-resource-widget-switch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-resource-widget",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "19b-developer-resource-widget"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-resource-widget"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-resource-widget-switch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-resource-widget-switch"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-resource-widget",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "developer-mode-off"
     },

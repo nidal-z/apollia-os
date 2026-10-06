@@ -46,6 +46,11 @@ pub struct EnginesConfig {
     /// update is only announced.
     #[serde(default = "default_auto_update")]
     pub auto_update: bool,
+    /// Whether, after an update of an engine, the builds of its variant left
+    /// unused the longest are deleted beyond two. Off by default. The build in
+    /// service and the engine shipped with the application are never deleted.
+    #[serde(default)]
+    pub auto_purge: bool,
 }
 
 const fn default_auto_update() -> bool {
@@ -59,6 +64,7 @@ impl Default for EnginesConfig {
             gguf: EngineChoice::default(),
             mlx: EngineChoice::default(),
             auto_update: default_auto_update(),
+            auto_purge: false,
         }
     }
 }

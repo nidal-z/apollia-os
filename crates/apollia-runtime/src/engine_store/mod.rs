@@ -54,7 +54,8 @@
 //!
 //! Which engine serves each model format is a setting of `apollia.toml`
 //! ([`selection`]), and so is the automatic update of the chosen engines
-//! ([`auto_update`]).
+//! ([`auto_update`]), and the builds an update leaves behind can be deleted
+//! on their own ([`purge`]).
 //!
 //! Under `<data_dir>/engines/`:
 //!
@@ -76,6 +77,7 @@ mod fetch;
 mod installed;
 mod manifest;
 pub mod node;
+pub mod purge;
 pub mod selection;
 mod settings;
 pub mod version;

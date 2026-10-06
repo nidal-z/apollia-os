@@ -86,6 +86,14 @@ pub(super) fn locate_llama_server_binary(
     )))
 }
 
+/// The binary a launcher takes under `choice`. A build of the engine store is
+/// recorded as used now, which is what the automatic purge orders by.
+pub(super) fn locate_for_launch(choice: EngineChoice) -> Result<PathBuf, LlamaServerError> {
+    let path = locate_llama_server_binary(choice)?;
+    crate::engine_store::purge::mark_used(&path);
+    Ok(path)
+}
+
 /// The `llama-server` binary the runtime starts under `choice`, or `None`
 /// when none is in reach: what the engine list marks as in service.
 pub(crate) fn in_service_binary(choice: EngineChoice) -> Option<PathBuf> {

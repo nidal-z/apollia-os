@@ -73,6 +73,10 @@
   } from "$lib/stores/chat";
   import { runningTasks, tasksRunningCount } from "$lib/stores/tasks";
   import { developerMode } from "$lib/stores/developerMode";
+  import { resourceWidgetVisible } from "$lib/stores/developerSettings";
+  import { whileShown } from "$lib/settings/resourceMonitor";
+  import { openSettingsWindow } from "$lib/stores/settingsWindow";
+  import ResourceWidget from "./ResourceWidget.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Plug, Settings, X, Plus, User } from "lucide-svelte";
 
@@ -85,6 +89,16 @@
   ];
 
   const isDrawer = $derived($sidebarState === "drawer");
+
+  // The consumption widget reads the monitor of System > Hardware, and only
+  // while it is shown: hidden, the subscription is dropped and nothing is
+  // measured for it.
+  const widgetUsage = whileShown(resourceWidgetVisible);
+
+  function openResourceMonitor() {
+    openSettingsWindow("hardware");
+    if (isDrawer) layoutActions.closeDrawer();
+  }
 
   const approvalsCount = $derived(
     $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount,
@@ -268,6 +282,12 @@
           {/each}
         </div>
       {/if}
+
+      {#if $resourceWidgetVisible}
+        <div class="border-t border-border/60 p-3">
+          <ResourceWidget usage={$widgetUsage} onopen={openResourceMonitor} />
+        </div>
+      {/if}
     </div>
   {/if}
 {:else}
@@ -382,6 +402,10 @@
           </div>
         {/each}
       </div>
+    {/if}
+
+    {#if $resourceWidgetVisible}
+      <ResourceWidget usage={$widgetUsage} compact onopen={openResourceMonitor} />
     {/if}
 
     <!-- User avatar -->

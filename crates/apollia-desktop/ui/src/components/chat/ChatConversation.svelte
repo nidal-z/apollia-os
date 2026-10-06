@@ -15,7 +15,7 @@
     getPendingChatApprovalForSession,
     getPendingUserInputForSession, removePendingUserInput,
   } from "$lib/stores/chat";
-  import { developerMode } from "$lib/stores/developerMode";
+  import { chatDebugBlocks } from "$lib/stores/developerSettings";
   import { planModeDefault } from "$lib/stores/planModeSetting";
   import { setPlanMode } from "$lib/ipc/planMode";
   import type {
@@ -248,7 +248,7 @@
 
   /** Reasoning skin for the live timeline (mirrors the finalized sequence). */
   const liveSkin = $derived<"builder" | "operator">(
-    $developerMode ? "builder" : "operator",
+    $chatDebugBlocks ? "builder" : "operator",
   );
 
   // The live chain is rendered in invocation order (no dedup): each tool call

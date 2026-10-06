@@ -47,3 +47,34 @@ export function createResourceMonitor(
 
 /** The measurement every surface reads. */
 export const resourceUsage = createResourceMonitor();
+
+/**
+ * `monitor` read only while `shown` is true.
+ *
+ * The returned store subscribes to the monitor when `shown` turns true and
+ * unsubscribes when it turns false, so a hidden surface stops the reads the
+ * same way a closed screen does: the monitor measures only while it has a
+ * subscriber. Hidden, the store holds `null`.
+ */
+export function whileShown(
+  shown: Readable<boolean>,
+  monitor: Readable<ResourceUsage | null> = resourceUsage,
+): Readable<ResourceUsage | null> {
+  return readable<ResourceUsage | null>(null, (set) => {
+    let stop: (() => void) | null = null;
+    const stopWatching = shown.subscribe((visible) => {
+      if (visible && stop === null) {
+        stop = monitor.subscribe(set);
+      } else if (!visible && stop !== null) {
+        stop();
+        stop = null;
+        set(null);
+      }
+    });
+    return () => {
+      stopWatching();
+      stop?.();
+      stop = null;
+    };
+  });
+}
