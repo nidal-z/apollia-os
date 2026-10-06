@@ -207,7 +207,17 @@
     "policy": "Politique de l'organisation",
     "library": "Bibliothèque",
     "authorizations": "Autorisations",
-    "journal": "Journal"
+    "journal": "Journal",
+    "resource_widget": {
+      "open": "Ouvrir le moniteur",
+      "aria": "Consommation du poste, ouvrir le moniteur de ressources",
+      "cpu": "Processeur",
+      "ram": "Mémoire",
+      "vram": "Mémoire GPU",
+      "vram_unified": "Unifiée",
+      "vram_unmeasured": "Non mesurée",
+      "measuring": "Mesure en cours…"
+    }
   },
   "sidebar": {},
   "topbar": {
@@ -3021,7 +3031,14 @@
         "level_warning": "Avertissement",
         "level_info": "Information",
         "level_debug": "Débogage (défaut)",
-        "write_failed": "Le niveau de journal du moteur n'a pas pu être enregistré."
+        "write_failed": "Le niveau de journal du moteur n'a pas pu être enregistré.",
+        "channel_label": "Canal des moteurs",
+        "channel_hint": "Canal des mises à jour des moteurs d'inférence. Même réglage que dans Système > Moteurs.",
+        "channel_failed": "Le canal des moteurs n'a pas pu être changé : {reason}",
+        "auto_update_hint": "Même réglage que dans Système > Moteurs.",
+        "auto_purge_label": "Supprimer automatiquement les moteurs les moins utilisés",
+        "auto_purge_hint": "Après une mise à jour, garde deux versions par moteur ; jamais le moteur actif ni celui livré avec Apollia.",
+        "setting_write_failed": "Le réglage des moteurs n'a pas pu être enregistré."
       },
       "service": {
         "title": "Service sans interface",
@@ -3069,6 +3086,15 @@
       },
       "experimental": {
         "title": "Expérimental",
+        "debug_blocks_label": "Blocs de débogage dans le chat",
+        "debug_blocks_hint": "Montre les données brutes et la trace détaillée des étapes ; éteint, elles sont masquées sans quitter le mode développeur.",
+        "resource_widget_label": "Widget de consommation",
+        "resource_widget_hint": "Affiche le processeur, la mémoire et la mémoire GPU au pied de la barre latérale ; un clic ouvre le moniteur de Système.",
+        "preset_load_label": "Réglages de chargement dans les presets",
+        "preset_load_hint": "Éteint, un preset enregistré depuis l'onglet Paramètres ne garde que les réglages de requête.",
+        "preset_load_help": "Allumé, un preset enregistre aussi les réglages de chargement du modèle (taille du contexte, couches sur le GPU). Éteint, ceux qu'un preset porte déjà sont conservés.",
+        "preset_load_help_label": "À propos des réglages de chargement dans les presets",
+        "write_failed": "Le réglage n'a pas pu être enregistré.",
         "separate_reasoning_label": "Séparer reasoning_content et content dans les réponses de l'API",
         "separate_reasoning_hint": "Pour les modèles qui réfléchissent avant de répondre : le raisonnement arrive dans reasoning_content, à part de la réponse. Éteint, il revient en tête de content, entre les balises think, pour une application qui ne lit que content."
       }

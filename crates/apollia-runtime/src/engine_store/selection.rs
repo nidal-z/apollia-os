@@ -20,6 +20,8 @@ pub const GGUF_ENGINE_SETTING: &str = "engines.gguf";
 pub const MLX_ENGINE_SETTING: &str = "engines.mlx";
 /// The dotted key of the automatic update of the chosen engines.
 pub const AUTO_UPDATE_SETTING: &str = "engines.auto_update";
+/// The dotted key of the automatic removal of the builds used the least.
+pub const AUTO_PURGE_SETTING: &str = "engines.auto_purge";
 
 /// The engine settings in force.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +32,9 @@ pub struct EngineChoices {
     pub mlx: EngineChoice,
     /// Whether an announced update of a chosen engine is installed unasked.
     pub auto_update: bool,
+    /// Whether an update is followed by the removal of the builds of its
+    /// variant used the least.
+    pub auto_purge: bool,
 }
 
 impl Default for EngineChoices {
@@ -38,6 +43,7 @@ impl Default for EngineChoices {
             gguf: EngineChoice::Auto,
             mlx: EngineChoice::Auto,
             auto_update: true,
+            auto_purge: false,
         }
     }
 }
@@ -80,6 +86,10 @@ impl EngineChoices {
                 .as_ref()
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(defaults.auto_update),
+            auto_purge: value(AUTO_PURGE_SETTING)
+                .as_ref()
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(defaults.auto_purge),
         }
     }
 }
@@ -208,7 +218,7 @@ mod tests {
         // GIVEN a file choosing an engine per format and turning updates off,
         // a file that says nothing of the engines, and no file at all
         let (_a, written) =
-            config("[engines]\ngguf = \"cuda\"\nmlx = \"embedded\"\nauto_update = false\n");
+            config("[engines]\ngguf = \"cuda\"\nmlx = \"embedded\"\nauto_update = false\nauto_purge = true\n");
         let (_b, silent) = config("[desktop]\ndeveloper_mode = true\n");
 
         // WHEN the choices are read
@@ -221,6 +231,8 @@ mod tests {
         assert_eq!(chosen.gguf, EngineChoice::Cuda);
         assert_eq!(chosen.mlx, EngineChoice::Embedded);
         assert!(!chosen.auto_update);
+        assert!(chosen.auto_purge);
+        assert!(!defaults.auto_purge);
         assert_eq!(defaults, EngineChoices::default());
         assert_eq!(no_file, EngineChoices::default());
         assert!(defaults.auto_update);

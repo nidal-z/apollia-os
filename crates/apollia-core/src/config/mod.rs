@@ -129,6 +129,7 @@ pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{
     default_models_dir, models_dir, resolve_models_dir, ModelsConfig, ModelsImportConfig,
     DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL, MODELS_DIR_KEY, MODELS_DIR_NAME,
+    PRESET_LOAD_SETTINGS_KEY,
 };
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;

@@ -6,6 +6,8 @@
 //! path as an install asked by hand: the manifest signature is verified
 //! before any archive is requested, and the archive digest is compared before
 //! anything is extracted. With the setting off, the update is only announced.
+//! When `[engines] auto_purge` is on, an installed update is followed by the
+//! removal of the builds of its variant used the least ([`purge`]).
 //!
 //! A check runs on its own task, at most one per store at a time.
 
@@ -18,6 +20,7 @@ use apollia_core::config::PolicySettings;
 use crate::engine_store::fetch::{install_package, refresh_manifest, updates, VariantUpdate};
 use crate::engine_store::installed::InstalledPackage;
 use crate::engine_store::manifest::{Engine, Variant};
+use crate::engine_store::purge;
 use crate::engine_store::selection::{chosen_variants, EngineChoices};
 use crate::engine_store::settings::EngineStoreSettings;
 use crate::engine_store::{EngineStore, EngineStoreError};
@@ -149,10 +152,10 @@ pub fn spawn(data_dir: &Path, config_file: Option<PathBuf>, imposed: PolicySetti
                     apollia_llm::AcceleratorProfile::Cuda { .. }
                 )
             });
-            Ok::<_, EngineStoreError>((settings, choices.auto_update, chosen))
+            Ok::<_, EngineStoreError>((settings, choices, chosen))
         })
         .await;
-        let (settings, enabled, chosen) = match prepared {
+        let (settings, choices, chosen) = match prepared {
             Ok(Ok(prepared)) => prepared,
             Ok(Err(error)) => {
                 tracing::event!(
@@ -171,12 +174,29 @@ pub fn spawn(data_dir: &Path, config_file: Option<PathBuf>, imposed: PolicySetti
                 return;
             }
         };
-        if let Err(error) = check_and_update(&store, &settings, enabled, &chosen).await {
-            tracing::event!(
-                tracing::Level::WARN,
-                error = %error,
-                "engine_store.update.check_failed"
-            );
+        match check_and_update(&store, &settings, choices.auto_update, &chosen).await {
+            Ok(report) if choices.auto_purge && !report.installed.is_empty() => {
+                let root = store.root.clone();
+                let purged = tokio::task::spawn_blocking(move || {
+                    purge::purge_after_update(&root, true, &report.installed)
+                })
+                .await;
+                if let Err(error) = purged {
+                    tracing::event!(
+                        tracing::Level::WARN,
+                        error = %error,
+                        "engine_store.purge.failed"
+                    );
+                }
+            }
+            Ok(_) => {}
+            Err(error) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    error = %error,
+                    "engine_store.update.check_failed"
+                );
+            }
         }
     });
 }

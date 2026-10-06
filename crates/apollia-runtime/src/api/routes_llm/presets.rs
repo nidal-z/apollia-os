@@ -11,6 +11,11 @@
 //! - `PUT    /api/v1/llm/default-model`        , set the default model
 //!
 //! These routes store; they resolve nothing at call time.
+//!
+//! A preset is written with load settings only while
+//! `[models] preset_load_settings` is on: see [`load_gate`].
+
+mod load_gate;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -28,6 +33,18 @@ use crate::api::routes_llm::servers::{api_err, with_repo, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::governance::{GovernanceHandle, OverrideChange};
+
+/// Whether the settings in force let a preset carry load settings.
+fn load_settings_allowed<B: ExecutionBackend + Clone>(state: &AppState<B>) -> bool {
+    load_gate::load_settings_allowed(
+        state.config_path.as_deref(),
+        &state.inference_governance.imposed_settings(),
+    )
+}
+
+fn refused(error: load_gate::LoadSettingsOff) -> ApiError {
+    api_err(StatusCode::UNPROCESSABLE_ENTITY, error)
+}
 
 /// Who the journal names for a change of an agent's model made through the API.
 const API_ACTOR: &str = "api";
@@ -122,7 +139,7 @@ pub struct CreatePresetRequest {
     pub model_source: ModelSourceDto,
     /// The model the preset is attached to. Fixed once created.
     pub model_id: String,
-    /// Load settings. Never a system prompt.
+    /// Load settings, written only while models.preset_load_settings is on. Never a system prompt.
     #[serde(default)]
     #[schema(value_type = Object)]
     pub load: serde_json::Map<String, serde_json::Value>,
@@ -140,7 +157,7 @@ pub struct CreatePresetRequest {
 pub struct UpdatePresetRequest {
     /// Name, unique among the presets of the model.
     pub name: String,
-    /// Load settings. Never a system prompt.
+    /// Load settings, written only while models.preset_load_settings is on. Never a system prompt.
     #[serde(default)]
     #[schema(value_type = Object)]
     pub load: serde_json::Map<String, serde_json::Value>,
@@ -282,7 +299,7 @@ pub async fn list_llm_presets<B: ExecutionBackend + Clone>(
     responses(
         (status = 201, description = "Preset created", body = PresetResponse),
         (status = 409, description = "The model already has a preset of that name", body = crate::api::openapi::ApiErrorBody),
-        (status = 422, description = "Empty name or model, or a system prompt among the settings", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Empty name or model, a system prompt among the settings, or load settings while models.preset_load_settings is off", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "Backend repository not available", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -290,9 +307,10 @@ pub async fn create_llm_preset<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<CreatePresetRequest>,
 ) -> Result<(StatusCode, Json<PresetResponse>), ApiError> {
+    let allowed = load_settings_allowed(&state);
     let draft = PresetDraft {
         name: req.name,
-        load: req.load,
+        load: load_gate::stored_load_settings(allowed, req.load, None).map_err(refused)?,
         request: req.request,
         is_model_default: req.is_model_default,
     };
@@ -320,7 +338,7 @@ pub async fn create_llm_preset<B: ExecutionBackend + Clone>(
         (status = 200, description = "Preset updated", body = PresetResponse),
         (status = 404, description = "Preset not found", body = crate::api::openapi::ApiErrorBody),
         (status = 409, description = "The model already has a preset of that name", body = crate::api::openapi::ApiErrorBody),
-        (status = 422, description = "Empty name, or a system prompt among the settings", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Empty name, a system prompt among the settings, or other load settings than the ones held while models.preset_load_settings is off", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "Backend repository not available", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -329,13 +347,26 @@ pub async fn update_llm_preset<B: ExecutionBackend + Clone>(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePresetRequest>,
 ) -> Result<Json<PresetResponse>, ApiError> {
-    let draft = PresetDraft {
-        name: req.name,
-        load: req.load,
-        request: req.request,
-        is_model_default: req.is_model_default,
-    };
+    let allowed = load_settings_allowed(&state);
     let preset = with_repo(&state, |repo| {
+        // Off, the load settings the preset holds are the ones kept. An absent
+        // preset is left to the update, which answers that it was not found.
+        let held = if allowed {
+            None
+        } else {
+            repo.find_preset(id).map_err(map_backend_error)?
+        };
+        let load = match held {
+            Some(preset) => load_gate::stored_load_settings(false, req.load, Some(&preset.load))
+                .map_err(refused)?,
+            None => req.load,
+        };
+        let draft = PresetDraft {
+            name: req.name,
+            load,
+            request: req.request,
+            is_model_default: req.is_model_default,
+        };
         repo.update_preset(id, &draft).map_err(map_backend_error)
     })?;
     tracing::event!(tracing::Level::INFO, preset = id, "llm.preset.updated");

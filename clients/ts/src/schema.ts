@@ -7308,7 +7308,7 @@ export interface components {
         CreatePresetRequest: {
             /** @description Make it the default preset of its model (default: `false`). */
             is_model_default?: boolean;
-            /** @description Load settings. Never a system prompt. */
+            /** @description Load settings, written only while models.preset_load_settings is on. Never a system prompt. */
             load?: Record<string, never>;
             /** @description The model the preset is attached to. Fixed once created. */
             model_id: string;
@@ -11418,7 +11418,7 @@ export interface components {
         UpdatePresetRequest: {
             /** @description Make it the default preset of its model (default: `false`). */
             is_model_default?: boolean;
-            /** @description Load settings. Never a system prompt. */
+            /** @description Load settings, written only while models.preset_load_settings is on. Never a system prompt. */
             load?: Record<string, never>;
             /** @description Name, unique among the presets of the model. */
             name: string;
@@ -17484,7 +17484,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description Empty name or model, or a system prompt among the settings */
+            /** @description Empty name or model, a system prompt among the settings, or load settings while models.preset_load_settings is off */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -17547,7 +17547,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description Empty name, or a system prompt among the settings */
+            /** @description Empty name, a system prompt among the settings, or other load settings than the ones held while models.preset_load_settings is off */
             422: {
                 headers: {
                     [name: string]: unknown;

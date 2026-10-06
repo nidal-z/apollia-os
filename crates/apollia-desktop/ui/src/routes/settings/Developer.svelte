@@ -9,8 +9,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { Code, Cpu, Lock } from "lucide-svelte";
-  import { Select } from "$lib/components/ui/select";
+  import { Code, Lock } from "lucide-svelte";
   import {
     developerMode,
     developerModeSource,
@@ -24,32 +23,18 @@
   import BackgroundServiceSection from "../../components/settings/developer/BackgroundServiceSection.svelte";
   import OnDemandLoadingSection from "../../components/settings/developer/OnDemandLoadingSection.svelte";
   import ExperimentalSection from "../../components/settings/developer/ExperimentalSection.svelte";
+  import DeveloperEnginesSection from "../../components/settings/developer/DeveloperEnginesSection.svelte";
   import { onDemandVisible } from "../../components/settings/developer/onDemandLoading";
   import { hydrateServerSettings } from "$lib/stores/serverSettings";
   import { backgroundServiceVisible } from "../../components/settings/developer/backgroundService";
   import { mcpSectionVisible } from "../../components/settings/developer/mcpServer";
-  import {
-    ENGINE_LOG_LEVELS,
-    ENGINE_LOG_LEVEL_LABEL_KEYS,
-    engineLogLevel,
-    engineLogLevelSource,
-    hydrateEngineLogLevel,
-    isEngineLogLevel,
-    setEngineLogLevel,
-  } from "$lib/stores/engineLogLevel";
+  import { hydrateDeveloperSettings } from "$lib/stores/developerSettings";
 
   const locked = $derived($developerModeSource === "policy");
-  const levelLocked = $derived($engineLogLevelSource === "policy");
-
-  async function chooseLevel(value: string) {
-    if (!isEngineLogLevel(value)) return;
-    const written = await setEngineLogLevel(value);
-    if (!written) addToast($t("settings.developer.engines.write_failed"), "error");
-  }
 
   onMount(() => {
-    void hydrateEngineLogLevel();
     void hydrateServerSettings();
+    void hydrateDeveloperSettings();
   });
 
   async function choose(on: boolean) {
@@ -133,48 +118,7 @@
   {/if}
 
   {#if $developerMode}
-    <SettingsSection
-      title={$t("settings.developer.engines.title")}
-      bodyLayout="flush"
-      data-testid="developer-engines"
-    >
-      {#snippet icon()}<Cpu size={15} strokeWidth={1.75} />{/snippet}
-      <SettingsFieldRow
-        label={$t("settings.developer.engines.log_level_label")}
-        hint={$t("settings.developer.engines.log_level_hint")}
-        for="developer-engine-log-level"
-        border={false}
-        data-testid="developer-engine-log-level"
-      >
-        {#snippet control()}
-          <div class="flex flex-col items-end gap-1">
-            <Select
-              id="developer-engine-log-level"
-              size="sm"
-              value={$engineLogLevel}
-              disabled={levelLocked}
-              onchange={(e) => void chooseLevel(e.currentTarget.value)}
-              aria-label={$t("settings.developer.engines.log_level_label")}
-              data-testid="engine-log-level-select"
-            >
-              {#each ENGINE_LOG_LEVELS as level (level)}
-                <option value={level}>{$t(ENGINE_LOG_LEVEL_LABEL_KEYS[level])}</option>
-              {/each}
-            </Select>
-            {#if levelLocked}
-              <p
-                class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-                title={$t("settings.policy_locked_hint")}
-                data-testid="engine-log-level-policy"
-              >
-                <Lock class="h-3 w-3" aria-hidden="true" />
-                {$t("settings.policy_locked")}
-              </p>
-            {/if}
-          </div>
-        {/snippet}
-      </SettingsFieldRow>
-    </SettingsSection>
+    <DeveloperEnginesSection />
   {/if}
 
   {#if onDemandVisible($developerMode)}

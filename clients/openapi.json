@@ -7254,7 +7254,7 @@
             }
           },
           "422": {
-            "description": "Empty name or model, or a system prompt among the settings",
+            "description": "Empty name or model, a system prompt among the settings, or load settings while models.preset_load_settings is off",
             "content": {
               "application/json": {
                 "schema": {
@@ -7337,7 +7337,7 @@
             }
           },
           "422": {
-            "description": "Empty name, or a system prompt among the settings",
+            "description": "Empty name, a system prompt among the settings, or other load settings than the ones held while models.preset_load_settings is off",
             "content": {
               "application/json": {
                 "schema": {
@@ -20980,7 +20980,7 @@
           },
           "load": {
             "type": "object",
-            "description": "Load settings. Never a system prompt."
+            "description": "Load settings, written only while models.preset_load_settings is on. Never a system prompt."
           },
           "model_id": {
             "type": "string",
@@ -30119,7 +30119,7 @@
           },
           "load": {
             "type": "object",
-            "description": "Load settings. Never a system prompt."
+            "description": "Load settings, written only while models.preset_load_settings is on. Never a system prompt."
           },
           "name": {
             "type": "string",

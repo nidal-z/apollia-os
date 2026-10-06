@@ -97,11 +97,11 @@ still accepted, with a `config.key.retired` warning.
 | `[hooks]` | Lifecycle hook handlers (command or HTTP). |
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
-| `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
+| `[models]` | The signed index of model cards, the models folder (`dir`), whether a preset carries load settings (`preset_load_settings`), and the rule applied to an imported file (`[models.import]`). |
 | `[observability]` | Trace capture and retention, documented below. |
-| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` or `always`), and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
+| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` or `always`), `chat_debug_blocks`, `resource_widget`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
 | `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `cors`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, and `separate_reasoning_content`. |
-| `[engines]` | Settings of the local inference engines (`log_level`, `gguf`, `mlx`, `auto_update`). |
+| `[engines]` | Settings of the local inference engines (`log_level`, `gguf`, `mlx`, `auto_update`, `auto_purge`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
 
 The tables below are generated from the key registry of the engine, the list
@@ -267,6 +267,7 @@ The signed index of model cards, its mirror, the models folder, and the rule app
 | `models.registry_mirror_url` | string | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Address tried when the index does not answer; empty disables it. The organization policy can fix it. |
 | `models.registry_enabled` | boolean | `true` | Read the online index of model cards. The organization policy can fix it. |
 | `models.dir` | path | `""` | Folder the language models, their projectors and the embedding models are kept in; empty means &lt;data dir&gt;/models. Changing it moves no file. The organization policy can fix it. |
+| `models.preset_load_settings` | boolean | `false` | Let a preset be created or modified with load settings; off, a preset takes request settings only and keeps the load settings it holds. The organization policy can fix it. |
 | `models.import.require_verified` | boolean | `false` | Refuse an imported model file that matches no signed card. The organization policy can fix it. |
 
 ### `[workflows]`
@@ -290,6 +291,8 @@ Settings of the desktop application that the engine reads.
 | `desktop.update_channel` | one of stable, preview | `"stable"` | Update channel of the application: stable receives the published versions, preview the trial versions as well. The organization policy can fix it. |
 | `desktop.background_service_allowed` | boolean | `true` | Allow the application to install the engine as a service of the user's session. The organization policy can fix it. |
 | `desktop.chat_auto_naming` | one of never, auto, always | `"auto"` | Name a new conversation from its first message: never, automatically when the model generates fast enough, or always. The organization policy can fix it. |
+| `desktop.chat_debug_blocks` | boolean | `true` | With the developer mode on, show the raw data of a tool step and the detailed trace in a conversation. The organization policy can fix it. |
+| `desktop.resource_widget` | boolean | `false` | Show the processor, the memory and the video memory in use at the foot of the sidebar. The organization policy can fix it. |
 
 ### `[server]`
 
@@ -318,6 +321,7 @@ Settings of the local inference engines.
 | `engines.gguf` | one of auto, embedded, cuda, vulkan, cpu, metal | `"auto"` | Engine that serves GGUF models: the automatic choice, the engine shipped with the application, or a variant installed by the engine store. A variant no longer installed falls back to the automatic choice. Read at the next start. The organization policy can fix it. |
 | `engines.mlx` | one of auto, embedded, metal | `"auto"` | Engine that serves MLX models on a Mac with Apple Silicon: the automatic choice, the engine shipped with the application, or the one installed by the engine store. Read at the next start. The organization policy can fix it. |
 | `engines.auto_update` | boolean | `true` | Download and verify the update of a chosen engine when the followed channel announces one; off, the update is only announced. The organization policy can fix it. |
+| `engines.auto_purge` | boolean | `false` | After an update of an engine, delete the builds of its variant left unused the longest, beyond two; the build in service and the shipped engine are never deleted. The organization policy can fix it. |
 
 ### `[author]`
 

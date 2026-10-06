@@ -21,6 +21,7 @@
   import { hydrateChatAutoNaming } from "$lib/stores/chatAutoNaming";
   import { startGenerationSpeedListener } from "$lib/chat/autoName";
   import { hydrateDeveloperMode } from "$lib/stores/developerMode";
+  import { hydrateDeveloperSettings } from "$lib/stores/developerSettings";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingModalOpen } from "$lib/stores/onboarding";
   import type { OnboardingState } from "$lib/types";
@@ -77,6 +78,7 @@
     initChatAppearance();
     void hydratePlanModeDefault();
     void hydrateDeveloperMode();
+    void hydrateDeveloperSettings();
     void hydrateChatAutoNaming();
     let unlistenSpeed: (() => void) | null = null;
     void startGenerationSpeedListener()

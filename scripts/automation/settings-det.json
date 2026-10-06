@@ -22,7 +22,8 @@
     "Model defaults is walked once in the first pass: its five blocks in the order of the page (images, context, guardrails, bypass, unload). The refused figure of the image field is left to Vitest: its anchor, model-defaults-image-side-error, would also resolve through the -error suffix the option rows compose, so naming it here would mask it. The policy state is played under five get_resolved_setting stubs in patch mode, one per block (llm.images.limit_side, llm.defaults.context, llm.guardrails.level, llm.guardrails.bypass, llm.residency.idle_unload_minutes): the real call runs and only the source field of its ResolvedSetting (lib/ipc/settings.ts) becomes policy, so each block shows its policy note with the value in force; the page is left and reopened because it reads its values on mount, and the stubs are cleared before the next entry.",
     "The resource monitor and the engine table are played under stubs, because their states depend on the host. get_resource_usage (lib/ipc/system.ts ResourceUsage, VramUsage) is rejected before the first mount of System > Hardware of the boot, which is the only moment resource-monitor-measuring exists (the store keeps its last figures afterwards), then resolved with a dedicated, a unified and an unmeasured video memory in turn; the store reads every two seconds, so each waitFor allows eight. list_engines (EnginesResponse, EngineEntry, EngineVariantUpdate) resolves three llama-server builds, one embedded and in service, one downloaded with an update on the channel, one imported whose banner contradicts its tag; check_engine_updates (EngineCheckResponse) and set_engine_channel (EngineSettings) are stubbed because the real ones fetch the channel manifest over the network, and a real channel write would outlive the section. The block ends on a real list_engines (waitGone engine-row-tag-mismatch) and leaves the developer mode off. These stubs imitate backend types and drift silently if the types change.",
     "System > Engines opens on the engine per format and filters its table. The table shows by default only the builds the host can run, so each time the page is mounted under the stubbed list the compatibility filter is set to all before a CUDA or Vulkan row is waited for (engines-filter-compat). The engine of the GGUF format is chosen under a set_setting stub (lib/ipc/settings.ts ResolvedSetting), because a real write would stay in the seeded apollia.toml and change which binary the next book starts; the removed variant is played by resolving list_engines without the Vulkan build after it was chosen (engine-format-gguf-fell-back), then the list is put back. The MLX line exists on a Mac with an Apple chip only and is left to Vitest. The automatic update is switched under the same stub, and its policy state under a get_resolved_setting stub in patch mode on engines.auto_update, the page being left and reopened because it reads its settings on mount.",
-    "Hardware, the graphics devices: the seeded Apple machine shows its single device, its switch disabled and the note that says why; `open_hardware_window` is stubbed (type HardwareWindowOutcome) so no second window opens under the runner; a three-device profile (type HardwareResponse, with its `devices`) and a policy-fixed `llm.devices.disabled` (type ResolvedSetting) are stubbed to reach the policy mention and the note of a device the engine did not list, then cleared. The diagnostic copy of Engines is gone: its facts are copied by `hardware-copy-info`."
+    "Hardware, the graphics devices: the seeded Apple machine shows its single device, its switch disabled and the note that says why; `open_hardware_window` is stubbed (type HardwareWindowOutcome) so no second window opens under the runner; a three-device profile (type HardwareResponse, with its `devices`) and a policy-fixed `llm.devices.disabled` (type ResolvedSetting) are stubbed to reach the policy mention and the note of a device the engine did not list, then cleared. The diagnostic copy of Engines is gone: its facts are copied by `hardware-copy-info`.",
+    "Settings > Developer, mode on: the Engines block carries the engine channel and the automatic update System > Engines shows too (developer-engine-channel-select, developer-engine-auto-update) and the automatic purge; Experimental carries the debugging blocks, the consumption widget and the load settings in presets. Turning developer-resource-widget-switch on writes [desktop] resource_widget of the seeded apollia.toml and mounts sidebar-resource-widget at the foot of the sidebar; a click on it opens System > Hardware on the resource monitor. The book turns the switch back off before it leaves the page, so the later sections render the sidebar without the widget."
   ],
   "dynamicTestids": [
     "config-editor-gutter-1",
@@ -821,6 +822,78 @@
     {
       "kind": "screenshot",
       "label": "19-developer-mode-on"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engines"
+    },
+    {
+      "kind": "expect",
+      "testid": "engine-log-level-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-channel"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-channel-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-auto-update"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-engine-auto-purge-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-debug-blocks-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-preset-load-settings-help"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-resource-widget-switch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-resource-widget",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "19b-developer-resource-widget"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-resource-widget"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "resource-monitor",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-resource-widget-switch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-resource-widget-switch"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-resource-widget",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",

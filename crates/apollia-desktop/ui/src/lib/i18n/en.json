@@ -207,7 +207,17 @@
     "policy": "Organization policy",
     "library": "Library",
     "authorizations": "Permissions",
-    "journal": "Journal"
+    "journal": "Journal",
+    "resource_widget": {
+      "open": "Open the monitor",
+      "aria": "Consumption of this machine, open the resource monitor",
+      "cpu": "Processor",
+      "ram": "Memory",
+      "vram": "GPU memory",
+      "vram_unified": "Unified",
+      "vram_unmeasured": "Not measured",
+      "measuring": "Measuring…"
+    }
   },
   "sidebar": {},
   "topbar": {
@@ -3021,7 +3031,14 @@
         "level_warning": "Warning",
         "level_info": "Info",
         "level_debug": "Debug (default)",
-        "write_failed": "The engine log level could not be saved."
+        "write_failed": "The engine log level could not be saved.",
+        "channel_label": "Engine channel",
+        "channel_hint": "Channel of the inference engine updates. Same setting as in System > Engines.",
+        "channel_failed": "The engine channel could not be changed: {reason}",
+        "auto_update_hint": "Same setting as in System > Engines.",
+        "auto_purge_label": "Delete the least used engines automatically",
+        "auto_purge_hint": "After an update, keeps two versions per engine; never the engine in service nor the one shipped with Apollia.",
+        "setting_write_failed": "The engine setting could not be saved."
       },
       "service": {
         "title": "Service without interface",
@@ -3069,6 +3086,15 @@
       },
       "experimental": {
         "title": "Experimental",
+        "debug_blocks_label": "Debugging blocks in the chat",
+        "debug_blocks_hint": "Shows the raw data and the detailed trace of the steps; off, they are hidden without leaving the developer mode.",
+        "resource_widget_label": "Consumption widget",
+        "resource_widget_hint": "Shows the processor, the memory and the GPU memory at the foot of the sidebar; a click opens the monitor of System.",
+        "preset_load_label": "Load settings in presets",
+        "preset_load_hint": "Off, a preset saved from the Parameters tab keeps the request settings only.",
+        "preset_load_help": "On, a preset also saves the load settings of the model (context size, layers on the GPU). Off, the ones a preset already holds are kept.",
+        "preset_load_help_label": "About load settings in presets",
+        "write_failed": "The setting could not be saved.",
         "separate_reasoning_label": "Separate reasoning_content and content in API responses",
         "separate_reasoning_hint": "For models that think before they answer: the reasoning arrives in reasoning_content, apart from the answer. Off, it goes back at the head of content, between think tags, for an application that reads only content."
       }

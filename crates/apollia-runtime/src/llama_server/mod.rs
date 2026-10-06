@@ -61,7 +61,7 @@ use apollia_core::EventBusSender;
 use config::{build_args, display_opt, env_getter, resolve_env_overrides};
 #[cfg(test)]
 use locate::env_or_store_binary;
-use locate::locate_llama_server_binary;
+use locate::locate_for_launch;
 
 /// Errors from spawning or supervising the embedded `llama-server`.
 #[derive(Debug, Error)]
@@ -282,7 +282,7 @@ impl LlamaServerSupervisor {
         imposed: apollia_core::config::PolicySettings,
     ) -> Result<Arc<Self>, LlamaServerError> {
         let choices = crate::engine_store::EngineChoices::read(config_file.as_deref(), &imposed);
-        let bin_path = locate_llama_server_binary(choices.gguf)?;
+        let bin_path = locate_for_launch(choices.gguf)?;
         // The reported window must be the one the server will actually launch
         // with, otherwise an `APOLLIA_LLAMA_N_CTX` override would leave the
         // router sizing compaction against a value no process ever used. The

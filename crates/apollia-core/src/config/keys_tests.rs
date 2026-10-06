@@ -248,12 +248,15 @@ fn the_named_settings_are_lockable() {
             "models.registry_mirror_url",
             "models.registry_enabled",
             "models.dir",
+            "models.preset_load_settings",
             "models.import.require_verified",
             "desktop.developer_mode",
             "desktop.link_preview_enabled",
             "desktop.update_channel",
             "desktop.background_service_allowed",
             "desktop.chat_auto_naming",
+            "desktop.chat_debug_blocks",
+            "desktop.resource_widget",
             "server.enabled",
             "server.port",
             "server.require_auth",
@@ -268,6 +271,7 @@ fn the_named_settings_are_lockable() {
             "engines.gguf",
             "engines.mlx",
             "engines.auto_update",
+            "engines.auto_purge",
             "author.name",
         ]
     );

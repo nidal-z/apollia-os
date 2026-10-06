@@ -11,7 +11,7 @@ T = TypeVar("T", bound="UpdatePresetRequestLoad")
 
 @_attrs_define
 class UpdatePresetRequestLoad:
-    """Load settings. Never a system prompt."""
+    """Load settings, written only while models.preset_load_settings is on. Never a system prompt."""
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 

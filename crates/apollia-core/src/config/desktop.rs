@@ -45,6 +45,15 @@ pub struct DesktopConfig {
     /// message. Automatic by default; the organization policy can impose it.
     #[serde(default)]
     pub chat_auto_naming: ChatAutoNaming,
+    /// Whether the developer mode shows the raw data of a tool step and the
+    /// detailed trace in a conversation. On by default; off, they are hidden
+    /// while the developer mode stays on.
+    #[serde(default = "allowed")]
+    pub chat_debug_blocks: bool,
+    /// Whether the foot of the sidebar shows the processor, the memory and
+    /// the video memory in use. Off by default.
+    #[serde(default)]
+    pub resource_widget: bool,
 }
 
 const fn allowed() -> bool {
@@ -59,6 +68,8 @@ impl Default for DesktopConfig {
             update_channel: UpdateChannel::default(),
             background_service_allowed: allowed(),
             chat_auto_naming: ChatAutoNaming::default(),
+            chat_debug_blocks: allowed(),
+            resource_widget: false,
         }
     }
 }
