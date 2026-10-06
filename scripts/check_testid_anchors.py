@@ -51,7 +51,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # 683 -> 685: the second batch of integrated stories (the journal summary,
 # the model defaults, the workflow launch) leaves two anchors without a
 # script; each story measured below the ceiling on its own base.
-NEVER_REACHED_MAX = 685
+# 685 -> 694: nine anchors of the model panel of the AI screen (preset
+# naming, author fields, structured error, read-only load) have no script yet.
+NEVER_REACHED_MAX = 694
 
 LITERAL = re.compile(r'data-testid="([A-Za-z0-9_\-./:]+)"')
 
