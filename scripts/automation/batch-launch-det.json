@@ -1,7 +1,8 @@
 {
-  "name": "batch-launch-det (the launch dialog of a batch opened from the sheet of an agent: refused without a source, an empty registry, sources and accesses unreadable, a folder listed with its reason, a CSV source with its copy and columns, a file picked, a mailbox, a launch refused then accepted)",
+  "name": "batch-launch-det (the launch dialog of a batch opened from the sheet of an agent: refused without a source, an empty registry, sources and accesses unreadable, a folder listed with its reason, a CSV source with its preview, its copy and columns, a file picked that cannot be read, an old format whose formatting is not kept, a mailbox, a launch refused then accepted)",
   "notes": [
-    "The stubs imitate SourceResponse (GET /api/v1/sources), BatchAccess (GET /api/v1/batches/accesses) and BatchView (POST /api/v1/batches). The offer on a file dropped in the chat is not played: only a desktop drop carries the path of a file, and the runner builds its files in the webview."
+    "The stubs imitate SourceResponse (GET /api/v1/sources), SourcePreviewResponse (POST /api/v1/sources/preview), BatchAccess (GET /api/v1/batches/accesses) and BatchView (POST /api/v1/batches). The offer on a file dropped in the chat is not played: only a desktop drop carries the path of a file, and the runner builds its files in the webview.",
+    "The preview of the picked requests.xlsx is not stubbed: no such file exists in the seeded home, and the runtime's own refusal is what the dialog shows."
   ],
   "stopOnError": false,
   "dynamicTestids": [
@@ -234,6 +235,151 @@
       ]
     },
     {
+      "kind": "stubInvoke",
+      "command": "preview_batch_source",
+      "argsMatch": {
+        "path": "${HOME}/requests.csv",
+        "headerRow": 2
+      },
+      "resolve": {
+        "format": "csv",
+        "sourceType": "csv",
+        "sheets": [
+          {
+            "name": "requests",
+            "nonEmptyRows": 4
+          }
+        ],
+        "proposedSheet": "requests",
+        "sheet": "requests",
+        "proposedHeaderRow": 1,
+        "headerRow": 2,
+        "columns": [
+          {
+            "letter": "A",
+            "name": "Durand"
+          },
+          {
+            "letter": "B",
+            "name": "Refund"
+          },
+          {
+            "letter": "C",
+            "name": "2026-03-02"
+          }
+        ],
+        "rows": [
+          {
+            "row": 1,
+            "cells": [
+              "Customer",
+              "Request",
+              "Date"
+            ]
+          },
+          {
+            "row": 2,
+            "cells": [
+              "Durand",
+              "Refund",
+              "2026-03-02"
+            ]
+          },
+          {
+            "row": 3,
+            "cells": [
+              "Martin",
+              "Delay",
+              "2026-03-03"
+            ]
+          },
+          {
+            "row": 4,
+            "cells": [
+              "Petit",
+              "Invoice",
+              "2026-03-04"
+            ]
+          }
+        ],
+        "estimatedItems": 2,
+        "canModifyOriginal": false,
+        "formattingNotKept": false
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "preview_batch_source",
+      "argsMatch": {
+        "path": "${HOME}/requests.csv"
+      },
+      "resolve": {
+        "format": "csv",
+        "sourceType": "csv",
+        "sheets": [
+          {
+            "name": "requests",
+            "nonEmptyRows": 4
+          }
+        ],
+        "proposedSheet": "requests",
+        "sheet": "requests",
+        "proposedHeaderRow": 1,
+        "headerRow": 1,
+        "columns": [
+          {
+            "letter": "A",
+            "name": "Customer"
+          },
+          {
+            "letter": "B",
+            "name": "Request"
+          },
+          {
+            "letter": "C",
+            "name": "Date"
+          }
+        ],
+        "rows": [
+          {
+            "row": 1,
+            "cells": [
+              "Customer",
+              "Request",
+              "Date"
+            ]
+          },
+          {
+            "row": 2,
+            "cells": [
+              "Durand",
+              "Refund",
+              "2026-03-02"
+            ]
+          },
+          {
+            "row": 3,
+            "cells": [
+              "Martin",
+              "Delay",
+              "2026-03-03"
+            ]
+          },
+          {
+            "row": 4,
+            "cells": [
+              "Petit",
+              "Invoice",
+              "2026-03-04"
+            ]
+          }
+        ],
+        "estimatedItems": 3,
+        "canModifyOriginal": false,
+        "formattingNotKept": false
+      }
+    },
+    {
       "kind": "click",
       "testid": "agent-batch-btn"
     },
@@ -296,6 +442,63 @@
       "contains": "requests.csv"
     },
     {
+      "kind": "waitFor",
+      "testid": "batch-preview-table",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-preview"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-preview-sheet"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-preview-sheets"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-preview-column",
+      "nth": 0,
+      "contains": "Customer"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-preview-row",
+      "nth": 1,
+      "contains": "Durand"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-preview-count"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04a-preview-of-the-file"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-preview-column-check",
+      "nth": 2
+    },
+    {
+      "kind": "selectOption",
+      "testid": "batch-preview-header-row",
+      "value": "2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-preview-column",
+      "timeoutMs": 4000,
+      "contains": "Durand"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-header-row-changed-a-column-unchecked"
+    },
+    {
       "kind": "expect",
       "testid": "batch-launch-results"
     },
@@ -355,6 +558,11 @@
       "contains": "requests.xlsx"
     },
     {
+      "kind": "waitFor",
+      "testid": "batch-preview-error",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "waitGone",
       "testid": "batch-launch-original-unavailable",
       "timeoutMs": 4000
@@ -362,6 +570,111 @@
     {
       "kind": "click",
       "testid": "batch-launch-destination-original"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/legacy.xls",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "preview_batch_source",
+      "argsMatch": {
+        "path": "${HOME}/legacy.xls"
+      },
+      "resolve": {
+        "format": "xls",
+        "sourceType": "spreadsheet",
+        "sheets": [
+          {
+            "name": "requests",
+            "nonEmptyRows": 4
+          }
+        ],
+        "proposedSheet": "requests",
+        "sheet": "requests",
+        "proposedHeaderRow": 1,
+        "headerRow": 1,
+        "columns": [
+          {
+            "letter": "A",
+            "name": "Customer"
+          },
+          {
+            "letter": "B",
+            "name": "Request"
+          },
+          {
+            "letter": "C",
+            "name": "Date"
+          }
+        ],
+        "rows": [
+          {
+            "row": 1,
+            "cells": [
+              "Customer",
+              "Request",
+              "Date"
+            ]
+          },
+          {
+            "row": 2,
+            "cells": [
+              "Durand",
+              "Refund",
+              "2026-03-02"
+            ]
+          },
+          {
+            "row": 3,
+            "cells": [
+              "Martin",
+              "Delay",
+              "2026-03-03"
+            ]
+          },
+          {
+            "row": 4,
+            "cells": [
+              "Petit",
+              "Invoice",
+              "2026-03-04"
+            ]
+          }
+        ],
+        "estimatedItems": 3,
+        "canModifyOriginal": false,
+        "formattingNotKept": true
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-source-change"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-pick-file"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-source-chosen",
+      "timeoutMs": 4000,
+      "contains": "legacy.xls"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-preview-formatting",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-original-unavailable"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-old-format-formatting-not-kept"
     },
     {
       "kind": "click",

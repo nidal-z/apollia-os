@@ -5392,6 +5392,24 @@
         "none": "Aucune boîte mail parmi vos sources."
       }
     },
+    "preview": {
+      "title": "Aperçu du classeur",
+      "loading": "Lecture du fichier…",
+      "unreadable": "Le fichier n'a pas pu être lu : {reason}",
+      "sheet": "Feuille",
+      "header_row": "Ligne d'en-tête",
+      "proposed": "{name} (proposée)",
+      "row": "Ligne {row}",
+      "row_proposed": "Ligne {row} (proposée)",
+      "no_header": "Aucune : les colonnes portent leur lettre",
+      "sheets": "{count, plural, one {# feuille} other {# feuilles}} dans ce fichier.",
+      "formatting_not_kept": "La mise en forme de ce fichier .{format} ne sera pas reprise dans la copie de résultats : la copie est un nouveau classeur.",
+      "empty": "Cette feuille ne contient aucune colonne à envoyer.",
+      "row_number": "Ligne",
+      "rows_shown": "{count, plural, one {Première ligne de la feuille.} other {# premières lignes de la feuille.}}",
+      "items": "Une ligne devient un élément : {count, plural, one {# élément} other {# éléments}}.",
+      "columns_sent": "{checked} sur {total, plural, one {# colonne envoyée} other {# colonnes envoyées}} à l'agent."
+    },
     "results": {
       "title": "Résultats",
       "copy": "Dans une copie du fichier, avec les colonnes de l'agent",
@@ -5426,11 +5444,13 @@
       "agent_missing": "Choisissez un agent : le lot ne part pas sans lui.",
       "source_missing": "Choisissez une source : le lot ne part pas sans elle.",
       "source_blocked": "Cette source ne peut pas être lue par un lot.",
+      "fields_missing": "Cochez au moins une colonne : l'agent ne recevrait rien.",
       "columns_missing": "Nommez au moins une colonne pour les résultats.",
       "columns_duplicate": "Deux colonnes de résultats portent le même nom.",
       "columns_too_many": "Un lot ajoute 32 colonnes au plus."
     },
     "ready": "Les éléments seront confiés à l'agent, un par un.",
+    "ready_count": "{count, plural, one {# élément sera confié} other {# éléments seront confiés}} à l'agent, un par un.",
     "confirm": "Lancer le lot",
     "launching": "Lancement…",
     "launched": "Lot lancé : {count, plural, one {# élément} other {# éléments}}."

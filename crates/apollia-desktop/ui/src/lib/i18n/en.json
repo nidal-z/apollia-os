@@ -5392,6 +5392,24 @@
         "none": "No mailbox among your sources."
       }
     },
+    "preview": {
+      "title": "Preview of the workbook",
+      "loading": "Reading the file…",
+      "unreadable": "The file could not be read: {reason}",
+      "sheet": "Sheet",
+      "header_row": "Header row",
+      "proposed": "{name} (proposed)",
+      "row": "Row {row}",
+      "row_proposed": "Row {row} (proposed)",
+      "no_header": "None: the columns bear their letter",
+      "sheets": "{count, plural, one {# sheet} other {# sheets}} in this file.",
+      "formatting_not_kept": "The formatting of this .{format} file will not be carried into the copy of results: the copy is a new workbook.",
+      "empty": "This sheet holds no column to send.",
+      "row_number": "Row",
+      "rows_shown": "{count, plural, one {First row of the sheet.} other {First # rows of the sheet.}}",
+      "items": "A row becomes an item: {count, plural, one {# item} other {# items}}.",
+      "columns_sent": "{checked} of {total, plural, one {# column sent} other {# columns sent}} to the agent."
+    },
     "results": {
       "title": "Results",
       "copy": "In a copy of the file, with the agent's columns",
@@ -5426,11 +5444,13 @@
       "agent_missing": "Choose an agent: the batch does not start without one.",
       "source_missing": "Choose a source: the batch does not start without one.",
       "source_blocked": "A batch cannot read this source.",
+      "fields_missing": "Check at least one column: the agent would receive nothing.",
       "columns_missing": "Name at least one column for the results.",
       "columns_duplicate": "Two result columns share the same name.",
       "columns_too_many": "A batch adds 32 columns at most."
     },
     "ready": "The items will be handed to the agent, one at a time.",
+    "ready_count": "{count, plural, one {# item will be handed} other {# items will be handed}} to the agent, one at a time.",
     "confirm": "Launch the batch",
     "launching": "Launching…",
     "launched": "Batch launched: {count, plural, one {# item} other {# items}}."

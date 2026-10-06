@@ -160,12 +160,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "launch_workflow",
     "list_workflow_runs",
     "list_workflows",
-    // The launch of a batch: the sources of the registry, the sensitive
-    // accesses of the agent and the launch, over `/api/v1/sources` and
-    // `/api/v1/batches`.
+    // The launch of a batch: the sources of the registry, the preview of a
+    // workbook, the sensitive accesses of the agent and the launch, over
+    // `/api/v1/sources` and `/api/v1/batches`.
     "launch_batch",
     "list_batch_accesses",
     "list_batch_sources",
+    "preview_batch_source",
     // Notifications and the activity feed.
     "create_notification_channel",
     "delete_notification_channel",

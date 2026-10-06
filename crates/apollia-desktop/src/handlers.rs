@@ -262,6 +262,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::workflows::cancel_workflow_run,
         commands::batches::list_batch_sources,
         commands::batches::list_batch_accesses,
+        commands::batches::preview_batch_source,
         commands::batches::launch_batch,
         commands::mcp::list_mcp_servers,
         commands::mcp::list_mcp_resources,

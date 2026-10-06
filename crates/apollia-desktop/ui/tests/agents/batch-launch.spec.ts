@@ -7,8 +7,9 @@ import { test, expect, type Page } from "@playwright/test";
  * Boots the UI bundle with the Tauri bridge stubbed (the three members the
  * boot path reaches for). The registry of sources holds the test source, a
  * CSV file, beside a folder and a mailbox; the agent lists one access a
- * launch may grant and one asked at every use. The stub keeps every call, so
- * a test reads the body the launch sent.
+ * launch may grant and one asked at every use. A workbook dropped in the chat
+ * is previewed: two sheets, five columns, twenty rows shown out of 128 items.
+ * The stub keeps every call, so a test reads the body the launch sent.
  */
 
 type InvokeStub = (cmd: string, args: unknown) => unknown;
@@ -59,6 +60,30 @@ async function installTauriStub(page: Page): Promise<void> {
         { id: "s-3", kind: "mail", label: "Support", reference: "imap:support@example.org" },
         { id: "s-4", kind: "profile", label: "Profile", reference: null },
       ],
+      preview_batch_source: (args) => {
+        const asked = args as { path: string; sheet: string | null; headerRow: number | null };
+        if (!asked.path.startsWith("/data/requests.")) return null;
+        const old = asked.path.endsWith(".xls");
+        const notes = asked.sheet === "Notes";
+        const names = notes ? ["Note"] : ["Customer", "Request", "Priority", "Date", "Amount"];
+        const header = asked.headerRow ?? 1;
+        const rows = Array.from({ length: notes ? 2 : 20 }, (_, index) => ({
+          row: index + 1,
+          cells: names.map((name) => (index === 0 ? name : `${name} ${index + 1}`)),
+        }));
+        return {
+          format: old ? "xls" : "xlsx", sourceType: "spreadsheet",
+          sheets: [{ name: "March", nonEmptyRows: 129 }, { name: "Notes", nonEmptyRows: 2 }],
+          proposedSheet: "March", sheet: notes ? "Notes" : "March",
+          proposedHeaderRow: 1, headerRow: header,
+          columns: names.map((name, index) => ({
+            letter: "ABCDE"[index],
+            name: header === 1 ? name : `${name} ${header}`,
+          })),
+          rows, estimatedItems: notes ? 1 : 129 - header,
+          canModifyOriginal: !old, formattingNotKept: old,
+        };
+      },
       list_batch_accesses: () => [
         { accessId: "send_email", permits: "Send an email", family: "send_external", grantable: true },
         { accessId: "run_python", permits: "Run a script", family: "execute_code", grantable: false },
@@ -107,6 +132,25 @@ async function launches(page: Page): Promise<unknown[]> {
       .filter((call) => call.cmd === "launch_batch")
       .map((call) => call.args.launch),
   );
+}
+
+async function openOnDroppedFile(page: Page, name: string) {
+  await page.goto("/");
+  await page.getByTestId("nav-chat").first().click();
+  await page.getByRole("button", { name: /^triage/ }).first().click({ position: { x: 24, y: 12 } });
+  const composer = page.getByTestId("chat-input");
+  await expect(composer).toBeVisible();
+  await composer.evaluate((node, dropped) => {
+    const file = new File(["client,request\nAcme,quote\n"], dropped);
+    Object.defineProperty(file, "path", { value: `/data/${dropped}` });
+    const drop = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, "dataTransfer", { value: { files: [file] } });
+    (node.querySelector("textarea")?.parentElement ?? node).dispatchEvent(drop);
+  }, name);
+  await page.getByTestId("chat-batch-offer").click();
+  const dialog = page.getByTestId("batch-launch-dialog");
+  await expect(dialog).toBeVisible();
+  return dialog;
 }
 
 async function openFromSheet(page: Page) {
@@ -243,5 +287,72 @@ test.describe("launching a batch", () => {
     const sent = (await launches(page)) as { grants: string[]; source: { write: { destination: string } } }[];
     expect(sent.at(-1)?.grants).toContain("source:write");
     expect(sent.at(-1)?.source.write.destination).toBe("original");
+  });
+
+  test("process each row opens the preview of the dropped workbook, and an unchecked column is not sent", async ({ page }) => {
+    // GIVEN a workbook dropped in the chat
+    // WHEN "Process each row" is clicked
+    const dialog = await openOnDroppedFile(page, "requests.xlsx");
+
+    // THEN the preview is that of the file: sheet and header row proposed, twenty rows, every column checked
+    const preview = dialog.getByTestId("batch-preview");
+    await expect(preview.getByTestId("batch-preview-sheet")).toHaveValue("March");
+    await expect(preview.getByTestId("batch-preview-header-row")).toHaveValue("1");
+    await expect(preview.getByTestId("batch-preview-row")).toHaveCount(20);
+    await expect(preview.getByTestId("batch-preview-column")).toHaveCount(5);
+    await expect(preview.locator('[data-testid="batch-preview-column"][data-checked="true"]')).toHaveCount(5);
+    await expect(preview.getByTestId("batch-preview-count")).toContainText("128");
+    await expect(preview.getByTestId("batch-preview-formatting")).toHaveCount(0);
+    await expect(dialog.getByTestId("batch-launch-refusal")).toContainText("128");
+
+    // WHEN the header row is moved to row 2
+    await preview.getByTestId("batch-preview-header-row").selectOption("2");
+
+    // THEN the columns are named after that row, and one item fewer is counted
+    await expect(preview.getByTestId("batch-preview-column").first()).toContainText("Customer 2");
+    await expect(preview.getByTestId("batch-preview-count")).toContainText("127");
+    await expect(preview.locator('[data-testid="batch-preview-row"][data-role="header"]')).toContainText("Customer 2");
+
+    // WHEN the Date column is unchecked and the batch launched
+    await preview.getByTestId("batch-preview-column").nth(3).getByTestId("batch-preview-column-check").click();
+    await expect(preview.getByTestId("batch-preview-column").nth(3)).toHaveAttribute("data-checked", "false");
+    await dialog.getByTestId("batch-launch-confirm").click();
+
+    // THEN the launch names the sheet, the header row and the four columns left
+    await expect(dialog).toBeHidden();
+    const sent = (await launches(page)) as { source: { location: string; options: Record<string, string> } }[];
+    expect(sent.at(-1)?.source.location).toBe("/data/requests.xlsx");
+    expect(sent.at(-1)?.source.options).toEqual({ sheet: "March", header_row: "2", columns: "A,B,C,E" });
+  });
+
+  test("another sheet brings its own preview, and no column checked refuses the launch", async ({ page }) => {
+    // GIVEN the preview of a dropped workbook
+    const dialog = await openOnDroppedFile(page, "requests.xlsx");
+    const preview = dialog.getByTestId("batch-preview");
+    await expect(preview.getByTestId("batch-preview-column")).toHaveCount(5);
+
+    // WHEN the other sheet is picked
+    await preview.getByTestId("batch-preview-sheet").selectOption("Notes");
+
+    // THEN its single column and its two rows are shown
+    await expect(preview.getByTestId("batch-preview-column")).toHaveCount(1);
+    await expect(preview.getByTestId("batch-preview-row")).toHaveCount(2);
+
+    // WHEN that column is unchecked
+    await preview.getByTestId("batch-preview-column-check").click();
+
+    // THEN the launch is refused: the agent would receive nothing
+    await expect(dialog.getByTestId("batch-launch-refusal")).toHaveAttribute("data-refusal", "fields_missing");
+    await expect(dialog.getByTestId("batch-launch-confirm")).toBeDisabled();
+  });
+
+  test("an .xls workbook says its formatting is not carried into the copy of results", async ({ page }) => {
+    // GIVEN an .xls workbook dropped in the chat
+    // WHEN "Process each row" is clicked
+    const dialog = await openOnDroppedFile(page, "requests.xls");
+
+    // THEN the preview says so, and the original cannot be written
+    await expect(dialog.getByTestId("batch-preview-formatting")).toContainText(".xls");
+    await expect(dialog.getByTestId("batch-launch-destination-original").getByRole("radio")).toBeDisabled();
   });
 });
