@@ -11,6 +11,8 @@
   import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import Dashboard from "../../../routes/Dashboard.svelte";
   import Agents from "../../../routes/Agents.svelte";
+  import Batches from "../../../routes/Batches.svelte";
+  import Batch from "../../../routes/Batch.svelte";
   import Tasks from "../../../routes/Tasks.svelte";
   import Inbox from "../../../routes/Inbox.svelte";
   import Llm from "../../../routes/Llm.svelte";
@@ -89,6 +91,10 @@
             <Dashboard />
           {:else if shownRoute === "agents"}
             <Agents />
+          {:else if shownRoute === "batches"}
+            <Batches />
+          {:else if shownRoute === "batch"}
+            <Batch />
           {:else if shownRoute === "tasks"}
             <Tasks />
           {:else if shownRoute === "chat"}

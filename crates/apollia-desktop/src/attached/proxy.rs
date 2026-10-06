@@ -9,8 +9,8 @@ use serde_json::Value;
 
 use super::{AttachedError, RuntimeLink};
 use crate::commands::{
-    http_delete_json, http_get_json, http_patch_json, http_post_for_file, http_post_json,
-    http_put_json,
+    http_delete_json, http_get_for_file, http_get_json, http_patch_json, http_post_for_file,
+    http_post_json, http_put_json,
 };
 
 impl RuntimeLink {
@@ -76,6 +76,15 @@ impl RuntimeLink {
                 http_post_for_file(runtime.api_port, path, body, report_header).await
             }
             Self::Attached(remote) => Ok(remote.post_for_file(path, body, report_header).await?),
+        }
+    }
+
+    /// `GET path` on the runtime this application drives, for an answer that
+    /// is a file: its bytes.
+    pub(crate) async fn get_for_file(&self, path: &str) -> Result<Vec<u8>, String> {
+        match self {
+            Self::Embedded(runtime) => http_get_for_file(runtime.api_port, path).await,
+            Self::Attached(remote) => Ok(remote.get_for_file(path).await?),
         }
     }
 

@@ -1766,7 +1766,14 @@
       "chat_approval_title": "Approbation requise - Chat",
       "chat_approval_body": "L'outil « {tool} » demande votre autorisation (session {id})",
       "tool_failure_title": "Outil échoué - Apollia OS",
-      "tool_failure_body": "L'outil « {tool} » a échoué (session {id})"
+      "tool_failure_body": "L'outil « {tool} » a échoué (session {id})",
+      "batch_completed_title": "Lot terminé",
+      "batch_interrupted_title": "Lot interrompu",
+      "batch_stopped_title": "Lot arrêté",
+      "batch_ended_body": "{agent} : {completed, plural, one {# réussi} other {# réussis}}, {failed} en échec",
+      "batch_ended_body_waiting": "{agent} : {completed, plural, one {# réussi} other {# réussis}}, {failed} en échec, {awaiting} en attente de validation",
+      "batch_awaiting_title": "Un élément de lot attend votre décision",
+      "batch_awaiting_body": "{agent}, élément n° {number} : accès demandé « {access} »"
     },
     "error_details": "Détails techniques"
   },
@@ -5498,5 +5505,184 @@
     "confirm": "Lancer le lot",
     "launching": "Lancement…",
     "launched": "Lot lancé : {count, plural, one {# élément} other {# éléments}}."
+  },
+  "batch_view": {
+    "kicker": "Agents · {agent} · Lot",
+    "kicker_loading": "Agents · Lot",
+    "title": "Lot du {day}, {hour}",
+    "title_loading": "Lot",
+    "source": "Source : {source} · {count, plural, one {# élément} other {# éléments}}",
+    "source_sheet": "Source : {source}, feuille « {sheet} » · {count, plural, one {# élément} other {# éléments}}",
+    "history": "Historique des lots",
+    "back_to_history": "Retour à l'historique",
+    "treated": "{treated} sur {total} éléments traités",
+    "load_failed": "Le lot n'a pas pu être lu.",
+    "missing_title": "Ce lot n'existe plus",
+    "missing_body": "Aucun lot ne porte cet identifiant. Retrouvez vos lots dans l'historique.",
+    "empty_title": "Ce lot ne contient aucun élément",
+    "empty_body": "La source n'a rendu aucun élément à traiter.",
+    "empty_filtered_title": "Aucun élément ne correspond",
+    "empty_filtered_body": "Changez d'onglet ou de recherche pour voir d'autres éléments.",
+    "search": "Rechercher dans le tableau…",
+    "state": {
+      "running": "En cours",
+      "paused": "En pause",
+      "completed": "Terminé",
+      "interrupted": "Interrompu",
+      "stopped": "Arrêté"
+    },
+    "command": {
+      "pause": "Pause",
+      "resume": "Reprendre",
+      "stop": "Arrêter",
+      "retry": "Relancer les échecs",
+      "export": "Exporter…"
+    },
+    "count": {
+      "completed": "{count, plural, one {# réussi} other {# réussis}}",
+      "failed": "{count} en échec",
+      "awaiting": "{count} en attente de validation",
+      "todo": "{count} à traiter",
+      "canceled": "{count, plural, one {# non traité} other {# non traités}}"
+    },
+    "schedule": {
+      "started": "Commencé à {started}",
+      "estimated": "Commencé à {started} · fin estimée vers {end}, approximative",
+      "paused": "Commencé à {started} · en pause depuis {at}",
+      "completed": "Commencé à {started}, terminé à {at} · {minutes} min",
+      "interrupted": "Commencé à {started}, interrompu à {at}",
+      "stopped": "Commencé à {started}, arrêté à {at} · {minutes} min"
+    },
+    "message": {
+      "paused": "Aucun élément ne démarre tant que le lot n'est pas repris ; l'élément en cours se termine. Les échecs que vous relancez maintenant sont relancés à la reprise.",
+      "interrupted": "Le lot s'est interrompu de lui-même après {failures} échecs, le seuil réglé au lancement. Regardez les échecs : « Relancer les échecs » les reprend, puis traite les éléments restants.",
+      "stopped": "Vous avez arrêté le lot ; {canceled, plural, one {# élément n'a pas été traité} other {# éléments n'ont pas été traités}}. Un lot arrêté ne reprend pas ; ses résultats restent exportables."
+    },
+    "fact": {
+      "threshold": "Seuil d'échecs : le lot s'interrompt après {count} échecs",
+      "threshold_never": "Seuil d'échecs : le lot ne s'interrompt jamais de lui-même",
+      "no_access": "Aucun accès accordé pour la durée du lot",
+      "accesses": "Accès accordés pour la durée du lot : {accesses}",
+      "accesses_ended": "Accès accordés pour la durée du lot, retirés à sa fin : {accesses}",
+      "written_copy": "Résultats écrits dans une copie du fichier, colonnes « {columns} »",
+      "written_original": "Résultats écrits dans le fichier d'origine, après une copie de sauvegarde, colonnes « {columns} »"
+    },
+    "tab": {
+      "all": "Tous",
+      "completed": "Réussis",
+      "failed": "En échec",
+      "todo": "À traiter",
+      "awaiting": "En attente de validation",
+      "canceled": "Non traités"
+    },
+    "column": {
+      "number": "N°",
+      "input": "Entrée",
+      "status": "Statut",
+      "output": "Sortie",
+      "sources": "Sources"
+    },
+    "item_status": {
+      "pending": "À traiter",
+      "running": "En cours",
+      "completed": "Réussi",
+      "failed": "En échec",
+      "canceled": "Non traité",
+      "awaiting": "En attente de validation"
+    },
+    "output": {
+      "pending": "Pas encore traité",
+      "running": "Traitement en cours…",
+      "canceled": "Le lot s'est arrêté avant cet élément",
+      "awaiting": "L'agent demande un accès non accordé pour ce lot.",
+      "awaiting_access": "L'agent demande un accès non accordé pour ce lot : {access}"
+    },
+    "stop": {
+      "title": "Arrêter le lot ?",
+      "body": "Les {treated} éléments déjà traités sont gardés et restent exportables. L'élément en cours est interrompu et les {remaining} éléments restants ne seront pas traités. Un lot arrêté ne reprend pas.",
+      "confirm": "Arrêter le lot",
+      "cancel": "Continuer le lot"
+    },
+    "export": {
+      "xlsx": "Excel (.xlsx)",
+      "xlsx_use": "Pour l'ouvrir dans un tableur : une ligne par élément, avec son entrée, sa sortie, son statut et ses sources.",
+      "csv": "CSV (.csv)",
+      "csv_use": "Pour l'importer dans un autre logiciel.",
+      "json": "JSON (.json)",
+      "json_use": "Pour le lire depuis un script.",
+      "written": "Lot exporté dans {path}"
+    },
+    "decision": {
+      "open": "Ouvrir la décision",
+      "title": "Décision attendue",
+      "item": "Élément n° {number} · {title}",
+      "access": "Accès demandé : {access}",
+      "effect": "Une fois l'accès accordé, l'élément est relancé depuis son entrée.",
+      "gone": "Cet élément n'attend plus de décision : elle a déjà été prise.",
+      "later": "Plus tard",
+      "answer_once": "Autoriser une fois",
+      "answer_always": "Toujours autoriser",
+      "answer_refuse": "Refuser"
+    },
+    "item": {
+      "tab": "Élément",
+      "heading": "N° {number} · {title}",
+      "input": "Entrée complète",
+      "output": "Sortie",
+      "failure": "Cause de l'échec",
+      "no_output": "Aucune sortie pour le moment.",
+      "steps": "Étapes ({count})",
+      "no_step": "Aucune étape enregistrée pour cet élément.",
+      "steps_unread": "Les étapes n'ont pas pu être lues.",
+      "sources": "Sources consultées ({count})"
+    },
+    "step": {
+      "tool_call": "Outil utilisé",
+      "step_started": "Étape"
+    }
+  },
+  "batch_history": {
+    "open": "Historique des lots",
+    "to_agents": "Retour aux agents",
+    "kicker": "Agents · Lots",
+    "title": "Historique des lots",
+    "subtitle": "Tous les lots, du plus récent au plus ancien, quel que soit l'agent ; un lot ouvert se relit, s'exporte et relance ses échecs.",
+    "search": "Rechercher un fichier, un agent…",
+    "filter": {
+      "agent": "Filtrer par agent",
+      "all_agents": "Tous les agents",
+      "outcome": "Filtrer par issue",
+      "all_outcomes": "Toutes les issues",
+      "outcome_running": "En cours",
+      "outcome_paused": "En pause",
+      "outcome_completed": "Terminés",
+      "outcome_completed_with_failures": "Terminés avec des échecs",
+      "outcome_interrupted": "Interrompus",
+      "outcome_stopped": "Arrêtés"
+    },
+    "outcome": {
+      "running": "En cours",
+      "paused": "En pause",
+      "completed": "Terminé",
+      "completed_with_failures": "{count, plural, one {Terminé, # échec} other {Terminé, # échecs}}",
+      "interrupted": "Interrompu",
+      "stopped": "Arrêté"
+    },
+    "period": {
+      "this_week": "Cette semaine",
+      "older": "Plus anciens"
+    },
+    "treated": "{treated} sur {total} traités",
+    "items": "{count, plural, one {# élément} other {# éléments}}",
+    "minutes": "{count} min",
+    "count": "{count, plural, one {# lot en tout} other {# lots en tout}}",
+    "count_more": "{count} lots affichés · la liste se poursuit au défilement, sans limite de nombre",
+    "count_filtered": "{shown} sur {count} lots correspondent aux filtres",
+    "load_older": "Afficher des lots plus anciens",
+    "load_failed": "L'historique des lots n'a pas pu être lu.",
+    "empty_title": "Aucun lot pour le moment",
+    "empty_body": "Lancez un lot depuis la fiche d'un agent, avec « Traiter un lot », ou en déposant un fichier Excel ou CSV dans le chat.",
+    "empty_filtered_title": "Aucun lot ne correspond",
+    "empty_filtered_body": "Changez les filtres ou la recherche pour voir d'autres lots."
   }
 }

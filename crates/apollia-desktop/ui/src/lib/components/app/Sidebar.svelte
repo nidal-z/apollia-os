@@ -62,7 +62,7 @@
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { t } from "svelte-i18n";
-  import { currentRoute, navigateTo } from "$lib/stores/navigation";
+  import { currentRoute, navigateTo, sidebarRoute } from "$lib/stores/navigation";
   import { sidebarState, drawerOpen, layoutActions } from "$lib/stores/layout";
   import { pendingCount } from "$lib/stores/hitl";
   import {
@@ -99,6 +99,9 @@
     openSettingsWindow("hardware");
     if (isDrawer) layoutActions.closeDrawer();
   }
+
+  // The entry marked: the one the screen shown belongs to.
+  const shownEntry = $derived(sidebarRoute($currentRoute));
 
   const approvalsCount = $derived(
     $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount,
@@ -218,7 +221,7 @@
 
       <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3" aria-label={$t("nav.sidebar_label")}>
         {#each primaryNav as item (item.route)}
-          {@const isActive = $currentRoute === item.route}
+          {@const isActive = shownEntry === item.route}
           {@const badgeCount = getBadgeCount(item.badge)}
           {@const label = $t(item.labelKey)}
           <button
@@ -241,7 +244,7 @@
 
       <div class="border-t border-border/60 p-3 flex flex-col gap-0.5">
         {#each SECONDARY_NAV as item (item.route)}
-          {@const isActive = $currentRoute === item.route}
+          {@const isActive = shownEntry === item.route}
           {@const label = $t(item.labelKey)}
           <button
             type="button"
@@ -267,7 +270,7 @@
             class="px-3 pb-1 text-overline font-semibold uppercase tracking-wide text-muted-foreground"
           >{$t("nav.developer_group")}</span>
           {#each developerNav as item (item.route)}
-            {@const isActive = $currentRoute === item.route}
+            {@const isActive = shownEntry === item.route}
             {@const label = $t(item.labelKey)}
             <button
               type="button"
@@ -306,7 +309,7 @@
 
     <!-- Primary nav -->
     {#each primaryNav as item (item.route)}
-      {@const isActive = $currentRoute === item.route}
+      {@const isActive = shownEntry === item.route}
       {@const badgeCount = getBadgeCount(item.badge)}
       {@const isPulse = item.badge === "tasks" && runningCount > 0}
       {@const label = $t(item.labelKey)}
@@ -349,7 +352,7 @@
 
     <!-- Secondary nav (Connections, Settings) -->
     {#each SECONDARY_NAV as item (item.route)}
-      {@const isActive = $currentRoute === item.route}
+      {@const isActive = shownEntry === item.route}
       {@const label = $t(item.labelKey)}
       <div class="rail-item group relative mb-1">
         <button
@@ -380,7 +383,7 @@
         data-testid="sidebar-developer-group"
       >
         {#each developerNav as item (item.route)}
-          {@const isActive = $currentRoute === item.route}
+          {@const isActive = shownEntry === item.route}
           {@const label = $t(item.labelKey)}
           <div class="rail-item group relative mb-1">
             <button

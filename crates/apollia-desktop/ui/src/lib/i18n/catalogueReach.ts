@@ -63,6 +63,16 @@ const SEG = "[A-Za-z0-9_]+";
 export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   {
     pattern: new RegExp(
+      `^batch_view\\.((state|command|tab|column|item_status|step)\\.${SEG}|schedule\\.(paused|completed|interrupted|stopped)|fact\\.written_(copy|original)|export\\.(xlsx|csv|json)(_use)?|decision\\.answer_(once|always|refuse))$`,
+    ),
+    builtBy: "components/batch/view/*.svelte",
+  },
+  {
+    pattern: new RegExp(`^batch_history\\.((outcome|period)\\.${SEG}|filter\\.outcome_${SEG})$`),
+    builtBy: "components/batch/view/BatchHistory*.svelte",
+  },
+  {
+    pattern: new RegExp(
       `^packages\\.preview\\.(access\\.family\\.${SEG}\\.(title|hint)|connections\\.(missing|present|brought)|content\\.kind_${SEG}|publisher\\.(trusted|signed_untrusted|unsigned|invalid|shipped)|refusal\\.${SEG}\\.(title|body)|origin_${SEG}|title_(install|update)|(installed|updated)_toast)$`,
     ),
     builtBy: "components/packages/*.svelte",

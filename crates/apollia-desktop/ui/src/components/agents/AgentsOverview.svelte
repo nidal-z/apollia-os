@@ -11,10 +11,11 @@
    * presentation and event wiring only.
    */
   import { t } from "svelte-i18n";
-  import { Bot, FileArchive, Plus, Search, Workflow } from "lucide-svelte";
+  import { Bot, FileArchive, Layers, Plus, Search, Workflow } from "lucide-svelte";
   import { EmptyState, PageHeader, SkeletonList } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import { openBatchHistory } from "$lib/stores/batchView";
   import type { AgentListItem } from "$lib/types";
   import type { WorkflowListItem, WorkflowRun } from "$lib/ipc/workflows";
   import type { ExamplePackage } from "$lib/ipc/packageExamples";
@@ -98,8 +99,8 @@
     {/snippet}
   </PageHeader>
 
-  <div class="px-8 pt-4">
-    <div class="max-w-md">
+  <div class="flex flex-wrap items-center gap-3 px-8 pt-4">
+    <div class="w-full max-w-md">
       <Input
         type="text"
         size="sm"
@@ -110,6 +111,10 @@
         data-testid="agents-search"
       />
     </div>
+    <Button variant="link" size="sm" class="ml-auto" onclick={openBatchHistory} data-testid="agents-batch-history">
+      {#snippet icon()}<Layers size={13} />{/snippet}
+      {$t("batch_history.open")}
+    </Button>
   </div>
 
   <div class="min-h-0 flex-1 overflow-y-auto px-8 py-5">

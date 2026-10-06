@@ -31,6 +31,7 @@ import {
   Library,
   KeyRound,
   ScrollText,
+  Layers,
 } from "lucide-svelte";
 import type { Route } from "$lib/stores/navigation";
 
@@ -45,6 +46,8 @@ export interface RouteMeta {
 export const routeMeta: Record<Route, RouteMeta> = {
   dashboard: { labelKey: "nav.dashboard", parent: null, icon: LayoutDashboard, homeFor: ["operator", "builder"] },
   agents: { labelKey: "nav.agents", parent: null, icon: Bot },
+  batches: { labelKey: "batch_history.title", parent: "agents", icon: Layers },
+  batch: { labelKey: "batch_view.title_loading", parent: "batches", icon: Layers },
   tasks: { labelKey: "nav.tasks", parent: null, icon: ListChecks },
   chat: { labelKey: "nav.chat", parent: null, icon: MessageSquare },
   inbox: { labelKey: "nav.inbox", parent: null, icon: ShieldCheck },

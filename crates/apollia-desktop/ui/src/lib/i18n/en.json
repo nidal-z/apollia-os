@@ -1766,7 +1766,14 @@
       "chat_approval_title": "Approval required - Chat",
       "chat_approval_body": "Tool “{tool}” requests your authorization (session {id})",
       "tool_failure_title": "Tool failed - Apollia OS",
-      "tool_failure_body": "Tool “{tool}” failed (session {id})"
+      "tool_failure_body": "Tool “{tool}” failed (session {id})",
+      "batch_completed_title": "Batch completed",
+      "batch_interrupted_title": "Batch interrupted",
+      "batch_stopped_title": "Batch stopped",
+      "batch_ended_body": "{agent}: {completed} succeeded, {failed} failed",
+      "batch_ended_body_waiting": "{agent}: {completed} succeeded, {failed} failed, {awaiting} waiting for approval",
+      "batch_awaiting_title": "A batch item waits for your decision",
+      "batch_awaiting_body": "{agent}, item no. {number}: access asked for \"{access}\""
     },
     "error_details": "Technical details"
   },
@@ -5498,5 +5505,184 @@
     "confirm": "Launch the batch",
     "launching": "Launching…",
     "launched": "Batch launched: {count, plural, one {# item} other {# items}}."
+  },
+  "batch_view": {
+    "kicker": "Agents · {agent} · Batch",
+    "kicker_loading": "Agents · Batch",
+    "title": "Batch of {day}, {hour}",
+    "title_loading": "Batch",
+    "source": "Source: {source} · {count, plural, one {# item} other {# items}}",
+    "source_sheet": "Source: {source}, sheet \"{sheet}\" · {count, plural, one {# item} other {# items}}",
+    "history": "Batch history",
+    "back_to_history": "Back to the history",
+    "treated": "{treated} of {total} items processed",
+    "load_failed": "The batch could not be read.",
+    "missing_title": "This batch no longer exists",
+    "missing_body": "No batch bears this identifier. Find your batches in the history.",
+    "empty_title": "This batch holds no item",
+    "empty_body": "The source gave no item to process.",
+    "empty_filtered_title": "No item matches",
+    "empty_filtered_body": "Change the tab or the search to see other items.",
+    "search": "Search the table…",
+    "state": {
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "interrupted": "Interrupted",
+      "stopped": "Stopped"
+    },
+    "command": {
+      "pause": "Pause batch",
+      "resume": "Resume",
+      "stop": "Stop",
+      "retry": "Retry failures",
+      "export": "Export…"
+    },
+    "count": {
+      "completed": "{count} succeeded",
+      "failed": "{count} failed",
+      "awaiting": "{count} waiting for approval",
+      "todo": "{count} to process",
+      "canceled": "{count} not processed"
+    },
+    "schedule": {
+      "started": "Started at {started}",
+      "estimated": "Started at {started} · estimated end around {end}, approximate",
+      "paused": "Started at {started} · paused since {at}",
+      "completed": "Started at {started}, completed at {at} · {minutes} min",
+      "interrupted": "Started at {started}, interrupted at {at}",
+      "stopped": "Started at {started}, stopped at {at} · {minutes} min"
+    },
+    "message": {
+      "paused": "No item starts until the batch is resumed; the item in progress ends. The failures you retry now run again once the batch resumes.",
+      "interrupted": "The batch interrupted itself after {failures} failures, the threshold set at launch. Look at the failures: \"Retry failures\" runs them again, then processes the items left.",
+      "stopped": "You stopped the batch; {canceled, plural, one {# item was not processed} other {# items were not processed}}. A stopped batch does not start again; its results can still be exported."
+    },
+    "fact": {
+      "threshold": "Failure threshold: the batch is interrupted after {count} failures",
+      "threshold_never": "Failure threshold: the batch never interrupts itself",
+      "no_access": "No access granted for the duration of the batch",
+      "accesses": "Accesses granted for the duration of the batch: {accesses}",
+      "accesses_ended": "Accesses granted for the duration of the batch, withdrawn at its end: {accesses}",
+      "written_copy": "Results written into a copy of the file, columns \"{columns}\"",
+      "written_original": "Results written into the original file, after a backup copy, columns \"{columns}\""
+    },
+    "tab": {
+      "all": "All",
+      "completed": "Succeeded",
+      "failed": "Failed",
+      "todo": "To process",
+      "awaiting": "Waiting for approval",
+      "canceled": "Not processed"
+    },
+    "column": {
+      "number": "No.",
+      "input": "Input",
+      "status": "Status",
+      "output": "Output",
+      "sources": "Cited sources"
+    },
+    "item_status": {
+      "pending": "To process",
+      "running": "Running",
+      "completed": "Succeeded",
+      "failed": "Failed",
+      "canceled": "Not processed",
+      "awaiting": "Waiting for approval"
+    },
+    "output": {
+      "pending": "Not processed yet",
+      "running": "Processing…",
+      "canceled": "The batch stopped before this item",
+      "awaiting": "The agent asks for an access not granted for this batch.",
+      "awaiting_access": "The agent asks for an access not granted for this batch: {access}"
+    },
+    "stop": {
+      "title": "Stop the batch?",
+      "body": "The {treated} items already processed are kept and can still be exported. The item in progress is interrupted and the {remaining} items left will not be processed. A stopped batch does not start again.",
+      "confirm": "Stop the batch",
+      "cancel": "Keep the batch going"
+    },
+    "export": {
+      "xlsx": "Excel workbook (.xlsx)",
+      "xlsx_use": "To open it in a spreadsheet: one row per item, with its input, its output, its status and its sources.",
+      "csv": "CSV file (.csv)",
+      "csv_use": "To import it into another application.",
+      "json": "JSON document (.json)",
+      "json_use": "To read it from a script.",
+      "written": "Batch exported to {path}"
+    },
+    "decision": {
+      "open": "Open the decision",
+      "title": "Decision awaited",
+      "item": "Item no. {number} · {title}",
+      "access": "Access asked for: {access}",
+      "effect": "Once the access is granted, the item runs again from its input.",
+      "gone": "This item no longer waits for a decision: it was already taken.",
+      "later": "Later",
+      "answer_once": "Allow once",
+      "answer_always": "Always allow",
+      "answer_refuse": "Refuse"
+    },
+    "item": {
+      "tab": "Item",
+      "heading": "No. {number} · {title}",
+      "input": "Full input",
+      "output": "Output",
+      "failure": "Cause of the failure",
+      "no_output": "No output yet.",
+      "steps": "Steps ({count})",
+      "no_step": "No step recorded for this item.",
+      "steps_unread": "The steps could not be read.",
+      "sources": "Sources consulted ({count})"
+    },
+    "step": {
+      "tool_call": "Tool used",
+      "step_started": "Step"
+    }
+  },
+  "batch_history": {
+    "open": "Batch history",
+    "to_agents": "Back to the agents",
+    "kicker": "Agents · Batches",
+    "title": "History of the batches",
+    "subtitle": "Every batch, newest first, whatever the agent; an opened batch can be read again, exported, and have its failures retried.",
+    "search": "Search a file, an agent…",
+    "filter": {
+      "agent": "Filter by agent",
+      "all_agents": "All agents",
+      "outcome": "Filter by outcome",
+      "all_outcomes": "All outcomes",
+      "outcome_running": "Running",
+      "outcome_paused": "Paused",
+      "outcome_completed": "Completed",
+      "outcome_completed_with_failures": "Completed with failures",
+      "outcome_interrupted": "Interrupted",
+      "outcome_stopped": "Stopped"
+    },
+    "outcome": {
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "completed_with_failures": "{count, plural, one {Completed, # failure} other {Completed, # failures}}",
+      "interrupted": "Interrupted",
+      "stopped": "Stopped"
+    },
+    "period": {
+      "this_week": "This week",
+      "older": "Older"
+    },
+    "treated": "{treated} of {total} processed",
+    "items": "{count, plural, one {# item} other {# items}}",
+    "minutes": "{count} min.",
+    "count": "{count, plural, one {# batch in all} other {# batches in all}}",
+    "count_more": "{count} batches shown · the list goes on as you scroll, with no limit on their number",
+    "count_filtered": "{shown} of {count} batches match the filters",
+    "load_older": "Show older batches",
+    "load_failed": "The history of the batches could not be read.",
+    "empty_title": "No batch yet",
+    "empty_body": "Launch a batch from the sheet of an agent, with \"Process a batch\", or by dropping an Excel or CSV file in the chat.",
+    "empty_filtered_title": "No batch matches",
+    "empty_filtered_body": "Change the filters or the search to see other batches."
   }
 }

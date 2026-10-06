@@ -17,6 +17,7 @@ pub mod authorizations;
 #[cfg(debug_assertions)]
 pub mod automation;
 pub mod background_service;
+pub mod batch_view;
 pub mod batches;
 pub mod chat;
 pub mod cli;
@@ -206,6 +207,25 @@ pub(crate) async fn http_post_for_file(
     body: &serde_json::Value,
     report_header: &str,
 ) -> Result<(Option<String>, Vec<u8>), String> {
+    http_file_request(port, "POST", path, Some(body), report_header).await
+}
+
+/// Sends a GET request to the internal REST API, for an answer that is a
+/// file: its bytes.
+pub(crate) async fn http_get_for_file(port: u16, path: &str) -> Result<Vec<u8>, String> {
+    let (_, bytes) = http_file_request(port, "GET", path, None, "").await?;
+    Ok(bytes)
+}
+
+/// Shared by [`http_post_for_file`] and [`http_get_for_file`]: the request,
+/// then the value of the `report_header` of the answer and its bytes.
+async fn http_file_request(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<&serde_json::Value>,
+    report_header: &str,
+) -> Result<(Option<String>, Vec<u8>), String> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
         .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
@@ -217,13 +237,17 @@ pub(crate) async fn http_post_for_file(
         let _ = conn.await;
     });
 
-    let body_bytes =
-        serde_json::to_vec(body).map_err(|e| format!("failed to serialize body: {e}"))?;
     let mut builder = hyper::Request::builder()
-        .method("POST")
+        .method(method)
         .uri(path)
-        .header("host", "localhost")
-        .header("content-type", "application/json");
+        .header("host", "localhost");
+    let body_bytes = match body {
+        Some(body) => {
+            builder = builder.header("content-type", "application/json");
+            serde_json::to_vec(body).map_err(|e| format!("failed to serialize body: {e}"))?
+        }
+        None => Vec::new(),
+    };
     if let Some(auth) = bridge_auth_header() {
         builder = builder.header("authorization", auth);
     }
