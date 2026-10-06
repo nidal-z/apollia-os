@@ -117,7 +117,6 @@ décrivent ce qu'il configure réellement dans ce dépôt.
 | `.pre-commit-config.yaml` | La liste des hooks, et le fichier à lire pour la connaître plutôt qu'une copie de celle-ci : hygiène des fichiers et détection de secrets, `ruff` sur `sdk/`, `rustfmt` et `cargo check` sur l'espace de travail, neuf des gardes du dépôt sous `scripts/` (dont les règles de prose), et le build du site de documentation. Deux entrées tournent en dehors du commit lui-même : `clippy` au push, et la convention de message de commit à `commit-msg`. À ne jamais contourner. |
 | `.editorconfig` | Règles d'espacement indépendantes de l'éditeur : fins de ligne LF, ligne finale vide, et tailles d'indentation par langage (4 pour Rust/Python/TOML, 2 pour le web et Markdown). |
 | `.python-version` | Fige l'interpréteur Python local (`3.13.7`) pour des outils comme `pyenv`. |
-| `.mailmap` | Canonicalise le nom et l'email des contributeurs à travers l'historique git. |
 | `.cargo/` | Réglages par défaut de Cargo : `config.toml` fixe l'environnement de build (cible de déploiement macOS, un profil dev accéléré) et `audit.toml` contient les avis ignorés par `cargo-audit` (reflet de `deny.toml`). |
 | `.github/` | Configuration GitHub : les workflows CI, CodeQL, nightly, et de release (`.github/workflows/`), plus `CODEOWNERS`, les templates d'issue et de PR, `dependabot.yml`, et `FUNDING.yml`. |
 | `.gitignore` | Chemins que git ne suit pas (voir ci-dessous). |
