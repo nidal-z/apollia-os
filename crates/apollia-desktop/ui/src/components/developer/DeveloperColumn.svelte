@@ -1,13 +1,15 @@
 <script lang="ts">
   /**
-   * The column of the developer screen: its two views, and the way to the
-   * settings that keep the developer mode switch and the MCP bridge.
+   * The column of the developer screen: its two views, the tree of the
+   * documentation, and the way to the settings that keep the developer mode
+   * switch and the MCP bridge.
    */
   import { t } from "svelte-i18n";
   import { BookOpen, Server } from "lucide-svelte";
   import { cn } from "$lib/utils";
   import { developerMode } from "$lib/stores/developerMode";
   import { openSettingsWindow } from "$lib/stores/settingsWindow";
+  import DocumentationTree from "./DocumentationTree.svelte";
   import { DEVELOPER_VIEWS, openBridgeSettings, type DeveloperView } from "./developerScreen";
 
   interface Props {
@@ -48,7 +50,12 @@
         </button>
       {/each}
     </nav>
-    <div class="mt-auto flex flex-col items-start gap-1 p-4">
+    <div class="mx-2 mt-2 border-t border-border" aria-hidden="true"></div>
+    <DocumentationTree
+      active={view === "documentation"}
+      onopen={() => onview("documentation")}
+    />
+    <div class="flex flex-col items-start gap-1 p-4">
       <p class="text-xs text-muted-foreground">{$t("dev.developer.settings_hint")}</p>
       <button
         type="button"

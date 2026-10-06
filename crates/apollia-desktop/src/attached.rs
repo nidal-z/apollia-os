@@ -474,6 +474,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "reads a page of the documentation archive compiled into this application",
     ),
     (
+        "get_documentation_manifest",
+        "reads the tree and the titles of the documentation archive compiled into this application",
+    ),
+    (
+        "get_documentation_image",
+        "reads an image of the documentation archive compiled into this application",
+    ),
+    (
         "get_system_info",
         "describes this application, its version, and the machine that carries the window",
     ),

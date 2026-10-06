@@ -19,22 +19,6 @@ mod backend;
 mod bootstrap;
 mod bundled_packages;
 mod commands;
-// REASON: this module is the content side of the in-app documentation. The
-// guide reads one page of it through `get_documentation_page`. The manifest
-// (tree, titles, previous and next) is read by the documentation reader, whose
-// command is registered together with the screen that calls it, because a
-// command without a caller fails `scripts/check_tauri_ipc_callers.py`. Until
-// then only the tests reach the manifest side.
-// TODO(once the documentation reader registers its manifest command and a
-// screen calls it): remove this attribute; the expectation turns red on that
-// day and forces the removal.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the manifest side is reached only by its tests until the documentation reader registers its command"
-    )
-)]
 mod embedded_docs;
 mod events;
 mod file_log;

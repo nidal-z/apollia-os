@@ -4,8 +4,8 @@
 //! Markdown sources in both languages, the images, the OpenAPI document, and a
 //! manifest that carries the sidebar tree, the routes, the titles, previous and
 //! next, the languages of each page and the public address. This module opens
-//! that archive and answers two questions: the manifest in a language, and the
-//! source of a page by route and language.
+//! that archive and answers three questions: the manifest in a language, the
+//! source of a page by route and language, and an image by its site path.
 //!
 //! The language is the application's. A page without a French mirror is served
 //! in English and marked as a fallback; the generated references (HTTP API,
@@ -21,6 +21,14 @@ use crate::i18n::UiLocale;
 
 /// The archive the build script wrote into `OUT_DIR`.
 static ARCHIVE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/embedded-docs.zip"));
+
+/// The folder of the archive that holds the images of the site, and the
+/// prefix a page writes them under.
+const IMAGES_PREFIX: &str = "img/";
+
+/// The image types the reader shows, by file extension. The webview decides
+/// the media type from the same extension.
+const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg"];
 
 /// The manifest's own entry in the archive.
 const MANIFEST_ENTRY: &str = "manifest.json";
@@ -77,6 +85,11 @@ pub(crate) enum DocsError {
         language: String,
     },
     /// No page is served at this route.
+    #[error("no documentation image at {path}")]
+    UnknownImage {
+        /// The path asked for.
+        path: String,
+    },
     #[error("no documentation page at {route}")]
     UnknownRoute {
         /// The route asked for.
@@ -293,6 +306,37 @@ impl<'a> EmbeddedDocs<'a> {
             markdown,
             public_url,
         })
+    }
+
+    /// The image a page names by `path`, the path of the site (such as
+    /// `/img/operator-help/chat.png`).
+    ///
+    /// # Errors
+    ///
+    /// [`DocsError::UnknownImage`] when the path leaves the images folder, has
+    /// a type the reader does not show, or names no entry of the archive.
+    pub(crate) fn image(&self, path: &str) -> Result<Vec<u8>, DocsError> {
+        let unknown = || DocsError::UnknownImage {
+            path: path.to_owned(),
+        };
+        let name = path.strip_prefix('/').unwrap_or(path);
+        let inside = name.strip_prefix(IMAGES_PREFIX).ok_or_else(unknown)?;
+        let plain = inside
+            .split('/')
+            .all(|segment| !segment.is_empty() && segment != "." && segment != "..");
+        if !plain || inside.contains('\\') {
+            return Err(unknown());
+        }
+        let shown = inside.rsplit_once('.').is_some_and(|(_, extension)| {
+            IMAGE_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str())
+        });
+        if !shown {
+            return Err(unknown());
+        }
+        match read_entry(self.bytes, name) {
+            Err(DocsError::MissingEntry { .. }) => Err(unknown()),
+            read => read,
+        }
     }
 
     fn locale_view(&self, language: &str) -> Result<&LocaleView, DocsError> {

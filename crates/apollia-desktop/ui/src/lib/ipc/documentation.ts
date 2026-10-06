@@ -26,3 +26,63 @@ export interface DocumentationPage {
 export function getDocumentationPage(route: string, language: string): Promise<DocumentationPage> {
   return invoke<DocumentationPage>("get_documentation_page", { route, language });
 }
+
+/** A page the archive holds: its source file and the languages it exists in. */
+export interface DocumentationPageInfo {
+  /** The source file, relative to the documentation folder of the site. */
+  source: string;
+  /** The languages the page is written in. */
+  languages: string[];
+  /** Whether the page is generated from the code. */
+  generated: boolean;
+}
+
+/** An entry of the sidebar tree: a page, or a category of entries. */
+export type DocumentationTreeItem =
+  | { kind: "doc"; route: string; label: string }
+  | { kind: "category"; label: string; route: string | null; items: DocumentationTreeItem[] };
+
+/** A neighbour of a page in reading order. */
+export interface DocumentationNavLink {
+  route: string;
+  title: string;
+}
+
+/** The title of a page, with the page before it and the page after it. */
+export interface DocumentationNavEntry {
+  kind: string;
+  title: string;
+  previous: DocumentationNavLink | null;
+  next: DocumentationNavLink | null;
+}
+
+/** The documentation as one language shows it. */
+export interface DocumentationManifest {
+  /** The language of the labels and the titles. */
+  language: string;
+  /** Every language the archive holds. */
+  languages: string[];
+  /** The entry of the archive that holds the OpenAPI document. */
+  openapi: string;
+  /** Every page, by route. */
+  pages: Record<string, DocumentationPageInfo>;
+  /** The public site in this language, without a trailing slash. */
+  public_url: string;
+  /** The sidebar tree. */
+  tree: DocumentationTreeItem[];
+  /** The title, the previous and the next of every page, by route. */
+  navigation: Record<string, DocumentationNavEntry>;
+}
+
+/** Reads the tree and the titles, in the interface language `language`. */
+export function getDocumentationManifest(language: string): Promise<DocumentationManifest> {
+  return invoke<DocumentationManifest>("get_documentation_manifest", { language });
+}
+
+/**
+ * Reads an image of the archive by `path`, the path a page writes it under
+ * (such as `/img/operator-help/chat.png`). The answer is the file itself.
+ */
+export function getDocumentationImage(path: string): Promise<ArrayBuffer> {
+  return invoke<ArrayBuffer>("get_documentation_image", { path });
+}

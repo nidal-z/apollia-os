@@ -1,16 +1,23 @@
 {
-  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the model picker, the link back to the settings)",
+  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the model picker, the documentation read from its tree with its breadcrumb, previous and next, copy and the public site, a diagram left as code, the link back to the settings)",
   "stopOnError": false,
   "notes": [
-    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte and components/developer/localServer.ts.",
+    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte, DocumentationTree.svelte, components/developer/localServer.ts, documentation.ts and documentationReader.ts.",
     "The start and the stop are real: they reach the compatible server of the runtime of the seeded home, on the port of its [server] section (7772 unless the seed says otherwise). A machine where another program holds that port shows the taken-port error on the first start and reds the steps that wait for the address; that is the machine, not the product.",
     "The taken-port state is stubbed: start_local_server rejects with the LocalServerRefusal of crates/apollia-desktop/src/commands/local_server.rs (kind port_in_use). A field renamed there drifts here silently. The stub is cleared before the next start, which is real and clears the error.",
     "The copy button is clicked, not asserted: the clipboard of the webview may refuse a write that no user gesture started, and the copy itself is held by the Vitest suite.",
     "The picker of Load a model is opened and closed without choosing: the models of the seed are placeholders, and the loading window is played by llm-det.",
+    "The documentation is the archive compiled into the application: nothing is stubbed to read it, and the run speaks English, so the titles waited for are the English ones of the site (Help center, Installation, Install Apollia on macOS, Install Apollia on Windows, Architecture). A page renamed on the site moves these waits; the category ids are places in the sidebar tree (developer-docs-category-1 is the help center, -1-0 its Installation category, -6 the architecture), so a category added before them moves the ids.",
+    "plugin:opener|open_url resolves null so View on the web and the button under a diagram never reach the host browser; the address handed over is held by the Vitest suite. Copy as Markdown is clicked, not asserted, for the reason the address copy is. The fallback mention is played through a patch of get_documentation_page (DocsPage of crates/apollia-desktop/src/embedded_docs.rs, field fallback), since an English run never falls back; the unreadable page through a reject of the same command. Both are armed once and cleared before the documentation is left.",
     "The book leaves the server stopped and the developer mode off, as it found them.",
     "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run."
   ],
   "dynamicTestids": [
+    "developer-docs-category-1-0",
+    "developer-docs-category-6",
+    "developer-docs-entry-architecture-context-and-scope",
+    "developer-docs-entry-home",
+    "developer-docs-entry-operator-help-installation-install-on-macos",
     "developer-server-error-port_in_use",
     "nav-developer",
     "settings-nav-developer"
@@ -250,6 +257,252 @@
     {
       "kind": "waitGone",
       "testid": "developer-pane-logs",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-docs-tree"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-docs-breadcrumb"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-docs-copy"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-docs-web"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-docs-back"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-docs-forward"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-docs-entry-home"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-developer-docs-home"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-next"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-previous",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "Help center"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-category-1-0"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "Installation"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-entry-operator-help-installation-install-on-macos",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-entry-operator-help-installation-install-on-macos"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "macOS"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-breadcrumb",
+      "timeoutMs": 4000,
+      "contains": "Installation"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-developer-docs-page"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-copy"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-web"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-forward"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "Windows"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-back"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "macOS"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-previous"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "Installation"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-next"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "macOS"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-breadcrumb-step"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "Help center"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-category-6"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-title",
+      "timeoutMs": 8000,
+      "contains": "Architecture"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-entry-architecture-context-and-scope"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-diagram-web",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-developer-docs-diagram"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-diagram-web"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:opener|open_url"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_documentation_page",
+      "patch": {
+        "fallback": true
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-entry-home"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-fallback",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_documentation_page",
+      "reject": "the embedded documentation cannot be opened",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-category-6"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-docs-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_documentation_page"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-docs-entry-home"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-docs-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-docs-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-docs-fallback",
       "timeoutMs": 4000
     },
     {
