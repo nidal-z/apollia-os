@@ -206,7 +206,6 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_task_trace",
     "list_agent_messages",
     "list_tools",
-    "verify_audit_run",
     // The sheet of an agent: the agent resolved, its model fallback, its
     // governance history.
     "get_agent_definition",
@@ -214,6 +213,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_changes",
     "get_journal_entry",
     "list_journal_entries",
+    // The journal verified and exported, over `/api/v1/audit/verify` and `/export`.
+    "export_journal",
+    "read_journal_export",
+    "verify_journal",
     // The adjustment of an agent on its sheet: its overrides, the return to
     // defaults, its model and the presets to choose from.
     "clear_agent_model",
@@ -460,6 +463,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "open_hardware_window",
         "opens or brings forward a window of this application; what it shows is read by routed commands",
+    ),
+    (
+        "print_journal",
+        "opens the print dialog of the system on this window; the page it prints was read by a routed command",
     ),
     (
         "quit_app",

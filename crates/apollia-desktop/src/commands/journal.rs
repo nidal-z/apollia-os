@@ -9,12 +9,22 @@
 //!   are applied by the route, before paging.
 //! - `get_journal_entry`: `GET /api/v1/audit/journal/{run_id}/entries/{seq}`,
 //!   one entry with the arguments and the output of its tool call.
+//! - `verify_journal`: `GET /api/v1/audit/verify`, the verification of the
+//!   whole chain, as the route reports it.
+//! - `export_journal`: `GET /api/v1/audit/export?format=csv`, then the file
+//!   written where the user chose in the save dialog.
+//! - `read_journal_export`: `GET /api/v1/audit/export?format=json`, the same
+//!   export as a document, which the screen lays out as a page to print.
+//! - `print_journal`: the print dialog of the system on this window, where
+//!   that page is saved as a PDF. It reads nothing from the runtime.
 //!
 //! An entry the journal no longer holds answers an empty value rather than an
 //! error: the screen says so in place of a detail.
 
+use std::path::Path;
+
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 use tauri::State;
 
 use crate::attached::{segment, RuntimeLink};
@@ -22,6 +32,12 @@ use crate::commands::agent_sheet::get_optional;
 
 /// Entries a page holds when the screen names no size.
 const DEFAULT_PAGE_SIZE: u32 = 50;
+
+/// Route of the verification of the whole journal.
+const VERIFY_ROUTE: &str = "/api/v1/audit/verify";
+
+/// Route of the export of the journal.
+const EXPORT_ROUTE: &str = "/api/v1/audit/export";
 
 /// What the screen narrows a page of the journal to. Within one criterion the
 /// values are alternatives; the criteria add up. An empty criterion keeps
@@ -47,13 +63,10 @@ pub struct JournalQuery {
     pub offset: Option<u32>,
 }
 
-/// Route of the page `query` describes, each criterion in its query parameter.
-fn page_path(query: &JournalQuery) -> String {
-    let mut path = format!(
-        "/api/v1/audit/journal?limit={}&offset={}",
-        query.limit.unwrap_or(DEFAULT_PAGE_SIZE),
-        query.offset.unwrap_or(0)
-    );
+/// The filters of `query` as query parameters, each criterion in its own,
+/// every one led by `&`. Empty when `query` narrows nothing.
+fn filter_parameters(query: &JournalQuery) -> String {
+    let mut parameters = String::new();
     let lists = [
         ("agents", &query.agents),
         ("family", &query.families),
@@ -67,16 +80,37 @@ fn page_path(query: &JournalQuery) -> String {
             .filter(|value| !value.is_empty())
             .collect();
         if !values.is_empty() {
-            path.push_str(&format!("&{name}={}", segment(&values.join(","))));
+            parameters.push_str(&format!("&{name}={}", segment(&values.join(","))));
         }
     }
     let bounds = [("since", &query.since), ("until", &query.until)];
     for (name, bound) in bounds {
         if let Some(bound) = bound.as_deref().map(str::trim).filter(|b| !b.is_empty()) {
-            path.push_str(&format!("&{name}={}", segment(bound)));
+            parameters.push_str(&format!("&{name}={}", segment(bound)));
         }
     }
-    path
+    parameters
+}
+
+/// Route of the page `query` describes, each criterion in its query parameter.
+fn page_path(query: &JournalQuery) -> String {
+    format!(
+        "/api/v1/audit/journal?limit={}&offset={}{}",
+        query.limit.unwrap_or(DEFAULT_PAGE_SIZE),
+        query.offset.unwrap_or(0),
+        filter_parameters(query)
+    )
+}
+
+/// Route of the export of the entries `query` narrows, as `format`, with or
+/// without their detail. An export is never paged: the bounds of `query` are
+/// left out.
+fn export_path(query: &JournalQuery, format: &str, detail: bool) -> String {
+    let detail = if detail { "&detail=true" } else { "" };
+    format!(
+        "{EXPORT_ROUTE}?format={format}{detail}{}",
+        filter_parameters(query)
+    )
 }
 
 /// Route of the detail of the entry `seq` of `run_id`.
@@ -105,6 +139,37 @@ pub(crate) async fn entry_on(
     Ok(body.and_then(|body| body.get("entry").cloned()))
 }
 
+pub(crate) async fn verify_on(link: &RuntimeLink) -> Result<Value, String> {
+    link.get_json(VERIFY_ROUTE).await
+}
+
+pub(crate) async fn export_on(
+    link: &RuntimeLink,
+    query: &JournalQuery,
+    detail: bool,
+    target: &Path,
+) -> Result<Value, String> {
+    let bytes = link
+        .get_for_file(&export_path(query, "csv", detail))
+        .await?;
+    std::fs::write(target, &bytes).map_err(|e| format!("{}: {e}", target.display()))?;
+    tracing::event!(
+        tracing::Level::INFO,
+        detail = detail,
+        bytes = bytes.len(),
+        "journal.export.written"
+    );
+    Ok(json!({ "path": target.display().to_string(), "bytes": bytes.len() }))
+}
+
+pub(crate) async fn export_document_on(
+    link: &RuntimeLink,
+    query: &JournalQuery,
+    detail: bool,
+) -> Result<Value, String> {
+    link.get_json(&export_path(query, "json", detail)).await
+}
+
 /// A page of the journal narrowed by `query`, newest first. Each entry is the
 /// chained entry with its `summary`: agent, nature, family, what happened,
 /// tool, target, outcome and date, without content.
@@ -126,6 +191,47 @@ pub async fn get_journal_entry(
     seq: u64,
 ) -> Result<Option<Value>, String> {
     entry_on(link.inner(), &run_id, seq).await
+}
+
+/// The verification of the whole journal: whether the chain holds, how many
+/// entries were read, the first broken link when there is one, and where the
+/// verification started when a purge removed the beginning.
+#[tauri::command]
+pub async fn verify_journal(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    verify_on(link.inner()).await
+}
+
+/// Writes the entries `query` narrows to `path` as a CSV file, with their
+/// detail when `detail` is set, and answers the file written and its size.
+/// A refusal of the runtime, such as a detail the organisation policy
+/// forbids, comes back as its message and nothing is written.
+#[tauri::command]
+pub async fn export_journal(
+    link: State<'_, RuntimeLink>,
+    query: JournalQuery,
+    detail: bool,
+    path: String,
+) -> Result<Value, String> {
+    export_on(link.inner(), &query, detail, Path::new(&path)).await
+}
+
+/// The export of the entries `query` narrows as a document: `detail`, `count`
+/// and `entries`. The screen lays it out as the page the system prints.
+#[tauri::command]
+pub async fn read_journal_export(
+    link: State<'_, RuntimeLink>,
+    query: JournalQuery,
+    detail: bool,
+) -> Result<Value, String> {
+    export_document_on(link.inner(), &query, detail).await
+}
+
+/// Opens the print dialog of the system on this window. The page it prints
+/// is the one the screen laid out; saving it as a PDF is a choice of that
+/// dialog.
+#[tauri::command]
+pub fn print_journal(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.print().map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -280,9 +386,161 @@ mod tests {
     }
 
     #[test]
+    fn test_an_export_carries_the_filters_and_never_the_page_bounds() {
+        // GIVEN a query naming an agent, a result and a period, on its third page
+        let query = JournalQuery {
+            agents: vec!["mail sorter".to_owned()],
+            results: vec!["refused".to_owned()],
+            since: Some("2026-10-01".to_owned()),
+            limit: Some(50),
+            offset: Some(100),
+            ..JournalQuery::default()
+        };
+
+        // WHEN the routes of its export are written, with and without the detail
+        let summary = export_path(&query, "csv", false);
+        let detailed = export_path(&query, "json", true);
+
+        // THEN the filters travel, the detail only when asked, and no page bound
+        assert_eq!(
+            summary,
+            "/api/v1/audit/export?format=csv&agents=mail%20sorter&result=refused&since=2026-10-01"
+        );
+        assert_eq!(
+            detailed,
+            "/api/v1/audit/export?format=json&detail=true\
+             &agents=mail%20sorter&result=refused&since=2026-10-01"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_the_screen_reads_the_verification_of_the_whole_journal() {
+        // GIVEN a daemon whose journal breaks at the entry 217, after a purge
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/audit/verify"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": false, "entries_checked": 216, "runs_checked": 4,
+                "first_break": {
+                    "global_seq": 217, "run_id": "run-9", "reason": "global_hash_mismatch",
+                },
+                "head_matches_state": true,
+                "start": {
+                    "global_seq": 12, "ts": "2026-09-12T08:00:00Z",
+                    "purged_at": "2026-10-01T00:00:00Z",
+                },
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the screen asks for the verification
+        let report = verify_on(&attached(&server)).await.unwrap();
+
+        // THEN the report comes back as the route wrote it, break and start included
+        assert_eq!(report["ok"], false);
+        assert_eq!(report["first_break"]["global_seq"], 217);
+        assert_eq!(report["start"]["global_seq"], 12);
+    }
+
+    #[tokio::test]
+    async fn test_the_export_is_written_where_the_user_chose() {
+        // GIVEN a daemon answering the export of the refused calls, detail included
+        let server = MockServer::start().await;
+        let body = "ts,agent,nature\n2026-10-02T12:00:00Z,watch,action\n";
+        Mock::given(method("GET"))
+            .and(path("/api/v1/audit/export"))
+            .and(query_param("format", "csv"))
+            .and(query_param("detail", "true"))
+            .and(query_param("result", "refused"))
+            .and(query_param_is_missing("limit"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(body))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("journal.csv");
+        let query = JournalQuery {
+            results: vec!["refused".to_owned()],
+            limit: Some(50),
+            ..JournalQuery::default()
+        };
+
+        // WHEN the screen exports to that file
+        let written = export_on(&attached(&server), &query, true, &target)
+            .await
+            .unwrap();
+
+        // THEN the file holds what the route answered, and its size is reported
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), body);
+        assert_eq!(written["bytes"], body.len());
+    }
+
+    #[tokio::test]
+    async fn test_a_detail_the_policy_forbids_writes_no_file() {
+        // GIVEN a daemon whose policy forbids the detail in an export
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/audit/export"))
+            .respond_with(ResponseTemplate::new(403).set_body_json(
+                serde_json::json!({ "error": "the organisation policy forbids the detail" }),
+            ))
+            .mount(&server)
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("journal.csv");
+
+        // WHEN the screen asks for an export with the detail
+        let refused = export_on(&attached(&server), &JournalQuery::default(), true, &target).await;
+
+        // THEN the refusal comes back with its reason and nothing is written
+        assert!(refused.unwrap_err().contains("forbids the detail"));
+        assert!(!target.exists());
+    }
+
+    #[tokio::test]
+    async fn test_the_page_to_print_is_read_as_the_export_document() {
+        // GIVEN a daemon answering the export as a document of one entry
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/audit/export"))
+            .and(query_param("format", "json"))
+            .and(query_param_is_missing("detail"))
+            .and(query_param("agents", "watch"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "detail": false, "count": 1,
+                "entries": [{ "run_id": "run-1", "seq": 7, "what": "Call refused by a rule" }],
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let query = JournalQuery {
+            agents: vec!["watch".to_owned()],
+            ..JournalQuery::default()
+        };
+
+        // WHEN the screen reads the export to lay it out
+        let document = export_document_on(&attached(&server), &query, false)
+            .await
+            .unwrap();
+
+        // THEN the document carries its entries
+        assert_eq!(document["count"], 1);
+        assert_eq!(document["entries"][0]["seq"], 7);
+    }
+
+    #[test]
     fn test_the_journal_commands_are_routed_to_a_daemon() {
-        // GIVEN the two commands of the journal screen
-        let commands = ["list_journal_entries", "get_journal_entry"];
+        // GIVEN the commands of the journal screen
+        let commands = [
+            "list_journal_entries",
+            "get_journal_entry",
+            "verify_journal",
+            "export_journal",
+            "read_journal_export",
+            "print_journal",
+        ];
 
         // WHEN each passes the gate of an attached window
         // THEN none is refused

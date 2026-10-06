@@ -19,17 +19,6 @@
   import PlanMutationRow from "./PlanMutationRow.svelte";
   import ToolAuditRow from "./ToolAuditRow.svelte";
 
-  interface Props {
-    /**
-     * Run whose journal integrity can be verified from the action bar. When
-     * omitted, the verify button is hidden (run selection is out of scope in
-     * this version: the parent passes the current or last known run).
-     */
-    runId?: string | undefined;
-  }
-
-  let { runId = undefined }: Props = $props();
-
   const PAGE_SIZE = 50;
 
   let rows = $state<AuditRow[]>([]);
@@ -41,13 +30,6 @@
 
   let filterTool = $state<string>("all");
   let filterAgent = $state<string>("all");
-
-  /**
-   * Bumped when an action just read the journal end to end. The global totals
-   * are computed server-side, so they only move when this component asks for
-   * them again.
-   */
-  let globalStatsToken = $state(0);
 
   let toolEntries = $derived(
     rows.filter((r) => r.type === "tool").map((r) => r.entry),
@@ -149,7 +131,7 @@
   <AuditPurposeBanner />
 
   <!-- Journal-wide totals, independent of the page of rows loaded below. -->
-  <AuditGlobalStats refreshToken={globalStatsToken} />
+  <AuditGlobalStats />
 
   {#if loading}
     <SkeletonList count={6} avatar={false} rowClass="py-1" />
@@ -168,8 +150,6 @@
       bind:filterAgent
       {uniqueTools}
       {uniqueAgents}
-      {runId}
-      onverified={() => (globalStatsToken += 1)}
     />
 
     <!-- Table -->
