@@ -150,19 +150,6 @@
       : $t("chat.use_preferences"),
   );
 
-  const contextBarSegments = $derived.by(() => {
-    const stats = $chatConversationStats;
-    if (!stats) return null;
-    const pct = stats.context_usage_pct;
-    const hasMemory = stats.user_memory_injected;
-    const hasSummary = stats.summarized_count > 0;
-    const memoryPct = hasMemory ? Math.min(pct * 0.15, 15) : 0;
-    const summaryPct = hasSummary ? Math.min(pct * 0.1, 10) : 0;
-    const messagesPct = Math.max(pct - memoryPct - summaryPct, 0);
-    const freePct = Math.max(100 - messagesPct - memoryPct - summaryPct, 0);
-    return { messagesPct, memoryPct, summaryPct, freePct };
-  });
-
   function syncFromSession(): void {
     if (!session) return;
     systemPrompt = session.system_prompt ?? "";
@@ -537,49 +524,6 @@
         />
       </div>
     </Card>
-
-    <!-- Context window usage -->
-    {#if contextBarSegments}
-      <Card class="p-3.5 space-y-2.5">
-        <p class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">
-          {$t("chat.context_window")}
-        </p>
-        <div
-          class="flex h-2 w-full overflow-hidden rounded-full bg-muted/20"
-          data-testid="context-window-bar"
-        >
-          {#if contextBarSegments.messagesPct > 0}
-            <div class="h-full bg-primary" style="width: {contextBarSegments.messagesPct}%"
-              title={$t("chat.context_messages", { values: { pct: Math.round(contextBarSegments.messagesPct) } })}></div>
-          {/if}
-          {#if contextBarSegments.memoryPct > 0}
-            <div class="h-full bg-secondary" style="width: {contextBarSegments.memoryPct}%"
-              title={$t("chat.context_memory", { values: { pct: Math.round(contextBarSegments.memoryPct) } })}></div>
-          {/if}
-          {#if contextBarSegments.summaryPct > 0}
-            <div class="h-full bg-warning" style="width: {contextBarSegments.summaryPct}%"
-              title={$t("chat.context_summary", { values: { pct: Math.round(contextBarSegments.summaryPct) } })}></div>
-          {/if}
-          <div class="h-full bg-muted-foreground/30 flex-1"
-            title={$t("chat.context_free", { values: { pct: Math.round(contextBarSegments.freePct) } })}></div>
-        </div>
-        <div class="flex items-center gap-3 text-micro-xs text-muted-foreground/50">
-          <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-primary"></span>{$t("chat.legend_messages")}</span>
-          <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-secondary"></span>{$t("chat.legend_memory")}</span>
-          <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-warning"></span>{$t("chat.legend_summary")}</span>
-          <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/30"></span>{$t("chat.legend_free")}</span>
-        </div>
-        <p
-          class="text-micro-xs text-muted-foreground/60"
-          data-testid="context-profile-indicator"
-          data-injected={$chatConversationStats?.user_memory_injected ? "true" : "false"}
-        >
-          {$chatConversationStats?.user_memory_injected
-            ? $t("chat.context_profile_on")
-            : $t("chat.context_profile_off")}
-        </p>
-      </Card>
-    {/if}
 
     {#if saveError}
       <div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 animate-fade-in">

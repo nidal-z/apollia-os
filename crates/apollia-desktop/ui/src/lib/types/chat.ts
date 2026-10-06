@@ -78,6 +78,28 @@ export interface ChatModelCapabilities {
   image_formats: string[];
 }
 
+/** A level of reasoning, for a model that reads one. */
+export type ReasoningEffort = "low" | "medium" | "high";
+
+/**
+ * What a conversation changes from its agent. A field left out is inherited;
+ * the runtime refuses a field it does not declare, so a write sends back
+ * every field that was read.
+ */
+export interface SessionSettings {
+  preset?: number;
+  /** Reasoning on or off, for a model that reads it. */
+  thinking?: boolean;
+  reasoning_effort?: ReasoningEffort;
+  temperature?: number;
+  max_tokens?: number;
+  context_overflow?: "summarize_middle" | "sliding_window" | "stop_at_limit";
+  instructions?: string;
+  disabled_accesses?: string[];
+  proposed_accesses?: string[];
+  profile_access?: boolean;
+}
+
 /** One stored image of a conversation, its media type and base64 bytes. */
 export interface ChatImageData {
   mime_type: string;

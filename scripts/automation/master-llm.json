@@ -310,10 +310,6 @@
     },
     {
       "kind": "expect",
-      "testid": "context-window-bar"
-    },
-    {
-      "kind": "expect",
       "testid": "context-indicator-footer"
     },
     {

@@ -14,7 +14,8 @@ use crate::attached::{segment, RuntimeLink};
 
 /// Automatic session naming lives in `naming`, the on-disk export in `export`,
 /// the daemon routes of the conversations in `conversations`, the images of
-/// the chat in `images`, the actions under an answer in `answers`.
+/// the chat in `images`, the actions under an answer in `answers`, the
+/// settings a conversation holds for itself in `settings`.
 pub mod answers;
 pub(crate) mod conversations;
 pub mod export;
@@ -22,6 +23,7 @@ pub mod folders;
 pub mod images;
 pub mod naming;
 mod remote;
+pub mod settings;
 pub mod targets;
 pub mod trash;
 pub mod turn_calls;

@@ -54,7 +54,6 @@
     sentAttachmentsMetadata,
   } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
-  import ContextIndicator from "./ContextIndicator.svelte";
   import { refreshSessionMetrics } from "$lib/stores/chatMetrics";
   import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
   import { latestTurnId } from "$lib/stores/thinking";
@@ -74,7 +73,7 @@
   import { MAIN_PANE, paneLeases, syncConversationLease } from "$lib/chat/modelLease";
   import { chatTargets } from "$lib/stores/chatTargets";
   import ReloadLastModel from "./ReloadLastModel.svelte";
-  import { createImageSupport } from "./useImageSupport.svelte";
+  import { createModelCapabilities } from "./useModelCapabilities.svelte";
   import { createAnswerActions } from "./useAnswerActions.svelte";
 
   interface Props {
@@ -168,7 +167,7 @@
     injectedSheetOpen = true;
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
-  const images = createImageSupport(() => sessionId, () => sessionDetail?.llm_backend);
+  const model = createModelCapabilities(() => sessionId, () => sessionDetail?.llm_backend);
 
   const target = $derived<ConversationTarget>({
     mode: sessionMode,
@@ -671,12 +670,6 @@
     />
   {/if}
 
-  <!-- Context indicator: the mini gauge rendered below the input (see footer
-       near ChatInput). -->
-  {#if sessionId}
-    <ContextIndicator {sessionId} onclick={openInjectedSheet} />
-  {/if}
-
   <InjectedMemorySheet
     open={injectedSheetOpen}
     turnId={currentTurnId}
@@ -760,7 +753,9 @@
       {planMode}
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
-      imageSupport={images.value}
+      imageSupport={model.images}
+      capabilities={model.value}
+      oncontextinspect={openInjectedSheet}
       {sessionId}
       agentName={sessionAgentName}
     />

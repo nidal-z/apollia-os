@@ -175,7 +175,7 @@ describe("ChatConfigPanelBody - the conversation designates its profile", () => 
     expect(select).toBeGreaterThan(-1);
     expect(toggle).toBeGreaterThan(-1);
     const between = html.slice(Math.min(select, toggle), Math.max(select, toggle));
-    expect(between).not.toContain('data-testid="context-window-bar"');
+    expect(between).not.toContain("p-3.5");
     // AND its first choice is the default profile, stored as an empty value
     expect(tagOf(html, "config-profile-option-default")).toContain('value=""');
   });
@@ -288,18 +288,18 @@ describe("ChatConfigPanelBody - the profile switch is stored with the conversati
     expect(read).not.toHaveBeenCalled();
   });
 
-  test("the gauge says whether the profile is in the prompt", () => {
-    // GIVEN the gauge of a conversation whose prompt carries the profile, then not
+  test("the panel carries no context gauge: the composer holds the only one", () => {
+    // GIVEN a conversation whose context is measured and carries the profile
     developerMode.set(false);
     chatConversationStats.set(stats(true));
-    const carried = tagOf(render(), "context-profile-indicator");
-    chatConversationStats.set(stats(false));
-    const absent = tagOf(render(), "context-profile-indicator");
+
+    // WHEN the panel renders
+    const html = render();
     chatConversationStats.set(null);
 
-    // WHEN the panel renders each
-    // THEN the indicator follows the gauge
-    expect(carried).toContain('data-injected="true"');
-    expect(absent).toContain('data-injected="false"');
+    // THEN it draws no bar, no legend and no profile line of its own
+    expect(html).not.toContain("context-window-bar");
+    expect(html).not.toContain("context-profile-indicator");
+    expect(html).not.toContain("context-indicator-footer");
   });
 });

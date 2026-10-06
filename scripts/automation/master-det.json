@@ -2385,7 +2385,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "context-window-bar",
+      "testid": "toggle-user-memory",
       "timeoutMs": 2500
     },
     {
