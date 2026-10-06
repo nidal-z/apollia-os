@@ -6,8 +6,8 @@ use super::ChatToolsConfig;
 use crate::chat::agent_draft_tool::{DraftOffer, OfferedSource};
 
 /// The offer of a draft, read when a message is sent: the tools of
-/// `registry` without the `disabled` ones, the sources of the registry of
-/// `cfg`, and `models`. A registry of sources that is absent or cannot be
+/// `registry` without the `disabled` ones, the default access of `cfg`, the
+/// sources of the registry of `cfg`, and `models`. A registry of sources that is absent or cannot be
 /// listed leaves the profile and the memory, which every agent may be given.
 pub(in crate::chat::manager) async fn offer(
     registry: &ToolRegistryHandle,
@@ -36,5 +36,12 @@ pub(in crate::chat::manager) async fn offer(
         },
         None => Vec::new(),
     };
-    DraftOffer::read(registry, disabled, sources, models).await
+    DraftOffer::read(
+        registry,
+        disabled,
+        &super::default_access_of(cfg),
+        sources,
+        models,
+    )
+    .await
 }

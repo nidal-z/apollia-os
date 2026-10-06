@@ -213,3 +213,50 @@ fn test_an_identifier_is_lowercase_ascii_with_single_hyphens() {
     assert!(long.len() <= 48, "{}", long.len());
     assert!(!identifier_of("a/b").contains('/'));
 }
+
+// GIVEN a machine holding a reading tool, a writing tool and a code tool, and
+//       a default access the setting widened with the writing tool
+// WHEN an agent is created without code, no access chosen for it
+// THEN its accesses are the setting: the reading family and the tool added,
+//      not as the choice of the person; the setting narrowed back, the same
+//      agent follows it
+#[tokio::test]
+async fn test_an_agent_created_without_code_is_granted_the_default_access_setting() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let (mut state, _) = state(&dir, true).await;
+    let registry = apollia_tools::ToolRegistryHandle::start();
+    let mut bash = apollia_tools::tools::file_write::FileWrite::descriptor();
+    bash.name = "bash".into();
+    bash.family = apollia_tools::descriptor::ActionFamily::ExecuteCode;
+    for descriptor in [
+        apollia_tools::tools::file_read::FileRead::descriptor(),
+        apollia_tools::tools::file_write::FileWrite::descriptor(),
+        bash,
+    ] {
+        registry.register(descriptor).await.unwrap();
+    }
+    state.tool_registry_handle = Some(registry.clone());
+    let config = dir.path().join("apollia.toml");
+    std::fs::write(&config, "[tools.new_agent]\naccess = [\"file_write\"]\n").unwrap();
+    state.config_path = Some(config.clone());
+
+    // WHEN
+    let (status, created) = call(
+        state.clone(),
+        "POST",
+        ROUTE,
+        Some(json!({"name": "Reader", "mission": "Read."})),
+    )
+    .await;
+    std::fs::write(&config, "").unwrap();
+    let (_, narrowed) = call(state, "GET", "/api/v1/agent-definitions/reader", None).await;
+
+    // THEN
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(created["origin"], "interface");
+    assert_eq!(created["access"], json!(["file_read", "file_write"]));
+    assert_eq!(created["overridden"], json!([]));
+    assert_eq!(narrowed["access"], json!(["file_read"]));
+    registry.shutdown().await;
+}

@@ -69,7 +69,10 @@ pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
-pub use default_access::{reading_family, reads_by_default, with_default_access, AgentAccess};
+pub use default_access::{
+    default_access, reading_family, reads_by_default, with_default_access, AgentAccess,
+    DefaultAccess,
+};
 pub use descriptor::{
     ActionFamily, ApprovalRiskLevel, FamilySource, McpTransport, ToolDescriptor,
     ToolDescriptorError, ToolKind,

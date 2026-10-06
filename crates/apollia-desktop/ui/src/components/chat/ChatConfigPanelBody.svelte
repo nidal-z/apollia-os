@@ -20,9 +20,16 @@
     return selection === "" ? null : selection;
   }
 
-  /** The profile switch of a session: on unless the session stored it off. */
-  export function profileSwitchOf(session: { use_profile?: boolean } | null): boolean {
-    return session?.use_profile !== false;
+  /**
+   * The profile switch of a session: on unless the session stored it off.
+   * Before a conversation exists the switch shows `byDefault`, the position
+   * Settings > Integrations gives every new conversation.
+   */
+  export function profileSwitchOf(
+    session: { use_profile?: boolean } | null,
+    byDefault = true,
+  ): boolean {
+    return session ? session.use_profile !== false : byDefault;
   }
 
   /** What writing the profile switch of a session needs from the runtime. */
@@ -62,6 +69,7 @@
   import { isSensitiveFamily } from "$lib/tools/action-family";
   import { llmBackends } from "$lib/stores/sse";
   import { useUserMemory, chatConversationStats, currentSession } from "$lib/stores/chat";
+  import { shareProfileDefault, hydrateShareProfileDefault } from "$lib/stores/shareProfileDefault";
   import { developerMode } from "$lib/stores/developerMode";
   import { Card } from "$lib/components/ui/card";
   import { Input } from "$lib/components/ui/input";
@@ -254,6 +262,15 @@
       lastSessionId = session.id;
       syncFromSession();
     }
+  });
+
+  // Before a conversation exists, the switch shows the position a new
+  // conversation is born with; an existing conversation keeps its own.
+  $effect(() => {
+    void hydrateShareProfileDefault();
+  });
+  $effect(() => {
+    if (!session) useUserMemory.set(profileSwitchOf(null, $shareProfileDefault));
   });
 </script>
 

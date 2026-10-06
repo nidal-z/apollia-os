@@ -216,16 +216,54 @@ fn resolved<B: ExecutionBackend + Clone>(
         .ok_or_else(|| api_err(StatusCode::NOT_FOUND, format!("agent '{name}' not found")))
 }
 
-/// `agent` as its card shows it: an agent created without code that reads by
-/// default lists the reading family active on the machine.
+/// The default access in force: `[tools.new_agent]` of the configuration
+/// file read now, the reading family when the runtime was given no file or
+/// the file cannot be read.
+fn default_access_setting<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+) -> apollia_tools::DefaultAccess {
+    use apollia_core::config::{
+        resolve_setting, NewAgentConfig, PolicySettings, NEW_AGENT_ACCESS_KEY,
+        NEW_AGENT_FAMILIES_KEY,
+    };
+    let Some(path) = state.config_path.as_ref() else {
+        return apollia_tools::DefaultAccess::default();
+    };
+    let names = |key: &str| -> Option<Vec<String>> {
+        match resolve_setting(path, key, &PolicySettings::none()) {
+            Ok(setting) => serde_json::from_value(setting.value).ok(),
+            Err(error) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    key = key,
+                    error = %error,
+                    detail = "the reading family stands in",
+                    "agents.default_access.setting_unreadable"
+                );
+                None
+            }
+        }
+    };
+    match (names(NEW_AGENT_FAMILIES_KEY), names(NEW_AGENT_ACCESS_KEY)) {
+        (Some(families), Some(access)) => {
+            apollia_tools::DefaultAccess::from_config(&NewAgentConfig { families, access })
+        }
+        _ => apollia_tools::DefaultAccess::default(),
+    }
+}
+
+/// `agent` as its card shows it: an agent created without code nobody chose
+/// an access for lists the default access, read against the machine.
 async fn shown<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     agent: ResolvedAgent,
 ) -> ResolvedAgentResponse {
     match state.tool_registry_handle.as_ref() {
-        Some(registry) => apollia_tools::with_default_access(agent, registry)
-            .await
-            .into(),
+        Some(registry) => {
+            apollia_tools::with_default_access(agent, registry, &default_access_setting(state))
+                .await
+                .into()
+        }
         None => agent.into(),
     }
 }

@@ -782,6 +782,7 @@ fn test_tools_config_below_min_fails() {
         web_search: WebSearchConfig::default(),
         web_read: WebReadConfig::default(),
         python_interpreter: None,
+        new_agent: Default::default(),
     };
     // WHEN
     let result = cfg.validate();
@@ -801,6 +802,7 @@ fn test_tools_config_above_max_fails() {
         web_search: WebSearchConfig::default(),
         web_read: WebReadConfig::default(),
         python_interpreter: None,
+        new_agent: Default::default(),
     };
     // WHEN
     let result = cfg.validate();

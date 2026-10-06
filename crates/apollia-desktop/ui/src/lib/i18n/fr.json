@@ -2149,6 +2149,7 @@
       "general": "Général",
       "chat": "Chat",
       "model_defaults": "Défauts des modèles",
+      "integrations": "Intégrations",
       "engines": "Moteurs",
       "hardware": "Matériel",
       "notifications": "Notifications"
@@ -3167,6 +3168,32 @@
       "naming_always_hint": "Apollia nomme chaque nouvelle conversation, quelle que soit la vitesse de génération.",
       "trash_label": "Envoyer les conversations supprimées à la corbeille",
       "trash_hint": "Les conversations supprimées vont dans la corbeille d'Apollia, d'où on les restaure. Éteint, une conversation supprimée l'est définitivement."
+    },
+    "integrations_section": {
+      "subtitle": "Ce qu'Apollia donne par défaut, et ce qui est toujours autorisé.",
+      "new_agent_title": "Nouvel agent créé sans code",
+      "access_label": "Accès donnés à sa création",
+      "access_hint": "Par défaut, toute la famille « lire » active sur ce poste, et la lecture de chaque connexion branchée. Les accès sensibles s'accordent sur la fiche de chaque agent ; cochez-les ici pour les donner à tout nouvel agent.",
+      "access_sensitive": "Sensible",
+      "access_by_family": "Donné d'office : cet accès ne fait que lire.",
+      "access_empty": "Aucun accès n'est disponible sur ce poste.",
+      "access_error": "Les accès n'ont pas pu être lus.",
+      "write_error": "Le réglage n'a pas pu être enregistré.",
+      "new_conversation_title": "Nouvelle conversation",
+      "share_profile_label": "Partager mon profil avec une nouvelle conversation",
+      "share_profile_hint": "Valeur de départ de l'interrupteur de chaque conversation ; une conversation existante garde le sien.",
+      "always_title": "Toujours autorisés",
+      "always_count": "{count, plural, one {# accès sans confirmation} other {# accès sans confirmation}}",
+      "always_empty_label": "Aucun accès toujours autorisé",
+      "always_empty_hint": "Les accès que vous autorisez sans confirmation apparaîtront ici, agent par agent.",
+      "always_manage_label": "Gérer les accès toujours autorisés",
+      "always_manage_hint": "Ce qu'un agent peut faire sans vous demander, agent par agent.",
+      "always_manage_action": "Gérer dans Autorisations",
+      "connections_title": "Connexions",
+      "connections_label": "Comptes, services et outils intégrés",
+      "connections_hint": "Ils se connectent et se règlent dans l'écran Connexions.",
+      "connections_action": "Ouvrir Connexions",
+      "developer_title": "Mode développeur"
     },
     "model_defaults": {
       "subtitle": "Les valeurs que reçoit un modèle quand rien d'autre ne les fixe.",
@@ -4801,6 +4828,8 @@
       "tool_provenance": "Serveur MCP {server} · {name}"
     },
     "integrations": {
+      "request_mcp_label": "Autoriser les MCP fournis par la requête",
+      "request_mcp_hint": "Le serveur local accepte les serveurs MCP décrits dans la requête d'un client. Éteint par défaut.",
       "wizard": {
         "node_downloading": "Téléchargement d'un composant nécessaire : Node.js"
       }

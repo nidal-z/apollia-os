@@ -49,16 +49,18 @@ const FACT = {
 };
 
 describe("the OAuth integrations leave the settings (criterion 2)", () => {
-  it("lists no OAuth section in the settings and ships no such page", () => {
-    // GIVEN the settings sub-routes and the navigation column
-    const keys = SETTINGS_NAV.flatMap((g) => g.entries.map((e) => e.key as string));
+  it("keeps no OAuth content in the settings: Integrations holds defaults and links only", () => {
+    // GIVEN the Integrations section, which now holds the defaults Apollia
+    // grants and the links to Authorizations and Connections
+    const section = source("routes/settings/Integrations.svelte");
 
-    // WHEN the former section is looked for
-    // THEN neither the store, the column, the window nor the tree carries it
-    expect(SETTINGS_SUB_ROUTES as string[]).not.toContain("integrations");
-    expect(keys).not.toContain("integrations");
-    expect(source("routes/Settings.svelte")).not.toContain("settings/Integrations.svelte");
-    expect(existsSync(resolve(SRC, "routes/settings/Integrations.svelte"))).toBe(false);
+    // WHEN the content of the former OAuth section is looked for in it
+    // THEN it carries no account, no OAuth client and no credential field,
+    // and reads none of the catalogue keys of the former section
+    expect(section).not.toMatch(/Oauth|NativeClientSection|NativeAccountsTab|CredentialField/);
+    expect(section).not.toMatch(/client_id|client_secret|oauth/i);
+    expect(section).not.toContain('"settings.integrations.');
+    expect(section).toContain("openConnections");
   });
 
   it("shows and disconnects a connected account on the Connections screen", () => {

@@ -207,10 +207,17 @@ pub async fn export_agent_definition<B: ExecutionBackend + Clone>(
     let repo = open_agents(&state)?;
     let agent = resolved(&state, &repo, &name)?;
     drop(repo);
-    // The card lists the reading family of an agent that reads by default;
-    // the package grants what the card listed.
+    // The card lists the default access of an agent nobody chose for; the
+    // package grants what the card listed.
     let agent = match state.tool_registry_handle.as_ref() {
-        Some(registry) => apollia_tools::with_default_access(agent, registry).await,
+        Some(registry) => {
+            apollia_tools::with_default_access(
+                agent,
+                registry,
+                &super::default_access_setting(&state),
+            )
+            .await
+        }
         None => agent,
     };
     let publisher =

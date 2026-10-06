@@ -35,7 +35,10 @@ export const DRAFT_SESSION_REQUEST: CreateSessionRequest = {
 /** One access of a draft. */
 export interface ProposedAccess {
   id: string;
-  /** Whether the form opens with it granted. A sensitive access never is. */
+  /**
+   * Whether the form opens with it granted. A sensitive access is only when
+   * the default access of Settings > Integrations grants it to every new agent.
+   */
   checked: boolean;
   sensitive: boolean;
   /** Added because an agent created without code is granted it by default. */
@@ -69,12 +72,14 @@ function accessOf(value: unknown): ProposedAccess[] {
     const raw = entry as Record<string, unknown>;
     if (typeof raw.id !== "string" || raw.id.length === 0) continue;
     const sensitive = raw.sensitive === true;
+    const byDefault = raw.by_default === true;
     out.push({
       id: raw.id,
-      // A sensitive access is never read as checked, whatever the answer says.
-      checked: raw.checked === true && !sensitive,
+      // A sensitive access reads as checked only when the default access
+      // grants it: the runtime sets that mark, never the conversation.
+      checked: raw.checked === true && (!sensitive || byDefault),
       sensitive,
-      by_default: raw.by_default === true,
+      by_default: byDefault,
     });
   }
   return out;
@@ -207,13 +212,16 @@ function modelOf(name: string | null, options: ModelOption[]): ModelDraft | null
 }
 
 /**
- * The form a draft opens: its accesses listed, the sensitive ones unchecked,
- * its model kept only when the machine offers it. `null` opens an empty
+ * The form a draft opens: its accesses listed, the sensitive ones unchecked
+ * unless the default access grants them, its model kept only when the machine
+ * offers it. `null` opens an empty
  * form, for a sheet written by hand.
  */
 export function reviewOf(draft: ProposedAgent | null, options: ModelOption[]): DraftReview {
   const access = draft?.access ?? [];
-  const checked = access.filter((a) => a.checked && !a.sensitive).map((a) => a.id);
+  const checked = access
+    .filter((a) => a.checked && (!a.sensitive || a.by_default))
+    .map((a) => a.id);
   const notes: Record<string, AccessNote> = {};
   for (const a of access) {
     if (a.sensitive) notes[a.id] = "sensitive";

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, test, expect, vi, beforeAll } from "vitest";
 import { render as renderToString } from "svelte/server";
 import { waitLocale } from "svelte-i18n";
@@ -222,6 +224,38 @@ describe("ChatConfigPanelBody - the profile switch is stored with the conversati
     expect(profileSwitchOf({ ...libreSession(), use_profile: true })).toBe(true);
     expect(profileSwitchOf({ ...libreSession(), use_profile: false })).toBe(false);
     expect(profileSwitchOf(null)).toBe(true);
+  });
+
+  test("before a conversation exists the switch shows the default of the settings", () => {
+    // GIVEN no session yet, and the default of Settings > Integrations on, then off
+    // WHEN the switch is read
+    // THEN it starts where the default says
+    expect(profileSwitchOf(null, true)).toBe(true);
+    expect(profileSwitchOf(null, false)).toBe(false);
+  });
+
+  test("an existing conversation keeps its own switch, whatever the default", () => {
+    // GIVEN conversations that stored their switch, and the opposite default
+    // WHEN the switch of each is read
+    // THEN each keeps what it stored
+    expect(profileSwitchOf({ ...libreSession(), use_profile: true }, false)).toBe(true);
+    expect(profileSwitchOf({ ...libreSession(), use_profile: false }, true)).toBe(false);
+    expect(profileSwitchOf(libreSession(), false)).toBe(true);
+  });
+
+  test("the panel seeds the switch from the default while no conversation is open", () => {
+    // GIVEN the source of the panel
+    const panel = readFileSync(
+      resolve(__dirname, "ChatConfigPanelBody.svelte"),
+      "utf8",
+    );
+
+    // WHEN its wiring of the default is read
+    // THEN it reads the setting, and applies it only without a session
+    expect(panel).toContain("hydrateShareProfileDefault()");
+    expect(panel).toContain(
+      "if (!session) useUserMemory.set(profileSwitchOf(null, $shareProfileDefault));",
+    );
   });
 
   test("turning the switch off writes it to the session, then reads the gauge again", async () => {

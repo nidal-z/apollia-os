@@ -264,6 +264,7 @@ async fn test_the_offer_is_what_the_registry_holds() {
     let offer = DraftOffer::read(
         &registry,
         &["switched_off".to_owned()],
+        &DefaultAccess::default(),
         vec![OfferedSource {
             id: "src-notes".into(),
             label: "Notes".into(),
@@ -311,4 +312,66 @@ fn test_only_a_list_naming_the_tool_makes_a_draft_session() {
     assert!(is_draft_session(&[AGENT_DRAFT_TOOL_NAME.to_owned()]));
     assert!(!is_draft_session(&["web_search".to_owned()]));
     assert!(!is_draft_session(&[]));
+}
+
+// GIVEN a default access widened with the writing tool by name, on a machine
+//   holding a reading tool, the writing tool and a code tool
+// WHEN the offer is read, then a draft that names no access is proposed
+// THEN the writing tool is offered as a default though sensitive, and the
+//   draft opens with the reading tool and the writing tool checked, marked as
+//   defaults, the code tool left out
+#[tokio::test]
+async fn test_a_widened_default_is_checked_in_every_draft() {
+    let registry = ToolRegistryHandle::start();
+    let mut bash = file_write::FileWrite::descriptor();
+    bash.name = "bash".into();
+    bash.family = ActionFamily::ExecuteCode;
+    for descriptor in [
+        file_read::FileRead::descriptor(),
+        file_write::FileWrite::descriptor(),
+        bash,
+    ] {
+        registry.register(descriptor).await.unwrap();
+    }
+    let default = DefaultAccess {
+        families: vec![ActionFamily::Read],
+        tools: vec!["file_write".into()],
+    };
+
+    let offer = DraftOffer::read(&registry, &[], &default, Vec::new(), Vec::new()).await;
+    let draft = run_agent_draft(
+        &offer,
+        &json!({"name": "Notes", "mission": "Keep the notes.", "access": ["bash", "file_write"]}),
+    )
+    .draft
+    .unwrap();
+
+    let offered: Vec<(&str, bool, bool)> = offer
+        .accesses
+        .iter()
+        .map(|a| (a.id.as_str(), a.sensitive, a.by_default))
+        .collect();
+    assert_eq!(
+        offered,
+        [
+            ("bash", true, false),
+            ("file_read", false, true),
+            ("file_write", true, true)
+        ]
+    );
+    let proposed: Vec<(&str, bool, bool)> = draft
+        .access
+        .iter()
+        .map(|a| (a.id.as_str(), a.checked, a.by_default))
+        .collect();
+    assert_eq!(
+        proposed,
+        [
+            ("bash", false, false),
+            ("file_write", true, true),
+            ("file_read", true, true)
+        ]
+    );
+    assert!(creation_prompt(&offer).contains("- `file_write` (default, sensitive): "));
+    registry.shutdown().await;
 }

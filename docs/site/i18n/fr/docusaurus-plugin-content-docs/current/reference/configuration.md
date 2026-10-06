@@ -234,6 +234,8 @@ Outils natifs : limites, désactivation statique, et réglages par outil.
 | `tools.web_read.max_response_kb` | entier | `2048` | Plus grande page que lit web_read, en Kio (64 à 32768). |
 | `tools.web_read.ssrf_guard` | booléen | `true` | Refuser une adresse du réseau local ou de la machine elle-même. |
 | `tools.python_interpreter` | chemin | non définie | Interpréteur Python utilisé à la place de celui embarqué. |
+| `tools.new_agent.families` | liste de chaînes | `["read"]` | Familles d'outils qu'un agent créé sans code reçoit en entier, lues sur les outils actifs à sa création : read, read_personal, write_or_delete, send_external, execute_code. La politique de l'organisation peut l'imposer. |
+| `tools.new_agent.access` | liste de chaînes | `[]` | Outils qu'un agent créé sans code reçoit par leur nom, en plus de tools.new_agent.families. La politique de l'organisation peut l'imposer. |
 
 ### `[mcp]`
 
@@ -262,6 +264,7 @@ Valeurs par défaut des sessions de chat.
 | --- | --- | --- | --- |
 | `chat.plan_mode_default` | booléen | `false` | Démarrer chaque nouvelle conversation en mode plan. |
 | `chat.tool_turn_temperature` | décimal | non définie | Température du modèle pour un tour qui propose des outils ; sans valeur, 0.3. |
+| `chat.share_profile_default` | booléen | `true` | Démarrer chaque nouvelle conversation avec le profil partagé avec l'assistant intégré ; une conversation existante garde son propre interrupteur. La politique de l'organisation peut l'imposer. |
 
 ### `[models]`
 
