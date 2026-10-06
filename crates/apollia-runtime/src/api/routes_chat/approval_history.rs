@@ -92,11 +92,10 @@ pub async fn list_approval_history<B: ExecutionBackend + Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
 
     use axum::http::StatusCode;
 
-    use crate::api::test_support::{app_state, call, seeded_chat, StemLoader};
+    use crate::api::test_support::{app_state, call, seeded_chat};
 
     #[tokio::test]
     async fn test_the_chat_ledger_is_read_with_its_refusal_reason() {
@@ -121,7 +120,7 @@ mod tests {
     async fn test_without_a_chat_manager_the_three_routes_answer_503() {
         // GIVEN a daemon whose chat subsystem did not start
         let data = tempfile::tempdir().unwrap();
-        let state = || app_state(Arc::new(StemLoader { refusal: None }), data.path().into());
+        let state = || app_state(data.path().into());
         let content = Some(serde_json::json!({ "content": "Bonsoir" }));
 
         // WHEN the history is read and a turn played again

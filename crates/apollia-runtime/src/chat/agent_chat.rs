@@ -1,11 +1,12 @@
-//! AgentChatExecutor, executes Python agents in Chat Agent mode.
+//! AgentChatExecutor, the chat mode of an agent run by a [`ChatAgentRunner`].
 //!
 //! Orchestrates the flow: validate agent → convert session to [`AIPTask`] →
 //! run agent via [`ChatAgentRunner`] → process [`AIPResult`] → emit events.
 //!
-//! The [`ChatAgentRunner`] trait decouples
-//! `apollia-runtime` from PyO3 so that the concrete implementation using
-//! `AIPBridge` + `RuntimeContext` lives in `apollia-cli`.
+//! No runner ships: the one that ran the Python of an agent is gone, and a
+//! conversation with an agent goes through the agent executor
+//! (`crate::chat::manager::declarative`). A session that reaches this path is
+//! answered that the mode is unavailable.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -38,18 +39,13 @@ const CHAT_AGENT_RUN_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Trait abstracting Python agent execution for chat sessions.
 ///
-/// Decouples `apollia-runtime` from PyO3
-/// by defining the execution contract as a trait. The concrete implementation
-/// using `AIPBridge` + `RuntimeContext` lives in `apollia-cli`.
+/// Defines the execution contract as a trait. No implementation ships; the
+/// tests of the executor use their own.
 #[async_trait::async_trait]
 pub trait ChatAgentRunner: Send + Sync {
     /// Execute an agent's `run()` with the given task and return the result.
     ///
-    /// The implementation is responsible for:
-    /// - Loading the agent module via PyO3 (if not cached)
-    /// - Creating the `RuntimeContext` (tools, memory, LLM, budget)
-    /// - Calling `AIPBridge.call_run(task, ctx)`
-    /// - Returning the `AIPResult`
+    /// The implementation runs the agent on the task and returns its result.
     async fn run_agent(&self, agent_name: &str, task: AIPTask) -> Result<AIPResult, String>;
 }
 

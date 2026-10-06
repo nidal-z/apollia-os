@@ -22,9 +22,9 @@ use sha2::Sha256;
 
 use apollia_core::{AIPInput, ObservabilityConfig, TaskId};
 use apollia_runtime::{
-    api::routes_agents::StubAgentLoader, api::APIServer, api::APIServerConfig,
-    api::APIServerHandle, api::AppState, coordinator::DynBackend, coordinator::ExecutionBackend,
-    eventbus::EventBus, registry::AgentRegistry, router::TaskRouterHandle,
+    api::APIServer, api::APIServerConfig, api::APIServerHandle, api::AppState,
+    coordinator::DynBackend, coordinator::ExecutionBackend, eventbus::EventBus,
+    registry::AgentRegistry, router::TaskRouterHandle,
 };
 use apollia_triggers::{
     OnBusyPolicy, TaskSubmitter, TriggerDefinition, TriggerEngineHandle, TriggerSourceConfig,
@@ -148,7 +148,6 @@ async fn build_webhook_state(
         router_handle,
         registry_handle,
         event_sender,
-        agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
@@ -161,7 +160,6 @@ async fn build_webhook_state(
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),

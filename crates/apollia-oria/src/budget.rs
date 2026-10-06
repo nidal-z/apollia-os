@@ -222,6 +222,8 @@ impl StepBudget {
         )
     }
 
+    // TEST-ONLY: the direct path of a Python agent shared the budget through
+    // this view; the agent executor counts on the budget itself.
     /// Build a `StepBudgetView` backed by this budget's live shared counters.
     ///
     /// Unlike [`to_budget_view`](Self::to_budget_view), which snapshots the

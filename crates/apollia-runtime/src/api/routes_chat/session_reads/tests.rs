@@ -7,14 +7,13 @@ use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::chat::manager::ChatSessionManagerHandle;
 use crate::chat::ChatToolsConfig;
 
 /// A daemon state whose chat manager runs over `dir`.
 fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
-    let loader = Arc::new(StemLoader { refusal: None });
-    let mut state = app_state(loader.clone(), dir.path().to_path_buf());
+    let mut state = app_state(dir.path().to_path_buf());
     let tools_config = Arc::new(ChatToolsConfig {
         data_dir: dir.path().to_path_buf(),
         brave_api_key: None,
@@ -27,7 +26,6 @@ fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::empty())),
         ToolRegistryHandle::start(),
-        loader,
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),
@@ -86,7 +84,7 @@ async fn test_the_metrics_of_a_new_session_read_as_an_empty_panel() {
 async fn test_the_metrics_are_refused_without_a_chat_subsystem() {
     // GIVEN a daemon whose chat subsystem did not start
     let dir = TempDir::new().unwrap();
-    let state = app_state(Arc::new(StemLoader { refusal: None }), dir.path().into());
+    let state = app_state(dir.path().into());
 
     // WHEN a client reads the metrics of a session
     let (status, body) = call(state, "GET", "/api/v1/sessions/s-1/metrics", None).await;
@@ -167,7 +165,7 @@ async fn test_a_free_chat_whose_agent_has_no_folder_has_no_workspace() {
 async fn test_the_workspace_is_refused_without_a_chat_subsystem() {
     // GIVEN a daemon whose chat subsystem did not start
     let dir = TempDir::new().unwrap();
-    let state = app_state(Arc::new(StemLoader { refusal: None }), dir.path().into());
+    let state = app_state(dir.path().into());
 
     // WHEN a client reads the working directory of a session
     let (status, body) = call(state, "GET", "/api/v1/sessions/s-1/workspace", None).await;

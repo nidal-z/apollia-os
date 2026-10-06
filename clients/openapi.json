@@ -704,76 +704,6 @@
             }
           }
         }
-      },
-      "post": {
-        "tags": [
-          "packages"
-        ],
-        "summary": "`POST /api/v1/agent-packages/installed`: install a package folder.",
-        "description": "Python dependencies need `deps_confirmed`; without it the answer is a\n`428` whose message is `DEPS_CONFIRMATION_REQUIRED:<count>:<list>`. The\nagents installed take tasks at once, and the triggers written are loaded.",
-        "operationId": "install_agent_package",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentPackageInstallBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Installed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentPackageInstallReport"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid manifest, or a name that is a path",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The copy, a virtualenv or an agent import failed; nothing is left",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "428": {
-            "description": "The Python dependencies are not confirmed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "agents.db refused a row",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/v1/agent-packages/installed/{name}": {
@@ -918,47 +848,6 @@
         }
       }
     },
-    "/api/v1/agent-packages/preview": {
-      "post": {
-        "tags": [
-          "packages"
-        ],
-        "summary": "`POST /api/v1/agent-packages/preview`: what the package folder contains,\nits agents, its triggers and its Python dependencies. Nothing is written;\na manifest that breaks an invariant answers a preview marked invalid.",
-        "operationId": "preview_agent_package",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentPackagePreviewBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The preview",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentPackagePreview"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "agent.toml cannot be read or parsed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/agents": {
       "get": {
         "tags": [
@@ -1006,7 +895,7 @@
           "agents"
         ],
         "summary": "Handler for `POST /api/v1/agents`.",
-        "description": "Loads the Python agent module via [`AgentLoader`], validates\nAIP duck typing, registers the agent with its real manifest, transitions\nto Active (or Degraded if optional tools are missing), and creates an\n[`ExecutionCoordinator`] registered with the [`TaskRouter`].\n\nTool resolution is delegated to [`apollia_tools::resolve`] which handles\nthe `a2a:` prefix correctly (A2A dependencies live in the ToolProxy\nallowed_tools list, not in the ToolRegistry, and must not trigger\nDEGRADED). A missing `tools_required` entry returns 400 Bad Request.\n\nReturns 201 Created with the agent_id and state.\nReturns 400 Bad Request if the Python module is invalid.",
+        "description": "Makes a stored agent available: it is registered from the definition\n`agents.db` holds, moved to Active, and given an [`ExecutionCoordinator`]\nin the [`TaskRouter`]. An agent is data: nothing is imported, and what it\nmay reach is read from its resolved access when a run starts.\n\nReturns 201 Created with the agent_id and state.\nReturns 404 Not Found when no stored agent carries the identifier.\nReturns 409 Conflict for a disabled agent, an agent already available,\nand the Apollia agent, which is always there.\n\n[`ExecutionCoordinator`]: crate::coordinator::ExecutionCoordinator\n[`TaskRouter`]: crate::router::TaskRouter",
         "operationId": "start_agent",
         "requestBody": {
           "content": {
@@ -1020,7 +909,7 @@
         },
         "responses": {
           "201": {
-            "description": "Agent started",
+            "description": "Agent available",
             "content": {
               "application/json": {
                 "schema": {
@@ -1029,8 +918,28 @@
               }
             }
           },
-          "400": {
-            "description": "Invalid agent module",
+          "404": {
+            "description": "No stored agent carries this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Agent disabled, already available, or built into Apollia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db cannot be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -1051,7 +960,7 @@
         "operationId": "list_installed_agents",
         "responses": {
           "200": {
-            "description": "Installed agents with their runtime state, then agents started without being installed",
+            "description": "Stored agents with their runtime state, then agents registered without being stored",
             "content": {
               "application/json": {
                 "schema": {
@@ -1065,129 +974,6 @@
           },
           "500": {
             "description": "agents.db or the registry cannot be read",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "agents"
-        ],
-        "summary": "Handler for `POST /api/v1/agents/installed`.",
-        "description": "Emits `RuntimeEvent::AgentInstalled` once the agent is recorded.",
-        "operationId": "install_agent",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InstallAgentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Agent installed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InstallAgentResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "File absent or module refused",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "The install cannot be written",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/agents/installed/{name}": {
-      "put": {
-        "tags": [
-          "agents"
-        ],
-        "summary": "Handler for `PUT /api/v1/agents/installed/{name}`.",
-        "description": "Validates the new module, replaces the installed one, records the new\nversion, and cycles the runtime instance when there is one. The cycle is the\npoint of the route: the interpreter holds the module it imported at start\ntime, so without the stop and the start the window would report a new\nversion while the old one keeps answering. Emits\n`RuntimeEvent::AgentInstalled` once the runtime has settled.",
-        "operationId": "update_agent",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "description": "Name of the installed agent",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAgentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Agent updated, with what happened to its running instance",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateAgentResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "File absent or module refused",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No installed agent of that name",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "The update cannot be written",
             "content": {
               "application/json": {
                 "schema": {
@@ -18920,22 +18706,12 @@
         "type": "object",
         "description": "An agent of a package.",
         "required": [
-          "name",
-          "role",
-          "entry"
+          "name"
         ],
         "properties": {
-          "entry": {
-            "type": "string",
-            "description": "Entry point, relative to the package folder."
-          },
           "name": {
             "type": "string",
-            "description": "Agent name."
-          },
-          "role": {
-            "type": "string",
-            "description": "`director`, `worker` or `assistant`."
+            "description": "Agent name, as the manifest recorded at installation gives it."
           }
         }
       },
@@ -19120,68 +18896,6 @@
           }
         }
       },
-      "AgentPackageInstallBody": {
-        "type": "object",
-        "description": "Body of `POST /api/v1/agent-packages/installed`.",
-        "required": [
-          "path"
-        ],
-        "properties": {
-          "deps_confirmed": {
-            "type": "boolean",
-            "description": "The user accepted the Python dependencies the package installs."
-          },
-          "path": {
-            "type": "string",
-            "description": "The package folder on this machine, the one holding `agent.toml`."
-          },
-          "trigger_configs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AgentPackageTriggerConfig"
-            },
-            "description": "What the user gave each trigger, a webhook secret for now."
-          }
-        }
-      },
-      "AgentPackageInstallReport": {
-        "type": "object",
-        "description": "What an installation did.",
-        "required": [
-          "name",
-          "version",
-          "agent_count",
-          "trigger_count",
-          "trigger_errors"
-        ],
-        "properties": {
-          "agent_count": {
-            "type": "integer",
-            "description": "Agents recorded.",
-            "minimum": 0
-          },
-          "name": {
-            "type": "string",
-            "description": "Package name."
-          },
-          "trigger_count": {
-            "type": "integer",
-            "description": "Triggers written.",
-            "minimum": 0
-          },
-          "trigger_errors": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Triggers refused, one line each."
-          },
-          "version": {
-            "type": "string",
-            "description": "Installed version."
-          }
-        }
-      },
       "AgentPackageItem": {
         "type": "object",
         "description": "An agent or a workflow of a package.",
@@ -19272,89 +18986,6 @@
           }
         }
       },
-      "AgentPackagePreview": {
-        "type": "object",
-        "description": "What a package folder contains, read without writing anything.",
-        "required": [
-          "name",
-          "version",
-          "description",
-          "author",
-          "agents",
-          "triggers",
-          "trigger_count",
-          "pip_packages",
-          "valid"
-        ],
-        "properties": {
-          "agents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AgentPackageAgent"
-            },
-            "description": "Its agents; empty when the manifest is invalid."
-          },
-          "author": {
-            "type": "string",
-            "description": "Author."
-          },
-          "description": {
-            "type": "string",
-            "description": "Description."
-          },
-          "error": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Why it does not, when it does not."
-          },
-          "name": {
-            "type": "string",
-            "description": "Package name."
-          },
-          "pip_packages": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "The Python dependencies it installs, every agent together."
-          },
-          "trigger_count": {
-            "type": "integer",
-            "description": "Number of triggers.",
-            "minimum": 0
-          },
-          "triggers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AgentPackageTrigger"
-            },
-            "description": "Its triggers; empty when the manifest is invalid."
-          },
-          "valid": {
-            "type": "boolean",
-            "description": "The manifest holds its invariants."
-          },
-          "version": {
-            "type": "string",
-            "description": "Version."
-          }
-        }
-      },
-      "AgentPackagePreviewBody": {
-        "type": "object",
-        "description": "Body of `POST /api/v1/agent-packages/preview`.",
-        "required": [
-          "path"
-        ],
-        "properties": {
-          "path": {
-            "type": "string",
-            "description": "The package folder on this machine, the one holding `agent.toml`."
-          }
-        }
-      },
       "AgentPackageRequirement": {
         "type": "object",
         "description": "A connection a package requires. It belongs to the user and stays when\nthe package is uninstalled.",
@@ -19423,80 +19054,6 @@
           "name": {
             "type": "string",
             "description": "Tool name inside its package."
-          }
-        }
-      },
-      "AgentPackageTrigger": {
-        "type": "object",
-        "description": "A trigger a package declares, as the preview shows it.",
-        "required": [
-          "id",
-          "source_type",
-          "agent",
-          "needs_config",
-          "enabled"
-        ],
-        "properties": {
-          "agent": {
-            "type": "string",
-            "description": "The agent it starts."
-          },
-          "enabled": {
-            "type": "boolean",
-            "description": "Whether it starts enabled."
-          },
-          "every": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Interval (interval triggers)."
-          },
-          "id": {
-            "type": "string",
-            "description": "Trigger identifier."
-          },
-          "needs_config": {
-            "type": "boolean",
-            "description": "A webhook without its secret: the user gives one at install."
-          },
-          "path": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Watched path (file_watch triggers)."
-          },
-          "schedule": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Cron expression (cron triggers)."
-          },
-          "source_type": {
-            "type": "string",
-            "description": "`cron`, `interval`, `oneshot`, `file_watch` or `webhook`."
-          }
-        }
-      },
-      "AgentPackageTriggerConfig": {
-        "type": "object",
-        "description": "What the user gives a trigger at install, a webhook secret for now.",
-        "required": [
-          "id"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Trigger identifier."
-          },
-          "secret": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "HMAC secret of a webhook."
           }
         }
       },
@@ -23508,42 +23065,6 @@
           "other"
         ]
       },
-      "InstallAgentRequest": {
-        "type": "object",
-        "description": "Request body for `POST /api/v1/agents/installed`.",
-        "required": [
-          "path"
-        ],
-        "properties": {
-          "path": {
-            "type": "string",
-            "description": "Path of the Python module on this machine."
-          }
-        }
-      },
-      "InstallAgentResponse": {
-        "type": "object",
-        "description": "Response body for an install.",
-        "required": [
-          "name",
-          "version",
-          "install_path"
-        ],
-        "properties": {
-          "install_path": {
-            "type": "string",
-            "description": "Install path on disk."
-          },
-          "name": {
-            "type": "string",
-            "description": "Unique name of the installed agent."
-          },
-          "version": {
-            "type": "string",
-            "description": "Semver version of the agent."
-          }
-        }
-      },
       "InstallRefusal": {
         "oneOf": [
           {
@@ -23728,14 +23249,12 @@
       },
       "InstalledAgentView": {
         "type": "object",
-        "description": "One agent of the machine: installed, running, or both.",
+        "description": "One agent of the machine: stored, registered, or both.",
         "required": [
           "name",
           "version",
           "enabled",
           "tags",
-          "tools_required",
-          "tools_optional",
           "supports_a2a",
           "skills",
           "examples",
@@ -23762,11 +23281,11 @@
               "string",
               "null"
             ],
-            "description": "Description from the manifest."
+            "description": "What the agent is for."
           },
           "enabled": {
             "type": "boolean",
-            "description": "Whether the agent loads at boot."
+            "description": "Whether the agent is made available at boot."
           },
           "examples": {
             "type": "array",
@@ -23787,21 +23306,14 @@
               "string",
               "null"
             ],
-            "description": "Runtime identifier, `None` when installed but not started."
-          },
-          "install_path": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Install path on disk, `None` for an agent started without being\ninstalled."
+            "description": "Runtime identifier, `None` when stored but not registered."
           },
           "installed_at": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Install timestamp (RFC 3339), `None` for an agent started without\nbeing installed."
+            "description": "Install timestamp (RFC 3339), `None` for an agent registered without\nbeing stored."
           },
           "limitations": {
             "type": "array",
@@ -23859,20 +23371,6 @@
               "type": "string"
             },
             "description": "Free-form tags for routing and discovery."
-          },
-          "tools_optional": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Tools the agent uses when present."
-          },
-          "tools_required": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Tools the agent requires."
           },
           "version": {
             "type": "string",
@@ -29026,12 +28524,12 @@
         "type": "object",
         "description": "Request body for `POST /api/v1/agents`.",
         "required": [
-          "agent_path"
+          "agent"
         ],
         "properties": {
-          "agent_path": {
+          "agent": {
             "type": "string",
-            "description": "Path to the agent Python module."
+            "description": "Identifier of the stored agent to make available."
           }
         }
       },
@@ -30596,54 +30094,6 @@
           "ocr_unavailable",
           "not_read"
         ]
-      },
-      "UpdateAgentRequest": {
-        "type": "object",
-        "description": "Request body for `PUT /api/v1/agents/installed/{name}`.",
-        "required": [
-          "path"
-        ],
-        "properties": {
-          "path": {
-            "type": "string",
-            "description": "Path of the new Python module on this machine."
-          }
-        }
-      },
-      "UpdateAgentResponse": {
-        "type": "object",
-        "description": "Response to an agent update.\n\nDistinct from the install answer because an update has an outcome an\ninstall cannot have: a runtime instance that had to be cycled.",
-        "required": [
-          "name",
-          "version",
-          "install_path",
-          "restart_outcome"
-        ],
-        "properties": {
-          "install_path": {
-            "type": "string",
-            "description": "Install path on disk."
-          },
-          "name": {
-            "type": "string",
-            "description": "Unique name of the updated agent."
-          },
-          "restart_error": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Raw cause when the stop or the start failed, `None` otherwise."
-          },
-          "restart_outcome": {
-            "type": "string",
-            "description": "One of the [`restart_outcome`] constants."
-          },
-          "version": {
-            "type": "string",
-            "description": "Semver version read from the new module's manifest."
-          }
-        }
       },
       "UpdateArtifactRequest": {
         "type": "object",

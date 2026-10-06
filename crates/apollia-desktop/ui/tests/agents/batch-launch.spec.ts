@@ -32,7 +32,7 @@ async function installTauriStub(page: Page): Promise<void> {
     const agent = {
       id: "rt-triage", name: "triage", version: "1.0.0", enabled: true, runtime_status: "active",
       installed_at: "2026-10-01T09:00:00Z", description: "Qualifies the requests", tags: [],
-      tools_required: [], tools_optional: [], execution_mode: "direct", install_path: "/agents/triage",
+      execution_mode: "direct",
       supports_a2a: false, skills: [], agent_type: "assistant", examples: [], limitations: [],
       setup_notes: null, class_name: "Triage", memory_namespace: "triage", shared_memory_namespaces: [],
     };

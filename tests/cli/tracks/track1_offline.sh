@@ -25,10 +25,19 @@ check_json "doctor --json"      "$BIN" doctor --json
 check      "completions bash"   "$BIN" completions bash
 check      "completions zsh"    "$BIN" completions zsh
 check_grep "guide lists topics" "chat|agents" "$BIN" guide
-# `inspect` loads the module statically, no runtime involved. A plain Python
-# file is not an agent, and the refusal is the deterministic path.
-printf 'x = 1\n' > "$SCRATCH/not-an-agent.py"
-check_exit "inspect (non-agent file) → 1"  1  "$BIN" inspect "$SCRATCH/not-an-agent.py"
+# One template, and the only way to start an agent: `package new` writes a
+# package folder at the current contract, which builds as written, with no
+# runtime and no Python run. The verbs that took a Python file are gone.
+check            "package new"                              "$BIN" package new e2e-new --output-dir "$SCRATCH"
+check_json_field "package new --json: its files"            "' '.join(d['files'])" "apollia.toml tools/e2e_json.py" "$BIN" --json package new e2e-json --output-dir "$SCRATCH"
+check            "package build (the template, as written)" "$BIN" package build "$SCRATCH/e2e-new" -o "$SCRATCH/e2e-new.apo"
+check_json_field "package inspect: the template declares one agent and one tool" "d['manifest']['agents'][0]['id']+'/'+d['manifest']['tools'][0]['name']" "e2e-new/e2e_new" "$BIN" package inspect "$SCRATCH/e2e-new.apo" --json
+check_exit       "package new (folder already there) → 1"   1  "$BIN" package new e2e-new --output-dir "$SCRATCH"
+check_exit       "package new (name with a space) → 1"      1  "$BIN" package new "e2e new" --output-dir "$SCRATCH"
+check            "package build (seed fixture, no dependency)" "$BIN" package build "$DATA/fixtures/seed-plain-pack" -o "$SCRATCH/seed-plain.apo"
+check_exit       "inspect <file.py> is no longer a command → 1"       1  "$BIN" inspect "$SCRATCH/e2e-new/tools/e2e_new.py"
+check_exit       "agent validate <file.py> is no longer a verb → 1"   1  "$BIN" agent validate "$SCRATCH/e2e-new/tools/e2e_new.py"
+check_exit       "agent create is no longer a verb → 1"               1  "$BIN" agent create e2e-scaffold
 # `logs` tails ~/.apollia/logs/runtime.log; the seed carries no run, so the
 # file is written here to exercise the read path rather than the absence path.
 /bin/mkdir -p "$DATA/logs"
@@ -513,7 +522,8 @@ check_exit   "source inspect --json (off) → 2" 2     "$BIN" --socket "$OFFSOCK
 check_exit   "source inspect missing file → 1" 1     "$BIN" --socket "$OFFSOCK" source inspect "$SCRATCH/no-such-file.xlsx"
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
-check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
+check_exit   "agent install is no longer a verb → 1"  1  "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
+check_exit   "agent start <file.py> is refused with a hint → 1"  1  "$BIN" --socket "$OFFSOCK" agent start /tmp/never-exists.py
 # The definition and overrides of an agent live behind the runtime, which
 # journals every write: daemon off, each leaf refuses with 2, and a field or a
 # value the CLI can judge alone is refused with 1 before any call.
@@ -617,7 +627,6 @@ skip "update (live GitHub check)"     "outbound HTTPS to api.github.com; the loc
 skip "model search (live HF query)"   "outbound HTTPS to huggingface.co; the daemon-off refusal is asserted above"
 skip "model recommend (live ranking)" "outbound HTTPS to huggingface.co; the daemon-off refusal is asserted above"
 skip "stt model download (real download)" "whisper model HF download (~1 GB); the already-present path is asserted above"
-skip "agent install <git-url>"        "git clone over network; file install is asserted in Track 2"
 skip "mcp oauth login (browser flow)" "AS authorize URL + browser callback; the unconfigured refusal is asserted above"
 skip "mcp oauth discover (live endpoint)" "network discovery; the unconfigured refusal is asserted above"
 skip "onboard (interactive session)"  "chat-based onboarding agent; the daemon-off refusal is asserted above"

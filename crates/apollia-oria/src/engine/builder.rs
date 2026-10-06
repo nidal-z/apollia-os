@@ -62,17 +62,6 @@ impl ORIAEngine {
         self.reasoner = Some(Reasoner::new(model, max_steps));
         self
     }
-    /// Returns `true` when a [`Reasoner`] has been wired via
-    /// [`with_reasoner`](Self::with_reasoner) or
-    /// [`with_llm_router_and_reasoner`](Self::with_llm_router_and_reasoner).
-    ///
-    /// The runtime relies on this to fail orchestrated tasks with a
-    /// stable `NO_LLM` code at `engine.execute()` time: without this check,
-    /// orchestrated agents would fall through to NO_HANDLER because the engine
-    /// was never wired with a Reasoner.
-    pub fn has_reasoner(&self) -> bool {
-        self.reasoner.is_some()
-    }
     /// Configure the `ToolProxy` for executing orchestrated steps.
     ///
     /// Without a `ToolProxy`, steps with a `tool_hint` fail via `NoopToolProxy`.

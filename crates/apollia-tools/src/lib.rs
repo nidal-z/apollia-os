@@ -29,7 +29,6 @@
 
 pub mod agent_definition;
 mod agent_overrides;
-pub mod agent_package;
 pub mod agent_repository;
 pub(crate) mod agents_db;
 pub mod apo_archive;
@@ -43,7 +42,6 @@ pub mod exposed_items;
 pub mod file_path_extractor;
 pub mod folder_access;
 pub mod governance_db;
-pub mod granted_access;
 pub mod hitl_schema;
 pub mod host_env;
 pub mod journal;
@@ -51,7 +49,6 @@ pub mod native_dispatcher;
 pub mod package_repository;
 pub mod project_repository;
 pub mod registry;
-pub mod resolver;
 pub mod sandbox_path;
 pub mod source_access;
 pub mod task_repository;
@@ -61,11 +58,11 @@ pub mod tools;
 pub mod trusted_keys;
 
 pub use agent_definition::{
-    apollia_definition, definition_from_manifest, is_built_in_agent, resolve as resolve_agent,
-    AgentOrigin, AgentOverride, OverrideField, OverrideValueError, PlanningMode, ResolvedAgent,
-    StoredAgent, APOLLIA_AGENT_ID, OVERRIDE_FIELDS,
+    apollia_definition, is_built_in_agent, manifest_of, resolve as resolve_agent, AgentOrigin,
+    AgentOverride, OverrideField, OverrideValueError, PlanningMode, ResolvedAgent, StoredAgent,
+    APOLLIA_AGENT_ID, OVERRIDE_FIELDS,
 };
-pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
+pub use agent_repository::{AgentRepository, AgentRepositoryError};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
@@ -87,7 +84,6 @@ pub use governance_db::{
     GovernanceDb, GovernanceError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,
     LEGACY_PERMISSIONS_FILENAME,
 };
-pub use granted_access::GrantedAccess;
 pub use journal::{
     list_sessions, rollback_session, JournalEntry, JournalError, JournalWriter, JournalWriterHandle,
 };
@@ -104,7 +100,6 @@ pub use project_repository::{
     ProjectSummary,
 };
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
-pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 pub use source_access::{memory_is_checked, SourceAccess, MEMORY_SEARCH_TOOL};
 pub use task_repository::{

@@ -1,63 +1,22 @@
 //! SQLite repository for the agents of the machine.
 //!
-//! Provides [`AgentRepository`], which stores and retrieves agents in a local
-//! SQLite store (`agents.db`, table `agents`). Agents survive restarts and
-//! the enabled ones that run Python code are auto-loaded at boot.
-//!
-//! This module reads and writes the agents that run code
-//! ([`InstalledAgent`]); the definition, the overrides and the resolved agent
-//! are in `crate::agent_overrides`.
+//! Provides [`AgentRepository`], which opens the local SQLite store
+//! (`agents.db`, table `agents`). An agent is a definition and the user's
+//! overrides: the stored agent, its overrides and the resolved agent are read
+//! and written in `crate::agent_overrides`; this module opens the file,
+//! removes an agent and switches it on or off.
 //!
 //! All methods are synchronous because SQLite calls are lightweight, and the
 //! caller is responsible for running them in `spawn_blocking` when needed.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use apollia_core::AgentManifest;
 use rusqlite::{params, Connection};
-use serde::{Deserialize, Serialize};
 
 // The `agents` DDL lives in `crate::agents_db`: `agents.db` is shared with
 // the package tables, and `PRAGMA user_version` belongs to the file, so the
 // two repositories migrate through one numbered list.
-
-/// Columns of an agent that runs code, in the order [`row_to_installed_agent`]
-/// reads them.
-const CODE_AGENT_COLUMNS: &str = "name, version, install_path, source_path, manifest_json, \
-     enabled, installed_at, updated_at";
-
-/// Rows that describe an agent running code: a declarative agent has no code
-/// columns and is not an [`InstalledAgent`].
-const HAS_CODE: &str = "install_path IS NOT NULL AND manifest_json IS NOT NULL";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Installed agent persisted in `agents.db`.
-///
-/// Represents an agent copied into `~/.apollia/agents/<name>/` with its
-/// serialized manifest. The `enabled` field controls loading at boot.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InstalledAgent {
-    /// Unique agent name (primary key).
-    pub name: String,
-    /// Agent semver version.
-    pub version: String,
-    /// Install path (e.g. `~/.apollia/agents/<name>/agent.py`).
-    pub install_path: PathBuf,
-    /// Original path of the installed source file.
-    pub source_path: PathBuf,
-    /// Agent manifest (serialized as JSON in the store).
-    pub manifest: AgentManifest,
-    /// Whether the agent is active and should be loaded at boot.
-    pub enabled: bool,
-    /// Installation timestamp (RFC 3339).
-    pub installed_at: String,
-    /// Last-update timestamp (RFC 3339).
-    pub updated_at: String,
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Errors
@@ -83,8 +42,8 @@ pub enum AgentRepositoryError {
     #[error("agent '{0}' is built into Apollia and cannot be uninstalled")]
     BuiltIn(String),
 
-    /// Manifest JSON serialization/deserialization error.
-    #[error("manifest serialisation error: {0}")]
+    /// A definition or an override could not be read or written as JSON.
+    #[error("definition serialisation error: {0}")]
     SerdeError(#[from] serde_json::Error),
 
     /// An override value does not fit its field.
@@ -112,12 +71,7 @@ pub enum AgentRepositoryError {
 /// [`open`](Self::open). WAL mode is enabled for
 /// read/write concurrency.
 ///
-/// Clonable via `Arc`; every clone shares the same connection. The async
-/// wrappers use `tokio::task::spawn_blocking` to avoid blocking the Tokio
-/// executor. See [`save_async`], [`list_async`], etc.
-///
-/// [`save_async`]: Self::save_async
-/// [`list_async`]: Self::list_async
+/// Clonable via `Arc`; every clone shares the same connection.
 #[derive(Clone)]
 pub struct AgentRepository {
     pub(crate) conn: Arc<Mutex<Connection>>,
@@ -141,100 +95,6 @@ impl AgentRepository {
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
-    }
-
-    /// Inserts or updates an agent that runs code.
-    ///
-    /// The definition is read again from the manifest and replaces the stored
-    /// one; the user's overrides, the origin and the package link are left in
-    /// place, so an update keeps what the user changed.
-    ///
-    /// # Errors
-    ///
-    /// - [`AgentRepositoryError::SerdeError`] if the manifest cannot be serialized
-    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
-    pub fn save(&self, agent: &InstalledAgent) -> Result<(), AgentRepositoryError> {
-        let manifest_json = serde_json::to_string(&agent.manifest)?;
-        let definition_json =
-            crate::agent_definition::definition_from_manifest(&agent.manifest).to_string();
-        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        conn.execute(
-            "INSERT INTO agents \
-                 (name, origin, version, definition_json, install_path, source_path, \
-                  manifest_json, enabled, installed_at, updated_at) \
-             VALUES (?1, 'package', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
-             ON CONFLICT(name) DO UPDATE SET \
-                 version = excluded.version, \
-                 definition_json = excluded.definition_json, \
-                 install_path = excluded.install_path, \
-                 source_path = excluded.source_path, \
-                 manifest_json = excluded.manifest_json, \
-                 enabled = excluded.enabled, \
-                 installed_at = excluded.installed_at, \
-                 updated_at = excluded.updated_at",
-            params![
-                &agent.name,
-                &agent.version,
-                &definition_json,
-                agent.install_path.to_string_lossy().as_ref(),
-                agent.source_path.to_string_lossy().as_ref(),
-                &manifest_json,
-                agent.enabled,
-                &agent.installed_at,
-                &agent.updated_at,
-            ],
-        )?;
-        Ok(())
-    }
-
-    /// Fetches an installed agent by name.
-    ///
-    /// Returns `None` if no agent has that name.
-    ///
-    /// # Errors
-    ///
-    /// - [`AgentRepositoryError::SerdeError`] if the manifest JSON is corrupted
-    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
-    pub fn get(&self, name: &str) -> Result<Option<InstalledAgent>, AgentRepositoryError> {
-        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {CODE_AGENT_COLUMNS} FROM agents WHERE name = ?1 AND {HAS_CODE}"
-        ))?;
-
-        let mut rows = stmt.query(params![name])?;
-        match rows.next()? {
-            Some(row) => Ok(Some(row_to_installed_agent(row)?)),
-            None => Ok(None),
-        }
-    }
-
-    /// Lists all installed agents.
-    ///
-    /// # Errors
-    ///
-    /// - [`AgentRepositoryError::SerdeError`] if a manifest JSON is corrupted
-    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
-    pub fn list(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
-        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {CODE_AGENT_COLUMNS} FROM agents WHERE {HAS_CODE} ORDER BY name"
-        ))?;
-        collect_agents(&mut stmt, [])
-    }
-
-    /// Lists only the installed and enabled agents (`enabled = true`).
-    ///
-    /// # Errors
-    ///
-    /// - [`AgentRepositoryError::SerdeError`] if a manifest JSON is corrupted
-    /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
-    pub fn list_enabled(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
-        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        let mut stmt = conn.prepare(&format!(
-            "SELECT {CODE_AGENT_COLUMNS} FROM agents \
-             WHERE enabled = 1 AND {HAS_CODE} ORDER BY name"
-        ))?;
-        collect_agents(&mut stmt, [])
     }
 
     /// Deletes an agent by name, with its overrides.
@@ -261,7 +121,30 @@ impl AgentRepository {
         Ok(())
     }
 
-    /// Enables or disables an installed agent.
+    /// Where the code of `name` was copied when agents ran code: the path a
+    /// row written then still carries, so that an uninstallation removes the
+    /// folder. `None` for an unknown agent and for every agent stored since.
+    ///
+    /// # Errors
+    ///
+    /// [`AgentRepositoryError::Sqlite`] on a SQLite error.
+    pub fn legacy_install_path(
+        &self,
+        name: &str,
+    ) -> Result<Option<std::path::PathBuf>, AgentRepositoryError> {
+        use rusqlite::OptionalExtension;
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let path: Option<Option<String>> = conn
+            .query_row(
+                "SELECT install_path FROM agents WHERE name = ?1",
+                params![name],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(path.flatten().map(std::path::PathBuf::from))
+    }
+
+    /// Enables or disables a stored agent.
     ///
     /// Updates the `enabled` field and the `updated_at` timestamp.
     ///
@@ -284,39 +167,6 @@ impl AgentRepository {
 
     // ─── Async wrappers ──────────────────────────────────────────────────────
 
-    /// Async wrapper for [`save`]: runs the SQLite I/O on a blocking thread.
-    ///
-    /// [`save`]: Self::save
-    pub async fn save_async(&self, agent: InstalledAgent) -> Result<(), AgentRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.save(&agent))
-            .await
-            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`get`]: runs the SQLite I/O on a blocking thread.
-    ///
-    /// [`get`]: Self::get
-    pub async fn get_async(
-        &self,
-        name: String,
-    ) -> Result<Option<InstalledAgent>, AgentRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.get(&name))
-            .await
-            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`list`]: runs the SQLite I/O on a blocking thread.
-    ///
-    /// [`list`]: Self::list
-    pub async fn list_async(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.list())
-            .await
-            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
-    }
-
     /// Async wrapper for [`delete`]: runs the SQLite I/O on a blocking thread.
     ///
     /// [`delete`]: Self::delete
@@ -329,222 +179,64 @@ impl AgentRepository {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Internal helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Converts a SQLite row into an [`InstalledAgent`].
-fn row_to_installed_agent(row: &rusqlite::Row<'_>) -> Result<InstalledAgent, AgentRepositoryError> {
-    let manifest_json: String = row.get(4)?;
-    let manifest: AgentManifest = serde_json::from_str(&manifest_json)?;
-    let install_path_str: String = row.get(2)?;
-    let source_path_str: String = row.get(3)?;
-
-    Ok(InstalledAgent {
-        name: row.get(0)?,
-        version: row.get(1)?,
-        install_path: PathBuf::from(install_path_str),
-        source_path: PathBuf::from(source_path_str),
-        manifest,
-        enabled: row.get(5)?,
-        installed_at: row.get(6)?,
-        updated_at: row.get(7)?,
-    })
-}
-
-/// Collects query results into a vector of [`InstalledAgent`].
-fn collect_agents<P: rusqlite::Params>(
-    stmt: &mut rusqlite::Statement<'_>,
-    params: P,
-) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
-    let rows = stmt.query_map(params, |row| {
-        let manifest_json: String = row.get(4)?;
-        let install_path_str: String = row.get(2)?;
-        let source_path_str: String = row.get(3)?;
-
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            install_path_str,
-            source_path_str,
-            manifest_json,
-            row.get::<_, bool>(5)?,
-            row.get::<_, String>(6)?,
-            row.get::<_, String>(7)?,
-        ))
-    })?;
-
-    let mut agents = Vec::new();
-    for row_result in rows {
-        let (
-            name,
-            version,
-            install_path,
-            source_path,
-            manifest_json,
-            enabled,
-            installed_at,
-            updated_at,
-        ) = row_result?;
-        let manifest: AgentManifest = serde_json::from_str(&manifest_json)?;
-        agents.push(InstalledAgent {
-            name,
-            version,
-            install_path: PathBuf::from(install_path),
-            source_path: PathBuf::from(source_path),
-            manifest,
-            enabled,
-            installed_at,
-            updated_at,
-        });
-    }
-    Ok(agents)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_core::AgentManifest;
-    use std::path::PathBuf;
+    use crate::agent_definition::{AgentOrigin, StoredAgent};
 
-    /// Creates a test [`AgentManifest`] with default values.
-    fn test_manifest(name: &str) -> AgentManifest {
-        AgentManifest {
-            autonomy_level: None,
-            format_version: 1,
+    /// A stored agent named `name`, enabled.
+    fn test_agent(name: &str) -> StoredAgent {
+        StoredAgent {
             name: name.to_string(),
+            origin: AgentOrigin::Package,
+            package: None,
             version: "1.0.0".to_string(),
-            description: format!("Test agent {name}"),
-            tools_required: vec!["bash".to_string()],
-            tools_optional: Vec::new(),
-            supports_streaming: false,
-            supports_a2a: false,
-            memory_namespace: None,
-            shared_memory_namespaces: Vec::new(),
-            max_concurrent_tasks: 1,
-            step_budget: None,
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
-            tags: Vec::new(),
-            skills: Vec::new(),
-            execution_mode: "auto".to_string(),
-            supports_mailbox: false,
-            mailbox_allowlist: None,
-            system_prompt: None,
-            tools_requiring_approval: Vec::new(),
-            llm_backend: None,
-            model: None,
-            packages: vec![],
-            memory_config: None,
-            agent_type: None,
-            examples: vec![],
-            limitations: vec![],
-            setup_notes: None,
-            agent_class: None,
-            user_memory_write: false,
-            datasources: vec![],
-            templates: vec![],
-            secrets: vec![],
-            check_commands: vec![],
-        }
-    }
-
-    /// Creates a test [`InstalledAgent`].
-    fn test_agent(name: &str) -> InstalledAgent {
-        InstalledAgent {
-            name: name.to_string(),
-            version: "1.0.0".to_string(),
-            install_path: PathBuf::from(format!("/home/user/.apollia/agents/{name}/agent.py")),
-            source_path: PathBuf::from(format!("/tmp/{name}.py")),
-            manifest: test_manifest(name),
+            definition: serde_json::json!({
+                "id": name, "name": name, "mission": format!("Test agent {name}"),
+                "defaults": {},
+            }),
             enabled: true,
-            installed_at: "2026-03-17T10:00:00Z".to_string(),
-            updated_at: "2026-03-17T10:00:00Z".to_string(),
+            installed_at: "2026-03-01T00:00:00Z".to_string(),
+            updated_at: "2026-03-01T00:00:00Z".to_string(),
         }
     }
 
-    /// Opens an in-memory repository for tests.
     fn open_test_repo() -> AgentRepository {
-        AgentRepository::open(Path::new(":memory:")).expect("failed to open test repo")
+        AgentRepository::open(Path::new(":memory:")).expect("failed to open in-memory repo")
     }
 
-    // Migration creates the agents table
     #[test]
     fn test_open_creates_table() {
-        // GIVEN a repository opened on a throwaway database
+        // GIVEN a fresh in-memory file
+        // WHEN the repository opens it
         let repo = open_test_repo();
-        // WHEN the installed-agents table is counted
-        let count: i64 = {
-            let conn = repo.conn.lock().expect("lock");
-            conn.query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
-                .expect("table agents should exist")
-        };
-        // THEN the query runs, so the table exists, and it holds the Apollia
-        // agent alone
+
+        // THEN the table exists and holds the Apollia agent alone
+        let conn = repo.conn.lock().unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
+            .expect("table agents should exist");
         assert_eq!(count, 1);
     }
 
-    // save() + get() round-trip with a serde manifest
-    #[test]
-    fn test_save_and_get_roundtrip() {
-        let repo = open_test_repo();
-        // GIVEN an installed agent record
-        let agent = test_agent("hello-agent");
-
-        // WHEN it is saved, then read back by name
-        repo.save(&agent).expect("save should succeed");
-        let loaded = repo
-            .get("hello-agent")
-            .expect("get should succeed")
-            .expect("agent should exist");
-
-        // THEN every field survives, the embedded manifest included
-        assert_eq!(loaded.name, "hello-agent");
-        assert_eq!(loaded.version, "1.0.0");
-        assert_eq!(loaded.install_path, agent.install_path);
-        assert_eq!(loaded.source_path, agent.source_path);
-        assert!(loaded.enabled);
-        assert_eq!(loaded.manifest.name, "hello-agent");
-        assert_eq!(loaded.manifest.description, "Test agent hello-agent");
-        assert_eq!(loaded.manifest.tools_required, vec!["bash"]);
-    }
-
-    // list() returns every agent
-    #[test]
-    fn test_list_all_agents() {
-        // GIVEN three saved agents
-        let repo = open_test_repo();
-        repo.save(&test_agent("agent-a")).expect("save a");
-        repo.save(&test_agent("agent-b")).expect("save b");
-        repo.save(&test_agent("agent-c")).expect("save c");
-
-        // WHEN the repository is listed
-        let agents = repo.list().expect("list should succeed");
-        // THEN all three come back, in name order
-        assert_eq!(agents.len(), 3);
-        assert_eq!(agents[0].name, "agent-a");
-        assert_eq!(agents[1].name, "agent-b");
-        assert_eq!(agents[2].name, "agent-c");
-    }
-
-    // delete() removes the agent
     #[test]
     fn test_delete_agent() {
-        // GIVEN one saved agent
+        // GIVEN one stored agent
         let repo = open_test_repo();
-        repo.save(&test_agent("to-delete")).expect("save");
-        assert!(repo.get("to-delete").expect("get").is_some());
+        repo.save_definition(&test_agent("to-delete"))
+            .expect("save");
+        assert!(repo.stored("to-delete").expect("stored").is_some());
 
         // WHEN it is deleted
-        repo.delete("to-delete").expect("delete should succeed");
-        // THEN the read no longer finds it
-        assert!(repo.get("to-delete").expect("get after delete").is_none());
+        repo.delete("to-delete").expect("delete");
+
+        // THEN it is gone
+        assert!(repo.stored("to-delete").expect("stored").is_none());
     }
 
-    // delete() refuses the Apollia agent
     #[test]
     fn test_delete_refuses_the_apollia_agent() {
         // GIVEN a repository, which always holds the Apollia agent, with one
@@ -576,114 +268,87 @@ mod tests {
         );
     }
 
-    // list_enabled() filters the disabled ones
-    #[test]
-    fn test_list_enabled_filters_disabled() {
-        // GIVEN two enabled agents and one disabled
-        let repo = open_test_repo();
-        repo.save(&test_agent("enabled-1")).expect("save 1");
-        repo.save(&test_agent("enabled-2")).expect("save 2");
-
-        let mut disabled = test_agent("disabled-1");
-        disabled.enabled = false;
-        repo.save(&disabled).expect("save disabled");
-
-        // WHEN only the enabled ones are listed
-        let enabled_agents = repo.list_enabled().expect("list_enabled");
-        // THEN the disabled one is left out
-        assert_eq!(enabled_agents.len(), 2);
-        assert!(enabled_agents.iter().all(|a| a.enabled));
-    }
-
-    // set_enabled() toggle + updated_at
     #[test]
     fn test_set_enabled_toggle() {
-        // GIVEN a saved agent, enabled as saved
+        // GIVEN a stored agent, enabled as stored
         let repo = open_test_repo();
-        repo.save(&test_agent("toggle-agent")).expect("save");
-
-        let agent = repo.get("toggle-agent").expect("get").expect("exists");
-        assert!(agent.enabled);
+        repo.save_definition(&test_agent("toggle-agent"))
+            .expect("save");
+        assert!(
+            repo.stored("toggle-agent")
+                .expect("stored")
+                .expect("exists")
+                .enabled
+        );
 
         // WHEN it is disabled, then enabled again
-        repo.set_enabled("toggle-agent", false)
-            .expect("set_enabled false");
-        let agent = repo.get("toggle-agent").expect("get").expect("exists");
-        // THEN the flag follows both moves, and the update timestamp is refreshed
-        assert!(!agent.enabled);
-        // updated_at changed (datetime('now') != original timestamp)
-        assert_ne!(agent.updated_at, "2026-03-17T10:00:00Z");
+        repo.set_enabled("toggle-agent", false).expect("disable");
+        let disabled = repo
+            .stored("toggle-agent")
+            .expect("stored")
+            .expect("exists");
+        repo.set_enabled("toggle-agent", true).expect("enable");
+        let enabled = repo
+            .stored("toggle-agent")
+            .expect("stored")
+            .expect("exists");
 
-        repo.set_enabled("toggle-agent", true)
-            .expect("set_enabled true");
-        let agent = repo.get("toggle-agent").expect("get").expect("exists");
-        assert!(agent.enabled);
+        // THEN each write is read back
+        assert!(!disabled.enabled);
+        assert!(enabled.enabled);
     }
 
-    // save() upserts an existing agent
     #[test]
-    fn test_save_upsert_existing() {
+    fn test_set_enabled_on_an_unknown_agent_is_not_found() {
+        // GIVEN a repository that does not hold the agent
         let repo = open_test_repo();
-        // GIVEN an agent already saved once
-        let mut agent = test_agent("upsert-agent");
-        repo.save(&agent).expect("save v1");
 
-        // WHEN it is saved again under a new version
-        agent.version = "2.0.0".to_string();
-        agent.updated_at = "2026-03-17T12:00:00Z".to_string();
-        repo.save(&agent).expect("save v2");
+        // WHEN it is disabled
+        let err = repo
+            .set_enabled("does-not-exist", false)
+            .expect_err("unknown");
 
-        let loaded = repo.get("upsert-agent").expect("get").expect("exists");
-        // THEN the row is updated in place, rather than duplicated
-        assert_eq!(loaded.version, "2.0.0");
-        assert_eq!(loaded.updated_at, "2026-03-17T12:00:00Z");
-
-        let all = repo.list().expect("list");
-        assert_eq!(all.len(), 1);
+        // THEN the refusal names it
+        assert!(matches!(err, AgentRepositoryError::NotFound(ref n) if n == "does-not-exist"));
     }
 
-    // get() returns None for a non-existent agent
-    #[test]
-    fn test_get_nonexistent_returns_none() {
-        // GIVEN an empty repository
-        let repo = open_test_repo();
-        // WHEN an agent that was never saved is read
-        let result = repo.get("does-not-exist").expect("get should not error");
-        // THEN the read succeeds and yields nothing
-        assert!(result.is_none());
-    }
-
-    // list_async() returns the same agents as list()
     #[tokio::test]
-    async fn test_agent_repository_async_list() {
-        // GIVEN
+    async fn test_delete_async_removes_the_agent() {
+        // GIVEN one stored agent
         let repo = open_test_repo();
-        repo.save(&test_agent("alpha")).expect("save alpha");
-        repo.save(&test_agent("beta")).expect("save beta");
+        repo.save_definition(&test_agent("alpha")).expect("save");
 
-        // WHEN
-        let agents = repo.list_async().await.expect("list_async should succeed");
-
-        // THEN
-        assert_eq!(agents.len(), 2);
-        assert_eq!(agents[0].name, "alpha");
-        assert_eq!(agents[1].name, "beta");
-    }
-
-    // list_async() propagates errors correctly
-    #[tokio::test]
-    async fn test_agent_repository_async_error_propagation() {
-        // GIVEN a closed repository cannot happen with in-memory, but we check
-        // that get_async returns None for a non-existent agent
-        let repo = open_test_repo();
-
-        // WHEN
-        let result = repo
-            .get_async("non-existent-agent".to_string())
+        // WHEN it is deleted off the executor
+        repo.delete_async("alpha".to_string())
             .await
-            .expect("get_async should not error");
+            .expect("delete");
 
-        // THEN
-        assert!(result.is_none());
+        // THEN it is gone
+        assert!(repo.stored("alpha").expect("stored").is_none());
+    }
+
+    #[test]
+    fn test_legacy_install_path_is_read_from_an_old_row_only() {
+        // GIVEN a row written when agents ran code, and an agent stored since
+        let repo = open_test_repo();
+        repo.conn
+            .lock()
+            .unwrap()
+            .execute_batch(
+                r#"INSERT INTO agents (name, origin, version, definition_json, install_path)
+                   VALUES ('old', 'package', '1.0.0', '{"id":"old"}', '/a/old/agent.py');"#,
+            )
+            .expect("insert");
+        repo.save_definition(&test_agent("new")).expect("save");
+
+        // WHEN the path is read for each, and for an unknown name
+        let old = repo.legacy_install_path("old").expect("old");
+        let new = repo.legacy_install_path("new").expect("new");
+        let unknown = repo.legacy_install_path("nobody").expect("unknown");
+
+        // THEN only the old row answers one
+        assert_eq!(old, Some(std::path::PathBuf::from("/a/old/agent.py")));
+        assert_eq!(new, None);
+        assert_eq!(unknown, None);
     }
 }

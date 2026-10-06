@@ -1,127 +1,73 @@
 use std::path::Path;
-use std::sync::Arc;
 
 use axum::http::StatusCode;
 use serde_json::json;
 use tempfile::TempDir;
 
+use apollia_tools::{InstalledPackage, PackageRepository};
+
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::audit_journal::AuditJournalHandle;
 
-/// Writes a package folder `veille` with one agent, a cron trigger, and the
-/// Python dependencies `deps`.
-fn package(dir: &Path, deps: &[&str]) -> String {
-    let root = dir.join("veille-src");
-    std::fs::create_dir_all(&root).unwrap();
-    let deps = deps
-        .iter()
-        .map(|d| format!("\"{d}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let manifest = format!(
-        r#"
-[package]
-name        = "veille"
-version     = "1.2.0"
-description = "Morning watch"
-author      = "Ada"
-
-[[agents]]
-name     = "veille-agent"
-entry    = "veille-agent.py"
-role     = "director"
-packages = [{deps}]
-
-[[triggers]]
-id    = "daily"
-agent = "veille-agent"
-
-[triggers.source]
-type     = "cron"
-schedule = "0 7 * * 1-5"
-
-[[triggers]]
-id    = "inbound"
-agent = "veille-agent"
-
-[triggers.source]
-type = "webhook"
-"#
-    );
-    std::fs::write(root.join("agent.toml"), manifest).unwrap();
-    std::fs::write(root.join("veille-agent.py"), "class Agent: pass\n").unwrap();
-    root.to_string_lossy().to_string()
-}
-
-fn state(dir: &Path, refusal: Option<&str>) -> AppState<MockBackend> {
+fn state(dir: &Path) -> AppState<MockBackend> {
     let data_dir = dir.join("data");
     std::fs::create_dir_all(&data_dir).unwrap();
-    let loader = StemLoader {
-        refusal: refusal.map(str::to_owned),
-    };
-    app_state(Arc::new(loader), data_dir)
+    app_state(data_dir)
+}
+
+/// Records the package `veille` as an installation leaves it: its row, its
+/// folder and the agent it brought.
+fn installed_package(state: &AppState<MockBackend>) {
+    let root = state.data_dir.join("agents/packages/veille");
+    std::fs::create_dir_all(&root).unwrap();
+    let db = apollia_core::paths::DataFile::Agents.path(&state.data_dir);
+    let agents = apollia_tools::AgentRepository::open(&db).unwrap();
+    agents
+        .save_definition(&apollia_tools::StoredAgent {
+            name: "veille-agent".into(),
+            origin: apollia_tools::AgentOrigin::Package,
+            package: Some("veille".into()),
+            version: "1.2.0".into(),
+            definition: json!({
+                "id": "veille-agent", "name": "Veille", "mission": "Watch the morning news.",
+                "defaults": {},
+            }),
+            enabled: true,
+            installed_at: "2026-10-01T00:00:00Z".into(),
+            updated_at: "2026-10-01T00:00:00Z".into(),
+        })
+        .unwrap();
+    let packages = PackageRepository::open(&db).unwrap();
+    packages
+        .save(&InstalledPackage {
+            name: "veille".into(),
+            version: "1.2.0".into(),
+            root_path: root,
+            manifest_json: json!({
+                "package": {
+                    "name": "veille", "version": "1.2.0",
+                    "description": "Morning watch", "author": "Ada",
+                },
+                "agents": [{"id": "veille-agent", "name": "Veille",
+                            "mission": "Watch the morning news."}],
+            })
+            .to_string(),
+            installed_at: "2026-10-01T00:00:00Z".into(),
+            updated_at: "2026-10-01T00:00:00Z".into(),
+        })
+        .unwrap();
+    packages.link_agent("veille", "veille-agent").unwrap();
 }
 
 #[tokio::test]
-async fn test_a_folder_is_previewed_without_a_write_or_refused_when_unreadable() {
-    // GIVEN a package folder declaring one dependency and a webhook with no secret
+async fn test_an_installed_package_is_listed_and_read_in_full() {
+    // GIVEN an installed package that brought one agent
     let dir = TempDir::new().unwrap();
-    let path = package(dir.path(), &["httpx>=0.27"]);
-    let state = state(dir.path(), None);
+    let state = state(dir.path());
+    installed_package(&state);
 
-    // WHEN it is previewed, then a folder without agent.toml is
-    let (ok, preview) = call(
-        state.clone(),
-        "POST",
-        "/api/v1/agent-packages/preview",
-        Some(json!({ "path": path })),
-    )
-    .await;
-    let missing = dir.path().join("nothing").to_string_lossy().to_string();
-    let (refused, body) = call(
-        state.clone(),
-        "POST",
-        "/api/v1/agent-packages/preview",
-        Some(json!({ "path": missing })),
-    )
-    .await;
-
-    // THEN the preview names the agent, the triggers, the webhook to
-    // configure and the dependency, and nothing was installed; the missing
-    // manifest is a 400 with the reason
-    assert_eq!(ok, StatusCode::OK, "{preview}");
-    assert_eq!(preview["valid"], true);
-    assert_eq!(preview["agents"][0]["name"], "veille-agent");
-    assert_eq!(preview["trigger_count"], 2);
-    assert_eq!(preview["triggers"][1]["needs_config"], true);
-    assert_eq!(preview["pip_packages"], json!(["httpx>=0.27"]));
-    assert!(!state.data_dir.join("agents").exists());
-    assert_eq!(refused, StatusCode::BAD_REQUEST, "{body}");
-    assert!(body["error"]
-        .as_str()
-        .unwrap()
-        .starts_with("cannot read agent.toml"));
-}
-
-#[tokio::test]
-async fn test_a_package_is_installed_listed_and_read_in_full() {
-    // GIVEN a package folder without dependencies
-    let dir = TempDir::new().unwrap();
-    let path = package(dir.path(), &[]);
-    let state = state(dir.path(), None);
-
-    // WHEN it is installed with a secret for its webhook, then listed and read
-    let (created, report) = call(
-        state.clone(),
-        "POST",
-        "/api/v1/agent-packages/installed",
-        Some(json!({
-            "path": path,
-            "trigger_configs": [{ "id": "inbound", "secret": "0123456789abcdef0123456789abcdef" }],
-        })),
-    )
-    .await;
+    // WHEN the packages are listed, then this one is read
     let (listed, list) = call(
         state.clone(),
         "GET",
@@ -137,76 +83,54 @@ async fn test_a_package_is_installed_listed_and_read_in_full() {
     )
     .await;
 
-    // THEN the folder is copied, the agent and both triggers are recorded,
-    // and the listing and the detail read the package back
-    assert_eq!(created, StatusCode::CREATED, "{report}");
-    assert_eq!(report["name"], "veille");
-    assert_eq!(report["agent_count"], 1);
-    assert_eq!(report["trigger_errors"], json!([]), "{report}");
-    assert_eq!(report["trigger_count"], 2);
-    let copied = state
-        .data_dir
-        .join("agents/packages/veille/veille-agent.py");
-    assert!(copied.exists());
+    // THEN the listing and the detail read the package back, with its agent
     assert_eq!(listed, StatusCode::OK, "{list}");
     assert_eq!(list[0]["name"], "veille");
     assert_eq!(list[0]["description"], "Morning watch");
     assert_eq!(list[0]["root_missing"], false);
+    assert_eq!(list[0]["counts"]["agents"], 1);
     assert_eq!(read, StatusCode::OK, "{detail}");
     assert_eq!(detail["author"], "Ada");
-    assert_eq!(detail["agents"][0]["role"], "director");
+    assert_eq!(detail["content"]["agents"][0]["id"], "veille-agent");
     assert_eq!(detail["manifest"]["package"]["version"], "1.2.0");
 }
 
 #[tokio::test]
-async fn test_unconfirmed_dependencies_and_a_refused_import_leave_nothing_behind() {
-    // GIVEN a package with a dependency, and a runtime whose loader refuses
-    // every agent
+async fn test_installing_a_folder_is_no_longer_a_route() {
+    // GIVEN a runtime
     let dir = TempDir::new().unwrap();
-    let with_deps = package(dir.path(), &["httpx>=0.27"]);
-    let confirmable = state(dir.path(), None);
-    let refusing = state(dir.path(), Some("no Agent class"));
-    let plain = dir.path().join("plain");
-    std::fs::create_dir_all(&plain).unwrap();
-    let toml = std::fs::read_to_string(Path::new(&with_deps).join("agent.toml"))
-        .unwrap()
-        .replace("packages = [\"httpx>=0.27\"]", "packages = []");
-    std::fs::write(plain.join("agent.toml"), toml).unwrap();
-    std::fs::write(plain.join("veille-agent.py"), "class Agent: pass\n").unwrap();
+    let state = state(dir.path());
 
-    // WHEN the first is installed unconfirmed, the second through the refusing loader
-    let (precondition, deps) = call(
-        confirmable.clone(),
+    // WHEN a folder is posted to the two routes that installed and previewed one
+    let (install, _) = call(
+        state.clone(),
         "POST",
         "/api/v1/agent-packages/installed",
-        Some(json!({ "path": with_deps })),
+        Some(json!({ "path": dir.path().to_string_lossy() })),
     )
     .await;
-    let (unprocessable, import) = call(
-        refusing.clone(),
+    let (preview, _) = call(
+        state.clone(),
         "POST",
-        "/api/v1/agent-packages/installed",
-        Some(json!({ "path": plain.to_string_lossy() })),
+        "/api/v1/agent-packages/preview",
+        Some(json!({ "path": dir.path().to_string_lossy() })),
     )
     .await;
 
-    // THEN the first answers the text the interface parses, the second the
-    // import's cause, and neither left a folder
-    assert_eq!(precondition, StatusCode::PRECONDITION_REQUIRED, "{deps}");
-    assert_eq!(deps["error"], "DEPS_CONFIRMATION_REQUIRED:1:httpx>=0.27");
-    assert_eq!(unprocessable, StatusCode::UNPROCESSABLE_ENTITY, "{import}");
-    assert!(import["error"].as_str().unwrap().contains("no Agent class"));
-    assert!(!refusing.data_dir.join("agents/packages/veille").exists());
+    // THEN neither exists, and nothing was written
+    assert_eq!(install, StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(preview, StatusCode::NOT_FOUND);
+    assert!(!state.data_dir.join("agents").exists());
 }
 
 #[tokio::test]
 async fn test_an_unknown_package_is_a_404_and_an_unreadable_store_a_500() {
     // GIVEN a runtime with no package, and one whose data directory is a file
     let dir = TempDir::new().unwrap();
-    let empty = state(dir.path(), None);
+    let empty = state(dir.path());
     let file = dir.path().join("not-a-dir");
     std::fs::write(&file, "x").unwrap();
-    let broken = app_state(Arc::new(StemLoader { refusal: None }), file);
+    let broken = app_state(file);
 
     // WHEN a package is read from the first and the list from the second
     let (missing, body) = call(
@@ -230,8 +154,7 @@ async fn test_a_package_is_uninstalled_and_a_name_that_is_a_path_refused() {
     // GIVEN an installed package, and the audit journal every uninstallation
     // is recorded in
     let dir = TempDir::new().unwrap();
-    let path = package(dir.path(), &[]);
-    let mut state = state(dir.path(), None);
+    let mut state = state(dir.path());
     let journal = AuditJournalHandle::open_with_key_bytes(
         &dir.path().join("journal.db"),
         b"agent-packages-journal-key-0001".to_vec(),
@@ -243,14 +166,7 @@ async fn test_a_package_is_uninstalled_and_a_name_that_is_a_path_refused() {
         Some(journal.clone()),
     ));
     state.audit_journal = Some(journal);
-    let (created, _) = call(
-        state.clone(),
-        "POST",
-        "/api/v1/agent-packages/installed",
-        Some(json!({ "path": path, "trigger_configs": [{ "id": "inbound", "secret": "0123456789abcdef0123456789abcdef" }] })),
-    )
-    .await;
-    assert_eq!(created, StatusCode::CREATED);
+    installed_package(&state);
 
     // WHEN it is uninstalled, then a name climbing out of the data directory is
     let (removed, body) = call(

@@ -78,7 +78,6 @@ the event carries announces a request that is already settled.
 |---|---|---|
 | `AgentDegraded` | named fields | An agent moved to a degraded state. |
 | `AgentInstalled` | named fields | An agent was installed permanently. |
-| `AgentLoadFailed` | named fields | Loading an installed agent failed. |
 | `AgentMessageAcked` | named fields | A delivered message was acknowledged and removed from the store. |
 | `AgentMessageDelivered` | named fields | A pending message was leased to its recipient (delivered on receive). |
 | `AgentMessageDropped` | named fields | A message was dropped without being processed. |
@@ -147,6 +146,7 @@ the event carries announces a request that is already settled.
 | `LlmModelLoading` | named fields | An LLM backend is loading (before `load()` or HTTP initialization). |
 | `LlmModelReady` | named fields | An LLM backend is ready: model loaded in memory or cloud connection verified. |
 | `LlmModelReloaded` | named fields | A resident local model was relaunched under its preset's new load settings. |
+| `LlmModelUnloaded` | named fields | A resident local model was unloaded and its memory given back. |
 | `LlmResponseCaptured` | named fields | A full LLM response captured for deterministic replay. |
 | `MetaLlmBudgetExceeded` | named fields | Emitted by `MetaLlmOrchestrator` when the tokens/session budget is exceeded. |
 | `TokenBudgetUpdated` | named fields | Session budget update, emitted after each LLM call. |
@@ -209,6 +209,7 @@ the event carries announces a request that is already settled.
 | `ConfigReloaded` | named fields | A new `apollia.toml`, saved through the configuration routes or changed |
 | `ContextCompacted` | named fields | Emitted by `ContextManager` when the conversation history was compacted. |
 | `FileModifiedSinceRead` | named fields | A previously read file was modified between two accesses. |
+| `GovernanceFailClosed` | named fields | Governance started or stopped failing closed. |
 | `McpServerHealthChanged` | named fields | An MCP server's operational health changed. |
 | `McpServerReloaded` | named fields | An MCP server was hot-reloaded successfully. |
 | `ShutdownRequested` | none | Shutdown requested (SIGTERM or CLI command). |

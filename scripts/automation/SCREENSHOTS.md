@@ -368,7 +368,7 @@ marked `hand` only because the automaton frames the whole window.
 |---|---|---|---|---|---|---|
 | 26 | `agents-consulter-les-logs-d-un-agent-1.png` | My Assistants → select `apollia-guide` → **Logs**. | The Agent Logs panel: task counter, search, status filters, sorting. 7 tasks, every status | none | panel | auto |
 | 27 | `agents-demarrer-un-agent-1.png` | My Assistants. | The left column with both sections, My assistants and My packages | none | page | auto |
-| 28 | `agents-demarrer-un-agent-2.png` | Click the `seed-office-pack` row. | Package detail: Information, Agents with director/worker roles, Triggers | none | panel | auto |
+| 28 | `agents-demarrer-un-agent-2.png` | Click the `seed-office-pack` row. | Package detail: Information, its agents, workflows and tools | none | panel | auto |
 | 29 | `agents-demarrer-un-agent-2bis.png` | Same panel, scrolled down. | The rest of the same panel | none | panel | auto |
 | 30 | `agents-installer-un-agent-1.png` | My Assistants, one agent selected. | List left, detail right, **New assistant** top right | select `apollia-guide` | page | auto |
 | 31 | `agents-installer-un-agent-2.png` | New assistant → pick a package folder. | Preview step: Agents and Triggers sections, green Valid badge | see N5 | dialog | hand, see N5 |

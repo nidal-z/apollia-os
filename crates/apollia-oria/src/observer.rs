@@ -31,7 +31,7 @@ const WEIGHT_PARTS: f32 = 0.20;
 /// Weight for the `"multi-step"` tag presence.
 const WEIGHT_MULTI_STEP_TAG: f32 = 0.40;
 
-/// Weight for many required tools (`tools_required.len() > 4`).
+/// Weight for many granted tools (more than 4).
 const WEIGHT_TOOLS: f32 = 0.20;
 
 /// Weight for long input text (`total chars > INPUT_LENGTH_THRESHOLD`).
@@ -92,7 +92,7 @@ pub struct ContextBundle {
     pub memory_snapshot: Option<MemorySnapshot>,
     /// Execution mode determined by [`classify`].
     pub execution_mode: ExecutionMode,
-    /// Names of tools available to the agent (from manifest `tools_required` + `tools_optional`).
+    /// Names of the tools granted to the agent for this run.
     pub available_tools: Vec<String>,
     /// System prompt from the agent manifest, forwarded to the Reasoner for plan generation.
     pub manifest_system_prompt: Option<String>,
@@ -142,9 +142,12 @@ pub fn extract_total_text_length(input: &AIPInput) -> usize {
 /// The caller compares the result against its configured threshold,
 /// [`apollia_core::ORIAConfig::orchestrated_threshold`].
 ///
+/// `granted_tools` is the number of tools the agent may call in this run.
+///
 /// This is a **pure function**: deterministic, no side effects.
 pub fn compute_complexity_score(
     manifest: &AgentManifest,
+    granted_tools: usize,
     input: &AIPInput,
     memory_snapshot: Option<&MemorySnapshot>,
 ) -> f32 {
@@ -163,7 +166,7 @@ pub fn compute_complexity_score(
         score += WEIGHT_MULTI_STEP_TAG;
     }
 
-    if manifest.tools_required.len() > COMPLEXITY_TOOLS_THRESHOLD {
+    if granted_tools > COMPLEXITY_TOOLS_THRESHOLD {
         score += WEIGHT_TOOLS;
     }
 
@@ -250,6 +253,7 @@ pub fn score_turn_text(input: &str) -> f32 {
 pub fn classify(
     task: &AIPTask,
     manifest: &AgentManifest,
+    granted_tools: usize,
     memory_snapshot: Option<&MemorySnapshot>,
     threshold: f32,
 ) -> ExecutionMode {
@@ -260,7 +264,7 @@ pub fn classify(
         _ => {} // "auto" or unknown value: weighted scoring
     }
 
-    let score = compute_complexity_score(manifest, &task.input, memory_snapshot);
+    let score = compute_complexity_score(manifest, granted_tools, &task.input, memory_snapshot);
 
     if score >= threshold {
         ExecutionMode::Orchestrated
@@ -283,17 +287,13 @@ pub fn classify(
 pub fn observe(
     task: AIPTask,
     manifest: &AgentManifest,
+    granted_tools: &[String],
     memory: Option<&mut MemoryManager>,
     threshold: f32,
 ) -> Result<ContextBundle, ObserverError> {
     let manifest_system_prompt = manifest.system_prompt.clone();
 
-    let available_tools: Vec<String> = manifest
-        .tools_required
-        .iter()
-        .chain(manifest.tools_optional.iter())
-        .cloned()
-        .collect();
+    let available_tools: Vec<String> = granted_tools.to_vec();
 
     // Build memory snapshot first so classify() can use it for scoring.
     let memory_snapshot = match memory {
@@ -301,7 +301,8 @@ pub fn observe(
             let namespace = match &manifest.memory_namespace {
                 Some(ns) => ns.clone(),
                 None => {
-                    let execution_mode = classify(&task, manifest, None, threshold);
+                    let execution_mode =
+                        classify(&task, manifest, granted_tools.len(), None, threshold);
                     return Ok(ContextBundle {
                         task,
                         memory_snapshot: None,
@@ -341,7 +342,13 @@ pub fn observe(
         None => None,
     };
 
-    let execution_mode = classify(&task, manifest, memory_snapshot.as_ref(), threshold);
+    let execution_mode = classify(
+        &task,
+        manifest,
+        granted_tools.len(),
+        memory_snapshot.as_ref(),
+        threshold,
+    );
 
     Ok(ContextBundle {
         task,
@@ -374,8 +381,6 @@ mod tests {
             name: "simple-agent".into(),
             version: "1.0.0".into(),
             description: "A simple agent".into(),
-            tools_required: vec!["file_io".into(), "bash".into()],
-            tools_optional: vec![],
             supports_streaming: false,
             supports_a2a: false,
             memory_namespace: None,
@@ -386,8 +391,6 @@ mod tests {
                 max_tool_calls: 20,
                 wall_clock_secs: 300,
             }),
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".to_string(),
@@ -395,7 +398,6 @@ mod tests {
             mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
-            llm_backend: None,
             model: None,
             packages: vec![],
             memory_config: None,
@@ -419,14 +421,6 @@ mod tests {
             name: "complex-agent".into(),
             version: "1.0.0".into(),
             description: "A complex agent".into(),
-            tools_required: vec![
-                "file_io".into(),
-                "bash".into(),
-                "python".into(),
-                "http".into(),
-                "db".into(),
-            ],
-            tools_optional: vec![],
             supports_streaming: false,
             supports_a2a: false,
             memory_namespace: None,
@@ -437,8 +431,6 @@ mod tests {
                 max_tool_calls: 50,
                 wall_clock_secs: 600,
             }),
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".to_string(),
@@ -446,7 +438,6 @@ mod tests {
             mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
-            llm_backend: None,
             model: None,
             packages: vec![],
             memory_config: None,
@@ -558,7 +549,7 @@ mod tests {
 
         // WHEN
         let bundle =
-            observe(task, &manifest, Some(&mut mgr), ORCHESTRATED_THRESHOLD).expect("observe");
+            observe(task, &manifest, &[], Some(&mut mgr), ORCHESTRATED_THRESHOLD).expect("observe");
 
         // THEN
         assert!(bundle.memory_snapshot.is_some());
@@ -576,7 +567,7 @@ mod tests {
         let manifest = simple_manifest();
 
         // WHEN
-        let bundle = observe(task, &manifest, None, ORCHESTRATED_THRESHOLD).expect("observe");
+        let bundle = observe(task, &manifest, &[], None, ORCHESTRATED_THRESHOLD).expect("observe");
 
         // THEN
         assert!(bundle.memory_snapshot.is_none());
@@ -591,7 +582,7 @@ mod tests {
         let manifest = simple_manifest();
 
         // WHEN
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let mode = classify(&task, &manifest, 0, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Direct);
@@ -605,7 +596,7 @@ mod tests {
         let manifest = complex_manifest();
 
         // WHEN
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let mode = classify(&task, &manifest, 5, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -620,7 +611,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let mode = classify(&task, &manifest, 0, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -635,7 +626,7 @@ mod tests {
         let task = multi_part_task();
 
         // WHEN: score = WEIGHT_PARTS (0.20) < ORCHESTRATED_THRESHOLD (0.40)
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let mode = classify(&task, &manifest, 0, None, ORCHESTRATED_THRESHOLD);
 
         // THEN: weighted scoring reduces false positives vs old boolean OR
         assert_eq!(mode, ExecutionMode::Direct);
@@ -650,7 +641,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let mode = classify(&task, &manifest, 0, None, ORCHESTRATED_THRESHOLD);
 
         // THEN: the override wins, even for a simple agent
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -662,14 +653,10 @@ mod tests {
         // GIVEN a manifest with execution_mode = "direct" and 6 tools (> 4)
         let mut manifest = simple_manifest();
         manifest.execution_mode = "direct".to_string();
-        manifest.tools_required = vec!["a", "b", "c", "d", "e", "f"]
-            .into_iter()
-            .map(String::from)
-            .collect();
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let mode = classify(&task, &manifest, 6, None, ORCHESTRATED_THRESHOLD);
 
         // THEN: the override wins over the heuristic
         assert_eq!(mode, ExecutionMode::Direct);
@@ -682,10 +669,6 @@ mod tests {
         // GIVEN a manifest with 5 tools AND 20 steps
         let mut manifest = simple_manifest();
         manifest.execution_mode = "auto".to_string();
-        manifest.tools_required = vec!["a", "b", "c", "d", "e"]
-            .into_iter()
-            .map(String::from)
-            .collect();
         manifest.step_budget = Some(StepBudgetConfig {
             max_steps: 20,
             max_tool_calls: 50,
@@ -694,7 +677,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN: score = WEIGHT_TOOLS (0.20) + WEIGHT_STEPS (0.30) = 0.50 >= 0.40
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let mode = classify(&task, &manifest, 5, None, ORCHESTRATED_THRESHOLD);
 
         // THEN: scoring -> Orchestrated
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -706,11 +689,10 @@ mod tests {
         // GIVEN a manifest with execution_mode = "auto" and 1 tool
         let mut manifest = simple_manifest();
         manifest.execution_mode = "auto".to_string();
-        manifest.tools_required = vec!["file_io".to_string()];
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let mode = classify(&task, &manifest, 1, None, ORCHESTRATED_THRESHOLD);
 
         // THEN: heuristic -> Direct
         assert_eq!(mode, ExecutionMode::Direct);
@@ -724,8 +706,8 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let score = compute_complexity_score(&manifest, &task.input, None);
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let score = compute_complexity_score(&manifest, 0, &task.input, None);
+        let mode = classify(&task, &manifest, 0, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert!(score < f32::EPSILON, "score should be ~0.0, got {score}");
@@ -757,8 +739,8 @@ mod tests {
         };
 
         // WHEN: steps(0.30) + parts(0) + tag(0.40) + tools(0.20) + input_len(0.10) = 1.0
-        let score = compute_complexity_score(&manifest, &task.input, None);
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let score = compute_complexity_score(&manifest, 5, &task.input, None);
+        let mode = classify(&task, &manifest, 5, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert!(score >= 0.90, "score should be >= 0.90, got {score}");
@@ -770,7 +752,6 @@ mod tests {
     fn test_multi_step_tag_alone_triggers_orchestrated() {
         // GIVEN an agent with 1 tool, 5 steps, "multi-step" tag, short input
         let mut manifest = simple_manifest();
-        manifest.tools_required = vec!["file_io".into()];
         manifest.step_budget = Some(StepBudgetConfig {
             max_steps: 5,
             max_tool_calls: 10,
@@ -780,8 +761,8 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let score = compute_complexity_score(&manifest, &task.input, None);
-        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
+        let score = compute_complexity_score(&manifest, 1, &task.input, None);
+        let mode = classify(&task, &manifest, 1, None, ORCHESTRATED_THRESHOLD);
 
         // THEN: score = WEIGHT_MULTI_STEP_TAG (0.40) >= 0.40
         assert!(score >= 0.40, "score should be >= 0.40, got {score}");
@@ -792,11 +773,7 @@ mod tests {
     #[test]
     fn test_input_length_and_tools_contribute_to_score() {
         // GIVEN an agent with 6 tools, 10 steps, no tag, 800-char input
-        let mut manifest = simple_manifest();
-        manifest.tools_required = vec!["a", "b", "c", "d", "e", "f"]
-            .into_iter()
-            .map(String::from)
-            .collect();
+        let manifest = simple_manifest();
         let task = AIPTask {
             task_id: "task-long".into(),
             context_id: "ctx-long".into(),
@@ -811,7 +788,7 @@ mod tests {
         };
 
         // WHEN: tools(0.20) + input_len(0.10) = 0.30
-        let score = compute_complexity_score(&manifest, &task.input, None);
+        let score = compute_complexity_score(&manifest, 6, &task.input, None);
 
         // THEN
         assert!(score >= 0.30, "score should be >= 0.30, got {score}");
@@ -823,7 +800,7 @@ mod tests {
         use apollia_core::AgentManifest;
 
         // GIVEN a JSON with execution_mode and system_prompt
-        let json = r#"{"name":"a","version":"1.0.0","description":"d","tools_required":[],"execution_mode":"orchestrated","system_prompt":"Planifie."}"#;
+        let json = r#"{"name":"a","version":"1.0.0","description":"d","execution_mode":"orchestrated","system_prompt":"Planifie."}"#;
 
         // WHEN
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize");
@@ -839,7 +816,7 @@ mod tests {
         use apollia_core::AgentManifest;
 
         // GIVEN a minimal JSON without execution_mode
-        let json = r#"{"name":"a","version":"1.0.0","description":"d","tools_required":[]}"#;
+        let json = r#"{"name":"a","version":"1.0.0","description":"d"}"#;
 
         // WHEN
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize");

@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use apollia_auth::ConnectorProvider;
 use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use super::*;
-use crate::api::test_support::{app_state, call, StemLoader};
+use crate::api::test_support::{app_state, call};
 use crate::connectors_bridge::test_support::auth_with_tokens;
 
 #[tokio::test]
@@ -53,10 +51,7 @@ fn test_a_folder_is_recorded_trimmed_then_reset_to_the_default() {
 async fn test_the_routes_are_mounted_and_refuse_oversized_input_before_any_write() {
     // GIVEN the daemon's router
     let dir = TempDir::new().unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
     let long_account = format!("/api/v1/connectors/drive-folders/{}", "a".repeat(400));
 
     // WHEN a client records a folder longer than any Drive path, then resets

@@ -1,7 +1,7 @@
 use super::*;
 
 use super::bootstrap::{migrate_mcp_from_toml, start_mcp_manager};
-use crate::on_demand::{BackendLoader, OnDemandBackend};
+use crate::agents::available::{make_available, stored_agents_to_register, Availability};
 
 impl Supervisor {
     /// Create a new Supervisor with the given configuration.
@@ -412,14 +412,11 @@ impl Supervisor {
         router
     }
 
-    /// Phase 11: make every enabled installed agent available, without
-    /// importing any of them.
+    /// Phase 11: make every enabled stored agent available.
     ///
-    /// Each agent is registered from the manifest its store holds, and its
-    /// coordinator gets an [`OnDemandBackend`]: the Python module is imported
-    /// by the first task that reaches the agent, and released once the agent
-    /// has gone `agent_idle_unload_secs` without a call. A disabled agent is
-    /// not registered, so a task to it is refused. Errors are logged, never
+    /// Each agent is registered from the definition its store holds. An agent
+    /// is data: nothing is imported. A disabled agent is not registered, so
+    /// it is not listed among the available ones. Errors are logged, never
     /// fatal.
     pub(in crate::supervisor) async fn auto_load_installed_agents<
         B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>,
@@ -429,7 +426,7 @@ impl Supervisor {
         let Some(repo) = ctx.agent_repository else {
             return;
         };
-        let agents = match repo.list_enabled() {
+        let agents = match stored_agents_to_register(repo) {
             Ok(agents) => agents,
             Err(e) => {
                 warn!(error = %e, detail = "skipping the auto-load", "agent.list.failed");
@@ -439,138 +436,17 @@ impl Supervisor {
         if agents.is_empty() {
             info!("agent.autoload.empty");
         }
+        let runtime = Availability {
+            registry: ctx.registry_handle,
+            router: ctx.router_handle,
+            event_sender: ctx.event_sender,
+            backend: ctx.base_backend,
+            task_repository: ctx.task_repository,
+            observability: ctx.obs_config.clone(),
+        };
         for agent in &agents {
-            Self::load_one_installed_agent(agent, &ctx).await;
-        }
-    }
-
-    /// Register a single installed agent on demand. Skips disabled agents and
-    /// logs (never propagates) any per-agent failure.
-    async fn load_one_installed_agent<
-        B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>,
-    >(
-        agent: &apollia_tools::InstalledAgent,
-        ctx: &AutoLoadCtx<'_, B>,
-    ) {
-        if !agent.enabled {
-            warn!(name = %agent.name, "agent.autoload.skipped");
-            return;
-        }
-        let manifest = agent.manifest.clone();
-        let max_concurrent = manifest.max_concurrent_tasks;
-        let agent_name = manifest.name.clone();
-
-        // Install pip packages into the agent's venv before registration.
-        // On failure the agent continues in Degraded state, boot is never blocked.
-        let degraded_reason = Self::setup_agent_venv(ctx.data_dir, &manifest).await;
-
-        // Register in AgentRegistry (state = Initializing).
-        let agent_id = match ctx.registry_handle.register(manifest).await {
-            Ok(id) => id,
-            Err(e) => {
-                warn!(name = %agent_name, error = %e, "agent.register.failed");
-                return;
-            }
-        };
-
-        // Transition: Initializing → Active (required by state machine).
-        if let Err(e) = ctx
-            .registry_handle
-            .update_state(agent_id.as_str(), ProcessState::Active)
-            .await
-        {
-            warn!(name = %agent_name, error = %e, "agent.activate.failed");
-            return;
-        }
-
-        // If package installation failed: Active → Degraded.
-        if degraded_reason.is_some() {
-            ctx.registry_handle
-                .update_state(agent_id.as_str(), ProcessState::Degraded)
-                .await
-                .unwrap_or_else(
-                    |e| warn!(name = %agent_name, error = %e, "agent.state.degraded.failed"),
-                );
-        }
-
-        // The backend is built by the first task, not here.
-        let agent_backend: B = match ctx.backend_factory {
-            Some(factory) => {
-                let factory = Arc::clone(factory);
-                let install_path = agent.install_path.clone();
-                let stored = agent.manifest.clone();
-                let loader: BackendLoader =
-                    Arc::new(move || factory.create_for_agent(&install_path, &stored));
-                B::from(crate::coordinator::DynBackend::new(OnDemandBackend::spawn(
-                    &agent_name,
-                    loader,
-                    ctx.idle_unload,
-                )))
-            }
-            None => ctx.base_backend.clone(),
-        };
-        let mut coordinator = ExecutionCoordinator::new(
-            agent_id.clone(),
-            max_concurrent,
-            ctx.event_sender.clone(),
-            agent_backend,
-        )
-        .with_agent_name(agent_name.clone());
-        if let Some(repo) = ctx.task_repository {
-            coordinator =
-                coordinator.with_task_repository(Arc::clone(repo), ctx.obs_config.clone());
-        }
-
-        // Register coordinator in TaskRouter.
-        let _ = ctx
-            .router_handle
-            .register_coordinator(agent_id.clone(), coordinator)
-            .await;
-
-        info!(name = %agent_name, id = %agent_id, "agent.available");
-    }
-
-    /// Install an agent's pip packages into its venv. Returns `Some(reason)`
-    /// when the agent should start in a Degraded state, `None` on success or
-    /// when there are no packages to install.
-    async fn setup_agent_venv(
-        data_dir: &std::path::Path,
-        manifest: &apollia_core::AgentManifest,
-    ) -> Option<String> {
-        if manifest.packages.is_empty() {
-            return None;
-        }
-        let venv_base = data_dir.join("venvs");
-        let executor = match apollia_tools::tools::python_executor::PythonExecutor::new(
-            &manifest.name,
-            &venv_base,
-        ) {
-            Ok(executor) => executor,
-            Err(e) => {
-                warn!(
-                    agent = %manifest.name,
-                    error = %e,
-                    detail = "the agent starts degraded", "agent.venv.create.failed"
-                );
-                return Some(e.to_string());
-            }
-        };
-        match executor.setup_venv(&manifest.packages).await {
-            Ok(()) => {
-                info!(
-                    agent = %manifest.name,
-                    packages = ?manifest.packages,
-                    "agent.packages.installed"
-                );
-                None
-            }
-            Err(e) => {
-                warn!(
-                    agent = %manifest.name,
-                    error = %e,
-                    detail = "the agent starts degraded", "agent.packages.install.failed"
-                );
-                Some(e.to_string())
+            if let Err(e) = make_available(agent, &runtime).await {
+                warn!(name = %agent.name, error = %e, "agent.register.failed");
             }
         }
     }

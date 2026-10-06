@@ -25,7 +25,7 @@ pub enum SandboxProfile {
     /// Enforced today: PID and mount namespace on Linux; nothing on macOS.
     /// NOT YET ENFORCED (roadmap): scoped writable mount, RAM cap, per-profile timeout.
     FileSystem,
-    /// Intent: network access limited to the manifest's `network_allowlist`.
+    /// Intent: network access limited to an allowlist of hosts.
     /// Enforced today: same as `FileSystem` (no network namespace is created).
     /// NOT YET ENFORCED (roadmap): network namespace, `iptables` allowlist.
     NetworkRestricted,

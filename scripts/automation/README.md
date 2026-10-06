@@ -361,7 +361,7 @@ a run, and nothing reads them back.
   or launcher on top no longer pollutes them. If a capture is ever wrong, check
   the window is a normal (non-minimized) window.
 - **A native file dialog is answered by a stub, or not at all.**
-  `memory-export-button`, `memory-import-pick` and `agent-update-btn` open an OS picker the runner cannot drive: an unstubbed
+  `memory-export-button`, `memory-import-pick` and `agents-install-apo-button` open an OS picker the runner cannot drive: an unstubbed
   click never returns and every later step of the boot fails. Arm
   `stubInvoke { command: "plugin:dialog|open", resolve: "${HOME}/...", once: true }`
   (`plugin:dialog|save` for the export) right before the click, or `resolve:

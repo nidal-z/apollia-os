@@ -2,13 +2,12 @@
 //! built in a temporary directory.
 
 use std::path::Path;
-use std::sync::Arc;
 
 use apollia_llm::model_index::INDEX_FILE_NAME;
 use apollia_llm::ModelIndex;
 
 use super::installed_language_model;
-use crate::api::test_support::{app_state, call, StemLoader};
+use crate::api::test_support::{app_state, call};
 
 /// A GGUF header (version 3, no tensor) naming `arch`, with an optional
 /// `{arch}.pooling_type`, followed by `padding` bytes standing for weights.
@@ -46,10 +45,7 @@ fn indexed(models_dir: &Path) {
 async fn the_route_lists_both_entries_and_recommends_one_beside_the_given_model() {
     // GIVEN a runtime whose data directory holds no model
     let tmp = tempfile::tempdir().expect("tempdir");
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        tmp.path().to_path_buf(),
-    );
+    let state = app_state(tmp.path().to_path_buf());
 
     // WHEN the embeddings route is asked with the size of a language model
     let (status, body) = call(
@@ -93,10 +89,7 @@ async fn without_a_size_the_route_counts_the_largest_installed_language_model() 
     std::fs::write(models.join("large.gguf"), gguf("qwen3", None, 4000)).expect("write");
     std::fs::write(models.join("e5.gguf"), gguf("bert", Some(1), 9000)).expect("write");
     indexed(&models);
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        tmp.path().to_path_buf(),
-    );
+    let state = app_state(tmp.path().to_path_buf());
 
     // WHEN the embeddings route is asked with no size
     let (status, body) = call(state, "GET", "/api/v1/llm/embeddings", None).await;

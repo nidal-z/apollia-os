@@ -30,7 +30,7 @@ use serde_json::Value;
 use super::executor::{helpers, module_name};
 use super::{dotted_module, manifest_of};
 use crate::apollia_manifest::WorkflowDecl;
-use crate::bridge::cancel;
+use crate::cancel;
 use crate::context::RuntimeContext;
 
 /// The `ctx` of a workflow, built around the runtime context. `agents` and

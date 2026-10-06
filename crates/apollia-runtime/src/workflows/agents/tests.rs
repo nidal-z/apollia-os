@@ -18,7 +18,6 @@ use serde_json::{json, Value};
 
 use super::*;
 use crate::agents::task::AgentTaskLauncher;
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::routes_llm::tests::test_app_state_no_llm;
 use crate::chat::ChatSessionManagerHandle;
 use crate::workflows::{WorkflowCall, WorkflowDescriptor, WorkflowHandle, WorkflowHost};
@@ -137,7 +136,6 @@ async fn fixture(max_steps: u32) -> Fixture {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "answers"))),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

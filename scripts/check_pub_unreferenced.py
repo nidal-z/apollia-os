@@ -107,6 +107,18 @@ BUILDER_GUARD = Path("scripts/check_optional_builders.py")
 # reference, fails the guard as stale, which is what stops an exemption list
 # from rotting into decoration.
 DEAD_RATCHET: dict[str, str] = {
+    "announce_shared_namespaces@apollia-aip": (
+        "announced the shared memory namespaces of a Python agent when its context was built; no agent is Python any more, it goes with the context services of that contract."
+    ),
+    "health_check@apollia-runtime": (
+        "the runner proxy never had a caller for it; it was credited with the occurrences of a homonym in the validator of Python agents, removed since."
+    ),
+    "with_fail_closed@apollia-aip": (
+        "set on the tool proxy of a Python agent by its runner; the agent executor refuses the sensitive calls of a fail-closed run before any proxy. It goes with the context services of that contract."
+    ),
+    "with_mailbox_capability@apollia-aip": (
+        "read `supports_mailbox` from the manifest of a Python agent; without it `ctx.mail` refuses every call. It goes with the context services of that contract."
+    ),
     "default_input@apollia-stt": (
         "convenience wrapper over `AudioCapture::open(None)`; every caller names a device or resolves one first."
     ),
@@ -115,9 +127,6 @@ DEAD_RATCHET: dict[str, str] = {
         "live while a tracing sentence of `handle_approve_tool_access` named it."
     ),
     "delete_draft@apollia-connectors": "same chain as `list_drafts`.",
-    "duck_type_agent@apollia-aip": (
-        "strict duck-typing against a venv `site-packages`; the CLI install path defers it per agent and never calls it."
-    ),
     "from_backend_configs@apollia-llm": (
         "a thin forward to `from_backend_configs_with_override`, which is the one every caller uses."
     ),
@@ -126,9 +135,6 @@ DEAD_RATCHET: dict[str, str] = {
     ),
     "list_drafts@apollia-connectors": (
         "Gmail draft management is exposed by the client and by no connector action, so no agent and no route can reach it."
-    ),
-    "load_package@apollia-aip": (
-        "the package-wide duck-typing entry, deferred for the same reason as `duck_type_agent`."
     ),
     "revoke_tool@apollia-mcp": (
         "same dead path as `approve_tool`, on the other half of the pair."
@@ -160,7 +166,7 @@ TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "from_profile@apollia-prompts", "from_repository@apollia-llm", "from_risk_score@apollia-tools",
     "get_choice@apollia-memory", "get_covered_topics@apollia-memory", "get_last_onboarding_session@apollia-memory",
     "get_onboarding_skipped@apollia-memory", "get_state@apollia-triggers", "global_tracker_clear@apollia-memory",
-    "handle_budget_update@apollia-notifications", "has_reasoner@apollia-oria", "in_memory@apollia-mcp",
+    "handle_budget_update@apollia-notifications", "in_memory@apollia-mcp",
     "is_enabled@apollia-tools", "language_footer@apollia-prompts",
     "list_entries@apollia-memory", "list_extras@apollia-memory", "load_step_provenance@apollia-oria",
     "log_plan_choice@apollia-memory", "maybe_purge@apollia-memory", "new_for_test@apollia-runtime",

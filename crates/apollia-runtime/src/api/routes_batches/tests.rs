@@ -24,7 +24,6 @@ use tower::ServiceExt;
 
 use super::*;
 use crate::agents::task::AgentTaskLauncher;
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::routes_llm::tests::{test_app_state_no_llm, MockBackend};
 use crate::batch::AgentItemRunner;
 use crate::chat::ChatSessionManagerHandle;
@@ -129,7 +128,6 @@ async fn fixture() -> Fixture {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "gated"))),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

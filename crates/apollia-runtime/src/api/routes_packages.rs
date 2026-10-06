@@ -436,6 +436,8 @@ pub(crate) async fn install_package<B: ExecutionBackend + Clone>(
         origin: PackageOrigin::File,
     };
     let report = install_archive(&state, stores, path, options).await?;
+    // The agents the package brought take requests at once: nobody starts them.
+    crate::api::routes_agents::register_missing_agents(&state).await;
     Ok((StatusCode::CREATED, Json(report)))
 }
 

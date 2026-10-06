@@ -45,7 +45,6 @@ use super::types::{
     ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
-use crate::api::routes_agents::AgentLoader;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::HookExecutor;
 use crate::registry::AgentRegistryHandle;

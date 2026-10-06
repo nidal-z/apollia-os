@@ -260,6 +260,9 @@ pub struct ActorLoop {
     /// Stored read-only so `execute_step` can access `tools_requiring_approval`
     /// on each step.
     pub manifest: AgentManifest,
+    /// The backend every model call of a step goes to, when the agent was
+    /// given a model of its own.
+    pub(crate) model_backend: Option<String>,
     /// HITL registry of pending approvals, shared with the `ResumeHandler`.
     ///
     /// `Some`: steps whose tool is in `tools_requiring_approval` suspend execution
@@ -314,12 +317,20 @@ impl ActorLoop {
             db,
             event_bus,
             manifest,
+            model_backend: None,
             pending_approvals: None,
             obs_config: ObservabilityConfig::default(),
             memory_manager: None,
             step_memory_max_chars: DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
         }
+    }
+
+    /// Names the backend every model call of a step goes to: the model the
+    /// agent was given. `None` leaves the default of the router.
+    pub fn with_model_backend(mut self, backend: Option<String>) -> Self {
+        self.model_backend = backend;
+        self
     }
 
     /// Inject the HITL registry of pending approvals.
@@ -520,10 +531,8 @@ mod tests {
 
     /// Builds a minimal `AgentManifest` for tests.
     fn make_manifest() -> AgentManifest {
-        serde_json::from_str(
-            r#"{"name":"test","version":"0.1.0","description":"test","tools_required":[]}"#,
-        )
-        .expect("minimal manifest must deserialize")
+        serde_json::from_str(r#"{"name":"test","version":"0.1.0","description":"test"}"#)
+            .expect("minimal manifest must deserialize")
     }
 
     // ── Mock ToolProxy ────────────────────────────────────────────────────────
@@ -1584,8 +1593,7 @@ mod tests {
         // GIVEN
         let manifest: AgentManifest = serde_json::from_str(
             r#"{
-                "name":"test","version":"0.1.0","description":"test","tools_required":[],
-                "tools_requiring_approval":["smtp"]
+                "name":"test","version":"0.1.0","description":"test","tools_requiring_approval":["smtp"]
             }"#,
         )
         .expect("manifest must deserialize");
@@ -1619,8 +1627,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join(",");
         serde_json::from_str(&format!(
-            r#"{{"name":"hitl-agent","version":"0.1.0","description":"test","tools_required":[],
-               "tools_requiring_approval":[{tools_json}]}}"#
+            r#"{{"name":"hitl-agent","version":"0.1.0","description":"test","tools_requiring_approval":[{tools_json}]}}"#
         ))
         .expect("manifest must deserialize")
     }
@@ -2170,9 +2177,9 @@ mod tests {
         let budget = StepBudget::unlimited();
         let resilience = ResilienceLayer::default();
         let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
-        let mut manifest = make_manifest();
-        manifest.llm_backend = Some("fast".into());
-        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, manifest);
+        let manifest = make_manifest();
+        let mut actor =
+            ActorLoop::new(plan, 0, db, bus_tx, manifest).with_model_backend(Some("fast".into()));
 
         // WHEN
         let result = actor
@@ -2607,7 +2614,7 @@ mod tests {
     /// Helper: creates a manifest with `memory_namespace` set.
     fn make_manifest_with_memory(namespace: &str) -> AgentManifest {
         let json = format!(
-            r#"{{"name":"test-agent","version":"0.1.0","description":"test","tools_required":[],"memory_namespace":"{namespace}"}}"#,
+            r#"{{"name":"test-agent","version":"0.1.0","description":"test","memory_namespace":"{namespace}"}}"#,
         );
         serde_json::from_str(&json).expect("manifest with memory_namespace must deserialize")
     }

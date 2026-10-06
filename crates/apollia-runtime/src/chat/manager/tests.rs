@@ -1,66 +1,11 @@
 use super::*;
-use apollia_core::AgentManifest;
-
-/// Stub AgentLoader that always succeeds.
-struct AlwaysOkLoader;
-impl AgentLoader for AlwaysOkLoader {
-    fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
-        Ok(AgentManifest {
-            autonomy_level: None,
-            format_version: 1,
-            name: "test-agent".into(),
-            version: "0.1.0".into(),
-            description: "test".into(),
-            tools_required: vec![],
-            tools_optional: vec![],
-            supports_streaming: false,
-            supports_a2a: false,
-            memory_namespace: None,
-            shared_memory_namespaces: vec![],
-            max_concurrent_tasks: 1,
-            step_budget: None,
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
-            tags: vec![],
-            skills: vec![],
-            execution_mode: "auto".into(),
-            supports_mailbox: false,
-            mailbox_allowlist: None,
-            system_prompt: None,
-            tools_requiring_approval: vec![],
-            llm_backend: None,
-            model: None,
-            packages: vec![],
-            memory_config: None,
-            agent_type: None,
-            examples: vec![],
-            limitations: vec![],
-            setup_notes: None,
-            agent_class: None,
-            user_memory_write: false,
-            datasources: vec![],
-            templates: vec![],
-            secrets: vec![],
-            check_commands: vec![],
-        })
-    }
-}
-
-/// Stub AgentLoader that always fails.
-struct AlwaysFailLoader;
-impl AgentLoader for AlwaysFailLoader {
-    fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
-        Err("agent not found".into())
-    }
-}
 
 /// Spawn a ChatSessionManager backed by a temp SQLite database.
 fn spawn_test_manager(
     dir: &tempfile::TempDir,
     llm_router: Option<Arc<LlmRouter>>,
-    agent_loader: Arc<dyn AgentLoader>,
 ) -> ChatSessionManagerHandle {
-    spawn_test_manager_with_plan_default(dir, llm_router, agent_loader, false)
+    spawn_test_manager_with_plan_default(dir, llm_router, false)
 }
 
 /// Spawn a ChatSessionManager with an explicit plan-mode default, so a test
@@ -68,7 +13,6 @@ fn spawn_test_manager(
 fn spawn_test_manager_with_plan_default(
     dir: &tempfile::TempDir,
     llm_router: Option<Arc<LlmRouter>>,
-    agent_loader: Arc<dyn AgentLoader>,
     plan_mode_default: bool,
 ) -> ChatSessionManagerHandle {
     let db_path = dir.path().join("chat.db");
@@ -79,7 +23,6 @@ fn spawn_test_manager_with_plan_default(
         &db_path,
         llm_router,
         tool_registry,
-        agent_loader,
         None, // no agent runner in basic tests
         event_tx,
         StepBudgetConfig::default(),
@@ -115,7 +58,7 @@ fn libre_session_params() -> CreateSessionParams {
 async fn test_create_session_libre() {
     // GIVEN a ChatSessionManager with LLM configured
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     // WHEN create_session mode=Libre
     let info = handle
@@ -141,7 +84,7 @@ async fn test_create_session_libre() {
 async fn test_create_session_agent_without_name() {
     // GIVEN a ChatSessionManager
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     // WHEN create_session mode=Agent, agent_name=None
     let result = handle
@@ -164,7 +107,7 @@ async fn test_create_session_agent_without_name() {
 async fn test_create_session_no_llm() {
     // GIVEN a ChatSessionManager without LLM
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, None, Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, None);
 
     // WHEN create_session mode=Libre
     let result = handle.create_session(libre_session_params()).await;
@@ -179,7 +122,7 @@ async fn test_create_session_no_llm() {
 async fn test_list_sessions() {
     // GIVEN 2 sessions created
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     handle
         .create_session(libre_session_params())
@@ -203,7 +146,7 @@ async fn test_list_sessions() {
 async fn test_get_session_detail() {
     // GIVEN session with 3 messages
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     let info = handle
         .create_session(libre_session_params())
@@ -232,7 +175,7 @@ async fn test_get_session_detail() {
 async fn test_get_session_todo_empty_and_unknown() {
     // GIVEN a freshly created session with no todo items
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
     let info = handle
         .create_session(libre_session_params())
         .await
@@ -268,7 +211,6 @@ async fn test_close_session() {
         &db_path,
         fake_llm_router(),
         tool_registry,
-        Arc::new(AlwaysOkLoader),
         None,
         event_tx,
         StepBudgetConfig::default(),
@@ -310,7 +252,7 @@ async fn test_close_session() {
 async fn test_send_message_to_closed_session() {
     // GIVEN session closed
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     let info = handle
         .create_session(libre_session_params())
@@ -331,7 +273,7 @@ async fn test_send_message_to_closed_session() {
 async fn test_send_message_returns_message_id() {
     // GIVEN active session
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     let info = handle
         .create_session(libre_session_params())
@@ -546,7 +488,7 @@ async fn test_always_accept_grants_no_tool_by_name() {
 async fn test_shutdown() {
     // GIVEN a ChatSessionManager spawned
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     // WHEN shutdown
     handle.shutdown().await;
@@ -560,7 +502,7 @@ async fn test_shutdown() {
 async fn test_close_already_closed_session() {
     // GIVEN a closed session
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     let info = handle
         .create_session(libre_session_params())
@@ -795,7 +737,7 @@ async fn test_cross_session_context_no_relevant_sessions() {
 async fn test_set_plan_mode_toggles_and_persists() {
     // GIVEN a freshly created Libre session (plan mode off by default)
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
     let info = handle
         .create_session(libre_session_params())
         .await
@@ -830,12 +772,7 @@ async fn test_set_plan_mode_toggles_and_persists() {
 async fn test_new_session_inherits_plan_mode_default_off() {
     // GIVEN a manager with the plan-mode default off (the standard case)
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager_with_plan_default(
-        &dir,
-        fake_llm_router(),
-        Arc::new(AlwaysOkLoader),
-        false,
-    );
+    let handle = spawn_test_manager_with_plan_default(&dir, fake_llm_router(), false);
 
     // WHEN a new session is created
     let info = handle
@@ -855,12 +792,7 @@ async fn test_new_session_inherits_plan_mode_default_off() {
 async fn test_new_session_inherits_plan_mode_default_on() {
     // GIVEN a manager with the plan-mode default enabled
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager_with_plan_default(
-        &dir,
-        fake_llm_router(),
-        Arc::new(AlwaysOkLoader),
-        true,
-    );
+    let handle = spawn_test_manager_with_plan_default(&dir, fake_llm_router(), true);
 
     // WHEN a new session is created
     let info = handle
@@ -889,7 +821,7 @@ async fn test_new_session_inherits_plan_mode_default_on() {
 async fn test_set_plan_mode_survives_reload() {
     // GIVEN a session with plan mode enabled, persisted to SQLite
     let dir = tempfile::tempdir().expect("tempdir");
-    let first = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let first = spawn_test_manager(&dir, fake_llm_router());
     let info = first
         .create_session(libre_session_params())
         .await
@@ -901,7 +833,7 @@ async fn test_set_plan_mode_survives_reload() {
     first.shutdown().await;
 
     // WHEN a brand-new manager reopens the same database and resumes it
-    let second = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let second = spawn_test_manager(&dir, fake_llm_router());
     let detail = second
         .resume_session(info.id.clone())
         .await
@@ -1506,7 +1438,7 @@ async fn test_reject_unknown_session_returns_not_found() {
 async fn test_set_plan_mode_missing_session_returns_typed_error() {
     // GIVEN a manager with no matching session
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     // WHEN toggling plan mode on an unknown session id
     let result = handle.set_plan_mode("ghost".into(), true).await;
@@ -1521,7 +1453,7 @@ async fn test_set_plan_mode_missing_session_returns_typed_error() {
 async fn test_create_session_agent_invalid_agent() {
     // GIVEN a manager with a loader that always fails
     let dir = tempfile::tempdir().expect("tempdir");
-    let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysFailLoader));
+    let handle = spawn_test_manager(&dir, fake_llm_router());
 
     // WHEN create_session mode=Agent with an agent name
     let result = handle

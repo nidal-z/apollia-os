@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::sync::Arc;
 
 use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
 use apollia_llm::model_index::INDEX_FILE_NAME;
@@ -8,13 +7,10 @@ use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 fn state(dir: &TempDir) -> AppState<MockBackend> {
-    app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    )
+    app_state(dir.path().to_path_buf())
 }
 
 /// A models folder under `dir` holding `name`, indexed.

@@ -31,7 +31,6 @@ use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle};
 
 use crate::mailbox::AgentMailboxHandle;
 
-use crate::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use crate::chat::ChatSessionManagerHandle;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::eventbus::EventBusSender;
@@ -131,8 +130,6 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub registry_handle: AgentRegistryHandle,
     /// Sender side of the runtime event bus.
     pub event_sender: EventBusSender,
-    /// Agent loader for Python module loading.
-    pub agent_loader: Arc<dyn AgentLoader>,
     /// Execution backend, cloned per coordinator on agent start.
     pub backend: B,
     /// Shared, hot-reloadable handle to the active [`LlmRouter`].
@@ -174,11 +171,6 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `POST /api/v1/notifications/test`.
     /// `None` when no `[notifications]` section is present in the config.
     pub notification_config: Option<NotificationConfig>,
-    /// Factory for creating per-agent execution backends.
-    ///
-    /// `Some` in production, creates real `AIPBridge` backends with tool access.
-    /// `None` in tests, falls back to `state.backend.clone()` (MockBackend/NoopBackend).
-    pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
     /// Handle to the ToolRegistry actor, exposes the tool catalogue via REST.
     ///
     /// `Some` in production, populated by the Supervisor at startup.
@@ -384,7 +376,6 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             router_handle: self.router_handle.clone(),
             registry_handle: self.registry_handle.clone(),
             event_sender: self.event_sender.clone(),
-            agent_loader: Arc::clone(&self.agent_loader),
             backend: self.backend.clone(),
             llm_router: self.llm_router.clone(),
             trigger_engine: self.trigger_engine.clone(),
@@ -393,7 +384,6 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             pending_approvals: self.pending_approvals.clone(),
             plan_gates: self.plan_gates.clone(),
             notification_config: self.notification_config.clone(),
-            backend_factory: self.backend_factory.clone(),
             tool_registry_handle: self.tool_registry_handle.clone(),
             audit_trail: self.audit_trail.clone(),
             audit_journal: self.audit_journal.clone(),
@@ -834,7 +824,6 @@ mod tests {
             router_handle,
             registry_handle,
             event_sender: event_tx,
-            agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
             llm_router: empty_shared_llm_router(),
             trigger_engine: None,
@@ -843,7 +832,6 @@ mod tests {
             pending_approvals: None,
             plan_gates: None,
             notification_config: None,
-            backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,

@@ -6,10 +6,10 @@ use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 fn daemon_at(data_dir: PathBuf) -> AppState<MockBackend> {
-    app_state(Arc::new(StemLoader { refusal: None }), data_dir)
+    app_state(data_dir)
 }
 
 /// A data directory that is a file: every operation on it fails.

@@ -19,7 +19,7 @@ pub enum ProcessState {
     Initializing,
     /// Ready to accept tasks.
     Active,
-    /// Active but with missing or degraded `tools_optional`.
+    /// Active with something it relies on missing or failing.
     Degraded,
     /// Draining in-flight tasks (30s timeout). Refuses new tasks.
     Stopping,

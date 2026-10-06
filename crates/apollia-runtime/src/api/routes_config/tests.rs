@@ -9,7 +9,7 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::governance::InferenceGovernance;
 
 /// A runtime started on an `apollia.toml` holding `content`, under the
@@ -18,10 +18,7 @@ fn runtime_on(content: &str, settings: &str) -> (TempDir, PathBuf, AppState<Mock
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("apollia.toml");
     std::fs::write(&path, content).unwrap();
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.config_path = Some(path.clone());
     if !settings.is_empty() {
         let text = format!(

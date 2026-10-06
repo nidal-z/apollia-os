@@ -15,7 +15,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 mod attached;
-mod backend;
 mod bootstrap;
 mod bundled_packages;
 mod commands;
@@ -49,26 +48,18 @@ pub mod tray;
 
 use std::sync::Arc;
 
-use apollia_core::{PendingApprovals, ToolsConfig};
 use apollia_llm::LlmRouter;
-use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
-use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
-use apollia_runtime::eventbus::EventBusSender;
-use apollia_runtime::mailbox::AgentMailboxHandle;
-use apollia_runtime::registry::AgentRegistryHandle;
-use apollia_runtime::router::TaskRouterHandle;
-use apollia_tools::tools::ask_user::PendingUserInputs;
-use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
+use apollia_tools::AgentRepository;
 use tauri::Manager;
 
 use bootstrap::{
-    auto_load_installed_agents, backfill_mcp_origins, load_stt_config, load_toml_config, or_exit,
-    populate_runtime_locks, setup_bundled_python, setup_stt_hotkey, RuntimeLocks,
+    backfill_mcp_origins, load_stt_config, load_toml_config, or_exit, setup_bundled_python,
+    setup_stt_hotkey,
 };
 
-/// Shared mutable LLM router: updated by `reload_llm`, read by
-/// `ProductionChatAgentRunner` and `ProductionBackendFactory`.
+/// Shared mutable LLM router: updated by `reload_llm`, read by the commands
+/// that list and probe the models.
 pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
 
 fn main() {
@@ -183,77 +174,10 @@ fn main() {
     // Point PyO3 at the bundled Python BEFORE any Python runtime code runs.
     setup_bundled_python();
 
-    // OnceLocks shared between ProductionBackendFactory and main().
-    // Populated after init_embedded() returns, before any HTTP request arrives.
-    let event_bus_lock: Arc<std::sync::OnceLock<EventBusSender>> =
-        Arc::new(std::sync::OnceLock::new());
+    // The LLM router the commands read, set once the runtime is up and
+    // replaced by `reload_llm`.
     let llm_router_lock: Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>> =
         Arc::new(std::sync::RwLock::new(None));
-    let tool_registry_lock: Arc<std::sync::OnceLock<ToolRegistryHandle>> =
-        Arc::new(std::sync::OnceLock::new());
-    let audit_trail_lock: Arc<std::sync::OnceLock<AuditTrailHandle>> =
-        Arc::new(std::sync::OnceLock::new());
-    let pending_approvals_lock: Arc<std::sync::OnceLock<Arc<PendingApprovals>>> =
-        Arc::new(std::sync::OnceLock::new());
-    let task_repository_lock: Arc<std::sync::OnceLock<Arc<TaskRepository>>> =
-        Arc::new(std::sync::OnceLock::new());
-    let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
-        Arc::new(std::sync::OnceLock::new());
-    // Populated post-init_embedded() so the BridgeRunner can inject one
-    // McpToolExecutor per registered MCP tool into the agent's dispatcher.
-    let mcp_handle_lock: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>> =
-        Arc::new(std::sync::OnceLock::new());
-    // The governance actor, so a run's dispatcher leaves out the tools it
-    // disabled and refuses what is sensitive while it fails closed.
-    let governance_lock: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>> =
-        Arc::new(std::sync::OnceLock::new());
-    // Agent registry + task router, required to build A2A delegate/invoker so
-    // task-mode (triggers) and chat-agent flows can call `ctx.a2a_invoke(...)`
-    // and discover virtual `a2a:*` tools, on parity with Chat Libre.
-    let agent_registry_lock: Arc<std::sync::OnceLock<AgentRegistryHandle>> =
-        Arc::new(std::sync::OnceLock::new());
-    let task_router_lock: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>> =
-        Arc::new(std::sync::OnceLock::new());
-    // Inter-agent mailbox, exposed as `ctx.mailbox` in Python agents.
-    let mailbox_handle_lock: Arc<std::sync::OnceLock<AgentMailboxHandle>> =
-        Arc::new(std::sync::OnceLock::new());
-    // Tools config (`[tools]` from apollia.toml) drives web_search/web_read
-    // params and statically-disabled tools. Populated from RuntimeHandle.
-    let tools_config_lock: Arc<
-        std::sync::OnceLock<apollia_runtime::config_reload::Live<ToolsConfig>>,
-    > = Arc::new(std::sync::OnceLock::new());
-    // Plan-gate registry, forwarded to per-agent engines so the desktop UI can
-    // resolve a pending plan gate via submit_plan_decision.
-    let plan_gates_lock: Arc<std::sync::OnceLock<Arc<apollia_oria::PendingPlanGates>>> =
-        Arc::new(std::sync::OnceLock::new());
-    // Plan cache, forwarded to per-agent engines so an orchestrated run can
-    // reuse a plan instead of re-planning. The supervisor owns the repository;
-    // this shares it rather than opening a second database.
-    #[allow(clippy::type_complexity)]
-    let plan_cache_lock: Arc<
-        std::sync::OnceLock<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>>,
-    > = Arc::new(std::sync::OnceLock::new());
-
-    let factory: Arc<dyn AgentBackendFactory> =
-        Arc::new(backend::factory::ProductionBackendFactory {
-            event_bus: event_bus_lock.clone(),
-            llm_router: llm_router_lock.clone(),
-            tool_registry: tool_registry_lock.clone(),
-            audit_trail: audit_trail_lock.clone(),
-            pending_approvals: pending_approvals_lock.clone(),
-            task_repository: task_repository_lock.clone(),
-            mcp_handle: mcp_handle_lock.clone(),
-            governance: governance_lock.clone(),
-            agent_registry: agent_registry_lock.clone(),
-            task_router: task_router_lock.clone(),
-            mailbox_handle: mailbox_handle_lock.clone(),
-            tools_config: tools_config_lock.clone(),
-            plan_gates: plan_gates_lock.clone(),
-            plan_cache: plan_cache_lock.clone(),
-            agents_db: Some(
-                apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name()),
-            ),
-        });
 
     // Shared SttFlow state for push-to-talk IPC commands (`start_tour_recording`,
     // `stop_tour_recording`). Populated inside the Tauri setup closure once the
@@ -282,44 +206,11 @@ fn main() {
     };
 
     // The guide and the onboarding an earlier version installed as code are
-    // retired before the auto-load loop runs, so their code is never loaded
-    // again; both are installed as packages once the runtime, and its audit
-    // journal, are up.
+    // retired before the runtime registers the stored agents; both are
+    // installed as packages once the runtime, and its audit journal, are up.
     if let Some(ref repo) = boot_agent_repo {
         bundled_packages::retire_code_agents(repo);
     }
-
-    // Build the ChatAgentRunner so Chat Agent mode works in the ChatSessionManager.
-    // Uses its own AgentRepository instance (SQLite WAL supports concurrent readers).
-    let chat_agent_runner: Option<Arc<dyn apollia_runtime::chat::ChatAgentRunner>> = {
-        let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
-        match apollia_tools::AgentRepository::open(&db_path) {
-            Ok(repo) => Some(Arc::new(backend::chat_runner::ProductionChatAgentRunner {
-                agent_repo: Arc::new(std::sync::Mutex::new(repo)),
-                event_bus: event_bus_lock.clone(),
-                llm_router: llm_router_lock.clone(),
-                tool_registry: tool_registry_lock.clone(),
-                audit_trail: audit_trail_lock.clone(),
-                pending_approvals: pending_approvals_lock.clone(),
-                task_repository: task_repository_lock.clone(),
-                pending_user_inputs: pending_user_inputs_lock.clone(),
-                mcp_handle: mcp_handle_lock.clone(),
-                governance: governance_lock.clone(),
-                agent_registry: agent_registry_lock.clone(),
-                task_router: task_router_lock.clone(),
-                mailbox_handle: mailbox_handle_lock.clone(),
-                tools_config: tools_config_lock.clone(),
-            })),
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    detail = "the chat-agent mode is disabled",
-                    "chat.agent_store.open.failed"
-                );
-                None
-            }
-        }
-    };
 
     // Load (or generate) the API bearer token so the embedded runtime binds an
     // authenticated TCP listener for the desktop REST bridge. The Unix socket
@@ -330,14 +221,10 @@ fn main() {
     );
     commands::set_api_token(api_token.clone());
 
-    // Do NOT pass agent_repository here: auto-load inside the Supervisor
-    // happens before OnceLocks are populated, causing "event bus not initialized"
-    // errors. Instead, we auto-load manually after OnceLocks are set below.
+    // The supervisor registers the stored agents at boot: an agent is a
+    // definition, nothing is imported to make it available.
     let config = load_toml_config(EmbeddedConfig {
-        agent_loader: Arc::new(backend::AIPAgentLoader),
-        backend_factory: Some(factory.clone()),
-        agent_repository: None,
-        chat_agent_runner,
+        agent_repository: boot_agent_repo,
         tcp_port: Some(runtime_port),
         tcp_listener: Some(claimed_port),
         api_token: Some(api_token),
@@ -362,37 +249,24 @@ fn main() {
     // desktop is the caller that knows the curated selection.
     backfill_mcp_origins(&apollia_data_dir);
 
-    // Populate OnceLocks now that the supervisor is fully running.
-    populate_runtime_locks(
-        &runtime_handle,
-        RuntimeLocks {
-            event_bus: &event_bus_lock,
-            llm_router: &llm_router_lock,
-            tool_registry: &tool_registry_lock,
-            audit_trail: &audit_trail_lock,
-            pending_approvals: &pending_approvals_lock,
-            task_repository: &task_repository_lock,
-            pending_user_inputs: &pending_user_inputs_lock,
-            mcp_handle: &mcp_handle_lock,
-            governance: &governance_lock,
-            agent_registry: &agent_registry_lock,
-            task_router: &task_router_lock,
-            mailbox_handle: &mailbox_handle_lock,
-            tools_config: &tools_config_lock,
-        },
-    );
+    // The commands read the router of the runtime now that it is up.
+    *llm_router_lock
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = runtime_handle.llm_router.clone();
     // The packages the binary ships are installed, recorded in the audit
-    // journal; then the Python tools of the installed packages join the
-    // registry, read from their manifests, each module imported on its first
-    // call only.
+    // journal, and their agents made available; then the Python tools of the
+    // installed packages join the registry, read from their manifests, each
+    // module imported on its first call only.
     if let Some(worker) = apollia_runtime::worker_runtime() {
         let data_dir = apollia_data_dir.clone();
         let registry = runtime_handle.tool_registry_handle.clone();
         let chat = runtime_handle.chat_manager.clone();
         let workflows = runtime_handle.workflows.clone();
         let governance = runtime_handle.governance.clone();
+        let runtime = runtime_handle.clone();
         worker.spawn(async move {
             bundled_packages::install_bundled_packages(&data_dir, governance).await;
+            runtime.register_stored_agents(&data_dir).await;
             apollia_aip::package_tools::attach(
                 &data_dir,
                 &registry,
@@ -404,20 +278,6 @@ fn main() {
             apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref()).await;
         });
     }
-    if let Some(gates) = runtime_handle.plan_gates.clone() {
-        let _ = plan_gates_lock.set(gates);
-    }
-    if let Some(cache) = runtime_handle.plan_cache.clone() {
-        let _ = plan_cache_lock.set(cache);
-    }
-
-    // Make the installed agents available now that the OnceLocks are
-    // populated, so the ProductionBackendFactory can build real backends when
-    // their first task arrives.
-    if let Some(repo) = boot_agent_repo {
-        auto_load_installed_agents(repo, &factory, &runtime_handle, agent_idle_unload);
-    }
-
     // Open a second AgentRepository instance for Tauri IPC commands.
     // SQLite WAL mode supports concurrent readers.
     let agent_repo: Arc<std::sync::Mutex<AgentRepository>> = {
@@ -427,8 +287,6 @@ fn main() {
             "open agents.db for the desktop app",
         )))
     };
-
-    let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
     let app = package_open::attach(tauri::Builder::default())
         .plugin(tauri_plugin_dialog::init())
@@ -445,7 +303,6 @@ fn main() {
         .manage(startup::ApiPort(runtime_handle.api_port))
         .manage(attached::RuntimeLink::Embedded(Box::new(runtime_handle.clone())))
         .manage(agent_repo)
-        .manage(agent_loader)
         .manage(runtime_handle.event_sender.clone())
         .manage(llm_router_lock.clone())
         .manage(stt_flow_state.clone())

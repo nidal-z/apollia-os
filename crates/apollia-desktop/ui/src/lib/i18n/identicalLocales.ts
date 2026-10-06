@@ -95,12 +95,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "agent_detail.tags_title", // Tags
   "agents.column_agents", // Agents
   "agents.column_workflows", // Workflows
-  "agents.install.done_agents_many", // {n} agents
-  "agents.install.done_agents_one", // {n} agent
-  "agents.install.done_triggers_many", // {n} triggers
-  "agents.install.done_triggers_one", // {n} trigger
-  "agents.install.endpoint", // Endpoint
-  "agents.install.section_agents", // Agents ({n})
   "agents.kicker_agent", // Agent
   "agents.logs", // Logs
   "agents.title", // Agents

@@ -1,5 +1,5 @@
 use super::bootstrap::{seed_default_desktop_channel_if_needed, SEEDED_DESKTOP_CHANNEL_MARKER};
-use super::bundled::{auto_load_bundled_agents, native_tool_descriptors};
+use super::bundled::native_tool_descriptors;
 
 use super::*;
 use crate::coordinator::ExecutionBackend;
@@ -208,7 +208,6 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository: None,
         package_repository: None,
-        bundled_agents_path: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
@@ -233,14 +232,7 @@ async fn test_startup_sequence_all_ready() {
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
-    let result = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
-        .await;
+    let result = supervisor.start(MockBackend, None).await;
 
     // THEN all actors start and handles are returned
     assert!(result.is_ok(), "start() should succeed");
@@ -266,15 +258,7 @@ async fn test_all_ready_event_emitted() {
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
-    let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+    let handles = supervisor.start(MockBackend, None).await.unwrap();
 
     // Subscribe AFTER start (AllReady was already emitted, but let's verify via a new event)
     let mut rx = handles.event_sender.subscribe();
@@ -310,15 +294,7 @@ async fn test_handles_accessible_after_start() {
     reserved_port.release();
     let supervisor = Supervisor::new(config);
     // WHEN start() returns
-    let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+    let handles = supervisor.start(MockBackend, None).await.unwrap();
 
     // THEN all handles are present and usable
     // EventBusSender: can send (need a subscriber for broadcast to succeed)
@@ -415,7 +391,6 @@ async fn test_startup_timeout_rollback() {
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository: None,
         package_repository: None,
-        bundled_agents_path: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
@@ -428,14 +403,7 @@ async fn test_startup_timeout_rollback() {
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
-    let result = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
-        .await;
+    let result = supervisor.start(MockBackend, None).await;
 
     // THEN ActorStartFailed is returned (port already in use)
     assert!(result.is_err());
@@ -505,7 +473,6 @@ async fn test_start_without_llm_config_succeeds() {
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository: None,
         package_repository: None,
-        bundled_agents_path: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
@@ -521,12 +488,7 @@ async fn test_start_without_llm_config_succeeds() {
 
     // WHEN start() is called
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start() must succeed without an LLM config");
 
@@ -560,7 +522,6 @@ async fn test_app_state_clone_with_llm_router_none() {
         router_handle,
         registry_handle,
         event_sender: event_tx,
-        agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
         backend: MockBackend,
         llm_router: crate::api::server::empty_shared_llm_router(),
         trigger_engine: None,
@@ -569,7 +530,6 @@ async fn test_app_state_clone_with_llm_router_none() {
         pending_approvals: None,
         plan_gates: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         audit_journal: None,
@@ -647,7 +607,6 @@ async fn test_supervisor_starts_with_zero_triggers() {
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository: None,
         package_repository: None,
-        bundled_agents_path: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
@@ -662,14 +621,7 @@ async fn test_supervisor_starts_with_zero_triggers() {
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
-    let result = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
-        .await;
+    let result = supervisor.start(MockBackend, None).await;
 
     // THEN startup succeeds and TriggerEngine is present with 0 triggers
     assert!(result.is_ok(), "start() must succeed with 0 triggers");
@@ -721,7 +673,6 @@ async fn test_no_notifications_section_starts_ok() {
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository: None,
         package_repository: None,
-        bundled_agents_path: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
@@ -736,14 +687,7 @@ async fn test_no_notifications_section_starts_ok() {
     let supervisor = Supervisor::new(config);
 
     // WHEN start() is called
-    let result = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
-        .await;
+    let result = supervisor.start(MockBackend, None).await;
 
     // THEN no error, NotificationEngine silently not started
     assert!(
@@ -808,7 +752,6 @@ async fn test_trigger_engine_loads_from_sqlite() {
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository: None,
         package_repository: None,
-        bundled_agents_path: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
@@ -824,12 +767,7 @@ async fn test_trigger_engine_loads_from_sqlite() {
 
     // WHEN start() is called
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start() must succeed");
 
@@ -866,12 +804,7 @@ async fn test_story187_boot_empty_dbs() {
 
     // WHEN start() is called
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("boot with empty DBs should succeed");
 
@@ -1070,7 +1003,6 @@ async fn test_story187_appstate_contains_repos() {
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository: None,
         package_repository: None,
-        bundled_agents_path: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: LoadingMode::Eager,
         tool_search_limit: 20,
@@ -1086,12 +1018,7 @@ async fn test_story187_appstate_contains_repos() {
 
     // WHEN start() succeeds
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start should succeed");
 
@@ -1116,58 +1043,17 @@ async fn test_story187_appstate_contains_repos() {
 
 // ── Auto-load installed agents at boot ──────────────────────
 
-/// Creates a test [`AgentManifest`] with minimal fields.
-fn test_manifest(name: &str) -> apollia_core::AgentManifest {
-    apollia_core::AgentManifest {
-        autonomy_level: None,
-        format_version: 1,
+/// A stored agent named `name`, as a package or the interface leaves it.
+fn test_stored_agent(name: &str, enabled: bool) -> apollia_tools::StoredAgent {
+    apollia_tools::StoredAgent {
         name: name.to_string(),
+        origin: apollia_tools::AgentOrigin::Package,
+        package: None,
         version: "1.0.0".to_string(),
-        description: format!("Test agent {name}"),
-        tools_required: vec![],
-        tools_optional: vec![],
-        supports_streaming: false,
-        supports_a2a: false,
-        memory_namespace: None,
-        shared_memory_namespaces: vec![],
-        max_concurrent_tasks: 1,
-        step_budget: None,
-        network_allowlist: None,
-        dangerous_tools_allowed: false,
-        tags: vec![],
-        skills: vec![],
-        execution_mode: "auto".to_string(),
-        supports_mailbox: false,
-        mailbox_allowlist: None,
-        system_prompt: None,
-        tools_requiring_approval: vec![],
-        llm_backend: None,
-        model: None,
-        packages: vec![],
-        memory_config: None,
-        agent_type: None,
-        examples: vec![],
-        limitations: vec![],
-        setup_notes: None,
-        agent_class: None,
-        user_memory_write: false,
-        datasources: vec![],
-        templates: vec![],
-        secrets: vec![],
-        check_commands: vec![],
-    }
-}
-
-/// Creates a test [`InstalledAgent`].
-fn test_installed_agent(name: &str, enabled: bool) -> apollia_tools::InstalledAgent {
-    apollia_tools::InstalledAgent {
-        name: name.to_string(),
-        version: "1.0.0".to_string(),
-        // Use the agent name as the filename stem so StubAgentLoader derives
-        // the correct manifest name (name = file_stem of install_path).
-        install_path: PathBuf::from(format!("/tmp/agents/{name}/{name}.py")),
-        source_path: PathBuf::from(format!("/tmp/{name}.py")),
-        manifest: test_manifest(name),
+        definition: serde_json::json!({
+            "id": name, "name": name, "mission": format!("Test agent {name}"),
+            "defaults": {},
+        }),
         enabled,
         installed_at: "2026-03-17T10:00:00Z".to_string(),
         updated_at: "2026-03-17T10:00:00Z".to_string(),
@@ -1177,23 +1063,6 @@ fn test_installed_agent(name: &str, enabled: bool) -> apollia_tools::InstalledAg
 /// Opens an in-memory [`AgentRepository`] for testing.
 fn open_test_repo() -> AgentRepository {
     AgentRepository::open(std::path::Path::new(":memory:")).expect("in-memory repo should open")
-}
-
-/// An [`AgentLoader`] that fails for agents whose path contains "corrupted".
-struct FailingAgentLoader;
-
-impl AgentLoader for FailingAgentLoader {
-    fn load_and_validate(
-        &self,
-        path: &std::path::Path,
-    ) -> Result<apollia_core::AgentManifest, String> {
-        let path_str = path.to_string_lossy();
-        if path_str.contains("corrupted") {
-            return Err("Python syntax error: invalid syntax".to_string());
-        }
-        // Delegate to StubAgentLoader for valid agents
-        crate::api::routes_agents::StubAgentLoader.load_and_validate(path)
-    }
 }
 
 /// Helper to shutdown handles cleanly.
@@ -1211,11 +1080,11 @@ async fn shutdown_handles(handles: SupervisorHandles<MockBackend>, socket_path: 
 async fn test_autoload_enabled_agents() {
     // GIVEN 3 installed agents, 2 of them enabled
     let repo = open_test_repo();
-    repo.save(&test_installed_agent("agent-a", true))
+    repo.save_definition(&test_stored_agent("agent-a", true))
         .expect("save a");
-    repo.save(&test_installed_agent("agent-b", true))
+    repo.save_definition(&test_stored_agent("agent-b", true))
         .expect("save b");
-    repo.save(&test_installed_agent("agent-c", false))
+    repo.save_definition(&test_stored_agent("agent-c", false))
         .expect("save c (disabled)");
 
     let reserved_port = reserve_port();
@@ -1230,12 +1099,7 @@ async fn test_autoload_enabled_agents() {
 
     // WHEN the Supervisor starts
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start() should succeed");
 
@@ -1255,9 +1119,9 @@ async fn test_autoload_enabled_agents() {
 async fn test_autoload_skips_disabled() {
     // GIVEN 2 agents, 1 of them disabled
     let repo = open_test_repo();
-    repo.save(&test_installed_agent("enabled-agent", true))
+    repo.save_definition(&test_stored_agent("enabled-agent", true))
         .expect("save enabled");
-    repo.save(&test_installed_agent("disabled-agent", false))
+    repo.save_definition(&test_stored_agent("disabled-agent", false))
         .expect("save disabled");
 
     let reserved_port = reserve_port();
@@ -1272,12 +1136,7 @@ async fn test_autoload_skips_disabled() {
 
     // WHEN the Supervisor starts
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start() should succeed");
 
@@ -1310,12 +1169,7 @@ async fn test_autoload_no_agents_no_error() {
 
     // WHEN the Supervisor starts
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start() should succeed with no agents");
 
@@ -1346,12 +1200,7 @@ async fn test_autoload_none_repository_skips() {
 
     // WHEN the Supervisor starts
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start() should succeed without agent_repository");
 
@@ -1364,135 +1213,6 @@ async fn test_autoload_none_repository_skips() {
     assert!(
         agents.is_empty(),
         "no agents should be registered when agent_repository is None"
-    );
-
-    shutdown_handles(handles, &socket_path).await;
-}
-
-// Agent with empty packages: no venv created, Active state.
-#[tokio::test]
-async fn test_autoload_empty_packages_agent_is_active() {
-    // GIVEN an agent with packages: []
-    let repo = open_test_repo();
-    repo.save(&test_installed_agent("no-pkg-agent", true))
-        .expect("save agent");
-
-    let reserved_port = reserve_port();
-    let port = reserved_port.port();
-    let socket_path = temp_socket_path();
-    let (mut config, tmp_dir) = test_config(port, socket_path.clone());
-    config.agent_repository = Some(repo);
-
-    // Release the probe listener only now, right before the bind it protects.
-    reserved_port.release();
-    let supervisor = Supervisor::new(config);
-
-    // WHEN the Supervisor starts
-    let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
-        .await
-        .expect("start() should succeed");
-
-    // THEN the agent is in Active state
-    let agents = handles
-        .registry_handle
-        .list_agents()
-        .await
-        .expect("list_agents should succeed");
-    assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].process_state, ProcessState::Active);
-
-    // AND no venv was created in data_dir/venvs/
-    let venv_dir = tmp_dir.path().join("venvs").join("no-pkg-agent");
-    assert!(
-        !venv_dir.exists(),
-        "venv directory should not be created for agent with empty packages"
-    );
-
-    shutdown_handles(handles, &socket_path).await;
-}
-
-// Agent with an invalid package: Degraded state, other agents start normally.
-#[tokio::test]
-async fn test_autoload_bad_package_agent_is_degraded() {
-    // GIVEN two agents: one with an invalid package, one without packages
-    // Install paths use the agent name as file stem so StubAgentLoader resolves correctly.
-    let repo = open_test_repo();
-
-    let mut bad_agent = test_installed_agent("bad-pkg-agent", true);
-    bad_agent.install_path = PathBuf::from("/tmp/agents/bad-pkg-agent/bad-pkg-agent.py");
-    bad_agent.manifest.packages = vec!["nonexistent-pkg-zzz-99999==0.0.1".to_string()];
-    repo.save(&bad_agent).expect("save bad agent");
-
-    let mut good_agent = test_installed_agent("good-agent", true);
-    good_agent.install_path = PathBuf::from("/tmp/agents/good-agent/good-agent.py");
-    repo.save(&good_agent).expect("save good agent");
-
-    let reserved_port = reserve_port();
-    let port = reserved_port.port();
-    let socket_path = temp_socket_path();
-    let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
-    config.agent_repository = Some(repo);
-
-    // Loader that injects packages into the bad agent's manifest using the file stem.
-    struct PackageAwareLoader;
-    impl AgentLoader for PackageAwareLoader {
-        fn load_and_validate(
-            &self,
-            path: &std::path::Path,
-        ) -> Result<apollia_core::AgentManifest, String> {
-            let mut manifest =
-                crate::api::routes_agents::StubAgentLoader.load_and_validate(path)?;
-            if manifest.name == "bad-pkg-agent" {
-                manifest.packages = vec!["nonexistent-pkg-zzz-99999==0.0.1".to_string()];
-            }
-            Ok(manifest)
-        }
-    }
-
-    // Release the probe listener only now, right before the bind it protects.
-    reserved_port.release();
-    let supervisor = Supervisor::new(config);
-
-    // WHEN the Supervisor starts
-    let handles = supervisor
-        .start(MockBackend, Arc::new(PackageAwareLoader), None, None)
-        .await
-        .expect("start() should succeed despite bad package");
-
-    // THEN both agents are registered
-    let agents = handles
-        .registry_handle
-        .list_agents()
-        .await
-        .expect("list_agents should succeed");
-    assert_eq!(agents.len(), 2, "both agents should be registered");
-
-    // AND the valid agent is Active
-    let good = agents
-        .iter()
-        .find(|a| a.manifest.name == "good-agent")
-        .expect("good-agent should be registered");
-    assert_eq!(
-        good.process_state,
-        ProcessState::Active,
-        "good-agent should be Active"
-    );
-
-    // AND the agent with a bad package is Degraded (python3 available) or Active (python3 absent)
-    let bad = agents
-        .iter()
-        .find(|a| a.manifest.name == "bad-pkg-agent")
-        .expect("bad-pkg-agent should be registered");
-    assert!(
-        bad.process_state == ProcessState::Degraded || bad.process_state == ProcessState::Active,
-        "bad-pkg-agent should be Degraded or Active (never Stopped), got {:?}",
-        bad.process_state
     );
 
     shutdown_handles(handles, &socket_path).await;
@@ -1511,12 +1231,7 @@ async fn test_first_launch_emits_onboarding_required() {
 
     // WHEN start() completes, user_memory.db is created empty
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start() should succeed");
 
@@ -1561,12 +1276,7 @@ async fn test_subsequent_launch_no_onboarding_event() {
 
     // WHEN start() completes
     let handles = supervisor
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .expect("start() should succeed");
 
@@ -1597,187 +1307,20 @@ async fn test_subsequent_launch_no_onboarding_event() {
     shutdown_handles(handles, &socket_path).await;
 }
 
-// ── Bundled agents auto-install ──────────────────────────────
-
-/// Creates a temporary bundled directory with a manifest.json and Python stubs.
-fn setup_bundled_dir(tmp: &tempfile::TempDir, agents: &[(&str, &str)]) -> std::path::PathBuf {
-    let bundled_dir = tmp.path().join("bundled");
-    std::fs::create_dir_all(&bundled_dir).expect("create bundled dir");
-
-    let entries: Vec<serde_json::Value> = agents
-        .iter()
-        .map(|(name, file)| {
-            serde_json::json!({
-                "name": name,
-                "file": file,
-                "auto_install": true,
-                "description": format!("Test agent {name}")
-            })
-        })
-        .collect();
-
-    let manifest = serde_json::json!({
-        "version": "1.0.0",
-        "bundled_agents": entries
-    });
-    std::fs::write(
-        bundled_dir.join("manifest.json"),
-        serde_json::to_string_pretty(&manifest).expect("serialize"),
-    )
-    .expect("write manifest.json");
-
-    for (name, file) in agents {
-        // Stub Python files, named so StubAgentLoader derives the agent name from stem.
-        std::fs::write(bundled_dir.join(file), format!("# {name}\n")).expect("write stub agent");
-    }
-
-    bundled_dir
-}
-
-// No manifest.json means no agent installed and no error.
-#[test]
-fn test_no_manifest_no_error() {
-    // GIVEN no manifest.json in the bundled directory
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let bundled_dir = tmp.path().join("bundled");
-    std::fs::create_dir_all(&bundled_dir).expect("create dir");
-
-    let repo = open_test_repo();
-
-    // WHEN
-    let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
-    auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
-
-    // THEN no agent in the database
-    let agents = repo.list().expect("list should succeed");
-    assert!(agents.is_empty(), "no agents should be installed");
-}
-
-// bundled_agents_path = None means no agent installed and no error.
-#[test]
-fn test_no_bundled_path_no_error() {
-    // GIVEN bundled_agents_path is not configured
-    let repo = open_test_repo();
-    let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
-
-    // WHEN
-    auto_load_bundled_agents(None, &repo, &loader);
-
-    // THEN no agent in the database
-    let agents = repo.list().expect("list should succeed");
-    assert!(
-        agents.is_empty(),
-        "no agents should be installed when path is None"
-    );
-}
-
-// 4 agents in the manifest, empty DB: 4 agents registered.
-#[test]
-fn test_bundled_agents_auto_installed() {
-    // GIVEN a manifest.json with 4 agents AND no agent in the DB
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let bundled_dir = setup_bundled_dir(
-        &tmp,
-        &[
-            ("excel-worker", "excel-worker.py"),
-            ("csv-data-worker", "csv-data-worker.py"),
-            ("pdf-worker", "pdf-worker.py"),
-            ("code-worker", "code-worker.py"),
-        ],
-    );
-
-    let repo = open_test_repo();
-    let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
-
-    // WHEN
-    auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
-
-    // THEN 4 agents in the database, all enabled
-    let agents = repo.list().expect("list should succeed");
-    assert_eq!(agents.len(), 4, "all 4 bundled agents should be installed");
-    assert!(
-        agents.iter().all(|a| a.enabled),
-        "all agents should be enabled"
-    );
-    let names: Vec<&str> = agents.iter().map(|a| a.name.as_str()).collect();
-    assert!(names.contains(&"excel-worker"));
-    assert!(names.contains(&"csv-data-worker"));
-    assert!(names.contains(&"pdf-worker"));
-    assert!(names.contains(&"code-worker"));
-}
-
-// excel-worker already in the DB: not reinstalled, the 3 others are installed.
-#[test]
-fn test_bundled_agents_skip_existing() {
-    // GIVEN excel-worker already installed in the DB
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let bundled_dir = setup_bundled_dir(
-        &tmp,
-        &[
-            ("excel-worker", "excel-worker.py"),
-            ("csv-data-worker", "csv-data-worker.py"),
-            ("pdf-worker", "pdf-worker.py"),
-            ("code-worker", "code-worker.py"),
-        ],
-    );
-
-    let repo = open_test_repo();
-    repo.save(&test_installed_agent("excel-worker", true))
-        .expect("pre-install excel-worker");
-
-    let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
-
-    // WHEN
-    auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
-
-    // THEN 4 agents in the DB (1 pre-existing + 3 new), excel-worker not duplicated
-    let agents = repo.list().expect("list should succeed");
-    assert_eq!(agents.len(), 4, "4 agents total (1 existing + 3 new)");
-    let excel_count = agents.iter().filter(|a| a.name == "excel-worker").count();
-    assert_eq!(excel_count, 1, "excel-worker should not be duplicated");
-}
-
-/// An [`AgentLoader`] that counts its calls: each one is an import.
-struct CountingLoader(Arc<std::sync::atomic::AtomicUsize>);
-
-impl AgentLoader for CountingLoader {
-    fn load_and_validate(
-        &self,
-        path: &std::path::Path,
-    ) -> Result<apollia_core::AgentManifest, String> {
-        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        FailingAgentLoader.load_and_validate(path)
-    }
-}
-
-/// A backend factory that counts its calls: each one is an import of the
-/// agent's module and the bridge around it.
-struct CountingFactory(Arc<std::sync::atomic::AtomicUsize>);
-
-impl crate::api::routes_agents::AgentBackendFactory for CountingFactory {
-    fn create_for_agent(
-        &self,
-        _agent_path: &std::path::Path,
-        _manifest: &apollia_core::AgentManifest,
-    ) -> crate::coordinator::DynBackend {
-        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        crate::coordinator::DynBackend::new(MockBackend)
-    }
-}
-
-// A broken agent does not block the boot: no agent is even read there.
+// The boot registers what the store holds, and never the Apollia agent.
 #[tokio::test]
-async fn test_boot_imports_no_agent_module_and_the_first_task_loads_it() {
-    // GIVEN two enabled installed agents, one of them with a broken module,
-    // and a loader and a backend factory that count every import
+async fn test_boot_registers_the_stored_agents_and_never_the_apollia_agent() {
+    // GIVEN a store holding two enabled agents beside the Apollia agent,
+    // which every store holds
     let repo = open_test_repo();
-    repo.save(&test_installed_agent("agent-a", true))
+    repo.save_definition(&test_stored_agent("agent-a", true))
         .expect("save a");
-    let mut corrupted = test_installed_agent("agent-b", true);
-    corrupted.install_path = PathBuf::from("/tmp/agents/corrupted/agent.py");
-    repo.save(&corrupted).expect("save corrupted");
-    let loads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let builds = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    repo.save_definition(&test_stored_agent("agent-b", true))
+        .expect("save b");
+    assert!(repo
+        .stored(apollia_tools::APOLLIA_AGENT_ID)
+        .expect("stored")
+        .is_some());
 
     let reserved_port = reserve_port();
     let port = reserved_port.port();
@@ -1789,44 +1332,24 @@ async fn test_boot_imports_no_agent_module_and_the_first_task_loads_it() {
 
     // WHEN the Supervisor starts
     let handles = supervisor
-        .start(
-            crate::coordinator::DynBackend::new(MockBackend),
-            Arc::new(CountingLoader(Arc::clone(&loads))),
-            Some(Arc::new(CountingFactory(Arc::clone(&builds)))),
-            None,
-        )
+        .start(crate::coordinator::DynBackend::new(MockBackend), None)
         .await
         .expect("start() should succeed");
 
-    // THEN no module was imported, and both agents are available, the
-    // broken one included: its module only fails when a task reaches it
-    assert_eq!(loads.load(std::sync::atomic::Ordering::SeqCst), 0);
-    assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 0);
-    let agents = handles
+    // THEN both agents are available under what their definition says, and
+    // the Apollia agent is not registered: it is never started nor stopped
+    let mut agents = handles
         .registry_handle
         .list_agents()
         .await
         .expect("list_agents should succeed");
-    assert_eq!(agents.len(), 2);
+    agents.sort_by(|a, b| a.manifest.name.cmp(&b.manifest.name));
+    let names: Vec<&str> = agents.iter().map(|a| a.manifest.name.as_str()).collect();
+    assert_eq!(names, ["agent-a", "agent-b"]);
     assert!(agents
         .iter()
-        .all(|a| a.process_state == ProcessState::Active));
-
-    // WHEN a task reaches one of them
-    handles
-        .router_handle
-        .submit("agent-a", apollia_core::AIPInput::default())
-        .await
-        .expect("a task to an available agent is dispatched");
-
-    // THEN that agent alone is loaded, by the task
-    let loaded = poll_until_async(Duration::from_secs(5), || {
-        let builds = Arc::clone(&builds);
-        async move { builds.load(std::sync::atomic::Ordering::SeqCst) == 1 }
-    })
-    .await;
-    assert!(loaded, "the first task builds the agent's backend");
-    assert_eq!(loads.load(std::sync::atomic::Ordering::SeqCst), 0);
+        .all(|a| a.process_state == apollia_core::ProcessState::Active));
+    assert_eq!(agents[0].manifest.description, "Test agent agent-a");
 
     shutdown_handles_dyn(handles, &socket_path).await;
 }
@@ -1865,12 +1388,7 @@ async fn boot_with_server_section(
     )
     .unwrap();
     let handles = Supervisor::new(config)
-        .start(
-            MockBackend,
-            Arc::new(crate::api::routes_agents::StubAgentLoader),
-            None,
-            None,
-        )
+        .start(MockBackend, None)
         .await
         .unwrap();
     (handles, tmp_dir, socket_path, compat_port)

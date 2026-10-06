@@ -15,7 +15,6 @@ use apollia_tools::{AgentOrigin, AgentRepository, StoredAgent, TaskRepository};
 use serde_json::{json, Value};
 
 use super::*;
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::test_support::{app_state, call, MockBackend};
 use crate::chat::ChatSessionManagerHandle;
 use crate::workflows::{BoxFuture, WorkflowCall, WorkflowDescriptor, WorkflowHandle, WorkflowHost};
@@ -130,7 +129,7 @@ async fn fixture(agents: &[&str], config: &str) -> Fixture {
     let config_path = dir.path().join("apollia.toml");
     std::fs::write(&config_path, config).unwrap();
 
-    let mut state = app_state(Arc::new(StubAgentLoader), dir.path().to_path_buf());
+    let mut state = app_state(dir.path().to_path_buf());
     let mut backends: std::collections::HashMap<String, Arc<dyn CompletionModel>> =
         std::collections::HashMap::new();
     backends.insert("scripted".into(), Arc::new(Scripted));
@@ -138,7 +137,6 @@ async fn fixture(agents: &[&str], config: &str) -> Fixture {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "scripted"))),
         apollia_tools::ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

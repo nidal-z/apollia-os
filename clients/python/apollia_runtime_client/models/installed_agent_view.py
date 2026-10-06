@@ -17,10 +17,10 @@ T = TypeVar("T", bound="InstalledAgentView")
 
 @_attrs_define
 class InstalledAgentView:
-    """One agent of the machine: installed, running, or both.
+    """One agent of the machine: stored, registered, or both.
 
     Attributes:
-        enabled (bool): Whether the agent loads at boot.
+        enabled (bool): Whether the agent is made available at boot.
         examples (list[str]): Prompt examples of typical uses.
         limitations (list[str]): What the agent does not do.
         name (str): Unique agent name.
@@ -28,18 +28,14 @@ class InstalledAgentView:
         skills (list[AgentSkillView]): Declared skills.
         supports_a2a (bool): Whether the agent takes part in agent-to-agent calls.
         tags (list[str]): Free-form tags for routing and discovery.
-        tools_optional (list[str]): Tools the agent uses when present.
-        tools_required (list[str]): Tools the agent requires.
         version (str): Semver version.
         agent_class (None | str | Unset): Name of the Python class of the agent.
         agent_type (None | str | Unset): Semantic role: `"worker"`, `"assistant"`, `"system"`, or `None`.
-        description (None | str | Unset): Description from the manifest.
+        description (None | str | Unset): What the agent is for.
         execution_mode (None | str | Unset): Execution mode (`"auto"`, `"direct"`, `"orchestrated"`).
-        id (None | str | Unset): Runtime identifier, `None` when installed but not started.
-        install_path (None | str | Unset): Install path on disk, `None` for an agent started without being
-            installed.
-        installed_at (None | str | Unset): Install timestamp (RFC 3339), `None` for an agent started without
-            being installed.
+        id (None | str | Unset): Runtime identifier, `None` when stored but not registered.
+        installed_at (None | str | Unset): Install timestamp (RFC 3339), `None` for an agent registered without
+            being stored.
         memory_namespace (None | str | Unset): Primary memory namespace, as the manifest declares it.
         runtime_status (None | str | Unset): Runtime state (`"active"`, `"degraded"`, `"stopped"`...), `None` when
             not started.
@@ -54,15 +50,12 @@ class InstalledAgentView:
     skills: list[AgentSkillView]
     supports_a2a: bool
     tags: list[str]
-    tools_optional: list[str]
-    tools_required: list[str]
     version: str
     agent_class: None | str | Unset = UNSET
     agent_type: None | str | Unset = UNSET
     description: None | str | Unset = UNSET
     execution_mode: None | str | Unset = UNSET
     id: None | str | Unset = UNSET
-    install_path: None | str | Unset = UNSET
     installed_at: None | str | Unset = UNSET
     memory_namespace: None | str | Unset = UNSET
     runtime_status: None | str | Unset = UNSET
@@ -88,10 +81,6 @@ class InstalledAgentView:
         supports_a2a = self.supports_a2a
 
         tags = self.tags
-
-        tools_optional = self.tools_optional
-
-        tools_required = self.tools_required
 
         version = self.version
 
@@ -124,12 +113,6 @@ class InstalledAgentView:
             id = UNSET
         else:
             id = self.id
-
-        install_path: None | str | Unset
-        if isinstance(self.install_path, Unset):
-            install_path = UNSET
-        else:
-            install_path = self.install_path
 
         installed_at: None | str | Unset
         if isinstance(self.installed_at, Unset):
@@ -167,8 +150,6 @@ class InstalledAgentView:
                 "skills": skills,
                 "supports_a2a": supports_a2a,
                 "tags": tags,
-                "tools_optional": tools_optional,
-                "tools_required": tools_required,
                 "version": version,
             }
         )
@@ -182,8 +163,6 @@ class InstalledAgentView:
             field_dict["execution_mode"] = execution_mode
         if id is not UNSET:
             field_dict["id"] = id
-        if install_path is not UNSET:
-            field_dict["install_path"] = install_path
         if installed_at is not UNSET:
             field_dict["installed_at"] = installed_at
         if memory_namespace is not UNSET:
@@ -220,10 +199,6 @@ class InstalledAgentView:
         supports_a2a = d.pop("supports_a2a")
 
         tags = cast(list[str], d.pop("tags"))
-
-        tools_optional = cast(list[str], d.pop("tools_optional"))
-
-        tools_required = cast(list[str], d.pop("tools_required"))
 
         version = d.pop("version")
 
@@ -272,15 +247,6 @@ class InstalledAgentView:
 
         id = _parse_id(d.pop("id", UNSET))
 
-        def _parse_install_path(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        install_path = _parse_install_path(d.pop("install_path", UNSET))
-
         def _parse_installed_at(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -326,15 +292,12 @@ class InstalledAgentView:
             skills=skills,
             supports_a2a=supports_a2a,
             tags=tags,
-            tools_optional=tools_optional,
-            tools_required=tools_required,
             version=version,
             agent_class=agent_class,
             agent_type=agent_type,
             description=description,
             execution_mode=execution_mode,
             id=id,
-            install_path=install_path,
             installed_at=installed_at,
             memory_namespace=memory_namespace,
             runtime_status=runtime_status,

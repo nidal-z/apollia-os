@@ -317,7 +317,7 @@ double the noise without doubling the information.
 
 | Convention | Rule |
 |---|---|
-| Naming | Past-tense, `UpperCamelCase` (`TaskCompleted`, `AgentLoadFailed`) |
+| Naming | Past-tense, `UpperCamelCase` (`TaskCompleted`, `AgentDegraded`) |
 | Variants | Carry typed fields, no `String` blobs |
 | Sensitive data | Never. PII or secrets must not appear in EventBus payloads |
 | Capacity | Bounded broadcast channel, capacity [64, 65536] |

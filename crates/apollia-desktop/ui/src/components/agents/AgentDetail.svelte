@@ -8,7 +8,7 @@
   import { Avatar } from "$lib/components/ui/avatar";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { ExternalLink, Wrench, Tag, Cpu, Terminal, MessageSquare } from "lucide-svelte";
+  import { ExternalLink, Tag, Cpu, MessageSquare } from "lucide-svelte";
   import AgentActivity from "./AgentActivity.svelte";
   import AgentTriggers from "./AgentTriggers.svelte";
   import AgentMessagesPanel from "./AgentMessagesPanel.svelte";
@@ -33,10 +33,6 @@
   const status = $derived(availability(agent));
   const isAvailable = $derived(status !== "unavailable");
   const showMessagesSection = $derived(agent.supports_a2a === true && $developerMode);
-  const allTools = $derived([
-    ...agent.tools_required.map((t) => ({ name: t, required: true })),
-    ...agent.tools_optional.map((t) => ({ name: t, required: false })),
-  ]);
 
   function executionModeLabel(mode: string | null): string {
     switch (mode) {
@@ -107,15 +103,6 @@
             <p class="text-sm text-foreground/80">{executionModeLabel(agent.execution_mode)}</p>
           </Card>
         {/if}
-        {#if agent.install_path}
-          <Card class="rounded-lg px-3.5 py-3" data-testid="agent-detail-install-path">
-            <div class="flex items-center gap-2 mb-1.5">
-              <Terminal size={12} class="text-muted-foreground/50" />
-              <span class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.install_path_title')}</span>
-            </div>
-            <p class="text-xs text-muted-foreground font-mono truncate" title={agent.install_path}>{agent.install_path}</p>
-          </Card>
-        {/if}
       </div>
 
       <!-- Tags -->
@@ -128,27 +115,6 @@
           <div class="flex flex-wrap gap-1.5">
             {#each agent.tags as tag}
               <span class="rounded-md bg-muted/50 px-2 py-0.5 text-caption text-foreground/65">{tag}</span>
-            {/each}
-          </div>
-        </Card>
-      {/if}
-
-      <!-- Tools: raw identifiers, developer mode only -->
-      {#if $developerMode && allTools.length > 0}
-        <Card class="rounded-lg overflow-hidden" data-testid="agent-detail-tools">
-          <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
-            <Wrench size={12} class="text-muted-foreground/50" />
-            <span class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tools_title')}</span>
-            <span class="text-micro text-muted-foreground/30 ml-auto">{allTools.length}</span>
-          </div>
-          <div class="divide-y divide-border/40">
-            {#each allTools as tool}
-              <div class="flex items-center gap-3 px-4 py-2 transition-colors duration-fast hover:bg-primary/5">
-                <span class="flex-1 text-body-sm text-foreground/80">{tool.name}</span>
-                <Badge variant={tool.required ? "destructive" : "outline"} class="text-micro-xs px-1.5 py-0">
-                  {tool.required ? $t('agent_detail.tools_required_label') : $t('agent_detail.tools_optional_label')}
-                </Badge>
-              </div>
             {/each}
           </div>
         </Card>

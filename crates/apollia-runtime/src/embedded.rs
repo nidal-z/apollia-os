@@ -16,7 +16,6 @@ use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository};
 
-use crate::api::routes_agents::{AgentBackendFactory, AgentLoader, StubAgentLoader};
 use crate::api::{APIServerConfig, APIServerHandle};
 use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::eventbus::EventBusSender;
@@ -256,20 +255,12 @@ pub struct EmbeddedConfig {
     pub startup_timeout_secs: u64,
     /// Observability configuration.
     pub obs_config: ObservabilityConfig,
-    /// Agent loader used to load Python agents.
-    pub agent_loader: Arc<dyn AgentLoader>,
-    /// Backend factory used to create per-agent execution backends.
-    pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
     /// Optional LLM configuration parsed from `apollia.toml`.
     pub llm_config: Option<apollia_llm::LlmConfig>,
     /// Path of the loaded `apollia.toml` file, required for trigger hot reload.
     pub config_path: Option<PathBuf>,
     /// Repository of installed agents, required for auto-load at boot.
     pub agent_repository: Option<AgentRepository>,
-    /// Directory of bundled agents for auto-install on first boot.
-    ///
-    /// If `None` or if `manifest.json` is absent, auto-install is skipped.
-    pub bundled_agents_path: Option<PathBuf>,
     /// Chat Agent runner, enables Chat Agent mode in the ChatSessionManager.
     /// When `None`, Agent mode sessions will fail at message time.
     pub chat_agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
@@ -336,12 +327,9 @@ impl Default for EmbeddedConfig {
             data_dir: apollia_core::paths::data_dir_under(home),
             startup_timeout_secs: DEFAULT_STARTUP_TIMEOUT_SECS,
             obs_config: ObservabilityConfig::default(),
-            agent_loader: Arc::new(StubAgentLoader),
-            backend_factory: None,
             llm_config: None,
             config_path: None,
             agent_repository: None,
-            bundled_agents_path: None,
             chat_agent_runner: None,
             runtime_config: RuntimeConfig::default(),
             hitl_config: HitlConfig::default(),
@@ -545,7 +533,6 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         obs_config: config.obs_config,
         agent_repository: config.agent_repository,
         package_repository: None,
-        bundled_agents_path: config.bundled_agents_path,
         tools_config: tools_config.clone(),
         mcp_loading,
         tool_search_limit,
@@ -559,14 +546,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
     let supervisor = Supervisor::new(supervisor_config);
 
     let noop = DynBackend::new(NoopBackend);
-    let handles = supervisor
-        .start(
-            noop,
-            config.agent_loader,
-            config.backend_factory,
-            config.chat_agent_runner,
-        )
-        .await?;
+    let handles = supervisor.start(noop, config.chat_agent_runner).await?;
 
     // Never in silence: the file was refused and the defaults are in force.
     if let Some(event) = config_invalid {
@@ -637,6 +617,27 @@ impl ExecutionBackend for NoopBackend {
                 input_required_data: None,
             })
         })
+    }
+}
+
+impl RuntimeHandle {
+    /// Registers every stored, enabled agent of `data_dir` the registry does
+    /// not hold yet: what the host calls once it has installed the packages
+    /// it ships, so that their agents are available with no start.
+    pub async fn register_stored_agents(&self, data_dir: &std::path::Path) -> usize {
+        let backend = DynBackend::new(NoopBackend);
+        crate::agents::available::register_missing(
+            data_dir,
+            &crate::agents::available::Availability {
+                registry: &self.registry_handle,
+                router: &self.router_handle,
+                event_sender: &self.event_sender,
+                backend: &backend,
+                task_repository: self.task_repository.as_ref(),
+                observability: apollia_core::ObservabilityConfig::default().into(),
+            },
+        )
+        .await
     }
 }
 

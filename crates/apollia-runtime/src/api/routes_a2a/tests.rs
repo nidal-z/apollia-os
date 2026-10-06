@@ -21,7 +21,6 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use crate::a2a::{A2AInvoker, AliasTarget};
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::server::AppState;
 use crate::api::test_support::{app_state, call, MockBackend};
 use crate::chat::ChatSessionManagerHandle;
@@ -154,7 +153,7 @@ async fn fixture(tool_first: bool) -> Fixture {
             updated_at: "2026-10-01T00:00:00Z".into(),
         })
         .unwrap();
-    let mut state = app_state(Arc::new(StubAgentLoader), dir.path().to_path_buf());
+    let mut state = app_state(dir.path().to_path_buf());
     let events = state.event_sender.subscribe();
     let mut backends: std::collections::HashMap<String, Arc<dyn CompletionModel>> =
         std::collections::HashMap::new();
@@ -169,7 +168,6 @@ async fn fixture(tool_first: bool) -> Fixture {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "scripted"))),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

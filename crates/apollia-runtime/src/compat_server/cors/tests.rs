@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode};
 use axum::Router;
@@ -8,7 +6,7 @@ use tokio::net::TcpStream;
 use tower::ServiceExt;
 
 use super::{ALLOWED_HEADERS, ALLOWED_METHODS};
-use crate::api::test_support::{app_state, StemLoader};
+use crate::api::test_support::app_state;
 use crate::compat_server::logs::ServerLogsHandle;
 use crate::compat_server::relay::RelayState;
 use crate::compat_server::router::compat_router;
@@ -197,10 +195,7 @@ async fn test_the_native_api_gains_no_cors_header_when_the_compatible_server_has
     let (dir, path) = settings_file(&format!(
         "[server]\nenabled = true\nport = {port}\ncors = true\n"
     ));
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.compat_server = Some(spawn_server(&path, &state.event_sender));
     let compat = state.compat_server.clone().unwrap();
     // The actor lives as long as the bus has a sender; the router drops its own.

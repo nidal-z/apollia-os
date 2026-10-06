@@ -128,19 +128,12 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-auth/src/auth_manager.rs": 1,
     "crates/apollia-auth/src/callback.rs": 2,
     "crates/apollia-auth/src/mcp_oauth_orchestrator.rs": 3,
-    "crates/apollia-cli/src/commands/start.rs": 2,
-    "crates/apollia-cli/src/commands/start/engine.rs": 1,
-    "crates/apollia-cli/src/commands/start/factory.rs": 1,
     "crates/apollia-core/src/pending_approvals.rs": 1,
-    "crates/apollia-desktop/src/backend.rs": 1,
-    "crates/apollia-desktop/src/backend/chat_runner.rs": 2,
-    "crates/apollia-desktop/src/backend/factory.rs": 2,
-    "crates/apollia-desktop/src/backend/runner.rs": 1,
     "crates/apollia-desktop/src/commands/agents.rs": 1,
     "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/stt.rs": 2,
-    "crates/apollia-desktop/src/main.rs": 4,
+    "crates/apollia-desktop/src/main.rs": 3,
     "crates/apollia-desktop/src/stt/flow.rs": 3,
     "crates/apollia-llm/src/downloader.rs": 1,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
@@ -267,7 +260,6 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-auth/src/mcp_oauth_orchestrator.rs": 2,
     "crates/apollia-cli/src/commands/agent/tests.rs": 1,
     "crates/apollia-cli/src/commands/eval.rs": 1,
-    "crates/apollia-cli/src/commands/start.rs": 1,
     "crates/apollia-core/src/net.rs": 1,
     # The environment is the subject: the configuration file has to follow
     # `HOME`, and swapping that variable inside the test binary would race
@@ -398,7 +390,7 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,
     "crates/apollia-runtime/src/session_metrics.rs": 1,
-    "crates/apollia-runtime/src/supervisor/tests.rs": 21,
+    "crates/apollia-runtime/src/supervisor/tests.rs": 19,
     "crates/apollia-runtime/src/test_support.rs": 4,
     # The clock is the subject: the watcher of the paused tasks scans on a
     # timer, and a saved timeout has to start a scan at once rather than at

@@ -6,20 +6,14 @@ use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 fn state_in(dir: &TempDir) -> AppState<MockBackend> {
-    app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    )
+    app_state(dir.path().to_path_buf())
 }
 
 fn state_without_data_dir() -> AppState<MockBackend> {
-    app_state(
-        Arc::new(StemLoader { refusal: None }),
-        std::path::PathBuf::new(),
-    )
+    app_state(std::path::PathBuf::new())
 }
 
 fn seed_rule(dir: &TempDir, scope: PermissionScope, agent: Option<&str>) -> i64 {

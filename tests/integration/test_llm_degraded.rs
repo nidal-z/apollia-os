@@ -12,15 +12,11 @@ use apollia_e2e_tests::reserve_port;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::Arc;
 
 use apollia_core::{AIPResult, AIPTask, AgentId, RuntimeEvent};
 use apollia_llm::{LlmConfig, LlmRouter, ObservabilityConfig};
 use apollia_runtime::{
-    api::{
-        routes_agents::StubAgentLoader, server::empty_shared_llm_router, APIServer,
-        APIServerConfig, AppState,
-    },
+    api::{server::empty_shared_llm_router, APIServer, APIServerConfig, AppState},
     coordinator::{DynBackend, ExecutionBackend},
     eventbus::EventBus,
     registry::AgentRegistry,
@@ -83,7 +79,6 @@ async fn test_runtime_starts_without_llm_router() {
         router_handle: router,
         registry_handle: registry,
         event_sender,
-        agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
@@ -96,7 +91,6 @@ async fn test_runtime_starts_without_llm_router() {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
@@ -254,7 +248,6 @@ async fn test_runtime_continues_after_llm_init_failure() {
         router_handle: router,
         registry_handle: registry,
         event_sender,
-        agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
@@ -267,7 +260,6 @@ async fn test_runtime_continues_after_llm_init_failure() {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),

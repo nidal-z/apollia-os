@@ -330,8 +330,8 @@ async fn test_the_daemon_agent_view_reads_as_the_list_the_window_draws() {
     let row = serde_json::json!([{
         "id": null, "name": "veille", "version": "1.0.0", "enabled": true,
         "runtime_status": null, "installed_at": "2026-10-02T00:00:00Z",
-        "description": null, "tags": [], "tools_required": [], "tools_optional": [],
-        "execution_mode": "auto", "install_path": "/a/agent.py", "supports_a2a": false,
+        "description": null, "tags": [],
+        "execution_mode": "auto", "supports_a2a": false,
         "skills": [], "agent_type": null, "examples": [], "limitations": [],
         "setup_notes": null, "agent_class": null, "memory_namespace": null,
         "shared_memory_namespaces": []

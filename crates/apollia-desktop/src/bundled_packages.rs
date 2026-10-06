@@ -94,8 +94,7 @@ pub enum BundledPackageError {
 
 /// Turns the guide and the onboarding installed as Python code into the
 /// declarative agents of their packages, keeping their overrides and whether
-/// each is enabled. Called at boot, before the agents that run code are
-/// loaded.
+/// each is enabled. Called at boot, before the stored agents are registered.
 pub fn retire_code_agents(repo: &AgentRepository) {
     for name in RETIRED_CODE_AGENTS {
         match repo.adopt_into_package(name, name) {

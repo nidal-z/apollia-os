@@ -372,7 +372,7 @@ the word `not measured` where a count could not be extracted, never `0`.
 What it does not cover, beyond what `linux-check` already does not cover:
 `cargo test -p apollia-e2e-tests --features python-tests`, the second step of the
 same job. That suite declares it needs the SDK installed in the interpreter
-(`tests/integration/test_hello_agent.rs:4-5`), the image is built without a
+(the header of `tests/integration/test_package_tools.rs`), the image is built without a
 context so it cannot install it, and the tree is mounted read-only. And no run of
 this channel confronts the image's system packages with the runner's, so a green
 here is not a promise of a green there. Both facts are printed by the run itself.

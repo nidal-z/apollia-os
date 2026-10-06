@@ -8,15 +8,12 @@ use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, manifest, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, manifest, MockBackend};
 use crate::chat::manager::ChatSessionManagerHandle;
 
 /// A daemon state whose user memory is open over `dir`.
 fn state_with_memory(dir: &TempDir) -> AppState<MockBackend> {
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     let repo = UserMemoryRepository::new(&dir.path().join("user_memory.db")).unwrap();
     state.user_memory = Some(Arc::new(Mutex::new(repo)));
     state
@@ -24,13 +21,11 @@ fn state_with_memory(dir: &TempDir) -> AppState<MockBackend> {
 
 /// The same state, with a chat manager running over `dir`.
 fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
-    let loader = Arc::new(StemLoader { refusal: None });
     let mut state = state_with_memory(dir);
     let manager = ChatSessionManagerHandle::spawn(
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::empty())),
         ToolRegistryHandle::start(),
-        loader,
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),
@@ -136,10 +131,7 @@ async fn test_a_phase_out_of_sequence_an_unknown_phase_and_the_profile_route_are
 async fn test_without_a_user_memory_the_state_and_the_dismissal_are_unavailable() {
     // GIVEN a daemon whose user memory did not open
     let dir = TempDir::new().unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a client reads the state and dismisses the onboarding
     let (read, read_body) = call(state.clone(), "GET", "/api/v1/onboarding", None).await;

@@ -130,11 +130,9 @@ export function createAuthorizations(): Authorizations {
     return accessView(id, await descriptorOf(id));
   }
 
-  async function groupsFor(id: string, declared: AgentListItem | null): Promise<AccessGroup[]> {
+  async function groupsFor(id: string): Promise<AccessGroup[]> {
     const definition = await getAgentDefinition(id).catch(() => null);
-    const ids = definition
-      ? definition.access
-      : [...(declared?.tools_required ?? []), ...(declared?.tools_optional ?? [])];
+    const ids = definition ? definition.access : [];
     return groupAccesses(await Promise.all(ids.map((accessId) => viewOf(accessId))));
   }
 
@@ -160,12 +158,9 @@ export function createAuthorizations(): Authorizations {
       ]);
       policyView = view;
       connections = connected;
-      const targets: Array<[string, AgentListItem | null]> = [
-        ...extraIds.map((id): [string, AgentListItem | null] => [id, null]),
-        ...agents.map((agent): [string, AgentListItem | null] => [agent.name, agent]),
-      ];
+      const targets: string[] = [...extraIds, ...agents.map((agent) => agent.name)];
       const read = await Promise.all(
-        targets.map(async ([id, declared]) => [id, await groupsFor(id, declared)] as const),
+        targets.map(async (id) => [id, await groupsFor(id)] as const),
       );
       groups = Object.fromEntries(read);
     } catch (err) {

@@ -142,7 +142,7 @@ happened.
 ```rust
 enum RuntimeEvent {
     AgentRegistered { id: AgentId, at: SystemTime },
-    AgentLoadFailed { id: AgentId, error: String },
+    AgentDegraded { id: AgentId, reason: String },
     TaskCompleted { id: TaskId, duration_ms: u64 },
     ContextCompacted { agent: AgentId, dropped: usize },
 }
