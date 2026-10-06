@@ -44,7 +44,7 @@ A confirmation window opens with a **3-second safety pause** during which the co
 ## Step 4 - After the reset
 
 1. Apollia restarts automatically. If the automatic restart fails (development environment without a packaged bundle), an orange banner invites you to relaunch the application manually.
-2. On restart, the **six-step setup flow** opens automatically: **Language → AI → Search → About me → First agent → Connection**. It is the same flow as on the very first launch.
+2. On restart, the **seven-step setup flow** opens automatically: **Language → AI → Search → About me → First agent → Connection → First task**. It is the same flow as on the very first launch.
 3. At the **AI** step, you must configure the LLM again (download a local model or connect to a server) - the reset erased all your LLM backends. See also [Connect a remote model](../installation/connecter-un-modele-distant.md) if you would rather not go through the built-in flow.
 4. Once the flow is finished, reinstall your agents and your MCP integrations, and add your sources again, as needed.
 5. If you exported your memory through the CLI in step 1, import it back with `apollia-os memory import --namespace <namespace> --input <file>`.
