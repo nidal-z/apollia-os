@@ -5,24 +5,30 @@
    * Drives the new-user flow as a sequence of dedicated screens, each
    * implemented as a self-contained component:
    *
-   *   1. {@link OnboardingWelcome}  - intro and consent to start
-   *   2. {@link OnboardingAiSetup}  - local LLM (GGUF) + STT (Whisper)
+   *   1. {@link OnboardingWelcome}  - the language of the interface
+   *   2. {@link OnboardingAiSetup}  - the language model, the only step that
+   *                                   cannot be passed
    *   3. {@link OnboardingEmbeddingsStep} - the model search by meaning
    *                                   uses, recommended for this machine
    *   4. {@link OnboardingChatStep} - a short agent-driven chat, then the
    *                                   proposed profile read over before it
    *                                   is saved
    *
-   * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`. No step asks
-   * for a usage profile: the developer mode is a setting, off by default.
+   * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`, and the
+   * progress counts that list: a step is announced once it is built. No step
+   * asks for a usage profile: the developer mode is a setting, off by default.
    *
-   * The phase machine in `apollia_runtime::onboarding` is updated in lockstep via `advance_onboarding_phase`, so the backend
-   * still owns analytics/persistence even though navigation is local.
+   * The header carries what holds on every step: the progress, "configure
+   * later", and the download of the language model, which goes on while the
+   * steps after the AI setup are done.
    *
-   * This is a first-run vitrine surface: the card entrance, the signature
-   * gradient hairline under the header, the spring-loaded stepper, and the
-   * directional step swap lean on the expressive-depth tokens. All motion
-   * collapses under reduced-motion.
+   * The phase machine in `apollia_runtime::onboarding` has one phase per step
+   * and only moves from a phase to the next, so each move of the modal walks
+   * the phases between the one stored and the one of the step that opens. A
+   * restart then reopens exactly on the step that was left.
+   *
+   * The card entrance and the directional step swap lean on the
+   * expressive-depth tokens. All motion collapses under reduced-motion.
    */
   import { onMount, untrack } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -41,13 +47,17 @@
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
   import { ErrorBanner } from "$lib/components/operator";
+  import { AlertCircle, Check, Download } from "lucide-svelte";
   import OnboardingWelcome from "./OnboardingWelcome.svelte";
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
   import OnboardingEmbeddingsStep from "./OnboardingEmbeddingsStep.svelte";
   import OnboardingChatStep from "./OnboardingChatStep.svelte";
+  import { downloadNotice } from "./llmDownload";
+  import { llmDownload } from "./llmDownloadLive";
   import {
     ONBOARDING_STEPS,
     phaseOfStep,
+    phasePath,
     stepOfPhase,
     type OnboardingStep,
   } from "./onboardingSteps";
@@ -87,6 +97,12 @@
   const enriching = get(profileEnrichment) !== null;
 
   const stepIndex = $derived(STEPS.findIndex((s) => s.id === currentStep));
+  const modelNotice = $derived(downloadNotice($llmDownload));
+
+  // The phase the backend stands on, and the chain of moves asked of it. One
+  // chain, so two quick moves of the modal reach the backend in their order.
+  let backendPhase = "welcome";
+  let backendSync: Promise<void> = Promise.resolve();
 
   // The chat is the only step that absolutely demands a focus trap that
   // swallows Escape (otherwise users may dismiss the agent dialog mid-turn
@@ -98,25 +114,30 @@
     }
   }
 
-  // Best-effort backend phase sync. The phase machine validates strict
-  // transitions (Welcome -> AiSetup -> Acquaintance -> ...),
-  // so we map each frontend step to the matching legal target.
-  async function syncBackendPhase(target: OnboardingPhase): Promise<void> {
-    try {
-      await advanceOnboardingPhase(target);
-    } catch {
-      // Non-blocking: the phase machine may already be ahead (e.g. user
-      // restarted onboarding from settings). Don't surface to the user.
-    }
+  // Best-effort backend phase sync. The phase machine only moves from one
+  // phase to the next, so every phase between the stored one and the target
+  // is walked in order.
+  function syncBackendPhase(target: OnboardingPhase): void {
+    backendSync = backendSync.then(async () => {
+      for (const phase of phasePath(backendPhase, target)) {
+        try {
+          await advanceOnboardingPhase(phase);
+          backendPhase = phase;
+        } catch {
+          // Non-blocking: the backend was unreachable, or the onboarding was
+          // reset under the modal. Navigation stays local; nothing to show.
+          return;
+        }
+      }
+    });
   }
 
   function goTo(step: Step): void {
     navDir = STEPS.findIndex((s) => s.id === step) >= stepIndex ? 1 : -1;
     currentStep = step;
-    untrack(() => {
-      const target = phaseOfStep(step);
-      if (target) void syncBackendPhase(target);
-    });
+    // A profile completed from the settings leaves the first-launch phase alone.
+    if (enriching) return;
+    untrack(() => syncBackendPhase(phaseOfStep(step)));
   }
 
   // Skipping is what writes `onboarding_skipped`, and that flag is the one
@@ -143,6 +164,7 @@
     }
     try {
       const state = await getOnboardingState();
+      backendPhase = state.phase;
       currentStep = stepOfPhase(state.phase);
     } catch {
       // Backend unreachable - keep the default "welcome" step.
@@ -151,7 +173,7 @@
 
   onMount(() => {
     rootEl?.focus();
-    void restoreStepFromBackend();
+    backendSync = restoreStepFromBackend();
 
     void listen<{ category: string; event_type: string }>(
       "runtime-event",
@@ -181,7 +203,7 @@
   tabindex="-1"
   role="dialog"
   aria-modal="true"
-  aria-labelledby="onboarding-modal-title"
+  aria-label={$t("onboarding_modal.title")}
   class="onboarding-overlay"
   data-testid="onboarding-modal"
 >
@@ -190,19 +212,60 @@
     class:onboarding-card-tall={currentStep === "ai-setup" || currentStep === "chat"}
   >
     <header class="onboarding-card-header">
-      <h2 id="onboarding-modal-title" class="onboarding-card-title">
-        {$t("onboarding_modal.title")}
-      </h2>
-      <ol class="onboarding-steps" aria-label={$t("onboarding_modal.progress_label")}>
+      <div class="onboarding-card-bar">
+        <p class="onboarding-step-count" data-testid="onboarding-step-count">
+          {$t("onboarding_modal.step_count", {
+            values: {
+              current: stepIndex + 1,
+              total: STEPS.length,
+              label: $t(STEPS[stepIndex].labelKey),
+            },
+          })}
+        </p>
+        <div class="onboarding-card-actions">
+          {#if modelNotice}
+            <!-- The download goes on while the next steps are done: what it
+                 has reached stays in sight on each of them. -->
+            <span
+              class="onboarding-model-notice"
+              class:is-ready={modelNotice.tone === "ready"}
+              class:is-failed={modelNotice.tone === "failed"}
+              role="status"
+              data-testid="onboarding-model-progress"
+            >
+              {#if modelNotice.tone === "ready"}
+                <Check size={12} strokeWidth={2.5} aria-hidden="true" />
+              {:else if modelNotice.tone === "failed"}
+                <AlertCircle size={12} strokeWidth={2} aria-hidden="true" />
+              {:else}
+                <Download size={12} strokeWidth={2} aria-hidden="true" />
+              {/if}
+              {$t(modelNotice.key, { values: modelNotice.values })}
+            </span>
+          {/if}
+          <button
+            type="button"
+            class="onboarding-skip"
+            data-testid="onboarding-skip"
+            onclick={handleSkip}
+          >
+            {$t("onboarding_modal.skip_later")}
+          </button>
+        </div>
+      </div>
+      <ol
+        class="onboarding-steps"
+        aria-label={$t("onboarding_modal.progress_label")}
+        data-testid="onboarding-progress"
+      >
         {#each STEPS as step, i (step.id)}
           <li
             class="onboarding-step"
             class:done={i < stepIndex}
             class:active={i === stepIndex}
             aria-current={i === stepIndex ? "step" : undefined}
-            title={$t(step.labelKey)}
           >
-            <span class="onboarding-step-dot">{i + 1}</span>
+            <span class="onboarding-step-bar" aria-hidden="true"></span>
             <span class="onboarding-step-label">{$t(step.labelKey)}</span>
           </li>
         {/each}
@@ -229,7 +292,6 @@
                 goTo("embeddings");
               }}
               onback={() => goTo("welcome")}
-              onskip={() => goTo("embeddings")}
               onopencloud={onclose}
             />
           {:else if currentStep === "embeddings"}
@@ -276,11 +338,11 @@
       </div>
     {/if}
 
-    <footer class="onboarding-card-footer">
-      {#if currentStep === "chat"}
-        <!-- During the conversation every question is optional: skipping them
-             opens the profile review, where the person fills the form by hand
-             or leaves without saving. -->
+    {#if currentStep === "chat"}
+      <!-- During the conversation every question is optional: skipping them
+           opens the profile review, where the person fills the form by hand
+           or leaves without saving. -->
+      <footer class="onboarding-card-footer">
         <button
           type="button"
           class="onboarding-skip"
@@ -289,17 +351,8 @@
         >
           {$t("onboarding_modal.skip_optional")}
         </button>
-      {:else}
-        <button
-          type="button"
-          class="onboarding-skip"
-          data-testid="onboarding-skip"
-          onclick={handleSkip}
-        >
-          {$t("onboarding_modal.skip_later")}
-        </button>
-      {/if}
-    </footer>
+      </footer>
+    {/if}
   </div>
 </div>
 
@@ -353,78 +406,80 @@
   }
 
   .onboarding-card-header {
-    position: relative;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.875rem 1.25rem;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.875rem 1.5rem 0.75rem;
     border-bottom: 1px solid hsl(var(--border) / 0.7);
     flex-shrink: 0;
   }
 
-  /* Signature gradient hairline under the header (hero surface leans richer). */
-  .onboarding-card-header::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 1.5px;
-    background: linear-gradient(
-      90deg,
-      hsl(var(--grad-a) / 0.6),
-      hsl(var(--grad-b) / 0.3) 36%,
-      transparent 76%
-    );
+  .onboarding-card-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
   }
 
-  .onboarding-card-title {
+  .onboarding-step-count {
     margin: 0;
-    font-size: var(--text-heading-sm);
-    font-weight: 600;
-    color: hsl(var(--foreground));
-    letter-spacing: -0.01em;
+    font-size: var(--text-caption);
+    color: hsl(var(--muted-foreground));
+  }
+
+  .onboarding-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .onboarding-model-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: var(--text-caption);
+    color: hsl(var(--muted-foreground));
+    font-variant-numeric: tabular-nums;
+  }
+  .onboarding-model-notice.is-ready {
+    color: hsl(var(--text-success));
+  }
+  .onboarding-model-notice.is-failed {
+    color: hsl(var(--text-danger));
   }
 
   .onboarding-steps {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    align-items: flex-start;
+    gap: 0.375rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
   .onboarding-step {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    flex-direction: column;
+    gap: 0.375rem;
     font-size: var(--text-caption);
     color: hsl(var(--muted-foreground));
     transition: color var(--motion-fast) ease;
   }
 
-  .onboarding-step-dot {
-    width: 1.375rem;
-    height: 1.375rem;
+  .onboarding-step-bar {
+    height: 3px;
     border-radius: 999px;
-    border: 1px solid hsl(var(--border));
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--text-caption);
-    font-weight: 600;
-    transition:
-      background 180ms var(--ease-spring),
-      color var(--motion-fast) ease,
-      border-color var(--motion-fast) ease,
-      box-shadow 180ms var(--ease-spring);
+    background: hsl(var(--border));
+    transition: background var(--motion-fast) ease;
   }
 
   .onboarding-step-label {
     font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Hide step labels on narrow widths to keep the rail compact. */
@@ -437,20 +492,9 @@
   .onboarding-step.active {
     color: hsl(var(--foreground));
   }
-  .onboarding-step.active .onboarding-step-dot {
+  .onboarding-step.active .onboarding-step-bar,
+  .onboarding-step.done .onboarding-step-bar {
     background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    border-color: hsl(var(--primary));
-    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.14);
-  }
-
-  .onboarding-step.done {
-    color: hsl(var(--muted-foreground));
-  }
-  .onboarding-step.done .onboarding-step-dot {
-    background: hsl(var(--primary) / 0.18);
-    color: hsl(var(--primary));
-    border-color: hsl(var(--primary) / 0.35);
   }
 
   .onboarding-card-body {
@@ -517,7 +561,8 @@
     .onboarding-card {
       animation: none;
     }
-    .onboarding-step-dot {
+    .onboarding-step,
+    .onboarding-step-bar {
       transition: none;
     }
   }

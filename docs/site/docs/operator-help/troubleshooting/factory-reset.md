@@ -44,8 +44,8 @@ A confirmation window opens with a **3-second safety pause** during which the co
 ## Step 4 - After the reset
 
 1. Apollia restarts automatically. If the automatic restart fails (development environment without a packaged bundle), an orange banner invites you to relaunch the application manually.
-2. On restart, the **four-step setup flow** opens automatically: **Welcome → Profile → Models → Calibration**. It is the same flow as on the very first launch.
-3. At the **Models** step, you must configure the LLM again (download a local model or add a cloud backend) - the reset erased all your LLM backends. See also [Connect a remote model](../installation/connecter-un-modele-distant.md) if you would rather not go through the built-in flow.
+2. On restart, the **four-step setup flow** opens automatically: **Language → AI → Search → About me**. It is the same flow as on the very first launch.
+3. At the **AI** step, you must configure the LLM again (download a local model or connect to a server) - the reset erased all your LLM backends. See also [Connect a remote model](../installation/connecter-un-modele-distant.md) if you would rather not go through the built-in flow.
 4. Once the flow is finished, reinstall your agents and your MCP integrations, and add your sources again, as needed.
 5. If you exported your memory through the CLI in step 1, import it back with `apollia-os memory import --namespace <namespace> --input <file>`.
 
@@ -53,7 +53,7 @@ A confirmation window opens with a **3-second safety pause** during which the co
 
 - **Apollia does not restart after the reset:** launch the application manually from your applications menu.
 - **The setup flow does not appear:** the reset may have failed partially. Check that the data directory is absent or empty, otherwise delete it manually and relaunch. Its exact path is shown on **Settings → About**, under *Where your data lives*: see [Find your version and your data](../transversal/find-your-version-and-data.md). If the problem persists, contact support and state the exact time of the reset.
-- **The Continue button stays greyed out at the Models step:** that is expected as long as no LLM is configured. Download a GGUF model from the curated list, or click **Use a cloud provider** to add an Anthropic, OpenAI or Ollama backend. The flow resumes automatically once the backend is added.
+- **The Continue button stays greyed out at the AI step:** that is expected as long as no LLM is configured. Start the download of a model from the recommended list, which opens it at once, or click **Connect to a server** to add one.
 - **You regret the deletion:** restore the backups from step 1. Without a backup, the data is permanently lost.
 
 > **Concept:** [Apollia reference](/reference) - understand where Apollia stores your data and what exactly is erased during a reset.

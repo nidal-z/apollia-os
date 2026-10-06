@@ -1,7 +1,9 @@
 <script lang="ts">
   import { decideSkip } from "./skipDecision";
+  import { isInFlight } from "./llmDownload";
+  import { llmDownload } from "./llmDownloadLive";
   /**
-   * Onboarding step 3 - Agent chat, then the profile read over.
+   * First-launch step 4 - Agent chat, then the profile read over.
    *
    * Spawns an `onboarding-agent` chat session and renders the conversation in
    * the modal. The agent asks a few questions, every one of them optional, and
@@ -120,7 +122,11 @@
   // Tri-state: "checking" until the backend list has been hydrated once, so
   // an engine still registering (store-hydration race after AI setup) shows a
   // neutral starting status instead of a destructive "no engine" card.
-  const llmState = $derived(deriveLlmState($llmBackendsHydrated, $llmBackends.length));
+  // A fourth state while the model chosen at the AI step is still arriving:
+  // the conversation starts by itself the moment it is wired.
+  const llmState = $derived(
+    deriveLlmState($llmBackendsHydrated, $llmBackends.length, isInFlight($llmDownload)),
+  );
   const llmReady = $derived(llmState === "ready");
 
   let finishing = $state(false);
@@ -334,6 +340,12 @@
           <Loader2 size={20} class="animate-spin" aria-hidden="true" />
           <p class="chat-status-title">{$t("onboarding_chat.llm_starting_title")}</p>
           <p class="chat-status-detail">{$t("onboarding_chat.llm_starting_detail")}</p>
+        </div>
+      {:else if llmState === "downloading"}
+        <div class="chat-status" data-testid="onboarding-chat-llm-downloading">
+          <Loader2 size={20} class="animate-spin" aria-hidden="true" />
+          <p class="chat-status-title">{$t("onboarding_chat.llm_downloading_title")}</p>
+          <p class="chat-status-detail">{$t("onboarding_chat.llm_downloading_detail")}</p>
         </div>
       {:else if llmState === "none"}
         <div class="chat-status" data-testid="onboarding-chat-no-llm">

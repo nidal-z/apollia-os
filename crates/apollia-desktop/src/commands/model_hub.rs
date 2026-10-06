@@ -533,27 +533,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_dictation_file_the_onboarding_offers_is_checked_against_a_pinned_digest() {
-        // GIVEN the download addresses of the dictation step of the onboarding
-        let catalog = include_str!("../../ui/src/components/onboarding/onboardingCatalogs.ts");
-        let urls: Vec<&str> = catalog
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("url: \""))
-            .filter_map(|rest| rest.strip_suffix("\","))
-            .collect();
-        assert_eq!(urls.len(), 5, "{urls:?}");
+    fn every_dictation_file_of_the_catalogue_is_checked_against_its_pinned_digest() {
+        // GIVEN the download address of every dictation model of the catalogue
+        let catalogue = apollia_llm::recommend::DictationCatalogue::embedded().unwrap();
+        assert!(!catalogue.models().is_empty());
 
-        // WHEN the download command looks up the digest of each
-        let digests: Vec<Option<String>> = urls.iter().map(|u| pinned_digest(u)).collect();
+        for model in catalogue.models() {
+            // WHEN the download command looks up the digest of its address
+            let digest = pinned_digest(&model.download_url());
 
-        // THEN every one is the 64-digit digest the catalogue pins, and an
-        // address outside the catalogue has none
-        for (url, digest) in urls.iter().zip(&digests) {
-            let digest = digest
-                .as_deref()
-                .unwrap_or_else(|| panic!("{url} has no digest"));
-            assert_eq!(digest.len(), 64, "{url}");
+            // THEN it is the 64-digit digest the catalogue pins for that file
+            assert_eq!(
+                digest.as_deref(),
+                Some(model.sha256.as_str()),
+                "{}",
+                model.id
+            );
+            assert_eq!(model.sha256.len(), 64, "{}", model.id);
         }
+        // AND an address outside the catalogue has none
         assert_eq!(
             pinned_digest("https://huggingface.co/acme/model/resolve/main/x.bin"),
             None

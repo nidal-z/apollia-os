@@ -44,8 +44,8 @@ Une fenêtre de confirmation s'ouvre avec une **pause de sécurité de 3 seconde
 ## Étape 4 - Après la réinitialisation
 
 1. Apollia redémarre automatiquement. Si le redémarrage automatique échoue (environnement de développement sans bundle packagé), un bandeau orange vous invite à relancer l'application manuellement.
-2. Au redémarrage, le **parcours de configuration en quatre étapes** s'ouvre automatiquement : **Accueil → Profil → Modèles → Calibrage**. C'est le même parcours qu'au tout premier lancement.
-3. À l'étape **Modèles**, vous devez reconfigurer le LLM (téléchargement d'un modèle local ou ajout d'un backend cloud) - la réinitialisation a effacé l'ensemble de vos backends LLM. Voir aussi [Connecter un modele distant](../installation/connecter-un-modele-distant.md) si vous préférez ne pas passer par le parcours intégré.
+2. Au redémarrage, le **parcours de configuration en quatre étapes** s'ouvre automatiquement : **Langue → IA → Recherche → Qui je suis**. C'est le même parcours qu'au tout premier lancement.
+3. À l'étape **IA**, vous devez reconfigurer le LLM (téléchargement d'un modèle local ou connexion à un serveur) - la réinitialisation a effacé l'ensemble de vos backends LLM. Voir aussi [Connecter un modele distant](../installation/connecter-un-modele-distant.md) si vous préférez ne pas passer par le parcours intégré.
 4. Une fois le parcours terminé, réinstallez vos agents et vos intégrations MCP, et ajoutez de nouveau vos sources, selon votre besoin.
 5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import --namespace <namespace> --input <fichier>`.
 
@@ -53,7 +53,7 @@ Une fenêtre de confirmation s'ouvre avec une **pause de sécurité de 3 seconde
 
 - **Apollia ne redémarre pas après la réinitialisation :** lancez l'application manuellement depuis votre menu d'applications.
 - **Le parcours de configuration ne s'affiche pas :** la réinitialisation a peut-être échoué partiellement. Vérifiez que le répertoire de données est absent ou vide - sinon, supprimez-le manuellement et relancez. Son chemin exact est affiché sur **Réglages → À propos**, dans *Où vivent vos données* : voir [Retrouver sa version et ses données](../transversal/find-your-version-and-data.md). Si le problème persiste, contactez le support en précisant l'instant exact du reset.
-- **Le bouton Continuer reste grisé à l'étape Modèles :** c'est normal tant qu'aucun LLM n'est configuré. Téléchargez un modèle GGUF depuis la liste curée, ou cliquez sur **Utiliser un fournisseur cloud** pour ajouter un backend Anthropic, OpenAI ou Ollama. Le parcours reprend automatiquement après l'ajout du backend.
+- **Le bouton Continuer reste grisé à l'étape IA :** c'est normal tant qu'aucun LLM n'est configuré. Lancez le téléchargement d'un modèle depuis la liste recommandée, ce qui l'ouvre aussitôt, ou cliquez sur **Se connecter à un serveur** pour en ajouter un.
 - **Vous regrettez la suppression :** restaurez vos sauvegardes de l'étape 1. Sans sauvegarde, les données sont définitivement perdues.
 
 > **Concept :** [Référence Apollia](/reference) - comprendre où Apollia stocke vos données et ce qui est effacé exactement lors d'une réinitialisation.

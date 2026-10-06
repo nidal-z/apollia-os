@@ -814,7 +814,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-section",
+      "testid": "ai-setup-continue-hint",
       "timeoutMs": 10000
     },
     {
