@@ -1,12 +1,15 @@
 {
-  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the model picker, the link back to the settings)",
+  "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the model picker, the logs read, filtered, cleared, folded and detached, the link back to the settings)",
   "stopOnError": false,
   "notes": [
-    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte and components/developer/localServer.ts.",
+    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte, LogLines.svelte and components/developer/localServer.ts and serverLogs.ts.",
     "The start and the stop are real: they reach the compatible server of the runtime of the seeded home, on the port of its [server] section (7772 unless the seed says otherwise). A machine where another program holds that port shows the taken-port error on the first start and reds the steps that wait for the address; that is the machine, not the product.",
     "The taken-port state is stubbed: start_local_server rejects with the LocalServerRefusal of crates/apollia-desktop/src/commands/local_server.rs (kind port_in_use). A field renamed there drifts here silently. The stub is cleared before the next start, which is real and clears the error.",
     "The copy button is clicked, not asserted: the clipboard of the webview may refuse a write that no user gesture started, and the copy itself is held by the Vitest suite.",
     "The picker of Load a model is opened and closed without choosing: the models of the seed are placeholders, and the loading window is played by llm-det.",
+    "The logs are read from the real stream of the runtime of the seeded home, at the level chosen, and cleared through the real route. Their lines are not counted: what the server recorded by then depends on the run, and the lines themselves are held by the Vitest suite.",
+    "Detaching is stubbed on both sides: open_server_logs_window resolves as a window created without one being opened, since a second window would take the focus the capture relies on, and close_server_logs_window resolves false, the answer of crates/apollia-desktop/src/commands/logs_window.rs when no window is open, which brings the logs back to the screen. The real window is a manual gesture.",
+    "A stream that cannot be opened is stubbed: watch_server_logs rejects with a message, which shows the error and the offer to resume; the resume is then answered by a stub that opens no stream, so the empty state is certain whatever the server recorded. Both stubs are cleared before the last change of level, which reads the real stream again.",
     "The book leaves the server stopped and the developer mode off, as it found them.",
     "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run."
   ],
@@ -264,6 +267,178 @@
     {
       "kind": "waitFor",
       "testid": "developer-pane-logs",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-logs-lines",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-logs-summary"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "developer-logs-level",
+      "value": "warn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-logs-lines"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-logs-clear"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-logs-lines"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "developer-logs-level",
+      "value": "debug",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-logs-collapse"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-logs-lines",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-logs-level",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-logs-summary"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-logs-collapse"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-logs-lines",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "open_server_logs_window",
+      "resolve": "created"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-logs-detach"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-logs-detached",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-logs-lines",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "close_server_logs_window",
+      "resolve": false
+    },
+    {
+      "kind": "click",
+      "testid": "developer-logs-reattach"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-logs-lines",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "open_server_logs_window"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "close_server_logs_window"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "watch_server_logs",
+      "reject": "the compatible server is not part of this runtime"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "developer-logs-level",
+      "value": "error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-logs-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-logs-interrupted"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "watch_server_logs"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "watch_server_logs",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "developer-logs-resume"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-logs-interrupted",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-logs-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-logs-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "watch_server_logs"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "developer-logs-level",
+      "value": "debug",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-logs-lines",
       "timeoutMs": 4000
     },
     {

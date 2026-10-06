@@ -1,0 +1,8 @@
+{
+  "identifier": "server-logs-window",
+  "description": "Capabilities for the window that shows the logs of the local server on their own",
+  "windows": ["server-logs"],
+  "permissions": [
+    "core:default"
+  ]
+}

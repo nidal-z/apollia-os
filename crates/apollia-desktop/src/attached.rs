@@ -25,6 +25,7 @@ pub(crate) use client::AttachedClient;
 pub(crate) use error::AttachedError;
 pub(crate) use launch::run;
 pub(crate) use proxy::segment;
+pub(crate) use relay::{Frame, SseReader};
 
 /// The commands that serve the attached mode. Every other registered command
 /// answers [`AttachedError::NotRouted`] while the runtime is a daemon.
@@ -174,6 +175,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_local_server",
     "start_local_server",
     "stop_local_server",
+    // The logs of the local server: the stream of `/api/v1/server/logs` at a
+    // level, its end, and the route that empties them.
+    "clear_server_logs",
+    "unwatch_server_logs",
+    "watch_server_logs",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
@@ -488,6 +494,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "open_hardware_window",
         "opens or brings forward a window of this application; what it shows is read by routed commands",
+    ),
+    (
+        "open_server_logs_window",
+        "opens or brings forward the window of this application that shows the logs of the server; the lines are read by routed commands",
+    ),
+    (
+        "close_server_logs_window",
+        "closes the logs window of this application, which hands the logs back to the developer screen",
     ),
     ("print_journal", "opens the print dialog of the system on this window"),
     (

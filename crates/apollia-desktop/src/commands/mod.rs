@@ -39,6 +39,7 @@ pub mod llm_loaded;
 pub mod llm_residency;
 pub mod llm_servers;
 pub mod local_server;
+pub mod logs_window;
 pub mod mcp;
 pub mod mcp_bridge;
 pub mod mcp_coaching;
@@ -59,6 +60,7 @@ pub mod package_files;
 pub mod plan_mode;
 pub mod project_migration;
 pub mod recommend;
+pub mod server_logs;
 pub mod sources;
 pub mod stt;
 pub mod tasks;
@@ -109,6 +111,43 @@ pub(crate) fn set_api_token(token: String) {
 /// The `Authorization` header value for bridge requests, when a token is set.
 fn bridge_auth_header() -> Option<String> {
     API_TOKEN.get().map(|t| format!("Bearer {t}"))
+}
+
+/// Upper bound on the body of a refused stream: an error message.
+const STREAM_REFUSAL_BYTES: u64 = 64 * 1024;
+
+/// Opens an open-ended SSE stream of the internal REST API at `path`, query
+/// included. The answer is the body, read frame by frame by the caller; a
+/// refusal is the runtime's own message.
+pub(crate) async fn http_open_stream(port: u16, path: &str) -> Result<reqwest::Response, String> {
+    let client = apollia_core::net::loopback_client_builder()
+        .build()
+        .map_err(|e| format!("failed to build the stream client: {e}"))?;
+    let mut request = client
+        .get(format!("http://127.0.0.1:{port}{path}"))
+        .header(reqwest::header::ACCEPT, "text/event-stream");
+    if let Some(auth) = bridge_auth_header() {
+        request = request.header(reqwest::header::AUTHORIZATION, auth);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
+    let status = response.status();
+    if status.is_success() {
+        return Ok(response);
+    }
+    let message =
+        apollia_core::net::read_capped_json::<serde_json::Value>(response, STREAM_REFUSAL_BYTES)
+            .await
+            .ok()
+            .and_then(|body| {
+                body.get("error")
+                    .and_then(|e| e.as_str())
+                    .map(str::to_owned)
+            })
+            .unwrap_or_else(|| format!("runtime API answered {status}"));
+    Err(message)
 }
 
 /// Sends a GET request to the internal REST API on `localhost:{port}` and

@@ -196,6 +196,14 @@ pub fn hardware_window_title(l: UiLocale) -> &'static str {
     }
 }
 
+/// Window title of the window that shows the logs of the local server.
+pub fn server_logs_window_title(l: UiLocale) -> &'static str {
+    match l {
+        UiLocale::Fr => "Journaux du serveur",
+        UiLocale::En => "Server logs",
+    }
+}
+
 /// Error a command not routed yet answers while the runtime is a daemon.
 pub(crate) fn attached_unavailable(locale: UiLocale, command: &str) -> String {
     match locale {
@@ -331,6 +339,10 @@ mod tests {
             (
                 hardware_window_title(UiLocale::Fr),
                 hardware_window_title(UiLocale::En),
+            ),
+            (
+                server_logs_window_title(UiLocale::Fr),
+                server_logs_window_title(UiLocale::En),
             ),
         ];
         // WHEN comparing the two locales pairwise

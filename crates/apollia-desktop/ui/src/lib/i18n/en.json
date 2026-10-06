@@ -4965,7 +4965,26 @@
         "documentation": "Documentation"
       },
       "logs": {
-        "title": "Server logs"
+        "title": "Server logs",
+        "summary": "{count, plural, =0 {No line} one {# line} other {# lines}}",
+        "level_label": "Level of the lines shown",
+        "levels": {
+          "debug": "All levels",
+          "info": "Info and above",
+          "warn": "Warnings and errors",
+          "error": "Errors only"
+        },
+        "clear": "Clear",
+        "clear_title": "Empties the logs of the server. The Apollia activity log is not touched.",
+        "detach": "Detach into a window",
+        "reattach": "Bring back to the screen",
+        "detached_notice": "The logs are open in their own window.",
+        "collapse": "Collapse the logs",
+        "expand": "Expand the logs",
+        "empty": "No line yet. Calls the local server receives show here.",
+        "interrupted": "The logs stopped being read.",
+        "resume": "Resume",
+        "failed": "The logs did not answer the request: {error}"
       },
       "settings_hint": "The developer mode and the MCP bridge are set in Settings.",
       "settings_link": "Settings › Developer",

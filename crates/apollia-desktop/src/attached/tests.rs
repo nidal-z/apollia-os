@@ -590,6 +590,28 @@ fn test_the_local_server_of_the_developer_screen_passes_the_gate_attached() {
 }
 
 #[test]
+fn test_the_logs_of_the_local_server_pass_the_gate_attached() {
+    // GIVEN the commands of the logs pane: the stream, its end, the clearing,
+    // and the two gestures of the window the logs detach into
+    let commands = [
+        "watch_server_logs",
+        "unwatch_server_logs",
+        "clear_server_logs",
+        "open_server_logs_window",
+        "close_server_logs_window",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none answers that the service makes it unavailable
+    assert!(refused.is_empty(), "refused: {refused:?}");
+}
+
+#[test]
 fn test_models_mcp_connections_and_notifications_pass_the_gate_attached() {
     // GIVEN the screens of models, MCP servers, connections, notifications
     // and triggers, through the command each one opens with
