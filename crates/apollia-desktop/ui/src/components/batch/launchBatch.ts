@@ -76,6 +76,12 @@ export interface LaunchForm {
   columns: string;
   /** A mailbox yields its unread messages only. */
   unreadOnly: boolean;
+  /**
+   * The sheet, the header row and the checked columns of a previewed file;
+   * absent or `null` while no preview is known, and the runtime then reads
+   * what it proposes.
+   */
+  table?: { options: Record<string, string>; checked: number } | null;
 }
 
 /** Why a launch is refused before it is sent. */
@@ -83,6 +89,7 @@ export type LaunchRefusal =
   | "agent_missing"
   | "source_missing"
   | "source_blocked"
+  | "fields_missing"
   | "columns_missing"
   | "columns_duplicate"
   | "columns_too_many";
@@ -211,6 +218,7 @@ export function refusalOf(form: LaunchForm): LaunchRefusal | null {
   if (form.source === null) return "source_missing";
   if (form.source.reader === null) return "source_blocked";
   if (writesResults(form.source)) {
+    if (form.table && form.table.checked === 0) return "fields_missing";
     const columns = columnsOf(form.columns);
     if (columns.length === 0) return "columns_missing";
     if (columns.length > MAX_COLUMNS) return "columns_too_many";
@@ -231,6 +239,7 @@ export function buildLaunch(form: LaunchForm, accesses: BatchAccess[]): BatchLau
   const grants = form.granted.filter((id) => grantable.has(id));
   const source: BatchSourceDescriptor = { ...form.source.reader, options: {} };
   if (writesResults(form.source)) {
+    if (form.table) source.options = { ...form.table.options };
     const original = form.destination === "original" && canWriteOriginal(form.source);
     source.write = {
       destination: original ? "original" : "copy",
@@ -288,6 +297,7 @@ export const REFUSAL_KEYS: Record<LaunchRefusal, string> = {
   agent_missing: "batch_launch.refusal.agent_missing",
   source_missing: "batch_launch.refusal.source_missing",
   source_blocked: "batch_launch.refusal.source_blocked",
+  fields_missing: "batch_launch.refusal.fields_missing",
   columns_missing: "batch_launch.refusal.columns_missing",
   columns_duplicate: "batch_launch.refusal.columns_duplicate",
   columns_too_many: "batch_launch.refusal.columns_too_many",

@@ -7,8 +7,10 @@
    * the registry of sources lists them, or a file picked on the spot), the
    * sensitive accesses granted for the duration of the batch, the number of
    * failures that interrupts it, and where the results of a file go: a copy
-   * by default, the original on explicit request. The decisions live in
-   * `launchBatch.ts`; this component holds the form and the calls.
+   * by default, the original on explicit request. A workbook or a CSV file
+   * shows its preview first: the sheet, the header row and the columns the
+   * agent receives. The decisions live in `launchBatch.ts` and
+   * `workbookPreview.ts`; this component holds the form and the calls.
    */
   import { t } from "svelte-i18n";
   import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
@@ -24,9 +26,11 @@
     launchBatch,
     listBatchAccesses,
     listBatchSources,
+    previewBatchSource,
     type BatchAccess,
     type LaunchedBatch,
     type RegistrySource,
+    type SourcePreview,
     type WriteDestination,
   } from "$lib/ipc/batches";
   import { agents } from "$lib/stores/sse";
@@ -52,6 +56,14 @@
     type SourceChoice,
     type SourceFamily,
   } from "./launchBatch";
+  import WorkbookPreview from "./WorkbookPreview.svelte";
+  import {
+    PROPOSED_SELECTION,
+    previewPathOf,
+    previewRequest,
+    tableChoice,
+    type PreviewSelection,
+  } from "./workbookPreview";
 
   interface Props {
     open: boolean;
@@ -80,6 +92,10 @@
   let destination = $state<WriteDestination>("copy");
   let columns = $state("");
   let unreadOnly = $state(false);
+  let selection = $state<PreviewSelection>(PROPOSED_SELECTION);
+  let preview = $state<SourcePreview | null>(null);
+  let previewError = $state<string | null>(null);
+  let previewLoading = $state(false);
   let launching = $state(false);
   let error = $state<string | null>(null);
 
@@ -92,11 +108,10 @@
     if (!open) return;
     chosenAgent = agent;
     picked = file;
-    source = file ? fileChoice(file) : null;
+    setSource(file ? fileChoice(file) : null);
     family = file ? "table" : null;
     granted = [];
     threshold = DEFAULT_THRESHOLD;
-    destination = "copy";
     columns = $t("batch_launch.results.default_column");
     unreadOnly = false;
     error = null;
@@ -136,6 +151,40 @@
     };
   });
 
+  // What the runtime is asked: the file, then the sheet and the header row
+  // once picked. Checking a column changes neither, and asks nothing again.
+  const previewKey = $derived.by(() => {
+    const path = open ? previewPathOf(source) : null;
+    return path === null ? null : JSON.stringify(previewRequest(path, selection));
+  });
+
+  $effect(() => {
+    const key = previewKey;
+    previewError = null;
+    if (key === null) {
+      preview = null;
+      previewLoading = false;
+      return;
+    }
+    let live = true;
+    previewLoading = true;
+    void previewBatchSource(JSON.parse(key))
+      .then((found) => {
+        if (live) preview = found;
+      })
+      .catch((err: unknown) => {
+        if (!live) return;
+        preview = null;
+        previewError = message(err);
+      })
+      .finally(() => {
+        if (live) previewLoading = false;
+      });
+    return () => {
+      live = false;
+    };
+  });
+
   const choices = $derived(sourceChoices(registry, picked));
   const listed = $derived(family ? familyChoices(choices, family) : []);
   const split = $derived(splitAccesses(accesses));
@@ -148,25 +197,31 @@
     destination,
     columns,
     unreadOnly,
+    table: tableChoice(preview, selection),
   });
   const refusal = $derived(refusalOf(form));
   const agentTitle = $derived(agent ?? chosenAgent ?? "");
 
+  // Another source starts from what the runtime proposes for it.
+  function setSource(next: SourceChoice | null): void {
+    source = next;
+    destination = "copy";
+    selection = PROPOSED_SELECTION;
+    preview = null;
+  }
+
   function chooseFamily(next: string): void {
     if (next === family) return;
     family = next as SourceFamily;
-    source = null;
-    destination = "copy";
+    setSource(null);
   }
 
   function chooseSource(key: string): void {
-    source = listed.find((choice) => choice.key === key) ?? null;
-    destination = "copy";
+    setSource(listed.find((choice) => choice.key === key) ?? null);
   }
 
   function changeSource(): void {
-    source = null;
-    destination = "copy";
+    setSource(null);
   }
 
   async function pickFile(): Promise<void> {
@@ -178,8 +233,7 @@
       if (typeof path !== "string" || !path) return;
       picked = path;
       family = "table";
-      source = fileChoice(path);
-      destination = "copy";
+      setSource(fileChoice(path));
     } catch (err) {
       error = message(err);
     }
@@ -334,6 +388,13 @@
       </section>
 
       {#if writesResults(source)}
+        <WorkbookPreview
+          {preview}
+          {selection}
+          loading={previewLoading}
+          error={previewError}
+          onselection={(next) => (selection = next)}
+        />
         <section class="space-y-1.5" data-testid="batch-launch-results">
           <h3 class="m-0 text-body-xs font-medium text-muted-foreground">{$t("batch_launch.results.title")}</h3>
           <RadioGroup value={destination}>
@@ -444,13 +505,19 @@
       data-testid="batch-launch-refusal"
       data-refusal={refusal ?? "none"}
     >
-      {refusal ? $t(REFUSAL_KEYS[refusal]) : $t("batch_launch.ready")}
+      {#if refusal}
+        {$t(REFUSAL_KEYS[refusal])}
+      {:else if preview && writesResults(source)}
+        {$t("batch_launch.ready_count", { values: { count: preview.estimatedItems } })}
+      {:else}
+        {$t("batch_launch.ready")}
+      {/if}
     </p>
     <span class="flex gap-2">
       <Button variant="ghost" onclick={onclose} data-testid="batch-launch-cancel">{$t("common.cancel")}</Button>
       <Button
         variant="primary-solid"
-        disabled={refusal !== null || launching}
+        disabled={refusal !== null || launching || previewLoading}
         onclick={() => void launch()}
         data-testid="batch-launch-confirm"
       >
