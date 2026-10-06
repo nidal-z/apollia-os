@@ -39,7 +39,9 @@ the same commit as the command.
 purpose, verified against real usage:
 
 - `get` / `set` are config key/value pairs (`config`, `chat config`,
-  `tools config`, `notify events`), not entity reads.
+  `tools config`, `notify events`), not entity reads. `chat settings` and
+  `chat notes` use them the same way for one conversation: `get <session>`
+  reads what the conversation holds, `set <session> <value>` replaces it.
 - `add` / `remove` attach and detach a relationship, git-style (`mcp add`);
   they do not create or delete an entity.
 - `clear` and `evict` are distinct in `plan cache`: wipe all against purge by

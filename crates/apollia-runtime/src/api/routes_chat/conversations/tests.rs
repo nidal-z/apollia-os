@@ -116,11 +116,12 @@ async fn test_patch_session_changes_its_instructions() {
     )
     .await;
 
-    // THEN the detail carries the new instructions
+    // THEN the detail carries the new instructions, in the settings of the
+    // conversation
     assert_eq!(status, StatusCode::OK);
     let (_, detail) = call(&router, "GET", &format!("/api/v1/sessions/{id}"), None).await;
     assert_eq!(
-        detail["session"]["system_prompt"], "Answer in three lines.",
+        detail["session"]["settings"]["instructions"], "Answer in three lines.",
         "{detail}"
     );
 }

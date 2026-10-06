@@ -111,6 +111,7 @@ from .connection_kind import ConnectionKind
 from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
+from .context_overflow_setting import ContextOverflowSetting
 from .continuation import Continuation
 from .continuation_refusal import ContinuationRefusal
 from .conversation_stats_view import ConversationStatsView
@@ -450,6 +451,8 @@ from .servers_list_response import ServersListResponse
 from .session_folder_body import SessionFolderBody
 from .session_metrics import SessionMetrics
 from .session_model_capabilities import SessionModelCapabilities
+from .session_notes import SessionNotes
+from .session_settings import SessionSettings
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
@@ -710,6 +713,7 @@ __all__ = (
     "ConnectionState",
     "ConnectionTool",
     "ConnectorAccountResponse",
+    "ContextOverflowSetting",
     "Continuation",
     "ContinuationRefusal",
     "ConversationStatsView",
@@ -1045,6 +1049,8 @@ __all__ = (
     "SessionFolderBody",
     "SessionMetrics",
     "SessionModelCapabilities",
+    "SessionNotes",
+    "SessionSettings",
     "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",

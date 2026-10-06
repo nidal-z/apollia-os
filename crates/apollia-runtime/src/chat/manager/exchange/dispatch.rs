@@ -108,10 +108,18 @@ impl ChatSessionManager {
                     },
                 }
             };
+            // The mission is the agent's, read on every message: a declarative
+            // agent's as resolved, Apollia's for a free chat. Nothing the
+            // session holds takes its place; what the session asks for
+            // itself is in its settings, applied by the executor.
             let system_prompt = match &declarative {
                 Some(agent) => agent.mission.clone(),
-                None => session.system_prompt.clone(),
+                None if session.mode == ChatMode::Libre => {
+                    apollia_mission(self.governance_db_path.as_deref())
+                }
+                None => String::new(),
             };
+            let session_settings = session.settings.clone();
             // The agent is offered its granted accesses, read on every message
             // so a change on its card applies to open conversations. An agent
             // created in the interface whose access nobody chose reads by
@@ -155,15 +163,31 @@ impl ChatSessionManager {
             let mid = message_id.clone();
             let user_msg = content.to_string();
             let tx = self.tx.clone();
-            let context_window_size = DEFAULT_CONTEXT_WINDOW_SIZE;
+            // What the history does at the limit is the conversation's
+            // choice. Summarizing keeps the recent window and a summary of
+            // what precedes it; the sliding window keeps the recent window
+            // alone; stopping keeps every message, so the limit is reached
+            // rather than passed under by dropping some.
+            let overflow = session_settings.overflow();
+            let context_window_size = match overflow {
+                ContextOverflow::StopAtLimit => usize::MAX,
+                ContextOverflow::SummarizeMiddle | ContextOverflow::SlidingWindow => {
+                    DEFAULT_CONTEXT_WINDOW_SIZE
+                }
+            };
             let turn_images = self.turn_images(
                 session_id,
                 &session.history[..answered],
                 context_window_size,
             );
 
-            let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
-            let llm_for_summarize = self.llm_router.clone();
+            let (stored_summary, llm_for_summarize) = match overflow {
+                ContextOverflow::SummarizeMiddle => (
+                    self.repository.get_summary(session_id).unwrap_or(None),
+                    self.llm_router.clone(),
+                ),
+                ContextOverflow::SlidingWindow | ContextOverflow::StopAtLimit => (None, None),
+            };
 
             // The invoker is created per-session inside the task.
             let a2a_for_agent = self.a2a_invoker.clone();
@@ -192,6 +216,7 @@ impl ChatSessionManager {
                 available_tools,
                 authorized_tools,
                 system_prompt,
+                session_settings,
                 context_window_size,
                 stored_summary,
                 llm_for_summarize,

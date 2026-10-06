@@ -108,6 +108,38 @@ mod verification_wire_tests;
 #[cfg(test)]
 mod write_consent_tests;
 
+/// What one conversation changes from its agent: the part of its settings
+/// the loop applies. The default changes nothing.
+#[derive(Debug, Clone, Default)]
+pub struct SessionOverrides {
+    /// Instructions added to the mission, after it.
+    pub instructions: Option<String>,
+    /// Request settings of the conversation, the level above the model, the
+    /// package and the preset.
+    pub request: apollia_llm::request_defaults::RequestDefaults,
+    /// Reads the three levels below, the preset of the conversation taking
+    /// the place of the agent's. `None` reads none of them.
+    pub request_levels: Option<apollia_llm::AgentModelBinding>,
+    /// Reasoning on or off, for a model that reads it.
+    pub thinking: Option<bool>,
+    /// Level of reasoning, for a model that reads it.
+    pub reasoning_effort: Option<apollia_llm::ReasoningEffort>,
+    /// What happens when the messages reach the context limit.
+    pub overflow: apollia_oria::context_manager::ContextOverflow,
+    /// Accesses the agent does not hold, proposed for the conversation: each
+    /// of their calls asks, unless a standing consent covers it.
+    pub proposed_accesses: Vec<String>,
+}
+
+/// The request settings of one turn, read once and applied to each call.
+#[derive(Debug, Clone, Default)]
+pub(in crate::chat::builtin_agent) struct TurnRequestSettings {
+    /// The temperature the user chose, for the conversation or in a preset.
+    chosen_temperature: Option<f32>,
+    /// The four levels resolved.
+    resolved: apollia_llm::request_defaults::RequestDefaults,
+}
+
 /// Delay after which a tool approval of a conversation is refused (5 minutes).
 pub(crate) const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -233,9 +265,12 @@ pub struct BuiltInChatAgent {
     /// Reads the agents and workflows granted to the agent, offered as
     /// tools. `None` offers none of them.
     composer: Option<Arc<dyn Composer>>,
-    /// Context window manager: compacts `llm_messages` inside the ReAct loop
-    /// when accumulated messages exceed the model's window threshold.
+    /// Context window manager: brings `llm_messages` under the model's window
+    /// threshold inside the ReAct loop, the way the conversation chose
+    /// (summarize, slide, or stop).
     context_manager: ContextManager,
+    /// What the conversation changes from its agent, for itself alone.
+    session: SessionOverrides,
     /// Optional handle to the `MetaLlmOrchestrator`, used to produce the
     /// `ToolCallRationale` narrated before each tool execution.
     /// Absent by default for backward compatibility; injected by the manager

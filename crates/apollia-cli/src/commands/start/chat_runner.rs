@@ -272,6 +272,9 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 manifest.user_memory_write,
                 agent_name == "onboarding-agent",
             )
+            // The task of a chat exchange names its conversation, which may
+            // open or close the reading of the profile for itself.
+            .in_conversation(task.context_id.clone())
         };
 
         // Directory containing the agent .py, used to resolve datasources/

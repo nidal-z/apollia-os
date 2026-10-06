@@ -23,6 +23,7 @@ pub mod plan_tool;
 pub mod profile_injection;
 pub mod repository;
 pub(crate) mod schema;
+pub mod session_settings;
 pub mod summarizer;
 pub mod title;
 pub mod todo_actor;
@@ -53,6 +54,9 @@ pub use repository::{
     AppendMessageParams, ChatApprovalLogRow, ChatFolder, ChatSessionRepository, MessageRow,
     MessageSearchHit, SessionRow, TrashedSession, FOLDER_NAME_MAX_CHARS,
     MESSAGE_SEARCH_MAX_RESULTS,
+};
+pub use session_settings::{
+    ContextOverflowSetting, SessionSettings, SessionSettingsError, SESSION_NOTES_MAX_CHARS,
 };
 pub use summarizer::{summarize, SummarizerError};
 pub use title::TitleError;

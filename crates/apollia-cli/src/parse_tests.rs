@@ -14,7 +14,7 @@ use crate::commands::a2a::A2aCommand;
 use crate::commands::agent::{AgentCommand, PackageCommand};
 use crate::commands::approvals::ApprovalsCommand;
 use crate::commands::audit::AuditCommand;
-use crate::commands::chat::ChatHygieneCommand;
+use crate::commands::chat::{ChatHygieneCommand, ChatNotesCommand, ChatSettingsCommand};
 use crate::commands::chat_config::ChatConfigCommand;
 use crate::commands::config::ConfigCommand;
 use crate::commands::digest::DigestWindow;
@@ -1079,6 +1079,97 @@ fn test_cli_refuses_chat_capabilities_without_a_session() {
     let parsed = Cli::try_parse_from(["apollia-os", "chat", "capabilities"]);
     // THEN it is refused: the session is required
     assert!(parsed.is_err());
+}
+
+#[test]
+fn test_cli_parses_chat_settings_get_and_set() {
+    // GIVEN "apollia-os chat settings get s-1" and the matching set
+    // WHEN the top-level parser reads each
+    let get = parse(&["apollia-os", "chat", "settings", "get", "s-1"]);
+    let set = parse(&[
+        "apollia-os",
+        "chat",
+        "settings",
+        "set",
+        "s-1",
+        r#"{"max_tokens":256}"#,
+    ]);
+    // THEN each carries its session, and the set its document
+    let Commands::Chat {
+        command: Some(ChatHygieneCommand::Settings { command }),
+        ..
+    } = get.command
+    else {
+        panic!("expected chat settings");
+    };
+    let ChatSettingsCommand::Get { session_id } = command else {
+        panic!("expected chat settings get");
+    };
+    assert_eq!(session_id, "s-1");
+    let Commands::Chat {
+        command: Some(ChatHygieneCommand::Settings { command }),
+        ..
+    } = set.command
+    else {
+        panic!("expected chat settings");
+    };
+    let ChatSettingsCommand::Set {
+        session_id,
+        settings,
+    } = command
+    else {
+        panic!("expected chat settings set");
+    };
+    assert_eq!(session_id, "s-1");
+    assert_eq!(settings, r#"{"max_tokens":256}"#);
+}
+
+#[test]
+fn test_cli_refuses_chat_settings_set_without_a_document() {
+    // GIVEN "apollia-os chat settings set s-1" with no settings
+    // WHEN the top-level parser reads it
+    let parsed = Cli::try_parse_from(["apollia-os", "chat", "settings", "set", "s-1"]);
+    // THEN it is refused: the document is required
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn test_cli_parses_chat_notes_get_and_set() {
+    // GIVEN "apollia-os chat notes get s-1" and the matching set
+    // WHEN the top-level parser reads each
+    let get = parse(&["apollia-os", "chat", "notes", "get", "s-1"]);
+    let set = parse(&[
+        "apollia-os",
+        "chat",
+        "notes",
+        "set",
+        "s-1",
+        "ask about March",
+    ]);
+    // THEN each carries its session, and the set its text
+    let Commands::Chat {
+        command: Some(ChatHygieneCommand::Notes { command }),
+        ..
+    } = get.command
+    else {
+        panic!("expected chat notes");
+    };
+    let ChatNotesCommand::Get { session_id } = command else {
+        panic!("expected chat notes get");
+    };
+    assert_eq!(session_id, "s-1");
+    let Commands::Chat {
+        command: Some(ChatHygieneCommand::Notes { command }),
+        ..
+    } = set.command
+    else {
+        panic!("expected chat notes");
+    };
+    let ChatNotesCommand::Set { session_id, notes } = command else {
+        panic!("expected chat notes set");
+    };
+    assert_eq!(session_id, "s-1");
+    assert_eq!(notes, "ask about March");
 }
 
 // ─── mcp ─────────────────────────────────────────────────────────────────────

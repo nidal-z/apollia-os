@@ -6207,6 +6207,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/{id}/notes`. */
+        get: operations["get_session_notes"];
+        /** Handler for `PUT /api/v1/sessions/{id}/notes`. */
+        put: operations["put_session_notes"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/{id}/settings`. */
+        get: operations["get_session_settings"];
+        /** Handler for `PUT /api/v1/sessions/{id}/settings`. */
+        put: operations["put_session_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7397,6 +7433,11 @@ export interface components {
             /** @description Provider identifier. */
             provider: string;
         };
+        /**
+         * @description What a conversation does when it reaches the context limit of its model.
+         * @enum {string}
+         */
+        ContextOverflowSetting: "summarize_middle" | "sliding_window" | "stop_at_limit";
         /** @description Whether the last answer of a conversation can be continued. */
         Continuation: {
             /** @description `true` when the model of the conversation continues an answer. */
@@ -7581,7 +7622,11 @@ export interface components {
              *     the name of a backend. Absent keeps the model of the agent.
              */
             model?: string | null;
-            /** @description Custom system prompt. */
+            /**
+             * @description Instructions of the conversation, added to the mission of its agent and
+             *     never in its place: 4000 characters at most. Read back as
+             *     `settings.instructions`.
+             */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
             tools?: string[];
@@ -10626,6 +10671,57 @@ export interface components {
             /** @description Whether the model reads images. */
             vision: boolean;
         };
+        /** @description The notes of a conversation, as `GET` answers them and `PUT` takes them. */
+        SessionNotes: {
+            /**
+             * @description Free text the user keeps beside the conversation. It is never sent to
+             *     a model.
+             */
+            notes: string;
+        };
+        /**
+         * @description The settings of one conversation. Every field is optional: one left out
+         *     is inherited from the agent. An unknown field is refused.
+         */
+        SessionSettings: {
+            context_overflow?: null | components["schemas"]["ContextOverflowSetting"];
+            /** @description Accesses of the agent switched off for this conversation. */
+            disabled_accesses?: string[];
+            /** @description Instructions added to the mission of the agent for this conversation. */
+            instructions?: string | null;
+            /**
+             * Format: int32
+             * @description Upper bound on the length of an answer, in tokens.
+             */
+            max_tokens?: number | null;
+            /**
+             * Format: int64
+             * @description Preset chosen for the conversation, a preset of its model. It takes
+             *     the place of the agent's preset.
+             */
+            preset?: number | null;
+            /**
+             * @description For an installed agent, whether it may read the user profile in this
+             *     conversation, whatever its own profile source says. Left out, the
+             *     source of the agent decides. The profile is read by a tool and never
+             *     placed in the prompt of an installed agent.
+             */
+            profile_access?: boolean | null;
+            /**
+             * @description Accesses the agent does not hold, proposed for this conversation:
+             *     the model may call them and each call asks for consent.
+             */
+            proposed_accesses?: string[];
+            /** @description Level of reasoning (`low`, `medium`, `high`), for a model that reads it. */
+            reasoning_effort?: string | null;
+            /**
+             * Format: float
+             * @description Sampling temperature, between 0 and 2.
+             */
+            temperature?: number | null;
+            /** @description Reasoning on or off, for a model that reads it. */
+            thinking?: boolean | null;
+        };
         /** @description Answer of `GET /api/v1/sessions/{id}/workspace`. */
         SessionWorkspace: {
             /**
@@ -11770,7 +11866,11 @@ export interface components {
              *     default profile.
              */
             profile_id?: string | null;
-            /** @description New system prompt. */
+            /**
+             * @description New instructions of the conversation, added to the mission of its agent:
+             *     4000 characters at most. Written to `settings.instructions`; the other
+             *     settings are left as they are.
+             */
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */
             tools?: string[] | null;
@@ -27017,6 +27117,214 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_session_notes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The notes of the conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionNotes"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    put_session_notes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionNotes"];
+            };
+        };
+        responses: {
+            /** @description The notes as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionNotes"];
+                };
+            };
+            /** @description Unknown field, or notes too long */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings of the conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionSettings"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    put_session_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionSettings"];
+            };
+        };
+        responses: {
+            /** @description The settings as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionSettings"];
+                };
+            };
+            /** @description Unknown field, or a value that cannot be applied */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
             };
         };
     };

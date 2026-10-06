@@ -23,6 +23,7 @@ use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
 use apollia_memory::user_memory::UserMemoryRepository;
+use apollia_oria::context_manager::ContextOverflow;
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
 use apollia_tools::ToolRegistryHandle;
 
@@ -36,6 +37,7 @@ use super::builtin_agent::{ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CON
 use super::extractor::UserMemoryExtractor;
 use super::plan_actor::{spawn_plan_actor, PlanHandle};
 use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApprovalLogEntry};
+use super::session_settings::SessionSettings;
 use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
@@ -266,6 +268,8 @@ mod preferred_backend_tests;
 #[cfg(test)]
 mod profile_tests;
 #[cfg(test)]
+mod session_settings_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod trash_tests;
@@ -274,7 +278,7 @@ pub(in crate::chat::manager) use dispatcher::{
     now_rfc3339, resolve_workspace_for_session, session_to_info,
 };
 pub(in crate::chat::manager) use libre::{
-    accumulate_exchange_metrics, apply_libre_overrides, log_resolution_metadata,
+    accumulate_exchange_metrics, apollia_mission, libre_session_defaults, log_resolution_metadata,
     run_libre_exchange, session_run_grants,
 };
 pub(in crate::chat::manager) use types::{

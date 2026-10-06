@@ -243,7 +243,6 @@ mod tests {
                 id: "s 1".to_owned(),
                 mode: ChatMode::Agent,
                 agent_name: Some("guide".to_owned()),
-                system_prompt: String::new(),
                 status: SessionStatus::Active,
                 history: vec![
                     message("u-1", ChatRole::User, 1),
@@ -263,6 +262,8 @@ mod tests {
                 plan_phase: Default::default(),
                 profile_id: None,
                 use_profile: true,
+                settings: Default::default(),
+                notes: String::new(),
             },
         };
         serde_json::to_value(detail).unwrap()

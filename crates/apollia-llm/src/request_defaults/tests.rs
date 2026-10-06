@@ -369,3 +369,100 @@ fn a_value_the_call_sets_is_never_replaced() {
     assert_eq!(req.top_p, Some(0.8));
     assert_eq!(req.stop, Some(vec!["END".to_string()]));
 }
+
+#[test]
+fn a_conversation_is_a_fourth_level_and_its_preset_takes_the_place_of_the_third() {
+    // GIVEN a Qwen3 model assigned to the agent with a preset of it, a
+    //       package with its own settings, a second preset of the same model
+    //       chosen for one conversation, and settings typed for it
+    let tmp = tempfile::tempdir().unwrap();
+    let db = data_dir_with_qwen3(tmp.path());
+    let of_the_agent = preset(
+        &db,
+        QWEN3_FILE,
+        "precise",
+        RequestSettings {
+            temperature: Some(0.1),
+            min_p: Some(0.2),
+            ..RequestSettings::default()
+        },
+        false,
+    );
+    let of_the_session = preset(
+        &db,
+        QWEN3_FILE,
+        "creative",
+        RequestSettings {
+            temperature: Some(0.9),
+            max_tokens: Some(2048),
+            ..RequestSettings::default()
+        },
+        false,
+    );
+    assign(&db, "notes", QWEN3_FILE, Some(of_the_agent));
+    let router = router(&["other", QWEN3_FILE], "other");
+    let binding = AgentModelBinding::new("notes", None, Some(db))
+        .with_package_request(Some(PackageRequestSettings {
+            temperature: Some(0.4),
+            top_k: Some(64),
+            ..PackageRequestSettings::default()
+        }))
+        .with_session_preset(Some(of_the_session));
+    let session = RequestDefaults {
+        max_tokens: Some(256),
+        ..RequestDefaults::default()
+    };
+
+    // WHEN a call of the conversation resolves its request settings
+    let backend = binding.resolve(&router, None);
+    let levels = binding.request_levels(&router, backend.as_deref());
+    let resolved = levels.resolved_in_session(&session);
+
+    // THEN the conversation sets the length, its preset the temperature, the
+    //      package the top-k, the model the top-p, and the agent's own preset
+    //      sets nothing
+    assert_eq!(resolved.max_tokens, Some(256), "session over its preset");
+    assert_eq!(resolved.temperature, Some(0.9), "session preset is level 3");
+    assert_eq!(resolved.min_p, None, "the agent's preset is replaced");
+    assert_eq!(resolved.top_k, Some(64), "package over model");
+    assert_eq!(resolved.top_p, Some(QWEN3_TOP_P), "model alone");
+}
+
+#[test]
+fn a_session_preset_of_another_model_leaves_the_agents_preset_in_force() {
+    // GIVEN an agent with a preset of its model, and a conversation that
+    //       names a preset of another model
+    let tmp = tempfile::tempdir().unwrap();
+    let db = data_dir_with_qwen3(tmp.path());
+    let of_the_agent = preset(
+        &db,
+        QWEN3_FILE,
+        "precise",
+        RequestSettings {
+            temperature: Some(0.1),
+            ..RequestSettings::default()
+        },
+        false,
+    );
+    let of_another_model = preset(
+        &db,
+        "other",
+        "creative",
+        RequestSettings {
+            temperature: Some(0.9),
+            ..RequestSettings::default()
+        },
+        false,
+    );
+    assign(&db, "notes", QWEN3_FILE, Some(of_the_agent));
+    let router = router(&["other", QWEN3_FILE], "other");
+    let binding =
+        AgentModelBinding::new("notes", None, Some(db)).with_session_preset(Some(of_another_model));
+
+    // WHEN a call resolves its request settings on the agent's model
+    let backend = binding.resolve(&router, None);
+    let resolved = binding.request_defaults(&router, backend.as_deref());
+
+    // THEN the agent's preset applies
+    assert_eq!(resolved.temperature, Some(0.1));
+}

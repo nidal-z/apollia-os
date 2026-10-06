@@ -617,6 +617,9 @@ impl BuiltInChatAgent {
                 }
             }
             ToolDecision::AlwaysAccept => {
+                if self.always_holds_for_run(call, asked.family) {
+                    acc.authorized.insert(call.name.clone());
+                }
                 if asked.always_offered && is_code_call(call, asked.family) {
                     self.allow_command_for_good(call).await;
                 } else if asked.always_offered {

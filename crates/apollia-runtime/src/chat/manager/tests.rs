@@ -407,7 +407,6 @@ async fn test_resolve_tool_approval() {
         id: "sess-1".into(),
         mode: ChatMode::Libre,
         agent_name: None,
-        system_prompt: String::new(),
         status: SessionStatus::Processing,
         history: vec![],
         authorized_tools: std::collections::HashSet::new(),
@@ -422,6 +421,8 @@ async fn test_resolve_tool_approval() {
         plan_phase: PlanPhase::Done,
         profile_id: None,
         use_profile: true,
+        settings: crate::chat::SessionSettings::default(),
+        notes: String::new(),
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -493,7 +494,6 @@ async fn test_always_accept_grants_no_tool_by_name() {
         id: "sess-1".into(),
         mode: ChatMode::Libre,
         agent_name: None,
-        system_prompt: String::new(),
         status: SessionStatus::Processing,
         history: vec![],
         authorized_tools: std::collections::HashSet::new(),
@@ -508,6 +508,8 @@ async fn test_always_accept_grants_no_tool_by_name() {
         plan_phase: PlanPhase::Done,
         profile_id: None,
         use_profile: true,
+        settings: crate::chat::SessionSettings::default(),
+        notes: String::new(),
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -991,7 +993,6 @@ pub(super) fn manager_with_session_in_phase(
         id: "sess-1".into(),
         mode: ChatMode::Libre,
         agent_name: None,
-        system_prompt: String::new(),
         status: SessionStatus::Active,
         history: vec![],
         authorized_tools: std::collections::HashSet::new(),
@@ -1006,6 +1007,8 @@ pub(super) fn manager_with_session_in_phase(
         plan_phase: phase,
         profile_id: None,
         use_profile: true,
+        settings: crate::chat::SessionSettings::default(),
+        notes: String::new(),
     };
     manager.sessions.insert("sess-1".into(), session);
     (manager, event_rx)

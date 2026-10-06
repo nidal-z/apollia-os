@@ -435,6 +435,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(conversations_router::<B>())
         .merge(crate::api::routes_chat::trash::trash_router::<B>())
         .merge(crate::api::routes_chat::folders::folders_router::<B>())
+        .merge(crate::api::routes_chat::settings::settings_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())
         .merge(crate::api::routes_policy::policy_router::<B>())

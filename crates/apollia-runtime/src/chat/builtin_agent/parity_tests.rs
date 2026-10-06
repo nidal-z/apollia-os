@@ -213,7 +213,10 @@ async fn test_chat_agent_compacts_its_buffer_and_emits_context_compacted() {
     ];
 
     // WHEN the loop's compaction step runs on it
-    let compacted = agent.maybe_compact_context(&mut messages, "s1", 0).await;
+    let compacted = agent
+        .maybe_compact_context(&mut messages, "s1", 0)
+        .await
+        .expect("summarizing never refuses");
 
     // THEN the buffer shrinks, the current request is still last, and the
     // compaction is published with the original message count
@@ -255,7 +258,10 @@ async fn test_chat_agent_below_threshold_leaves_buffer_untouched() {
     ];
 
     // WHEN the compaction step runs
-    let compacted = agent.maybe_compact_context(&mut messages, "s1", 0).await;
+    let compacted = agent
+        .maybe_compact_context(&mut messages, "s1", 0)
+        .await
+        .expect("summarizing never refuses");
 
     // THEN nothing changes and nothing is published
     assert!(!compacted);

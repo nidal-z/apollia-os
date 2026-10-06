@@ -30,7 +30,9 @@ use crate::coordinator::ExecutionBackend;
 /// value.
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateSessionBody {
-    /// New system prompt.
+    /// New instructions of the conversation, added to the mission of its agent:
+    /// 4000 characters at most. Written to `settings.instructions`; the other
+    /// settings are left as they are.
     pub system_prompt: Option<String>,
     /// New list of tools available in the session.
     pub tools: Option<Vec<String>>,

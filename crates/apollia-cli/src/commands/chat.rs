@@ -25,6 +25,9 @@ mod slash;
 pub use hygiene::run_hygiene;
 mod capabilities;
 mod hygiene;
+mod settings;
+
+pub use settings::{ChatNotesCommand, ChatSettingsCommand};
 
 use session::{run_list, run_new_session, run_resume};
 
@@ -97,6 +100,21 @@ pub enum ChatHygieneCommand {
     Capabilities {
         /// Session id.
         session_id: String,
+    },
+
+    /// Read or replace what one conversation changes from its agent: its
+    /// request settings, its instructions, the accesses it switches off.
+    Settings {
+        /// Settings subcommand.
+        #[command(subcommand)]
+        command: ChatSettingsCommand,
+    },
+
+    /// Read or replace the notes kept beside one conversation.
+    Notes {
+        /// Notes subcommand.
+        #[command(subcommand)]
+        command: ChatNotesCommand,
     },
 
     /// Manage the Chat Libre configuration (system prompt, allowed tools, backend).
