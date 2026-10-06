@@ -5351,5 +5351,88 @@
       "journal_unsigned": "The journal opened without its signing key",
       "journal_export_failed": "The daily export of the journal failed"
     }
+  },
+  "batch_launch": {
+    "action": "Process a batch",
+    "chat_action": "Process each row",
+    "title": "Process a batch with “{name}”",
+    "title_no_agent": "Process a batch",
+    "legend": "The agent receives the items of the source one at a time. Each item is a request of its own.",
+    "agent": {
+      "title": "Agent",
+      "choose": "Choose an agent"
+    },
+    "source": {
+      "title": "Source",
+      "change": "Change source",
+      "pick_file": "Choose a file…",
+      "file_filter": "Excel or CSV file",
+      "unread_only": "Unread messages only",
+      "unreadable": "The sources could not be read: {reason}",
+      "blocked": {
+        "folder_unread": "A batch does not read a folder file by file yet.",
+        "file_not_table": "This file is neither a workbook nor a CSV file.",
+        "mailbox_unknown": "This mailbox is not attached to a connection a batch can read."
+      }
+    },
+    "family": {
+      "table": {
+        "name": "Excel or CSV file",
+        "item": "A row of the workbook becomes an item",
+        "none": "No file among your sources. Choose one on this computer."
+      },
+      "folder": {
+        "name": "Folder",
+        "item": "A file of the folder becomes an item",
+        "none": "No folder among your sources."
+      },
+      "mail": {
+        "name": "Mailbox",
+        "item": "A received message becomes an item",
+        "none": "No mailbox among your sources."
+      }
+    },
+    "results": {
+      "title": "Results",
+      "copy": "In a copy of the file, with the agent's columns",
+      "original": "In the original file, after a backup",
+      "original_unavailable": "The original file can be modified for an .xlsx or .xlsm workbook only.",
+      "columns": "Columns added",
+      "columns_hint": "One column per field the agent returns, comma separated: for example Category, Urgency. An answer without fields goes whole into the first.",
+      "default_column": "Result"
+    },
+    "accesses": {
+      "title": "Accesses to grant for the duration of the batch",
+      "none": "None: this agent asks for no sensitive access.",
+      "no_agent": "Choose an agent to see its sensitive accesses.",
+      "rule": "Granted until the batch ends, then withdrawn. Without a grant, the item concerned waits for your decision in To review, and the batch goes on.",
+      "asked_each_time": "Asked at every use: no batch grant covers it.",
+      "family": {
+        "read_personal": "Read personal data",
+        "write_or_delete": "Write or delete",
+        "send_external": "Send outside",
+        "execute_code": "Execute code",
+        "unclassified": "Unclassified access"
+      }
+    },
+    "threshold": {
+      "title": "Failure threshold",
+      "label": "Interrupt the batch after",
+      "failures": "{count} failures",
+      "never": "Never interrupt",
+      "hint": "By default, the batch is interrupted after 10 failures. Failed items stay ready to be run again."
+    },
+    "refusal": {
+      "agent_missing": "Choose an agent: the batch does not start without one.",
+      "source_missing": "Choose a source: the batch does not start without one.",
+      "source_blocked": "A batch cannot read this source.",
+      "columns_missing": "Name at least one column for the results.",
+      "columns_duplicate": "Two result columns share the same name.",
+      "columns_too_many": "A batch adds 32 columns at most."
+    },
+    "ready": "The items will be handed to the agent, one at a time.",
+    "confirm": "Launch the batch",
+    "launching": "Launching…",
+    "launched": "Batch launched: {count, plural, one {# item} other {# items}}."
   }
 }

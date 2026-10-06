@@ -44,6 +44,7 @@
   import MentionResourceMenu from "./MentionResourceMenu.svelte";
   import PinnedResourceChip from "./PinnedResourceChip.svelte";
   import AttachmentChip from "./AttachmentChip.svelte";
+  import ChatBatchOffer from "../batch/ChatBatchOffer.svelte";
   import InputHints from "./InputHints.svelte";
   import ChatComposerToolbar from "./ChatComposerToolbar.svelte";
 
@@ -78,6 +79,8 @@
      * profile that conversation designates; without it, the default profile.
      */
     sessionId?: string | null;
+    /** The agent of the conversation, which a batch on a joined file runs. */
+    agentName?: string | null;
   }
 
   let {
@@ -94,6 +97,7 @@
     planDisabled = false,
     imageSupport = null,
     sessionId = null,
+    agentName = null,
   }: Props = $props();
 
   const DEFAULT_SUGGESTION_KEYS = [
@@ -639,6 +643,7 @@
             onremove={() => attachments.remove(att.id)}
           />
         {/each}
+        <ChatBatchOffer attachments={attachments.items} {agentName} />
       </div>
     {/if}
 

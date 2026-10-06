@@ -782,6 +782,7 @@
       planDisabled={sessionStatus === "closed"}
       imageSupport={images.value}
       {sessionId}
+      agentName={sessionAgentName}
     />
   {/if}
 </div>

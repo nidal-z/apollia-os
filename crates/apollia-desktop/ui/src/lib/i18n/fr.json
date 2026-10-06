@@ -5351,5 +5351,88 @@
       "journal_unsigned": "Le journal s'est ouvert sans sa clé de signature",
       "journal_export_failed": "L'export quotidien du journal a échoué"
     }
+  },
+  "batch_launch": {
+    "action": "Traiter un lot",
+    "chat_action": "Traiter chaque ligne",
+    "title": "Traiter un lot avec « {name} »",
+    "title_no_agent": "Traiter un lot",
+    "legend": "L'agent reçoit les éléments de la source un par un. Chaque élément est une demande à part entière.",
+    "agent": {
+      "title": "Agent",
+      "choose": "Choisir un agent"
+    },
+    "source": {
+      "title": "Source",
+      "change": "Changer de source",
+      "pick_file": "Choisir un fichier…",
+      "file_filter": "Fichier Excel ou CSV",
+      "unread_only": "Messages non lus seulement",
+      "unreadable": "Les sources n'ont pas pu être lues : {reason}",
+      "blocked": {
+        "folder_unread": "Un lot ne lit pas encore un dossier fichier par fichier.",
+        "file_not_table": "Ce fichier n'est ni un classeur ni un CSV.",
+        "mailbox_unknown": "Cette boîte mail n'est pas rattachée à une connexion lisible."
+      }
+    },
+    "family": {
+      "table": {
+        "name": "Fichier Excel ou CSV",
+        "item": "Une ligne du classeur devient un élément",
+        "none": "Aucun fichier parmi vos sources. Choisissez-en un sur ce poste."
+      },
+      "folder": {
+        "name": "Dossier",
+        "item": "Un fichier du dossier devient un élément",
+        "none": "Aucun dossier parmi vos sources."
+      },
+      "mail": {
+        "name": "Boîte mail",
+        "item": "Un message reçu devient un élément",
+        "none": "Aucune boîte mail parmi vos sources."
+      }
+    },
+    "results": {
+      "title": "Résultats",
+      "copy": "Dans une copie du fichier, avec les colonnes de l'agent",
+      "original": "Dans le fichier d'origine, après une sauvegarde",
+      "original_unavailable": "Le fichier d'origine ne peut être modifié que pour un classeur .xlsx ou .xlsm.",
+      "columns": "Colonnes ajoutées",
+      "columns_hint": "Une colonne par champ que l'agent rend, séparées par des virgules : par exemple Catégorie, Urgence. Une réponse sans champ va entière dans la première.",
+      "default_column": "Résultat"
+    },
+    "accesses": {
+      "title": "Accès à accorder pour la durée du lot",
+      "none": "Aucun : cet agent ne demande aucun accès sensible.",
+      "no_agent": "Choisissez un agent pour voir ses accès sensibles.",
+      "rule": "Accordés jusqu'à la fin du lot, puis retirés. Sans accord, l'élément concerné attend votre décision dans À valider, et le lot continue.",
+      "asked_each_time": "Demandé à chaque usage : aucun accord de lot ne le couvre.",
+      "family": {
+        "read_personal": "Lire des données personnelles",
+        "write_or_delete": "Écrire ou supprimer",
+        "send_external": "Envoyer vers l'extérieur",
+        "execute_code": "Exécuter du code",
+        "unclassified": "Accès non classé"
+      }
+    },
+    "threshold": {
+      "title": "Seuil d'échecs",
+      "label": "Interrompre le lot après",
+      "failures": "{count} échecs",
+      "never": "Ne jamais interrompre",
+      "hint": "Par défaut, le lot s'interrompt après 10 échecs. Les éléments en échec restent prêts à être relancés."
+    },
+    "refusal": {
+      "agent_missing": "Choisissez un agent : le lot ne part pas sans lui.",
+      "source_missing": "Choisissez une source : le lot ne part pas sans elle.",
+      "source_blocked": "Cette source ne peut pas être lue par un lot.",
+      "columns_missing": "Nommez au moins une colonne pour les résultats.",
+      "columns_duplicate": "Deux colonnes de résultats portent le même nom.",
+      "columns_too_many": "Un lot ajoute 32 colonnes au plus."
+    },
+    "ready": "Les éléments seront confiés à l'agent, un par un.",
+    "confirm": "Lancer le lot",
+    "launching": "Lancement…",
+    "launched": "Lot lancé : {count, plural, one {# élément} other {# éléments}}."
   }
 }

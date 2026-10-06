@@ -1,0 +1,463 @@
+{
+  "name": "batch-launch-det (the launch dialog of a batch opened from the sheet of an agent: refused without a source, an empty registry, sources and accesses unreadable, a folder listed with its reason, a CSV source with its copy and columns, a file picked, a mailbox, a launch refused then accepted)",
+  "notes": [
+    "The stubs imitate SourceResponse (GET /api/v1/sources), BatchAccess (GET /api/v1/batches/accesses) and BatchView (POST /api/v1/batches). The offer on a file dropped in the chat is not played: only a desktop drop carries the path of a file, and the runner builds its files in the webview."
+  ],
+  "stopOnError": false,
+  "dynamicTestids": [
+    "batch-launch-family-table",
+    "batch-launch-family-folder",
+    "batch-launch-family-mail"
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batch_sources",
+      "resolve": []
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batch_accesses",
+      "resolve": []
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-batch-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-batch-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-title"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-source"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-accesses"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-accesses-none",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-refusal"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-threshold"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-confirm"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-launch-refused-without-a-source"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-family-folder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-registry",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-registry-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_batch_sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_batch_accesses"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batch_sources",
+      "reject": "API error (503): source registry not available"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batch_accesses",
+      "reject": "API error (400): the agent cannot run a batch"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-batch-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-sources-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-accesses-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-sources-and-accesses-unreadable"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_batch_sources"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_batch_accesses"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batch_sources",
+      "resolve": [
+        {
+          "id": "s-1",
+          "kind": "file",
+          "label": "Requests",
+          "group": null,
+          "reference": "${HOME}/requests.csv",
+          "indexState": "absent",
+          "addedAt": "2026-10-01T09:00:00Z"
+        },
+        {
+          "id": "s-2",
+          "kind": "folder",
+          "label": "Clients",
+          "group": null,
+          "reference": "conn-folder-1",
+          "indexState": "ready",
+          "addedAt": "2026-10-01T09:00:00Z"
+        },
+        {
+          "id": "s-3",
+          "kind": "mail",
+          "label": "Support",
+          "group": null,
+          "reference": "imap:support@example.org",
+          "indexState": "absent",
+          "addedAt": "2026-10-01T09:00:00Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batch_accesses",
+      "resolve": [
+        {
+          "accessId": "send_email",
+          "permits": "Send an email",
+          "family": "send_external",
+          "grantable": true
+        },
+        {
+          "accessId": "run_python",
+          "permits": "Run a script",
+          "family": "execute_code",
+          "grantable": false
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "agent-batch-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-access",
+      "timeoutMs": 4000,
+      "contains": "Send an email"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-access-asked",
+      "contains": "Run a script"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-family-folder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-source-option",
+      "timeoutMs": 4000,
+      "contains": "Clients"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-source-blocked"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-folder-listed-not-read"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-family-table"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-source-option",
+      "timeoutMs": 4000,
+      "contains": "Requests"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-pick-file"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-source-option"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-source-chosen",
+      "timeoutMs": 4000,
+      "contains": "requests.csv"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-results"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-destination-copy"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-destination-original"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-original-unavailable"
+    },
+    {
+      "kind": "fill",
+      "testid": "batch-launch-columns",
+      "text": "Category, Urgency"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-access-grant"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "batch-launch-threshold",
+      "value": "never"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-table-source-copy-and-columns"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-source-change"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-launch-source-chosen",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/requests.xlsx",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-pick-file"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-source-chosen",
+      "timeoutMs": 4000,
+      "contains": "requests.xlsx"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-launch-original-unavailable",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-destination-original"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-source-change"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-family-mail"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-source-option",
+      "timeoutMs": 4000,
+      "contains": "Support"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-source-option"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-unread-only",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-unread-only"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-launch-results",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "launch_batch",
+      "reject": "API error (422): the source could not be read",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-error",
+      "timeoutMs": 4000,
+      "contains": "could not be read"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-launch-refused-by-the-runtime"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "launch_batch",
+      "resolve": {
+        "batchId": "b-1",
+        "agent": "triage",
+        "source": {},
+        "grants": [
+          "send_email"
+        ],
+        "concurrency": 1,
+        "maxFailures": 4294967295,
+        "state": "running",
+        "total": 3,
+        "completed": 0,
+        "failed": 0,
+        "canceled": 0,
+        "awaiting": 0,
+        "createdAt": "2026-10-05T09:00:00Z",
+        "updatedAt": "2026-10-05T09:00:00Z",
+        "endedAt": null
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 8000
+    }
+  ]
+}
