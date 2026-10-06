@@ -14,6 +14,7 @@
 //! registered command.
 
 mod client;
+mod dictation;
 mod error;
 mod proxy;
 mod relay;
@@ -76,6 +77,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_targets",
     // The model calls behind the total of one answer.
     "list_turn_llm_calls",
+    // The settings of a conversation, its notes, and the preset its
+    // settings are kept as.
+    "create_model_preset",
+    "get_chat_session_notes",
+    "get_chat_session_settings",
+    "set_chat_session_notes",
+    "set_chat_session_settings",
     // The chat: a turn played again, a decision on a tool call, and the
     // skills of the worker agents.
     "authorize_chat_tool",
@@ -660,41 +668,6 @@ where
     }
 }
 
-/// Arms the dictation of this window against the daemon: the microphone is
-/// the one of this machine, the engine and the history the daemon's, the
-/// thresholds its configuration, read once when the window attaches. Nothing
-/// is armed while the daemon has dictation off, as in the embedded mode.
-async fn arm_dictation(
-    app: tauri::AppHandle,
-    client: AttachedClient,
-    bus: EventBusSender,
-    state: crate::commands::stt::SttFlowState,
-) {
-    let config: apollia_core::SttConfigRow = match client.get("/api/v1/stt/config").await {
-        Ok(config) => config,
-        Err(error) => {
-            tracing::event!(
-                tracing::Level::WARN,
-                error = %error,
-                "desktop.attached.dictation_unarmed"
-            );
-            return;
-        }
-    };
-    if !config.enabled {
-        return;
-    }
-    let flow = crate::stt::flow::SttFlow::new(
-        config,
-        crate::stt::transcriber::Transcriber::Daemon(client),
-        bus,
-        app,
-    );
-    if let Ok(mut guard) = state.lock() {
-        *guard = Some(std::sync::Arc::new(flow));
-    }
-}
-
 /// Runs the application attached to the daemon serving `port`, and never
 /// returns.
 ///
@@ -750,7 +723,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
             crate::events::spawn_event_bridge(app.handle().clone(), setup_bus.clone());
             relay::spawn_event_relay(setup_client.clone(), setup_bus.clone());
             relay::spawn_liveness(app.handle().clone(), setup_client.clone());
-            tauri::async_runtime::spawn(arm_dictation(
+            tauri::async_runtime::spawn(dictation::arm(
                 app.handle().clone(),
                 setup_client.clone(),
                 setup_bus.clone(),

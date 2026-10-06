@@ -22,6 +22,7 @@ pub mod folders;
 pub mod images;
 pub mod naming;
 mod remote;
+pub mod settings;
 pub mod targets;
 pub mod trash;
 pub mod turn_calls;

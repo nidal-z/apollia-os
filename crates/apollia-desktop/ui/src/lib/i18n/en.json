@@ -3575,8 +3575,6 @@
     "status_active": "Active",
     "status_closed": "Closed",
     "message_count": "{n, plural, =0 {no messages} one {# message} other {# messages}}",
-    "system_prompt": "Instructions",
-    "system_prompt_placeholder": "Instructions for the LLM...",
     "input_placeholder": "Type your message...",
     "placeholder_suggestions": {
       "s1": "Ask the agent to summarise the last run...",
@@ -3591,21 +3589,11 @@
     },
     "config_title": "Configuration",
     "config_save": "Apply",
-    "step_budget_label": "Step budget",
-    "step_budget_placeholder": "Runtime default",
-    "step_budget_hint": "Maximum reasoning steps per turn (1–200). Leave empty to use the runtime default.",
     "config": {
       "profile_label": "Conversation profile",
       "profile_default": "Default profile ({name})",
       "profile_default_unnamed": "Default profile",
-      "profile_hint": "Left empty, the conversation follows your default profile, even when it changes.",
-      "errors": {
-        "llm_required": "Select an LLM provider before saving.",
-        "system_prompt_too_long": "System prompt is too long (max 4000 characters).",
-        "step_budget_invalid": "Step budget must be a whole number.",
-        "step_budget_positive": "Step budget must be greater than zero.",
-        "step_budget_too_large": "Step budget cannot exceed 200."
-      }
+      "profile_hint": "Left empty, the conversation follows your default profile, even when it changes."
     },
     "tool_collapse": "collapse",
     "authorize_tool": "Authorize execution of",
@@ -3618,8 +3606,6 @@
     "ask_user_pending": "Pending…",
     "you": "You",
     "assistant": "Assistant",
-    "config_provider": "AI Model",
-    "config_no_providers": "No models loaded",
     "delete_session": "Delete",
     "generation": {
       "label": "Generation info",
@@ -4018,6 +4004,95 @@
       "in_messages": "In the messages",
       "pending": "Searching the messages...",
       "failed": "The search in the messages did not go through."
+    },
+    "session_panel": {
+      "integrations": "Integrations",
+      "settings": "Settings"
+    },
+    "session_settings": {
+      "revert_to_preset": "Back to the preset",
+      "revert_to_default": "Back to the default",
+      "preset": {
+        "title": "Preset",
+        "none": "No preset (the agent's settings)",
+        "hint": "A preset keeps the temperature and the answer length for this model.",
+        "modified": "Modified",
+        "differs": "Differs from the preset: {fields}",
+        "field_temperature": "temperature",
+        "field_max_tokens": "answer length",
+        "discard": "Discard changes",
+        "menu": "Preset actions",
+        "new": "New preset",
+        "import": "Import a preset",
+        "save_as": "Save as preset",
+        "saved": "Preset \"{name}\" saved",
+        "name_label": "Preset name",
+        "create": "Create",
+        "error_not_json": "This file is not a readable JSON file.",
+        "error_not_a_preset": "This file does not describe a preset: it needs a name, and settings written as objects.",
+        "error_no_model": "No model is chosen for this conversation: choose one to use a preset.",
+        "error_refused": "The preset was not created: {reason}"
+      },
+      "instructions": {
+        "title": "Conversation instructions",
+        "placeholder": "For example: answer in one sentence.",
+        "count": "{count} / {max} characters.",
+        "help": "They are added to the agent's mission, without replacing it, for this conversation only.",
+        "too_long": "The instructions are too long: they are not saved."
+      },
+      "reasoning": {
+        "title": "Reasoning",
+        "thinking": "Think before answering",
+        "effort": "Reasoning level",
+        "effort_default": "Default",
+        "effort_low": "Low",
+        "effort_medium": "Medium",
+        "effort_high": "High",
+        "scope": "Holds for this conversation only."
+      },
+      "response": {
+        "title": "Answer",
+        "summary": "Temperature {temperature} · length {length} · {overflow}",
+        "by_default": "default",
+        "length_free": "free",
+        "temperature": "Temperature",
+        "temperature_hint": "Low, answers are more regular; high, they are more varied.",
+        "limit_length": "Limit the answer length",
+        "length_unit": "tokens at most",
+        "overflow": "When the conversation reaches the model's limit",
+        "overflow_summarize_middle": "Summarize the middle",
+        "overflow_sliding_window": "Sliding window",
+        "overflow_stop_at_limit": "Stop at the limit",
+        "overflow_summarize_middle_help": "The oldest exchanges are summarized; the start and the end of the conversation stay as they are. This is the default.",
+        "overflow_sliding_window_help": "The oldest messages leave the conversation sent to the model, without a summary.",
+        "overflow_stop_at_limit_help": "The message is refused once the limit is reached: branch off from an earlier message, or open a new conversation."
+      },
+      "notes": {
+        "title": "Conversation notes",
+        "empty": "Empty",
+        "placeholder": "Your notes on this conversation.",
+        "saved": "Saved.",
+        "saving": "Saving…"
+      },
+      "apply": {
+        "action": "Apply to the agent",
+        "no_model": "No model is chosen for this conversation: there is nothing to apply to the agent.",
+        "title": "Apply to the agent {agent}",
+        "receives": "The agent will receive:",
+        "model": "the model of this conversation: {model}",
+        "preset_created": "a new preset, with the settings of this conversation",
+        "preset_existing": "the preset \"{preset}\"",
+        "preset_none": "no preset: the model's default settings",
+        "temperature": "temperature: {value}",
+        "max_tokens": "answer length: {value} tokens at most",
+        "not_applied": "Reasoning, the context limit and the notes stay with this conversation.",
+        "preset_name": "Preset of {agent}",
+        "add_instructions": "Also add the conversation instructions at the end of the agent's mission",
+        "mission_after": "Resulting mission",
+        "mission_unchanged": "The agent's mission, unchanged",
+        "confirm": "Apply",
+        "done": "Settings applied to the agent {agent}"
+      }
     }
   },
   "transcriptions": {

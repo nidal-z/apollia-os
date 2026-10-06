@@ -171,9 +171,9 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   list). Fold one into `master-det` by adding it to `ORDER`
   and re-running `regen_master.py --write`, after its first green solo run.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
-  config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,
+  config, plan mode, ask_user), `hitl-critical`, `coach-llm`,
   `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, and `master-llm` (an
-  aggregate of chat/hitl/coach, 197 steps).
+  aggregate of chat/hitl/coach, 192 steps).
 
 The whole corpus was last run green on 2026-07-28 against the redesigned UI:
 14 suites, 3056 steps, 0 failures. The LLM ones ran on

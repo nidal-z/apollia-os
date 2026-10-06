@@ -17,7 +17,8 @@
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
-  import ChatConfigPanelBody from "../components/chat/ChatConfigPanelBody.svelte";
+  import ChatIntegrationsTab from "../components/chat/ChatIntegrationsTab.svelte";
+  import SessionSettingsTab from "../components/chat/settings/SessionSettingsTab.svelte";
   import {
     decoratedSessions,
     markSessionRead,
@@ -72,13 +73,13 @@
   // The journal follows the developer mode: the technical reading when it
   // is on, the plain one otherwise. There is no per-screen switch.
   const journalMode = $derived<JournalMode>($developerMode ? "builder" : "operator");
-  let railTab = $state<"journal" | "plan" | "config">("journal");
+  let railTab = $state<"journal" | "plan" | "integrations" | "settings">("journal");
 
-  // Open the inspector on the Config tab (from a row "..." action or the header
-  // gear). The config panel reads the active session via `currentSession`.
+  // Open the inspector on the Settings tab (from a row "..." action or the
+  // header gear). The tab reads the active session via `currentSession`.
   function openConfig(sessionId?: string): void {
     if (sessionId && sessionId !== selectedSessionId) navigateToSession(sessionId);
-    railTab = "config";
+    railTab = "settings";
     contextDrawerOpen.set(true);
   }
 
@@ -651,26 +652,42 @@
         <button
           type="button"
           role="tab"
-          aria-selected={railTab === "config"}
-          class="rounded px-2 py-0.5 transition-colors {railTab === 'config'
+          aria-selected={railTab === "integrations"}
+          class="rounded px-2 py-0.5 transition-colors {railTab === 'integrations'
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:text-foreground'}"
-          onclick={() => (railTab = "config")}
-          data-testid="chat-inspector-config-tab"
+          onclick={() => (railTab = "integrations")}
+          data-testid="chat-inspector-integrations-tab"
         >
-          {$t("chat.config_title")}
+          {$t("chat.session_panel.integrations")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={railTab === "settings"}
+          class="rounded px-2 py-0.5 transition-colors {railTab === 'settings'
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:text-foreground'}"
+          onclick={() => (railTab = "settings")}
+          data-testid="chat-inspector-settings-tab"
+        >
+          {$t("chat.session_panel.settings")}
         </button>
       </div>
     </div>
 
-    {#if railTab === "config"}
-      <div class="min-h-0 flex-1 overflow-y-auto" data-testid="chat-inspector-config">
+    {#if railTab === "integrations" || railTab === "settings"}
+      <div class="min-h-0 flex-1 overflow-hidden" data-testid="chat-inspector-session">
         {#if $currentSession && $currentSession.id === selectedSessionId}
-          <ChatConfigPanelBody
-            session={$currentSession}
-            showHeader={false}
-            onupdated={() => {}}
-          />
+          {#if railTab === "integrations"}
+            <ChatIntegrationsTab
+              session={$currentSession}
+              showHeader={false}
+              onupdated={() => {}}
+            />
+          {:else}
+            <SessionSettingsTab session={$currentSession} />
+          {/if}
         {:else}
           <div class="px-4 py-6 text-center text-caption text-muted-foreground">
             {$t("chat.subtitle")}
