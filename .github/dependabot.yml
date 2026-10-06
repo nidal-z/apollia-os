@@ -1,11 +1,11 @@
-# Dependency updates for a single maintainer.
+# Dependency updates, grouped so they stay reviewable.
 #
 # The lever that matters here is not the schedule, it is the grouping. Ungrouped,
 # the four ecosystems below can open thirty pull requests in one Monday morning
-# (10 + 5 + 10 and the default 5 on github-actions), which is a week of review
-# for one person. Grouped, each ecosystem opens one pull request per week for its
-# minor and patch bumps; a major version still arrives on its own, because that
-# is the one that needs reading.
+# (10 + 5 + 10 and the default 5 on github-actions), more than the maintainers
+# can read with care. Grouped, each ecosystem opens one pull request per week for
+# its minor and patch bumps; a major version still arrives on its own, because
+# that is the one that needs reading.
 version: 2
 
 updates:

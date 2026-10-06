@@ -1,8 +1,7 @@
 <!--
-Heads-up: Apollia OS is single-maintainer. Pull
-requests are auto-closed by policy. Please open an issue instead so we can
-discuss the change first. Thank you for your interest.
-See CONTRIBUTING.md for the full rationale.
+Heads-up: read CONTRIBUTING.md before opening this pull request. It states
+the project's pull request policy and the channel to use for a bug, a feature
+idea or a question. Thank you for your interest.
 -->
 
 ## Summary

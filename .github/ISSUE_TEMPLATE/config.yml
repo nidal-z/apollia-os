@@ -10,8 +10,8 @@ contact_links:
     about: |
       Please report security vulnerabilities privately through GitHub Security
       Advisories rather than as a public issue.
-  - name: Documentation site
-    url: https://apollia.fr
+  - name: Documentation
+    url: https://docs.apollia.fr
     about: |
-      The project website with the public book, examples, and contact
-      information.
+      Installation, configuration, the SDK contract and the command-line
+      reference. Most usage questions are answered there.

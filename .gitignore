@@ -11,6 +11,11 @@
 # Cargo.lock - omitted for binaries (kept for libraries)
 # Cargo.lock
 
+# Per-machine and per-session overrides of the agent rulebook (see the
+# Overrides section of AGENTS.md). Never committed.
+AGENTS.local.md
+AGENTS.override.md
+
 # Environnement
 .env
 .env.local
