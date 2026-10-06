@@ -6,6 +6,47 @@
  * omits `usage`) must read as "unknown", never as a fake percentage.
  */
 
+/** What the gauge says when hovered, in tokens. */
+export interface ContextGaugeDetail {
+  /** Tokens the conversation occupies in the context. */
+  used: number;
+  /** Tokens the loaded context holds. */
+  window: number;
+  /** Share of the context in use, a whole percentage clamped to 100. */
+  pct: number;
+  /** Tokens left before the context is full, never negative. */
+  remaining: number;
+}
+
+/**
+ * The detail behind the gauge, `null` when the backend reports no context
+ * window: there is then nothing measured to detail.
+ */
+export function contextGaugeDetail(
+  windowTokens: number,
+  usedTokens: number,
+): ContextGaugeDetail | null {
+  if (windowTokens <= 0) return null;
+  return {
+    used: usedTokens,
+    window: windowTokens,
+    pct: Math.round(contextPct(windowTokens, usedTokens)),
+    remaining: Math.max(0, windowTokens - usedTokens),
+  };
+}
+
+/** From this share on, the gauge warns that the context is nearly full. */
+export const CONTEXT_GAUGE_HIGH_PCT = 90;
+
+/**
+ * The dash offset that draws `pct` percent of a ring of `circumference`: the
+ * whole circumference for an empty ring, zero for a full one.
+ */
+export function ringDashOffset(pct: number, circumference: number): number {
+  const share = Math.min(100, Math.max(0, pct)) / 100;
+  return circumference * (1 - share);
+}
+
 /** Context occupancy in percent, clamped to 100. Zero when the window is unknown. */
 export function contextPct(windowTokens: number, usedTokens: number): number {
   return windowTokens > 0

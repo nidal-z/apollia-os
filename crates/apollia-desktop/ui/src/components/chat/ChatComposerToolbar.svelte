@@ -2,8 +2,9 @@
   The gutter under the composer textarea.
 
   Secondary actions on the left (plan toggle, attach, dictate, rewrite, the two
-  menu triggers), send or stop anchored right. It owns no state: every control
-  reports to the composer, which holds the text buffer and the controllers.
+  menu triggers), then the chips of what the model can do; the context gauge
+  and send or stop anchored right. It owns no state: every control reports to
+  the composer, which holds the text buffer and the controllers.
 -->
 <script lang="ts">
   import { t } from "svelte-i18n";
@@ -20,6 +21,9 @@
     Loader2,
     Undo2,
   } from "lucide-svelte";
+  import type { ChatModelCapabilities } from "$lib/types";
+  import ComposerCapabilityChips from "./ComposerCapabilityChips.svelte";
+  import ContextIndicator from "./ContextIndicator.svelte";
   import type { ComposerDictation } from "./useComposerDictation.svelte";
 
   interface Props {
@@ -43,6 +47,12 @@
     ontrigger: (char: "/" | "@") => void;
     onstop?: () => void;
     onsend: () => void;
+    /** The conversation the composer writes in; `null` before one exists. */
+    sessionId: string | null;
+    /** What the model of the conversation can do; `null` while unknown. */
+    capabilities: ChatModelCapabilities | null;
+    /** Opens what was recalled for the last turn, from the context gauge. */
+    oncontextinspect?: () => void;
   }
 
   let {
@@ -63,6 +73,9 @@
     ontrigger,
     onstop,
     onsend,
+    sessionId,
+    capabilities,
+    oncontextinspect,
   }: Props = $props();
 
   // Shared styling for the composer toolbar icon buttons (single source so the
@@ -71,7 +84,7 @@
     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed";
 </script>
 
-<div class="flex items-center gap-0.5 border-t border-border/40 px-2 py-1.5">
+<div class="flex flex-wrap items-center gap-x-0.5 gap-y-1 border-t border-border/40 px-2 py-1.5">
   {#if onplantoggle}
     <button
       type="button"
@@ -165,9 +178,13 @@
   >
     <AtSign size={16} />
   </button>
+  <ComposerCapabilityChips {sessionId} {capabilities} {disabled} />
 
   <div class="flex-1"></div>
 
+  {#if sessionId}
+    <ContextIndicator {sessionId} onclick={oncontextinspect} />
+  {/if}
   {#if isDesktop}
     <span class="mr-1.5 select-none text-caption text-muted-foreground/50" aria-hidden="true">
       ⌘↵

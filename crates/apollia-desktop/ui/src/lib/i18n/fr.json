@@ -3487,6 +3487,32 @@
     "config_provider": "Modèle IA",
     "config_no_providers": "Aucun modèle chargé",
     "delete_session": "Supprimer",
+    "chips": {
+      "thinking": "Réfléchir",
+      "thinking_on_hint": "Le modèle réfléchit avant de répondre dans cette conversation. Cliquer pour couper la réflexion.",
+      "thinking_off_hint": "Le modèle répond sans réfléchir dans cette conversation. Cliquer pour rétablir la réflexion.",
+      "effort": "Raisonnement : {value}",
+      "effort_default": "par défaut",
+      "effort_menu": "Niveau de raisonnement",
+      "effort_reset": "Revenir au défaut du modèle",
+      "levels": {
+        "high": "Élevé",
+        "medium": "Moyen",
+        "low": "Faible"
+      },
+      "vision": "Vision",
+      "vision_hint": "Ce modèle lit les images que vous joignez.",
+      "write_error": "Le réglage n'a pas pu être enregistré pour cette conversation."
+    },
+    "gauge": {
+      "aria": "Contexte utilisé : {value}",
+      "conversation_tokens": "Jetons de la conversation",
+      "loaded_context": "Contexte chargé",
+      "share_used": "Part utilisée (reste)",
+      "share_value": "{pct} % ({remaining})",
+      "profile_included": "Profil inclus",
+      "unmeasured": "Le moteur de cette conversation ne mesure pas son contexte."
+    },
     "generation": {
       "label": "Infos de génération",
       "speed": "{value} jetons/s",
@@ -3557,8 +3583,6 @@
     "dictate_stop": "Arrêter la dictée",
     "slash_commands": "Commandes",
     "mention_resources": "Mentionner une ressource",
-    "context_inspect_turn": "Inspecter la mémoire injectée pour ce tour",
-    "context_summary": "Résumé : {pct} %",
     "empty_response_operator": "Je n'ai pas réussi à formuler une réponse à cette demande. Reformule-la ou réessaie.",
     "empty_response_builder": "Aucune réponse textuelle n'a été produite. Le détail du raisonnement et des outils ci-dessus indique ce qui s'est passé.",
     "hints": {
@@ -3634,16 +3658,6 @@
     "use_preferences": "Utiliser mes préférences",
     "inject_user_memory": "Injecter la mémoire utilisateur",
     "memory_section": "Mémoire",
-    "context_window": "Fenêtre de contexte",
-    "context_messages": "Messages : {pct} %",
-    "context_memory": "Mémoire utilisateur : {pct} %",
-    "context_profile_on": "Profil inclus dans le prompt",
-    "context_profile_off": "Profil absent du prompt",
-    "context_free": "Libre : {pct} %",
-    "legend_messages": "Messages",
-    "legend_memory": "Mémoire",
-    "legend_summary": "Résumé",
-    "legend_free": "Libre",
     "recording_hotkey_hint": "{hotkey} pour arrêter · Esc pour annuler",
     "rename_session": "Renommer",
     "rename_placeholder": "Nom de la conversation…",
@@ -3778,7 +3792,6 @@
     "citations_aria": "Citations",
     "assertion_confidence_aria": "confiance : {level}",
     "assertion_citation_aria": "Citation {number} : {title}",
-    "context_gauge": "Ctx {ctx} · Budget {budget} %",
     "retry_timeline_aria": "Chronologie des tentatives",
     "conversation_configure": "Configuration",
     "journal": {
