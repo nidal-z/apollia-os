@@ -155,8 +155,7 @@
   }
 
   // On mount, snap to the step that matches the persisted backend phase.
-  // This makes the flow resumable across app restarts and after users
-  // bounce out to /llm to add a cloud backend.
+  // This makes the flow resumable across app restarts.
   async function restoreStepFromBackend(): Promise<void> {
     if (enriching) {
       currentStep = "chat";
@@ -292,7 +291,6 @@
                 goTo("embeddings");
               }}
               onback={() => goTo("welcome")}
-              onopencloud={onclose}
             />
           {:else if currentStep === "embeddings"}
             <OnboardingEmbeddingsStep

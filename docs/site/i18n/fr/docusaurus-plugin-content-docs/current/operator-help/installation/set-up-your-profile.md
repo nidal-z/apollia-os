@@ -44,16 +44,16 @@ C'est la seule étape que vous ne pouvez pas passer : sans modèle ni serveur, a
 
 ![Étape IA, bandeau RAM · macOS · GPU, section du modèle de langage avec la liste des modèles recommandés et un badge "Recommandé"](/img/operator-help/installation-configurer-votre-profil-3.png)
 
-Quatre chemins possibles, selon votre situation :
+Deux cartes ouvrent l'étape : **Sur ce poste** et **Utiliser un serveur**. Quatre chemins possibles, selon votre situation, les trois premiers sur ce poste :
 
 1. **Modèles déjà présents sur la machine.** Si vous avez déjà placé un fichier `.gguf` dans `~/.apollia/models/` ou `~/Downloads/`, Apollia le détecte automatiquement. Cliquez sur la ligne correspondante pour le configurer en un clic.
 2. **Modèles recommandés à télécharger.** Apollia affiche une liste de modèles dimensionnés pour votre machine, avec un badge **Recommandé** sur le plus pertinent. La liste reste proposée qu'un GGUF ait déjà été trouvé ou non, et après la configuration d'un premier modèle. Cliquez sur la ligne pour lancer le téléchargement - une barre de progression avec débit en MB/s s'affiche, vous pouvez l'annuler à tout moment.
 3. **Recherche HuggingFace.** Le bouton **Rechercher sur HuggingFace** ouvre un mini-navigateur intégré : tapez le nom d'un modèle, dépliez les fichiers GGUF disponibles, et cliquez pour télécharger celui qui correspond à votre RAM (les fichiers sont étiquetés *fits* / *might fit* / *too large*).
-4. **Un serveur.** Le bouton **Se connecter à un serveur** ferme la fenêtre et vous emmène vers la page des paramètres où l'on ajoute un serveur.
+4. **Un serveur.** Cliquez sur la carte **Utiliser un serveur** quand votre organisation fait tourner un serveur d'IA, ou quand vous en utilisez déjà un (Ollama, llama-server, vLLM, ou tout serveur à l'interface compatible OpenAI). Le formulaire reste dans la fenêtre : saisissez l'**adresse du serveur** (par exemple `http://localhost:11434`), ajoutez la **clé** seulement si le serveur en demande une, puis cliquez sur **Tester**. Apollia liste les modèles que le serveur propose ; choisissez-en un, il devient le modèle par défaut de vos agents. Si le test échoue, le message dit quoi vérifier : l'adresse, la clé, ou le démarrage du serveur.
 
 ![Téléchargement d'un modèle recommandé en cours, avec barre de progression et débit](/img/operator-help/installation-configurer-votre-profil-4.png)
 
-**Continuer** devient actif dès qu'un modèle est configuré (badge vert **Configuré**), qu'un serveur est enregistré, ou qu'un téléchargement est lancé. Vous n'avez pas à attendre la fin du téléchargement : poursuivez les étapes suivantes pendant que le fichier arrive. Sa progression reste affichée en haut de la fenêtre à chaque étape, et le modèle s'installe de lui-même quand le fichier est là.
+**Continuer** devient actif dès qu'un modèle est configuré (badge vert **Configuré**), qu'un modèle d'un serveur est choisi, ou qu'un téléchargement est lancé. Vous n'avez pas à attendre la fin du téléchargement : poursuivez les étapes suivantes pendant que le fichier arrive. Sa progression reste affichée en haut de la fenêtre à chaque étape, et le modèle s'installe de lui-même quand le fichier est là.
 
 #### Boutons disponibles en pied de page
 
@@ -107,7 +107,7 @@ Pour rouvrir le parcours après coup, voir la section [Relancer le parcours](#re
 
 ### Reprendre après une interruption
 
-Le parcours est **résumable** : si vous quittez la fenêtre en cours de route (par exemple en cliquant sur **Se connecter à un serveur** pour ajouter un serveur), au retour Apollia reprend exactement à l'étape où vous étiez. La progression est persistée côté backend, pas en mémoire de session.
+Le parcours est **résumable** : si vous quittez la fenêtre en cours de route (par exemple en fermant Apollia), au retour Apollia reprend exactement à l'étape où vous étiez. La progression est persistée côté backend, pas en mémoire de session.
 
 ## Relancer le parcours
 
@@ -133,7 +133,7 @@ Une fois le parcours terminé, ouvrez **Paramètres → Profil** : le profil par
 ## Si ça ne marche pas
 
 - **La fenêtre ne s'ouvre pas au premier lancement :** consultez les logs au démarrage. Si l'erreur évoque l'agent d'onboarding, redémarrez Apollia ; il est provisionné automatiquement à chaque lancement.
-- **Le bouton Continuer reste désactivé à l'étape IA :** il s'ouvre dès qu'un modèle est configuré (badge vert **Configuré**), qu'un serveur est ajouté via **Se connecter à un serveur**, ou qu'un téléchargement est lancé. Un téléchargement échoué ou annulé le referme.
+- **Le bouton Continuer reste désactivé à l'étape IA :** il s'ouvre dès qu'un modèle est configuré (badge vert **Configuré**), qu'un modèle est choisi sous **Utiliser un serveur**, ou qu'un téléchargement est lancé. Un téléchargement échoué ou annulé le referme.
 - **Le téléchargement d'un modèle bloque à 0 % :** vérifiez votre connexion internet, annulez avec le bouton **X**, puis relancez. Le débit attendu est de 5 à 50 MB/s selon votre lien.
 - **L'agent ne répond plus pendant la conversation :** fermez la fenêtre via **Configurer plus tard** et relancez depuis **Paramètres → Zone de danger → Réinitialiser l'onboarding**.
 - **Le formulaire s'ouvre vide :** l'agent n'a rien proposé, ou vous avez passé les questions. Remplissez les champs à la main, ou passez et revenez depuis **Paramètres → Profil**.

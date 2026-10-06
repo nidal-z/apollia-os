@@ -44,16 +44,16 @@ This is the only step you cannot skip: without a model or a server, no agent can
 
 ![AI step, RAM · macOS · GPU banner, the language model section with a list of recommended models and a "Recommended" badge](/img/operator-help/installation-configurer-votre-profil-3.png)
 
-Four possible paths, depending on your situation:
+Two cards open the step: **On this computer** and **Use a server**. Four possible paths, depending on your situation, the first three on this computer:
 
 1. **Models already present on the machine.** If you have already placed a `.gguf` file in `~/.apollia/models/` or `~/Downloads/`, Apollia detects it automatically. Click the matching row to configure it in one click.
 2. **Recommended models to download.** Apollia displays a list of models sized for your machine, with a **Recommended** badge on the most relevant one. The list stays available whether or not a GGUF was already found, and after a first model has been configured. Click the row to start the download - a progress bar with the throughput in MB/s appears, and you can cancel at any time.
 3. **HuggingFace search.** The **Search on HuggingFace** button opens a built-in mini browser: type a model name, expand the available GGUF files, and click to download the one that matches your RAM (files are tagged *fits* / *might fit* / *too large*).
-4. **A server.** The **Connect to a server** button closes the window and takes you to the settings page where a server is added.
+4. **A server.** Click the **Use a server** card when your organisation runs an AI server, or when you already use one (Ollama, llama-server, vLLM, or any server with an OpenAI-compatible interface). The form stays inside the window: type the **server address** (for example `http://localhost:11434`), add the **key** only if the server asks for one, then click **Test**. Apollia lists the models the server offers; choose one, and it becomes the default model of your agents. If the test fails, the message says what to check: the address, the key, or whether the server is started.
 
 ![Download of a recommended model in progress, with a progress bar and the throughput](/img/operator-help/installation-configurer-votre-profil-4.png)
 
-**Continue** becomes active as soon as a model is configured (green **Configured** badge), a server is registered, or a download is started. You do not have to wait for the download: go on with the next steps while the file arrives. Its progress stays shown at the top of the window on every step, and the model is set up by itself when the file lands.
+**Continue** becomes active as soon as a model is configured (green **Configured** badge), a model of a server is chosen, or a download is started. You do not have to wait for the download: go on with the next steps while the file arrives. Its progress stays shown at the top of the window on every step, and the model is set up by itself when the file lands.
 
 #### Buttons available in the footer
 
@@ -107,7 +107,7 @@ To reopen the flow afterwards, see the [Restart the flow](#restart-the-flow) sec
 
 ### Resume after an interruption
 
-The flow is **resumable**: if you leave the window midway (for example by clicking **Connect to a server** to add a server), Apollia picks up exactly where you left off when you come back. Progress is persisted on the backend side, not in session memory.
+The flow is **resumable**: if you leave the window midway (for example by closing Apollia), Apollia picks up exactly where you left off when you come back. Progress is persisted on the backend side, not in session memory.
 
 ## Restart the flow
 
@@ -133,7 +133,7 @@ Once the flow is finished, open **Settings → Profile**: the default profile ho
 ## If it does not work
 
 - **The window does not open on first launch:** check the startup logs. If the error mentions the onboarding agent, restart Apollia; it is provisioned automatically at every launch.
-- **The Continue button stays disabled on the AI step:** it opens once a model is configured (green **Configured** badge), a server is added through **Connect to a server**, or a download is started. A download that failed or was cancelled closes it again.
+- **The Continue button stays disabled on the AI step:** it opens once a model is configured (green **Configured** badge), a model is chosen under **Use a server**, or a download is started. A download that failed or was cancelled closes it again.
 - **A model download is stuck at 0 %:** check your internet connection, cancel with the **X** button, then start again. Expected throughput is 5 to 50 MB/s depending on your link.
 - **The agent stops answering during the conversation:** close the window through **Configure later** and restart from **Settings → Danger Zone → Reset Onboarding**.
 - **The form opens empty:** the agent proposed nothing, or you skipped the questions. Fill the fields by hand, or skip and come back from **Settings → Profile**.

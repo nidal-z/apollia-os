@@ -2,6 +2,7 @@
   "name": "onboarding-full",
   "stopOnError": false,
   "dynamicTestids": [
+    "ai-setup-source-server",
     "onboarding-lang-en",
     "onboarding-lang-fr",
     "profile-field-role",
@@ -735,22 +736,156 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-open-cloud",
+      "testid": "ai-setup-source-server",
       "timeoutMs": 10000
     },
     {
       "kind": "click",
-      "testid": "onboarding-open-cloud",
+      "testid": "ai-setup-source-server",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-page",
-      "timeoutMs": 15000
+      "testid": "onboarding-server-form",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "fill",
+      "testid": "onboarding-server-address",
+      "text": "localhost:9"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-server-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-server-error",
+      "contains": "https://",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "onboarding-server-address",
+      "text": "http://127.0.0.1:9"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-server-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-server-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-server-error",
+      "contains": "127.0.0.1:9",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-server-error-detail"
     },
     {
       "kind": "screenshot",
-      "label": "13-onb-open-cloud-lands-on-llm"
+      "label": "13-onb-server-unreachable"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_llm_server",
+      "resolve": [
+        "automation-model-a",
+        "automation-model-b"
+      ],
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-server-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-server-models",
+      "contains": "automation-model-b",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-server-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "save_llm_server",
+      "resolve": {
+        "name": "127-0-0-1-9",
+        "base_url": "http://127.0.0.1:9",
+        "has_key": false,
+        "api_key_env": null,
+        "enabled": true
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_default_model",
+      "resolve": {
+        "backend": "127-0-0-1-9/automation-model-a",
+        "model_source": "server",
+        "model_id": "127-0-0-1-9/automation-model-a"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-server-model",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-server-chosen",
+      "contains": "automation-model-a",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-onb-server-chosen-in-step"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 15000
     },
     {
       "kind": "goto",
@@ -891,8 +1026,9 @@
     "The skip finalizes the conversation through finalize_onboarding_chat, with no model turn, so the review opens in a deterministic run with an empty proposal; the book fills the role by hand (profile-field-role, a field drawn from the list Rust sends with the default profile) and saves. A proposal filled by the agent needs a model and is played by onboarding-llm.",
     "llm-load-model-btn is played through the invoke stub: OnboardingLlmSection.svelte imports plugin-dialog `open`, which is invoke('plugin:dialog|open'), so a once stub resolving ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf skips the OS picker and continues into import_model_file (model_hub.rs copies only when dest differs from source, so the seed's own file is left intact) then selectGgufModel, the same wiring as the llm-model-row click. It sits in the first ai-setup pass, before any row click, so llmConfiguring is false (selectGgufModel returns early while a configuration is in flight).",
     "The onboarding asks no usage profile: the welcome, where the language is chosen, leads straight to the AI setup, and ai-setup-back returns to the welcome. The AI setup is the only step that cannot be passed, and it asks neither for dictation nor for a context window: a recipe cannot name a control that no longer exists, so those absences are held by OnboardingAiSetup.test.ts, and the book checks what is there, ai-setup-continue-hint and a header that counts the steps that exist (onboarding-step-count). ai-setup-continue is open from the first pass because the seed registers a default backend. The book walks the welcome and the AI setup twice, once bare and once to replay the detected rows, and after the finish it checks that the developer group of the sidebar is absent, the developer mode staying off.",
-    "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts), humanize keeps the raw text on detail (lib/errors/humanize.ts) and the disclosure of OnboardingModal.svelte renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because onboarding-open-cloud closes the modal (OnboardingModal.svelte passes onclose as onopencloud) and the earlier flow needs the modal.",
-    "curated-llm-row is played through the invoke stub, in the first ai-setup pass right after the picker import: a once stub rejects start_variant_download (lib/ipc/modelHub.ts) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the file name of the first row, a .gguf the live recommendation picks for the machine, so the book asserts the extension and not a name. The download is followed outside the step (llmDownload.ts), so the book then leaves the step on it: onboarding-model-progress shows in the header on the AI setup and still on the embeddings step, and embeddings-back finds llm-download-progress where it was. No event ever settles that fake id, so the book ends it with llm-download-cancel, which cancel_model_download refuses for an id it never knew: the step drops the download, the header notice goes and the curated list comes back, which the later onboarding-open-cloud pass needs.",
-    "The embeddings step (OnboardingEmbeddingsStep.svelte) follows ai-setup-continue. Its recommendation comes from get_embeddings_recommendation, which the runtime answers from its embedded table with no network, so embeddings-model-card renders in a deterministic run. The step was already opened once while the language model downloaded, and it reads its recommendation again each time it opens, so the book waits for embeddings-download rather than expecting it at once. The book plays, in order: the import of a file the registry does not offer (the picker stub resolves the seed's Phi-3-mini-Q4.gguf, embeddingsSetup.ts refuses it before any copy and embeddings-error names it); a download the invoke stub rejects, then one it resolves with a fake id so embeddings-download-progress renders; embeddings-download-cancel, which cancel_model_download refuses for an id it never knew, so the step puts the offer back; three round trips through embeddings-back, the first with get_embeddings_recommendation rejected (embeddings-unavailable, the step stays passable), the second with get_memory_embeddings_model resolving an installed entry (embeddings-ready); and the passing, whose warning lists the two unavailable functions before embeddings-continue-without opens the conversation. No default embeddings model is ever set by this book."
+    "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts), humanize keeps the raw text on detail (lib/errors/humanize.ts) and the disclosure of OnboardingModal.svelte renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because it closes the modal, which the earlier flow needs.",
+    "curated-llm-row is played through the invoke stub, in the first ai-setup pass right after the picker import: a once stub rejects start_variant_download (lib/ipc/modelHub.ts) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the file name of the first row, a .gguf the live recommendation picks for the machine, so the book asserts the extension and not a name. The download is followed outside the step (llmDownload.ts), so the book then leaves the step on it: onboarding-model-progress shows in the header on the AI setup and still on the embeddings step, and embeddings-back finds llm-download-progress where it was. No event ever settles that fake id, so the book ends it with llm-download-cancel, which cancel_model_download refuses for an id it never knew: the step drops the download, the header notice goes and the curated list comes back, which the later passes of the step need.",
+    "The embeddings step (OnboardingEmbeddingsStep.svelte) follows ai-setup-continue. Its recommendation comes from get_embeddings_recommendation, which the runtime answers from its embedded table with no network, so embeddings-model-card renders in a deterministic run. The step was already opened once while the language model downloaded, and it reads its recommendation again each time it opens, so the book waits for embeddings-download rather than expecting it at once. The book plays, in order: the import of a file the registry does not offer (the picker stub resolves the seed's Phi-3-mini-Q4.gguf, embeddingsSetup.ts refuses it before any copy and embeddings-error names it); a download the invoke stub rejects, then one it resolves with a fake id so embeddings-download-progress renders; embeddings-download-cancel, which cancel_model_download refuses for an id it never knew, so the step puts the offer back; three round trips through embeddings-back, the first with get_embeddings_recommendation rejected (embeddings-unavailable, the step stays passable), the second with get_memory_embeddings_model resolving an installed entry (embeddings-ready); and the passing, whose warning lists the two unavailable functions before embeddings-continue-without opens the conversation. No default embeddings model is ever set by this book.",
+    "The server of the AI step is played after the first danger-zone reset, inside the modal, which stays open throughout (OnboardingServerForm.svelte, serverSetup.ts). The first two refusals are real: an address without its scheme is refused by the form before any call, and http://127.0.0.1:9 goes to the backend, where nothing listens, so test_llm_server (commands/llm_servers.rs) rejects with a ServerTestFailure of kind unreachable whose sentence names the address. The listing and the choice are stubbed, a deterministic run having no server: a once stub resolves test_llm_server with two identifiers, then once stubs resolve save_llm_server with a ServerResponse and set_default_model with a DefaultModelResponse (routes_llm/servers.rs, routes_llm/presets.rs), so nothing is written to the seeded store. ai-setup-continue then leads to the embeddings step, and onboarding-skip closes the modal for the reset that follows."
   ]
 }
