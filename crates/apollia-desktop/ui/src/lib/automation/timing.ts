@@ -1,4 +1,5 @@
 // Dev-only automation harness: the budget a recipe holds a duration to.
+// i18n-ignore-file: dev-only automation report lines, tree-shaken out of release builds
 //
 // A recipe that promises a duration (the first launch, from the window to the
 // first result of a task) reads the clock once, at the step that closes the
