@@ -21238,6 +21238,635 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "verify_journal",
+      "resolve": {
+        "ok": true,
+        "entries_checked": 1284,
+        "runs_checked": 12,
+        "first_break": null,
+        "head_matches_state": true,
+        "start": {
+          "global_seq": 40,
+          "ts": "2026-09-12T08:00:00Z",
+          "purged_at": "2026-10-01T00:00:00Z"
+        }
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-body",
+      "timeoutMs": 3000,
+      "contains": "1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-limit",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verdict-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02b-journal-verdict-intact (since the last purge, limit of the check)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verdict-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "verify_journal",
+      "resolve": {
+        "ok": false,
+        "entries_checked": 218,
+        "runs_checked": 4,
+        "first_break": {
+          "global_seq": 217,
+          "run_id": "run-journal-det",
+          "reason": "global_hash_mismatch"
+        },
+        "head_matches_state": true,
+        "start": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-title",
+      "timeoutMs": 3000,
+      "contains": "217"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-limit",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02c-journal-verdict-altered (entry 217)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_org_policy",
+      "resolve": {
+        "state": "active",
+        "dir": "${HOME}/.apollia/policy",
+        "key_fingerprint": "ab12cd34",
+        "publisher": "IT",
+        "signed_at": "2026-10-01T00:00:00Z",
+        "policy": {
+          "schema_version": 1,
+          "signed_at": "2026-10-01T00:00:00Z",
+          "connections": {
+            "allow": [],
+            "deny": [],
+            "remote": null
+          },
+          "families": {
+            "deny": []
+          },
+          "inference": {
+            "allowed_servers": [],
+            "remote_endpoints": null,
+            "require_model_hash": false
+          },
+          "settings": {},
+          "packages": {
+            "require_signature": false,
+            "trusted_publishers": []
+          },
+          "journal": {
+            "required": false,
+            "retention_days": null,
+            "export": {
+              "detail": "require",
+              "daily_summary_dir": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verdict-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-filters",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-format-csv",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-detail-required",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02d-journal-export-detail-required (box frozen, personal data warning)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verdict-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "verify_journal",
+      "reject": "audit journal not available",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verify-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "verify_journal",
+      "resolve": {
+        "ok": true,
+        "entries_checked": 1284,
+        "runs_checked": 12,
+        "first_break": null,
+        "head_matches_state": true,
+        "start": {
+          "global_seq": 40,
+          "ts": "2026-09-12T08:00:00Z",
+          "purged_at": "2026-10-01T00:00:00Z"
+        }
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verify-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verdict-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_org_policy"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_org_policy",
+      "resolve": {
+        "state": "active",
+        "dir": "${HOME}/.apollia/policy",
+        "key_fingerprint": "ab12cd34",
+        "publisher": "IT",
+        "signed_at": "2026-10-01T00:00:00Z",
+        "policy": {
+          "schema_version": 1,
+          "signed_at": "2026-10-01T00:00:00Z",
+          "connections": {
+            "allow": [],
+            "deny": [],
+            "remote": null
+          },
+          "families": {
+            "deny": []
+          },
+          "inference": {
+            "allowed_servers": [],
+            "remote_endpoints": null,
+            "require_model_hash": false
+          },
+          "settings": {},
+          "packages": {
+            "require_signature": false,
+            "trusted_publishers": []
+          },
+          "journal": {
+            "required": false,
+            "retention_days": null,
+            "export": {
+              "detail": "forbid",
+              "daily_summary_dir": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-detail-forbidden",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02e-journal-export-detail-forbidden (no box)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_org_policy"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_org_policy",
+      "resolve": {
+        "state": "none",
+        "dir": "${HOME}/.apollia/policy"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-detail-required",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02f-journal-export-detail-chosen (personal data warning)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|save",
+      "resolve": "${HOME}/journal-det-export.csv",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "export_journal",
+      "resolve": {
+        "path": "${HOME}/journal-det-export.csv",
+        "bytes": 412
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "export_journal",
+      "reject": "the organisation policy forbids the detail in an export of the journal",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|save",
+      "resolve": "${HOME}/journal-det-export.csv",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-format-pdf",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-pdf-hint",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "read_journal_export",
+      "resolve": {
+        "detail": true,
+        "count": 1,
+        "entries": [
+          {
+            "run_id": "run-journal-det",
+            "seq": 3,
+            "kind": "tool_call_completed",
+            "hash": "9f2c41d07a",
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "read",
+            "what": "Tool call completed",
+            "tool": "file_read",
+            "target": "notes/plan.md",
+            "outcome": "success",
+            "ts": "2026-10-02T12:32:00Z",
+            "detail": {
+              "payload": {
+                "tool_name": "file_read",
+                "target": "notes/plan.md"
+              },
+              "tool_call": {
+                "tool_call_id": "call-det-1",
+                "arguments": {
+                  "path": "notes/plan.md"
+                },
+                "output": {
+                  "content": "the plan of the week"
+                },
+                "status": "success"
+              }
+            }
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-summary",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-table",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-row",
+      "timeoutMs": 3000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-detail",
+      "timeoutMs": 3000,
+      "contains": "the plan of the week"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02g-journal-print-preview (the page the system prints)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "print_journal",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "journal-print-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-print-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-print",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "read_journal_export",
+      "resolve": {
+        "detail": false,
+        "count": 0,
+        "entries": []
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-format-pdf",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-print-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-print-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-print",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_org_policy"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "print_journal"
+    },
+    {
       "kind": "clearStubs",
       "command": "get_journal_entry"
     },
