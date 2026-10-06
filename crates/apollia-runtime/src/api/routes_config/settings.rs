@@ -9,8 +9,9 @@
 //!   of this runtime run.
 //!
 //! The writes go through the one writer of the file, held to the organisation
-//! policy, and apply at the next start of the runtime, as they always did in
-//! the desktop.
+//! policy, and are shown to the configuration reloader, which applies what
+//! the running engine can apply and journals the change as made from the
+//! settings.
 
 use std::path::Path;
 
@@ -241,6 +242,24 @@ fn internal(e: impl ToString) -> RouteError {
     failure(StatusCode::INTERNAL_SERVER_ERROR, "internal", e)
 }
 
+/// Shows the reloader the file a settings route has just written, so the
+/// change is applied now and journaled as made from the settings rather than
+/// found on disk by the watcher.
+async fn declare_settings_write<B: ExecutionBackend + Clone>(state: &AppState<B>, path: &Path) {
+    let Some(reload) = &state.config_reload else {
+        return;
+    };
+    let path = path.to_path_buf();
+    let read =
+        tokio::task::spawn_blocking(move || apollia_core::config::writer::read_snapshot(&path))
+            .await;
+    if let Ok(Ok(snapshot)) = read {
+        reload
+            .saved(snapshot.text, crate::config_reload::ConfigOrigin::Settings)
+            .await;
+    }
+}
+
 /// `GET /api/v1/config/observability`: the capture and retention policy.
 #[utoipa::path(
     get,
@@ -285,10 +304,12 @@ pub async fn save_observability<B: ExecutionBackend + Clone>(
     let path = config_path(&state)?;
     let policy = state.inference_governance.imposed_settings();
     let changes = settings.changes();
+    let written = path.clone();
     tokio::task::spawn_blocking(move || update_config(&path, ConfigEdit::Keys(changes), &policy))
         .await
         .map_err(internal)?
         .map_err(refusal)?;
+    declare_settings_write(&state, &written).await;
     tracing::event!(
         tracing::Level::INFO,
         max_input_bytes = settings.max_input_bytes,
@@ -348,6 +369,7 @@ pub async fn save_python_interpreter<B: ExecutionBackend + Clone>(
         .map(|p| p.trim().to_string())
         .filter(|p| !p.is_empty());
     let written = chosen.clone();
+    let file = path.clone();
     let setting = tokio::task::spawn_blocking(move || {
         if let Some(candidate) = written.as_deref() {
             apollia_tools::tools::python_discovery::validate_chosen_interpreter(Path::new(
@@ -360,6 +382,7 @@ pub async fn save_python_interpreter<B: ExecutionBackend + Clone>(
     })
     .await
     .map_err(internal)??;
+    declare_settings_write(&state, &file).await;
     tracing::event!(
         tracing::Level::INFO,
         chosen = chosen.as_deref().unwrap_or("<bundled>"),

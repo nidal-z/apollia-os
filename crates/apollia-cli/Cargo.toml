@@ -22,6 +22,9 @@ path = "src/main.rs"
 ## Documentation generation (CLI reference). Pulls clap-markdown and is excluded
 ## from the default build, so the shipped binary carries no doc-tooling surface.
 gen-docs = ["dep:clap-markdown"]
+## Optical character recognition of scanned pages and pictures in sources.
+## Compiles Tesseract from source and links it statically; off by default.
+ocr = ["apollia-runtime/ocr"]
 
 [dependencies]
 apollia-auth      = { workspace = true }

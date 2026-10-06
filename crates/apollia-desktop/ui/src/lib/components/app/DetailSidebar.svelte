@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
    * The detail sidebar: a collapsible column on the right of the screen that
-   * carries the contextual tabs of the current screen, the Guide tab last and
-   * on every screen. Opened and collapsed from the top bar, by Cmd+/ (Ctrl+/
+   * carries the contextual tabs of the current screen (the entry the journal
+   * shows more of, the item a batch shows the detail of), the Guide tab last and on every screen. Opened and collapsed from the top bar, by Cmd+/ (Ctrl+/
    * elsewhere) on the Guide tab, and from its own collapse icon. Under the
    * `md` breakpoint it covers the window so the guide stays usable. While the
    * onboarding veil is shown it rises above it, with the top bar.
@@ -17,12 +17,33 @@
   import {
     DETAIL_SIDEBAR_WIDTH_REM,
     detailSidebar,
+    shownTab,
   } from "$lib/stores/detailSidebar";
+  import { journalSelection } from "$lib/stores/journalSelection";
+  import { batchItemSelection } from "$lib/stores/batchView";
   import GuideTab from "../../../components/companion/GuideTab.svelte";
+  import JournalEntryTab from "../../../components/journal/JournalEntryTab.svelte";
+  import BatchItemTab from "../../../components/batch/view/BatchItemTab.svelte";
 
   const fullscreen = $derived($sidebarState === "drawer");
 
-  const tabs = $derived([{ key: "guide", label: $t("detailSidebar.tab_guide") }]);
+  // The journal offers its contextual tab while one of its entries is open.
+  const entryOffered = $derived($journalSelection !== null);
+  // The view of a batch offers its own while one of its items is open.
+  const itemOffered = $derived($batchItemSelection !== null);
+  const activeTab = $derived(shownTab($detailSidebar.tab, entryOffered, itemOffered));
+
+  const tabs = $derived([
+    ...(entryOffered ? [{ key: "entry", label: $t("journal.tab_entry") }] : []),
+    ...(itemOffered ? [{ key: "item", label: $t("batch_view.item.tab") }] : []),
+    { key: "guide", label: $t("detailSidebar.tab_guide") },
+  ]);
+
+  function showTab(key: string): void {
+    if (key === "entry") detailSidebar.openEntry();
+    else if (key === "item") detailSidebar.openItem();
+    else detailSidebar.openGuide();
+  }
 </script>
 
 {#if $detailSidebar.open}
@@ -34,13 +55,13 @@
     style:z-index={$onboardingModalOpen ? zLayer.onboardingAbove : undefined}
     aria-label={$t("detailSidebar.aria_label")}
     data-testid="detail-sidebar"
-    data-tab={$detailSidebar.tab}
+    data-tab={activeTab}
   >
     <div class="flex shrink-0 items-end gap-2 px-3 pt-2">
       <TabBar
         items={tabs}
-        activeTab={$detailSidebar.tab}
-        ontabchange={() => detailSidebar.openGuide()}
+        {activeTab}
+        ontabchange={showTab}
         testidPrefix="detail-sidebar"
         variant="underline"
         class="min-w-0 flex-1"
@@ -59,7 +80,13 @@
     </div>
 
     <div class="min-h-0 flex-1 overflow-hidden">
-      <GuideTab />
+      {#if activeTab === "entry"}
+        <JournalEntryTab />
+      {:else if activeTab === "item"}
+        <BatchItemTab />
+      {:else}
+        <GuideTab />
+      {/if}
     </div>
   </aside>
 {/if}

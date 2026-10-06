@@ -10,6 +10,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Serialize;
+use serde_json::{Map, Value};
 
 /// The API family whose format an endpoint follows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +81,19 @@ pub(crate) enum ErrorKind {
     UnknownEndpoint,
     /// The engine serving the model did not answer.
     EngineUnavailable,
+    /// The `apollia/...` model names no agent or workflow marked exposed.
+    NotExposed,
+    /// The run of an agent stopped on an access nobody granted, and waits
+    /// for a decision.
+    ApprovalPending,
+    /// The run of an agent or a workflow failed or was stopped.
+    RunFailed,
+    /// This runtime cannot run agents or workflows.
+    RunUnavailable,
+    /// The organisation policy refuses what the request asks for.
+    RefusedByPolicy,
+    /// An MCP server the request brought did not answer.
+    McpServerUnavailable,
 }
 
 impl ErrorKind {
@@ -90,7 +104,12 @@ impl ErrorKind {
             Self::ModelNotLoaded | Self::EndpointNotServed | Self::UnknownEndpoint => {
                 StatusCode::NOT_FOUND
             }
-            Self::EngineUnavailable => StatusCode::BAD_GATEWAY,
+            Self::EngineUnavailable | Self::McpServerUnavailable => StatusCode::BAD_GATEWAY,
+            Self::RefusedByPolicy => StatusCode::FORBIDDEN,
+            Self::NotExposed => StatusCode::NOT_FOUND,
+            Self::ApprovalPending => StatusCode::CONFLICT,
+            Self::RunFailed => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::RunUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 
@@ -103,6 +122,12 @@ impl ErrorKind {
             Self::EndpointNotServed => ("invalid_request_error", "endpoint_not_served"),
             Self::UnknownEndpoint => ("invalid_request_error", "unknown_url"),
             Self::EngineUnavailable => ("server_error", "engine_unavailable"),
+            Self::NotExposed => ("invalid_request_error", "model_not_found"),
+            Self::ApprovalPending => ("approval_pending", "approval_pending"),
+            Self::RunFailed => ("server_error", "run_failed"),
+            Self::RunUnavailable => ("server_error", "run_unavailable"),
+            Self::RefusedByPolicy => ("invalid_request_error", "refused_by_policy"),
+            Self::McpServerUnavailable => ("server_error", "mcp_server_unavailable"),
         }
     }
 
@@ -111,12 +136,78 @@ impl ErrorKind {
         match self {
             Self::InvalidRequest => "invalid_request_error",
             Self::Unauthorized => "authentication_error",
-            Self::ModelNotLoaded | Self::EndpointNotServed | Self::UnknownEndpoint => {
-                "not_found_error"
-            }
-            Self::EngineUnavailable => "api_error",
+            Self::ModelNotLoaded
+            | Self::EndpointNotServed
+            | Self::UnknownEndpoint
+            | Self::NotExposed => "not_found_error",
+            Self::ApprovalPending => "approval_pending",
+            Self::RefusedByPolicy => "permission_error",
+            Self::EngineUnavailable
+            | Self::RunFailed
+            | Self::RunUnavailable
+            | Self::McpServerUnavailable => "api_error",
         }
     }
+}
+
+/// The body of an OpenAI error of `kind`, with `extra` fields beside its
+/// `message`, `type` and `code`: what a client needs to act on it, such as the
+/// schema an input must follow or the decision a run waits for.
+fn openai_error_body(kind: ErrorKind, message: String, extra: Map<String, Value>) -> Value {
+    let (openai_kind, code) = kind.openai();
+    let mut error = Map::new();
+    error.insert("message".to_owned(), Value::String(message));
+    error.insert("type".to_owned(), Value::String(openai_kind.to_owned()));
+    error.insert("code".to_owned(), Value::String(code.to_owned()));
+    error.extend(extra);
+    let mut body = Map::new();
+    body.insert("error".to_owned(), Value::Object(error));
+    Value::Object(body)
+}
+
+/// The body of an Anthropic error of `kind`, with `extra` fields beside its
+/// `type` and `message`.
+fn anthropic_error_body(kind: ErrorKind, message: String, extra: Map<String, Value>) -> Value {
+    let mut error = Map::new();
+    error.insert(
+        "type".to_owned(),
+        Value::String(kind.anthropic().to_owned()),
+    );
+    error.insert("message".to_owned(), Value::String(message));
+    error.extend(extra);
+    let mut body = Map::new();
+    body.insert("type".to_owned(), Value::String("error".to_owned()));
+    body.insert("error".to_owned(), Value::Object(error));
+    Value::Object(body)
+}
+
+/// The body of an error of `kind` in the format of `family`, with `extra`
+/// fields in its error object (see [`openai_error_body`]).
+pub(crate) fn error_body(
+    family: Family,
+    kind: ErrorKind,
+    message: String,
+    extra: Map<String, Value>,
+) -> Value {
+    match family {
+        Family::OpenAi => openai_error_body(kind, message, extra),
+        Family::Anthropic => anthropic_error_body(kind, message, extra),
+    }
+}
+
+/// The answer to an error of `kind` in the format of `family`, carrying
+/// `extra` fields (see [`error_body`]).
+pub(crate) fn error_with(
+    family: Family,
+    kind: ErrorKind,
+    message: String,
+    extra: Map<String, Value>,
+) -> Response {
+    (
+        kind.status(),
+        Json(error_body(family, kind, message, extra)),
+    )
+        .into_response()
 }
 
 /// The answer to an error of `kind`, in the format of `family`.
@@ -154,6 +245,38 @@ pub(crate) fn error_response(family: Family, kind: ErrorKind, message: String) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_the_extra_fields_sit_in_the_error_object_of_each_family() {
+        // GIVEN an error that carries the decision a run waits for
+        let extra = || {
+            let mut extra = Map::new();
+            extra.insert("pending_id".to_owned(), Value::String("batch:b:0".into()));
+            extra
+        };
+
+        // WHEN it is written for each family
+        let openai = error_body(
+            Family::OpenAi,
+            ErrorKind::ApprovalPending,
+            "wait".into(),
+            extra(),
+        );
+        let anthropic = error_body(
+            Family::Anthropic,
+            ErrorKind::ApprovalPending,
+            "wait".into(),
+            extra(),
+        );
+
+        // THEN each keeps its envelope, and the field is beside the message
+        assert_eq!(openai["error"]["code"], "approval_pending");
+        assert_eq!(openai["error"]["pending_id"], "batch:b:0");
+        assert_eq!(anthropic["type"], "error");
+        assert_eq!(anthropic["error"]["type"], "approval_pending");
+        assert_eq!(anthropic["error"]["message"], "wait");
+        assert_eq!(anthropic["error"]["pending_id"], "batch:b:0");
+    }
 
     #[test]
     fn test_only_the_messages_endpoints_read_as_anthropic() {

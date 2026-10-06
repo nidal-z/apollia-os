@@ -107,7 +107,12 @@ check         "audit verify (empty journal ok)"    "${Q[@]}" audit verify
 check         "audit journal (empty journal ok)"   "${Q[@]}" audit journal
 check_exit    "audit anchor (empty journal) → 1" 1 "${Q[@]}" audit anchor
 check_exit    "audit replay (unknown run) → 1"   1 "${Q[@]}" audit replay ghost-run-id
-check         "audit export"                        "${Q[@]}" audit export --output "$RUN_TMP/audit.json" --limit 100
+check         "audit export --format json"          "${Q[@]}" audit export --format json --output "$RUN_TMP/journal.json"
+check_content "audit export --format json: a summary, the detail left out" '"detail": false' cat "$RUN_TMP/journal.json"
+check         "audit export --format csv --detail"  "${Q[@]}" audit export --format csv --detail --output "$RUN_TMP/journal.csv"
+check_content "audit export --format csv --detail: the summary columns, then the detail" '^ts,agent,nature,family,what,tool,target,outcome,run_id,seq,kind,hash,payload,arguments,output,status' cat "$RUN_TMP/journal.csv"
+check_json_field "audit export is itself journaled, with its format and the detail" "[(e['payload']['format'], e['payload']['detail']) for e in d['entries'] if e['kind'] == 'journal_exported']" "[('csv', True), ('json', False)]" "${Q[@]}" audit journal --limit 50 --json
+check_exit    "audit export (unknown nature) → 1" 1 "${Q[@]}" audit export --format csv --nature everything --output "$RUN_TMP/journal-refused.csv"
 
 # ── triggers CRUD (target: seeded apollia-chat) ─────────────────────────────
 section "triggers CRUD"
@@ -190,6 +195,13 @@ fi
 check         "plan cache stats (daemon on)"       "${Q[@]}" plan cache stats
 check         "plan cache evict --max-age-days 0"  "${Q[@]}" plan cache evict --max-age-days 0 --confirm
 check         "chat --list (daemon on)"            "${Q[@]}" chat --list
+# seed-session-4 opens on "Which MCP tools do I have on this machine?". Listed
+# first, then sent to the trash the way the desktop does (`deleted_at` set):
+# `chat --list` no longer names it.
+check_content "chat --list names seed-session-4"   "Which MCP tools" "${Q[@]}" chat --list
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET deleted_at = '2026-07-02T00:00:00Z' WHERE id = 'seed-session-4';"
+check         "chat --list leaves out a trashed session" bash -c "out=\$(\"\$@\" 2>&1) || { echo \"\$out\"; exit 1; }; [[ \$out != *'Which MCP tools'* ]] || { echo \"\$out\"; exit 1; }" _ "${Q[@]}" chat --list
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET deleted_at = NULL WHERE id = 'seed-session-4';"
 
 # ── task lifecycle (submit to a seeded auto-started agent, no model) ─────────
 # apollia-chat auto-starts; a submitted task exercises the read commands even
@@ -236,6 +248,13 @@ if e2e_sqlite "$HOME/.apollia/agents.db" "INSERT INTO agents (name, origin, vers
 else
     skip "agent without code" "agents.db has no agents table to write the agent into"
 fi
+
+# ── decisions waiting for the user ──────────────────────────────────────────
+# Nothing in the seed waits for a decision: no paused task, no batch, no
+# conversation running. The list is empty and the command succeeds.
+section "approvals"
+check_json_field "approvals pending --json holds no item" "len(d['items'])" 0 "${Q[@]}" approvals pending --json
+check         "approvals pending (empty)"                    "${Q[@]}" approvals pending
 
 # ── batches ─────────────────────────────────────────────────────────────────
 # The batch engine runs in the daemon. The seed holds no batch. It reads
@@ -327,6 +346,13 @@ check         "chat config reset --confirm"        "${Q[@]}" chat config reset -
 check_content "chat config get after reset"        "(runtime default)" "${Q[@]}" chat config get
 check_exit    "agent uninstall apollia:chat (built in) → 1" 1 "${Q[@]}" agent uninstall apollia:chat --confirm
 check         "audit verify (overrides journaled)"  "${Q[@]}" audit verify
+# The overrides above are access changes: each entry of the page carries its
+# summary, and the filters keep that nature and nothing else.
+check_json_field "audit journal --nature access_change --json: summarised, that nature only" "d['count'] > 0 and all(e['summary']['nature'] == 'access_change' for e in d['entries'])" "True" "${Q[@]}" audit journal --nature access_change --limit 50 --json
+check_json_field "audit journal --nature policy --result refused --json: nothing matches" "d['count']" "0" "${Q[@]}" audit journal --nature policy --result refused --json
+check_content "audit journal --nature access_change: a line per entry, in words" "Agent setting (changed|reset)" "${Q[@]}" audit journal --nature access_change --limit 50
+check_exit    "audit journal (unknown nature) → 1" 1 "${Q[@]}" audit journal --nature everything
+check_exit    "audit journal (unreadable date) → 1" 1 "${Q[@]}" audit journal --since last-week
 check         "agent package list"                 "${Q[@]}" agent package list
 check_content "agent package list has seed-office-pack" "seed-office-pack" "${Q[@]}" agent package show seed-office-pack
 check         "agent create scaffold --type react" "$BIN" agent create e2e-scaffold --type react

@@ -1,5 +1,5 @@
 <!--
-  Onboarding step 3, the language-engine half.
+  First-launch step 2, the language engine.
 
   Scans for GGUF weights, wires one as the default backend, and offers the three
   ways of adding another: an import from disk, the curated catalogue, and a
@@ -7,13 +7,11 @@
   navigation; this component holds everything about language engines.
 -->
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
-  import { listen } from "@tauri-apps/api/event";
   import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import {
-    cancelModelDownload,
     getHfModel,
     importModelFile,
     reloadLlm,
@@ -22,7 +20,6 @@
     searchHfModels,
     setupLocalLlm,
     startModelDownload,
-    type DownloadProgress,
     type GgufModelInfo,
     type HfFile,
     type HfModelCard,
@@ -41,20 +38,20 @@
     X,
     Search,
     ArrowLeft,
-    Server,
     Upload,
   } from "lucide-svelte";
   import { Spinner, ProgressBar } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import { Select } from "$lib/components/ui/select";
-  import {
-    CONTEXT_WINDOW_CHOICES,
-    DEFAULT_CONTEXT_WINDOW,
-    formatContextWindow,
-  } from "$lib/contextWindow";
   import { llmBackends } from "$lib/stores/sse";
-  import { llmSectionView, runLlmConfiguration } from "./aiSetupRules";
+  import {
+    LANGUAGE_DATA_EXTENSION,
+    isLanguageData,
+    llmSectionView,
+    runLlmConfiguration,
+  } from "./aiSetupRules";
+  import { isInFlight } from "./llmDownload";
+  import { llmDownload } from "./llmDownloadLive";
   import {
     defaultChoice,
     measuredLabel,
@@ -72,13 +69,14 @@
   interface Props {
     /** Drives which curated models are offered; `null` until the probe lands. */
     sysInfo: SystemInfo | null;
-    /** Reports whether an engine was wired during this session. */
-    onconfigured: (configured: boolean) => void;
-    /** The operator asked for a cloud backend instead. */
-    onopencloud: () => void;
+    /**
+     * Reports whether an engine was wired during this session, and the size of
+     * its file, which the next step sizes its own recommendation beside.
+     */
+    onconfigured: (configured: boolean, sizeBytes: number | null) => void;
   }
 
-  const { sysInfo, onconfigured, onopencloud }: Props = $props();
+  const { sysInfo, onconfigured }: Props = $props();
 
   let ggufModels = $state<GgufModelInfo[]>([]);
   let selectedGguf = $state<GgufModelInfo | null>(null);
@@ -86,11 +84,18 @@
   let llmSuccess = $state(false);
   let llmError = $state<string | null>(null);
   let importingLlm = $state(false);
+  /** File name of the recognition language data the last import brought in. */
+  let languageDataImported = $state<string | null>(null);
 
-  let llmDownloadId = $state<string | null>(null);
-  let llmDownloadProgress = $state<DownloadProgress | null>(null);
-  let llmDownloadingModel = $state<{ filename: string } | HfFile | null>(null);
-  let llmDownloadError = $state<string | null>(null);
+  // The download is followed outside this component: the step may be left
+  // while it runs, and the file is still wired as the engine when it lands.
+  const llmDownloading = $derived(isInFlight($llmDownload));
+  const llmDownloadProgress = $derived($llmDownload.progress);
+  const llmDownloadError = $derived.by(() => {
+    const failure = $llmDownload.failure;
+    if (!failure) return null;
+    return failure.detail ?? $t("onboarding.ai_setup.download_failed");
+  });
 
   // `null` keeps the backend's own default (`~/.apollia/models`); a masterised
   // Windows profile with a constrained `C:` drive is the reason this exists.
@@ -111,14 +116,9 @@
   // receives an array, and they call for opposite advice.
   let recommendation = $state<RecommendOutcome | null>(null);
   let recommendLoading = $state(false);
-  // Bumped by every request, so an answer computed for a window the operator
-  // has since changed is dropped instead of shown.
+  // Bumped by every request, so an answer a retry has since replaced is
+  // dropped instead of shown.
   let recommendRequest = 0;
-
-  // The window the engine will be launched with. It sizes the cache the
-  // recommender reserves, so it is chosen here, before a model, and stored on
-  // the backend the step wires.
-  let contextWindow = $state(String(DEFAULT_CONTEXT_WINDOW));
 
   const recommendedModels = $derived(
     recommendation?.status === "ok" ? recommendation.models : [],
@@ -136,47 +136,30 @@
     void loadRecommendations();
   });
 
+  // A file the download wired as the engine, while this step was open or
+  // after it was left and reopened: the section names it as its own.
   $effect(() => {
-    let unlisten: (() => void) | undefined;
-    listen<DownloadProgress>("model-download-progress", (event) => {
-      const p = event.payload;
-      if (p.id !== llmDownloadId) return;
-      llmDownloadProgress = p;
-      if (p.status === "completed") {
-        const downloadedFilename = llmDownloadingModel?.filename ?? null;
-        llmDownloadId = null;
-        llmDownloadingModel = null;
-        void (async () => {
-          await loadData();
-          // Auto-wire the freshly downloaded model as the default LLM backend
-          // so the user can chat immediately after onboarding. Without this,
-          // the download only lands the .gguf on disk and no backend is ever
-          // created in system.db, leaving the first chat with no model.
-          if (downloadedFilename && !llmSuccess) {
-            const model = ggufModels.find((m) => m.filename === downloadedFilename);
-            if (model) await selectGgufModel(model);
-          }
-        })();
-      } else if (p.status === "cancelled" || p.status === "failed") {
-        llmDownloadId = null;
-        llmDownloadingModel = null;
-        llmDownloadProgress = null;
-        if (p.status === "failed")
-          llmDownloadError = get(t)("onboarding.ai_setup.download_failed");
-      }
-    }).then((fn) => {
-      unlisten = fn;
-    });
-    return () => {
-      unlisten?.();
-    };
+    const path = $llmDownload.wiredPath;
+    if (!path) return;
+    untrack(() => void adoptWiredModel(path));
   });
+
+  async function adoptWiredModel(path: string): Promise<void> {
+    await loadData();
+    const model = ggufModels.find((m) => m.path === path);
+    if (!model) return;
+    selectedGguf = model;
+    llmSuccess = true;
+    onconfigured(true, model.size_bytes);
+  }
 
   async function loadRecommendations(): Promise<void> {
     const request = ++recommendRequest;
     recommendLoading = true;
     try {
-      const outcome = await recommendModels({ n_ctx: Number(contextWindow) });
+      // No window is passed: the recommendation and the engine both follow
+      // the default of the model.
+      const outcome = await recommendModels();
       if (request !== recommendRequest) return;
       recommendation = outcome;
     } catch (err: unknown) {
@@ -200,20 +183,6 @@
       };
     } finally {
       if (request === recommendRequest) recommendLoading = false;
-    }
-  }
-
-  async function onContextWindowChange(): Promise<void> {
-    void loadRecommendations();
-    // An engine already wired in this step takes the new window at once,
-    // rather than the one it was set up with a moment ago.
-    if (llmSuccess && selectedGguf && !llmConfiguring) {
-      try {
-        await setupLocalLlm(selectedGguf.path, Number(contextWindow));
-        await reloadLlm();
-      } catch (err: unknown) {
-        llmError = err instanceof Error ? err.message : String(err);
-      }
     }
   }
 
@@ -241,27 +210,36 @@
       },
       model.path,
       async (path) => {
-        await setupLocalLlm(path, Number(contextWindow));
+        await setupLocalLlm(path);
         await reloadLlm();
+        // An engine chosen by hand is kept when a download lands after it.
+        llmDownload.keepCurrentEngine();
       },
       (next) => {
         selectedGguf = next.selectedPath === model.path ? model : previous;
         llmConfiguring = next.configuring;
         llmSuccess = next.configured;
         llmError = next.error;
-        onconfigured(next.configured);
+        onconfigured(next.configured, next.configured ? (selectedGguf?.size_bytes ?? null) : null);
       },
     );
   }
 
   async function loadLlmModel(): Promise<void> {
-    if (importingLlm || llmDownloadId) return;
+    if (importingLlm || llmDownloading) return;
     importingLlm = true;
     llmError = null;
+    languageDataImported = null;
     try {
       const selected = await openFilePicker({
         multiple: false,
-        filters: [{ name: "GGUF", extensions: ["gguf"] }],
+        filters: [
+          { name: "GGUF", extensions: ["gguf"] },
+          {
+            name: get(t)("onboarding.ai_setup.load_language_data_filter"),
+            extensions: [LANGUAGE_DATA_EXTENSION],
+          },
+        ],
         title: get(t)("onboarding.ai_setup.load_model_title"),
         defaultPath: await pickModelsDir(),
       });
@@ -269,8 +247,12 @@
       const filePath =
         typeof selected === "string" ? selected : (selected as { path: string }).path;
       const dest = await importModelFile(filePath, ["gguf"]);
-      await loadData();
       const name = dest.split(/[\\/]/).pop() ?? "";
+      if (isLanguageData(dest)) {
+        languageDataImported = name;
+        return;
+      }
+      await loadData();
       const model = ggufModels.find((m) => m.filename === name);
       if (model) await selectGgufModel(model);
     } catch (err: unknown) {
@@ -308,34 +290,25 @@
   }
 
   async function downloadLlmModel(model: RecommendedModel): Promise<void> {
-    if (llmDownloadId) return;
-    llmDownloadError = null;
-    llmDownloadProgress = null;
-    llmDownloadingModel = { filename: model.file.filename };
-    try {
-      // A recommendation can be a split model, named by its first part: the
-      // variant download fetches every part, and the projector when the
-      // repository publishes one. The resolution always names the repository;
-      // an empty one is refused by the backend with its own error.
-      llmDownloadId = await startVariantDownload({
-        repo_id: model.file.repo_id || extractHfRepoId(model.file.download_url) || "",
-        selector: { kind: "gguf", file: model.file.filename },
-        hf_token: null,
-        dest_dir: destDir,
-      });
-    } catch (err: unknown) {
-      llmDownloadError = err instanceof Error ? err.message : String(err);
-      llmDownloadingModel = null;
-    }
+    // A recommendation can be a split model, named by its first part: the
+    // variant download fetches every part, and the projector when the
+    // repository publishes one. The resolution always names the repository;
+    // an empty one is refused by the backend with its own error.
+    await llmDownload.start(
+      () =>
+        startVariantDownload({
+          repo_id: model.file.repo_id || extractHfRepoId(model.file.download_url) || "",
+          selector: { kind: "gguf", file: model.file.filename },
+          hf_token: null,
+          dest_dir: destDir,
+        }),
+      model.file.filename,
+      model.file.size_bytes,
+    );
   }
 
   async function cancelLlmDownload(): Promise<void> {
-    if (!llmDownloadId) return;
-    try {
-      await cancelModelDownload(llmDownloadId);
-    } catch {
-      /* ignore */
-    }
+    await llmDownload.cancel();
   }
 
   async function searchHf(): Promise<void> {
@@ -374,22 +347,18 @@
   }
 
   async function downloadHfFile(file: HfFile): Promise<void> {
-    if (llmDownloadId) return;
-    llmDownloadError = null;
-    llmDownloadProgress = null;
-    llmDownloadingModel = file;
-    try {
-      llmDownloadId = await startModelDownload({
-        url: file.download_url,
-        filename: file.filename,
-        repo_id: expandedDetail?.repo_id ?? extractHfRepoId(file.download_url),
-        dest_dir: destDir,
-      });
-      showSearch = false;
-    } catch (err: unknown) {
-      llmDownloadError = err instanceof Error ? err.message : String(err);
-      llmDownloadingModel = null;
-    }
+    await llmDownload.start(
+      () =>
+        startModelDownload({
+          url: file.download_url,
+          filename: file.filename,
+          repo_id: expandedDetail?.repo_id ?? extractHfRepoId(file.download_url),
+          dest_dir: destDir,
+        }),
+      file.filename,
+      file.size_bytes,
+    );
+    if (get(llmDownload).phase === "downloading") showSearch = false;
   }
 </script>
 
@@ -461,7 +430,7 @@
         variant="default"
         size="sm"
         onclick={loadLlmModel}
-        disabled={importingLlm || !!llmDownloadId}
+        disabled={importingLlm || llmDownloading}
         loading={importingLlm}
         data-testid="llm-load-model-btn"
       >
@@ -469,25 +438,6 @@
         {$t("onboarding.ai_setup.load_model")}
       </Button>
     </div>
-
-    <div class="dest-dir-row" data-testid="llm-context-window-row">
-      <label class="dest-dir-label" for="onboarding-context-window">
-        {$t("onboarding.ai_setup.context_window_label")}
-      </label>
-      <Select
-        id="onboarding-context-window"
-        size="sm"
-        class="context-window-select"
-        bind:value={contextWindow}
-        onchange={() => void onContextWindowChange()}
-        data-testid="llm-context-window"
-      >
-        {#each CONTEXT_WINDOW_CHOICES as n (n)}
-          <option value={String(n)}>{formatContextWindow(n)}</option>
-        {/each}
-      </Select>
-    </div>
-    <p class="dest-dir-label context-window-hint">{$t("onboarding.ai_setup.context_window_hint")}</p>
 
     <div class="dest-dir-row" data-testid="llm-dest-dir-row">
       <span class="dest-dir-label">
@@ -500,13 +450,13 @@
       </Button>
     </div>
 
-    {#if llmDownloadId}
+    {#if llmDownloading}
       <div class="download-block" data-testid="llm-download-progress">
         <div class="dl-header">
           <span class="dl-filename">
-            {llmDownloadingModel?.filename ?? "…"}
+            {$llmDownload.filename ?? "…"}
           </span>
-          <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelLlmDownload} aria-label={$t("onboarding.ai_setup.cancel_download")}>
+          <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelLlmDownload} aria-label={$t("onboarding.ai_setup.cancel_download")} data-testid="llm-download-cancel">
             <X size={12} strokeWidth={2} />
           </Button>
         </div>
@@ -691,10 +641,6 @@
           <Search size={11} strokeWidth={2} />
           {$t("onboarding.ai_setup.search_hf")}
         </Button>
-        <Button variant="ghost" size="sm" class="btn-search-hf btn-cloud" onclick={onopencloud} data-testid="onboarding-open-cloud">
-          <Server size={11} strokeWidth={2} />
-          {$t("onboarding.ai_setup.connect_server")}
-        </Button>
       </div>
     {/if}
 
@@ -703,6 +649,12 @@
   {#if llmDownloadError}
     <p class="inline-error" role="alert" data-testid="llm-download-error">
       <AlertCircle size={12} />{llmDownloadError}
+    </p>
+  {/if}
+
+  {#if languageDataImported}
+    <p class="empty-hint" role="status" data-testid="llm-language-data-imported">
+      {$t("onboarding.ai_setup.language_data_imported", { values: { file: languageDataImported } })}
     </p>
   {/if}
 

@@ -10,9 +10,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::audit_journal::anchor::{AnchorRow, GlobalRow};
-use crate::audit_journal::entry::JournalEntry;
+use crate::audit_journal::entry::{JournalEntry, JournalEntryKind};
 use crate::audit_journal::hash::{compute_entry_hash, compute_global_hash, SENTINEL_PREV_HASH};
 use crate::audit_journal::signer::JournalSigner;
+use crate::governance::{GovernanceEvent, GovernanceRecord, PurgeAnchor, RunCut};
 
 /// Reason a chain link failed verification.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
@@ -69,8 +70,29 @@ pub fn verify_entries(
     signer: Option<&dyn JournalSigner>,
     require_signatures: bool,
 ) -> VerifyChainReport {
-    let mut expected_prev = SENTINEL_PREV_HASH.to_string();
+    verify_entries_after(run_id, entries, None, signer, require_signatures)
+}
+
+/// [`verify_entries`] for a run whose first entries a purge removed: the walk
+/// starts from `cut`, the last entry removed, instead of the sentinel. The
+/// first entry kept has to be the one that followed it, by its sequence
+/// number and by its `prev_hash`. Without a cut, the walk is the one of
+/// [`verify_entries`].
+pub(crate) fn verify_entries_after(
+    run_id: &str,
+    entries: &[JournalEntry],
+    cut: Option<&RunCut>,
+    signer: Option<&dyn JournalSigner>,
+    require_signatures: bool,
+) -> VerifyChainReport {
+    let mut expected_prev = cut.map_or_else(|| SENTINEL_PREV_HASH.to_string(), |c| c.hash.clone());
     let mut checked = 0u64;
+
+    if let (Some(cut), Some(first)) = (cut, entries.first()) {
+        if first.seq != cut.seq + 1 {
+            return broken(run_id, 1, first.seq, BrokenLinkReason::PrevHashMismatch);
+        }
+    }
 
     for entry in entries {
         checked += 1;
@@ -155,8 +177,9 @@ fn broken(run_id: &str, checked: u64, seq: u64, reason: BrokenLinkReason) -> Ver
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum JournalBreakReason {
-    /// The `global_seq` sequence is not contiguous from zero: an entry was
-    /// deleted or a whole run was removed from the interior of the chain.
+    /// The `global_seq` sequence is not contiguous from its start: an entry
+    /// was deleted, a whole run was removed from the interior of the chain, or
+    /// the journal does not begin where its last purge entry says it does.
     GlobalSeqGap,
     /// The `global_prev_hash` does not link to the previous global link.
     GlobalPrevHashMismatch,
@@ -200,6 +223,53 @@ pub struct VerifyJournalReport {
     /// rolled-back state row (detectable in-database only until the key is
     /// compromised; export the anchor off-machine for a durable guarantee).
     pub head_matches_state: bool,
+    /// Where the verification started, when a purge by retention removed the
+    /// beginning of the journal. `None` for a journal verified from its
+    /// origin.
+    #[serde(default)]
+    pub start: Option<JournalStart>,
+}
+
+/// Where the verification of a purged journal starts: the first entry kept,
+/// which follows the anchor the last purge entry carries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct JournalStart {
+    /// Global sequence number of the first entry verified.
+    pub global_seq: u64,
+    /// Date of the first entry verified (RFC3339).
+    pub ts: String,
+    /// When the purge that set this start was made (RFC3339).
+    pub purged_at: String,
+}
+
+/// What the last purge entry of the journal says of its beginning.
+pub(crate) struct PurgeFacts {
+    /// The last global link removed, `None` while the chain starts at zero.
+    pub(crate) anchor: Option<PurgeAnchor>,
+    /// Per run cut, the last entry removed.
+    pub(crate) runs: BTreeMap<String, RunCut>,
+    /// When the purge was made.
+    pub(crate) purged_at: String,
+}
+
+impl PurgeFacts {
+    /// Reads the facts out of a purge entry, `None` for any other entry or a
+    /// payload that does not read as one.
+    pub(crate) fn of(entry: &JournalEntry) -> Option<Self> {
+        if entry.kind != JournalEntryKind::JournalPurged {
+            return None;
+        }
+        match serde_json::from_value::<GovernanceRecord>(entry.payload.clone()) {
+            Ok(GovernanceRecord {
+                event: GovernanceEvent::JournalPurged { anchor, runs, .. },
+            }) => Some(Self {
+                anchor,
+                runs,
+                purged_at: entry.ts.clone(),
+            }),
+            _ => None,
+        }
+    }
 }
 
 /// The exportable head anchor of the global chain.
@@ -223,10 +293,17 @@ pub struct JournalAnchor {
 ///
 /// `rows` are the globally-chained entries ordered by ascending `global_seq`
 /// (rows predating the global-chain migration are excluded upstream). Walks the
-/// global chain checking `global_seq` contiguity from zero, `global_prev_hash`
-/// linkage, the recomputed global hash, and the global signature; verifies each
-/// run's per-run chain via [`verify_entries`]; and compares the terminal global
-/// head to `anchor`. When `require_signatures` is set, a global link with no
+/// global chain checking `global_seq` contiguity from its start,
+/// `global_prev_hash` linkage, the recomputed global hash, and the global
+/// signature; verifies each run's per-run chain via [`verify_entries`]; and
+/// compares the terminal global head to `anchor`.
+///
+/// The start is zero and the sentinel, unless the journal holds a purge entry:
+/// the last one carries the anchor of the prefix removed, and the first entry
+/// kept has to follow it. A journal that does not start at zero and that no
+/// purge entry accounts for is reported as a gap at its first entry. The same
+/// entry names the runs that lost their first entries, and each of them is
+/// walked from the last entry it lost. When `require_signatures` is set, a global link with no
 /// signature fails with [`JournalBreakReason::GlobalSignatureInvalid`] and the
 /// per-run walk enforces the same rule, so stripping the signatures off a
 /// recomputed chain no longer verifies. Stops at and reports the first global
@@ -237,7 +314,19 @@ pub(crate) fn verify_journal(
     signer: Option<&dyn JournalSigner>,
     require_signatures: bool,
 ) -> VerifyJournalReport {
-    let mut expected_prev = SENTINEL_PREV_HASH.to_string();
+    let purge = rows.iter().rev().find_map(|row| PurgeFacts::of(&row.entry));
+    let purge_anchor = purge.as_ref().and_then(|facts| facts.anchor.as_ref());
+    let start_seq = purge_anchor.map_or(0, |a| a.global_seq + 1);
+    let mut expected_prev =
+        purge_anchor.map_or_else(|| SENTINEL_PREV_HASH.to_string(), |a| a.global_hash.clone());
+    let start = match (&purge, purge_anchor, rows.first()) {
+        (Some(facts), Some(_), Some(first)) => Some(JournalStart {
+            global_seq: first.global_seq,
+            ts: first.entry.ts.clone(),
+            purged_at: facts.purged_at.clone(),
+        }),
+        _ => None,
+    };
     let mut checked = 0u64;
     let mut run_ids: BTreeSet<&str> = BTreeSet::new();
     let mut per_run: BTreeMap<&str, Vec<&JournalEntry>> = BTreeMap::new();
@@ -246,7 +335,7 @@ pub(crate) fn verify_journal(
         checked += 1;
         run_ids.insert(row.entry.run_id.as_str());
 
-        if row.global_seq != index as u64 {
+        if row.global_seq != start_seq + index as u64 {
             return journal_broken(row, checked, JournalBreakReason::GlobalSeqGap);
         }
         let recomputed =
@@ -294,7 +383,8 @@ pub(crate) fn verify_journal(
     for (run_id, entries) in &per_run {
         let mut owned: Vec<JournalEntry> = entries.iter().map(|e| (*e).clone()).collect();
         owned.sort_by_key(|e| e.seq);
-        let report = verify_entries(run_id, &owned, signer, require_signatures);
+        let cut = purge.as_ref().and_then(|facts| facts.runs.get(*run_id));
+        let report = verify_entries_after(run_id, &owned, cut, signer, require_signatures);
         if !report.ok {
             let seq = report.first_broken_link.as_ref().map_or(0, |b| b.seq);
             let global_seq = rows
@@ -311,6 +401,7 @@ pub(crate) fn verify_journal(
                     reason: JournalBreakReason::PerRunBroken,
                 }),
                 head_matches_state: false,
+                start,
             };
         }
     }
@@ -328,6 +419,7 @@ pub(crate) fn verify_journal(
         runs_checked: run_ids.len() as u64,
         first_break: None,
         head_matches_state,
+        start,
     }
 }
 
@@ -347,6 +439,7 @@ fn journal_broken(
             reason,
         }),
         head_matches_state: false,
+        start: None,
     }
 }
 

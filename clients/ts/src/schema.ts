@@ -104,7 +104,8 @@ export interface paths {
         /** `GET /api/v1/agent-definitions`: every stored agent, resolved. */
         get: operations["list_agent_definitions"];
         put?: never;
-        post?: never;
+        /** `POST /api/v1/agent-definitions`: create an agent without code. */
+        post: operations["create_agent_definition"];
         delete?: never;
         options?: never;
         head?: never;
@@ -199,7 +200,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /api/v1/agent-packages/installed`: the installed packages. */
+        /**
+         * `GET /api/v1/agent-packages/installed`: the installed packages, each with
+         *     its publisher, the state of its signature and how much it holds.
+         */
         get: operations["list_agent_packages"];
         put?: never;
         /**
@@ -224,7 +228,8 @@ export interface paths {
         };
         /**
          * `GET /api/v1/agent-packages/installed/{name}`: one installed package, its
-         *     manifest as recorded.
+         *     manifest as recorded, its publisher, what it installed by kind, and the
+         *     automations that would go with it.
          */
         get: operations["get_agent_package"];
         put?: never;
@@ -438,26 +443,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/approvals/filesystem/{request_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * `POST /api/v1/approvals/filesystem/{request_id}`: answers a request to
-         *     touch a file, which resumes the turn waiting on it.
-         */
-        post: operations["respond_filesystem_approval"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/approvals/pending": {
         parameters: {
             query?: never;
@@ -657,6 +642,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/export`: the journal as a file, narrowed by the filters
+         *     of `GET /api/v1/audit/journal`.
+         * @description Every entry that passes the filters is in the file, newest first: the
+         *     export is not paged. Each entry is its summary (when, who, what, on what,
+         *     with which result) and its place in the chain (run, sequence, kind, hash),
+         *     without content. With `detail=true` each entry also holds its payload and,
+         *     for a tool call, its arguments and its output. `csv` is UTF-8 with one
+         *     header row, `json` is one document with the entries. The file is offered
+         *     as `journal.<format>`, and the export is recorded in the journal. 400 on a
+         *     format or a filter value that cannot be read, 403 when the organisation
+         *     policy forbids the detail and it is asked, or requires it and it is not,
+         *     503 when the journal is not configured.
+         */
+        get: operations["export_audit_journal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit/journal": {
         parameters: {
             query?: never;
@@ -666,11 +681,13 @@ export interface paths {
         };
         /**
          * `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
-         *     across every run.
+         *     across every run, each entry with its summary.
          * @description This is the only read of the journal that does not need a run id up front:
          *     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-         *     and `GET /api/v1/audit` answers the separate tool-invocation trail. 503 when
-         *     the journal is not configured.
+         *     and `GET /api/v1/audit` answers the separate tool-invocation trail. The
+         *     filters are applied before paging, so `limit` and `offset` count matching
+         *     entries. 400 on a filter value that cannot be read, 503 when the journal is
+         *     not configured.
          */
         get: operations["list_audit_journal"];
         put?: never;
@@ -696,6 +713,30 @@ export interface paths {
          *     not configured.
          */
         get: operations["show_audit_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/journal/{run_id}/entries/{seq}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail.
+         * @description The page gives each entry a summary without content. This gives the entry
+         *     whole and, for a tool call, the full arguments and the full output of that
+         *     call, joined by the run and the call identifier from the entries the run
+         *     captured for replay. 404 when the run has no such entry, 503 when the
+         *     journal is not configured.
+         */
+        get: operations["show_audit_entry"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1007,7 +1048,14 @@ export interface paths {
          *     faults, the keys the policy fixes and the keys waiting for a restart.
          */
         get: operations["read_config"];
-        /** `PUT /api/v1/config`: saves a whole text through the writer. */
+        /**
+         * `PUT /api/v1/config`: saves a whole text through the writer.
+         * @description The change is written to the signed journal under the origin the caller
+         *     declares. A caller that wrote the file itself, as the command line does,
+         *     presents the text it wrote with its own fingerprint: nothing is written
+         *     again, and the change it made is journaled under its origin instead of as
+         *     a file changed from outside.
+         */
         put: operations["save_config"];
         post?: never;
         delete?: never;
@@ -1486,6 +1534,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/governance/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/governance/policy`: the policy read at startup. */
+        get: operations["read_policy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/governance/rules": {
         parameters: {
             query?: never;
@@ -1535,6 +1600,26 @@ export interface paths {
         post?: never;
         /** `DELETE /api/v1/governance/rules/{id}`: revokes one rule. */
         delete: operations["revoke_governance_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/governance/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/governance/state`: whether governance fails closed, and why,
+         *     and what degrades the journal without refusing anything.
+         */
+        get: operations["get_governance_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1938,6 +2023,23 @@ export interface paths {
         };
         /** `GET /api/v1/llm/hardware`, detect and return the hardware profile. */
         get: operations["get_hardware"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/hardware/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/hardware/usage`, measure the machine once. */
+        get: operations["get_resource_usage"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3567,23 +3669,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/onboarding/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** `PUT /api/v1/onboarding/profile`: records the profile chosen. */
-        put: operations["set_onboarding_profile"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/onboarding/reset": {
         parameters: {
             query?: never;
@@ -3638,6 +3723,73 @@ export interface paths {
          *     onboarding agent, for the whole onboarding or one topic.
          */
         post: operations["trigger_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/examples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/packages/examples`: the example packages the binary carries,
+         *     each with its agents and their mission, the connections it requires
+         *     (present or missing on this machine) and the installed version when the
+         *     user installed it. None of them is installed until the user chooses it.
+         */
+        get: operations["list_example_packages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/examples/{name}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/examples/{name}/install`: install the example.
+         * @description The example is assembled into a package archive and installed like any
+         *     package file: its preview is computed again and its refusal applies, an
+         *     update that adds accesses or connections needs `changesConfirmed`, and the
+         *     installation is recorded in the audit journal. Once installed it is
+         *     uninstalled like any package.
+         */
+        post: operations["install_example_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/examples/{name}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/examples/{name}/preview`: what the example
+         *     contains, what it asks for and which connections it requires, as the
+         *     preview of a package file says it. Nothing is written.
+         */
+        post: operations["preview_example_package"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3752,6 +3904,46 @@ export interface paths {
          *     its agents and workflows are erased only when the body asks.
          */
         post: operations["uninstall_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pending-decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/pending-decisions`: every decision waiting for the user. */
+        get: operations["list_pending_decisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pending-decisions/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/pending-decisions/decide`: answer one waiting decision.
+         * @description The answer goes through the call that answers the item where it was born,
+         *     so the conversation, the task or the batch item goes on as if it had been
+         *     answered there. After `always` on a batch item, every waiting item of the
+         *     same agent the consent covers runs again.
+         */
+        post: operations["decide_pending"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3964,7 +4156,10 @@ export interface paths {
         get: operations["get_profile_by_id"];
         put?: never;
         post?: never;
-        /** `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts. */
+        /**
+         * `DELETE /api/v1/profiles/{id}`: deletes a profile and its facts.
+         * @description The conversations that designated it return to the default profile.
+         */
         delete: operations["delete_profile"];
         options?: never;
         head?: never;
@@ -4285,6 +4480,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/folders`, the folders in the order of
+         *     the list, each with the conversations it holds.
+         */
+        get: operations["list_chat_folders"];
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/folders`, create a folder, placed
+         *     after the existing ones.
+         */
+        post: operations["create_chat_folder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/folders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Handler for `PUT /api/v1/sessions/folders/{id}`, rename a folder. */
+        put: operations["rename_chat_folder"];
+        post?: never;
+        /**
+         * Handler for `DELETE /api/v1/sessions/folders/{id}`, remove a folder. Its
+         *     conversations are kept and go back out of any folder.
+         */
+        delete: operations["delete_chat_folder"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/plan-mode-default": {
         parameters: {
             query?: never;
@@ -4314,6 +4554,48 @@ export interface paths {
          * @description Query param `?limit=N` (default 10, max 50).
          */
         get: operations["list_recent_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/search`, the conversations whose
+         *     messages contain every word of `q`, the best match first, each with an
+         *     excerpt. A word is matched from its start, and a conversation in the
+         *     trash is never answered.
+         */
+        get: operations["search_chat_messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/trash`, the conversations in the trash,
+         *     the last removed first.
+         */
+        get: operations["list_trashed_sessions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4412,6 +4694,26 @@ export interface paths {
          *     every message it holds.
          */
         post: operations["erase_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/sessions/{id}/folder`, put the conversation in a
+         *     folder, or out of any folder.
+         */
+        put: operations["set_session_folder"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4542,6 +4844,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/images/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/images/{file}`, an image a user
+         *     message of the session carries, as its metadata names it.
+         */
+        get: operations["get_session_image"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/pause": {
         parameters: {
             query?: never;
@@ -4638,6 +4960,26 @@ export interface paths {
         put?: never;
         /** Handler for `POST /api/v1/sessions/:id/plan/reject`. */
         post: operations["reject_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/restore`, take the session out of
+         *     the trash, back into the list with its messages.
+         */
+        post: operations["restore_session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4758,6 +5100,26 @@ export interface paths {
         get: operations["get_session_todo"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/trash`, send the session to the
+         *     trash: it leaves the list and keeps its messages.
+         */
+        post: operations["trash_session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4913,6 +5275,23 @@ export interface paths {
         post?: never;
         /** `DELETE /api/v1/sources/{id}`: remove a source. */
         delete: operations["delete_source"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{id}/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/sources/{id}/index`: where the index of a source stands. */
+        get: operations["source_index"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5896,6 +6275,12 @@ export interface components {
              *     `pkg:<package>/<tool>`.
              */
             accessId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified` when nothing
+             *     classifies it (a tool of a connection not added yet, an agent).
+             */
+            family: string;
             /** @description What the access lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -5925,6 +6310,11 @@ export interface components {
             accessId: string;
             /** @description Agent that gains it. */
             agentId: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external`, `execute_code`, or `unclassified`.
+             */
+            family: string;
             /** @description What it lets the agent do. */
             permits: string;
             /** @description Using it is sensitive. */
@@ -5940,7 +6330,7 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/onboarding/phase`. */
         AdvancePhaseBody: {
-            /** @description The phase to move to, in its snake_case name (`profile_choice`...). */
+            /** @description The phase to move to, in its snake_case name (`ai_setup`...). */
             phase: string;
         };
         /** @description Response body for agent list. */
@@ -6009,14 +6399,57 @@ export interface components {
             /** @description `director`, `worker` or `assistant`. */
             role: string;
         };
+        /**
+         * @description An automation that starts an agent or a workflow of a package: it goes
+         *     with the package.
+         */
+        AgentPackageAutomation: {
+            /** @description Trigger identifier. */
+            id: string;
+            /** @description The agent, or the workflow as `<package>/<workflow>`, it starts. */
+            target: string;
+        };
+        /** @description What a package installed, by kind. */
+        AgentPackageContent: {
+            /** @description Its agents. */
+            agents: components["schemas"]["AgentPackageItem"][];
+            /** @description The connections it brought: they go with it. */
+            connections_brought: string[];
+            /** @description The connections it requires: they stay. */
+            connections_required: components["schemas"]["AgentPackageRequirement"][];
+            /** @description Its Python tools. */
+            tools: components["schemas"]["AgentPackageTool"][];
+            /** @description Its workflows. */
+            workflows: components["schemas"]["AgentPackageItem"][];
+        };
+        /** @description How many items of each kind a package installed. */
+        AgentPackageCounts: {
+            /** @description Agents. */
+            agents: number;
+            /** @description Connections, brought and required together. */
+            connections: number;
+            /** @description Python tools. */
+            tools: number;
+            /** @description Workflows. */
+            workflows: number;
+        };
         /** @description An installed package, in full. */
         AgentPackageDetail: {
             /** @description Its agents. */
             agents: components["schemas"]["AgentPackageAgent"][];
             /** @description Author from its manifest. */
             author: string;
+            /**
+             * @description The automations that start one of its agents or workflows: they go
+             *     with it. Filled by the route, which holds the trigger store.
+             */
+            automations?: components["schemas"]["AgentPackageAutomation"][];
+            /** @description What it installed, by kind. */
+            content: components["schemas"]["AgentPackageContent"];
             /** @description Description from its manifest. */
             description: string;
+            /** @description Apollia ships it inside its binary: it is never uninstalled. */
+            embedded: boolean;
             /** @description When it was installed. */
             installed_at: string;
             /** @description The manifest as recorded. */
@@ -6027,6 +6460,8 @@ export interface components {
             root_missing: boolean;
             /** @description Its folder. */
             root_path: string;
+            /** @description Its publisher and the state of its signature. */
+            signature: components["schemas"]["AgentPackageSignature"];
             /** @description When it was last written. */
             updated_at: string;
             /** @description Installed version. */
@@ -6054,14 +6489,27 @@ export interface components {
             /** @description Installed version. */
             version: string;
         };
+        /** @description An agent or a workflow of a package. */
+        AgentPackageItem: {
+            /** @description What it is for, in one line; empty when the manifest does not say. */
+            description: string;
+            /** @description Identifier: the agent id, or the workflow name inside its package. */
+            id: string;
+            /** @description Display name. */
+            name: string;
+        };
         /** @description An installed package in the listing. */
         AgentPackageListItem: {
             /** @description Number of agents. */
             agent_count: number;
             /** @description Its agents. */
             agents: components["schemas"]["AgentPackageAgent"][];
+            /** @description How many agents, workflows, tools and connections it holds. */
+            counts: components["schemas"]["AgentPackageCounts"];
             /** @description Description from its manifest. */
             description: string;
+            /** @description Apollia ships it inside its binary: it is never uninstalled. */
+            embedded: boolean;
             /** @description When it was installed. */
             installed_at: string;
             /** @description Package name. */
@@ -6070,6 +6518,8 @@ export interface components {
             root_missing: boolean;
             /** @description Its folder. */
             root_path: string;
+            /** @description Its publisher and the state of its signature. */
+            signature: components["schemas"]["AgentPackageSignature"];
             /** @description Installed version. */
             version: string;
         };
@@ -6100,6 +6550,44 @@ export interface components {
         AgentPackagePreviewBody: {
             /** @description The package folder on this machine, the one holding `agent.toml`. */
             path: string;
+        };
+        /**
+         * @description A connection a package requires. It belongs to the user and stays when
+         *     the package is uninstalled.
+         */
+        AgentPackageRequirement: {
+            /** @description Why the package needs it. */
+            reason: string;
+            /** @description Connection type, as the package names it. */
+            type: string;
+        };
+        /** @description Who published an installed package, as recorded at its installation. */
+        AgentPackageSignature: {
+            /** @description SHA-256 fingerprint of the signing key, when the package is signed. */
+            key_fingerprint?: string | null;
+            /**
+             * @description Name to show for the publisher: the label of the keyring when the key
+             *     that signed the package is trusted, otherwise the name the package
+             *     declares, which nothing verifies.
+             */
+            publisher: string;
+            /** @description The package carried a signature that held. */
+            signed: boolean;
+            /** @description The key that signed it is in the keyring of trusted publishers. */
+            trusted: boolean;
+        };
+        /** @description A Python tool of a package. */
+        AgentPackageTool: {
+            /** @description What it does; empty when the manifest does not say. */
+            description: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external` or `execute_code`; empty when the manifest does not
+             *     describe the tool.
+             */
+            family: string;
+            /** @description Tool name inside its package. */
+            name: string;
         };
         /** @description A trigger a package declares, as the preview shows it. */
         AgentPackageTrigger: {
@@ -6270,11 +6758,23 @@ export interface components {
             task_id: string;
             tool_name: string;
         };
+        /** @description Response body for `GET /api/v1/audit/journal/:run_id/entries/:seq`. */
+        AuditJournalEntryDetailResponse: {
+            /**
+             * @description The chained entry, with its `summary` and, when it is about a tool
+             *     call, a `tool_call` holding the full `arguments`, `output` and `status`.
+             */
+            entry: Record<string, never>;
+        };
         /** @description Response body for `GET /api/v1/audit/journal`. */
         AuditJournalPageResponse: {
             /** @description Number of entries in this page. */
             count: number;
-            /** @description Journal entries, newest global position first. */
+            /**
+             * @description Journal entries, newest global position first. Each one is the chained
+             *     entry with a `summary` beside its fields: agent, nature, family, what
+             *     happened, tool, target, outcome and date, without content.
+             */
             entries: Record<string, never>[];
         };
         /** @description Response body for `GET /api/v1/audit/journal/:run_id`. */
@@ -6312,11 +6812,6 @@ export interface components {
              *     `decision == "refuse"`.
              */
             reason?: string | null;
-            /**
-             * @description Always-accept scope. Only honoured when `decision == "always_accept"`.
-             *     Defaults to [`crate::chat::AlwaysAcceptScope::ThisSession`].
-             */
-            scope?: string | null;
             /**
              * @description Unique id of the tool call being resolved. Correlates with the
              *     `approval_required` event so the same tool invoked twice in one turn
@@ -6390,7 +6885,8 @@ export interface components {
             concurrency?: number | null;
             /**
              * @description The sensitive accesses granted for the duration of the batch, by
-             *     their id as `GET /api/v1/batches/accesses` lists them.
+             *     their id as `GET /api/v1/batches/accesses` lists them, and
+             *     `source:write` when the results go into the original file.
              */
             grants?: string[];
             /**
@@ -6519,6 +7015,20 @@ export interface components {
             session_id: string;
             /** @description Tool that required approval. */
             tool_name: string;
+        };
+        /** @description A folder of the conversation list. */
+        ChatFolder: {
+            /** @description Folder identifier. */
+            id: string;
+            /** @description Name the user gave it. */
+            name: string;
+            /**
+             * Format: int64
+             * @description Place in the list, the lowest first.
+             */
+            position: number;
+            /** @description The conversations in the folder, the ones in the trash left out. */
+            session_ids: string[];
         };
         /**
          * @description Snapshot of a session's plan plus its current plan-mode phase.
@@ -6650,6 +7160,8 @@ export interface components {
              *     alone, `http://<IPv4 address on the local network>:<port>` otherwise.
              */
             address: string;
+            /** @description For each setting the organisation policy can fix, whether it does. */
+            imposedByPolicy: components["schemas"]["ServerPolicyLocks"];
             /** @description Why the last start failed, cleared by the next successful start. */
             lastError?: string | null;
             /**
@@ -6732,6 +7244,11 @@ export interface components {
         };
         /** @description A text to save, with the fingerprint of the text it was made from. */
         ConfigSaveRequest: {
+            /**
+             * @description Where the change comes from, for the journal: `editor`, `settings`,
+             *     `cli` or `api`. A caller that names none is `api`.
+             */
+            origin?: components["schemas"]["DeclaredOrigin"];
             /** @description SHA-256 of the text the change was made from, as `GET` returned it. */
             sha256: string;
             /** @description The whole text of the new `apollia.toml`. */
@@ -6813,7 +7330,7 @@ export interface components {
          * @description Whether a connection can be used right now.
          * @enum {string}
          */
-        ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped";
+        ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped" | "forbidden_by_policy";
         /** @description One tool a connection brings. */
         ConnectionTool: {
             /** @description Action family of the tool. */
@@ -6848,7 +7365,7 @@ export interface components {
             message_count: number;
             /** @description Number of messages that have been summarized. */
             summarized_count: number;
-            /** @description Whether the user profile was injected into the system prompt. */
+            /** @description Whether the assistant's prompt carries the profile of the conversation. */
             user_memory_injected: boolean;
         };
         /** @description A single backend/model cost summary row. */
@@ -6898,6 +7415,25 @@ export interface components {
              */
             source: string;
         };
+        /** @description Body of `POST /api/v1/agent-definitions`. */
+        CreateAgentRequest: {
+            /**
+             * @description Accesses granted. Absent, the agent reads by default, as any agent
+             *     created without code; a list, even empty, replaces that default.
+             */
+            access?: string[] | null;
+            /** @description Example requests. */
+            examples?: string[];
+            /** @description What the agent is for, used as its instructions. */
+            mission: string;
+            /** @description Display name. The identifier of the agent is derived from it. */
+            name: string;
+            /**
+             * @description Sources checked: identifiers of `GET /api/v1/sources`, `profile` or
+             *     `memory`.
+             */
+            sources?: string[];
+        };
         /** @description Request body for `POST /api/v1/notifications/channels`. */
         CreateChannelRequest: {
             /** @description Channel type: `"desktop"` or `"webhook"`. */
@@ -6942,7 +7478,7 @@ export interface components {
         CreatePresetRequest: {
             /** @description Make it the default preset of its model (default: `false`). */
             is_model_default?: boolean;
-            /** @description Load settings. Never a system prompt. */
+            /** @description Load settings, written only while models.preset_load_settings is on. Never a system prompt. */
             load?: Record<string, never>;
             /** @description The model the preset is attached to. Fixed once created. */
             model_id: string;
@@ -6983,6 +7519,12 @@ export interface components {
             agent_name?: string | null;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
+            /**
+             * @description The model of the session: the identifier of a language model of the
+             *     model index, `<server>/<model>` for a model of a declared server, or
+             *     the name of a backend. Absent keeps the model of the agent.
+             */
+            model?: string | null;
             /** @description Custom system prompt. */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
@@ -7074,6 +7616,42 @@ export interface components {
             /** @description Per-day/backend cost entries. */
             entries: components["schemas"]["DailyCostEntry"][];
         };
+        /** @description Body of `POST /api/v1/pending-decisions/decide`. */
+        DecideRequest: {
+            /** @description One of the answers the item takes. */
+            answer: components["schemas"]["PendingAnswer"];
+            /** @description The answers to a question, one per question, matched by its `id`. */
+            answers?: Record<string, never>[] | null;
+            /** @description The `id` of the item, as listed. */
+            id: string;
+            /** @description Why, for a refusal; handed to the agent. */
+            reason?: string | null;
+            /**
+             * @description The answer to the typed question of a paused task: a proposition id,
+             *     free text when it allows it, or a value.
+             */
+            value?: Record<string, never> | null;
+        };
+        /** @description What a decision did. */
+        DecideResponse: {
+            /** @description The answer applied. */
+            answer: components["schemas"]["PendingAnswer"];
+            /** @description The item answered. */
+            id: string;
+            /** @description What happened, to show the user. */
+            message: string;
+            /**
+             * Format: int64
+             * @description How many waiting runs, conversations or items went on.
+             */
+            resumed: number;
+        };
+        /**
+         * @description The origin a caller of the save route may declare. The two origins the
+         *     runtime finds by itself are not among them.
+         * @enum {string}
+         */
+        DeclaredOrigin: "editor" | "settings" | "cli" | "api";
         /** @description The default model of the machine. */
         DefaultModelResponse: {
             /** @description Name of the backend that holds the default, the name the router routes by. */
@@ -7156,12 +7734,31 @@ export interface components {
             /** @description The key removed. */
             deleted: string;
         };
+        /** @description A source made on a folder connection. */
+        DependentSource: {
+            /** @description Source identifier. */
+            id: string;
+            /** @description `folder` or `code_folder`. */
+            kind: string;
+            /** @description The name the user sees. */
+            label: string;
+        };
         /** @description What the dictation setup did. */
         DictationConfigured: {
             /** @description The transcription language stored, `None` when none is set. */
             language?: string | null;
             /** @description The Whisper model file dictation now reads. */
             model_path: string;
+        };
+        /** @description The dictation engine, whisper.cpp inside the runner the daemon starts. */
+        DictationEngine: {
+            /** @description The runner binary. */
+            path: string;
+            /**
+             * @description The whisper.cpp version the runner states with `--version`; unknown
+             *     when it does not answer.
+             */
+            version?: string | null;
         };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
@@ -7187,6 +7784,13 @@ export interface components {
         DismissedProposal: {
             /** @description The cursor of the proposal removed. */
             dismissed: number;
+        };
+        /** @description One document as a client sends it. */
+        DocumentAttachment: {
+            /** @description Bytes of the document, in standard base64. */
+            data: string;
+            /** @description File name of the document, with its extension, such as `invoice.pdf`. */
+            name: string;
         };
         /** @description The Drive folder of one connected Google account. */
         DriveFolderStatus: {
@@ -7251,6 +7855,11 @@ export interface components {
         EngineEntry: {
             /** @description Engine. */
             engine: components["schemas"]["EngineName"];
+            /**
+             * @description True for the build this runtime starts for the model format it serves:
+             *     the `llama-server` binary it resolves, the MLX environment it imports.
+             */
+            in_service: boolean;
             /** @description Where it lives. */
             path: string;
             /** @description Embedded, downloaded or imported. */
@@ -7258,6 +7867,12 @@ export interface components {
             /** @description Upstream tag; unknown for an embedded engine. */
             tag?: string | null;
             variant?: null | components["schemas"]["EngineVariant"];
+            /**
+             * @description The version the engine states at its source: the `--version` banner of
+             *     a binary, the package metadata of a Python environment. Unknown when it
+             *     does not answer.
+             */
+            version?: string | null;
         };
         /** @description Body of `POST /api/v1/engines/import`. */
         EngineImportRequest: {
@@ -7304,6 +7919,7 @@ export interface components {
             channel: components["schemas"]["EngineChannel"];
             /** @description True when an NVIDIA card is detected and no CUDA engine is installed. */
             cuda_proposable: boolean;
+            dictation?: null | components["schemas"]["DictationEngine"];
             /** @description Engines embedded in the bundle, then installed ones. */
             engines: components["schemas"]["EngineEntry"][];
             /**
@@ -7322,6 +7938,37 @@ export interface components {
             /** @description List of global events. */
             events: string[];
         };
+        /** @description One agent of an example. */
+        ExampleAgent: {
+            /** @description Agent identifier. */
+            id: string;
+            /** @description What the agent does. */
+            mission: string;
+            /** @description Display name. */
+            name: string;
+        };
+        /** @description Body of `POST /api/v1/packages/examples/{name}/install`. */
+        ExampleInstallRequest: {
+            /** @description The user accepted what an update adds. */
+            changesConfirmed?: boolean;
+            /** @description The user accepted the Python dependencies the package installs. */
+            depsConfirmed?: boolean;
+        };
+        /** @description An example as the application proposes it. */
+        ExamplePackage: {
+            /** @description Its agents, each with its mission. */
+            agents: components["schemas"]["ExampleAgent"][];
+            /** @description What the package delivers. */
+            description: string;
+            /** @description Installed version, when the user installed it. */
+            installedVersion?: string | null;
+            /** @description Package identifier. */
+            name: string;
+            /** @description The connections it requires, present or missing on this machine. */
+            requires: components["schemas"]["RequiredConnectionPreview"][];
+            /** @description Version the binary carries. */
+            version: string;
+        };
         /** @description Body of `POST /api/v1/agent-definitions/{name}/export`. */
         ExportAgentRequest: {
             /**
@@ -7337,6 +7984,25 @@ export interface components {
          * @enum {string}
          */
         ExportFormat: "xlsx" | "csv" | "json";
+        /** @description Why governance fails closed. */
+        FailClosed: {
+            /** @enum {string} */
+            cause: "store_unreadable";
+            /** @description What the read failed on. */
+            detail: string;
+        } | {
+            /** @enum {string} */
+            cause: "policy_invalid";
+            /** @description What exactly was refused. */
+            detail: string;
+            /** @description The reason class: `schema`, `signature`, `key` or `owner`. */
+            reason: string;
+        } | {
+            /** @enum {string} */
+            cause: "journal_unavailable";
+            /** @description What is missing. */
+            detail: string;
+        };
         /** @description Response for `POST /api/v1/triggers/:id/fire`. */
         FireResponse: {
             /** @description Identifier of the submitted task. */
@@ -7351,50 +8017,32 @@ export interface components {
         FolderErrorBody: {
             /**
              * @description Stable code: `not_a_folder`, `already_added`, `admission_refused`,
-             *     `not_found`, `store`.
+             *     `not_found`, `has_dependent_sources`, `sources`, `store`.
              */
             code: string;
+            /**
+             * @description For `has_dependent_sources`, the sources removing the folder would
+             *     remove; absent otherwise.
+             */
+            dependent_sources?: components["schemas"]["DependentSource"][];
             /**
              * @description What went wrong, for a person. For `admission_refused`, the reason
              *     the admission gave, as is.
              */
             error: string;
         };
+        /**
+         * @description Body of `POST /api/v1/sessions/folders` and of
+         *     `PUT /api/v1/sessions/folders/{id}`.
+         */
+        FolderNameBody: {
+            /** @description Name of the folder: not blank, 100 characters at most. */
+            name: string;
+        };
         /** @description Request body for `POST /api/v1/sessions/:id/fork`. */
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
             up_to_index?: number | null;
-        };
-        /**
-         * @description The user's answer to a request to touch a file, as the approval card sends
-         *     it. The `decision` discriminant is snake_case; the breadth of an "always
-         *     allow" is a separate `scope`, so earlier builds that sent only `op` and
-         *     `level` keep working.
-         */
-        FsHitlDecisionBody: {
-            /** @enum {string} */
-            decision: "approve";
-        } | {
-            /** @enum {string} */
-            decision: "deny";
-            /** @description Free-text reason entered by the user. */
-            reason?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow";
-            /** @description Risk level (`medium`, `high`...). */
-            level: string;
-            /** @description Filesystem operation (`write`, `delete`...). */
-            op: string;
-            /** @description Breadth of the rule; absent means this session only. */
-            scope?: string | null;
-        } | {
-            /** @enum {string} */
-            decision: "always_allow_session";
-            /** @description Risk level. */
-            level: string;
-            /** @description Filesystem operation. */
-            op: string;
         };
         /** @description Request body for `POST /api/v1/sessions/{id}/title/generate`. */
         GenerateTitleBody: {
@@ -7432,6 +8080,16 @@ export interface components {
             summary: string;
             /** @description ISO 8601 timestamp. */
             timestamp: string;
+        };
+        /** @description Answer of `GET /api/v1/governance/state`. */
+        GovernanceStateBody: {
+            fail_closed?: null | components["schemas"]["FailClosed"];
+            /**
+             * @description What degrades the journal without anything being refused: it opened
+             *     without its signing key, or the daily export the organisation policy
+             *     asks for cannot be written. Empty for a journal in order.
+             */
+            journal_notices?: components["schemas"]["JournalNotice"][];
         };
         /** @description The load guardrail's view of a load. */
         GuardrailCheckDto: {
@@ -7489,6 +8147,14 @@ export interface components {
             /** Format: int32 */
             cpu_cores: number;
             cpu_model: string;
+            /**
+             * @description The graphics devices, one by one: the identifier the engine lists each
+             *     under (absent when the engine could not be asked), its name, the
+             *     interface the engine drives it through, its memory in GB, and whether
+             *     the engine may load onto it. The accelerator, the budget and the
+             *     capacity already leave out the memory of the devices held back.
+             */
+            devices: Record<string, never>[];
             /** Format: double */
             memory_budget_gb: number;
             /**
@@ -7512,6 +8178,13 @@ export interface components {
             status: string;
             /** @description The version of the runtime answering, as its crate declares it. */
             version: string;
+        };
+        /** @description One image as a client sends it. */
+        ImageAttachment: {
+            /** @description Bytes of the image, in standard base64. */
+            data: string;
+            /** @description Media type of the image, such as `image/png`. */
+            mime_type: string;
         };
         /**
          * @description Body of both mailbox routes. Deliberately without `Debug`: it carries the
@@ -7879,6 +8552,69 @@ export interface components {
          * @enum {string}
          */
         JournalBreakReason: "global_seq_gap" | "global_prev_hash_mismatch" | "global_hash_mismatch" | "global_signature_invalid" | "unknown_signing_key" | "per_run_broken";
+        /**
+         * @description A file format the journal is exported in.
+         * @enum {string}
+         */
+        JournalExportFormat: "csv" | "json";
+        /**
+         * @description What kind of fact an entry records.
+         * @enum {string}
+         */
+        JournalNature: "action" | "access_change" | "policy" | "system";
+        /** @description One thing a window says about a degraded journal. */
+        JournalNotice: {
+            /** @enum {string} */
+            notice: "unsigned";
+        } | {
+            /** @description What the write failed on. */
+            detail: string;
+            /** @description The folder the policy designates. */
+            directory: string;
+            /** @enum {string} */
+            notice: "daily_export_failed";
+        };
+        /**
+         * @description How what an entry records ended.
+         * @enum {string}
+         */
+        JournalOutcome: "success" | "failure" | "refused";
+        /**
+         * @description Where the verification of a purged journal starts: the first entry kept,
+         *     which follows the anchor the last purge entry carries.
+         */
+        JournalStart: {
+            /**
+             * Format: int64
+             * @description Global sequence number of the first entry verified.
+             */
+            global_seq: number;
+            /** @description When the purge that set this start was made (RFC3339). */
+            purged_at: string;
+            /** @description Date of the first entry verified (RFC3339). */
+            ts: string;
+        };
+        /** @description One journal entry, said in a line and without content. */
+        JournalSummary: {
+            /** @description Agent the entry is about, when it is about one. */
+            agent?: string | null;
+            /** @description Action family concerned (`read`, `write_or_delete`, ...), when there is one. */
+            family?: string | null;
+            /** @description What kind of fact the entry records. */
+            nature: components["schemas"]["JournalNature"];
+            outcome?: null | components["schemas"]["JournalOutcome"];
+            /**
+             * @description What was acted on: a path, a recipient, the host of an address, a
+             *     connection. Never an argument that carries content.
+             */
+            target?: string | null;
+            /** @description Tool concerned, when there is one. */
+            tool?: string | null;
+            /** @description When, RFC 3339 UTC. */
+            ts: string;
+            /** @description What happened, in a few words. */
+            what: string;
+        };
         /** @description Response of `GET /api/v1/llm/loaded-models/last`. */
         LastLoadedModelResponse: {
             /**
@@ -8006,6 +8742,11 @@ export interface components {
              */
             rememberedPresetId?: number | null;
         };
+        /**
+         * @description Who loaded a resident model.
+         * @enum {string}
+         */
+        LoadOrigin: "app" | "server";
         /** @description One resident model. */
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
@@ -8058,6 +8799,11 @@ export interface components {
              *     default applies.
              */
             nParallel?: number | null;
+            /**
+             * @description Who loaded the model: `app`, or `server` when the compatible server
+             *     loaded it for a request of another program. Fixed at load.
+             */
+            origin: components["schemas"]["LoadOrigin"];
             /**
              * Format: int32
              * @description Loopback port of the process serving it.
@@ -8307,6 +9053,19 @@ export interface components {
             content: string;
             /** @description Role of the message sender. */
             role: string;
+        };
+        /** @description A conversation that contains the words searched. */
+        MessageSearchHit: {
+            /** @description Agent of the conversation, when it has one. */
+            agent_name?: string | null;
+            /** @description ISO-8601 creation timestamp of the conversation. */
+            created_at: string;
+            /** @description The passage of the best matching message, on one line. */
+            excerpt: string;
+            /** @description Session identifier. */
+            session_id: string;
+            /** @description Title the user or the model gave the conversation, when it has one. */
+            title?: string | null;
         };
         /** @description One item the migration did not carry over. */
         MigrationIssue: {
@@ -8612,15 +9371,12 @@ export interface components {
             onboarded: boolean;
         };
         /**
-         * @description The seven ordered phases of the onboarding flow.
+         * @description The ordered phases of the onboarding flow: the seven steps of the first
+         *     launch, each resumed exactly where it was left, then the three that close
+         *     it.
          * @enum {string}
          */
-        OnboardingPhase: "welcome" | "profile_choice" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
-        /** @description Request body for `PUT /api/v1/onboarding/profile`. */
-        OnboardingProfileBody: {
-            /** @description `operator` or `builder`. */
-            profile: string;
-        };
+        OnboardingPhase: "welcome" | "ai_setup" | "embeddings" | "acquaintance" | "first_agent" | "connection" | "first_task" | "guided_tour" | "graduation" | "done";
         /** @description Answer of `POST /api/v1/onboarding/reset`. */
         OnboardingReset: {
             /** @description How many profile entries were removed. */
@@ -8640,11 +9396,9 @@ export interface components {
             mandatory_complete: boolean;
             /** @description Current phase of the onboarding flow. */
             phase: components["schemas"]["OnboardingPhase"];
-            /** @description Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice. */
-            profile?: string | null;
             /** @description `true` if the user explicitly skipped the onboarding. */
             skipped: boolean;
-            /** @description ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice). */
+            /** @description ISO 8601 timestamp of the first phase transition (Welcome to AiSetup). */
             started_at?: string | null;
             /** @description Accumulated stats for the graduation screen. */
             stats: components["schemas"]["OnboardingStats"];
@@ -8699,7 +9453,7 @@ export interface components {
              *     `deps_confirmation_required`, `changes_confirmation_required`,
              *     `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
              *     `policy_key`, `not_found`, `built_in`, `owned_by_package`,
-             *     `journal_unavailable`, `internal`.
+             *     `journal_unavailable`, `example`, `internal`.
              */
             code: string;
             /** @description Human-readable description. */
@@ -8784,6 +9538,11 @@ export interface components {
             known_agents?: string[];
         };
         /**
+         * @description An answer a decision takes.
+         * @enum {string}
+         */
+        PendingAnswer: "once" | "always" | "refuse" | "answer";
+        /**
          * @description One pending HITL approval entry.
          *
          *     Carries the same pause as a `GET /api/v1/tasks?status=input_required` item,
@@ -8802,6 +9561,76 @@ export interface components {
             skill_id?: string | null;
             suspended_at: string;
             task_id: string;
+        };
+        /** @description One decision waiting for the user. */
+        PendingDecision: {
+            /** @description The tool or the access asked for, for a consent and a batch item. */
+            access?: string | null;
+            /** @description The agent that waits, when known. */
+            agentId?: string | null;
+            /** @description A free answer is taken besides the proposed choices. */
+            allowOther: boolean;
+            /** @description The answers it takes. */
+            answers: components["schemas"]["PendingAnswer"][];
+            /** @description When it was asked, RFC 3339, when known. */
+            askedAt?: string | null;
+            /**
+             * @description Its action family (`read_personal`, `write_or_delete`, `send_external`,
+             *     `execute_code`, `unclassified`), when known.
+             */
+            family?: string | null;
+            /** @description Identifier to answer it by, stable while it waits. */
+            id: string;
+            /** @description Where it comes from. */
+            kind: components["schemas"]["PendingKind"];
+            /** @description Where it was born. */
+            origin: components["schemas"]["PendingOrigin"];
+            /**
+             * @description The questions of a question, each with its proposed choices, or the
+             *     typed payload of a paused task.
+             */
+            questions?: Record<string, never> | null;
+            /** @description What is asked, in a sentence. */
+            summary: string;
+        };
+        /** @description The decisions waiting for the user. */
+        PendingDecisionList: {
+            items: components["schemas"]["PendingDecision"][];
+        };
+        /** @description Error body of these routes. */
+        PendingErrorBody: {
+            /**
+             * @description A stable code: `UNKNOWN_ITEM`, `ANSWER_NOT_OFFERED`, `INVALID_ANSWER`,
+             *     `UNAVAILABLE`, or the code of the call the decision went through.
+             */
+            code: string;
+            /** @description What went wrong. */
+            error: string;
+        };
+        /**
+         * @description Where a decision waiting for the user comes from.
+         * @enum {string}
+         */
+        PendingKind: "consent" | "task_pause" | "batch_item" | "question";
+        /** @description Where the decision is to be found where it was born. */
+        PendingOrigin: {
+            /** @description The batch of an item. */
+            batchId?: string | null;
+            /** @description The message whose turn asked. */
+            messageId?: string | null;
+            /**
+             * Format: int64
+             * @description Position of the item in its source, from 0.
+             */
+            rank?: number | null;
+            /** @description The `ask_user` request of a question. */
+            requestId?: string | null;
+            /** @description The conversation, for a consent or a question asked in one. */
+            sessionId?: string | null;
+            /** @description The paused task. */
+            taskId?: string | null;
+            /** @description The tool call a consent is about. */
+            toolCallId?: string | null;
         };
         /**
          * @description A key changed since the start that waits for a restart, with its line in
@@ -9323,11 +10152,16 @@ export interface components {
             /**
              * @description Fields whose value is the user's rather than the package's:
              *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
-             *     `profile`.
+             *     `planning`, `profile`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
             package?: string | null;
+            /**
+             * @description Whether the agent plans a task before acting on it: `never`, `auto` or
+             *     `always`. The user's, else the package's, else `auto`.
+             */
+            planning: string;
             /**
              * @description Identifier of the user profile designated for the agent; absent when
              *     it runs with the default profile.
@@ -9348,10 +10182,29 @@ export interface components {
             /** Format: int64 */
             wait_duration_ms?: number | null;
         };
-        /** @description Answer of `POST /api/v1/approvals/filesystem/{request_id}`. */
-        ResolvedFilesystemApproval: {
-            /** @description The request answered. */
-            request_id: string;
+        /** @description The memory and the processor in use at the time of the request. */
+        ResourceUsageResponse: {
+            /**
+             * Format: float
+             * @description Processor load over every core, from 0 to 100.
+             */
+            cpu_percent: number;
+            /**
+             * Format: double
+             * @description System memory installed, in GB.
+             */
+            ram_total_gb: number;
+            /**
+             * Format: double
+             * @description System memory in use, in GB.
+             */
+            ram_used_gb: number;
+            /**
+             * @description Video memory in use: `{"kind":"dedicated","used_gb":..,"total_gb":..}`
+             *     on an NVIDIA card, `{"kind":"unified"}` where the graphics processor
+             *     shares the system memory, `{"kind":"unmeasured"}` anywhere else.
+             */
+            vram: Record<string, never>;
         };
         /**
          * @description Error body of `POST /api/v1/tasks/{id}/resume`.
@@ -9460,6 +10313,17 @@ export interface components {
         SendMessageRequest: {
             /** @description Text content of the user message. */
             content: string;
+            /**
+             * @description Documents sent with the message (PDF, Word, PowerPoint, workbook, CSV):
+             *     the runtime extracts their text on reception. At most four, each at
+             *     most 20 MiB once decoded.
+             */
+            documents?: components["schemas"]["DocumentAttachment"][];
+            /**
+             * @description Images sent after the text, for a model that reads images; at most
+             *     eight, each at most 10 MiB once decoded.
+             */
+            images?: components["schemas"]["ImageAttachment"][];
         };
         /** @description Response body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageResponse: {
@@ -9538,6 +10402,21 @@ export interface components {
             /** @description Server name. */
             server: string;
         };
+        /**
+         * @description Which settings of the compatible server the organisation policy imposes.
+         *     An imposed setting cannot be written: the value in force is the policy's.
+         */
+        ServerPolicyLocks: {
+            /**
+             * @description `server.allow_request_mcp`: the policy refuses the MCP servers a
+             *     request brings.
+             */
+            allowRequestMcp: boolean;
+            /** @description `server.require_auth`: the policy requires a token on every request. */
+            requireAuth: boolean;
+            /** @description `server.serve_on_lan`: the policy keeps the server on the machine. */
+            serveOnLan: boolean;
+        };
         /** @description Body of a failed server call: a readable message and a stable kind. */
         ServerProbeErrorResponse: {
             /** @description Human-readable message. */
@@ -9582,6 +10461,14 @@ export interface components {
         ServersListResponse: {
             /** @description Every declared server, sorted by name. */
             servers: components["schemas"]["ServerResponse"][];
+        };
+        /** @description Body of `PUT /api/v1/sessions/{id}/folder`. */
+        SessionFolderBody: {
+            /**
+             * @description The folder the conversation goes in; `null` takes it out of any
+             *     folder.
+             */
+            folder_id?: string | null;
         };
         /**
          * @description Aggregated metrics for a chat session.
@@ -9747,7 +10634,8 @@ export interface components {
         SetOverrideRequest: {
             /**
              * @description The user's value: a string for `name` and `mission`, a tier name for
-             *     `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
+             *     `autonomy`, a mode for `planning`, a profile identifier for `profile`,
+             *     a list of strings for `examples`, `access` and `sources`.
              *     A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
              */
             value: Record<string, never>;
@@ -9817,6 +10705,11 @@ export interface components {
             /** @description SHA-256 fingerprint of the signing key, when the signature holds. */
             keyFingerprint?: string | null;
             /**
+             * @description The signing public key, 64 hexadecimal characters, when the signature
+             *     holds: what trusting the publisher imports into the keyring.
+             */
+            publicKey?: string | null;
+            /**
              * @description Name to show for the publisher: the label of the keyring when the key
              *     is trusted, otherwise the name the package declares.
              */
@@ -9863,6 +10756,23 @@ export interface components {
             /** @description Human-readable skill name. */
             skill_name: string;
         };
+        /**
+         * @description Why a file was left out of an index.
+         * @enum {string}
+         */
+        SkipReasonDto: "too_large" | "unreadable";
+        /** @description A file left out of an index. */
+        SkippedFileResponse: {
+            /** @description Path of the file on this machine. */
+            path: string;
+            /** @description Why it was left out. */
+            reason: components["schemas"]["SkipReasonDto"];
+            /**
+             * Format: int64
+             * @description Its size in bytes when it was left out.
+             */
+            sizeBytes: number;
+        };
         /** @description The source a batch reads its items from. */
         SourceDescriptor: {
             /** @description The kind of source, as registered (a spreadsheet, a folder, a mailbox). */
@@ -9873,6 +10783,31 @@ export interface components {
             options?: {
                 [key: string]: string;
             };
+            write?: null | components["schemas"]["SourceWrite"];
+        };
+        /** @description Where the index of a source stands. */
+        SourceIndexResponse: {
+            /**
+             * Format: int64
+             * @description Passages the index holds.
+             */
+            chunks: number;
+            /**
+             * Format: int64
+             * @description Documents the index holds.
+             */
+            documents: number;
+            /** @description Source identifier. */
+            id: string;
+            /** @description The state of its index. */
+            indexState: components["schemas"]["IndexStateDto"];
+            /** @description Files left out of the index. */
+            skipped: components["schemas"]["SkippedFileResponse"][];
+            /**
+             * @description Pages of indexed documents that hold no text: those waiting for
+             *     optical character recognition, and those it cannot read.
+             */
+            unreadPages: components["schemas"]["UnreadPageResponse"][];
         };
         /**
          * @description What a source is.
@@ -9937,6 +10872,16 @@ export interface components {
              *     connection, a memory space.
              */
             reference?: string | null;
+        };
+        /** @description What a launch writes back into its source. */
+        SourceWrite: {
+            /**
+             * @description The columns added, one per field of the answer, in order. An answer
+             *     that is not an object of these fields is written whole in the first.
+             */
+            columns: string[];
+            /** @description `copy` when absent. */
+            destination?: components["schemas"]["WriteDestination"];
         };
         /** @description SSE frame emitted by the mailbox observation stream. */
         SseMailboxEvent: Record<string, never> & {
@@ -10337,6 +11282,23 @@ export interface components {
              */
             prompt_tokens: number;
         };
+        /** @description The arguments and the output of one tool call. */
+        ToolCallDetail: {
+            /**
+             * @description Full arguments of the call. `None` when no model response of the run
+             *     carries this call, as for a tool an agent's own code called.
+             */
+            arguments?: Record<string, never> | null;
+            /** @description Full output of the call. `None` when the run captured none. */
+            output?: Record<string, never> | null;
+            /**
+             * @description How the call ended, as the capture wrote it: `success`, `error` or
+             *     `rejected`.
+             */
+            status?: string | null;
+            /** @description Identifier of the call within its run. */
+            tool_call_id: string;
+        };
         /** @description Request and answer body of `/api/v1/governance/tools/{name}/config`. */
         ToolConfigBody: {
             /** @description Tool-specific JSON configuration, `null` when none is stored. */
@@ -10408,6 +11370,21 @@ export interface components {
             /** @description List of transcription rows. */
             transcriptions: Record<string, never>[];
         };
+        /** @description A conversation in the trash. */
+        TrashedSession: {
+            /** @description Agent of the conversation, when it has one. */
+            agent_name?: string | null;
+            /** @description ISO-8601 creation timestamp. */
+            created_at: string;
+            /** @description ISO-8601 timestamp of the move to the trash. */
+            deleted_at: string;
+            /** @description Session identifier. */
+            id: string;
+            /** @description Mode string (`"libre"`, `"agent"` or `"companion"`). */
+            mode: string;
+            /** @description Title the user or the model gave it, when it has one. */
+            title?: string | null;
+        };
         /** @description Response for CRUD operations returning a full definition. */
         TriggerDefinitionResponse: {
             /** @description Target agent, for an agent target. */
@@ -10437,8 +11414,6 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/onboarding/sessions`. */
         TriggerOnboardingBody: {
-            /** @description The profile the agent adapts its questions to, when one was chosen. */
-            profile?: string | null;
             /** @description One topic to run again; absent for a full onboarding. */
             topic?: string | null;
         };
@@ -10601,6 +11576,23 @@ export interface components {
              */
             stopped: number;
         };
+        /** @description A page of an indexed document that holds no text in the index. */
+        UnreadPageResponse: {
+            /**
+             * Format: int32
+             * @description Page number, from 1; a picture file is its page 1.
+             */
+            page: number;
+            /** @description Path of the document on this machine. */
+            path: string;
+            /** @description Why it was not read. */
+            reason: components["schemas"]["UnreadReasonDto"];
+        };
+        /**
+         * @description Why a page of an indexed document holds no text.
+         * @enum {string}
+         */
+        UnreadReasonDto: "ocr_unavailable" | "not_read";
         /** @description Request body for `PUT /api/v1/agents/installed/{name}`. */
         UpdateAgentRequest: {
             /** @description Path of the new Python module on this machine. */
@@ -10691,7 +11683,7 @@ export interface components {
         UpdatePresetRequest: {
             /** @description Make it the default preset of its model (default: `false`). */
             is_model_default?: boolean;
-            /** @description Load settings. Never a system prompt. */
+            /** @description Load settings, written only while models.preset_load_settings is on. Never a system prompt. */
             load?: Record<string, never>;
             /** @description Name, unique among the presets of the model. */
             name: string;
@@ -10703,12 +11695,26 @@ export interface components {
          *     value.
          */
         UpdateSessionBody: {
-            /** @description Inference server of the session. */
+            /**
+             * @description Model of the session: a backend, `<server>/<model>`, or the
+             *     identifier of a language model of the model index. `null` returns to
+             *     the model of the agent.
+             */
             llm_backend?: string | null;
+            /**
+             * @description Profile the conversation designates; `null` returns it to the current
+             *     default profile.
+             */
+            profile_id?: string | null;
             /** @description New system prompt. */
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */
             tools?: string[] | null;
+            /**
+             * @description Profile switch of the conversation: whether the built-in assistant
+             *     receives the profile in its prompt.
+             */
+            use_profile?: boolean | null;
         };
         /** @description Request body for `PUT /api/v1/triggers/:id`, trigger update. */
         UpdateTriggerRequest: {
@@ -10789,6 +11795,7 @@ export interface components {
              * @description Number of distinct runs covered by the global chain.
              */
             runs_checked: number;
+            start?: null | components["schemas"]["JournalStart"];
         };
         /** @description Whisper GGML model file detected on the local filesystem. */
         WhisperModelInfo: {
@@ -10901,6 +11908,11 @@ export interface components {
             /** @description `<package>/<workflow>`. */
             workflowId: string;
         };
+        /**
+         * @description Where the results of a batch are written.
+         * @enum {string}
+         */
+        WriteDestination: "copy" | "original";
     };
     responses: never;
     parameters: never;
@@ -11135,6 +12147,57 @@ export interface operations {
             };
         };
     };
+    create_agent_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent created; the agent in force */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Too many agents hold identifiers derived from this name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description An empty name or mission, or a source the registry does not hold */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal, or the source registry a sources list needs, not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_agent_definition: {
         parameters: {
             query?: never;
@@ -11282,7 +12345,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources, autonomy or profile */
+                /** @description name, mission, examples, access, sources, autonomy, planning or profile */
                 field: string;
             };
             cookie?: never;
@@ -11338,7 +12401,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources, autonomy or profile */
+                /** @description name, mission, examples, access, sources, autonomy, planning or profile */
                 field: string;
             };
             cookie?: never;
@@ -11552,7 +12615,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description The package carries Apollia */
+            /** @description The package is part of Apollia */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12047,51 +13110,6 @@ export interface operations {
             };
         };
     };
-    respond_filesystem_approval: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Id of the pending request */
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FsHitlDecisionBody"];
-            };
-        };
-        responses: {
-            /** @description The request is answered */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolvedFilesystemApproval"];
-                };
-            };
-            /** @description No pending request has this id */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Chat subsystem unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     list_pending_approvals: {
         parameters: {
             query?: never;
@@ -12325,7 +13343,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /** @description `context`, `mode` and the `facts` the window computed, each optional */
+        /** @description `context`, `developerMode` and the `facts` the window computed, each optional */
         requestBody: {
             content: {
                 "application/json": Record<string, never>;
@@ -12463,15 +13481,34 @@ export interface operations {
             };
         };
     };
-    list_audit_journal: {
+    export_audit_journal: {
         parameters: {
-            query?: {
-                /** @description Maximum number of entries to return (default 20, capped at 500) */
-                limit?: number;
-                /** @description Number of entries to skip, newest first (default 0). Page through the journal by advancing it. */
-                offset?: number;
-                /** @description Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included. */
+            query: {
+                /** @description `csv` or `json`. */
+                format: components["schemas"]["JournalExportFormat"];
+                /**
+                 * @description `true` to add, to each entry, its payload and the arguments and output
+                 *     of its tool call. Those may hold personal data. Defaults to `false`.
+                 */
+                detail?: boolean;
+                /**
+                 * @description Comma-separated agent names. When set, the export holds the entries
+                 *     that name one of those agents and the runs of their tasks.
+                 */
                 agents?: string;
+                /** @description Comma-separated action families (`read`, `write_or_delete`, ...). */
+                family?: string;
+                /** @description Comma-separated natures: `action`, `access_change`, `policy`, `system`. */
+                nature?: string;
+                /** @description Comma-separated results: `success`, `failure`, `refused`. */
+                result?: string;
+                /**
+                 * @description Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339
+                 *     instant.
+                 */
+                since?: string;
+                /** @description End of the period, excluded: a day or an RFC 3339 instant. */
+                until?: string;
             };
             header?: never;
             path?: never;
@@ -12479,13 +13516,87 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description A page of hash-chained journal entries */
+            /** @description The filtered journal as a CSV or JSON file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A format or a filter value that cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The organisation policy forbids the detail and it was asked, or requires it and it was not */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured, or `agents` given with no task repository to resolve them */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_audit_journal: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of entries to return (default 20, capped at 500) */
+                limit?: number;
+                /** @description Number of matching entries to skip, newest first (default 0). Page through the journal by advancing it. */
+                offset?: number;
+                /** @description Comma-separated agent names. When set, only the entries that name one of those agents, and the runs of their tasks, are paged. */
+                agents?: string;
+                /** @description Comma-separated action families: `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code`, `unclassified`, `exempt`. */
+                family?: string;
+                /** @description Comma-separated natures: `action`, `access_change`, `policy`, `system`. */
+                nature?: string;
+                /** @description Comma-separated results: `success`, `failure`, `refused`. */
+                result?: string;
+                /** @description Start of the period, included: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant. */
+                since?: string;
+                /** @description End of the period, excluded: a day `YYYY-MM-DD` read in UTC, or an RFC 3339 instant. */
+                until?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of hash-chained journal entries, each with its summary */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AuditJournalPageResponse"];
+                };
+            };
+            /** @description A filter value that cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
             /** @description Audit journal not configured, or `agents` given with no task repository to resolve them */
@@ -12521,6 +13632,49 @@ export interface operations {
                 };
             };
             /** @description Run has no entries */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    show_audit_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run the entry belongs to */
+                run_id: string;
+                /** @description Sequence number of the entry within its run */
+                seq: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry, its summary, and the arguments and output of its tool call when it is about one */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditJournalEntryDetailResponse"];
+                };
+            };
+            /** @description The run has no such entry */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13689,7 +14843,13 @@ export interface operations {
     };
     remove_folder_connection: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Remove the sources made on the folder, and their indexes, with it.
+                 *     Without it, a folder sources depend on is not removed.
+                 */
+                confirm?: boolean;
+            };
             header?: never;
             path: {
                 /** @description Identifier of the stored folder, the part of the connection identifier after `folder:` */
@@ -13699,7 +14859,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Folder connection removed; the connection it was */
+            /** @description Folder connection removed, with the sources made on it when confirmed; the connection it was */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13717,7 +14877,16 @@ export interface operations {
                     "application/json": components["schemas"]["FolderErrorBody"];
                 };
             };
-            /** @description system.db could not be written */
+            /** @description Sources depend on the folder and the removal was not confirmed; nothing was removed, `dependent_sources` lists them */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+            /** @description system.db could not be written, or a dependent source could not be removed */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -14580,6 +15749,26 @@ export interface operations {
             };
         };
     };
+    read_policy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organisation policy the runtime applies: `state` is `none`, `active` or `invalid` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
     list_governance_rules: {
         parameters: {
             query?: {
@@ -14729,6 +15918,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_governance_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state of governance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GovernanceStateBody"];
                 };
             };
         };
@@ -15825,7 +17034,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The default embeddings model, as now set */
+            /** @description The default embeddings model, as now set; every source index is rebuilt with it in the background */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -15870,6 +17079,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HardwareResponse"];
+                };
+            };
+        };
+    };
+    get_resource_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Memory, processor and video memory in use */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceUsageResponse"];
+                };
+            };
+            /** @description The measurement did not complete */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -16511,7 +17749,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description Empty name or model, or a system prompt among the settings */
+            /** @description Empty name or model, a system prompt among the settings, or load settings while models.preset_load_settings is off */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -16574,7 +17812,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description Empty name, or a system prompt among the settings */
+            /** @description Empty name, a system prompt among the settings, or other load settings than the ones held while models.preset_load_settings is off */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -18018,6 +19256,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
+            /** @description Refused by the connection admission, or forbidden since the last start */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Server not found */
             404: {
                 headers: {
@@ -18116,6 +19363,15 @@ export interface operations {
             };
             /** @description Fallback connect failed */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Forbidden by the organisation policy since the last start */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19463,48 +20719,6 @@ export interface operations {
             };
         };
     };
-    set_onboarding_profile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OnboardingProfileBody"];
-            };
-        };
-        responses: {
-            /** @description The state with its profile */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OnboardingState"];
-                };
-            };
-            /** @description Neither operator nor builder */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The user memory did not open */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     reset_onboarding: {
         parameters: {
             query?: never;
@@ -19594,7 +20808,7 @@ export interface operations {
                     "application/json": components["schemas"]["TriggerResult"];
                 };
             };
-            /** @description Unknown topic or profile */
+            /** @description Unknown topic */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -19619,6 +20833,148 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_example_packages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The examples */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamplePackage"][];
+                };
+            };
+            /** @description A store cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    install_example_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name of the example */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExampleInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallReport"];
+                };
+            };
+            /** @description No example of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Older than the installed version, or agent owned elsewhere */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description A confirmation is missing */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Store, environment or journal failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal, or no MCP manager for the servers it brings */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    preview_example_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name of the example */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackagePreview"];
+                };
+            };
+            /** @description No example of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
                 };
             };
         };
@@ -19905,7 +21261,7 @@ export interface operations {
                     "application/json": components["schemas"]["UninstallReport"];
                 };
             };
-            /** @description The package carries Apollia */
+            /** @description The package is part of Apollia */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -19939,6 +21295,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    list_pending_decisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The decisions waiting for the user, empty when none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingDecisionList"];
+                };
+            };
+        };
+    };
+    decide_pending: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideRequest"];
+            };
+        };
+        responses: {
+            /** @description The decision was applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecideResponse"];
+                };
+            };
+            /** @description No such item waits */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The item can no longer take this answer */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The item does not take this answer, or the answer is malformed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
+                };
+            };
+            /** @description The subsystem the item belongs to is not running */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingErrorBody"];
                 };
             };
         };
@@ -21344,6 +22780,168 @@ export interface operations {
             };
         };
     };
+    list_chat_folders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The folders of the conversation list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatFolder"][];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_chat_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderNameBody"];
+            };
+        };
+        responses: {
+            /** @description Folder created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatFolder"];
+                };
+            };
+            /** @description Blank or oversized name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    rename_chat_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Folder id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderNameBody"];
+            };
+        };
+        responses: {
+            /** @description Folder renamed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Blank or oversized name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Folder not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_chat_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Folder id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Folder removed, its conversations kept */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Folder not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_plan_mode_default: {
         parameters: {
             query?: never;
@@ -21391,6 +22989,69 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    search_chat_messages: {
+        parameters: {
+            query: {
+                /** @description The words searched in the messages */
+                q: string;
+                /** @description Most conversations answered (default 20, at most 50) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversations found, each with an excerpt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageSearchHit"][];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_trashed_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversations in the trash */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashedSession"][];
+                };
             };
             /** @description Chat subsystem unavailable */
             503: {
@@ -21686,6 +23347,49 @@ export interface operations {
             };
         };
     };
+    set_session_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionFolderBody"];
+            };
+        };
+        responses: {
+            /** @description Conversation moved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session or folder not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     fork_session: {
         parameters: {
             query?: never;
@@ -21754,6 +23458,15 @@ export interface operations {
                     "application/json": components["schemas"]["SendMessageResponse"];
                 };
             };
+            /** @description An image or a document is refused: too many, too large, not decodable, or a document its reader cannot read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Session not found */
             404: {
                 headers: {
@@ -21765,6 +23478,15 @@ export interface operations {
             };
             /** @description Session closed or busy */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model of the session does not read images */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -21971,6 +23693,49 @@ export interface operations {
             };
             /** @description Chat subsystem or backend repository unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_image: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description File name of the image, as the message metadata lists it */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image, its media type and its bytes in base64 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAttachment"];
+                };
+            };
+            /** @description Not an image file name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such image in the session */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22232,6 +23997,45 @@ export interface operations {
             };
             /** @description The session is not awaiting approval */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    restore_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session restored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such session in the trash */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22518,6 +24322,45 @@ export interface operations {
             };
             /** @description Internal error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    trash_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session sent to the trash */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22836,6 +24679,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            /** @description Source not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Source registry not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    source_index: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The state of the source's index, its counts, the files it left out and the pages it could not read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceIndexResponse"];
                 };
             };
             /** @description Source not found */

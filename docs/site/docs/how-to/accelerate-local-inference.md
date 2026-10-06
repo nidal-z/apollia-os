@@ -92,7 +92,7 @@ launches the daemon.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `APOLLIA_LLAMA_N_CTX` | `32768` | Context window in tokens. The default is a fixed value, not read from the model. |
+| `APOLLIA_LLAMA_N_CTX` | *(unset)* | Context window in tokens, over every other source. Unset, the window is the preset's, the backend's, then the default of `[llm.defaults]` in `apollia.toml`, and 32768 last. |
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | planned, else `999` | Layers offloaded to the GPU; `0` forces CPU. Left unset, the count is planned per model on a discrete GPU (below). |
 | `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
 | `APOLLIA_LLAMA_N_UBATCH` | engine default | Physical micro-batch size. |

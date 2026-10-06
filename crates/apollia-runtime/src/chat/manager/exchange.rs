@@ -10,22 +10,35 @@ impl ChatSessionManager {
         &mut self,
         session_id: &str,
         content: &str,
+        images: Vec<apollia_llm::message_image::MessageImage>,
+        documents: Option<crate::chat::documents::MessageDocuments>,
     ) -> Result<MessageId, ChatError> {
-        let session = self
-            .sessions
-            .get_mut(session_id)
-            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
+        {
+            let session = self
+                .sessions
+                .get(session_id)
+                .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
 
-        if session.status == SessionStatus::Closed {
-            return Err(ChatError::SessionClosed(session_id.to_string()));
+            if session.status == SessionStatus::Closed {
+                return Err(ChatError::SessionClosed(session_id.to_string()));
+            }
+
+            if session.status == SessionStatus::Processing {
+                return Err(ChatError::SessionBusy(session_id.to_string()));
+            }
         }
-
-        if session.status == SessionStatus::Processing {
-            return Err(ChatError::SessionBusy(session_id.to_string()));
+        if !images.is_empty() {
+            self.check_images_readable(session_id, &images)?;
         }
 
         let message_id = uuid::Uuid::new_v4().to_string();
         let now = now_rfc3339();
+
+        let mut metadata = self.store_message_images(session_id, &message_id, &images)?;
+        if let Some(documents) = &documents {
+            documents.write_into(&mut metadata);
+        }
+        let metadata_json = metadata.as_ref().map(serde_json::Value::to_string);
 
         // Persist message to SQLite
         let seq = self.repository.append_message(&AppendMessageParams {
@@ -36,8 +49,13 @@ impl ChatSessionManager {
             tool_calls_json: None,
             tool_name: None,
             created_at: &now,
-            metadata: None,
+            metadata: metadata_json.as_deref(),
         })?;
+
+        let session = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
 
         // Add to in-memory history
         let msg = ChatMessage {
@@ -48,7 +66,7 @@ impl ChatSessionManager {
             tool_name: None,
             created_at: now.clone(),
             seq,
-            metadata: None,
+            metadata,
         };
         session.history.push(msg);
 
@@ -209,7 +227,7 @@ impl ChatSessionManager {
             session.history.retain(|m| m.seq < seq);
         }
 
-        self.handle_send_message(session_id, content)
+        self.handle_send_message(session_id, content, Vec::new(), None)
     }
 
     /// Re-run a turn on the existing history without appending a new user

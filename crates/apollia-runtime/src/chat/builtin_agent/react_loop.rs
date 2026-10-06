@@ -11,12 +11,12 @@ impl BuiltInChatAgent {
     /// continues until the LLM produces a final text response (no tool calls)
     /// or the [`StepBudget`] is exhausted.
     ///
-    /// The autonomy tier governs the prompt variant, memory injection, and the
-    /// post-run verification. The `budget` is built by the manager via
+    /// The autonomy tier governs the prompt variant and the post-run
+    /// verification. The `budget` is built by the manager via
     /// `StepBudget::from_capped`, so it is already the capped ceiling; this method
     /// never raises it. `level_config` carries the resolved tier flags
-    /// (`inject_memory`, `run_verification`); when `None` the call behaves as the
-    /// assisted tier (no memory injection, no verification).
+    /// (`run_verification`); when `None` the call behaves as the assisted tier
+    /// (no verification).
     ///
     /// # Errors
     ///
@@ -50,7 +50,6 @@ impl BuiltInChatAgent {
             Some(system_prompt)
         };
         let level = autonomy.copied().unwrap_or(AutonomyLevel::Assisted);
-        let inject_memory = level_config.is_some_and(|c| c.inject_memory);
         let run_verification = level_config.is_some_and(|c| c.run_verification);
 
         // Auditable trace of the applied tier. The budget is already capped by
@@ -58,7 +57,7 @@ impl BuiltInChatAgent {
         // the effective values.
         tracing::info!(
             autonomy_level = %level.as_str(),
-            inject_memory,
+            profile_store = self.user_memory.is_some(),
             run_verification,
             max_steps = budget.max_steps,
             max_tool_calls = budget.max_tool_calls,
@@ -66,7 +65,7 @@ impl BuiltInChatAgent {
             "chat.autonomy_tier.applied"
         );
 
-        let effective_prompt = self.build_system_prompt(custom_prompt, level, inject_memory);
+        let effective_prompt = self.build_system_prompt(custom_prompt, level);
 
         // Route the turn: in plan mode a substantive turn enters the plan flow
         // (discovery + plan), a trivial one stays conversational. Outside plan
@@ -99,6 +98,7 @@ impl BuiltInChatAgent {
             user_message,
             summary,
             context_window_size,
+            &self.turn_images,
         );
 
         // A resume turn carrying an operator instruction prepends it as a user
@@ -193,11 +193,15 @@ impl BuiltInChatAgent {
         let valid_tool_names_ref: &HashSet<String> = &valid_tool_names;
         // A correction turn runs with the grants of the run; an "always"
         // answered in the first turn is a standing consent governance already
-        // reads.
+        // reads. A grant of one call is not given again.
         let carry = RetryCarry {
             messages: llm_messages,
             last_response: first,
-            authorized: authorized_tools.clone(),
+            authorized: authorized_tools
+                .iter()
+                .filter(|grant| !crate::governance::is_once_grant(grant))
+                .cloned()
+                .collect(),
         };
         let (report, carry) = run_verification_with_retry(
             level,

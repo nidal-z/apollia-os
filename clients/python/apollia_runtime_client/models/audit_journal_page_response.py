@@ -21,7 +21,10 @@ class AuditJournalPageResponse:
 
     Attributes:
         count (int): Number of entries in this page.
-        entries (list[AuditJournalPageResponseEntriesItem]): Journal entries, newest global position first.
+        entries (list[AuditJournalPageResponseEntriesItem]): Journal entries, newest global position first. Each one is
+            the chained
+            entry with a `summary` beside its fields: agent, nature, family, what
+            happened, tool, target, outcome and date, without content.
     """
 
     count: int

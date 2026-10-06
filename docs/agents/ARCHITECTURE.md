@@ -88,8 +88,9 @@ runtime provides the capability, never the policy.
 
 **Scope of the rule.** Say "an agent's prompt", not "a prompt". The built-in
 conversational assistant injects in two places, and neither is reachable from an
-agent execution path: a user-persona brief at the `long_autonomous` tier, and up
-to three past session summaries on the first message of a free chat session.
+agent execution path: a brief of the profile of the conversation, at every tier
+while the profile switch of that conversation is on, and up to three past
+session summaries on the first message of a free chat session.
 Writing the rule as an unqualified absolute is what let six files state something
 the code contradicts.
 

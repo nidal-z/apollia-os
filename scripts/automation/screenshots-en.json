@@ -5,7 +5,7 @@
     "The two image sets are SEPARATE per locale, under /img/operator-help/{en,fr}/. The English pages reference en/, the French ones fr/, checked: 85 references on each side.",
     "So this script publishes into en/ ONLY. An earlier note claimed there was a single shared set: that was true before the move to per-locale directories, and false since. The symptom it produced: the English pages showed French captures, because a single set had been copied into both directories.",
     "The prelude switches the interface to English (settings > appearance > language-en) before the first capture. Do not remove it: without it the run photographs whatever language the previous run left.",
-    "The click on session-auth-row before its screenshot is not there to activate anything: the row is a plain <li> with no handler. The runner scrolls an element into view before clicking it, and that scroll is what frames the row for the shot. Kept as an idiom rather than replaced, and named here because the coverage cross-check reports it as an anchor acted on but classified a marker, which it is."
+    "The three captures of the permission rules are taken on the Authorizations screen (route authorizations), where the rules, the standing consents and their withdrawal moved: the list with the rules for every agent, the revoke-all dialog, then the detail of the first agent."
   ],
   "stopOnError": false,
   "dynamicTestids": [
@@ -29,20 +29,17 @@
     "observability-tab-audit-trail",
     "observability-tab-llm-costs",
     "observability-tab-timeline",
-    "package-detail-tab-agents",
-    "package-detail-tab-overview",
-    "package-detail-tab-triggers",
     "period-7d",
+    "profile-menu-reset",
     "settings-nav-appearance",
     "settings-nav-chat",
     "settings-nav-developer",
     "settings-nav-general",
     "settings-nav-model-hub",
-    "settings-nav-permissions",
+    "settings-nav-notifications",
     "settings-nav-profile",
     "settings-nav-stt",
-    "trigger-logs-filter-all",
-    "profile-menu-reset"
+    "trigger-logs-filter-all"
   ],
   "steps": [
     {
@@ -255,19 +252,17 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
+      "testid": "authorizations-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-content"
+      "testid": "authorizations-list",
+      "timeoutMs": 8000
     },
     {
       "kind": "sleep",
@@ -283,11 +278,11 @@
     },
     {
       "kind": "click",
-      "testid": "permissions-revoke-all"
+      "testid": "authorizations-revoke-all"
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-revoke-all-dialog",
+      "testid": "authorizations-revoke-all-dialog",
       "timeoutMs": 5000
     },
     {
@@ -299,12 +294,21 @@
       "label": "controle-configurer-les-permissions-de-fichiers-1bis"
     },
     {
-      "kind": "press",
-      "key": "Escape"
+      "kind": "click",
+      "testid": "authorizations-revoke-all-cancel"
     },
     {
-      "kind": "sleep",
-      "ms": 300
+      "kind": "waitGone",
+      "testid": "authorizations-revoke-all-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page"
     },
     {
       "kind": "click",
@@ -795,33 +799,6 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-profile-selector",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-card-operator",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-card-builder",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "installation-configurer-votre-profil-2"
-    },
-    {
-      "kind": "click",
-      "testid": "profile-card-operator"
-    },
-    {
-      "kind": "waitFor",
       "testid": "onboarding-ai-setup",
       "timeoutMs": 15000
     },
@@ -837,7 +814,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "stt-section",
+      "testid": "ai-setup-continue-hint",
       "timeoutMs": 10000
     },
     {
@@ -1132,6 +1109,12 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
       "kind": "waitFor",
       "testid": "agent-sheet",
       "timeoutMs": 8000
@@ -1150,6 +1133,16 @@
       "label": "agents-installer-un-agent-1"
     },
     {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 8000
+    },
+    {
       "kind": "waitFor",
       "testid": "apollia-chat-pinned",
       "timeoutMs": 6000
@@ -1160,83 +1153,12 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "waitFor",
-      "testidPrefix": "package-list-row",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "sleep",
       "ms": 600
     },
     {
       "kind": "screenshot",
       "label": "agents-demarrer-un-agent-1"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "package-list-row",
-      "nth": 0,
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tabbar",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-agents",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "agents-demarrer-un-agent-2"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-triggers",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "agents-demarrer-un-agent-2bis"
-    },
-    {
-      "kind": "click",
-      "testid": "package-detail-tab-overview",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "package-detail-tab-content",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
     },
     {
       "kind": "click",
@@ -1554,46 +1476,27 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "authorizations"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-permissions"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-permissions",
+      "testid": "authorizations-page",
       "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
-      "testid": "permissions-count",
+      "testid": "authorizations-rules",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rules-list",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-card",
+      "testidPrefix": "authorizations-rule",
       "nth": 0,
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "permission-rule-scope",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "permission-rule-revoke",
+      "testid": "authorizations-rule-withdraw",
       "timeoutMs": 6000
     },
     {
@@ -1605,30 +1508,14 @@
       "label": "controle-configurer-les-permissions-de-fichiers-2"
     },
     {
-      "kind": "waitFor",
-      "testid": "permissions-session-auths",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auths-list",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auth-row",
-      "nth": 0,
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "session-auth-revoke",
-      "timeoutMs": 6000
-    },
-    {
       "kind": "click",
-      "testid": "session-auth-row",
+      "testidPrefix": "authorizations-list-agent",
       "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-open-sheet",
       "timeoutMs": 6000
     },
     {
@@ -1789,7 +1676,16 @@
     },
     {
       "kind": "goto",
-      "route": "notifications"
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",
@@ -1839,7 +1735,16 @@
     },
     {
       "kind": "goto",
-      "route": "notifications"
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-notifications"
     },
     {
       "kind": "waitFor",

@@ -1,22 +1,20 @@
 /**
  * Human-readable labels and descriptions for the notification event types
- * surfaced in the UI (the 6 globally-toggleable events).
+ * surfaced in the UI: the seven events a user can switch on or off, in the
+ * order the settings list them.
  *
- * The runtime engine maps more than 6 RuntimeEvents, but the global picker
- * intentionally narrows the surface - the others (`pipeline.*`, `chat.*`)
- * are reserved for v3.
- *
- * Keep this list in sync with `GlobalEventsEditor.svelte#ALL_EVENT_TYPES`.
+ * The runtime engine maps more RuntimeEvents than these; the others
+ * (`pipeline.*`) stay out of the interface.
  */
-export const NOTIFICATION_EVENT_TYPES = [
+export const NOTIFICATION_EVENT_TYPES: readonly string[] = [
   "task.completed",
   "task.failed",
   "task.input_required",
+  "chat.user_input_required",
   "agent.degraded",
   "trigger.error",
   "llm.backend_down",
-  "chat.user_input_required",
-] as const;
+];
 
 /**
  * i18n key for the short human label of an event type.

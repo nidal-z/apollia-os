@@ -6,7 +6,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { InputRewriter, type WorkContext } from './rewriteInput';
+import {
+	InputRewriter,
+	fetchConversationWorkContext,
+	fetchWorkContext,
+	type WorkContext
+} from './rewriteInput';
 
 // Mock Tauri invoke - must be hoisted, so use vi.fn() inside factory
 vi.mock('@tauri-apps/api/core', () => ({
@@ -86,11 +91,9 @@ describe('InputRewriter', () => {
 			// GIVEN: InputRewriter instance and filled work context
 			const rewriter = new InputRewriter();
 			const workContext: WorkContext = {
-				sector: 'fintech',
-				teamSize: 'small team',
-				techStack: 'Rust, Svelte, SQLite',
-				dailyTools: 'Git, Notion',
-				integrations: 'GitHub, Gmail'
+				role: 'formateur',
+				function: 'formation professionnelle',
+				tools: 'Notion, tableur'
 			};
 
 			mockInvoke.mockResolvedValueOnce({
@@ -107,11 +110,9 @@ describe('InputRewriter', () => {
 				request: {
 					originalText: 'fix bug',
 					workContext: {
-						sector: 'fintech',
-						teamSize: 'small team',
-						techStack: 'Rust, Svelte, SQLite',
-						dailyTools: 'Git, Notion',
-						integrations: 'GitHub, Gmail'
+						role: 'formateur',
+						function: 'formation professionnelle',
+						tools: 'Notion, tableur'
 					}
 				}
 			});
@@ -145,9 +146,9 @@ describe('InputRewriter', () => {
 			// GIVEN: InputRewriter instance and partial work context
 			const rewriter = new InputRewriter();
 			const partialContext: WorkContext = {
-				sector: 'healthcare',
-				dailyTools: 'Slack, Jira'
-				// other fields undefined
+				role: 'juriste',
+				tools: 'Slack, Jira'
+				// function undefined
 			};
 
 			mockInvoke.mockResolvedValueOnce({
@@ -164,8 +165,8 @@ describe('InputRewriter', () => {
 				request: {
 					originalText: 'help',
 					workContext: {
-						sector: 'healthcare',
-						dailyTools: 'Slack, Jira'
+						role: 'juriste',
+						tools: 'Slack, Jira'
 					}
 				}
 			});
@@ -281,6 +282,81 @@ describe('InputRewriter', () => {
 			// AND: state is error
 			expect(rewriter.getState()).toBe('error');
 			expect(rewriter.getLastError()).toBe('LLM backend not configured');
+		});
+	});
+
+	describe('Volet 6: the work context is the profile of the conversation', () => {
+		/** A profile detail as `get_profile_by_id` answers it. */
+		function profile(id: string, values: Record<string, string>) {
+			return {
+				profile: { id, name: id, is_default: id === 'p-def', detail: null },
+				fields: ['name', 'role', 'function', 'tools', 'preferences'].map((key) => ({
+					key,
+					value: values[key] ?? ''
+				})),
+				facts: []
+			};
+		}
+
+		/** Answers the session and profile reads from a fixed set. */
+		function runtime(session: { profile_id?: string | null } | null) {
+			const profiles: Record<string, ReturnType<typeof profile>> = {
+				default: profile('p-def', { role: 'CTO', tools: 'Git' }),
+				'p-form': profile('p-form', {
+					name: 'Ada',
+					role: 'formateur',
+					function: 'formation',
+					tools: 'Notion',
+					preferences: 'court'
+				})
+			};
+			mockInvoke.mockImplementation(async (cmd: string, args?: unknown) => {
+				if (cmd === 'get_chat_session') {
+					if (!session) throw new Error('NOT_FOUND');
+					return session;
+				}
+				if (cmd === 'get_profile_by_id') {
+					const found = profiles[(args as { id: string }).id];
+					if (!found) throw new Error('NOT_FOUND');
+					return found;
+				}
+				return null;
+			});
+		}
+
+		it('reads the role, the function and the tools of the designated profile', async () => {
+			// GIVEN: a conversation on "Formateur"
+			runtime({ profile_id: 'p-form' });
+
+			// WHEN: its work context is fetched
+			const context = await fetchConversationWorkContext('s-1');
+
+			// THEN: the three fields of that profile, and nothing else of it
+			expect(context).toEqual({ role: 'formateur', function: 'formation', tools: 'Notion' });
+			expect(mockInvoke).toHaveBeenCalledWith('get_profile_by_id', { id: 'p-form' });
+		});
+
+		it('follows the default profile when the conversation designates none', async () => {
+			// GIVEN: a conversation without a profile
+			runtime({ profile_id: null });
+
+			// WHEN: its work context is fetched
+			const context = await fetchConversationWorkContext('s-1');
+
+			// THEN: the filled fields of the default profile
+			expect(context).toEqual({ role: 'CTO', tools: 'Git' });
+			expect(mockInvoke).toHaveBeenCalledWith('get_profile_by_id', { id: 'default' });
+		});
+
+		it('falls back to the default profile when the designated one is gone', async () => {
+			// GIVEN: a designation naming a profile that no longer exists
+			runtime(null);
+
+			// WHEN: the work context of that profile is fetched
+			const context = await fetchWorkContext('p-gone');
+
+			// THEN: the default profile answers
+			expect(context).toEqual({ role: 'CTO', tools: 'Git' });
 		});
 	});
 });

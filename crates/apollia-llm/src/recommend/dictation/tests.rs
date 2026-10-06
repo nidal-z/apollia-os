@@ -21,6 +21,7 @@ fn host_only(ram_gb: f64) -> HardwareProfile {
         cpu_cores: 8,
         accelerator: AcceleratorProfile::None,
         memory_budget_gb: ram_gb * 0.60,
+        devices: Vec::new(),
     }
 }
 

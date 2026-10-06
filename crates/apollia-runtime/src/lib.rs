@@ -69,6 +69,7 @@ pub mod service;
 pub mod session_metrics;
 pub mod session_replay;
 pub mod shutdown;
+pub mod source_indexing;
 pub mod stt;
 pub mod supervisor;
 pub mod timeout_watcher;

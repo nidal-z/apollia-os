@@ -4,6 +4,15 @@
 use super::*;
 
 impl ChatSessionManager {
+    /// Whether a new conversation is born with the profile shared, the
+    /// `[chat] share_profile_default` key in force; on while the chat follows
+    /// no configuration.
+    pub(in crate::chat::manager) fn shares_profile_by_default(&self) -> bool {
+        self.config_feed
+            .as_ref()
+            .is_none_or(|feed| feed.chat.get().share_profile_default)
+    }
+
     /// Applies the sections that changed since the last command: `[chat]`
     /// for the next conversation, `[tools]` and `[mcp]` for the next
     /// exchange, `[hooks]` by rebuilding the hook registry.

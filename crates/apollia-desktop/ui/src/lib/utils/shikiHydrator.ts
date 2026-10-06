@@ -124,3 +124,34 @@ export async function hydrateCodeBlocks(root: HTMLElement): Promise<void> {
     code.classList.add("apollia-code-hi", `shiki-theme-${theme.includes("dark") ? "dark" : "light"}`);
   }
 }
+
+/** One colored piece of a line: its text and the color the theme gives it. */
+export interface CodeToken {
+  content: string;
+  color?: string;
+}
+
+/**
+ * A function that colors a text line by line, with the same Shiki highlighter
+ * and themes as the code blocks of the chat. Resolves to null when Shiki
+ * cannot load, so the caller shows the plain text.
+ */
+export async function loadLineTokenizer(
+  lang: BundledLanguage,
+): Promise<((source: string) => CodeToken[][]) | null> {
+  let highlighter: Highlighter;
+  try {
+    highlighter = await getHighlighter();
+  } catch {
+    return null;
+  }
+  return (source: string) => {
+    try {
+      return highlighter
+        .codeToTokensBase(source, { lang, theme: detectTheme() })
+        .map((line) => line.map((token) => ({ content: token.content, color: token.color })));
+    } catch {
+      return source.split("\n").map((line) => [{ content: line }]);
+    }
+  };
+}

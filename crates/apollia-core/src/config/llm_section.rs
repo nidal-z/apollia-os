@@ -9,7 +9,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{LlmResidencyConfig, LlmRoutingConfig};
+use super::{
+    LlmDefaultsConfig, LlmDevicesConfig, LlmImagesConfig, LlmResidencyConfig, LlmRoutingConfig,
+};
 use crate::{LlmBackendConfig, LlmProvider};
 
 /// LLM configuration deserialized from the `[llm]` section of `apollia.toml`.
@@ -47,6 +49,17 @@ pub struct LlmConfig {
     /// section), read again at every residency sweep.
     #[serde(default)]
     pub residency: LlmResidencyConfig,
+    /// What a local model receives when nothing closer fixes it
+    /// (`[llm.defaults]` section), read again at every load.
+    #[serde(default)]
+    pub defaults: LlmDefaultsConfig,
+    /// The largest side of an image sent to a model (`[llm.images]` section).
+    #[serde(default)]
+    pub images: LlmImagesConfig,
+    /// The graphics devices held back from the local engine (`[llm.devices]`
+    /// section), read again at every load.
+    #[serde(default)]
+    pub devices: LlmDevicesConfig,
 }
 
 /// The `[llm.guardrails]` section: how strictly a local model launch is held
@@ -64,6 +77,10 @@ pub struct LlmGuardrailsConfig {
     /// Largest estimate, in gigabytes, the `ceiling` level launches.
     #[serde(default)]
     pub ceiling_gb: Option<f64>,
+    /// What "load anyway" asks before it goes past a refusal: `confirm`, an
+    /// explicit confirmation, or `unrestricted`, nothing.
+    #[serde(default = "default_load_bypass")]
+    pub bypass: String,
 }
 
 impl Default for LlmGuardrailsConfig {
@@ -71,8 +88,13 @@ impl Default for LlmGuardrailsConfig {
         Self {
             level: default_guardrail_level(),
             ceiling_gb: None,
+            bypass: default_load_bypass(),
         }
     }
+}
+
+fn default_load_bypass() -> String {
+    "confirm".to_owned()
 }
 
 fn default_guardrail_level() -> String {
@@ -95,6 +117,9 @@ impl LlmConfig {
             routing: None,
             guardrails: LlmGuardrailsConfig::default(),
             residency: LlmResidencyConfig::default(),
+            defaults: LlmDefaultsConfig::default(),
+            images: LlmImagesConfig::default(),
+            devices: LlmDevicesConfig::default(),
         }
     }
 

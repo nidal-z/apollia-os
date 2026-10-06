@@ -24,13 +24,14 @@ describe("settings router", () => {
       "chat",
       "stt",
       "model-defaults",
+      "integrations",
+      "notifications",
       "developer",
+      "configuration",
       "engines",
       "hardware",
       "llm",
       "model-hub",
-      "tools",
-      "permissions",
     ]);
   });
 
@@ -51,7 +52,6 @@ describe("settings router", () => {
     ["help", "general"],
     ["danger", "general"],
     ["shortcuts", "chat"],
-    ["configuration", "developer"],
     ["system", "hardware"],
   ])("a former section (%s) opens the section that now holds it (%s)", (former, home) => {
     // GIVEN a caller that still names a section the grid no longer lists

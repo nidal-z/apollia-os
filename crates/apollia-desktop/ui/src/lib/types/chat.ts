@@ -35,6 +35,16 @@ export interface ChatSessionDetail {
   plan_mode: boolean;
   /** Plan-mode lifecycle phase as a stable lowercase string. */
   plan_phase: PlanPhase;
+  /**
+   * Profile the conversation designates; absent or `null` when it follows
+   * the current default profile.
+   */
+  profile_id?: string | null;
+  /**
+   * Profile switch of the conversation: whether the built-in assistant
+   * receives the profile in its prompt. Absent reads as on.
+   */
+  use_profile?: boolean;
 }
 
 /** Plan-mode lifecycle phase of a chat session. */
@@ -50,6 +60,34 @@ export interface UpdateSessionRequest {
   system_prompt?: string;
   tools?: string[];
   llm_backend?: string | null;
+  /** Profile of the conversation; `null` returns it to the default profile. */
+  profile_id?: string | null;
+  /** Profile switch of the conversation. */
+  use_profile?: boolean;
+}
+
+/** What the model of a conversation can do, as the composer reads it. */
+export interface ChatModelCapabilities {
+  /** The backend or model the conversation runs on, `null` when none. */
+  model: string | null;
+  local: boolean;
+  reasoning_profile: "none" | "toggle" | "levels" | null;
+  /** The model reads images. */
+  vision: boolean;
+  /** Image formats its engine decodes, empty without vision. */
+  image_formats: string[];
+}
+
+/** One stored image of a conversation, its media type and base64 bytes. */
+export interface ChatImageData {
+  mime_type: string;
+  data: string;
+}
+
+/** One document sent with a message: its file name and base64 bytes. */
+export interface ChatDocumentData {
+  name: string;
+  data: string;
 }
 
 /** Single message inside a chat session. */
@@ -125,6 +163,9 @@ export interface CreateSessionRequest {
   agent_name?: string;
   system_prompt?: string;
   tools?: string[];
+  /** The model of the session: the index identifier of a local language
+   * model, or `<server>/<model>`. Absent keeps the agent's model. */
+  model?: string;
 }
 
 /** Request sending a message inside a chat session. */
@@ -148,6 +189,14 @@ export interface PendingChatApproval {
   toolCallId: string;
   toolName: string;
   inputPreview: string;
+  /** The answers the request offers, when it names them. */
+  answers?: string[];
+  /** The full arguments of the call, behind "see more". */
+  detail?: string;
+  /** The whole code of a tool that runs code. */
+  code?: string | null;
+  /** The folder the code runs in. */
+  workingDir?: string | null;
   receivedAt: string;
 }
 

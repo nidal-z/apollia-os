@@ -265,6 +265,7 @@ impl MemorySearchTool {
             ],
             family: crate::descriptor::ActionFamily::ReadPersonal,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: None,
             is_read_only: true,
             risk_score: 0,
             approval_risk_level: None,

@@ -1,7 +1,5 @@
 //! Tauri IPC commands of the AI screen, over the models of this machine.
 //!
-//! - `set_default_model`: `PUT /api/v1/llm/default-model`, a local language
-//!   model named by its identifier in the model index.
 //! - `set_embeddings_default`: `PUT /api/v1/llm/embeddings/default`, the
 //!   registry entry search by meaning uses.
 //! - `set_installed_model_pinned`: pins a model to the top of its category, or
@@ -9,8 +7,8 @@
 //! - `reveal_installed_model`: shows a model in the file manager of this
 //!   machine, refused for a path outside the models folder.
 //!
-//! The first two are runtime routes and serve both modes through the methods
-//! of `attached/proxy.rs`. The pin needs no route: it writes the index of the
+//! The first is a runtime route and serves both modes through the methods of
+//! `attached/proxy.rs`. The pin needs no route: it writes the index of the
 //! models folder, which the daemon shares since it listens on this machine,
 //! as the download of a variant does.
 
@@ -21,19 +19,7 @@ use tauri::State;
 
 use crate::attached::RuntimeLink;
 
-const DEFAULT_MODEL_PATH: &str = "/api/v1/llm/default-model";
 const EMBEDDINGS_DEFAULT_PATH: &str = "/api/v1/llm/embeddings/default";
-
-/// The default model of the machine, as the runtime answers it.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct DefaultModelView {
-    /// The backend row the default lives on.
-    pub backend: String,
-    /// `local` or `server`.
-    pub model_source: String,
-    /// The model, in the form the route accepts.
-    pub model_id: String,
-}
 
 /// The embeddings model search uses, as the runtime answers it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -46,26 +32,8 @@ pub struct EmbeddingsDefaultView {
     pub path: Option<String>,
 }
 
-fn default_model_body(model_id: &str) -> serde_json::Value {
-    serde_json::json!({ "model_source": "local", "model_id": model_id })
-}
-
 fn embeddings_default_body(entry: &str) -> serde_json::Value {
     serde_json::json!({ "model": entry })
-}
-
-/// Makes a local language model the default of the machine, named by its
-/// identifier in the model index. An embeddings or dictation model is refused
-/// by the runtime: it never chats.
-#[tauri::command]
-pub async fn set_default_model(
-    link: State<'_, RuntimeLink>,
-    model_id: String,
-) -> Result<DefaultModelView, String> {
-    let json = link
-        .put_json(DEFAULT_MODEL_PATH, &default_model_body(&model_id))
-        .await?;
-    serde_json::from_value(json).map_err(|e| format!("invalid default-model response: {e}"))
 }
 
 /// Makes a registry entry the embeddings model search by meaning uses. The
@@ -151,34 +119,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_the_default_model_body_names_a_local_model_by_its_index_identifier() {
-        // GIVEN the identifier of an installed language model
-        let id = "qwen3-8b-q4_k_m";
-
-        // WHEN the body of the request is built
-        let body = default_model_body(id);
-
-        // THEN it asks for a local model under that identifier
-        assert_eq!(body["model_source"], "local");
-        assert_eq!(body["model_id"], id);
-    }
-
-    #[test]
-    fn test_the_runtime_answers_parse_into_their_views() {
-        // GIVEN the bodies the two routes answer
-        let default = serde_json::json!({
-            "backend": "local-qwen", "model_source": "local", "model_id": "local-qwen"
-        });
+    fn test_the_embeddings_answer_parses_into_its_view() {
+        // GIVEN the body the embeddings route answers
         let search = serde_json::json!({
             "model": "multilingual-e5-small", "installed": true, "path": "/m/e5.gguf"
         });
 
-        // WHEN they are read
-        let default: DefaultModelView = serde_json::from_value(default).unwrap();
+        // WHEN it is read
         let search: EmbeddingsDefaultView = serde_json::from_value(search).unwrap();
 
         // THEN every field is kept
-        assert_eq!(default.backend, "local-qwen");
         assert_eq!(search.model.as_deref(), Some("multilingual-e5-small"));
         assert!(search.installed);
         assert_eq!(embeddings_default_body("e5")["model"], "e5");

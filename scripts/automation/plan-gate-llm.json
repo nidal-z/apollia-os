@@ -185,15 +185,6 @@
       "label": "08-operator-plan-approved"
     },
     {
-      "kind": "goto",
-      "route": "tasks"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tasks-page",
-      "timeoutMs": 15000
-    },
-    {
       "kind": "waitFor",
       "testid": "topbar-agents-at-work",
       "contains": "1 agent",

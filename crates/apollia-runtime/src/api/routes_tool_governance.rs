@@ -1,6 +1,7 @@
 //! The governance of native tools over HTTP, under `/api/v1/governance`: the
 //! tools with their flag and configuration, the permission rules and their
-//! revocation, the audit of the permission decisions.
+//! revocation, the audit of the permission decisions, and whether governance
+//! fails closed.
 //!
 //! Only the desktop running the runtime in its own process could read or
 //! change them. These routes serve the functions of [`crate::tool_governance`]
@@ -72,6 +73,20 @@ pub struct AuditQuery {
     pub offset: Option<u32>,
 }
 
+/// Answer of `GET /api/v1/governance/state`.
+#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
+pub struct GovernanceStateBody {
+    /// Why governance fails closed, `null` while it decides normally. While it
+    /// fails closed, every sensitive tool call and every new connection is
+    /// refused; reading continues.
+    pub fail_closed: Option<crate::governance::FailClosed>,
+    /// What degrades the journal without anything being refused: it opened
+    /// without its signing key, or the daily export the organisation policy
+    /// asks for cannot be written. Empty for a journal in order.
+    #[serde(default)]
+    pub journal_notices: Vec<crate::audit_journal::JournalNotice>,
+}
+
 /// Build the tool governance router.
 pub fn tool_governance_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
@@ -94,6 +109,7 @@ pub fn tool_governance_router<B: ExecutionBackend + Clone>() -> Router<AppState<
             post(revoke_all_governance_rules::<B>),
         )
         .route("/api/v1/governance/audit", get(list_governance_audit::<B>))
+        .route("/api/v1/governance/state", get(get_governance_state::<B>))
 }
 
 fn refusal(error: ToolGovernanceError) -> ApiError {
@@ -304,6 +320,36 @@ pub(crate) async fn list_governance_audit<B: ExecutionBackend + Clone>(
     .await
     .map(Json)
     .map_err(refusal)
+}
+
+/// `GET /api/v1/governance/state`: whether governance fails closed, and why,
+/// and what degrades the journal without refusing anything.
+#[utoipa::path(
+    get,
+    path = "/api/v1/governance/state",
+    tag = "governance",
+    responses(
+        (status = 200, description = "The state of governance", body = GovernanceStateBody),
+    )
+)]
+pub(crate) async fn get_governance_state<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Json<GovernanceStateBody> {
+    // The sources are read again first: a database whose permissions were
+    // repaired keeps its modification time, so only an explicit read lifts
+    // the failure, which is what retrying from the interface asks for.
+    if let Some(governance) = &state.governance {
+        governance.refresh().await;
+    }
+    let gate = crate::governance::tool_gate(state.governance.as_ref(), &state.data_dir, &[]);
+    Json(GovernanceStateBody {
+        fail_closed: gate.fail_closed,
+        journal_notices: state
+            .audit_journal
+            .as_ref()
+            .map(crate::audit_journal::AuditJournalHandle::notices)
+            .unwrap_or_default(),
+    })
 }
 
 #[cfg(test)]

@@ -37,6 +37,7 @@ pub fn config_from_package(decl: &McpServerDecl) -> McpServerConfig {
         origin: Some(ConnectionOrigin {
             provenance: Provenance::Package,
             official: false,
+            entry: None,
         }),
     }
 }

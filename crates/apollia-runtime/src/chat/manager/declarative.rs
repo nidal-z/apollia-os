@@ -83,9 +83,9 @@ impl ChatSessionManager {
     }
 
     /// The model `session_id` runs on, resolved as the dispatch of its next
-    /// message resolves it: the model of its declarative agent, else the
-    /// backend the session prefers, `None` for the runtime default. A session
-    /// no longer in memory is read from its stored row.
+    /// message resolves it: the model chosen for the session, else the model
+    /// of its declarative agent, `None` for the runtime default. A session no
+    /// longer in memory is read from its stored row.
     pub(in crate::chat::manager) fn handle_session_model(
         &self,
         session_id: &str,
@@ -108,7 +108,7 @@ impl ChatSessionManager {
             .then(|| declarative_agent(self.governance_db_path.as_deref(), agent_name.as_deref()?))
             .flatten();
         Ok(match declarative {
-            Some(agent) => agent.model.map(|m| m.model_id),
+            Some(agent) => preferred.or_else(|| agent.model.map(|m| m.model_id)),
             None => preferred,
         })
     }

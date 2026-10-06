@@ -1,127 +1,62 @@
 <script lang="ts">
   /**
-   * Per-tool expanded body for `http_fetch`.
-   *
-   * Operator layer: a "{method} {url}" chip, a coloured status badge
-   * ("200 Success", success / warn / error by class) and a short summary
-   * (content-type and size when present). Builder layer: the raw request
-   * (method, url, args) and the raw response (status, headers, body) as JSON /
-   * terminal blocks. A parse failure degrades to the raw output.
+   * Body of a call to a web address: the request, then the response (status,
+   * size, time) and the opening of what it returned.
    */
 
   import type { ReasoningItem } from "$lib/chat/reasoning";
-  import {
-    parseHttp,
-    httpStatusClass,
-    humanSize,
-    stringifyValue,
-    prettyJson,
-    type HumanSize,
-  } from "$lib/chat/toolBodies";
-  import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import { parseHttp, humanSize } from "$lib/chat/toolBodies";
+  import { formatSize, formatStepDuration } from "$lib/chat/toolBodyFormat";
+  import BodyField from "./BodyField.svelte";
+  import BodyCode from "./BodyCode.svelte";
   import { t, locale } from "svelte-i18n";
-  import { fly, fade } from "svelte/transition";
 
   type ToolCallItem = Extract<ReasoningItem, { kind: "tool_call" }>;
 
-  interface Props {
-    item: ToolCallItem;
-    skin: "builder" | "operator";
-  }
+  let { item }: { item: ToolCallItem } = $props();
 
-  let { item, skin }: Props = $props();
+  /** Characters of the response shown at most. */
+  const SHOWN = 800;
 
   const url = $derived(typeof item.args.url === "string" ? item.args.url : "");
   const method = $derived(
-    typeof item.args.method === "string"
-      ? item.args.method.toUpperCase()
-      : "GET",
+    typeof item.args.method === "string" ? item.args.method.toUpperCase() : "GET",
   );
   const parsed = $derived(parseHttp(item.output));
 
-  const statusMeta = $derived.by(() => {
-    if (!parsed) return null;
-    const cls = httpStatusClass(parsed.status);
-    const badge =
-      cls === "success"
-        ? "tb-ok"
-        : cls === "client"
-          ? "tb-warn"
-          : cls === "server" || cls === "unknown"
-            ? "tb-error"
-            : "tb-info";
-    const label = $t(`tools.body.http_status_${cls}`);
-    return { badge, label };
+  const summary = $derived.by<string>(() => {
+    if (!parsed) return "";
+    const loc = $locale ?? "en";
+    const parts = [$t("tools.body.response_status", { values: { status: parsed.status } })];
+    if (parsed.byteSize != null) {
+      const size = humanSize(parsed.byteSize);
+      parts.push(formatSize(size.value, $t(`tools.body.unit_${size.unit}`), loc));
+    }
+    const duration = formatStepDuration(parsed.durationMs ?? item.duration_ms, loc);
+    if (duration) parts.push($t("tools.body.in_duration", { values: { duration } }));
+    return parts.join(", ");
   });
 
-  function formatSize(size: HumanSize): string {
-    const loc = $locale ?? "en";
-    let n: string;
+  const body = $derived.by<string>(() => {
+    const raw = parsed?.body ?? "";
+    let text = raw;
     try {
-      n = new Intl.NumberFormat(loc, { maximumFractionDigits: 1 }).format(
-        size.value,
-      );
+      text = JSON.stringify(JSON.parse(raw), null, 1).replace(/\n\s*/g, " ");
     } catch {
-      n = String(size.value);
+      text = raw;
     }
-    return `${n} ${$t(`tools.body.unit_${size.unit}`)}`;
-  }
-
-  const inputJson = $derived(stringifyValue(item.args));
-  const outputJson = $derived(prettyJson(item.output));
+    return text.length > SHOWN ? `${text.slice(0, SHOWN - 1)}…` : text;
+  });
 </script>
 
-<div class="text-body-xs" in:fly={{ y: 8, duration: 200 }}>
-  {#key skin}
-    <div in:fade={{ duration: 150 }}>
-      {#if skin === "operator"}
-        <div class="flex flex-col gap-2">
-          {#if url}
-            <span class="tb-chip">
-              <span class="tb-chip-key font-mono">{method}</span>
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onclick={handleExternalLinkClick}
-                class="tb-chip-val link-inline font-mono">{url}</a
-              >
-            </span>
-          {/if}
-          {#if parsed && statusMeta}
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="tb-badge {statusMeta.badge}">
-                {parsed.status} {statusMeta.label}
-              </span>
-              {#if parsed.contentType}
-                <span class="tb-metric">
-                  {$t("tools.body.content_type_label")}: {parsed.contentType}
-                </span>
-              {/if}
-              {#if parsed.byteSize != null}
-                <span class="tb-metric">
-                  {$t("tools.body.size_label")}: {formatSize(humanSize(parsed.byteSize))}
-                </span>
-              {/if}
-            </div>
-          {:else if item.output}
-            <pre class="tb-code font-mono"><code>{item.output}</code></pre>
-          {/if}
-        </div>
-      {:else}
-        <div class="flex flex-col gap-2">
-          <div class="flex flex-col gap-1">
-            <div class="tb-iolabel">{$t("tools.body.request_label")}</div>
-            <pre class="tb-code font-mono"><code>{inputJson}</code></pre>
-          </div>
-          {#if outputJson}
-            <div class="flex flex-col gap-1">
-              <div class="tb-iolabel">{$t("tools.body.response_label")}</div>
-              <pre class="tb-code font-mono"><code>{outputJson}</code></pre>
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
-  {/key}
+<div class="flex flex-col gap-2" data-testid="tool-body-http_fetch">
+  {#if url}
+    <BodyField label={$t("tools.body.request_label")} value={`${method} ${url}`} mono />
+  {/if}
+  {#if summary}
+    <p class="text-caption text-muted-foreground">{summary}</p>
+  {/if}
+  {#if body}
+    <BodyCode text={body} />
+  {/if}
 </div>

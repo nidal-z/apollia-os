@@ -7,26 +7,33 @@
 //! task).
 
 pub mod agent_adjust;
+pub mod agent_create;
 pub mod agent_export;
 pub mod agent_packages;
 pub mod agent_sheet;
 pub mod agents;
 pub mod ai_models;
 pub mod artifacts;
+pub mod authorizations;
 #[cfg(debug_assertions)]
 pub mod automation;
 pub mod background_service;
+pub mod batch_view;
+pub mod batches;
 pub mod chat;
-pub mod chat_permissions;
 pub mod cli;
 pub mod config;
 pub mod connections;
+pub mod embeddings;
+pub mod hardware_window;
 pub mod hf_token;
 pub mod hitl;
 pub mod integrations;
+pub mod journal;
 pub mod link_preview;
 pub mod llm;
 pub mod llm_loaded;
+pub mod llm_servers;
 pub mod mcp;
 pub mod mcp_bridge;
 pub mod mcp_coaching;
@@ -41,7 +48,9 @@ pub(crate) mod model_index;
 pub mod notifications;
 pub mod observability;
 pub mod onboarding;
-pub mod permissions_proposals;
+pub mod org_policy;
+pub mod package_examples;
+pub mod package_files;
 pub mod plan_mode;
 pub mod project_migration;
 pub mod recommend;
@@ -53,6 +62,7 @@ pub mod trace;
 pub mod triggers;
 pub mod updates;
 pub mod user_memory;
+pub mod workflows;
 
 /// Process-wide lock for tests that read or write the home-directory env vars.
 ///
@@ -198,6 +208,25 @@ pub(crate) async fn http_post_for_file(
     body: &serde_json::Value,
     report_header: &str,
 ) -> Result<(Option<String>, Vec<u8>), String> {
+    http_file_request(port, "POST", path, Some(body), report_header).await
+}
+
+/// Sends a GET request to the internal REST API, for an answer that is a
+/// file: its bytes.
+pub(crate) async fn http_get_for_file(port: u16, path: &str) -> Result<Vec<u8>, String> {
+    let (_, bytes) = http_file_request(port, "GET", path, None, "").await?;
+    Ok(bytes)
+}
+
+/// Shared by [`http_post_for_file`] and [`http_get_for_file`]: the request,
+/// then the value of the `report_header` of the answer and its bytes.
+async fn http_file_request(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<&serde_json::Value>,
+    report_header: &str,
+) -> Result<(Option<String>, Vec<u8>), String> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
         .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
@@ -209,13 +238,17 @@ pub(crate) async fn http_post_for_file(
         let _ = conn.await;
     });
 
-    let body_bytes =
-        serde_json::to_vec(body).map_err(|e| format!("failed to serialize body: {e}"))?;
     let mut builder = hyper::Request::builder()
-        .method("POST")
+        .method(method)
         .uri(path)
-        .header("host", "localhost")
-        .header("content-type", "application/json");
+        .header("host", "localhost");
+    let body_bytes = match body {
+        Some(body) => {
+            builder = builder.header("content-type", "application/json");
+            serde_json::to_vec(body).map_err(|e| format!("failed to serialize body: {e}"))?
+        }
+        None => Vec::new(),
+    };
     if let Some(auth) = bridge_auth_header() {
         builder = builder.header("authorization", auth);
     }

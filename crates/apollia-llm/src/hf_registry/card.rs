@@ -118,6 +118,7 @@ mod tests {
                 vram_gb: 32.0,
             },
             memory_budget_gb: 24.0,
+            devices: Vec::new(),
         }
     }
 

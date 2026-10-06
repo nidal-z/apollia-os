@@ -6,8 +6,9 @@
 //! The body says whether the memory and the history of the agents are erased
 //! or kept. Both routes answer `503` without an audit journal: an
 //! uninstallation is never left unrecorded. Beyond the stores, the agents
-//! leave the registry, the trigger engine drops their triggers, and the bus
-//! announces each removed agent.
+//! leave the registry, the trigger engine drops their triggers, the bus
+//! announces each removed agent, and the tools and workflows of a package
+//! leave the running runtime at once.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -65,7 +66,7 @@ enum Subject<'a> {
     request_body = UninstallRequest,
     responses(
         (status = 200, description = "Uninstalled", body = UninstallReport),
-        (status = 403, description = "The package carries Apollia", body = PackageErrorBody),
+        (status = 403, description = "The package is part of Apollia", body = PackageErrorBody),
         (status = 404, description = "No such package", body = PackageErrorBody),
         (status = 500, description = "Store or journal failure", body = PackageErrorBody),
         (status = 503, description = "No audit journal", body = PackageErrorBody),
@@ -170,7 +171,40 @@ async fn run<B: ExecutionBackend + Clone>(
     if !report.triggers_removed.is_empty() {
         crate::api::routes_triggers::reload_engine_from_repo(state).await;
     }
+    if let Subject::Package(package) = subject {
+        retire(state, package, &report).await;
+    }
     Ok(Json(report))
+}
+
+/// Takes the tools and the workflows of `package`, just uninstalled, out of
+/// the running runtime: the tool registry, what an agent run can call, and
+/// the workflow catalogue. They were read when the runtime started and
+/// would otherwise stay callable, their files gone, until it restarts.
+async fn retire<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    package: &str,
+    report: &UninstallReport,
+) {
+    if !report.tools.is_empty() {
+        if let Some(registry) = &state.tool_registry_handle {
+            for tool in &report.tools {
+                let name = format!(
+                    "{}{package}/{tool}",
+                    apollia_tools::apollia_manifest::PACKAGE_TOOL_PREFIX
+                );
+                let _ = registry.unregister(&name).await;
+            }
+        }
+        if let Some(chat) = &state.chat_manager {
+            chat.retire_package_tools(package).await;
+        }
+    }
+    if !report.workflows.is_empty() {
+        if let Some(workflows) = &state.workflows {
+            let _ = workflows.retire_package(package).await;
+        }
+    }
 }
 
 fn uninstall_error(error: UninstallError) -> ApiError {

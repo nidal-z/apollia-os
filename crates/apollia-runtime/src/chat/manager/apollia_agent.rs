@@ -73,7 +73,7 @@ pub(in crate::chat::manager) fn apollia_access(
     let data_dir = governance_db?.parent()?;
     let agents_db = DataFile::Agents.path(data_dir);
     if !agents_db.exists() {
-        return Some(AgentAccess::ReadingFamily);
+        return Some(AgentAccess::Default);
     }
     let resolved = AgentRepository::open(&agents_db).and_then(|repo| {
         repo.resolved(
@@ -84,7 +84,7 @@ pub(in crate::chat::manager) fn apollia_access(
     });
     match resolved {
         Ok(Some(apollia)) => Some(AgentAccess::of(&apollia)),
-        Ok(None) => Some(AgentAccess::ReadingFamily),
+        Ok(None) => Some(AgentAccess::Default),
         Err(error) => {
             tracing::event!(
                 tracing::Level::WARN,
@@ -221,7 +221,7 @@ mod tests {
 
         let access = apollia_access(Some(&DataFile::Governance.path(dir.path())));
 
-        assert_eq!(access, Some(AgentAccess::ReadingFamily));
+        assert_eq!(access, Some(AgentAccess::Default));
     }
 
     // GIVEN a data directory without agents.db, then a mount without one
@@ -234,7 +234,7 @@ mod tests {
 
         let access = apollia_access(Some(&DataFile::Governance.path(dir.path())));
 
-        assert_eq!(access, Some(AgentAccess::ReadingFamily));
+        assert_eq!(access, Some(AgentAccess::Default));
         assert!(!DataFile::Agents.path(dir.path()).exists());
         assert_eq!(apollia_access(None), None);
     }

@@ -14,7 +14,6 @@ import { t } from "svelte-i18n";
 import {
   LayoutDashboard,
   Bot,
-  ListChecks,
   MessageSquare,
   ShieldCheck,
   Plug,
@@ -25,7 +24,6 @@ import {
   Activity,
   Settings as SettingsIcon,
   Mic,
-  Plus,
   Moon,
   Terminal,
   RefreshCcw,
@@ -34,6 +32,10 @@ import {
   ToggleRight,
   Keyboard,
   Info,
+  Landmark,
+  Library,
+  KeyRound,
+  ScrollText,
 } from "lucide-svelte";
 // NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
@@ -121,16 +123,18 @@ export function buildPaletteActions(): PaletteAction[] {
     // ── Pages ─────────────────────────────────────────────────────
     nav("nav.dashboard", "dashboard", "nav.dashboard", LayoutDashboard, ["home"]),
     nav("nav.agents", "agents", "nav.agents", Bot, ["assistants", "bots"]),
-    nav("nav.tasks", "tasks", "nav.tasks", ListChecks, ["tasks", "activity"]),
     nav("nav.chat", "chat", "nav.chat", MessageSquare, ["chat", "conversation"]),
     nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),
     nav("nav.integrations", "integrations", "nav.connections", Plug, ["integrations", "mcp"]),
     nav("nav.llm", "llm", "nav.llm", Brain, ["llm", "models"]),
+    nav("nav.library", "library", "nav.library", Library, ["library", "packages", "installed"]),
     nav("nav.automations", "automations", "nav.automations", Timer, ["automations", "triggers", "cron"]),
     nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], true),
     nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], true),
-    nav("nav.notifications", "notifications", "nav.notifications", Bell, ["notifications"]),
     nav("nav.observability", "observability", "nav.observability", Activity, ["observability", "metrics"], true),
+    nav("nav.policy", "policy", "nav.policy", Landmark, ["policy", "politique", "organisation", "organization"]),
+    nav("nav.authorizations", "authorizations", "nav.authorizations", KeyRound, ["authorizations", "autorisations", "permissions", "rules"]),
+    nav("nav.journal", "journal", "nav.journal", ScrollText, ["journal", "audit", "history", "historique", "activity"]),
     nav("nav.settings", "settings", "nav.settings", SettingsIcon, ["settings", "preferences"]),
 
     // ── Create / run actions ──────────────────────────────────────
@@ -139,18 +143,6 @@ export function buildPaletteActions(): PaletteAction[] {
       label: tr("chat.new_chat"),
       keywords: ["chat", "new", "conversation", "nouveau"],
       icon: MessageSquare,
-      shortcut: [modKey, "K"],
-      kind: "actions",
-      execute: () => {
-        navigateTo("chat");
-        openNewChatRequested.set(Date.now());
-      },
-    },
-    {
-      id: "tasks.new",
-      label: tr("tasks.create_task_cta"),
-      keywords: ["task", "new", "create", "tâche"],
-      icon: Plus,
       shortcut: [modKey, "T"],
       kind: "actions",
       execute: () => {
@@ -224,6 +216,16 @@ export function buildPaletteActions(): PaletteAction[] {
       kind: "settings",
       execute: () => {
         navigateToSettings("chat");
+      },
+    },
+    {
+      id: "settings.notifications.open",
+      label: tr("settings.nav.notifications"),
+      keywords: ["notifications", "channels", "alerts", "canaux", "alertes"],
+      icon: Bell,
+      kind: "settings",
+      execute: () => {
+        navigateToSettings("notifications");
       },
     },
     {

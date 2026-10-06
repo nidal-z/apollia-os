@@ -98,7 +98,11 @@ impl ChatSessionManager {
             agent_name,
             system_prompt,
             tools,
+            model,
         } = params;
+        let model = model
+            .map(|name| name.trim().to_owned())
+            .filter(|name| !name.is_empty());
         let declarative = match (&mode, agent_name.as_deref()) {
             (ChatMode::Agent, Some(name)) => {
                 super::declarative::declarative_agent(self.governance_db_path.as_deref(), name)
@@ -148,7 +152,7 @@ impl ChatSessionManager {
             &prompt,
             &resolved_tools,
             &now,
-            None,
+            model.as_deref(),
         )?;
 
         // A new session inherits the runtime-level plan-mode default. When it is
@@ -166,6 +170,20 @@ impl ChatSessionManager {
                 .set_plan_mode(&session_id, true, plan_phase)?;
         }
 
+        // A new session is born with the profile switch `[chat]
+        // share_profile_default` states; the column is born on, so only an
+        // off default is written.
+        let use_profile = self.shares_profile_by_default();
+        if !use_profile {
+            self.repository.update_session_config(
+                &session_id,
+                &SessionConfigUpdate {
+                    use_profile: Some(false),
+                    ..SessionConfigUpdate::default()
+                },
+            )?;
+        }
+
         // Build in-memory session
         let session = ChatSession {
             id: session_id.clone(),
@@ -178,21 +196,28 @@ impl ChatSessionManager {
             available_tools: resolved_tools,
             created_at: now.clone(),
             active_exchange: None,
-            llm_backend: libre_llm_backend,
+            llm_backend: model.clone().or(libre_llm_backend),
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             // Plan mode is seeded from the runtime-level default; the per-session
             // toggle overrides it afterwards.
             plan_mode,
             plan_phase,
+            profile_id: None,
+            use_profile,
         };
 
         let info = session_to_info(&session);
         self.sessions.insert(session_id.clone(), session);
+        if let Some(model) = model.as_deref() {
+            tracing::event!(
+                tracing::Level::INFO,
+                session_id = %session_id,
+                model = %model,
+                "chat.session.model.chosen"
+            );
+        }
 
         // Emit event
         let _ = self.event_bus.send(RuntimeEvent::ChatSessionCreated {
@@ -208,9 +233,7 @@ impl ChatSessionManager {
     pub(in crate::chat::manager) fn handle_update_session(
         &mut self,
         session_id: &str,
-        system_prompt: Option<&str>,
-        available_tools: Option<&[String]>,
-        llm_backend: Option<&Option<String>>,
+        update: SessionConfigUpdate,
     ) -> Result<(), ChatError> {
         let session = self
             .sessions
@@ -226,26 +249,43 @@ impl ChatSessionManager {
         }
 
         // Persist to SQLite
-        self.repository.update_session_config(
-            session_id,
-            system_prompt,
-            available_tools,
-            llm_backend.map(|b| b.as_deref()),
-        )?;
+        self.repository.update_session_config(session_id, &update)?;
 
         // Update in-memory session
-        if let Some(prompt) = system_prompt {
-            session.system_prompt = prompt.to_string();
+        if let Some(prompt) = update.system_prompt {
+            session.system_prompt = prompt;
         }
-        if let Some(tools) = available_tools {
-            session.available_tools = tools.to_vec();
+        if let Some(tools) = update.available_tools {
+            session.available_tools = tools;
         }
-        if let Some(backend) = llm_backend {
-            session.llm_backend = backend.clone();
+        if let Some(backend) = update.llm_backend {
+            session.llm_backend = backend;
+        }
+        if let Some(profile) = update.profile_id {
+            session.profile_id = profile;
+        }
+        if let Some(use_profile) = update.use_profile {
+            session.use_profile = use_profile;
         }
 
         info!(session_id = %session_id, "chat.session.config.updated");
         Ok(())
+    }
+
+    /// Empty the profile of every session designating `profile_id`, in
+    /// `chat.db` and in memory; returns how many sessions designated it.
+    pub(in crate::chat::manager) fn handle_release_profile(
+        &mut self,
+        profile_id: &str,
+    ) -> Result<usize, ChatError> {
+        let released = self.repository.release_profile(profile_id)?;
+        for session in self.sessions.values_mut() {
+            if session.profile_id.as_deref() == Some(profile_id) {
+                session.profile_id = None;
+            }
+        }
+        info!(profile_id = %profile_id, released, "chat.session.profile.released");
+        Ok(released)
     }
 }
 
@@ -416,11 +456,10 @@ impl ChatSessionManager {
             title: row.title,
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode,
             plan_phase,
+            profile_id: row.profile_id,
+            use_profile: row.use_profile,
         };
 
         Some(SessionDetail {
@@ -437,7 +476,7 @@ impl ChatSessionManager {
     /// injection, and refuses any pending tool approval (so a loop blocked on
     /// approval unblocks). Called when a session closes or is deleted; without
     /// it these maps leak entries for the lifetime of the actor.
-    fn purge_session_runtime_state(&mut self, session_id: &str) {
+    pub(in crate::chat::manager) fn purge_session_runtime_state(&mut self, session_id: &str) {
         if let Some(token) = self.pause_tokens.remove(session_id) {
             token.cancel();
         }
@@ -551,6 +590,11 @@ impl ChatSessionManager {
                 session: session.clone(),
                 message_count,
             });
+        }
+
+        // A session in the trash is resumed only once restored.
+        if self.repository.is_trashed(session_id)? {
+            return Err(ChatError::SessionNotFound(session_id.to_string()));
         }
 
         // Load from SQLite.

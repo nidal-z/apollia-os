@@ -201,7 +201,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         mcp_loading,
         tool_search_limit,
         session_id_str,
-        hitl_params,
         sid,
         mid,
         run_id,
@@ -216,9 +215,16 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         pending_injection,
         preferred_backend,
         turn_id,
+        turn_images,
+        agent_draft,
     } = params;
 
-    let available_tools = available_tools.tools(&tool_registry).await;
+    let available_tools = available_tools
+        .tools(
+            &tool_registry,
+            &super::default_access_of(chat_tools_config_for_session.as_deref()),
+        )
+        .await;
     let available_tools = super::code_context::with_code_context(
         chat_tools_config_for_session.as_deref(),
         &agent_id,
@@ -259,6 +265,15 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         available_tools,
         chat_tools_config_for_session.as_deref(),
     );
+    // The documents attached to this conversation are read by its file tools,
+    // and by those of no other conversation.
+    let folders = super::documents::with_session_documents(
+        folders,
+        chat_tools_config_for_session
+            .as_deref()
+            .map(|cfg| cfg.data_dir.as_path()),
+        &session_id_str,
+    );
     let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);
@@ -267,6 +282,26 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         super::sources::source_access(chat_tools_config_for_session.as_deref(), &agent_id).await;
     let available_tools = super::sources::offered(available_tools, &sources);
     let memory_namespace = super::sources::memory_namespace(&agent_id, &session_id_str);
+
+    // The conversation that creates an agent runs under its own instructions,
+    // which list what exists on the machine when the message is sent.
+    let agent_draft = if agent_draft {
+        Some(
+            super::agent_draft::offer(
+                &tool_registry,
+                &disabled,
+                chat_tools_config_for_session.as_deref(),
+                llm_router.backend_names(),
+            )
+            .await,
+        )
+    } else {
+        None
+    };
+    let system_prompt = match &agent_draft {
+        Some(offer) => crate::chat::agent_draft_tool::creation_prompt(offer),
+        None => system_prompt,
+    };
 
     // Read the tool-turn temperature before the config is moved into the
     // session invoker below; it is applied to the agent further down.
@@ -278,7 +313,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     let session_invoker = match build_session_invoker(
         WorkspaceResolutionParams {
             folders,
-            hitl: Some(hitl_params),
             pending_user_inputs: Some(pending_user_inputs_for_session),
             mcp_handle: mcp_handle_for_session,
             chat_tools_config: chat_tools_config_for_session,
@@ -309,20 +343,25 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     };
 
     // `Some` only in deferred mode, so `build_tool_specs` injects `tool_search`.
-    // Eager keeps `None` and the legacy spec path.
+    // Eager keeps `None` and the legacy spec path, and so does the
+    // conversation that creates an agent, which searches no tool.
     let agent_mcp_index = match mcp_loading {
-        LoadingMode::Deferred => Some(mcp_index),
-        LoadingMode::Eager => None,
+        LoadingMode::Deferred if agent_draft.is_none() => Some(mcp_index),
+        LoadingMode::Deferred | LoadingMode::Eager => None,
     };
     // The session runs its agent: Apollia, whose stored prompt is the mission,
     // whose session tools are its granted tools and whose stored backend is
     // its model; or a declarative agent, as resolved when the message is sent.
+    // In a conversation the plan of a task is drafted and approved through the
+    // plan mode, so the agent never plans first there.
     let spec = AgentRunSpec {
         agent_id,
         mission: system_prompt,
         granted_tools: available_tools,
         model: preferred_backend,
         autonomy: autonomy_level,
+        planning: apollia_tools::PlanningMode::Never,
+        version: String::new(),
     };
     let executor = AgentExecutor::new(
         spec,
@@ -333,6 +372,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             event_bus,
             todo,
             plan,
+            plan_cache: None,
         },
         apollia_context,
         SessionWiring {
@@ -343,13 +383,16 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             plan_phase: session_plan_phase,
             hook_executor,
             pending_injection,
+            turn_images,
             tool_turn_temperature,
             governance,
             unattended: false,
             approval_timeout: Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT),
+            tool_output_dir: crate::chat::builtin_agent::default_tool_output_dir(),
             shared_budget: None,
             composition: composer.map(|composer| Composition { composer, depth: 1 }),
             turn_id,
+            agent_draft,
         },
         &runtime_budget,
         cancel,
@@ -422,8 +465,8 @@ pub(in crate::chat::manager) async fn build_session_invoker(
     Ok(ResolvedSessionInvoker { invoker, workspace })
 }
 
-/// Trace-log the enriched approval metadata (reject reason / always-accept
-/// scope) without touching the `log_tool_approval` SQL schema.
+/// Trace-log the enriched approval metadata (reject reason, always-accept)
+/// without touching the `log_tool_approval` SQL schema.
 pub(in crate::chat::manager) fn log_resolution_metadata(
     decision: &ToolDecision,
     session_id: &str,
@@ -440,12 +483,11 @@ pub(in crate::chat::manager) fn log_resolution_metadata(
                 "chat.tool.rejected"
             );
         }
-        ToolDecision::AlwaysAccept { scope } => {
+        ToolDecision::AlwaysAccept => {
             tracing::info!(
                 session_id,
                 message_id,
                 tool_name,
-                always_accept_scope = ?scope,
                 "chat.tool.always_accept.installed"
             );
         }
@@ -505,11 +547,10 @@ mod context_gauge_tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
-            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
-                std::collections::HashSet::new(),
-            )),
             plan_mode: false,
             plan_phase: PlanPhase::Done,
+            profile_id: None,
+            use_profile: true,
         }
     }
 

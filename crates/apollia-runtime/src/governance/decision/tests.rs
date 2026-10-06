@@ -76,20 +76,39 @@ fn test_policy_refuses_tool_connection_and_family() {
     }
 }
 
-// Line 1: a non-empty list of allowed connections refuses the tools of every
-// other connection, and leaves the tools Apollia ships alone.
+// Line 1: a connection the policy forbade at boot has every tool refused, and
+// the tools of the others and those Apollia ships are left alone.
 #[test]
-fn test_policy_allow_list_refuses_other_connections() {
-    // GIVEN a policy allowing the Notion server only
+fn test_tools_of_a_forbidden_connection_are_refused() {
+    // GIVEN a policy that forbade the files server and a Microsoft account
     let mut state = GovernanceState::default();
-    state.policy.allowed.insert("mcp:notion".into());
+    state.policy.forbidden_connections = ["mcp:files", "conn:microsoft:bob@example.com"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
 
-    // WHEN a tool of another server, one of Notion and a native tool are decided
+    // WHEN a tool of each forbidden connection, one of Notion and a native
+    // tool are decided
     let other = decide(
         &state,
         &call("mcp:files/read_file", ActionFamily::Read, None),
         NOW,
     );
+    let account = decide(
+        &state,
+        &call(
+            "conn:microsoft:bob@example.com/mail.list",
+            ActionFamily::Read,
+            None,
+        ),
+        NOW,
+    );
+    assert!(matches!(
+        account,
+        AccessDecision::Denied {
+            reason: DecisionReason::Policy { .. }
+        }
+    ));
     let notion = decide(
         &state,
         &call("mcp:notion/search", ActionFamily::Read, None),
@@ -97,7 +116,7 @@ fn test_policy_allow_list_refuses_other_connections() {
     );
     let native = decide(&state, &call("web_search", ActionFamily::Read, None), NOW);
 
-    // THEN only the other server is refused
+    // THEN only the forbidden ones are refused
     assert!(matches!(
         other,
         AccessDecision::Denied {
@@ -213,6 +232,71 @@ fn test_code_runs_on_allow_rule_in_developer_mode_only() {
     let compound = decide(&state, &chained, NOW);
     // THEN it asks without "always"
     assert_eq!(compound, asked_without_always());
+}
+
+// A tool nobody classified has no family a consent could stand for: a fine
+// rule `allow` naming it lets it run, in developer mode only.
+#[test]
+fn test_unclassified_runs_on_allow_rule_in_developer_mode_only() {
+    // GIVEN an allow rule on a tool of an MCP server nobody classified
+    let tool = "mcp:request-mcp:localhost/echo";
+    let mut state = GovernanceState {
+        rules: vec![rule(5, tool, None, RuleAction::Allow)],
+        ..GovernanceState::default()
+    };
+    let asked = call(tool, ActionFamily::Unclassified, None);
+
+    // WHEN it is decided outside developer mode
+    let outside = decide(&state, &asked, NOW);
+    // THEN it asks without "always", the rule set aside
+    assert_eq!(outside, asked_without_always());
+
+    // WHEN it is decided in developer mode
+    state.developer_mode = true;
+    let inside = decide(&state, &asked, NOW);
+    // THEN the rule lets it run
+    assert_eq!(
+        inside,
+        AccessDecision::Allowed {
+            reason: DecisionReason::Rule { rule_id: 5 }
+        }
+    );
+
+    // WHEN another tool of the same server is decided in developer mode
+    let other = call(
+        "mcp:request-mcp:localhost/delete",
+        ActionFamily::Unclassified,
+        None,
+    );
+    // THEN it still asks without "always"
+    assert_eq!(decide(&state, &other, NOW), asked_without_always());
+}
+
+// Line 4: in developer mode, "always" is offered on a single simple command
+// no rule covers yet, never on a compound one, never outside the mode.
+#[test]
+fn test_code_offers_always_on_a_simple_command_in_developer_mode_only() {
+    // GIVEN no rule, and a simple and a chained shell command
+    let mut state = GovernanceState::default();
+    let simple = call("bash_executor", ActionFamily::ExecuteCode, Some("ls -la"));
+    let chained = call(
+        "bash_executor",
+        ActionFamily::ExecuteCode,
+        Some("ls -la && rm -rf build"),
+    );
+
+    // WHEN both are decided outside developer mode, then inside it
+    let simple_outside = decide(&state, &simple, NOW);
+    let chained_outside = decide(&state, &chained, NOW);
+    state.developer_mode = true;
+    let simple_inside = decide(&state, &simple, NOW);
+    let chained_inside = decide(&state, &chained, NOW);
+
+    // THEN only the simple command in developer mode is offered "always"
+    assert_eq!(simple_outside, asked_without_always());
+    assert_eq!(chained_outside, asked_without_always());
+    assert_eq!(simple_inside, asked_with_all());
+    assert_eq!(chained_inside, asked_without_always());
 }
 
 // Line 4: no standing consent and no grant of the run lets code run.
@@ -350,7 +434,9 @@ fn test_unattended_ask_becomes_pending() {
 fn test_fail_closed_refuses_sensitive_only() {
     // GIVEN governance told it cannot read its state, and a standing consent
     let mut state = GovernanceState {
-        fail_closed: true,
+        fail_closed: Some(crate::governance::FailClosed::StoreUnreadable {
+            detail: "file is not a database".into(),
+        }),
         ..GovernanceState::default()
     };
     state
@@ -398,4 +484,39 @@ fn test_expired_and_foreign_rules_are_ignored() {
 
     // THEN neither refuses it: it asks
     assert_eq!(decision, asked_with_all());
+}
+
+// A code call the user answered "once" for goes through; a deny rule still
+// refuses it, and the grant names one call only.
+#[test]
+fn test_a_code_call_answered_once_goes_through_and_a_deny_rule_still_refuses() {
+    // GIVEN an unattended code call that waits, and the same call under a deny rule
+    let mut code = call("bash_executor", ActionFamily::ExecuteCode, Some("ls"));
+    code.unattended = true;
+    let waits = decide(&GovernanceState::default(), &code, NOW);
+    let denied_state = GovernanceState {
+        rules: vec![rule(9, "bash_executor", Some("ls"), RuleAction::Deny)],
+        ..GovernanceState::default()
+    };
+    let denied = decide(&denied_state, &code, NOW);
+
+    // WHEN both are read as answered "once"
+    let once = answered_once(waits);
+    assert!(
+        matches!(denied, AccessDecision::Denied { .. }),
+        "{denied:?}"
+    );
+    let still_denied = answered_once(denied.clone());
+
+    // THEN the waiting call goes through on the consent, the refusal stays
+    assert_eq!(
+        once,
+        AccessDecision::Allowed {
+            reason: DecisionReason::Consent
+        }
+    );
+    assert_eq!(still_denied, denied);
+    // AND the grant of one call is told apart from a grant of the run
+    assert!(is_once_grant(&once_grant("bash_executor")));
+    assert!(!is_once_grant("bash_executor"));
 }

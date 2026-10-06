@@ -1,0 +1,192 @@
+/**
+ * An image made ready for the engine of the conversation.
+ *
+ * The web view decodes the image first: a file it cannot decode is refused
+ * with a reason. A format the engine reads leaves untouched; one it does not
+ * (WebP for llama-server, whose decoder reads JPEG, PNG, TGA, BMP and GIF) is
+ * redrawn and sent as PNG. An image whose largest side exceeds the ceiling of
+ * Settings > Model defaults is redrawn at that ceiling, proportions kept. The
+ * decoding and the drawing are injected, so the rule is tested without a
+ * browser.
+ */
+
+/** Width and height of an image, in pixels. */
+export interface ImageSize {
+  width: number;
+  height: number;
+}
+
+/**
+ * Largest side an image keeps when the setting cannot be read: the default of
+ * `llm.images.max_side_px`.
+ */
+export const DEFAULT_IMAGE_MAX_SIDE = 2048;
+
+/**
+ * The size `size` takes under a largest side of `maxSide`: its own when it
+ * already fits, else scaled so its largest side is exactly `maxSide`, the
+ * other following in proportion and never under one pixel.
+ */
+export function fitWithin(size: ImageSize, maxSide: number): ImageSize {
+  const largest = Math.max(size.width, size.height);
+  if (maxSide <= 0 || largest <= maxSide) return size;
+  const scale = maxSide / largest;
+  const scaled = (side: number): number =>
+    side === largest ? maxSide : Math.max(1, Math.round(side * scale));
+  return { width: scaled(size.width), height: scaled(size.height) };
+}
+
+/** The format name a capability lists for a media type, `null` if unknown. */
+export function formatOfMime(mime: string): string | null {
+  switch (mime.trim().toLowerCase()) {
+    case "image/png":
+      return "png";
+    case "image/jpeg":
+    case "image/jpg":
+    case "image/pjpeg":
+      return "jpeg";
+    case "image/gif":
+      return "gif";
+    case "image/bmp":
+    case "image/x-bmp":
+    case "image/x-ms-bmp":
+      return "bmp";
+    case "image/webp":
+      return "webp";
+    case "image/tiff":
+      return "tiff";
+    case "image/x-tga":
+    case "image/tga":
+    case "image/x-targa":
+      return "tga";
+    default:
+      return null;
+  }
+}
+
+const EXTENSION_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  bmp: "image/bmp",
+  webp: "image/webp",
+  tif: "image/tiff",
+  tiff: "image/tiff",
+  tga: "image/x-tga",
+};
+
+/** The media type of an image file: the browser's, else its extension's. */
+export function imageMimeOf(type: string, name: string): string {
+  if (type) return type;
+  const extension = name.split(".").pop()?.toLowerCase() ?? "";
+  return EXTENSION_MIME[extension] ?? "application/octet-stream";
+}
+
+/** Decodes an image and redraws it as PNG; each rejects on a broken file. */
+export interface ImageCodec {
+  /** Resolves when the bytes decode to an image, rejects otherwise. */
+  check(blob: Blob): Promise<void>;
+  /** The size of the decoded image. */
+  size(blob: Blob): Promise<ImageSize>;
+  /** The image redrawn as PNG, at `size` when one is given. */
+  toPng(blob: Blob, size?: ImageSize): Promise<Blob>;
+}
+
+export type PreparedImage =
+  | { ok: true; mime: string; base64: string }
+  | { ok: false; reason: "image_unreadable" | "image_format" };
+
+/** Bytes of a blob in standard base64, without a data-URI prefix. */
+export async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Make `blob` ready for an engine that decodes `formats` (empty: any).
+ *
+ * Sent as is when its format is listed, converted to PNG when the web view
+ * decodes it and the engine reads PNG, refused otherwise. With a `maxSide`,
+ * an image whose largest side exceeds it is redrawn at that side, as PNG, for
+ * an engine that reads PNG; `null` sends every image at its own size.
+ */
+export async function prepareImage(
+  blob: Blob,
+  mime: string,
+  formats: readonly string[],
+  codec: ImageCodec,
+  maxSide: number | null = null,
+): Promise<PreparedImage> {
+  try {
+    await codec.check(blob);
+  } catch {
+    return { ok: false, reason: "image_unreadable" };
+  }
+  const readsPng = formats.length === 0 || formats.includes("png");
+  if (maxSide !== null && readsPng) {
+    try {
+      const size = await codec.size(blob);
+      const target = fitWithin(size, maxSide);
+      if (target.width !== size.width || target.height !== size.height) {
+        const png = await codec.toPng(blob, target);
+        return { ok: true, mime: "image/png", base64: await blobToBase64(png) };
+      }
+    } catch {
+      return { ok: false, reason: "image_unreadable" };
+    }
+  }
+  const format = formatOfMime(mime);
+  if (format !== null && (formats.length === 0 || formats.includes(format))) {
+    return { ok: true, mime, base64: await blobToBase64(blob) };
+  }
+  if (formats.length > 0 && !formats.includes("png")) {
+    return { ok: false, reason: "image_format" };
+  }
+  try {
+    const png = await codec.toPng(blob);
+    return { ok: true, mime: "image/png", base64: await blobToBase64(png) };
+  } catch {
+    return { ok: false, reason: "image_unreadable" };
+  }
+}
+
+/** The codec of the web view: `createImageBitmap` and a canvas. */
+export const browserImageCodec: ImageCodec = {
+  async check(blob) {
+    const bitmap = await createImageBitmap(blob);
+    bitmap.close();
+  },
+  async size(blob) {
+    const bitmap = await createImageBitmap(blob);
+    try {
+      return { width: bitmap.width, height: bitmap.height };
+    } finally {
+      bitmap.close();
+    }
+  },
+  async toPng(blob, size) {
+    const bitmap = await createImageBitmap(blob);
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = size?.width ?? bitmap.width;
+      canvas.height = size?.height ?? bitmap.height;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("no 2d context");
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      return await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(
+          (png) => (png ? resolve(png) : reject(new Error("png encoding failed"))),
+          "image/png",
+        ),
+      );
+    } finally {
+      bitmap.close();
+    }
+  },
+};

@@ -141,17 +141,10 @@ enum Commands {
         #[arg(long)]
         detach: bool,
 
-        /// Display two alternative plans (conservative vs. exploratory) and choose
-        /// which one to execute before submitting the task.
-        ///
-        /// Requires the runtime to support plan alternatives (ORIA engine with LLM).
-        #[arg(long)]
-        alternatives: bool,
-
         /// Pause after plan generation to review and approve the plan before
         /// execution. Prompts to approve, reject (with optional feedback), or
-        /// quit. Incompatible with --alternatives.
-        #[arg(long, conflicts_with = "alternatives")]
+        /// quit.
+        #[arg(long)]
         plan: bool,
 
         /// Autonomy tier for this run (default: assisted).
@@ -281,7 +274,7 @@ enum Commands {
         command: PermissionsCommand,
     },
 
-    /// Interactive chat REPL + persisted session hygiene (delete, rename, export).
+    /// Interactive chat REPL + persisted session hygiene (list, delete, rename, export).
     ///
     /// Without a subcommand: launches the REPL (resume with `--resume <id>`,
     /// or list recent sessions with `--list`). With a subcommand: operates on
@@ -293,7 +286,7 @@ enum Commands {
         /// List the 10 most recent sessions.
         #[arg(long)]
         list: bool,
-        /// Optional hygiene subcommand (delete | rename | export). When
+        /// Optional hygiene subcommand (list | delete | rename | export). When
         /// omitted, the REPL launches.
         #[command(subcommand)]
         command: Option<commands::chat::ChatHygieneCommand>,
@@ -333,6 +326,9 @@ enum Commands {
 
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
+
+    /// The decisions waiting for you (pending).
+    Approvals(commands::approvals::ApprovalsArgs),
 
     /// Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export).
     Batch {
@@ -563,7 +559,6 @@ struct RunDispatch {
     input_json: Option<String>,
     stream: bool,
     detach: bool,
-    alternatives: bool,
     plan: bool,
     autonomy: Option<String>,
 }
@@ -578,7 +573,6 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         input_json,
         stream,
         detach,
-        alternatives,
         plan,
         autonomy,
     } = dispatch;
@@ -600,36 +594,17 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         json,
         stream,
         detach,
-        alternatives,
         plan,
         autonomy: autonomy.as_deref(),
     })
     .await
 }
 
-/// Run the embedded MCP server, mapping its result to an exit code.
 /// Print a "did you mean" hint when an unknown top-level command is typed.
 fn maybe_suggest_command(err: &clap::Error) {
-    use clap::error::ErrorKind;
-    if !matches!(
-        err.kind(),
-        ErrorKind::InvalidSubcommand | ErrorKind::UnknownArgument
-    ) {
-        return;
-    }
-    // First positional argument after the binary name.
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let Some(bad) = args.iter().find(|a| !a.starts_with('-')) else {
-        return;
-    };
     let cmd = Cli::command();
     let names: Vec<&str> = cmd.get_subcommands().map(clap::Command::get_name).collect();
-    if names.contains(&bad.as_str()) {
-        return;
-    }
-    if let Some(sugg) = commands::suggest::nearest(bad, &names, 3) {
-        eprintln!("apollia-os: unknown command `{bad}`. Did you mean `{sugg}`?");
-    }
+    commands::suggest::hint_unknown_command(err, &names);
 }
 
 fn main() {
@@ -682,7 +657,6 @@ fn main() {
                 input_json,
                 stream,
                 detach,
-                alternatives,
                 plan,
                 autonomy,
             } => {
@@ -694,7 +668,6 @@ fn main() {
                     input_json,
                     stream,
                     detach,
-                    alternatives,
                     plan,
                     autonomy,
                 })
@@ -738,6 +711,7 @@ fn main() {
             }
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
+            Commands::Approvals(args) => commands::approvals::run(&args, cli.socket, json).await,
             Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
             Commands::Workflow { command } => {
                 commands::workflow::run(&command, cli.socket, json).await
@@ -752,7 +726,11 @@ fn main() {
             Commands::Logs(args) => commands::logs::run(&args, json).await,
             Commands::Version => commands::version::run(json),
             Commands::Connector { command } => commands::connector::run(&command, json).await,
-            Commands::Config { command } => commands::config::run(&command, json),
+            Commands::Config { command } => {
+                let code = commands::config::run(&command, json);
+                commands::config::show_write(&command, code, cli.socket).await;
+                code
+            }
             Commands::Profile { command } => commands::user_memory::run(&command, json),
             Commands::Trace { task_id, format } => {
                 let format_json = format == "json";
@@ -1042,15 +1020,13 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_run_alternatives_flag() {
-        // GIVEN "apollia-os run hello ping --alternatives"
+    fn test_cli_run_refuses_the_alternatives_flag() {
+        // GIVEN "apollia-os run hello ping --alternatives": a plan is never
+        // offered as two alternatives
+        let result = Cli::try_parse_from(["apollia-os", "run", "hello", "ping", "--alternatives"]);
         // WHEN clap parses the argument line
-        let cli = parse(&["apollia-os", "run", "hello", "ping", "--alternatives"]);
-        // THEN the alternatives flag is up
-        match &cli.command {
-            Commands::Run { alternatives, .. } => assert!(*alternatives),
-            other => panic!("expected Commands::Run, got {other:?}"),
-        }
+        // THEN the flag is unknown
+        assert!(result.is_err(), "--alternatives must be refused");
     }
 
     #[test]
@@ -1063,22 +1039,6 @@ mod tests {
             Commands::Run { plan, .. } => assert!(*plan),
             other => panic!("expected Commands::Run, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn test_cli_run_plan_and_alternatives_conflict() {
-        // GIVEN run with both --plan and --alternatives
-        let result = Cli::try_parse_from([
-            "apollia-os",
-            "run",
-            "hello",
-            "ping",
-            "--plan",
-            "--alternatives",
-        ]);
-        // WHEN clap parses the argument line
-        // THEN parsing fails due to the conflict
-        assert!(result.is_err(), "--plan and --alternatives must conflict");
     }
 
     #[test]

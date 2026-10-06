@@ -87,8 +87,9 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_artifacts::artifacts_router;
     use crate::api::routes_audit::{
         get_audit_anchor, get_audit_stats, list_audit, list_audit_journal, post_replay_run,
-        show_audit_run, verify_audit_journal, verify_audit_run,
+        show_audit_entry, show_audit_run, verify_audit_journal, verify_audit_run,
     };
+    use crate::api::routes_audit_export::export_audit_journal;
     use crate::api::routes_chat::conversations::{conversations_router, update_session};
     use crate::api::routes_chat::user_inputs::{
         answer_user_input, list_pending_user_inputs, reject_user_input,
@@ -199,8 +200,13 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route("/api/v1/audit/verify", get(verify_audit_journal::<B>))
         .route("/api/v1/audit/verify/:run_id", get(verify_audit_run::<B>))
         .route("/api/v1/audit/anchor", get(get_audit_anchor::<B>))
+        .route("/api/v1/audit/export", get(export_audit_journal::<B>))
         .route("/api/v1/audit/journal", get(list_audit_journal::<B>))
         .route("/api/v1/audit/journal/:run_id", get(show_audit_run::<B>))
+        .route(
+            "/api/v1/audit/journal/:run_id/entries/:seq",
+            get(show_audit_entry::<B>),
+        )
         .route("/api/v1/audit/replay/:run_id", post(post_replay_run::<B>))
         // Lifecycle hooks route
         .route("/api/v1/hooks", get(list_hooks::<B>))
@@ -247,6 +253,15 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/approvals/resolved",
             get(list_resolved_approvals::<B>),
+        )
+        // Every decision waiting for the user, answered from one place
+        .route(
+            "/api/v1/pending-decisions",
+            get(crate::api::routes_pending::list_pending_decisions::<B>),
+        )
+        .route(
+            "/api/v1/pending-decisions/decide",
+            post(crate::api::routes_pending::decide_pending::<B>),
         )
         // Trigger routes (reload + status + CRUD)
         .route(
@@ -301,7 +316,12 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
                 .patch(update_session::<B>)
                 .delete(close_session::<B>),
         )
-        .route("/api/v1/sessions/:id/messages", post(send_message::<B>))
+        .route(
+            "/api/v1/sessions/:id/messages",
+            post(send_message::<B>).layer(axum::extract::DefaultBodyLimit::max(
+                crate::chat::documents::max_message_body_bytes(),
+            )),
+        )
         .route(
             "/api/v1/sessions/:id/messages/:message_id/regenerate",
             post(turns::regenerate_response::<B>),
@@ -327,6 +347,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/sessions/:id/model-capabilities",
             get(crate::api::routes_chat::session_reads::get_session_model_capabilities::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/images/:file",
+            get(crate::api::routes_chat::session_reads::get_session_image::<B>),
         )
         .route(
             "/api/v1/sessions/plan-mode-default",
@@ -401,8 +425,11 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(crate::api::routes_server::server_router::<B>())
         .merge(crate::api::routes_config::config_router::<B>())
         .merge(conversations_router::<B>())
+        .merge(crate::api::routes_chat::trash::trash_router::<B>())
+        .merge(crate::api::routes_chat::folders::folders_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())
+        .merge(crate::api::routes_policy::policy_router::<B>())
         .merge(tool_governance_router::<B>())
         .merge(oauth_clients_router::<B>())
         .merge(crate::api::routes_observability::observability_router::<B>())

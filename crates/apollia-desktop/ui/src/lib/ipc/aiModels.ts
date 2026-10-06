@@ -4,13 +4,7 @@
  * model in the file manager.
  */
 import { invoke } from "@tauri-apps/api/core";
-
-/** The default model of the machine, as the runtime answers it. */
-export interface DefaultModel {
-  backend: string;
-  model_source: "local" | "server";
-  model_id: string;
-}
+import { setDefaultModel as setDefaultModelOf, type DefaultModel } from "$lib/ipc/llmServers";
 
 /** The embeddings model search uses, as the runtime answers it. */
 export interface EmbeddingsDefault {
@@ -21,7 +15,7 @@ export interface EmbeddingsDefault {
 
 /** Makes an installed language model, named by its index identifier, the default. */
 export function setDefaultModel(modelId: string): Promise<DefaultModel> {
-  return invoke<DefaultModel>("set_default_model", { modelId });
+  return setDefaultModelOf("local", modelId);
 }
 
 /** Makes a registry entry the embeddings model search uses; sources and memory are indexed again. */

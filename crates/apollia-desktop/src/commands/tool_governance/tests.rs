@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use apollia_permissions::{PermissionScope, PrefixRuleEngine, RuleAction};
+use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction};
 use apollia_tools::GOVERNANCE_DB_FILENAME;
 use tempfile::TempDir;
 use wiremock::matchers::{body_json, header, method, path, query_param};
@@ -322,42 +322,6 @@ async fn test_revoke_all_of_an_unknown_scope_shows_the_daemon_refusal() {
 }
 
 #[tokio::test]
-async fn test_the_audit_is_paged_on_the_daemon_with_the_token() {
-    // GIVEN a daemon holding one decision on the shell tool
-    let server = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/governance/audit"))
-        .and(query_param("tool_name", "bash_executor"))
-        .and(query_param("limit", "20"))
-        .and(query_param("offset", "40"))
-        .and(header("authorization", bearer().as_str()))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!([{
-                "id": 1, "tool_name": "bash_executor", "first_arg": "git",
-                "decision": "AutoAllowedSafeList", "scope": null, "rule_id": null,
-                "agent": null, "decided_at": "2026-10-03T00:00:00+00:00",
-            }])),
-        )
-        .expect(1)
-        .mount(&server)
-        .await;
-
-    // WHEN the audit page asks for its third page of twenty
-    let entries = list_audit_on(
-        &attached(&server),
-        Some("bash_executor".into()),
-        Some(20),
-        Some(40),
-    )
-    .await
-    .unwrap();
-
-    // THEN the daemon's entry comes back
-    assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].decision, "AutoAllowedSafeList");
-}
-
-#[tokio::test]
 async fn test_a_daemon_refusal_of_the_tools_is_shown_as_is() {
     // GIVEN a daemon started without a data directory
     let server = MockServer::start().await;
@@ -398,10 +362,10 @@ fn test_the_eight_governance_commands_pass_the_gate_attached() {
         "governance_get_tool_config",
         "governance_set_tool_config",
         "governance_set_tool_enabled",
-        "governance_list_audit",
         "governance_list_permission_rules",
         "governance_revoke_permission_rule",
         "governance_revoke_all_rules",
+        "governance_state",
     ];
     // WHEN each is gated while attached
     let refused: Vec<&str> = commands

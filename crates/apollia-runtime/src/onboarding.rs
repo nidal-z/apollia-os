@@ -1,7 +1,7 @@
-//! The onboarding as every surface drives it: the seven-phase machine kept in
-//! the user memory, the profile chosen on its second screen, the conversation
-//! with the onboarding agent that starts, resumes or is dismissed, and the
-//! completion that agent records in its own memory.
+//! The onboarding as every surface drives it: the six-phase machine kept in
+//! the user memory, the conversation with the onboarding agent that starts,
+//! resumes or is dismissed, and the completion that agent records in its own
+//! memory.
 //!
 //! The desktop running the runtime in its own process calls [`Onboarding`]
 //! directly; a client of the daemon reaches the same functions through
@@ -21,19 +21,16 @@ pub mod memory;
 pub mod state;
 
 use memory::{
-    check_finalized_in, finalize_in, load_state_from_memory, persist_state,
-    reset_onboarding_progress, write_profile_to_agent_memory,
+    check_finalized_in, finalize_in, forget_agent_entries, load_state_from_memory, persist_state,
+    reset_onboarding_progress,
 };
-use state::{validate_profile, OnboardingError, OnboardingPhase, OnboardingState, TriggerResult};
+use state::{OnboardingError, OnboardingPhase, OnboardingState, TriggerResult};
 
 /// The five onboarding topics that define a complete (legacy) onboarding.
 pub const ONBOARDING_TOPICS: [&str; 5] = ["identity", "preferences", "tools", "domain", "agents"];
 
 /// Name of the agent used for onboarding conversations.
 pub const ONBOARDING_AGENT_NAME: &str = "onboarding-agent";
-
-/// Valid user profiles for the onboarding flow.
-pub const VALID_PROFILES: [&str; 2] = ["operator", "builder"];
 
 /// What the onboarding reads and writes, borrowed from the runtime for one
 /// operation. The repository lock is the one `user_memory.db` was opened
@@ -73,7 +70,7 @@ impl Onboarding<'_> {
     ///
     /// # Errors
     ///
-    /// [`OnboardingError::UnknownPhase`] for a name outside the seven,
+    /// [`OnboardingError::UnknownPhase`] for a name the flow does not know,
     /// [`OnboardingError::InvalidTransition`] for a phase out of sequence.
     pub async fn advance(&self, target_phase: &str) -> Result<OnboardingState, OnboardingError> {
         let target = OnboardingPhase::parse(target_phase)
@@ -95,12 +92,7 @@ impl Onboarding<'_> {
             apply_phase_transition(&repo, &mut onboarding, &target);
             persist_state(&repo, &onboarding)?;
             if target == OnboardingPhase::Done {
-                let profile = onboarding
-                    .profile
-                    .clone()
-                    .unwrap_or_else(|| "unknown".to_string());
                 let _ = events.send(apollia_core::RuntimeEvent::OnboardingCompleted {
-                    profile,
                     duration_sec: onboarding.stats.total_time_sec,
                     actions_count: onboarding.stats.actions_completed,
                 });
@@ -115,39 +107,19 @@ impl Onboarding<'_> {
         .await
     }
 
-    /// Records the profile chosen on the second screen.
-    ///
-    /// # Errors
-    ///
-    /// [`OnboardingError::InvalidProfile`] outside `operator` and `builder`.
-    pub async fn set_profile(&self, profile: String) -> Result<OnboardingState, OnboardingError> {
-        validate_profile(&profile)?;
-        let repo = self.repo()?;
-        blocking(move || {
-            let repo = lock(&repo)?;
-            let mut onboarding = load_state_from_memory(&repo)?;
-            onboarding.profile = Some(profile.clone());
-            persist_state(&repo, &onboarding)?;
-            tracing::event!(tracing::Level::INFO, profile = %profile, "onboarding.profile.set");
-            Ok(onboarding)
-        })
-        .await
-    }
-
     /// Opens a conversation with the onboarding agent: a full run (`topic`
-    /// `None`), one topic again, or, with `resume`, the enrichment of a
-    /// profile already collected, which keeps what the agent learnt.
+    /// `None`), one topic again, or, with `resume`, the completion of a
+    /// profile that already exists. No mode touches a profile: the agent
+    /// proposes, and the person saves.
     ///
     /// # Errors
     ///
-    /// [`OnboardingError::InvalidTopic`], [`OnboardingError::InvalidProfile`],
-    /// [`OnboardingError::ChatNotAvailable`],
+    /// [`OnboardingError::InvalidTopic`], [`OnboardingError::ChatNotAvailable`],
     /// [`OnboardingError::AgentNotInstalled`], or
     /// [`OnboardingError::SessionCreationFailed`].
     pub async fn trigger(
         &self,
         topic: Option<String>,
-        profile: Option<String>,
         resume: bool,
     ) -> Result<TriggerResult, OnboardingError> {
         if let Some(ref t) = topic {
@@ -158,8 +130,12 @@ impl Onboarding<'_> {
 
         // A fresh full run wipes the topic marks and the agent's entries of a
         // previous run, which would otherwise show the progress at 100% before
-        // the first message. A resume keeps them.
-        if topic.is_none() && !resume {
+        // the first message. A resume keeps the topic marks and forgets only
+        // the completion the agent recorded, which would close the new
+        // conversation before the first answer.
+        if resume {
+            forget_agent_entries(&self.memory_dir);
+        } else if topic.is_none() {
             if let Ok(repo) = self.repo() {
                 if let Ok(repo) = repo.lock() {
                     reset_onboarding_progress(&repo, &self.memory_dir);
@@ -173,14 +149,8 @@ impl Onboarding<'_> {
             }
         }
 
-        if let Some(ref p) = profile {
-            validate_profile(p)?;
-            write_profile_to_agent_memory(&self.memory_dir, p);
-            tracing::event!(tracing::Level::INFO, profile = %p, "onboarding.profile.injected");
-        }
-
         // The onboarding agent is a declarative agent: its mission is the
-        // system prompt and its tool records the profile, both read when each
+        // system prompt and its tool proposes the profile, both read when each
         // message is sent, so the session carries no prompt of its own.
         let mode = if resume {
             "resume"
@@ -196,6 +166,7 @@ impl Onboarding<'_> {
                 agent_name: Some(ONBOARDING_AGENT_NAME.to_string()),
                 system_prompt: None,
                 tools: Vec::new(),
+                model: None,
             })
             .await
             .map_err(|e| match e {
@@ -298,7 +269,12 @@ fn apply_phase_transition(
     onboarding.phase = target.clone();
     if matches!(
         target,
-        OnboardingPhase::GuidedTour | OnboardingPhase::Graduation | OnboardingPhase::Done
+        OnboardingPhase::FirstAgent
+            | OnboardingPhase::Connection
+            | OnboardingPhase::FirstTask
+            | OnboardingPhase::GuidedTour
+            | OnboardingPhase::Graduation
+            | OnboardingPhase::Done
     ) {
         for topic in &ONBOARDING_TOPICS {
             let _ = repo.mark_topic_covered(topic);
@@ -307,5 +283,32 @@ fn apply_phase_transition(
     if *target == OnboardingPhase::Done {
         onboarding.completed = true;
         onboarding.completed_at = Some(chrono::Utc::now().to_rfc3339());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_a_resumed_conversation_does_not_inherit_the_previous_completion() {
+        // GIVEN a completion recorded by the previous conversation
+        let dir = tempfile::tempdir().expect("tempdir");
+        finalize_in(dir.path()).expect("finalize");
+        let (events, _rx) = crate::EventBus::new();
+        let onboarding = Onboarding {
+            user_memory: None,
+            chat_manager: None,
+            events: &events,
+            memory_dir: dir.path().to_path_buf(),
+        };
+
+        // WHEN the conversation is resumed to complete a profile; without a
+        // chat subsystem the session itself is refused
+        let refused = onboarding.trigger(None, true).await;
+
+        // THEN the stale completion is gone before any session opens
+        assert!(matches!(refused, Err(OnboardingError::ChatNotAvailable)));
+        assert!(!onboarding.is_finalized().await.expect("read"));
     }
 }

@@ -82,14 +82,20 @@ third lives elsewhere, in the desktop prompt-rewrite command, which never touche
 the assistant's prompt at all: it answers the composer, not a run. No agent
 execution path goes through any of the three.
 
-The first is written into the assistant and unreachable in this release. At the
-highest autonomy tier only, `long_autonomous`, the assistant appends a short
-user-persona brief to its system prompt. Free chat rebuilds the default tier on
-every exchange, so it always runs at `assisted`, and that brief is never
-appended.
+The first is the profile of the conversation, and it is the one you control. A
+conversation designates one of your profiles, or follows the default one. On
+every turn, at every autonomy tier, the assistant appends a short brief of that
+profile to its system prompt: name, role, function, tools, preferences and
+notes, whatever you filled in. It sits under a switch, "Use my preferences", in
+the configuration panel of the conversation. The switch is on when a
+conversation is created, it is stored with the conversation, and turning it off
+takes effect on the next message. The context gauge of the same panel says
+whether the prompt carries the profile, so what you read there is what the model
+received. Companion sessions and sessions that run an installed agent never
+receive it, switch or not.
 
 <!-- claim:cross-session-recall-injects-summaries -->
-The second is not tier-gated, and is worth stating plainly. On the **first
+The second has no switch, and is worth stating plainly. On the **first
 message of a free chat session**, the runtime searches an index of past session
 summaries with that message and appends up to three matches to the system prompt,
 under a heading naming them as previous conversations. Messages shorter than 20
@@ -100,15 +106,16 @@ not inherit personal history.
 Read that second one for what it is. Inside the chat window, a new conversation
 can start already carrying a trace of older ones, and the operator did not ask
 for it per session. It buys continuity in a product surface where a user
-reasonably expects to be remembered. It is also the one place in the runtime
-where the "at agent initiative" rule genuinely does not hold, which is why it is
-written here rather than left implicit.
+reasonably expects to be remembered. With the profile brief, it is one of the two
+places in the runtime where the "at agent initiative" rule genuinely does not
+hold, and the only one you cannot turn off, which is why it is written here
+rather than left implicit.
 
 <!-- claim:rewrite-injects-work-context -->
 The third exception is also operator-initiated, and happens only when explicitly
 triggered. When the operator clicks the "Improve prompt" button in a chat
-composer, the rewrite request includes the Work section of their user profile
-(sector, tech stack, daily tools) if it has been filled. This is not automatic
+composer, the rewrite request includes three fields of the profile of the
+conversation (role, function, tools) if they have been filled. This is not automatic
 injection: nothing happens until the operator clicks, and they see the rewritten
 result before choosing to send it. The context helps the rewrite stay grounded in
 the operator's actual environment rather than inventing tools they don't use.

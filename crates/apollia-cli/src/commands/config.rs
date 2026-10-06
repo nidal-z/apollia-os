@@ -1,7 +1,8 @@
 //! `apollia-os config` subcommands: manage the global `apollia.toml`.
 //!
-//! These commands operate directly on the on-disk configuration without
-//! touching the runtime. Every one of them except `reset` first writes the
+//! These commands operate directly on the on-disk configuration, daemon or
+//! not; a write is then shown to a running runtime, which journals it (see
+//! `declare`). Every one of them except `reset` first writes the
 //! default `~/.apollia/apollia.toml` when that file is absent (see `keys`). They are orthogonal to the section-specific helpers
 //! `tools config` and `stt config`, which target their own respective slices.
 
@@ -13,7 +14,10 @@ use clap::Subcommand;
 use crate::exit_codes;
 use crate::note;
 
+mod declare;
 mod keys;
+
+pub(crate) use declare::show_to_runtime;
 
 /// Subcommands of `apollia-os config`.
 #[derive(Debug, Subcommand)]
@@ -115,6 +119,19 @@ fn validate_value_against_the_machine(key: &str, value: &str) -> Result<(), Stri
     }
     apollia_tools::tools::python_discovery::validate_chosen_interpreter(Path::new(value))
         .map_err(|e| e.to_string())
+}
+
+/// After `config set` or `config edit` succeeded, shows the written file to
+/// a running runtime so its journal records the change as made by the
+/// command line. Without a runtime, the next start records it.
+pub async fn show_write(cmd: &ConfigCommand, code: i32, socket: Option<PathBuf>) {
+    if code != exit_codes::SUCCESS {
+        return;
+    }
+    let (ConfigCommand::Set { file, .. } | ConfigCommand::Edit { file }) = cmd else {
+        return;
+    };
+    show_to_runtime(&resolve_path(file.as_deref()), socket).await;
 }
 
 /// Entry point for `apollia-os config <verb>`.

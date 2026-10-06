@@ -323,3 +323,82 @@ async fn test_a_code_folder_is_added_whatever_the_mode_but_never_without_its_con
     assert_eq!(created["kind"], "code_folder");
     assert_eq!(created["reference"], "fc-1");
 }
+
+#[tokio::test]
+async fn test_the_index_of_a_source_answers_its_state_counts_skipped_files_and_unread_pages() {
+    // GIVEN a runtime with a folder source whose index holds one document,
+    // two of its pages unread, and left one file out for its size
+    let dir = tempfile::tempdir().unwrap();
+    let state = state(&dir, false).await;
+    let (_, created) = call(
+        state.clone(),
+        "POST",
+        "/api/v1/sources",
+        Some(json!({ "kind": "folder", "label": "Archives", "reference": "conn-archives" })),
+    )
+    .await;
+    let id = created["id"].as_str().unwrap().to_owned();
+    let mut index = apollia_sources::index::SourceIndex::open(dir.path(), &id).unwrap();
+    index
+        .upsert_document(
+            &apollia_sources::index::DocumentRecord {
+                path: "/docs/scan.pdf".into(),
+                fingerprint: "f".into(),
+                modified_at: "2026-10-04T00:00:00Z".into(),
+            },
+            &[apollia_sources::chunk::Chunk {
+                text: "Minutes of the meeting".into(),
+                location: apollia_sources::chunk::Location::Page { page: 1 },
+            }],
+            None,
+        )
+        .unwrap();
+    index
+        .set_unread_pages(
+            "/docs/scan.pdf",
+            &[
+                (2, apollia_sources::index::UnreadReason::OcrUnavailable),
+                (3, apollia_sources::index::UnreadReason::NotRead),
+            ],
+        )
+        .unwrap();
+    index
+        .record_skipped(&apollia_sources::index::SkippedFile {
+            path: "/docs/archive.zip.txt".into(),
+            size_bytes: 60 * 1024 * 1024,
+            reason: apollia_sources::index::SkipReason::TooLarge,
+        })
+        .unwrap();
+    drop(index);
+
+    // WHEN its index is read, and the index of an unknown source
+    let (status, body) = call(
+        state.clone(),
+        "GET",
+        &format!("/api/v1/sources/{id}/index"),
+        None,
+    )
+    .await;
+    let (unknown, _) = call(state, "GET", "/api/v1/sources/src-absent/index", None).await;
+
+    // THEN the state, the counts, the file left out and the two pages are
+    // answered, the one that waits for recognition named as such, and the
+    // unknown source is not found
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["id"], id.as_str());
+    assert_eq!(body["indexState"], "absent");
+    assert_eq!(body["documents"], 1);
+    assert_eq!(body["chunks"], 1);
+    assert_eq!(
+        body["skipped"],
+        json!([{ "path": "/docs/archive.zip.txt", "sizeBytes": 62914560, "reason": "too_large" }])
+    );
+    assert_eq!(
+        body["unreadPages"],
+        json!([
+            { "path": "/docs/scan.pdf", "page": 2, "reason": "ocr_unavailable" },
+            { "path": "/docs/scan.pdf", "page": 3, "reason": "not_read" }
+        ])
+    );
+    assert_eq!(unknown, StatusCode::NOT_FOUND);
+}

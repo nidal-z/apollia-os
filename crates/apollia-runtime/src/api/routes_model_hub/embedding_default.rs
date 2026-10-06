@@ -3,7 +3,8 @@
 //!
 //! The setting names an entry of the embeddings category of the registry, as
 //! `GET /api/v1/llm/embeddings` lists them. Unset, search goes on with
-//! keywords alone.
+//! keywords alone. Setting it asks the indexer of the sources to build every
+//! index again with the new model, in the background.
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -90,7 +91,7 @@ pub async fn get_embedding_default<B: ExecutionBackend + Clone>(
     tag = "model_hub",
     request_body = SetEmbeddingDefaultBody,
     responses(
-        (status = 200, description = "The default embeddings model, as now set", body = EmbeddingDefaultResponse),
+        (status = 200, description = "The default embeddings model, as now set; every source index is rebuilt with it in the background", body = EmbeddingDefaultResponse),
         (status = 400, description = "Not an embeddings model of the registry", body = crate::api::openapi::ApiErrorBody),
         (status = 500, description = "system.db could not be written", body = crate::api::openapi::ApiErrorBody),
     )
@@ -104,7 +105,14 @@ pub async fn set_embedding_default<B: ExecutionBackend + Clone>(
         .await
         .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     match written {
-        Ok(()) => current(state.data_dir.clone()).await.map(Json),
+        Ok(()) => {
+            if let Some(registry) = &state.source_registry {
+                // The indexes follow in the background; the answer does not
+                // wait for them, and a registry that stopped is no refusal.
+                let _ = registry.refresh_indexes().await;
+            }
+            current(state.data_dir.clone()).await.map(Json)
+        }
         Err(e @ SetDefaultError::UnknownModel(_)) => Err(error(StatusCode::BAD_REQUEST, e)),
         Err(e) => Err(error(StatusCode::INTERNAL_SERVER_ERROR, e)),
     }

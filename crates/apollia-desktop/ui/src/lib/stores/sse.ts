@@ -26,6 +26,7 @@ import type {
   ChatSessionSummary,
 } from "$lib/types";
 import { onboardingStore } from "./onboarding";
+import { notifyBatchEvent } from "./batchNotifications";
 import { refreshSttStatus, refreshTranscriptions } from "./stt";
 import {
   appendGlobalToken,
@@ -198,7 +199,7 @@ async function refreshPendingApprovalsViaIpc(): Promise<boolean> {
   }
 }
 
-async function refreshChatSessionsViaIpc(): Promise<boolean> {
+export async function refreshChatSessionsViaIpc(): Promise<boolean> {
   try {
     const result: ChatSessionSummary[] = await invoke("list_chat_sessions");
     chatSessions.set(result);
@@ -363,6 +364,12 @@ function handleChatApprovalRequired(event: TauriRuntimeEvent): void {
     toolCallId: asString(p.tool_call_id),
     toolName: asString(p.tool_name),
     inputPreview: asString(p.prompt),
+    answers: Array.isArray(p.answers)
+      ? p.answers.filter((a): a is string => typeof a === "string")
+      : undefined,
+    detail: asString(p.detail),
+    code: asOptionalString(p.code) ?? null,
+    workingDir: asOptionalString(p.working_dir) ?? null,
     receivedAt: new Date().toISOString(),
   });
   void sendChatApprovalNotification(sessionId, asString(p.tool_name, "tool"));
@@ -586,9 +593,11 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       break;
     }
     case "task-changed":
+      void notifyBatchEvent(event);
       void refreshTasksViaIpc();
       break;
     case "approval-changed":
+      void notifyBatchEvent(event);
       void refreshPendingApprovalsViaIpc();
       void refreshTasksViaIpc();
       break;

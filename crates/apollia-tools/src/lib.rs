@@ -62,14 +62,17 @@ pub mod trusted_keys;
 
 pub use agent_definition::{
     apollia_definition, definition_from_manifest, is_built_in_agent, resolve as resolve_agent,
-    AgentOrigin, AgentOverride, OverrideField, OverrideValueError, ResolvedAgent, StoredAgent,
-    APOLLIA_AGENT_ID, OVERRIDE_FIELDS,
+    AgentOrigin, AgentOverride, OverrideField, OverrideValueError, PlanningMode, ResolvedAgent,
+    StoredAgent, APOLLIA_AGENT_ID, OVERRIDE_FIELDS,
 };
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
-pub use default_access::{reading_family, reads_by_default, with_default_access, AgentAccess};
+pub use default_access::{
+    default_access, reading_family, reads_by_default, with_default_access, AgentAccess,
+    DefaultAccess,
+};
 pub use descriptor::{
     ActionFamily, ApprovalRiskLevel, FamilySource, McpTransport, ToolDescriptor,
     ToolDescriptorError, ToolKind,
@@ -129,7 +132,7 @@ pub use tools::notebook_edit::{
 pub use tools::notebook_read::{
     NotebookRead, NotebookReadError, NotebookReadInput, NotebookReadOutput,
 };
-pub use tools::risk_classifier::{FilesystemOp, RiskCategory, RiskClassifier, RiskLevel};
+pub use tools::risk_classifier::{RiskCategory, RiskClassifier};
 #[cfg(feature = "web-search")]
 pub use tools::web_search::{ToolConfigError, WebSearch, WebSearchError};
 pub use trusted_keys::{TrustedKey, TrustedKeyError, TrustedKeyOrigin, TrustedKeyRepository};

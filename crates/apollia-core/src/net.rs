@@ -288,6 +288,44 @@ pub fn loopback_client_builder() -> reqwest::ClientBuilder {
     configured_endpoint_client_builder().no_proxy()
 }
 
+/// Validate the address of a server a request to the compatible server
+/// brings with it: this machine itself, or a public, routable host.
+///
+/// The caller of the compatible server is already on this machine or admitted
+/// from its network, and trying a server it runs here is the first use of
+/// such a request, so the loopback interface is let through. Every other
+/// internal destination stays refused, as [`assert_public`] refuses it: a
+/// request never reaches the private network or a link-local address on the
+/// runtime's behalf.
+///
+/// # Errors
+///
+/// As [`assert_public`], for any destination that is not this machine.
+pub fn assert_public_or_loopback(url: &url::Url) -> Result<(), SsrfError> {
+    if is_loopback_host(url) {
+        return Ok(());
+    }
+    assert_public(url)
+}
+
+/// A [`reqwest::ClientBuilder`] for the address a request to the compatible
+/// server brings with it, once [`assert_public_or_loopback`] accepted it.
+///
+/// The address comes from a third party, so the redirect policy is the one of
+/// [`safe_client_builder`]: every hop must be public, and a server on this
+/// machine cannot redirect the client to another internal destination. A
+/// loopback address bypasses any system proxy, which could never reach it.
+pub fn request_supplied_client_builder(url: &url::Url) -> reqwest::ClientBuilder {
+    let builder = safe_client_builder();
+    if is_loopback_host(url) {
+        builder
+            .no_proxy()
+            .resolve_to_addrs("localhost", &LOCALHOST_ADDRS)
+    } else {
+        builder
+    }
+}
+
 /// What the name `localhost` resolves to for a configured endpoint: IPv4
 /// first, IPv6 as the fallback.
 ///
@@ -483,6 +521,36 @@ mod tests {
             // WHEN classified
             // THEN each is recognised as this machine
             assert!(is_loopback_host(&parse(host)), "{host}");
+        }
+    }
+
+    #[test]
+    fn a_request_supplied_address_may_be_this_machine_and_nothing_else_internal() {
+        // GIVEN addresses a request to the compatible server could bring: this
+        // machine by name and by address, a public host, the private network,
+        // a link-local address and an internal domain
+        let parsed = |raw: &str| url::Url::parse(raw).unwrap();
+
+        // WHEN each is checked
+        // THEN this machine and the public host pass, every other internal
+        // destination is refused as the public check refuses it
+        assert!(assert_public_or_loopback(&parsed("http://localhost:3000/mcp")).is_ok());
+        assert!(assert_public_or_loopback(&parsed("http://127.0.0.1:3000/mcp")).is_ok());
+        assert!(assert_public_or_loopback(&parsed("http://[::1]:3000/mcp")).is_ok());
+        assert!(assert_public_or_loopback(&parsed("https://mcp.example.com/mcp")).is_ok());
+        for internal in [
+            "http://192.168.1.20:3000/mcp",
+            "http://10.0.0.4/mcp",
+            "http://169.254.169.254/latest/meta-data",
+            "http://tools.internal/mcp",
+        ] {
+            assert!(
+                matches!(
+                    assert_public_or_loopback(&parsed(internal)),
+                    Err(SsrfError::PrivateAddress(_))
+                ),
+                "{internal}"
+            );
         }
     }
 

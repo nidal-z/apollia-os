@@ -7,6 +7,7 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.engine_name import EngineName
+from ..models.load_origin import LoadOrigin
 from ..models.model_kind import ModelKind
 from ..types import UNSET, Unset
 
@@ -31,6 +32,7 @@ class LoadedModelDto:
         model_path (str): Path the model was loaded from; the key an unload takes.
         n_ctx (int): Context window in tokens.
         n_gpu_layers (int): Layers placed on the GPU.
+        origin (LoadOrigin): Who loaded a resident model.
         port (int): Loopback port of the process serving it.
         capabilities (LoadedModelDtoCapabilitiesType0 | None | Unset): What the model can do, from the model index.
         footprint_gb (float | None | Unset): Memory the load guardrail estimated for it at launch, in gigabytes;
@@ -51,6 +53,7 @@ class LoadedModelDto:
     model_path: str
     n_ctx: int
     n_gpu_layers: int
+    origin: LoadOrigin
     port: int
     capabilities: LoadedModelDtoCapabilitiesType0 | None | Unset = UNSET
     footprint_gb: float | None | Unset = UNSET
@@ -79,6 +82,8 @@ class LoadedModelDto:
         n_ctx = self.n_ctx
 
         n_gpu_layers = self.n_gpu_layers
+
+        origin = self.origin.value
 
         port = self.port
 
@@ -127,6 +132,7 @@ class LoadedModelDto:
                 "modelPath": model_path,
                 "nCtx": n_ctx,
                 "nGpuLayers": n_gpu_layers,
+                "origin": origin,
                 "port": port,
             }
         )
@@ -165,6 +171,8 @@ class LoadedModelDto:
         n_ctx = d.pop("nCtx")
 
         n_gpu_layers = d.pop("nGpuLayers")
+
+        origin = LoadOrigin(d.pop("origin"))
 
         port = d.pop("port")
 
@@ -231,6 +239,7 @@ class LoadedModelDto:
             model_path=model_path,
             n_ctx=n_ctx,
             n_gpu_layers=n_gpu_layers,
+            origin=origin,
             port=port,
             capabilities=capabilities,
             footprint_gb=footprint_gb,

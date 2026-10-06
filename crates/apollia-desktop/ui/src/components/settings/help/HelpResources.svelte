@@ -20,6 +20,7 @@
   import { navigateToSettings } from "$lib/router";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import { docsUrlFor } from "$lib/utils/docsUrl";
+  import { COMMUNITY_URL } from "$lib/community";
 
   interface Props {
     online: boolean;
@@ -32,7 +33,6 @@
   // this in the app", not "what is Apollia". Resolved against the interface
   // locale, which the site serves on the same route under its own prefix.
   const DOCS_URL = $derived(docsUrlFor($locale, "/operator-help"));
-  const COMMUNITY_URL = "https://github.com/Apollia-OS/apollia-os/discussions";
   const REPORT_URL = "https://github.com/Apollia-OS/apollia-os/issues/new";
 
   type Icon = typeof BookOpen;

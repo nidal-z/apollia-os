@@ -20,21 +20,30 @@ class EngineEntry:
 
     Attributes:
         engine (EngineName): An inference engine the store can hold.
+        in_service (bool): True for the build this runtime starts for the model format it serves:
+            the `llama-server` binary it resolves, the MLX environment it imports.
         path (str): Where it lives.
         source (EngineSource): How an engine reached this machine.
         tag (None | str | Unset): Upstream tag; unknown for an embedded engine.
         variant (EngineVariant | None | Unset):
+        version (None | str | Unset): The version the engine states at its source: the `--version` banner of
+            a binary, the package metadata of a Python environment. Unknown when it
+            does not answer.
     """
 
     engine: EngineName
+    in_service: bool
     path: str
     source: EngineSource
     tag: None | str | Unset = UNSET
     variant: EngineVariant | None | Unset = UNSET
+    version: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         engine = self.engine.value
+
+        in_service = self.in_service
 
         path = self.path
 
@@ -54,11 +63,18 @@ class EngineEntry:
         else:
             variant = self.variant
 
+        version: None | str | Unset
+        if isinstance(self.version, Unset):
+            version = UNSET
+        else:
+            version = self.version
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "engine": engine,
+                "in_service": in_service,
                 "path": path,
                 "source": source,
             }
@@ -67,6 +83,8 @@ class EngineEntry:
             field_dict["tag"] = tag
         if variant is not UNSET:
             field_dict["variant"] = variant
+        if version is not UNSET:
+            field_dict["version"] = version
 
         return field_dict
 
@@ -74,6 +92,8 @@ class EngineEntry:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
         engine = EngineName(d.pop("engine"))
+
+        in_service = d.pop("in_service")
 
         path = d.pop("path")
 
@@ -105,12 +125,23 @@ class EngineEntry:
 
         variant = _parse_variant(d.pop("variant", UNSET))
 
+        def _parse_version(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        version = _parse_version(d.pop("version", UNSET))
+
         engine_entry = cls(
             engine=engine,
+            in_service=in_service,
             path=path,
             source=source,
             tag=tag,
             variant=variant,
+            version=version,
         )
 
         engine_entry.additional_properties = d

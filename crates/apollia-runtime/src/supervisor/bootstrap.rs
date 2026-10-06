@@ -37,6 +37,15 @@ pub(in crate::supervisor) fn start_local_engines(
     if let Some(engine) = &mlx {
         Arc::clone(engine).spawn_supervision();
     }
+    // The followed engine channel is checked once at startup; an update of a
+    // chosen engine is installed when `[engines] auto_update` asks for it.
+    if let Some(data_dir) = apollia_core::paths::data_dir() {
+        crate::engine_store::auto_update::spawn(
+            &data_dir,
+            Some(guardrails_file.clone()),
+            org_policy.imposed_settings(),
+        );
+    }
     crate::residency::start_residency(
         system_db_path.to_path_buf(),
         guardrails_file,
@@ -170,7 +179,8 @@ pub(in crate::supervisor) fn load_trigger_definitions(
 }
 
 /// The agent executor an agent without code runs on outside a conversation,
-/// when the runtime has both the executor and the task store.
+/// when the runtime has both the executor and the task store. It shares no
+/// plan cache: the caller sets the one the runtime opened.
 pub(in crate::supervisor) fn agent_launcher<B: ExecutionBackend + Clone>(
     router: &TaskRouterHandle<B>,
     chat: Option<&crate::chat::ChatSessionManagerHandle>,
@@ -185,6 +195,7 @@ pub(in crate::supervisor) fn agent_launcher<B: ExecutionBackend + Clone>(
             repository: Some(repo.clone()),
             event_bus: event_bus.clone(),
             observability: observability.clone(),
+            plan_cache: None,
         }),
         _ => None,
     }

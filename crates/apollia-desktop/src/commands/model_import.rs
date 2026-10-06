@@ -9,6 +9,12 @@
 //! contract: the organisation policy fixes it (`inference.require_model_hash`
 //! or `[settings]`) over `apollia.toml`, and a refusal it causes names the
 //! policy.
+//!
+//! The language data of optical character recognition (`.traineddata`) comes
+//! in by the same command. It has no structure to check, so its SHA-256 is
+//! the whole of the check: a file the registry pins lands in the `tessdata`
+//! folder of the models directory under the name the engine reads, and any
+//! other is refused (`apollia_llm::ocr_data::import_language_data`).
 
 use std::path::{Path, PathBuf};
 
@@ -50,6 +56,10 @@ pub enum ImportModelError {
         /// Rejected file or folder.
         path: String,
     },
+    /// The file is language data of optical character recognition that the
+    /// registry does not pin, or it could not be copied.
+    #[error(transparent)]
+    OcrData(#[from] apollia_llm::ocr_data::OcrDataError),
     /// The models directory could not be created.
     #[error("failed to create models directory: {0}")]
     CreateDir(#[source] std::io::Error),
@@ -155,6 +165,9 @@ pub(crate) fn import_model_file_into(
     if !is_folder && !source.is_file() {
         return Err(ImportModelError::NotFound(source_path.to_string()));
     }
+    if !is_folder && is_language_data(&source) {
+        return import_language_data(&source, dir);
+    }
     if !is_folder {
         check_extension(&source, allowed_extensions)?;
     }
@@ -201,6 +214,36 @@ pub(crate) fn import_model_file_into(
             "model.index.record.failed"
         );
     }
+    Ok(dest.display().to_string())
+}
+
+fn is_language_data(source: &Path) -> bool {
+    source
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case(apollia_llm::ocr_data::LANGUAGE_DATA_EXTENSION))
+}
+
+/// Brings a language data file of optical character recognition into the
+/// `tessdata` folder of `dir`, when its digest is one the registry pins.
+fn import_language_data(source: &Path, dir: &Path) -> Result<String, ImportModelError> {
+    let catalogue = apollia_llm::recommend::OcrCatalogue::embedded().map_err(|e| {
+        tracing::event!(tracing::Level::WARN, error = %e, "model.import.registry.unreadable");
+        apollia_llm::ocr_data::OcrDataError::UnknownDigest {
+            path: source.to_path_buf(),
+        }
+    })?;
+    import_language_data_pinned_by(source, dir, &catalogue)
+}
+
+/// [`import_language_data`] against the pins of `catalogue`.
+pub(crate) fn import_language_data_pinned_by(
+    source: &Path,
+    dir: &Path,
+    catalogue: &apollia_llm::recommend::OcrCatalogue,
+) -> Result<String, ImportModelError> {
+    let tessdata = apollia_llm::ocr_data::tessdata_dir(dir);
+    let dest = apollia_llm::ocr_data::import_language_data(source, &tessdata, catalogue)?;
     Ok(dest.display().to_string())
 }
 

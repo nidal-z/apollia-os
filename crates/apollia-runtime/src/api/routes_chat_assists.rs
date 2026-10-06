@@ -57,7 +57,7 @@ pub(crate) async fn rewrite_prompt<B: ExecutionBackend + Clone>(
     post,
     path = "/api/v1/assists/next-steps",
     tag = "assists",
-    request_body(content = Object, content_type = "application/json", description = "`context`, `mode` and the `facts` the window computed, each optional"),
+    request_body(content = Object, content_type = "application/json", description = "`context`, `developerMode` and the `facts` the window computed, each optional"),
     responses(
         (status = 200, description = "The cards, and whether a model wrote them", body = NextStepsReply),
         (status = 422, description = "The body is not a next steps request"),

@@ -1,13 +1,11 @@
 //! Tauri IPC commands for task management.
 //!
-//! `list_tasks` and `submit_task` delegate to the runtime handles.
+//! `list_tasks` delegates to the runtime handles.
 //! `get_task_timeline` calls the internal REST API `GET /api/v1/tasks/{id}/timeline`
-//! to avoid duplicating the aggregation logic. The list, the launch, the
-//! detail, the cancellation, the deletion and the delegation tree also serve
-//! a desktop attached to a daemon, through the routes of `/api/v1/tasks`.
+//! to avoid duplicating the aggregation logic. The list, the detail and the
+//! delegation tree also serve a desktop attached to a daemon, through the
+//! routes of `/api/v1/tasks`.
 
-use apollia_core::{AIPInput, AIPPart, TextPart};
-use apollia_runtime::api::routes_tasks::record::TaskRecordDeleted;
 use apollia_runtime::api::routes_tasks::summaries::task_summaries;
 use tauri::State;
 
@@ -62,89 +60,6 @@ pub async fn list_tasks(
             Ok(remote.get(&path).await?)
         }
     }
-}
-
-/// Submits a task to an agent and returns the generated `TaskId`.
-///
-/// Builds an `AIPInput` from the raw text provided by the frontend and submits
-/// it via `TaskRouterHandle::submit()`, or `POST /api/v1/tasks` when attached
-/// to a daemon. The tools the run may call are the access list of the agent.
-#[tauri::command]
-pub async fn submit_task(
-    link: State<'_, RuntimeLink>,
-    agent_id: String,
-    input: String,
-) -> Result<String, String> {
-    let aip_input = AIPInput {
-        parts: vec![AIPPart::Text(TextPart { text: input })],
-    };
-
-    let state = match link.inner() {
-        RuntimeLink::Embedded(state) => state,
-        RuntimeLink::Attached(remote) => {
-            let body = serde_json::json!({ "agent_id": agent_id, "input": aip_input });
-            let accepted: serde_json::Value = remote.post("/api/v1/tasks", &body).await?;
-            return accepted
-                .get("task_id")
-                .and_then(|v| v.as_str())
-                .map(String::from)
-                .ok_or_else(|| "missing task_id in response".to_string());
-        }
-    };
-    let task_id = state
-        .router_handle
-        .submit(&agent_id, aip_input)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(task_id.to_string())
-}
-
-/// Cancels a running task.
-///
-/// Calls `DELETE /api/v1/tasks/{id}` via the internal REST API, or the
-/// daemon's when attached.
-/// Returns `true` if the task was cancelled, `false` if already finished or not found.
-#[tauri::command]
-pub async fn cancel_task(link: State<'_, RuntimeLink>, task_id: String) -> Result<bool, String> {
-    let path = format!("/api/v1/tasks/{}", segment(&task_id));
-    match link.inner() {
-        RuntimeLink::Embedded(state) => {
-            match super::http_delete_json(state.api_port, &path).await {
-                Ok(_) => Ok(true),
-                Err(e) if e.contains("404") => Ok(false),
-                Err(e) => Err(e),
-            }
-        }
-        RuntimeLink::Attached(remote) => match remote.delete::<serde_json::Value>(&path).await {
-            Ok(_) => Ok(true),
-            Err(crate::attached::AttachedError::Refused { status: 404, .. }) => Ok(false),
-            Err(e) => Err(e.into()),
-        },
-    }
-}
-
-/// Hard-deletes a persisted task record (and its approval rows) from the store.
-///
-/// Distinct from [`cancel_task`], which cancels an in-flight task but keeps its
-/// history: this removes the record entirely, used by the "delete" affordance
-/// on a finished or cancelled task. Returns `true` when a record was removed,
-/// `false` when no persisted task matched (already gone, or runtime-only with
-/// nothing persisted). Errors only when the persistence layer is unavailable.
-/// Served by `DELETE /api/v1/tasks/{id}/record`, in this process or on the
-/// daemon.
-#[tauri::command]
-pub async fn delete_task(link: State<'_, RuntimeLink>, task_id: String) -> Result<bool, String> {
-    delete_task_on(link.inner(), &task_id).await
-}
-
-/// The body of [`delete_task`], on either arm of the seam.
-pub(crate) async fn delete_task_on(link: &RuntimeLink, task_id: &str) -> Result<bool, String> {
-    let path = format!("/api/v1/tasks/{}/record", segment(task_id));
-    let answer = link.delete_json(&path).await?;
-    let deleted: TaskRecordDeleted =
-        serde_json::from_value(answer).map_err(|e| format!("invalid deletion answer: {e}"))?;
-    Ok(deleted.deleted)
 }
 
 /// Fetches a task's timeline via the internal REST API.

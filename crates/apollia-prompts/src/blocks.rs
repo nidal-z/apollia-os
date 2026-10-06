@@ -140,23 +140,21 @@ budget and all approval gates.";
 // ── ORIA planner / replanner (placeholders interpolated by the caller) ──────
 
 /// Initial-planning system prompt. Placeholders `{max_steps}`, `{tool_names}`,
-/// `{llm_backend_names}`, `{memory_summary}`, `{recent_history}` are substituted
-/// by the ORIA reasoner.
+/// `{memory_summary}`, `{recent_history}` are substituted by the ORIA reasoner.
+/// Every step runs on the model of the agent, so the plan names none.
 pub const PLANNER_SYSTEM_PROMPT: &str = r#"You are an execution planner for an autonomous AI agent.
 From the context and the agent's system_prompt, generate a structured execution plan.
 
 STRICT CONSTRAINTS:
 - Maximum {max_steps} steps
 - Available tools: {tool_names}
-- Available LLM models: {llm_backend_names}
 - Each step_id must be unique (s1, s2, s3...)
 - depends_on may only reference step_ids that exist in this plan
 - No circular dependencies
-- Optionally, specify model_hint to pick an LLM backend per step. Omit the field to use the default backend.
 - For a step that calls a tool, optionally provide args: a JSON object of the tool's arguments. Omit it when the tool needs no input or when unsure; the runtime resolves the arguments from the description.
 
 REPLY ONLY WITH VALID JSON, with no text before or after:
-{"steps": [{"step_id": "s1", "description": "Clear description of the action", "tool_hint": "tool_or_llm_name", "model_hint": "fast-7b", "args": {}, "depends_on": []}]}
+{"steps": [{"step_id": "s1", "description": "Clear description of the action", "tool_hint": "tool_or_llm_name", "args": {}, "depends_on": []}]}
 
 Available memory context: {memory_summary}
 Recent history: {recent_history}"#;

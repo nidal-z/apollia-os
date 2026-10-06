@@ -594,6 +594,7 @@ mod tests {
                 vram_gb: 32.0,
             },
             memory_budget_gb: 24.0,
+            devices: Vec::new(),
         };
         let size: u64 = 16 * 1024 * 1024 * 1024;
         let entries: Vec<TreeEntry> = serde_json::from_value(json!([

@@ -9,7 +9,10 @@ use apollia_core::{McpHealth, RuntimeEvent};
 use crate::approvals::{McpApprovalError, PendingApprovalEntry};
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
 use crate::health::OpOutcome;
-use crate::manager::views::{build_status, register_session_tools_in_registry, session_tool_names};
+use crate::manager::views::{
+    build_status, register_session_tools_in_registry, registry_names, session_tool_names,
+    ServerHints,
+};
 use crate::manager::{
     McpClientManager, McpConnectionTestResult, McpResourcePayload, McpResourceSummary,
     McpServerStatus, McpToolSummary, ProbeSpec,
@@ -29,7 +32,42 @@ impl McpClientManager {
             return;
         }
         let tags = session.config().tags.clone();
-        register_session_tools_in_registry(&self.tool_registry, server_name, &tags, session).await;
+        let hints = if self.request_servers.contains(server_name) {
+            ServerHints::Ignored
+        } else {
+            ServerHints::Read
+        };
+        register_session_tools_in_registry(&self.tool_registry, server_name, &tags, session, hints)
+            .await;
+    }
+    /// Start a session for `config` over `transport`, a server a request
+    /// brought: its tools are registered unclassified, and it is remembered
+    /// as a request server until it is removed.
+    pub(super) async fn handle_add_request_server(
+        &mut self,
+        config: McpServerConfig,
+        transport: Box<dyn crate::transport::McpTransport>,
+    ) -> Result<McpServerStatus, McpSessionError> {
+        let name = config.name.clone();
+        if self.sessions.contains_key(&name) {
+            return Err(McpSessionError::InitializeFailed {
+                server: name,
+                cause: "server with this name already exists".to_string(),
+            });
+        }
+        let session =
+            McpSession::start_with_transport(config, transport, self.loading_mode).await?;
+        tracing::info!(
+            server = %name,
+            tools = session.tools().len(),
+            indexed = session.tool_index().len(),
+            "mcp.request_server.added"
+        );
+        self.request_servers.insert(name.clone());
+        self.register_session_tools(&name, &session).await;
+        let status = build_status(&name, &session, None);
+        self.sessions.insert(name, session);
+        Ok(status)
     }
     /// Spawn a new session for `config`, register its tools, and insert it into the map.
     ///
@@ -71,6 +109,18 @@ impl McpClientManager {
     pub(super) async fn handle_remove_server(&mut self, name: &str) -> Result<(), McpSessionError> {
         match self.sessions.remove(name) {
             Some(session) => {
+                if self.request_servers.remove(name) {
+                    for tool in registry_names(name, &session) {
+                        if let Err(e) = self.tool_registry.unregister(&tool).await {
+                            tracing::warn!(
+                                server = %name,
+                                error = %e,
+                                "mcp.request_server.unregister.failed"
+                            );
+                        }
+                    }
+                    self.last_call_at.remove(name);
+                }
                 session.shutdown().await;
                 tracing::info!(server = %name, "mcp.server.removed");
                 Ok(())
@@ -85,6 +135,11 @@ impl McpClientManager {
     /// Returns [`McpSessionError::ConfigReload`] when no session with `name` is managed.
     /// Returns [`McpSessionError::ServerReloading`] when the server is already reloading.
     pub(super) async fn handle_reload_server(&mut self, name: &str) -> Result<(), McpSessionError> {
+        if self.request_servers.contains(name) {
+            return Err(McpSessionError::ConfigReload {
+                server: name.to_string(),
+            });
+        }
         if self.reloading.contains(name) {
             return Err(McpSessionError::ServerReloading {
                 server: name.to_string(),
@@ -391,6 +446,11 @@ impl McpClientManager {
         &mut self,
         server_name: String,
     ) -> Result<McpServerStatus, McpSessionError> {
+        if self.request_servers.contains(&server_name) {
+            return Err(McpSessionError::ConfigReload {
+                server: server_name,
+            });
+        }
         let old_session = match self.sessions.remove(&server_name) {
             Some(session) => session,
             None => {

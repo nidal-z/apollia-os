@@ -6,6 +6,8 @@
   import { tick } from "svelte";
   import { t } from "svelte-i18n";
   import { prefersReducedMotion } from "$lib/design/motion";
+  import { zLayer } from "$lib/design/tokens";
+  import { onboardingModalOpen } from "$lib/stores/onboarding";
 
   interface Props {
     open: boolean;
@@ -47,6 +49,15 @@
     lg: "w-[min(720px,90vw)]",
     xl: "w-[min(920px,90vw)]",
   };
+
+  // A dialog opened while the first launch is shown was opened from it, or
+  // from the help beside it: it rises above the veil of the first launch,
+  // which otherwise covers the whole stack and would paint over it.
+  const layer = $derived(
+    $onboardingModalOpen
+      ? { backdrop: zLayer.onboardingAbove, dialog: zLayer.onboardingAbove }
+      : { backdrop: zLayer.backdrop, dialog: zLayer.overlay },
+  );
 
   const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -132,7 +143,7 @@
   <div
     use:portal
     class="fixed inset-0 backdrop-warm"
-    style="z-index: var(--z-backdrop);"
+    style:z-index={layer.backdrop}
     role="presentation"
     transition:fade={{ duration: 300 }}
   ></div>
@@ -142,7 +153,7 @@
   <div
     use:portal
     class="fixed inset-0 flex items-center justify-center p-4"
-    style="z-index: var(--z-overlay);"
+    style:z-index={layer.dialog}
     {role}
     aria-modal="true"
     aria-label={title ?? label}

@@ -83,9 +83,10 @@ donnez-lui une racine de bac à sable que vous acceptez de perdre.
 Avant qu'un appel d'outil ne s'exécute dans une session de chat, des règles de
 permission persistées le classent, un garde-fou refuse une commande shell qui
 enchaîne ou redirige, et tout ce qui reste soulève une demande d'approbation
-qu'un opérateur résout. Les permissions sont scopées, si bien que l'autorité
-peut être accordée au niveau de l'installation entière, d'un projet, ou d'une
-seule session.
+qu'un opérateur résout par l'une de trois réponses : une fois, toujours pour cet
+agent, ou refuser avec une raison facultative que l'agent lit. Un « toujours »
+est accordé à un agent pour une famille d'actions, jamais à un nom d'outil, à
+un projet ni à une session.
 
 La décision elle-même n'est pas consignée. Le journal des décisions de
 permission existe comme table, en ajout seul et tenu par des déclencheurs, mais
@@ -115,9 +116,9 @@ agent hostile.
 
 ### Paliers d'autonomie
 
-Un palier d'autonomie fait varier cinq choses, et aucune autre : le budget de
-pas suggéré, l'injection mémoire, la passe de vérification après exécution, le
-profil de prompt système, et la porte du plan. Il ne fait varier aucune règle de
+Un palier d'autonomie fait varier quatre choses, et aucune autre : le budget de
+pas suggéré, la passe de vérification après exécution, le profil de prompt
+système, et la porte du plan. Il ne fait varier aucune règle de
 permission ni aucun point de contrôle humain sur un appel d'outil : un palier
 plus élevé n'élargit donc pas ce qu'un agent a le droit de toucher. Il élargit
 la distance qu'une exécution parcourt avant de s'arrêter pour demander.

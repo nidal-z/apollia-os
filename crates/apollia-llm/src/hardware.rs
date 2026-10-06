@@ -6,6 +6,10 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::System;
 
+pub mod devices;
+
+pub use devices::{disabled_devices, set_disabled_devices, GpuDevice};
+
 /// Detected hardware profile of the local machine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HardwareProfile {
@@ -25,6 +29,10 @@ pub struct HardwareProfile {
     /// - CUDA: dedicated VRAM
     /// - CPU only: RAM x 0.60 (keep RAM for the OS and other processes)
     pub memory_budget_gb: f64,
+    /// The graphics devices, one by one, with the ones held back marked off.
+    /// The accelerator and the budget above already leave their memory out.
+    #[serde(default)]
+    pub devices: Vec<GpuDevice>,
 }
 
 /// Graphics accelerator available for inference.
@@ -97,7 +105,6 @@ struct StaticProfile {
     cpu_model: String,
     cpu_cores: u32,
     accelerator: AcceleratorProfile,
-    memory_budget_gb: f64,
 }
 
 /// Computed once. Everything in it costs a full hardware interrogation, and
@@ -129,14 +136,11 @@ fn detect_static() -> StaticProfile {
     #[cfg(not(target_os = "macos"))]
     let accelerator = detect_gpu_non_macos();
 
-    let memory_budget_gb = compute_budget(&accelerator, total_ram_gb);
-
     StaticProfile {
         total_ram_gb,
         cpu_model,
         cpu_cores,
         accelerator,
-        memory_budget_gb,
     }
 }
 
@@ -153,13 +157,27 @@ pub fn detect() -> HardwareProfile {
     sys.refresh_memory();
     let available_ram_gb = sys.available_memory() as f64 / 1_073_741_824.0;
 
+    // The devices held back are folded in on every read, not once: the
+    // choice is a setting, and it changes while the process runs.
+    // A Mac without Apple Silicon keeps the profile it always had, with no
+    // accelerator: the listing is only read where a device was detected.
+    let listed: &[GpuDevice] = if cfg!(target_os = "macos") && !base.accelerator.is_available() {
+        &[]
+    } else {
+        devices::engine_devices()
+    };
+    let (accelerator, devices) =
+        devices::select(&base.accelerator, listed, &devices::disabled_devices());
+    let memory_budget_gb = compute_budget(&accelerator, base.total_ram_gb);
+
     HardwareProfile {
         total_ram_gb: base.total_ram_gb,
         available_ram_gb,
         cpu_model: base.cpu_model.clone(),
         cpu_cores: base.cpu_cores,
-        accelerator: base.accelerator.clone(),
-        memory_budget_gb: base.memory_budget_gb,
+        accelerator,
+        memory_budget_gb,
+        devices,
     }
 }
 
@@ -240,7 +258,6 @@ fn parse_apple_silicon_generation(chip: &str) -> u8 {
 
 // ── Linux / Windows NVIDIA CUDA detection ────────────────────────────────
 
-#[cfg(not(target_os = "macos"))]
 /// The devices the bundled engine actually offers, as it prints them.
 ///
 /// Every other probe on this path asks the operating system and infers: a
@@ -256,76 +273,14 @@ fn parse_apple_silicon_generation(chip: &str) -> u8 {
 /// decides the budget is what the engine will load onto, and that is precisely
 /// what this list is.
 ///
-/// Spawned once per process. Several API routes call `detect` on every page
-/// load, and paying a subprocess each time would be worse than the guess it
-/// replaces.
-#[cfg(not(target_os = "macos"))]
-static ENGINE_DEVICES: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
-
-#[cfg(not(target_os = "macos"))]
-fn engine_device_line() -> Option<String> {
-    ENGINE_DEVICES.get_or_init(probe_engine_devices).clone()
-}
-
-#[cfg(not(target_os = "macos"))]
-fn probe_engine_devices() -> Option<String> {
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-    let ext = if cfg!(windows) { ".exe" } else { "" };
-    let file = format!("llama-server{ext}");
-    let mut candidates = vec![dir.join(&file)];
-    candidates.extend(
-        apollia_core::paths::bundled_resource_dirs(dir, "runners")
-            .into_iter()
-            .map(|d| d.join(&file)),
-    );
-    let binary = candidates.into_iter().find(|c| c.exists())?;
-
-    let mut cmd = std::process::Command::new(binary);
-    cmd.arg("--list-devices");
-    apollia_core::subprocess_window::hide_console(&mut cmd);
-    let out = cmd.output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .find_map(|l| parse_engine_device_line(l).map(|_| l.to_string()))
-}
-
-/// One line of `llama-server --list-devices`, as name and VRAM in GB.
-///
-/// The shape is `  <backend><index>: <name> (<total> MiB, <free> MiB free)`.
-/// The heading line carries no parenthesis and is refused by the same rule that
-/// reads the others, so nothing special-cases it.
-#[cfg(not(target_os = "macos"))]
-pub(super) fn parse_engine_device_line(line: &str) -> Option<(String, f64)> {
-    let (_, rest) = line.trim().split_once(':')?;
-    let rest = rest.trim();
-    let open = rest.rfind('(')?;
-    let name = rest[..open].trim();
-    if name.is_empty() {
-        return None;
-    }
-    let mib: String = rest[open + 1..]
-        .trim_start()
-        .chars()
-        .take_while(char::is_ascii_digit)
-        .collect();
-    let mib: f64 = mib.parse().ok()?;
-    if mib <= 0.0 {
-        return None;
-    }
-    Some((name.to_string(), mib / 1024.0))
-}
-
+/// The listing itself is read by [`devices`], once per process, on every
+/// platform; this path takes the first device of it.
 #[cfg(not(target_os = "macos"))]
 fn detect_engine_gpu() -> Option<AcceleratorProfile> {
-    let line = engine_device_line()?;
-    let (device_name, vram_gb) = parse_engine_device_line(&line)?;
+    let first = devices::engine_devices().first()?;
     Some(AcceleratorProfile::Generic {
-        device_name,
-        vram_gb,
+        device_name: first.name.clone(),
+        vram_gb: first.vram_gb,
     })
 }
 
@@ -538,7 +493,11 @@ mod tests {
 // and Windows alone, and CI runs the suite on both.
 #[cfg(all(test, not(target_os = "macos")))]
 mod engine_device_tests {
-    use super::parse_engine_device_line;
+    use super::devices::parse_engine_device;
+
+    fn parse_engine_device_line(line: &str) -> Option<(String, f64)> {
+        parse_engine_device(line).map(|d| (d.name, d.vram_gb))
+    }
 
     #[test]
     fn a_vulkan_device_line_yields_its_name_and_its_real_memory() {
@@ -647,6 +606,49 @@ mod generic_budget_tests {
         // THEN it is the card's memory, not a share of the system RAM, which
         // is what offered 38 GB models to a 16 GB card
         assert_eq!(budget, 16.0);
+    }
+
+    #[test]
+    fn the_estimate_counts_only_the_memory_of_the_cards_left_on() {
+        // GIVEN two 24 GB cards on a 64 GB machine, the second held back
+        let detected = AcceleratorProfile::Cuda {
+            device_name: "NVIDIA GeForce RTX 4090".to_string(),
+            vram_gb: 24.0,
+            compute_capability: (8, 9),
+        };
+        let card = |id: &str| super::GpuDevice {
+            id: Some(id.to_string()),
+            name: format!("card {id}"),
+            api: "CUDA".to_string(),
+            vram_gb: 24.0,
+            enabled: true,
+        };
+        let listed = [card("CUDA0"), card("CUDA1")];
+
+        // WHEN the profile the estimator reads is built, with the card held
+        //      back and with both left on
+        let profile = |disabled: &[String]| {
+            let (accelerator, devices) = super::devices::select(&detected, &listed, disabled);
+            super::HardwareProfile {
+                total_ram_gb: 64.0,
+                available_ram_gb: 64.0,
+                cpu_model: "test".to_string(),
+                cpu_cores: 16,
+                memory_budget_gb: compute_budget(&accelerator, 64.0),
+                accelerator,
+                devices,
+            }
+        };
+        let held = profile(&["CUDA1".to_string()]);
+        let both = profile(&[]);
+
+        // THEN the budget and the capacity a model is graded against count
+        //      one card in the first case and two in the second
+        assert_eq!(held.memory_budget_gb, 24.0);
+        assert_eq!(both.memory_budget_gb, 48.0);
+        let capacity = crate::recommend::estimated_capacity_gb;
+        assert!((capacity(&held) - (24.0 + 64.0 * 0.60)).abs() < 0.11);
+        assert!((capacity(&both) - (48.0 + 64.0 * 0.60)).abs() < 0.11);
     }
 
     #[test]

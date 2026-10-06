@@ -105,6 +105,14 @@ impl ORIAEngine {
         self.llm_router = router;
         Ok(self)
     }
+    /// Set the runtime ceiling a run's budget is capped by.
+    ///
+    /// The budget of an orchestrated run is the agent's, never above this
+    /// ceiling; without the call the ceiling is [`StepBudgetConfig::default`].
+    pub fn with_runtime_budget(mut self, ceiling: StepBudgetConfig) -> Self {
+        self.runtime_config = ceiling;
+        self
+    }
     /// Inject an `EventBusSender` to broadcast plan events on the bus.
     pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
         self.event_bus = bus;

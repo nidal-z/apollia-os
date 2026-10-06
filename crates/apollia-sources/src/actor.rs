@@ -4,14 +4,24 @@
 //! bounded channel in order; callers hold a clonable [`SourceRegistryHandle`].
 //! SQLite calls block, so the actor runs on a thread of its own rather than on
 //! the async workers. It stops when the last handle is dropped.
+//!
+//! Once [`SourceRegistryHandle::start_indexing`] has started the indexer
+//! ([`crate::indexer`]), the actor tells it of every source added or removed;
+//! the indexer reaches back through a weak link, so it stops with the
+//! registry.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use apollia_core::source_registry::{NewSource, Source, SourceRegistryError, SourceRegistryStore};
+use apollia_core::source_registry::{
+    IndexState, NewSource, Source, SourceRegistryError, SourceRegistryStore,
+};
+use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::checked::{checked_sources, CheckedSource};
-use crate::index::IndexError;
+use crate::index::{IndexError, SkippedFile, SourceIndex, UnreadPage};
+use crate::indexer::{IndexerCommand, IndexerHandle, PassageEmbedder, SWEEP_INTERVAL};
 use crate::search::{search_sources, SourcesQuery, SourcesSearchOutcome};
 
 /// Capacity of the command channel: a caller past it waits for room.
@@ -50,6 +60,59 @@ enum Command {
         SourcesQuery,
         oneshot::Sender<Result<SourcesSearchOutcome, SourcesError>>,
     ),
+    SetIndexState(String, IndexState, Reply<()>),
+    Paths(Reply<(PathBuf, Option<PathBuf>)>),
+    AttachIndexer(IndexerHandle),
+    RefreshIndexes(oneshot::Sender<()>),
+    IndexStatus(String, oneshot::Sender<Result<IndexStatus, SourcesError>>),
+}
+
+/// Where the index of a source stands, and what it left out.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct IndexStatus {
+    /// The source.
+    pub source: String,
+    /// The state the registry records.
+    pub state: IndexState,
+    /// Documents in the index.
+    pub documents: u64,
+    /// Chunks in the index.
+    pub chunks: u64,
+    /// Files left out: over the size cap, or unreadable.
+    pub skipped: Vec<SkippedFile>,
+    /// Pages of indexed documents that were not read: scanned pages and
+    /// pictures waiting for optical character recognition, and pages it
+    /// cannot read.
+    pub unread_pages: Vec<UnreadPage>,
+}
+
+/// The indexer's way back to the registry. Weak, so the registry stops when
+/// its last handle is dropped, and the indexer after it.
+#[derive(Debug)]
+pub(crate) struct RegistryLink(mpsc::WeakSender<Command>);
+
+impl RegistryLink {
+    async fn ask<T>(&self, command: impl FnOnce(Reply<T>) -> Command) -> Option<T> {
+        let tx = self.0.upgrade()?;
+        let (reply, answer) = oneshot::channel();
+        tx.send(command(reply)).await.ok()?;
+        drop(tx);
+        answer.await.ok()?.ok()
+    }
+
+    /// Every source, `None` when the registry is gone or cannot answer.
+    pub(crate) async fn list(&self) -> Option<Vec<Source>> {
+        self.ask(Command::List).await
+    }
+
+    /// Records the index state of the source `id`; a source removed in the
+    /// meantime is not an error.
+    pub(crate) async fn set_state(&self, id: &str, state: IndexState) {
+        let id = id.to_owned();
+        let _ = self
+            .ask(|reply| Command::SetIndexState(id, state, reply))
+            .await;
+    }
 }
 
 /// A clonable handle to the registry actor.
@@ -73,9 +136,15 @@ impl SourceRegistryHandle {
         let store = SourceRegistryStore::open(path)?;
         let data_dir = path.parent().map(Path::to_path_buf);
         let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
+        let actor = Actor {
+            store,
+            system_db: path.to_path_buf(),
+            data_dir,
+            indexer: None,
+        };
         std::thread::Builder::new()
             .name("apollia-source-registry".to_owned())
-            .spawn(move || run(store, data_dir, rx))
+            .spawn(move || actor.run(rx))
             .map_err(SourcesError::Spawn)?;
         Ok(Self { tx })
     }
@@ -154,12 +223,122 @@ impl SourceRegistryHandle {
             .map_err(|_| SourcesError::Stopped)?;
         answer.await.map_err(|_| SourcesError::Stopped)?
     }
+
+    /// Starts the indexer over this registry: every folder and file source
+    /// is indexed in the background and kept in step with its files, its
+    /// vectors computed by `embedder`; see [`crate::indexer`]. Must be called
+    /// within a Tokio runtime. A second call replaces the first indexer.
+    ///
+    /// # Errors
+    /// [`SourcesError::NoDataDirectory`] for a registry outside any
+    /// directory, and [`SourcesError::Stopped`].
+    pub async fn start_indexing<E: PassageEmbedder>(
+        &self,
+        embedder: E,
+    ) -> Result<(), SourcesError> {
+        self.start_indexing_every(embedder, SWEEP_INTERVAL).await
+    }
+
+    /// [`Self::start_indexing`], sweeping every `interval`.
+    ///
+    /// # Errors
+    /// As [`Self::start_indexing`].
+    pub async fn start_indexing_every<E: PassageEmbedder>(
+        &self,
+        embedder: E,
+        interval: Duration,
+    ) -> Result<(), SourcesError> {
+        self.start_indexing_fetching(embedder, interval, crate::indexer::OcrDataFetch::shipped())
+            .await
+    }
+
+    /// [`Self::start_indexing_every`], the language data of recognition
+    /// fetched through `ocr_data`.
+    pub(crate) async fn start_indexing_fetching<E: PassageEmbedder>(
+        &self,
+        embedder: E,
+        interval: Duration,
+        ocr_data: Option<crate::indexer::OcrDataFetch>,
+    ) -> Result<(), SourcesError> {
+        let (system_db, data_dir) = self.ask(Command::Paths).await?;
+        let data_dir = data_dir.ok_or(SourcesError::NoDataDirectory)?;
+        let link = RegistryLink(self.tx.downgrade());
+        let indexer = crate::indexer::spawn(
+            link,
+            embedder,
+            crate::indexer::Start {
+                system_db,
+                data_dir,
+                interval,
+                ocr_data,
+            },
+        );
+        self.tx
+            .send(Command::AttachIndexer(indexer))
+            .await
+            .map_err(|_| SourcesError::Stopped)
+    }
+
+    /// Asks the indexer to index every source again against the disk. The
+    /// receiver answers once the pass is over; it is closed at once when no
+    /// indexer runs, or when the request could not be queued.
+    ///
+    /// # Errors
+    /// [`SourcesError::Stopped`].
+    pub async fn refresh_indexes(&self) -> Result<oneshot::Receiver<()>, SourcesError> {
+        let (reply, done) = oneshot::channel();
+        self.tx
+            .send(Command::RefreshIndexes(reply))
+            .await
+            .map_err(|_| SourcesError::Stopped)?;
+        Ok(done)
+    }
+
+    /// Where the index of the source `id` stands: its state, its counts and
+    /// the files it left out.
+    ///
+    /// # Errors
+    /// [`SourcesError::Registry`] with `NotFound` for an unknown source,
+    /// [`SourcesError::Index`] when its index cannot be read, and
+    /// [`SourcesError::Stopped`].
+    pub async fn index_status(&self, id: &str) -> Result<IndexStatus, SourcesError> {
+        let (reply, answer) = oneshot::channel();
+        self.tx
+            .send(Command::IndexStatus(id.to_owned(), reply))
+            .await
+            .map_err(|_| SourcesError::Stopped)?;
+        answer.await.map_err(|_| SourcesError::Stopped)?
+    }
 }
 
-/// The actor loop: one command at a time, until every handle is gone.
-fn run(store: SourceRegistryStore, data_dir: Option<PathBuf>, mut rx: mpsc::Receiver<Command>) {
-    tracing::event!(tracing::Level::DEBUG, "sources.registry.started");
-    while let Some(command) = rx.blocking_recv() {
+/// The state of the actor thread.
+struct Actor {
+    store: SourceRegistryStore,
+    system_db: PathBuf,
+    data_dir: Option<PathBuf>,
+    indexer: Option<IndexerHandle>,
+}
+
+impl Actor {
+    /// The actor loop: one command at a time, until every handle is gone.
+    fn run(mut self, mut rx: mpsc::Receiver<Command>) {
+        tracing::event!(tracing::Level::DEBUG, "sources.registry.started");
+        while let Some(command) = rx.blocking_recv() {
+            self.serve(command);
+        }
+        tracing::event!(tracing::Level::DEBUG, "sources.registry.stopped");
+    }
+
+    /// Tells the indexer, when one runs, that the registry changed.
+    fn tell_indexer(&self) {
+        if let Some(indexer) = &self.indexer {
+            indexer.send(IndexerCommand::Sync);
+        }
+    }
+
+    fn serve(&mut self, command: Command) {
+        let store = &self.store;
+        let data_dir = self.data_dir.as_deref();
         // A caller that gave up has dropped its receiver; its answer is moot.
         match command {
             Command::List(reply) => {
@@ -175,19 +354,27 @@ fn run(store: SourceRegistryStore, data_dir: Option<PathBuf>, mut rx: mpsc::Rece
                         "sources.registry.created"
                     );
                 }
+                let ok = created.is_ok();
                 let _ = reply.send(created);
+                if ok {
+                    self.tell_indexer();
+                }
             }
             Command::Delete(id, reply) => {
                 let deleted = store.delete(&id);
-                if deleted.is_ok() {
+                let ok = deleted.is_ok();
+                if ok {
                     tracing::event!(
                         tracing::Level::INFO,
                         source = %id,
                         "sources.registry.deleted"
                     );
-                    remove_index_of(data_dir.as_deref(), &id);
+                    remove_index_of(data_dir, &id);
                 }
                 let _ = reply.send(deleted);
+                if ok {
+                    self.tell_indexer();
+                }
             }
             Command::CheckEntries(entries, reply) => {
                 let _ = reply.send(store.check_entries(&entries));
@@ -199,15 +386,60 @@ fn run(store: SourceRegistryStore, data_dir: Option<PathBuf>, mut rx: mpsc::Rece
                 let _ = reply.send(checked);
             }
             Command::Search(query, reply) => {
-                let outcome = match data_dir.as_deref() {
+                let outcome = match data_dir {
                     Some(dir) => search_sources(dir, &query).map_err(SourcesError::from),
                     None => Err(SourcesError::NoDataDirectory),
                 };
                 let _ = reply.send(outcome);
             }
+            Command::SetIndexState(id, state, reply) => {
+                let _ = reply.send(store.set_index_state(&id, state));
+            }
+            Command::Paths(reply) => {
+                let _ = reply.send(Ok((self.system_db.clone(), self.data_dir.clone())));
+            }
+            Command::AttachIndexer(indexer) => {
+                self.indexer = Some(indexer);
+            }
+            Command::RefreshIndexes(reply) => {
+                if let Some(indexer) = &self.indexer {
+                    indexer.send(IndexerCommand::Refresh(reply));
+                }
+            }
+            Command::IndexStatus(id, reply) => {
+                let _ = reply.send(index_status(store, data_dir, &id));
+            }
         }
     }
-    tracing::event!(tracing::Level::DEBUG, "sources.registry.stopped");
+}
+
+/// Where the index of the source `id` stands. An index never written counts
+/// nothing; reading it never creates it.
+fn index_status(
+    store: &SourceRegistryStore,
+    data_dir: Option<&Path>,
+    id: &str,
+) -> Result<IndexStatus, SourcesError> {
+    let source = store
+        .get(id)?
+        .ok_or_else(|| SourceRegistryError::NotFound(id.to_owned()))?;
+    let data_dir = data_dir.ok_or(SourcesError::NoDataDirectory)?;
+    let path = crate::index::index_path(data_dir, id)?;
+    let (documents, chunks, skipped, unread_pages) = if path.exists() {
+        let index = SourceIndex::open_at(&path, id)?;
+        let (documents, chunks) = index.counts()?;
+        (documents, chunks, index.skipped()?, index.unread_pages()?)
+    } else {
+        (0, 0, Vec::new(), Vec::new())
+    };
+    Ok(IndexStatus {
+        source: source.id,
+        state: source.index_state,
+        documents,
+        chunks,
+        skipped,
+        unread_pages,
+    })
 }
 
 /// Removes the index of a source just deleted. The source is gone whatever

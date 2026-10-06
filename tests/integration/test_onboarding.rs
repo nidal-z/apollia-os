@@ -241,11 +241,11 @@ async fn test_onboarding_agent_e2e() {
 
     // Verify the entries can be injected into a system prompt
     let injection = repo
-        .recall_all_for_injection(50)
-        .expect("recall_all_for_injection");
+        .recall_persona_brief(None, 50)
+        .expect("recall_persona_brief");
     assert!(
-        injection.contains("Section:"),
-        "injection should be grouped into sections"
+        injection.contains("Nidal"),
+        "injection should name the user"
     );
     assert!(
         injection.contains("francais"),
@@ -352,15 +352,11 @@ async fn test_onboarding_retrigger_topic() {
 
     // Verify existing context is available for injection into agent prompt
     let existing_context = repo
-        .recall_all_for_injection(50)
-        .expect("recall_all_for_injection");
+        .recall_persona_brief(None, 50)
+        .expect("recall_persona_brief");
     assert!(
-        existing_context.contains("name: Nidal"),
-        "existing context should include user name"
-    );
-    assert!(
-        existing_context.contains("role: CTO"),
-        "existing context should include user role"
+        existing_context.contains("Nidal (CTO)"),
+        "existing context should include user name and role"
     );
 
     // WHEN - simulate partial onboarding focused on preferences

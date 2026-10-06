@@ -21,7 +21,6 @@ fn manager_following(dir: &tempfile::TempDir, feed: ConfigFeed) -> ChatSessionMa
         runtime_budget: StepBudgetConfig::default(),
         plan_mode_default: false,
         pending_chat_approvals: PendingChatApprovals::new(),
-        pending_fs_approvals: PendingFilesystemApprovals::new(),
         pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
         mcp_handle: None,
         chat_tools_config: Some(Arc::new(ChatToolsConfig {
@@ -30,6 +29,7 @@ fn manager_following(dir: &tempfile::TempDir, feed: ConfigFeed) -> ChatSessionMa
             tools_config: apollia_core::ToolsConfig::default(),
             tool_turn_temperature: None,
             source_registry: None,
+            governance: None,
         })),
         governance_db_path: None,
         governance: None,
@@ -88,6 +88,7 @@ fn libre() -> CreateSessionParams {
         agent_name: None,
         system_prompt: None,
         tools: vec![],
+        model: None,
     }
 }
 
@@ -187,4 +188,32 @@ async fn a_change_of_a_section_the_chat_does_not_read_leaves_its_tools_untouched
     // THEN the configuration of the next exchange is the same one
     let after = manager.chat_tools_config.as_ref().expect("config");
     assert!(Arc::ptr_eq(&before, after));
+}
+
+#[tokio::test]
+async fn the_profile_default_saved_by_the_route_is_the_switch_of_the_next_conversation_only() {
+    // GIVEN a chat following its runtime, and a conversation born while the
+    // profile is shared by default
+    let dir = tempfile::tempdir().unwrap();
+    let rig = Rig::on("");
+    let chat = spawned(&dir);
+    chat.follow_config(rig.feed()).await;
+    let before = chat.create_session(libre()).await.expect("create");
+
+    // WHEN the route turns the sharing off, and a conversation is created
+    rig.save("[chat]\nshare_profile_default = false\n").await;
+    let after = chat.create_session(libre()).await.expect("create");
+
+    // THEN the new conversation is born with its switch off, in memory and in
+    // the database, and the earlier one keeps its own
+    let born_on = chat.get_session(before.id).await.expect("detail");
+    let born_off = chat.get_session(after.id.clone()).await.expect("detail");
+    assert!(born_on.session.use_profile);
+    assert!(!born_off.session.use_profile);
+    let stored = ChatSessionRepository::open(&dir.path().join("chat.db"))
+        .expect("open")
+        .get_session(&after.id.to_string())
+        .expect("read")
+        .expect("row");
+    assert!(!stored.use_profile);
 }

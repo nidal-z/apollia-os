@@ -47,6 +47,12 @@ enum McpCommand {
         config: McpServerConfig,
         reply: oneshot::Sender<Result<McpServerStatus, McpSessionError>>,
     },
+    /// Connect a server a request brought, over a transport the caller built.
+    AddRequestServer {
+        config: McpServerConfig,
+        transport: Box<dyn crate::transport::McpTransport>,
+        reply: oneshot::Sender<Result<McpServerStatus, McpSessionError>>,
+    },
     /// Remove a server: shutdown the session and unregister from the session map.
     RemoveServer {
         server_name: String,
@@ -293,6 +299,10 @@ struct McpClientManager {
     /// While a name is in this set, any `CallTool` targeting that server
     /// is rejected with [`McpSessionError::ServerReloading`].
     reloading: HashSet<String>,
+    /// Servers a request brought, each for the length of that request. Their
+    /// tools are registered unclassified and leave the registry with them;
+    /// they are neither restarted nor reloaded.
+    request_servers: HashSet<String>,
     /// Optional event bus for emitting [`RuntimeEvent::McpServerReloaded`] and
     /// [`RuntimeEvent::McpServerHealthChanged`].
     event_bus: Option<EventBusSender>,
@@ -351,6 +361,15 @@ impl McpClientManager {
 
                 McpCommand::AddServer { config, reply } => {
                     let result = self.handle_add_server(config).await;
+                    let _ = reply.send(result);
+                }
+
+                McpCommand::AddRequestServer {
+                    config,
+                    transport,
+                    reply,
+                } => {
+                    let result = self.handle_add_request_server(config, transport).await;
                     let _ = reply.send(result);
                 }
 
@@ -452,6 +471,9 @@ impl McpClientManager {
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 // ─── tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod request_server_tests;
 
 #[cfg(test)]
 mod tests {

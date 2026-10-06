@@ -51,6 +51,13 @@ pub struct ModelsConfig {
     #[serde(default)]
     pub dir: String,
 
+    /// Whether a preset may be created or modified with load settings. Off by
+    /// default: a preset then takes request settings only, and the load
+    /// settings it already holds are kept. Read at every write of a preset
+    /// under [`PRESET_LOAD_SETTINGS_KEY`].
+    #[serde(default)]
+    pub preset_load_settings: bool,
+
     /// Rules applied to a model imported from a disk (`[models.import]`).
     #[serde(default)]
     pub import: ModelsImportConfig,
@@ -73,10 +80,14 @@ impl Default for ModelsConfig {
             registry_mirror_url: default_registry_mirror_url(),
             registry_enabled: default_registry_enabled(),
             dir: String::new(),
+            preset_load_settings: false,
             import: ModelsImportConfig::default(),
         }
     }
 }
+
+/// The named setting that lets a preset carry load settings.
+pub const PRESET_LOAD_SETTINGS_KEY: &str = "models.preset_load_settings";
 
 /// Name of the default models folder inside the data directory.
 pub const MODELS_DIR_NAME: &str = "models";

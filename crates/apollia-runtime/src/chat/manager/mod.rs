@@ -32,9 +32,7 @@ use super::agent_executor::{
     AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition, RunInput,
     SessionWiring,
 };
-use super::builtin_agent::{
-    ChatAgentResponse, HitlInvokerParams, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
-};
+use super::builtin_agent::{ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE};
 use super::extractor::UserMemoryExtractor;
 use super::plan_actor::{spawn_plan_actor, PlanHandle};
 use super::repository::{AppendMessageParams, ChatSessionRepository, ToolApprovalLogEntry};
@@ -42,8 +40,8 @@ use super::todo_actor::spawn_todo_actor;
 use super::todo_handle::TodoHandle;
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, InjectedInstruction,
-    MessageId, PauseState, PendingChatApprovals, PendingFilesystemApprovals, PlanPhase,
-    RecentSessionSummary, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    MessageId, PauseState, PendingChatApprovals, PlanPhase, RecentSessionSummary,
+    SessionConfigUpdate, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
     ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
@@ -116,8 +114,6 @@ struct ChatSessionManager {
     plan_mode_default: bool,
     /// Pending tool approval channels (operator HITL).
     pending_chat_approvals: PendingChatApprovals,
-    /// Pending filesystem HITL approval channels.
-    pending_fs_approvals: PendingFilesystemApprovals,
     /// Optional user memory repository for system prompt enrichment.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Stateful extractor for passive memory enrichment from conversations.
@@ -223,6 +219,7 @@ struct ChatSessionManager {
 }
 
 mod actor;
+mod agent_draft;
 mod agent_task;
 mod apollia_agent;
 mod authz;
@@ -232,17 +229,27 @@ mod control;
 mod declarative;
 mod disabled;
 mod dispatcher;
+mod documents;
 mod exchange;
+mod folders;
 mod handle;
 mod handle_ext;
+mod images;
 mod libre;
 mod live_config;
 mod plan;
 mod session;
 mod sources;
+mod trash;
 mod types;
 mod user_input;
 
+#[cfg(test)]
+mod agent_draft_tests;
+#[cfg(test)]
+mod documents_tests;
+#[cfg(test)]
+mod images_tests;
 #[cfg(test)]
 mod live_config_tests;
 #[cfg(test)]
@@ -250,7 +257,11 @@ mod plan_regression_tests;
 #[cfg(test)]
 mod preferred_backend_tests;
 #[cfg(test)]
+mod profile_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod trash_tests;
 
 pub(in crate::chat::manager) use dispatcher::{
     now_rfc3339, resolve_workspace_for_session, session_to_info,
@@ -277,10 +288,20 @@ pub(in crate::chat::manager) fn package_executors(
         .unwrap_or_default()
 }
 
+/// The default access in force, as `[tools.new_agent]` states it; the reading
+/// family when the chat was given no configuration.
+pub(in crate::chat::manager) fn default_access_of(
+    cfg: Option<&ChatToolsConfig>,
+) -> apollia_tools::DefaultAccess {
+    cfg.map(|cfg| apollia_tools::DefaultAccess::from_config(&cfg.tools_config.new_agent))
+        .unwrap_or_default()
+}
+
 pub use agent_task::AgentTaskRun;
 pub use command::ChatCommand;
+pub use folders::FolderAction;
 pub use handle::ChatSessionManagerHandle;
 pub use types::{
     ChatPlanSnapshot, ChatToolsConfig, CreateSessionParams, InjectError, PauseError,
-    PendingUserInputView, SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
+    PendingUserInputView, APOLLIA_CHAT_AGENT_ID,
 };

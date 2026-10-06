@@ -12,6 +12,7 @@ use clap::Parser;
 
 use crate::commands::a2a::A2aCommand;
 use crate::commands::agent::{AgentCommand, PackageCommand};
+use crate::commands::approvals::ApprovalsCommand;
 use crate::commands::audit::AuditCommand;
 use crate::commands::chat::ChatHygieneCommand;
 use crate::commands::chat_config::ChatConfigCommand;
@@ -661,6 +662,11 @@ fn test_cli_parses_audit_journal_with_page() {
                 limit,
                 offset,
                 agents,
+                families,
+                natures,
+                results,
+                since,
+                until,
             },
     } = cli.command
     else {
@@ -668,7 +674,53 @@ fn test_cli_parses_audit_journal_with_page() {
     };
     assert_eq!(limit, 5);
     assert_eq!(offset, 10);
-    assert!(agents.is_empty());
+    // AND no filter is set
+    assert!(agents.is_empty() && families.is_empty() && natures.is_empty());
+    assert!(results.is_empty() && since.is_none() && until.is_none());
+}
+
+#[test]
+fn test_cli_parses_audit_journal_with_every_filter() {
+    // GIVEN "apollia-os audit journal" with a family twice, a nature, a
+    // result and a period
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "audit",
+        "journal",
+        "--family",
+        "read",
+        "--family",
+        "send_external",
+        "--nature",
+        "action",
+        "--result",
+        "refused",
+        "--since",
+        "2026-10-01",
+        "--until",
+        "2026-10-04",
+    ]);
+    // THEN each filter is carried as given, the repeated one in order
+    let Commands::Audit {
+        command:
+            AuditCommand::Journal {
+                families,
+                natures,
+                results,
+                since,
+                until,
+                ..
+            },
+    } = cli.command
+    else {
+        panic!("expected audit journal");
+    };
+    assert_eq!(families, vec!["read", "send_external"]);
+    assert_eq!(natures, vec!["action"]);
+    assert_eq!(results, vec!["refused"]);
+    assert_eq!(since.as_deref(), Some("2026-10-01"));
+    assert_eq!(until.as_deref(), Some("2026-10-04"));
 }
 
 #[test]
@@ -1780,4 +1832,19 @@ fn test_cli_parses_service_status() {
         panic!("expected service");
     };
     assert!(matches!(command, ServiceCommand::Status));
+}
+
+// ─── approvals ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_approvals_pending() {
+    // GIVEN "apollia-os approvals pending --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "approvals", "pending", "--json"]);
+    // THEN the pending verb of the approvals noun is selected, in JSON
+    assert!(cli.json);
+    let Commands::Approvals(args) = cli.command else {
+        panic!("expected approvals");
+    };
+    assert!(matches!(args.command, ApprovalsCommand::Pending));
 }

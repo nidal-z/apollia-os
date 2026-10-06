@@ -21,6 +21,7 @@ use crate::coordinator::ExecutionBackend;
 use crate::engine_store::Engine;
 use crate::llama_server::{LoadedModel, ModelKind, UnloadError};
 use crate::local_engine::LocalEngine;
+use crate::residency::{Engines, LoadOrigin};
 
 /// One resident model.
 #[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
@@ -53,6 +54,9 @@ pub struct LoadedModelDto {
     pub last_used_at: String,
     /// Requests being answered right now. An unload is refused above zero.
     pub active_requests: usize,
+    /// Who loaded the model: `app`, or `server` when the compatible server
+    /// loaded it for a request of another program. Fixed at load.
+    pub origin: LoadOrigin,
     /// Memory the load guardrail estimated for it at launch, in gigabytes;
     /// absent when the launch was not estimated.
     pub footprint_gb: Option<f64>,
@@ -93,6 +97,7 @@ impl From<LoadedModel> for LoadedModelDto {
             loaded_at: m.loaded_at.to_rfc3339(),
             last_used_at: m.last_used_at.to_rfc3339(),
             active_requests: m.active_requests,
+            origin: LoadOrigin::App,
             footprint_gb: m.footprint_gb,
             model_id: None,
             size_bytes: None,
@@ -192,13 +197,24 @@ pub async fn list_loaded_models<B: ExecutionBackend + Clone>(
     })
     .await
     .unwrap_or_default();
+    let residency = Engines { llama, mlx }.residency();
+    let models = loaded
+        .into_iter()
+        .map(|m| {
+            let origin = residency
+                .as_ref()
+                .map_or(LoadOrigin::App, |r| r.origin_of(&m));
+            LoadedModelDto {
+                origin,
+                ..LoadedModelDto::from(m)
+            }
+            .with_index(&index)
+        })
+        .collect();
     Json(LoadedModelsResponse {
         engine_available: true,
         max_loaded,
-        models: loaded
-            .into_iter()
-            .map(|m| LoadedModelDto::from(m).with_index(&index))
-            .collect(),
+        models,
     })
 }
 

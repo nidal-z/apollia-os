@@ -10,11 +10,12 @@
    * The uninstall used to live on `AgentCard`, deleted as an unused component
    * in April. `uninstall_agent` stayed registered and lost every caller, so an
    * installed agent became impossible to remove from the interface. The confirm
-   * mirrors `PackageDetail`, with the memory option the card carried.
+   * carries the memory option the card carried.
    *
    * `update_agent` had the same fate: registered, never called, so replacing an
-   * agent's file meant uninstall then reinstall. The update picks a new `.py` the same way the install does; the
-   * failure it reports goes to the route banner through `agentActions`.
+   * agent's file meant uninstall then reinstall. The update picks a new `.py`
+   * through the file chooser; the failure it reports goes to the route banner
+   * through `agentActions`.
    *
    * Replacing the file of a running agent stops it and starts it again, since
    * the interpreter would otherwise keep serving the module it imported at
@@ -36,6 +37,7 @@
   import type { AgentActions } from "./useAgentActions.svelte";
   import AdjustActions from "./sheet/AdjustActions.svelte";
   import ExportAgent from "./sheet/ExportAgent.svelte";
+  import LaunchBatchButton from "../batch/LaunchBatchButton.svelte";
   import type { AgentAdjust } from "./sheet/useAgentAdjust.svelte";
   import type { AgentListItem } from "$lib/types";
   import {
@@ -257,6 +259,7 @@
       {/if}
       <ExportAgent name={agent.name} disabled={busy || updating} />
       <AdjustActions {adjust} />
+      <LaunchBatchButton agent={agent.name} />
       <Button
         variant="outline"
         size="sm"

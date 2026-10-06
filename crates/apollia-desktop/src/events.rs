@@ -34,26 +34,6 @@ pub struct ChatTokenPayload {
     pub token: String,
 }
 
-/// Payload emitted to the Svelte frontend via `app.emit("hitl-fs-required", …)`.
-///
-/// Dedicated fast-path for filesystem HITL, allows the UI to display the diff
-/// modal immediately without going through the generic `"runtime-event"` envelope.
-#[derive(Debug, Clone, Serialize)]
-pub struct HitlFsRequiredPayload {
-    /// Unique request identifier, must be passed back to `respond_hitl_filesystem`.
-    pub request_id: String,
-    /// Chat session that triggered this request.
-    pub session_id: String,
-    /// Risk level string (e.g. `"medium"`, `"high"`, `"critical"`).
-    pub level: String,
-    /// Filesystem operation string (e.g. `"write"`, `"delete"`, `"chmod"`).
-    pub op: String,
-    /// Absolute path of the file being operated on.
-    pub path: String,
-    /// Preview payload: JSON value matching `FilesystemPreview` variants.
-    pub preview: serde_json::Value,
-}
-
 /// Payload emitted to the Svelte frontend via `app.emit("hook-decision", …)`.
 ///
 /// Dedicated fast-path for the PreToolUse decision log: the Builder hooks view
@@ -204,41 +184,12 @@ fn emit_tokens(app: &AppHandle, payloads: Vec<ChatTokenPayload>) {
 /// reach this function: [`coalesce_step`] absorbs them into the dedicated
 /// `"chat-token"` channel.
 fn bridge_one_event(app: &AppHandle, event: &RuntimeEvent) {
-    emit_hitl_fs_fastpath(app, event);
     emit_stt_fastpath(app, event);
     emit_hook_decision_fastpath(app, event);
 
     let tauri_event = map_runtime_event(event);
     if let Err(e) = app.emit("runtime-event", &tauri_event) {
         tracing::warn!(error = %e, "event.runtime.emit.failed");
-    }
-}
-
-/// Dedicated fast-path for filesystem HITL, emits "hitl-fs-required" so the
-/// chat UI can open the diff modal without polling. Falls through afterwards so
-/// the generic `"runtime-event"` is still emitted.
-fn emit_hitl_fs_fastpath(app: &AppHandle, event: &RuntimeEvent) {
-    if let RuntimeEvent::HitlFilesystemRequired {
-        request_id,
-        session_id,
-        level,
-        op,
-        path,
-        preview,
-    } = event
-    {
-        let preview_value = serde_json::to_value(preview).unwrap_or(serde_json::Value::Null);
-        let payload = HitlFsRequiredPayload {
-            request_id: request_id.clone(),
-            session_id: session_id.clone(),
-            level: level.clone(),
-            op: op.clone(),
-            path: path.clone(),
-            preview: preview_value,
-        };
-        if let Err(e) = app.emit("hitl-fs-required", &payload) {
-            tracing::warn!(error = %e, "event.hitl_fs.emit.failed");
-        }
     }
 }
 
@@ -329,8 +280,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::TaskInputRequired { .. }
         | RuntimeEvent::TaskResumed { .. }
         | RuntimeEvent::TaskApprovalTimeout { .. }
-        | RuntimeEvent::BatchItemAwaitingApproval { .. }
-        | RuntimeEvent::HitlFilesystemRequired { .. } => "approval-changed",
+        | RuntimeEvent::BatchItemAwaitingApproval { .. } => "approval-changed",
 
         // ── LLM ──────────────────────────────────────────────────────────
         RuntimeEvent::LlmModelLoading { .. }
@@ -387,6 +337,10 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::ToolCircuitBroken { .. } | RuntimeEvent::ToolCircuitRestored { .. } => {
             "system"
         }
+
+        // ── Governance failing closed: every store refreshes, since what
+        // a sensitive tool or a new connection may do has changed. ────────
+        RuntimeEvent::GovernanceFailClosed { .. } => "system",
 
         // ── Chat ────────────────────────────────────────────────────────
         RuntimeEvent::ChatSessionCreated { .. }
@@ -946,6 +900,10 @@ mod tests {
                 tool_call_id: "c".into(),
                 tool_name: "t".into(),
                 prompt: "p".into(),
+                answers: Vec::new(),
+                detail: String::new(),
+                code: None,
+                working_dir: None,
             },
             RuntimeEvent::ChatApprovalResolved {
                 session_id: "s".into(),

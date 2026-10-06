@@ -30,13 +30,13 @@ sidebar_position: 5
 
 ## Signaler un problème avec les bonnes informations
 
-1. Toujours sur la page **À propos**, dans la section **Version et build**, cliquez sur **Copier le rapport de diagnostic**. Cela copie un bloc de texte brut avec la version, la plateforme, l'interpréteur Python, le répertoire de données, les deux moteurs et la licence.
+1. Dans **Réglages**, ouvrez **Matériel** (groupe **Système**) et cliquez sur **Copier les infos** dans son en-tête. Cela copie un bloc de texte brut avec la version, le système d'exploitation, le processeur, la mémoire, chaque GPU, et chaque moteur avec sa version. En mode développeur, il porte aussi l'interpréteur Python, le fichier de configuration et le répertoire de données.
 
 2. Dans la section **Ressources**, cliquez sur **Signaler un problème**. Votre navigateur ouvre un nouveau ticket sur le dépôt public.
 
-3. Collez le rapport de diagnostic dans le ticket, puis décrivez ce que vous faisiez et ce que vous attendiez à la place.
+3. Collez ce bloc dans le ticket, puis décrivez ce que vous faisiez et ce que vous attendiez à la place.
 
-> **Rien n'est envoyé automatiquement.** Le rapport de diagnostic part dans votre presse-papiers et nulle part ailleurs. Relisez-le avant de le coller, et retirez tout chemin que vous préférez ne pas publier.
+> **Rien n'est envoyé automatiquement.** Le bloc part dans votre presse-papiers et nulle part ailleurs. Relisez-le avant de le coller, et retirez tout chemin que vous préférez ne pas publier.
 
 ## Sauvegarder ou tout effacer
 

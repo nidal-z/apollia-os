@@ -8,15 +8,19 @@
 
 pub mod a2a_tools;
 pub mod agent_chat;
+pub mod agent_draft_tool;
 pub mod agent_executor;
 pub mod builtin_agent;
+pub mod documents;
 pub mod extractor;
 pub mod generation;
+pub mod images;
 pub mod manager;
 pub mod native_wrappers;
 pub mod plan_actor;
 pub mod plan_prompt;
 pub mod plan_tool;
+pub mod profile_injection;
 pub mod repository;
 pub(crate) mod schema;
 pub mod summarizer;
@@ -42,11 +46,13 @@ pub use extractor::{
 };
 pub use manager::{
     AgentTaskRun, ChatPlanSnapshot, ChatSessionManagerHandle, ChatToolsConfig, InjectError,
-    PauseError, PendingUserInputView, SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
+    PauseError, PendingUserInputView, APOLLIA_CHAT_AGENT_ID,
 };
 pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use repository::{
-    AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,
+    AppendMessageParams, ChatApprovalLogRow, ChatFolder, ChatSessionRepository, MessageRow,
+    MessageSearchHit, SessionRow, TrashedSession, FOLDER_NAME_MAX_CHARS,
+    MESSAGE_SEARCH_MAX_RESULTS,
 };
 pub use summarizer::{summarize, SummarizerError};
 pub use title::TitleError;
@@ -55,8 +61,8 @@ pub use todo_handle::TodoHandle;
 pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
 pub use types::{
-    AlwaysAcceptScope, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig,
-    ExchangeState, FsHitlDecision, InjectedInstruction, MessageId, PauseState,
-    PendingChatApprovals, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
+    ChatApprovalAsked, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig,
+    ExchangeState, InjectedInstruction, MessageId, PauseState, PendingChatApprovals,
+    SessionConfigUpdate, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
     ToolCallRecord, ToolCallStatus, ToolDecision, ToolStatEntry, TurnOutcome,
 };

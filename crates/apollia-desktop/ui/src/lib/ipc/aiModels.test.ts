@@ -48,8 +48,11 @@ describe("the AI screen reaches the runtime through its commands", () => {
     // WHEN Use by default is played on a row
     await setDefaultModel("qwen3-8b");
 
-    // THEN the command carries the identifier of the index
-    expect(mockedInvoke).toHaveBeenCalledWith("set_default_model", { modelId: "qwen3-8b" });
+    // THEN the command names a local model by the identifier of the index
+    expect(mockedInvoke).toHaveBeenCalledWith("set_default_model", {
+      modelSource: "local",
+      modelId: "qwen3-8b",
+    });
   });
 
   test("use for search names the registry entry of the embeddings file", async () => {

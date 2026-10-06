@@ -62,6 +62,15 @@ pub enum ManifestError {
         reason: String,
     },
 
+    /// An `[[ocr]]` entry carries a value no download can be checked against.
+    #[error("ocr entry '{language}' is invalid: {reason}")]
+    InvalidOcr {
+        /// The entry's language code.
+        language: String,
+        /// What is wrong with it.
+        reason: String,
+    },
+
     /// The table declares a schema version this build does not read.
     #[error("model family table declares schema version {found}, this build reads {expected}")]
     SchemaVersion {

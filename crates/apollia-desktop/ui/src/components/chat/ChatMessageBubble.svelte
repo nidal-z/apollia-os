@@ -3,15 +3,19 @@
   import { t, locale } from "svelte-i18n";
   import { Copy, Check, RefreshCw, Pencil } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import MessageRenderer from "./MessageRenderer.svelte";
   import type { Citation } from "$lib/chat/confidenceParser";
   import ReasoningSequence from "./ReasoningSequence.svelte";
-  import ActivityStrip from "./ActivityStrip.svelte";
   import SourceCards from "./SourceCards.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
+  import MessageImages from "./MessageImages.svelte";
+  import MessageDocuments from "./MessageDocuments.svelte";
+  import { documentsText, typedText } from "$lib/chat/messageDocuments";
+  import GenerationInfo from "./GenerationInfo.svelte";
+  import { readGeneration } from "$lib/chat/generationStats";
   import { parseStream } from "$lib/chat/streamParser";
-  import { extractSources, sumToolDurationMs, reasoningFragmentCount } from "$lib/chat/reasoning";
+  import { extractSources } from "$lib/chat/reasoning";
   import {
     parseApolliaActions,
     sanitizeActionButtons,
@@ -23,7 +27,10 @@
     sessionId: string;
     /** When false, the bubble is a continuation inside a group - no timestamp footer. */
     showTimestamp?: boolean;
-    /** Visual density. "compact" clamps the max-width at 72 % for embedded contexts. */
+    /**
+     * Thread density chosen in Settings > Appearance. "compact" tightens the
+     * leading, the bubble padding and the gaps; the width stays the column's.
+     */
     variant?: "default" | "compact";
     /** True while a turn is generating - disables regenerate/edit affordances. */
     busy?: boolean;
@@ -44,7 +51,10 @@
   }: Props = $props();
 
   const isUser = $derived(message.role === "user");
-  const isOperator = $derived($uiMode === "operator");
+  // What the user typed: the text of an attached document, which the runtime
+  // writes after it, is shown as a chip instead.
+  const userText = $derived(typedText(message.content ?? "", message.metadata));
+  const isOperator = $derived(!$developerMode);
 
   const formattedTime = $derived.by(() => {
     const date = new Date(message.created_at);
@@ -79,26 +89,16 @@
       parsedContentBlocks.some((b) => b.type === "thinking" && b.closed),
   );
 
-  // Reasoning strip input (zone 1). The strip exists only when the turn
-  // produced reasoning; finalized tool calls now render as their own visible
-  // rows in the flow (zone 2), not inside the strip.
+  // The turn's reasoning and steps (zone 1) show when it thought or acted.
   const hasThinking = $derived(
     !!message.metadata?.thinking_trace || hasInlineThinking,
   );
-  const activityDurationMs = $derived(sumToolDurationMs(nonPendingCalls));
 
-  // Counts surfaced in the collapsed strip summary so the reader knows how much
-  // reasoning and how many tool calls the turn folded away.
-  const reasoningCount = $derived(
-    reasoningFragmentCount(
-      { id: message.id, tool_calls: nonPendingCalls, metadata: message.metadata },
-      message.content ?? undefined,
-    ),
-  );
-  const toolCount = $derived(nonPendingCalls.length);
+  // The total of the turn, written by the runtime under its answer: read from
+  // the message itself, so a reloaded conversation shows the same line.
+  const generation = $derived(isUser ? null : readGeneration(message.metadata));
 
-  // Source cards (zone 3): deduplicated web pages the agent consulted. Their
-  // count also feeds the strip summary so both zones agree.
+  // Source cards (zone 3): deduplicated web pages the agent consulted.
   const sources = $derived(extractSources(nonPendingCalls));
 
   // The apollia-guide agent may append an ```apollia-actions``` block. Split it
@@ -127,17 +127,16 @@
       : $t("chat.empty_response_builder"),
   );
 
-  // Flat thread: the reading column constrains width. Compact embeds still cap.
-  const widthClass = $derived(
-    variant === "compact" ? "max-w-[min(78ch,72%)]" : "w-full",
-  );
+  // Flat thread: the reading column constrains width, in both densities.
+  const widthClass = "w-full";
+  const compact = $derived(variant === "compact");
 
   let copied = $state(false);
 
   async function handleCopy(): Promise<void> {
     if (!message.content) return;
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(isUser ? userText : message.content);
       copied = true;
       setTimeout(() => { copied = false; }, 1500);
     } catch {
@@ -155,7 +154,7 @@
   const canEdit = $derived(isUser && !!onedit && !!message.content);
 
   function startEdit(): void {
-    editValue = message.content ?? "";
+    editValue = isUser ? userText : (message.content ?? "");
     editing = true;
   }
 
@@ -167,30 +166,31 @@
     const next = editValue.trim();
     if (!next) return;
     editing = false;
-    onedit?.(message.id, next);
+    // The text of an attached document stays behind the edited text, so the
+    // agent still reads it.
+    onedit?.(message.id, next + documentsText(message.content ?? "", message.metadata));
   }
 </script>
 
 <div
-  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1 w-full"
+  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} {compact
+    ? 'chat-density-compact gap-0.5'
+    : 'gap-1'} w-full"
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
-  <!-- Zone 1: one activity block, collapsed by default. Its summary says how
-       much the turn thought and how many actions it took; opening it reveals
-       the timeline in the order it happened, each row expandable to its own
-       detail. A turn with eighteen tool calls is one line until asked. -->
+  <!-- Zone 1: the turn in the order it happened, each reasoning fragment a
+       foldable block titled by its duration, each action a foldable step.
+       Past ten items the list folds behind a "show more" line. -->
   {#if hasThinking || nonPendingCalls.length > 0}
     <div class="{widthClass}">
-      <ActivityStrip durationMs={activityDurationMs} {reasoningCount} {toolCount}>
-        <ReasoningSequence
-          {message}
-          {sessionId}
-          {isOperator}
-          content={message.content ?? undefined}
-          section="timeline"
-        />
-      </ActivityStrip>
+      <ReasoningSequence
+        {message}
+        {sessionId}
+        {isOperator}
+        content={message.content ?? undefined}
+        section="timeline"
+      />
     </div>
   {/if}
 
@@ -201,12 +201,17 @@
     </div>
   {/if}
 
+  <!-- The documents attached to a user turn sit above its bubble. -->
+  {#if isUser}
+    <MessageDocuments messageId={message.id} metadata={message.metadata} />
+  {/if}
+
   <div
     class="relative {isUser
       ? editing
         ? widthClass
         : 'chat-user-bubble'
-      : `${widthClass} text-foreground py-1`}"
+      : `${widthClass} text-foreground ${compact ? "py-0.5" : "py-1"}`}"
   >
     {#if isUser}
       {#if editing}
@@ -242,8 +247,11 @@
             </button>
           </div>
         </div>
-      {:else if message.content}
-        <p class="whitespace-pre-wrap break-words">{message.content}</p>
+      {:else}
+        <MessageImages {sessionId} messageId={message.id} metadata={message.metadata} />
+        {#if userText}
+          <p class="whitespace-pre-wrap break-words">{userText}</p>
+        {/if}
       {/if}
     {:else if isEmptyAgentResponse}
       <p
@@ -294,6 +302,18 @@
       </p>
     {/if}
   </div>
+
+  <!-- The generation figures of the turn, and the detail per call on demand. -->
+  {#if generation}
+    <div class={widthClass}>
+      <GenerationInfo
+        {generation}
+        {sessionId}
+        turnId={message.id}
+        stepCount={nonPendingCalls.length}
+      />
+    </div>
+  {/if}
 
   <!-- Zone 5: turn actions - a row below the turn (mockup .actions). Assistant
        turns get regenerate + copy; user turns get the inline edit affordance. -->

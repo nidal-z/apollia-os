@@ -60,12 +60,12 @@ describe("sidebar and breadcrumb name every common route identically", () => {
       "dashboard",
       "inbox",
       "integrations",
+      "journal",
+      "library",
       "llm",
       "memory",
-      "notifications",
       "observability",
       "settings",
-      "tasks",
       "transcriptions",
     ]);
   });

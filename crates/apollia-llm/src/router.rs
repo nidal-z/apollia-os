@@ -733,6 +733,9 @@ mod tests {
             routing: None,
             guardrails: Default::default(),
             residency: Default::default(),
+            defaults: Default::default(),
+            images: Default::default(),
+            devices: Default::default(),
         };
 
         // WHEN
@@ -974,6 +977,9 @@ mod tests {
             routing: None,
             guardrails: Default::default(),
             residency: Default::default(),
+            defaults: Default::default(),
+            images: Default::default(),
+            devices: Default::default(),
         };
 
         // WHEN

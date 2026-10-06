@@ -196,6 +196,7 @@ async fn fixture() -> Fixture {
         repository: Some(repo.clone()),
         event_bus: state.event_sender.clone(),
         observability: state.obs_config.clone(),
+        plan_cache: None,
     };
     state.batches = Some(BatchHandle::spawn(
         repo.clone(),

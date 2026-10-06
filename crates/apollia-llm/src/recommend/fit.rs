@@ -624,6 +624,7 @@ mod tests {
             cpu_cores: 8,
             accelerator: AcceleratorProfile::None,
             memory_budget_gb: budget_gb,
+            devices: Vec::new(),
         }
     }
 
@@ -816,6 +817,7 @@ mod tests {
             cpu_cores: 8,
             accelerator,
             memory_budget_gb: budget_gb,
+            devices: Vec::new(),
         }
     }
 

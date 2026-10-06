@@ -2,14 +2,31 @@
 
 use serde::{Deserialize, Serialize};
 
+use apollia_permissions::{ConsentFamily, RuleRecord, StoreEvent};
+use apollia_tools::ActionFamily;
+
 use crate::audit_journal::{JournalEntryDraft, JournalEntryKind};
-use crate::governance::contract::GovernanceError;
+use crate::governance::contract::{ConsentAnswer, GovernanceError};
 
 /// Prefix of the journal run that holds the governance history of one agent.
 const GOVERNANCE_RUN_PREFIX: &str = "governance:";
 
 /// Prefix of the journal run that holds the history of one package.
 const PACKAGE_RUN_PREFIX: &str = "governance:package:";
+
+/// Journal run holding the organisation policy applied at each start, and
+/// every entry into fail-closed.
+pub const POLICY_RUN_ID: &str = "governance:policy:organisation";
+
+/// Journal run holding the fine rules that bind every agent.
+pub const GLOBAL_RULES_RUN_ID: &str = "governance:rules:global";
+
+/// Journal run holding the exports of the journal.
+pub const JOURNAL_EXPORT_RUN_ID: &str = "governance:journal:export";
+
+/// Journal run holding what happens to the journal itself: a purge by
+/// retention, an opening without its signing key.
+pub const JOURNAL_STATE_RUN_ID: &str = "governance:journal:state";
 
 /// Journal run holding the installations and updates of `package_id`.
 pub fn package_run_id(package_id: &str) -> String {
@@ -166,6 +183,217 @@ pub enum GovernanceEvent {
         /// Who uninstalled it.
         actor: String,
     },
+    /// The user answered a consent prompt. Neither the call's argument nor
+    /// a reason typed with a refusal is recorded.
+    ConsentAnswered {
+        /// Agent the call was made by.
+        agent_id: String,
+        /// Access the call used (the tool).
+        access_id: String,
+        /// Family of the tool.
+        family: ActionFamily,
+        /// What the user answered, as it took effect.
+        answer: ConsentAnswer,
+    },
+    /// A standing consent ("always") was withdrawn.
+    AlwaysWithdrawn {
+        /// Agent the consent was given to.
+        agent_id: String,
+        /// Family it covered.
+        family: ConsentFamily,
+    },
+    /// The organisation policy refused a call.
+    PolicyRefused {
+        /// Agent the call was made by.
+        agent_id: String,
+        /// Access the call used (the tool).
+        access_id: String,
+        /// Family of the tool.
+        family: ActionFamily,
+        /// What the policy refuses, as shown to the user.
+        detail: String,
+    },
+    /// A fine rule refused a call.
+    RuleRefused {
+        /// Agent the call was made by.
+        agent_id: String,
+        /// Access the call used (the tool).
+        access_id: String,
+        /// Family of the tool.
+        family: ActionFamily,
+        /// Identifier of the rule in `governance.db`.
+        rule_id: i64,
+    },
+    /// A fine rule was added.
+    RuleAdded(RuleRecord),
+    /// A fine rule was removed.
+    RuleRemoved(RuleRecord),
+    /// A family was granted to an agent for one batch run.
+    BatchAccessGranted {
+        /// Agent the family was granted to.
+        agent_id: String,
+        /// The batch run the grant holds for.
+        batch_id: String,
+        /// Family granted.
+        family: ConsentFamily,
+        /// Who granted it.
+        granted_by: String,
+    },
+    /// The organisation policy was applied at startup.
+    PolicyApplied {
+        /// Fingerprint of the key that signed the policy.
+        key_fingerprint: String,
+        /// SHA-256 of `policy.toml`.
+        policy_digest: String,
+        /// Publisher named by the signature.
+        publisher: String,
+        /// When the organisation signed the policy.
+        signed_at: String,
+    },
+    /// The policy applied at startup is not the one applied before.
+    PolicyChanged {
+        /// Fingerprint of the key that signed the new policy.
+        key_fingerprint: String,
+        /// SHA-256 of the new `policy.toml`.
+        policy_digest: String,
+        /// SHA-256 of the policy applied before.
+        previous_digest: String,
+    },
+    /// A deposited policy was refused at startup.
+    PolicyUnreadable {
+        /// Reason class (`schema`, `signature`, `key`, `owner`).
+        reason: String,
+        /// What exactly was refused.
+        detail: String,
+    },
+    /// The policy fixed a setting the user's file sets otherwise: what the
+    /// setting had opened was closed at startup. Neither value is recorded,
+    /// the policy holds the one in force.
+    PolicySettingEnforced {
+        /// Dotted key of the setting, `server.serve_on_lan` for instance.
+        key: String,
+    },
+    /// Governance entered fail-closed.
+    FailClosedTriggered {
+        /// What cannot be read (`store_unreadable`, `policy_invalid` or
+        /// `journal_unavailable`).
+        cause: String,
+        /// Why, in a sentence.
+        detail: String,
+    },
+    /// The journal was exported.
+    JournalExported {
+        /// Format of the export (`csv`, `json`, `pdf`).
+        format: String,
+        /// Number of entries exported.
+        entries: u64,
+        /// Who exported it.
+        actor: String,
+        /// What the export was narrowed to.
+        #[serde(default)]
+        filters: ExportFilters,
+        /// Whether the export holds the detail of each entry, beyond its
+        /// summary.
+        #[serde(default)]
+        detail: bool,
+    },
+    /// Entries older than the retention of the organisation policy were
+    /// removed. The entry that says so is where verification starts from.
+    JournalPurged {
+        /// Days an entry is kept, as the policy sets them.
+        retention_days: u32,
+        /// Entries dated before this instant were removed (RFC 3339 UTC).
+        cutoff: String,
+        /// How many entries were removed.
+        removed: u64,
+        /// The last link of the global chain that was removed: the first
+        /// entry kept follows it. `None` while the global chain still starts
+        /// at its origin.
+        #[serde(default)]
+        anchor: Option<PurgeAnchor>,
+        /// Per run that lost its first entries and still has some: the last
+        /// entry removed, which the first entry kept follows.
+        #[serde(default)]
+        runs: std::collections::BTreeMap<String, RunCut>,
+    },
+    /// The journal opened without its signing key.
+    JournalUnsigned {
+        /// Why, in a sentence.
+        detail: String,
+    },
+    /// The daily export the organisation policy asks for could not be
+    /// written.
+    JournalExportFailed {
+        /// The folder the policy designates.
+        directory: String,
+        /// Why, in a sentence.
+        detail: String,
+    },
+}
+
+/// The last link of the global chain a purge removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PurgeAnchor {
+    /// Its position in the global chain.
+    pub global_seq: u64,
+    /// Its global hash.
+    pub global_hash: String,
+}
+
+/// The last entry of a run a purge removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunCut {
+    /// Its sequence number in the run.
+    pub seq: u64,
+    /// Its hash.
+    pub hash: String,
+}
+
+/// The filters an export of the journal was made with, as the journal keeps
+/// them. An empty list, or an absent bound, narrowed nothing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExportFilters {
+    /// Agents kept.
+    #[serde(default)]
+    pub agents: Vec<String>,
+    /// Action families kept.
+    #[serde(default)]
+    pub families: Vec<String>,
+    /// Natures kept.
+    #[serde(default)]
+    pub natures: Vec<String>,
+    /// Results kept.
+    #[serde(default)]
+    pub results: Vec<String>,
+    /// Start of the period, included, RFC 3339 UTC.
+    #[serde(default)]
+    pub since: Option<String>,
+    /// End of the period, excluded, RFC 3339 UTC.
+    #[serde(default)]
+    pub until: Option<String>,
+}
+
+impl From<StoreEvent> for GovernanceEvent {
+    fn from(event: StoreEvent) -> Self {
+        match event {
+            StoreEvent::AlwaysWithdrawn { agent_id, family } => {
+                Self::AlwaysWithdrawn { agent_id, family }
+            }
+            StoreEvent::BatchAccessGranted {
+                agent_id,
+                batch_id,
+                family,
+                granted_by,
+            } => Self::BatchAccessGranted {
+                agent_id,
+                batch_id,
+                family,
+                granted_by,
+            },
+            StoreEvent::RuleAdded(rule) => Self::RuleAdded(rule),
+            StoreEvent::RuleRemoved(rule) => Self::RuleRemoved(rule),
+        }
+    }
 }
 
 impl GovernanceEvent {
@@ -180,6 +408,24 @@ impl GovernanceEvent {
             GovernanceEvent::PackageInstalled { package_id, .. }
             | GovernanceEvent::PackageUpdated { package_id, .. }
             | GovernanceEvent::PackageUninstalled { package_id, .. } => package_id,
+            GovernanceEvent::ConsentAnswered { agent_id, .. }
+            | GovernanceEvent::AlwaysWithdrawn { agent_id, .. }
+            | GovernanceEvent::PolicyRefused { agent_id, .. }
+            | GovernanceEvent::RuleRefused { agent_id, .. }
+            | GovernanceEvent::BatchAccessGranted { agent_id, .. } => agent_id,
+            GovernanceEvent::RuleAdded(rule) | GovernanceEvent::RuleRemoved(rule) => {
+                rule.agent_id.as_deref().unwrap_or(&rule.tool_name)
+            }
+            GovernanceEvent::PolicyApplied { .. }
+            | GovernanceEvent::PolicyChanged { .. }
+            | GovernanceEvent::PolicyUnreadable { .. }
+            | GovernanceEvent::PolicySettingEnforced { .. }
+            | GovernanceEvent::FailClosedTriggered { .. } => POLICY_RUN_ID,
+            GovernanceEvent::JournalExported { .. }
+            | GovernanceEvent::JournalExportFailed { .. } => JOURNAL_EXPORT_RUN_ID,
+            GovernanceEvent::JournalPurged { .. } | GovernanceEvent::JournalUnsigned { .. } => {
+                JOURNAL_STATE_RUN_ID
+            }
         }
     }
 
@@ -190,6 +436,21 @@ impl GovernanceEvent {
             GovernanceEvent::PackageInstalled { package_id, .. }
             | GovernanceEvent::PackageUpdated { package_id, .. }
             | GovernanceEvent::PackageUninstalled { package_id, .. } => package_run_id(package_id),
+            GovernanceEvent::RuleAdded(rule) | GovernanceEvent::RuleRemoved(rule) => {
+                match &rule.agent_id {
+                    Some(agent_id) => governance_run_id(agent_id),
+                    None => GLOBAL_RULES_RUN_ID.to_owned(),
+                }
+            }
+            GovernanceEvent::PolicyApplied { .. }
+            | GovernanceEvent::PolicyChanged { .. }
+            | GovernanceEvent::PolicyUnreadable { .. }
+            | GovernanceEvent::PolicySettingEnforced { .. }
+            | GovernanceEvent::FailClosedTriggered { .. }
+            | GovernanceEvent::JournalExported { .. }
+            | GovernanceEvent::JournalPurged { .. }
+            | GovernanceEvent::JournalUnsigned { .. }
+            | GovernanceEvent::JournalExportFailed { .. } => other_run(self),
             other => governance_run_id(other.subject_id()),
         }
     }
@@ -205,8 +466,32 @@ impl GovernanceEvent {
             GovernanceEvent::PackageInstalled { .. } => JournalEntryKind::PackageInstalled,
             GovernanceEvent::PackageUpdated { .. } => JournalEntryKind::PackageUpdated,
             GovernanceEvent::PackageUninstalled { .. } => JournalEntryKind::PackageUninstalled,
+            GovernanceEvent::ConsentAnswered { .. } => JournalEntryKind::ConsentAnswered,
+            GovernanceEvent::AlwaysWithdrawn { .. } => JournalEntryKind::AlwaysWithdrawn,
+            GovernanceEvent::PolicyRefused { .. } => JournalEntryKind::PolicyRefused,
+            GovernanceEvent::RuleRefused { .. } => JournalEntryKind::RuleRefused,
+            GovernanceEvent::RuleAdded(_) => JournalEntryKind::RuleAdded,
+            GovernanceEvent::RuleRemoved(_) => JournalEntryKind::RuleRemoved,
+            GovernanceEvent::BatchAccessGranted { .. } => JournalEntryKind::BatchAccessGranted,
+            GovernanceEvent::PolicyApplied { .. } => JournalEntryKind::PolicyApplied,
+            GovernanceEvent::PolicyChanged { .. } => JournalEntryKind::PolicyChanged,
+            GovernanceEvent::PolicyUnreadable { .. } => JournalEntryKind::PolicyUnreadable,
+            GovernanceEvent::PolicySettingEnforced { .. } => {
+                JournalEntryKind::PolicySettingEnforced
+            }
+            GovernanceEvent::FailClosedTriggered { .. } => JournalEntryKind::FailClosedTriggered,
+            GovernanceEvent::JournalExported { .. } => JournalEntryKind::JournalExported,
+            GovernanceEvent::JournalPurged { .. } => JournalEntryKind::JournalPurged,
+            GovernanceEvent::JournalUnsigned { .. } => JournalEntryKind::JournalUnsigned,
+            GovernanceEvent::JournalExportFailed { .. } => JournalEntryKind::JournalExportFailed,
         }
     }
+}
+
+/// The run of an event that concerns no agent and no package: its subject
+/// names the run.
+fn other_run(event: &GovernanceEvent) -> String {
+    event.subject_id().to_owned()
 }
 
 /// Payload of a governance journal entry.

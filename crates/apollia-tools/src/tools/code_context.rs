@@ -195,6 +195,7 @@ impl CodeContext {
             tags: vec!["code".to_owned(), "git".to_owned(), "source".to_owned()],
             family: ActionFamily::Read,
             family_source: FamilySource::Builtin,
+            target_arg: Some("folder".to_string()),
             is_read_only: true,
             risk_score: 0,
             approval_risk_level: None,

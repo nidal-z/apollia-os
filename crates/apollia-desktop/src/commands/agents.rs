@@ -1,12 +1,11 @@
 //! Tauri IPC commands for agent management.
 //!
 //! Each command delegates to the embedded runtime handles for runtime agents
-//! and to the [`AgentRepository`] + `AgentLoader` for the install. The
-//! uninstall and the update are routes of the runtime. The registry, the
-//! install, the uninstall and the update also serve a desktop attached to a
-//! daemon, through the routes of `/api/v1/agents`.
+//! and to the [`AgentRepository`] for the installed ones. The uninstall and
+//! the update are routes of the runtime. The registry, the uninstall and the
+//! update also serve a desktop attached to a daemon, through the routes of
+//! `/api/v1/agents`.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use apollia_runtime::api::routes_agents::installed::merge_agent_views;
@@ -14,7 +13,6 @@ use apollia_tools::{AgentRepository, InstalledAgent};
 use serde::Serialize;
 use tauri::{Manager, State};
 
-use super::http_post_json;
 use crate::attached::RuntimeLink;
 
 /// The state-changing commands live in `lifecycle`, the agent-to-agent mailbox
@@ -25,9 +23,6 @@ pub mod messages;
 // ─────────────────────────────────────────────────────────────────────────────
 // Response types
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Response to an agent install. The daemon answers the same body.
-pub use apollia_runtime::api::routes_agents::installed::InstallAgentResponse;
 
 /// One agent of the machine, installed agents and running ones merged. The
 /// daemon answers the same view, built by the same function.
@@ -40,14 +35,6 @@ pub use apollia_runtime::api::routes_agents::installed::lifecycle::UpdateAgentRe
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Resolves the `~/.apollia/` directory.
-fn apollia_data_dir() -> PathBuf {
-    let home = apollia_core::paths::home_dir_or_temp()
-        .display()
-        .to_string();
-    apollia_core::paths::data_dir_under(home)
-}
 
 /// The repository of `agents.db`, managed only when the runtime runs in this
 /// process.
@@ -211,26 +198,6 @@ mod tests {
             vec!["online", "online", "online", "online", "error", "busy"]
         );
         assert_eq!(switched_off, "offline");
-    }
-
-    #[test]
-    fn test_install_agent_response_serialization() {
-        // GIVEN an InstallAgentResponse
-        let resp = InstallAgentResponse {
-            name: "mon-agent".to_string(),
-            version: "1.0.0".to_string(),
-            install_path: "/home/user/.apollia/agents/mon-agent/agent.py".to_string(),
-        };
-
-        // WHEN serialized to JSON
-        let json = serde_json::to_value(&resp).expect("serialize");
-
-        // THEN all fields are present
-        assert_eq!(json["name"], "mon-agent");
-        assert_eq!(json["version"], "1.0.0");
-        assert!(json["install_path"]
-            .as_str()
-            .is_some_and(|p| p.contains("mon-agent")));
     }
 
     // AgentListItem includes installed fields

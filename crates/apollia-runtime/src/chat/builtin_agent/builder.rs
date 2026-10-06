@@ -9,6 +9,7 @@ impl BuiltInChatAgent {
             tool_invoker: deps.tool_invoker,
             event_bus: deps.event_bus,
             user_memory: deps.user_memory,
+            conversation_profile: None,
             composer: None,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
             meta_handle: None,
@@ -18,10 +19,12 @@ impl BuiltInChatAgent {
             tool_search_limit: 20,
             todo: deps.todo,
             plan: deps.plan,
+            agent_draft: None,
             session_plan_mode: false,
             session_plan_phase: PlanPhase::Done,
             hook_executor: None,
             pending_injection: None,
+            turn_images: crate::chat::images::TurnImages::default(),
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
             governance: crate::governance::GovernanceHandle::detached(
                 crate::governance::GovernanceState::default(),
@@ -31,8 +34,24 @@ impl BuiltInChatAgent {
             preferred_backend: None,
             agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
             approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
+            tool_output_dir: None,
+            resilience: apollia_oria::ResilienceLayer::default(),
             turn_id: None,
         }
+    }
+
+    /// Offer the `propose_agent` tool, its drafts held to `offer`. `None`,
+    /// the default, leaves the tool out.
+    pub fn with_agent_draft(mut self, offer: Option<DraftOffer>) -> Self {
+        self.agent_draft = offer;
+        self
+    }
+
+    /// Keep a tool output too long for the context whole in `dir`, and give
+    /// the model its beginning and the path. `None` cuts it instead.
+    pub fn with_tool_output_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
+        self.tool_output_dir = dir;
+        self
     }
 
     /// Name the conversation turn the run's model calls are made for, the
@@ -127,6 +146,13 @@ impl BuiltInChatAgent {
         self
     }
 
+    /// Attaches the images of the turn: those of the message answered, sent
+    /// after its text, and those of earlier user messages, replayed with them.
+    pub fn with_turn_images(mut self, images: crate::chat::images::TurnImages) -> Self {
+        self.turn_images = images;
+        self
+    }
+
     /// Sets the plan phase the owning session is in at the start of the turn.
     ///
     /// Threaded from `ChatSession::plan_phase`. A turn opened in
@@ -134,6 +160,13 @@ impl BuiltInChatAgent {
     /// reopening discovery (see [`session_plan_phase`](Self::session_plan_phase)).
     pub fn with_plan_phase_start(mut self, phase: PlanPhase) -> Self {
         self.session_plan_phase = phase;
+        self
+    }
+
+    /// Name the profile the conversation designates, the one the profile
+    /// block is read from. `None` reads the default profile.
+    pub fn with_conversation_profile(mut self, profile_id: Option<String>) -> Self {
+        self.conversation_profile = profile_id;
         self
     }
 

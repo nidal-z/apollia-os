@@ -1150,6 +1150,7 @@ mod tests {
                 vram_gb: 64.0,
             },
             memory_budget_gb: 48.0,
+            devices: Vec::new(),
         };
         let body = serde_json::to_string(
             &apollia_runtime::api::routes_model_hub::HardwareResponse::from(profile),

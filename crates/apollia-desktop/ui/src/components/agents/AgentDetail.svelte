@@ -3,6 +3,7 @@
   import type { AgentListItem } from "$lib/types";
   import { developerMode } from "$lib/stores/developerMode";
   import { navigateTo } from "$lib/stores/navigation";
+  import { requestAgentSheet } from "$lib/stores/agentFocus";
   import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Avatar } from "$lib/components/ui/avatar";
   import { Badge } from "$lib/components/ui/badge";
@@ -45,7 +46,12 @@
     }
   }
 
-  function handleTaskClick(_taskId: string) { onclose(); navigateTo("tasks"); }
+  // A run is read on the sheet of its agent, on the Agents screen.
+  function handleTaskClick(_taskId: string) {
+    onclose();
+    if (agent.id) requestAgentSheet(agent.id);
+    navigateTo("agents");
+  }
   function handleMemoryLink() { onclose(); navigateTo("memory"); }
   function handleLogsClick() { if (agent.id) { onlogs(agent.id); } }
 </script>

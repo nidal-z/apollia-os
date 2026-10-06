@@ -156,6 +156,8 @@ pub struct AgentTaskLauncher<B: ExecutionBackend> {
     pub event_bus: EventBusSender,
     /// Limits applied to the recorded request and output.
     pub observability: ObservabilityConfig,
+    /// Plan cache of the runtime, for an agent that plans first.
+    pub plan_cache: Option<crate::chat::agent_executor::plan_first::SharedPlanCache>,
 }
 
 /// The request an agent reads from a task input: its text parts, then any
@@ -364,6 +366,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 message,
                 authorized_tools,
                 cancel,
+                plan_cache: self.plan_cache.clone(),
                 done: done_tx,
                 budget,
                 depth,
@@ -488,10 +491,7 @@ impl<B: ExecutionBackend> RunFinish<B> {
         let (status, output) = match &outcome {
             _ if awaiting.is_some() => (
                 "awaiting",
-                format!(
-                    "Waiting for a decision: the agent asked to use '{}', which is not granted",
-                    awaiting.as_deref().unwrap_or_default()
-                ),
+                crate::batch::awaiting_output(awaiting.as_deref().unwrap_or_default()),
             ),
             Ok(response) if response.paused || self.cancel.is_cancelled() => {
                 ("canceled", response.content.clone())

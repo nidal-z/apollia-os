@@ -41,6 +41,19 @@ pub struct DesktopConfig {
     /// service manager reports, never a value of this file.
     #[serde(default = "allowed")]
     pub background_service_allowed: bool,
+    /// Whether the application names a new conversation from its first
+    /// message. Automatic by default; the organization policy can impose it.
+    #[serde(default)]
+    pub chat_auto_naming: ChatAutoNaming,
+    /// Whether the developer mode shows the raw data of a tool step and the
+    /// detailed trace in a conversation. On by default; off, they are hidden
+    /// while the developer mode stays on.
+    #[serde(default = "allowed")]
+    pub chat_debug_blocks: bool,
+    /// Whether the foot of the sidebar shows the processor, the memory and
+    /// the video memory in use. Off by default.
+    #[serde(default)]
+    pub resource_widget: bool,
 }
 
 const fn allowed() -> bool {
@@ -54,6 +67,9 @@ impl Default for DesktopConfig {
             link_preview_enabled: false,
             update_channel: UpdateChannel::default(),
             background_service_allowed: allowed(),
+            chat_auto_naming: ChatAutoNaming::default(),
+            chat_debug_blocks: allowed(),
+            resource_widget: false,
         }
     }
 }
@@ -71,6 +87,23 @@ pub enum UpdateChannel {
     Stable,
     /// The published versions and the trial versions.
     Preview,
+}
+
+/// When the application asks the model for the name of a new conversation.
+///
+/// The decision is the desktop's: the runtime names a conversation only when
+/// asked to. Automatic asks when the model generates fast enough for the extra
+/// call to go unnoticed.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChatAutoNaming {
+    /// A conversation keeps its placeholder name until the user renames it.
+    Never,
+    /// Named when the measured generation speed is high enough.
+    #[default]
+    Auto,
+    /// Every new conversation is named.
+    Always,
 }
 
 impl DesktopConfig {
@@ -192,6 +225,39 @@ mod tests {
         // THEN it is refused, naming the key
         let error = result.unwrap_err().to_string();
         assert!(error.contains("not_a_field"), "{error}");
+    }
+
+    #[test]
+    fn test_desktop_config_names_conversations_automatically_by_default() {
+        // GIVEN a [desktop] section that does not name the naming choice
+        let content = "[desktop]\ndeveloper_mode = true\n";
+
+        // WHEN the section is read, and when the defaults are taken
+        let read = DesktopConfig::from_toml_str(content).unwrap();
+        let default = DesktopConfig::default();
+
+        // THEN both name automatically
+        assert_eq!(read.chat_auto_naming, ChatAutoNaming::Auto);
+        assert_eq!(default.chat_auto_naming, ChatAutoNaming::Auto);
+    }
+
+    #[test]
+    fn test_desktop_config_reads_each_naming_choice() {
+        // GIVEN the three values the file can hold
+        let cases = [
+            ("never", ChatAutoNaming::Never),
+            ("auto", ChatAutoNaming::Auto),
+            ("always", ChatAutoNaming::Always),
+        ];
+
+        for (written, expected) in cases {
+            // WHEN a [desktop] section carrying the value is read
+            let content = format!("[desktop]\nchat_auto_naming = \"{written}\"\n");
+            let desktop = DesktopConfig::from_toml_str(&content).unwrap();
+
+            // THEN the choice is the file's
+            assert_eq!(desktop.chat_auto_naming, expected, "{written}");
+        }
     }
 
     #[test]

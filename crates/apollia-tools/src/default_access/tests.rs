@@ -49,7 +49,7 @@ fn test_an_agent_created_without_code_reads_by_default() {
 
     let access = AgentAccess::of(&agent);
 
-    assert_eq!(access, AgentAccess::ReadingFamily);
+    assert_eq!(access, AgentAccess::Default);
 }
 
 // GIVEN an agent created in the interface whose access the user chose
@@ -196,9 +196,88 @@ async fn test_the_card_shows_the_default_access() {
         &[],
     );
 
-    let shown = with_default_access(agent, &registry).await;
+    let shown = with_default_access(agent, &registry, &DefaultAccess::default()).await;
 
     assert_eq!(shown.access, vec!["notebook_read"]);
     assert!(shown.overridden.is_empty());
+    registry.shutdown().await;
+}
+
+// GIVEN a default widened with the family that writes and one tool by name,
+//   on a machine holding reading, writing and code tools
+// WHEN the default access is read
+// THEN the two families and the named tool come out, and a named tool the
+//   machine does not hold grants nothing
+#[tokio::test]
+async fn test_a_widened_default_grants_its_families_and_its_named_tools() {
+    let registry = registry_with(vec![
+        file_read::FileRead::descriptor(),
+        file_write::FileWrite::descriptor(),
+        mcp_tool("mcp:notion/create_page", ActionFamily::WriteOrDelete),
+        mcp_tool("bash", ActionFamily::ExecuteCode),
+        mcp_tool("python_executor", ActionFamily::ExecuteCode),
+    ])
+    .await;
+    let default = DefaultAccess::from_config(&NewAgentConfig {
+        families: vec!["read".into(), "write_or_delete".into()],
+        access: vec!["bash".into(), "absent_tool".into()],
+    });
+
+    let granted = default_access(&registry, &default, &[]).await;
+
+    assert_eq!(
+        granted,
+        vec!["bash", "file_read", "file_write", "mcp:notion/create_page"]
+    );
+    registry.shutdown().await;
+}
+
+// GIVEN a setting naming a family the product does not know, the state of an
+//   unclassified tool, and a family twice
+// WHEN the setting is read
+// THEN only the known family is kept, once: a typo never widens a default
+#[test]
+fn test_an_unknown_family_grants_nothing() {
+    let default = DefaultAccess::from_config(&NewAgentConfig {
+        families: vec![
+            "everything".into(),
+            "unclassified".into(),
+            "read".into(),
+            "read".into(),
+        ],
+        access: Vec::new(),
+    });
+
+    assert_eq!(default.families, vec![ActionFamily::Read]);
+}
+
+// GIVEN the setting out of the box
+// WHEN it is read
+// THEN it is the reading family and nothing else
+#[test]
+fn test_the_default_out_of_the_box_is_the_reading_family() {
+    let default = DefaultAccess::from_config(&NewAgentConfig::default());
+
+    assert_eq!(default, DefaultAccess::default());
+}
+
+// GIVEN an agent on the default access and a default widened with one tool
+// WHEN its tools are read against the machine
+// THEN they are the reading family and the tool named
+#[tokio::test]
+async fn test_an_agent_on_the_default_follows_the_widened_default() {
+    let registry = registry_with(vec![
+        file_read::FileRead::descriptor(),
+        file_write::FileWrite::descriptor(),
+    ])
+    .await;
+    let default = DefaultAccess {
+        families: vec![ActionFamily::Read],
+        tools: vec!["file_write".into()],
+    };
+
+    let tools = AgentAccess::Default.tools(&registry, &default).await;
+
+    assert_eq!(tools, vec!["file_read", "file_write"]);
     registry.shutdown().await;
 }
