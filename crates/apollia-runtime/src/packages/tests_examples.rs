@@ -154,3 +154,120 @@ fn test_an_unknown_name_is_no_example() {
     // THEN there is none
     assert!(found.is_none());
 }
+
+/// The family of every tool an example may name: the native tools this build
+/// ships and the tools of a mailbox connected over IMAP.
+fn families() -> std::collections::HashMap<String, apollia_tools::ActionFamily> {
+    apollia_tools::tools::native_descriptors()
+        .into_iter()
+        .chain(crate::connectors_bridge::imap_tool_descriptors())
+        .map(|descriptor| (descriptor.name, descriptor.family))
+        .collect()
+}
+
+/// The single agent of the shipped example `name`.
+fn shipped_agent(name: &str) -> apollia_tools::apollia_manifest::AgentDecl {
+    let (_, manifest) = find_example(shipped_examples(), name)
+        .unwrap_or_else(|| panic!("{name}: not shipped, or its manifest is refused"));
+    assert_eq!(manifest.agents.len(), 1, "{name}: one agent");
+    manifest.agents.into_iter().next().unwrap()
+}
+
+/// The families the default access of `agent` reaches. An access no tool of
+/// this build answers to fails the test: it would grant nothing.
+fn granted_families(
+    agent: &apollia_tools::apollia_manifest::AgentDecl,
+) -> Vec<apollia_tools::ActionFamily> {
+    let families = families();
+    agent
+        .defaults
+        .access
+        .iter()
+        .map(|access| {
+            *families
+                .get(access)
+                .unwrap_or_else(|| panic!("{}: `{access}` is no tool of this build", agent.id))
+        })
+        .collect()
+}
+
+#[test]
+fn test_the_three_everyday_examples_ship_with_a_mission_and_examples_and_no_code() {
+    // GIVEN the examples the binary ships
+    for name in ["web-watch", "mail-triage", "document-analysis"] {
+        // WHEN each is read
+        let (example, manifest) = find_example(shipped_examples(), name).unwrap();
+        let agent = shipped_agent(name);
+
+        // THEN it states a mission and at least one request to try, and
+        // carries its manifest and nothing else: no Python file, no data
+        assert!(!agent.mission.trim().is_empty(), "{name}: no mission");
+        assert!(!agent.examples.is_empty(), "{name}: no example");
+        assert!(agent.examples.iter().all(|e| !e.trim().is_empty()));
+        assert!(!manifest.package.description.is_empty());
+        let files: Vec<&str> = example.files.iter().map(|(path, _)| *path).collect();
+        assert_eq!(files, ["apollia.toml"], "{name}");
+    }
+}
+
+#[cfg(all(feature = "web-search", feature = "web-read"))]
+#[test]
+fn test_the_web_watch_example_searches_the_web_and_reads_pages_in_the_reading_family() {
+    // GIVEN the web watch example
+    let agent = shipped_agent("web-watch");
+
+    // WHEN its default access is read against the tools of this build
+    let granted = granted_families(&agent);
+
+    // THEN it is granted the web search and the page reader, both of the
+    // reading family, and requires no connection
+    assert_eq!(agent.defaults.access, ["web_search", "web_read"]);
+    assert!(granted
+        .iter()
+        .all(|family| *family == apollia_tools::ActionFamily::Read));
+    let (_, manifest) = find_example(shipped_examples(), "web-watch").unwrap();
+    assert!(manifest.requires.is_empty());
+}
+
+#[test]
+fn test_the_mail_triage_example_reads_a_mailbox_and_neither_writes_nor_sends() {
+    // GIVEN the mail triage example
+    let agent = shipped_agent("mail-triage");
+    let (_, manifest) = find_example(shipped_examples(), "mail-triage").unwrap();
+
+    // WHEN its default access is read against the tools of this build
+    let granted = granted_families(&agent);
+
+    // THEN it reads the mailbox, no access of it writes, deletes, sends
+    // outside or runs code, it brings no MCP server that could, and its
+    // mission asks for the three columns of the table
+    assert!(!granted.is_empty());
+    for family in &granted {
+        assert_eq!(*family, apollia_tools::ActionFamily::ReadPersonal);
+    }
+    assert!(!granted.contains(&apollia_tools::ActionFamily::WriteOrDelete));
+    assert!(!granted.contains(&apollia_tools::ActionFamily::SendExternal));
+    assert!(manifest.mcp_servers.is_empty());
+    assert!(manifest.triggers.is_empty());
+    for column in ["Category:", "Urgency:", "Proposed reply:"] {
+        assert!(agent.mission.contains(column), "no `{column}` line");
+    }
+}
+
+#[test]
+fn test_the_document_analysis_example_searches_its_sources_reads_files_and_cites() {
+    // GIVEN the document analysis example
+    let agent = shipped_agent("document-analysis");
+
+    // WHEN its default access is read against the tools of this build
+    let granted = granted_families(&agent);
+
+    // THEN it searches the checked sources and reads files, every access of
+    // the reading family, and its mission asks for a citation per point
+    assert!(agent.defaults.access.iter().any(|a| a == "source_search"));
+    assert!(agent.defaults.access.iter().any(|a| a == "file_read"));
+    assert!(granted
+        .iter()
+        .all(|family| *family == apollia_tools::ActionFamily::Read));
+    assert!(agent.mission.contains("Cite every point"));
+}
