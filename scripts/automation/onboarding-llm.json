@@ -111,7 +111,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "My name is Nidal and I'm a software engineer."
+      "text": "My name is Ada and I'm a software engineer."
     },
     {
       "kind": "waitFor",

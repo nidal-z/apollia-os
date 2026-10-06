@@ -565,7 +565,7 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-args-input",
-      "text": "-y @modelcontextprotocol/server-filesystem /Users/moi/Documents"
+      "text": "-y @modelcontextprotocol/server-filesystem /Users/me/Documents"
     },
     {
       "kind": "sleep",
