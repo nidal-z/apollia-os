@@ -47,6 +47,11 @@ same from one run to the next; the seed's `apollia.toml` pins
 full 131072 KV cache can be heavy; override with `CTX=32768`. The free-chat
 prompt is ~13.5k tokens (the loaded tool surface), so keep a comfortable margin.
 
+New conversation: the seed's `apollia.toml` sets `[desktop] chat_single_empty =
+false`. With the default, on, "New conversation" opens the empty conversation
+that already exists and no picker shows; the chat books leave conversations
+without a message behind them and assert the picker at every press.
+
 ## Running it on Linux and Windows
 
 The harness is not macOS-bound: the runner is TypeScript inside the app, the

@@ -18,12 +18,19 @@ import type { ChatSessionSummary } from "$lib/types";
 export type SessionFilter = "active" | "closed" | "archived" | "pinned";
 /**
  * Order of the conversation list, criterion and direction in one choice:
- * newest or oldest created first, most recent activity first, name A to Z.
+ * newest or oldest created first, most recent activity first, name A to Z,
+ * most generated tokens first.
  */
-export type SessionSort = "newest" | "oldest" | "activity" | "name";
+export type SessionSort = "newest" | "oldest" | "activity" | "name" | "tokens";
 
 /** The choices in the order the sort menu offers them; the first is the default. */
-export const SESSION_SORTS: readonly SessionSort[] = ["newest", "oldest", "activity", "name"];
+export const SESSION_SORTS: readonly SessionSort[] = [
+  "newest",
+  "oldest",
+  "activity",
+  "name",
+  "tokens",
+];
 export type SidebarDensity = "sm" | "md";
 
 const STORAGE_KEYS = {
@@ -244,6 +251,13 @@ export function compareSessions(
       return byTime(a.lastActivityAt, b.lastActivityAt, true);
     case "name":
       return displayName(a).localeCompare(displayName(b), undefined, { sensitivity: "base" });
+    case "tokens":
+      // The tokens generated for the conversation, never its message count;
+      // two conversations of the same weight keep the newest first.
+      return (
+        (b.output_tokens ?? 0) - (a.output_tokens ?? 0) ||
+        byTime(a.created_at, b.created_at, true)
+      );
   }
 }
 

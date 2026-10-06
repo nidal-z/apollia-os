@@ -36,10 +36,21 @@ function session(
   };
 }
 
+// "b" holds the most messages and the fewest generated tokens: an order by
+// message count and an order by tokens cannot be mistaken for one another.
 const SESSIONS: DecoratedSession[] = [
-  session("b", "Budget", "2026-10-02T09:00:00Z", "2026-10-02T09:00:00Z"),
-  session("a", "achats", "2026-10-01T09:00:00Z", "2026-10-04T09:00:00Z"),
-  session("c", "Courrier", "2026-10-03T09:00:00Z", "2026-10-03T10:00:00Z"),
+  session("b", "Budget", "2026-10-02T09:00:00Z", "2026-10-02T09:00:00Z", {
+    message_count: 40,
+    output_tokens: 300,
+  }),
+  session("a", "achats", "2026-10-01T09:00:00Z", "2026-10-04T09:00:00Z", {
+    message_count: 2,
+    output_tokens: 9000,
+  }),
+  session("c", "Courrier", "2026-10-03T09:00:00Z", "2026-10-03T10:00:00Z", {
+    message_count: 12,
+    output_tokens: 1200,
+  }),
 ];
 
 function order(sort: SessionSort, query = ""): string[] {
@@ -64,14 +75,41 @@ describe("chatSessions - the order of the Chat list", () => {
     // WHEN the list is ordered by each choice
     const orders = Object.fromEntries(SESSION_SORTS.map((s) => [s, order(s)]));
 
-    // THEN creation ascending, latest activity first, and the name A to Z,
-    // case aside, each give their own order
+    // THEN creation ascending, latest activity first, the name A to Z, case
+    // aside, and the generated tokens each give their own order
     expect(orders).toEqual({
       newest: ["c", "b", "a"],
       oldest: ["a", "b", "c"],
       activity: ["a", "c", "b"],
       name: ["a", "b", "c"],
+      tokens: ["a", "c", "b"],
     });
+  });
+
+  test("the token order reads the generated tokens, never the message count", () => {
+    // GIVEN the conversation with the most messages holding the fewest tokens
+    // WHEN the list is ordered by tokens
+    const ids = order("tokens");
+
+    // THEN the most tokens come first: by message count it would be b, c, a
+    expect(ids).toEqual(["a", "c", "b"]);
+    expect(ids).not.toEqual(["b", "c", "a"]);
+  });
+
+  test("conversations of the same token count keep the newest first, and no count is zero", () => {
+    // GIVEN two conversations the runtime gave no token count for, and one
+    // that holds tokens
+    const sessions = [
+      session("old", "Old", "2026-10-01T09:00:00Z"),
+      session("heavy", "Heavy", "2026-09-01T09:00:00Z", undefined, { output_tokens: 50 }),
+      session("new", "New", "2026-10-05T09:00:00Z"),
+    ];
+
+    // WHEN the list is ordered by tokens
+    const ids = sidebarSessions(sessions, "", "tokens").map((s) => s.id);
+
+    // THEN the one with tokens leads, and the two without follow newest first
+    expect(ids).toEqual(["heavy", "new", "old"]);
   });
 
   test("the search and the archive still apply before the order", () => {

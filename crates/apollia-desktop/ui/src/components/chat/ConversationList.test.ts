@@ -25,6 +25,7 @@ import ConversationList, { relativeTime, rowState } from "./ConversationList.sve
 import ConversationFolderRow, { folderDeleteNoteKey } from "./ConversationFolderRow.svelte";
 import { offersMove } from "$lib/components/operator/ConversationRow.svelte";
 import { chatFolders, collapsedFolderIds } from "$lib/stores/chatFolders";
+import { chatTokenCount } from "$lib/stores/chatTokenCount";
 import { NO_MESSAGE_SEARCH, messageSearch } from "$lib/stores/chatSearch";
 import type { DecoratedSession } from "$lib/stores/chatSessions";
 import en from "$lib/i18n/en.json";
@@ -95,6 +96,27 @@ beforeEach(() => {
   ]);
   collapsedFolderIds.set(new Set());
   messageSearch.set(NO_MESSAGE_SEARCH);
+});
+
+describe("conversation list - token count", () => {
+  test("off, no conversation shows its tokens; on, each shows the tokens generated for it", () => {
+    // GIVEN a conversation the model generated 1840 tokens for
+    const heavy = { ...QUOTES, output_tokens: 1840 };
+
+    // WHEN the list renders with the preference off, then on
+    chatTokenCount.set(false);
+    const off = list({ sessions: [heavy] });
+    chatTokenCount.set(true);
+    const on = list({ sessions: [heavy, MARCH] });
+    chatTokenCount.set(false);
+
+    // THEN off shows no count, and on shows the count of each conversation,
+    // zero for one the runtime gave none for
+    expect(off).not.toContain('data-testid="conversation-row-tokens"');
+    expect(on.split('data-testid="conversation-row-tokens"')).toHaveLength(3);
+    expect(on).toContain("1.8K tokens");
+    expect(on).toContain("0 tokens");
+  });
 });
 
 describe("conversation list - folders", () => {

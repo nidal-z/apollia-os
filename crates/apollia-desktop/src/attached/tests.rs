@@ -17,6 +17,8 @@ fn session(id: &str) -> SessionInfo {
         status: SessionStatus::Active,
         created_at: "2026-10-01T00:00:00Z".to_owned(),
         title: Some("Une conversation".to_owned()),
+        message_count: 0,
+        output_tokens: 0,
     }
 }
 

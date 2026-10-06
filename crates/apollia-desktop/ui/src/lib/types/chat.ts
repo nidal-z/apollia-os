@@ -15,6 +15,8 @@ export interface ChatSessionSummary {
   created_at: string;
   closed_at: string | null;
   title: string | null;
+  /** Tokens the model generated across the answers of the session. */
+  output_tokens?: number;
 }
 
 /** Full detail of one chat session, with its messages. */

@@ -66,6 +66,8 @@
   import { agents } from "$lib/stores/sse";
   import { triggerAutoName } from "$lib/chat/autoName";
   import { noteSessionActivity } from "$lib/stores/chatSessions";
+  import { answerToRegenerate } from "$lib/chat/chatBehaviours";
+  import { onRegenerateLast } from "$lib/stores/chatRegenerate";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
@@ -578,6 +580,18 @@
   // The actions under a message: play a turn again, continue the last
   // answer, branch off, rewrite an answer, remove a message. Each truncates
   // or reloads the local thread; a turn played again streams as a new one.
+  // Cmd R (Ctrl R outside the Mac) regenerates the last answer when
+  // Settings > Chat asks for it; the chat route makes the request.
+  onMount(() =>
+    onRegenerateLast(
+      () => sessionId,
+      () => {
+        const id = answerToRegenerate(messages ?? [], isProcessing || isStreaming);
+        if (id) void answers.regenerate(id);
+      },
+    ),
+  );
+
   const answers = createAnswerActions(
     {
       sessionId: () => sessionId,

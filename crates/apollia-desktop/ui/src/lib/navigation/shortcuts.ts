@@ -129,6 +129,14 @@ export const SHORTCUTS: ShortcutEntry[] = [
     scopeHintKey: "settings.shortcuts.scope.chat",
   },
   {
+    id: "chat.regenerate",
+    combo: { mac: "⌘+R", win: "Ctrl+R" },
+    descriptionKey: "settings.shortcuts.items.chat_regenerate",
+    scope: "contextual",
+    category: "chat",
+    scopeHintKey: "settings.shortcuts.scope.chat",
+  },
+  {
     id: "chat.artifacts",
     combo: { mac: "⌘+⇧+A", win: "Ctrl+Shift+A" },
     descriptionKey: "settings.shortcuts.items.chat_artifacts",

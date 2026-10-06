@@ -19,11 +19,13 @@ mod message_search;
 mod profile;
 mod search;
 mod settings;
+mod totals;
 mod trash;
 
 pub use answers::MessageRewrite;
 pub use folders::{ChatFolder, FOLDER_NAME_MAX_CHARS};
 pub use message_search::{MessageSearchHit, MESSAGE_SEARCH_MAX_RESULTS};
+pub use totals::SessionTotals;
 pub use trash::TrashedSession;
 
 /// Raw row from the `chat_sessions` table.

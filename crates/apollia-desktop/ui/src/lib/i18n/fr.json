@@ -2137,7 +2137,8 @@
         "companion_toggle": "Ouvrir le guide sur l'écran courant",
         "companion_focus": "Focaliser la saisie du Companion",
         "settings_engines": "Ouvrir Système > Moteurs",
-        "settings_hardware": "Ouvrir Système > Matériel"
+        "settings_hardware": "Ouvrir Système > Matériel",
+        "chat_regenerate": "Régénérer la dernière réponse, ou recharger le dernier modèle quand aucun n'est chargé"
       },
       "reserved": "Réservé OS",
       "reserved_hint": "Réservé par le système d'exploitation, non réassignable.",
@@ -2936,7 +2937,22 @@
       "naming_always": "Toujours",
       "naming_always_hint": "Apollia nomme chaque nouvelle conversation, quelle que soit la vitesse de génération.",
       "trash_label": "Envoyer les conversations supprimées à la corbeille",
-      "trash_hint": "Les conversations supprimées vont dans la corbeille d'Apollia, d'où on les restaure. Éteint, une conversation supprimée l'est définitivement."
+      "trash_hint": "Les conversations supprimées vont dans la corbeille d'Apollia, d'où on les restaure. Éteint, une conversation supprimée l'est définitivement.",
+      "single_empty_label": "Une seule conversation vide à la fois",
+      "single_empty_hint": "Allumé, « Nouvelle conversation » rouvre la conversation vide qui existe déjà au lieu d'en créer une autre ; on y choisit son agent ou son modèle dans la barre du haut.",
+      "unload_before_load_label": "Décharger les modèles chargés avant d'en charger un autre",
+      "unload_before_load_hint": "Éteint, plusieurs modèles restent chargés ensemble tant que la mémoire le permet. Allumé, charger un modèle décharge d'abord les autres ; un modèle gardé en mémoire ou en train de répondre reste chargé.",
+      "double_click_edit_label": "Double-cliquer sur un message pour le modifier",
+      "double_click_edit_hint": "Allumé, un double-clic sur un de vos messages l'ouvre en modification. Éteint, on le modifie par son action dédiée.",
+      "token_count_label": "Afficher le compte de jetons dans la liste des conversations",
+      "token_count_hint": "Chaque conversation de la liste montre les jetons que le modèle a générés pour elle.",
+      "double_click_rename_label": "Double-cliquer sur une conversation ou un dossier pour le renommer",
+      "double_click_rename_hint": "Allumé, un double-clic sur le nom d'une conversation ou d'un dossier, dans la liste ou en tête de la conversation, permet de le renommer. Éteint, on le renomme depuis son menu.",
+      "regenerate_label_mac": "Utiliser ⌘ + R pour régénérer la dernière réponse",
+      "regenerate_hint_mac": "Dans une conversation, ⌘ + R régénère la dernière réponse. Quand aucun modèle n'est chargé, ⌘ + R recharge le dernier modèle, que ce réglage soit allumé ou non.",
+      "regenerate_label_other": "Utiliser Ctrl + R pour régénérer la dernière réponse",
+      "regenerate_hint_other": "Dans une conversation, Ctrl + R régénère la dernière réponse. Quand aucun modèle n'est chargé, Ctrl + R recharge le dernier modèle, que ce réglage soit allumé ou non.",
+      "write_failed": "Le réglage n'a pas pu être enregistré."
     },
     "integrations_section": {
       "subtitle": "Ce qu'Apollia donne par défaut, et ce qui est toujours autorisé.",
@@ -3816,7 +3832,8 @@
       "newest": "Plus récentes d'abord",
       "oldest": "Plus anciennes d'abord",
       "activity": "Dernière activité",
-      "name": "Nom, de A à Z"
+      "name": "Nom, de A à Z",
+      "tokens": "Plus de jetons d'abord"
     },
     "step": {
       "toggle": "Afficher ou masquer le détail de l'étape",
@@ -3935,7 +3952,8 @@
       "label": "Recharger le dernier modèle",
       "reloading": "Rechargement de",
       "refused": "Le dernier modèle n'a pas pu être rechargé tel quel : {error}"
-    }
+    },
+    "conversation_tokens": "{count} jetons"
   },
   "transcriptions": {
     "title": "Transcriptions",

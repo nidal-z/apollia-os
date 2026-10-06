@@ -730,6 +730,12 @@ pub struct SessionInfo {
     pub created_at: String,
     /// User-defined display title (falls back to agent_name or mode).
     pub title: Option<String>,
+    /// Messages the session holds, whatever their role.
+    #[serde(default)]
+    pub message_count: u32,
+    /// Tokens the model generated across the answers of the session.
+    #[serde(default)]
+    pub output_tokens: u64,
 }
 
 /// A change to a session's configuration. An absent field keeps its value;

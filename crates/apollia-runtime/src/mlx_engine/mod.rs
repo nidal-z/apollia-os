@@ -315,8 +315,10 @@ impl MlxEngineSupervisor {
         let folder = model_path.to_owned();
         let sized = tokio::task::spawn_blocking(move || {
             let policy = GuardrailPolicy::read_under(config_file.as_deref(), &imposed);
+            let unload_first =
+                crate::residency::replace::unload_before_load(config_file.as_deref(), &imposed);
             if policy.level == guardrails::GuardrailLevel::Disabled {
-                return (policy, None);
+                return (policy, None, unload_first);
             }
             let shape = apollia_llm::recommend::RuntimeShape {
                 n_ctx,
@@ -325,17 +327,25 @@ impl MlxEngineSupervisor {
             };
             let estimate =
                 LoadEstimate::mlx(Path::new(&folder), &shape, &apollia_llm::hardware::detect());
-            (policy, estimate)
+            (policy, estimate, unload_first)
         })
         .await;
         // A panicked estimate is no estimate: the launch goes ahead, as for a
         // folder without its configuration.
-        let Ok((policy, estimate)) = sized else {
+        let Ok((policy, estimate, unload_first)) = sized else {
             return Ok(None);
         };
-        self.judge_with_residents(&policy, estimate, consent, model_path)
-            .await
-            .map_err(LocalEngineError::from)
+        // With `[llm.residency] unload_before_load` on, the resident models
+        // that are not pinned and answer no request go first, whatever the
+        // room.
+        let judged = if unload_first {
+            self.admit_alone(&policy, estimate, consent, model_path)
+                .await
+        } else {
+            self.judge_with_residents(&policy, estimate, consent, model_path)
+                .await
+        };
+        judged.map_err(LocalEngineError::from)
     }
 
     /// Launch a process for `model_path` and wait until it is healthy.

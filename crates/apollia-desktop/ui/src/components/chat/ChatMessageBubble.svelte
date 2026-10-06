@@ -21,6 +21,8 @@
   import { getContext } from "svelte";
   import { ANSWER_ACTIONS, type AnswerActionsContext } from "$lib/chat/answerActions";
   import MessageActions from "./MessageActions.svelte";
+  import { doubleClickEdits } from "$lib/chat/chatBehaviours";
+  import { chatDoubleClickEdit } from "$lib/stores/chatBehaviours";
   import type { ChatMessageView } from "$lib/types";
   import { developerMode } from "$lib/stores/developerMode";
   import MessageRenderer from "./MessageRenderer.svelte";
@@ -183,6 +185,20 @@
     editing = false;
   }
 
+  // A double click on a message of the user opens its edition when
+  // Settings > Chat asks for it; an answer keeps the double click for
+  // selecting a word.
+  function onBubbleDblClick(): void {
+    const opens = doubleClickEdits({
+      enabled: $chatDoubleClickEdit,
+      isUser,
+      canEdit,
+      busy,
+      editing,
+    });
+    if (opens) startEdit();
+  }
+
   function saveEdit(): void {
     const next = editValue.trim();
     if (!next) return;
@@ -232,10 +248,12 @@
     <MessageDocuments messageId={message.id} metadata={message.metadata} />
   {/if}
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="relative {isUser
       ? userFrame.frame
       : `${widthClass} text-foreground ${compact ? "py-0.5" : "py-1"}`}"
+    ondblclick={onBubbleDblClick}
   >
     {#if editing}
         <div class="flex flex-col gap-2">

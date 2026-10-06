@@ -20,6 +20,7 @@
   import ChatConfigPanelBody from "../components/chat/ChatConfigPanelBody.svelte";
   import {
     decoratedSessions,
+    sessionActivityAt,
     markSessionRead,
     sessionSort,
     sidebarDensity,
@@ -52,6 +53,9 @@
   import { requestChatTargetSelector } from "$lib/stores/chatTargetSelector";
   import { MAIN_PANE, paneLeases } from "$lib/chat/modelLease";
   import { showReloadLast } from "$lib/chat/modelLoad";
+  import { emptyConversationToReopen, regenerateChord } from "$lib/chat/chatBehaviours";
+  import { chatRegenerateShortcut, chatSingleEmpty } from "$lib/stores/chatBehaviours";
+  import { requestRegenerateLast } from "$lib/stores/chatRegenerate";
   import { lastLoadedModel, loadedModels, requestReloadLast } from "$lib/stores/modelResidency";
   import ModelLoadDialog from "../components/chat/ModelLoadDialog.svelte";
   import CommandPalette from "../components/chat/CommandPalette.svelte";
@@ -138,11 +142,18 @@
       descriptionKey: "chat.shortcut.reload_last_model",
       keys: [MOD_LABEL, "R"],
       allowInTextarea: true,
-      // Only while the reload line shows; otherwise the chord is left alone.
+      // One chord, two meanings: with no model in memory it loads the last
+      // one again; otherwise, when Settings > Chat asks for it, it
+      // regenerates the last answer of the conversation shown.
       run: () => {
-        if (!showReloadLast($loadedModels, $lastLoadedModel)) return false;
-        requestReloadLast();
-        return true;
+        const action = regenerateChord({
+          reloadShown: showReloadLast($loadedModels, $lastLoadedModel),
+          enabled: $chatRegenerateShortcut,
+          conversationOpen: selectedSessionId !== null,
+        });
+        if (action === "reload") requestReloadLast();
+        else if (action === "regenerate" && selectedSessionId) requestRegenerateLast(selectedSessionId);
+        return action !== null;
       },
     },
     {
@@ -216,6 +227,17 @@
   // preset prop yet. We accept and
   // ignore it so the palette wiring stays forward-compatible.
   function openNewChatPicker(_preset?: { templateId?: string; agentName?: string }) {
+    // One empty conversation at a time: the one that exists opens again, and
+    // its agent or model is chosen from the top bar.
+    const empty = emptyConversationToReopen(
+      $decoratedSessions,
+      $sessionActivityAt,
+      $chatSingleEmpty,
+    );
+    if (empty !== null) {
+      navigateToSession(empty);
+      return;
+    }
     showNewChatPicker = true;
   }
 

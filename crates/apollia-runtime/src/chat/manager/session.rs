@@ -394,21 +394,7 @@ impl ChatSessionManager {
     ) -> Vec<SessionInfo> {
         let filter_sql = status_filter.map(|s| s.as_sql());
         match self.repository.list_sessions(filter_sql) {
-            Ok(rows) => rows
-                .into_iter()
-                .filter_map(|row| {
-                    let mode = ChatMode::from_sql(&row.mode)?;
-                    let status = SessionStatus::from_sql(&row.status)?;
-                    Some(SessionInfo {
-                        id: row.id,
-                        mode,
-                        agent_name: row.agent_name,
-                        status,
-                        created_at: row.created_at,
-                        title: row.title,
-                    })
-                })
-                .collect(),
+            Ok(rows) => self.infos_of(rows),
             Err(e) => {
                 error!(error = %e, "chat.sessions.list.failed");
                 Vec::new()
@@ -766,21 +752,7 @@ impl ChatSessionManager {
         parent_id: &str,
     ) -> Vec<SessionInfo> {
         match self.repository.list_children(parent_id) {
-            Ok(rows) => rows
-                .into_iter()
-                .filter_map(|row| {
-                    let mode = ChatMode::from_sql(&row.mode)?;
-                    let status = SessionStatus::from_sql(&row.status)?;
-                    Some(SessionInfo {
-                        id: row.id,
-                        mode,
-                        agent_name: row.agent_name,
-                        status,
-                        created_at: row.created_at,
-                        title: row.title,
-                    })
-                })
-                .collect(),
+            Ok(rows) => self.infos_of(rows),
             Err(e) => {
                 error!(parent_id = %parent_id, error = %e, "chat.session.children.list.failed");
                 Vec::new()

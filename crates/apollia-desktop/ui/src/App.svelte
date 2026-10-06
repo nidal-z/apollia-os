@@ -20,6 +20,7 @@
   import { navSide } from "$lib/layout/navSide";
   import { hydratePlanModeDefault } from "$lib/stores/planModeSetting";
   import { hydrateChatAutoNaming } from "$lib/stores/chatAutoNaming";
+  import { hydrateChatBehaviours } from "$lib/stores/chatBehaviours";
   import { startGenerationSpeedListener } from "$lib/chat/autoName";
   import { hydrateDeveloperMode } from "$lib/stores/developerMode";
   import { hydrateDeveloperSettings } from "$lib/stores/developerSettings";
@@ -66,6 +67,7 @@
     void hydrateDeveloperMode();
     void hydrateDeveloperSettings();
     void hydrateChatAutoNaming();
+    void hydrateChatBehaviours();
     let unlistenSpeed: (() => void) | null = null;
     void startGenerationSpeedListener()
       .then((fn) => {
