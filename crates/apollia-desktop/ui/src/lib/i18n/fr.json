@@ -3482,6 +3482,10 @@
       "error_not_offered": "{file} n'est pas le fichier d'un modèle de recherche par le sens proposé par Apollia.",
       "error_default": "Le modèle est installé mais n'a pas pu être retenu pour la recherche par le sens."
     },
+    "first_task": {
+      "intro_title": "{name}, votre premier agent",
+      "intro_body": "Son premier exemple est prérempli ci-dessous. Envoyez-le tel quel, ou modifiez-le."
+    },
     "first_agent": {
       "title": "Votre premier agent",
       "subtitle": "Choisissez comment l'obtenir. Vous pourrez en ajouter d'autres plus tard depuis l'écran Agents.",
@@ -4114,6 +4118,7 @@
     "step_ai": "IA",
     "step_first_agent": "Premier agent",
     "step_connection": "Connexion",
+    "step_first_task": "Première tâche",
     "model_percent": "Modèle : {percent} %",
     "model_downloading": "Modèle : téléchargement en cours",
     "model_installing": "Modèle : installation",

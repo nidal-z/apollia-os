@@ -19,10 +19,14 @@
    *   6. {@link OnboardingConnection} - the connections that agent requires
    *                                   and this machine lacks; passed over
    *                                   when there is none
+   *   7. the first task              - no screen of its own: reaching it
+   *                                   closes the modal on the agent at work
+   *                                   (`firstTask.ts`), and marks the first
+   *                                   launch as done
    *
    * The list itself is `ONBOARDING_STEPS` in `onboardingSteps.ts`, and the
-   * progress counts that list: a step is announced once it is built. No step
-   * asks for a usage profile: the developer mode is a setting, off by default.
+   * progress counts that list. No step asks for a usage profile: the
+   * developer mode is a setting, off by default.
    *
    * The header carries what holds on every step: the progress, "configure
    * later", and the download of the language model, which goes on while the
@@ -69,9 +73,13 @@
   import type { FirstAgentView } from "./firstAgent";
   import { downloadNotice } from "./llmDownload";
   import { llmDownload } from "./llmDownloadLive";
+  import { firstTaskPlan } from "./firstTask";
+  import { firstTaskRequest } from "./firstTaskLive";
   import {
+    CLOSED_PHASE,
     ONBOARDING_PHASE_ORDER,
     ONBOARDING_STEPS,
+    closesModal,
     nextStep,
     phaseOfStep,
     phasePath,
@@ -170,13 +178,21 @@
     return nothingToPropose(connectionProposal);
   }
 
-  // On to the step after `step`; after the last one built the first launch
-  // is over and the modal closes.
+  // The first launch is over: the backend is walked to its last phase, which
+  // is what records it as done, and the modal closes on the first task.
+  function finish(): void {
+    untrack(() => syncBackendPhase(CLOSED_PHASE));
+    firstTaskRequest.set(firstTaskPlan(get(onboardingFirstAgent)));
+    onclose();
+  }
+
+  // On to the step after `step`; the first task has no screen, so reaching
+  // it ends the first launch.
   async function advanceFrom(step: Step): Promise<void> {
     const passed: Step[] = [];
     if (nextStep(step) === "connection" && (await connectionIsPassed())) passed.push("connection");
     const next = nextStep(step, passed);
-    if (next === null) onclose();
+    if (next === null || closesModal(next)) finish();
     else goTo(next);
   }
 

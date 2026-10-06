@@ -27,6 +27,7 @@
   import type { A2ADelegation } from "./useA2ADelegation.svelte";
   import type { ConversationScroll } from "./useConversationScroll.svelte";
   import type { LiveToolCall } from "./liveToolChain";
+  import { firstTaskIntro } from "../onboarding/firstTaskLive";
   import { liveApprovalCall } from "./liveApprovalCall";
 
   interface Props {
@@ -107,10 +108,30 @@
   data-testid="chat-messages-list"
 >
   {#if empty && !isStreaming && !isProcessing}
-    <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
-      <MessageSquare size={28} />
-      <p class="text-xs">{$t("chat.first_message_placeholder")}</p>
-    </div>
+    {#if $firstTaskIntro?.sessionId === sessionId}
+      <!-- The conversation the first launch closed on says what it is. -->
+      <div
+        class="flex h-full flex-col items-center justify-center gap-3 text-center"
+        data-testid="first-task-intro"
+      >
+        <span class="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <MessageSquare size={18} />
+        </span>
+        <p class="m-0 text-body-sm font-medium text-foreground" data-testid="first-task-intro-title">
+          {$t("onboarding.first_task.intro_title", { values: { name: $firstTaskIntro.agentName } })}
+        </p>
+        {#if $firstTaskIntro.prefilled}
+          <p class="m-0 max-w-xs text-caption text-muted-foreground" data-testid="first-task-intro-body">
+            {$t("onboarding.first_task.intro_body")}
+          </p>
+        {/if}
+      </div>
+    {:else}
+      <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
+        <MessageSquare size={28} />
+        <p class="text-xs">{$t("chat.first_message_placeholder")}</p>
+      </div>
+    {/if}
   {:else}
     <!-- SummarizedMessagesBanner moved to ContextDrawer's Memory tab
          - no longer rendered inline in the message list. -->
