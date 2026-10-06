@@ -4,8 +4,12 @@
   "dynamicTestids": [
     "ai-category-all",
     "ai-category-draft",
+    "ai-discover-category-dictation",
     "ai-discover-category-embeddings",
     "ai-discover-category-language",
+    "ai-discover-default-presence_penalty",
+    "ai-discover-default-temperature",
+    "ai-discover-default-top_p",
     "ai-model-menu-copy_id",
     "ai-model-menu-copy_path",
     "ai-model-menu-delete",
@@ -18534,9 +18538,32 @@
               "source": "https://example.invalid/memory"
             },
             "defaults": {
+              "temperature": 0.7,
+              "top_p": 0.8,
+              "presence_penalty": 0,
               "source": "https://example.invalid/defaults"
             },
-            "author_fields": [],
+            "author_fields": [
+              {
+                "name": "enable_thinking",
+                "type": "booleen",
+                "default": true,
+                "explanation": "The model thinks before it answers.",
+                "source": "https://example.invalid/template"
+              },
+              {
+                "name": "reasoning_effort",
+                "type": "liste",
+                "values": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "default": "medium",
+                "explanation": "Sets how much the model thinks before its answer.",
+                "source": "https://example.invalid/template"
+              }
+            ],
             "repos": [
               "automation/alpha-8b-GGUF"
             ]
@@ -18599,6 +18626,36 @@
             "author_fields": [],
             "repos": [
               "automation/embed-small-GGUF"
+            ]
+          },
+          {
+            "id": "automation/voice-base",
+            "kind": "dictation",
+            "label": "Automation Voice Base",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "Turns speech into text, light and fast.",
+            "license": {
+              "id": "mit",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/voice-base",
+            "capabilities": {
+              "tools": false,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 1.2,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/voice.cpp"
             ]
           }
         ],
@@ -18924,6 +18981,98 @@
       "resolve": null
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_dictation_models",
+      "resolve": {
+        "models": [
+          {
+            "id": "automation-voice-base",
+            "label": "Automation Voice Base",
+            "publisher": "Automation Labs",
+            "released": "2026-03-01",
+            "license": "mit",
+            "repo": "automation/voice.cpp",
+            "file": "ggml-voice-base.bin",
+            "quantization": "F16",
+            "size_bytes": 148000000,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "card": "automation/voice-base",
+            "source": "https://example.invalid/voice",
+            "notes": null,
+            "footprint_gb": 1.14,
+            "fits": true
+          },
+          {
+            "id": "automation-voice-base-q5_1",
+            "label": "Automation Voice Base",
+            "publisher": "Automation Labs",
+            "released": "2026-03-01",
+            "license": "mit",
+            "repo": "automation/voice.cpp",
+            "file": "ggml-voice-base-q5_1.bin",
+            "quantization": "Q5_1",
+            "size_bytes": 60000000,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "card": "automation/voice-base",
+            "source": "https://example.invalid/voice",
+            "notes": null,
+            "footprint_gb": 1.06,
+            "fits": true
+          },
+          {
+            "id": "automation-voice-large",
+            "label": "Automation Voice Large",
+            "publisher": "Automation Labs",
+            "released": "2026-03-01",
+            "license": "mit",
+            "repo": "automation/voice.cpp",
+            "file": "ggml-voice-large.bin",
+            "quantization": "F16",
+            "size_bytes": 3100000000,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "card": "automation/voice-large",
+            "source": "https://example.invalid/voice",
+            "notes": null,
+            "footprint_gb": 3.9,
+            "fits": true
+          }
+        ],
+        "recommended": "automation-voice-base-q5_1",
+        "reason": null,
+        "language_model": null,
+        "hardware": {
+          "total_ram_gb": 32.0,
+          "available_ram_gb": 20.0,
+          "cpu_model": "Automation CPU",
+          "cpu_cores": 10,
+          "accelerator": {
+            "kind": "apple_silicon",
+            "chip": "Automation M",
+            "generation": 4
+          },
+          "memory_budget_gb": 21.3,
+          "total_capacity_gb": 21.3,
+          "devices": []
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_model_readme",
+      "resolve": {
+        "repo": "automation/alpha-8b-GGUF",
+        "author": "automation",
+        "license": "apache-2.0",
+        "source_url": "https://huggingface.co/automation/alpha-8b-GGUF",
+        "text": "---\nlicense: apache-2.0\n---\n\n# Automation Alpha 8B\n\nA compact model written for the automaton.\n\n- Reasons before it answers.\n- Calls tools.\n"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
       "kind": "goto",
       "route": "llm"
     },
@@ -18957,6 +19106,10 @@
     {
       "kind": "expect",
       "testid": "ai-discover-category-embeddings"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-category-dictation"
     },
     {
       "kind": "expect",
@@ -19008,8 +19161,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "ai-discover-variant",
-      "nth": 1,
+      "testid": "ai-discover-options-trigger",
       "timeoutMs": 3000
     },
     {
@@ -19053,14 +19205,6 @@
     {
       "kind": "expect",
       "testid": "ai-discover-close"
-    },
-    {
-      "kind": "expect",
-      "testid": "ai-discover-variant-format"
-    },
-    {
-      "kind": "expect",
-      "testid": "ai-discover-variant-size"
     },
     {
       "kind": "expect",
@@ -19109,8 +19253,144 @@
     },
     {
       "kind": "expect",
-      "testid": "ai-discover-variant-recommended",
-      "contains": "Recommended"
+      "testid": "ai-discover-download",
+      "contains": "Download 5.0 GB"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-chosen-name",
+      "contains": "Automation Alpha 8B"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-chosen-precision",
+      "contains": "4-bit"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-chosen-size",
+      "contains": "5.0"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-chosen-memory",
+      "contains": "6.2"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-conversation",
+      "contains": "Use in a new conversation"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-source",
+      "contains": "View source"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-author-fields",
+      "contains": "enable_thinking"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-author-field",
+      "nth": 1,
+      "contains": "reasoning_effort"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-author-field-default",
+      "nth": 0,
+      "contains": "default: yes"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-author-field-default",
+      "nth": 1,
+      "contains": "default: medium"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-defaults"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-default-temperature",
+      "contains": "0.7"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-default-top_p",
+      "contains": "0.8"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-default-presence_penalty",
+      "contains": "off"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-readme"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-readme-toggle",
+      "contains": "Show the README"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-discover-selection"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-card-copy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-card-source",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-options-trigger",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-options",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-variant",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-options-default",
+      "contains": "Use default"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-format",
+      "nth": 0,
+      "contains": "GGUF"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-size",
+      "nth": 0,
+      "contains": "5.0"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-recommended"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-offload"
     },
     {
       "kind": "expect",
@@ -19125,18 +19405,8 @@
       "contains": "Too large"
     },
     {
-      "kind": "expect",
-      "testid": "ai-discover-download",
-      "contains": "Download 5.0 GB"
-    },
-    {
       "kind": "screenshot",
-      "label": "01-discover-selection"
-    },
-    {
-      "kind": "click",
-      "testid": "ai-discover-card-copy",
-      "timeoutMs": 3000
+      "label": "01b-discover-download-options"
     },
     {
       "kind": "click",
@@ -19212,8 +19482,22 @@
     },
     {
       "kind": "click",
-      "testid": "ai-discover-variant-pick",
-      "nth": 0,
+      "testid": "ai-discover-options-trigger",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-options",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-options-default",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-options",
       "timeoutMs": 3000
     },
     {
@@ -19250,6 +19534,91 @@
       "testid": "topbar-downloads-count",
       "contains": "1",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-readme-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-readme-byline",
+      "contains": "automation/alpha-8b-GGUF",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-readme-byline",
+      "contains": "apache-2.0"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-readme-text",
+      "contains": "A compact model written for the automaton."
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-readme-toggle",
+      "contains": "Hide the README"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01c-discover-readme"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-readme-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-readme-text",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_model_readme"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_model_readme",
+      "reject": "API error (503): {\"error\":\"README unavailable offline\"}"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-readme-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-readme-error",
+      "contains": "README unavailable offline",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-readme-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-readme-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_model_readme"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_model_readme",
+      "resolve": {
+        "repo": "automation/alpha-8b-GGUF",
+        "author": "automation",
+        "license": "apache-2.0",
+        "source_url": "https://huggingface.co/automation/alpha-8b-GGUF",
+        "text": "---\nlicense: apache-2.0\n---\n\n# Automation Alpha 8B\n\nA compact model written for the automaton.\n\n- Reasons before it answers.\n- Calls tools.\n"
+      }
     },
     {
       "kind": "setChecked",
@@ -19319,7 +19688,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "ai-discover-variant-format",
+      "testid": "ai-discover-options-trigger",
       "contains": "MLX",
       "timeoutMs": 3000
     },
@@ -19340,7 +19709,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "ai-discover-variant-format",
+      "testid": "ai-discover-options-trigger",
       "contains": "GGUF",
       "timeoutMs": 3000
     },
@@ -19551,7 +19920,8 @@
     },
     {
       "kind": "expect",
-      "testid": "ai-discover-variant-recommended"
+      "testid": "ai-discover-chosen-precision",
+      "contains": "4-bit"
     },
     {
       "kind": "screenshot",
@@ -19689,9 +20059,32 @@
               "source": "https://example.invalid/memory"
             },
             "defaults": {
+              "temperature": 0.7,
+              "top_p": 0.8,
+              "presence_penalty": 0,
               "source": "https://example.invalid/defaults"
             },
-            "author_fields": [],
+            "author_fields": [
+              {
+                "name": "enable_thinking",
+                "type": "booleen",
+                "default": true,
+                "explanation": "The model thinks before it answers.",
+                "source": "https://example.invalid/template"
+              },
+              {
+                "name": "reasoning_effort",
+                "type": "liste",
+                "values": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "default": "medium",
+                "explanation": "Sets how much the model thinks before its answer.",
+                "source": "https://example.invalid/template"
+              }
+            ],
             "repos": [
               "automation/alpha-8b-GGUF"
             ]
@@ -19754,6 +20147,36 @@
             "author_fields": [],
             "repos": [
               "automation/embed-small-GGUF"
+            ]
+          },
+          {
+            "id": "automation/voice-base",
+            "kind": "dictation",
+            "label": "Automation Voice Base",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "Turns speech into text, light and fast.",
+            "license": {
+              "id": "mit",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/voice-base",
+            "capabilities": {
+              "tools": false,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 1.2,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/voice.cpp"
             ]
           }
         ],
@@ -20006,9 +20429,32 @@
               "source": "https://example.invalid/memory"
             },
             "defaults": {
+              "temperature": 0.7,
+              "top_p": 0.8,
+              "presence_penalty": 0,
               "source": "https://example.invalid/defaults"
             },
-            "author_fields": [],
+            "author_fields": [
+              {
+                "name": "enable_thinking",
+                "type": "booleen",
+                "default": true,
+                "explanation": "The model thinks before it answers.",
+                "source": "https://example.invalid/template"
+              },
+              {
+                "name": "reasoning_effort",
+                "type": "liste",
+                "values": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "default": "medium",
+                "explanation": "Sets how much the model thinks before its answer.",
+                "source": "https://example.invalid/template"
+              }
+            ],
             "repos": [
               "automation/alpha-8b-GGUF"
             ]
@@ -20071,6 +20517,36 @@
             "author_fields": [],
             "repos": [
               "automation/embed-small-GGUF"
+            ]
+          },
+          {
+            "id": "automation/voice-base",
+            "kind": "dictation",
+            "label": "Automation Voice Base",
+            "publisher": "Automation Labs",
+            "language": "en",
+            "description": "Turns speech into text, light and fast.",
+            "license": {
+              "id": "mit",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation/voice-base",
+            "capabilities": {
+              "tools": false,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 1.2,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation/voice.cpp"
             ]
           }
         ],
@@ -20444,7 +20920,7 @@
     },
     {
       "kind": "expect",
-      "testid": "ai-discover-variant-pick",
+      "testid": "ai-discover-chosen-name",
       "contains": "Automation Embed Small"
     },
     {
@@ -20455,6 +20931,94 @@
     {
       "kind": "screenshot",
       "label": "07-discover-search-by-meaning"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-category-dictation",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-result",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-result",
+      "nth": 0,
+      "contains": "Automation Voice Base"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card-name",
+      "contains": "Automation Voice Base",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-domain",
+      "contains": "Dictation"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-purpose",
+      "contains": "turns your voice into text"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-card-description",
+      "contains": "Turns speech into text"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-chosen-precision",
+      "contains": "Q5_1"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-download",
+      "contains": "Download 0.1 GB"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-conversation"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-options-trigger",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-options",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-variant",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-variant-recommended"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-variant-pick",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-chosen-precision",
+      "contains": "F16",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-discover-dictation"
     },
     {
       "kind": "click",
@@ -20584,12 +21148,186 @@
       "label": "08-discover-restricted-needs-token"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_installed_models",
+      "resolve": [
+        {
+          "id": "alpha-8b-q4_k_m",
+          "path": "${HOME}/.apollia/models/alpha-8b-Q4_K_M.gguf",
+          "name": "alpha-8b-Q4_K_M.gguf",
+          "size_bytes": 5000000000,
+          "kind": "llm",
+          "format": "gguf",
+          "category": "language",
+          "parameters": "8B",
+          "modified_at": "2026-09-01T00:00:00Z",
+          "pinned_at": null,
+          "origin_verified": true,
+          "in_use": false,
+          "used_by": null,
+          "capabilities": {
+            "tools": true,
+            "reasoning": true,
+            "vision": false
+          },
+          "source_url": "https://huggingface.co/automation/alpha-8b-GGUF",
+          "embedding_entry": null,
+          "default_chat": false,
+          "default_search": false
+        }
+      ]
+    },
+    {
       "kind": "goto",
       "route": "llm"
     },
     {
       "kind": "waitFor",
       "testid": "llm-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hf_model"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "argsMatch": {
+        "repoId": "automation/alpha-8b-GGUF"
+      },
+      "resolve": {
+        "repo_id": "automation/alpha-8b-GGUF",
+        "author": "automation",
+        "publisher_kind": "official",
+        "downloads": 872724,
+        "likes": 127,
+        "last_modified": "2026-08-20T10:00:00Z",
+        "license": "apache-2.0",
+        "tags": [
+          "gguf"
+        ],
+        "gated": false,
+        "total_size_bytes": null,
+        "gguf_files": [],
+        "generation_config": null,
+        "compatibility_issue": null,
+        "model_type": "automation-arch",
+        "capabilities": {
+          "tools": true,
+          "reasoning": true,
+          "vision": false
+        },
+        "variants": [
+          {
+            "repo_id": "automation/alpha-8b-GGUF",
+            "format": "gguf",
+            "level": "q4",
+            "quantization": "Q4_K_M",
+            "origin_file": "alpha-8b-Q4_K_M.gguf",
+            "files": [
+              "alpha-8b-Q4_K_M.gguf"
+            ],
+            "size_bytes": 5000000000,
+            "weights_bytes": 5000000000,
+            "sha256": null,
+            "memory_gb": 6.2,
+            "compatibility": "fits",
+            "fully_offloaded": true,
+            "downloaded": true,
+            "recommended": true
+          },
+          {
+            "repo_id": "automation/alpha-8b-GGUF",
+            "format": "gguf",
+            "level": "fp16",
+            "quantization": "BF16",
+            "origin_file": "alpha-8b-BF16.gguf",
+            "files": [
+              "alpha-8b-BF16.gguf"
+            ],
+            "size_bytes": 48000000000,
+            "weights_bytes": 48000000000,
+            "sha256": null,
+            "memory_gb": 52.0,
+            "compatibility": "too_large",
+            "fully_offloaded": false,
+            "downloaded": false,
+            "recommended": false
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "reject": "automation: the publishers are unreachable offline"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "reject": "automation: conversation refused (seeded fault)"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card-name",
+      "contains": "Automation Alpha 8B",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-status",
+      "contains": "already on this computer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-download",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-conversation",
+      "contains": "Use in a new conversation"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-discover-use-in-conversation"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-conversation",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-window"
+    },
+    {
+      "kind": "clearToasts"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-window",
       "timeoutMs": 3000
     },
     {
@@ -20681,6 +21419,26 @@
     {
       "kind": "clearStubs",
       "command": "get_hf_token"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_dictation_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_model_readme"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:opener|open_url"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_installed_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "create_chat_session"
     },
     {
       "kind": "goto",

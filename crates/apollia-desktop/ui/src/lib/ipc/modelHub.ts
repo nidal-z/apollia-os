@@ -355,6 +355,63 @@ export function listModelCards(lang: string): Promise<ModelCatalogue> {
   return invoke<ModelCatalogue>("list_model_cards", { lang });
 }
 
+/** The README of a repository, as `GET /api/v1/llm/registry/readme` answers. */
+export interface ModelReadme {
+  /** The repository, `owner/name`. */
+  repo: string;
+  /** Its owner. */
+  author: string;
+  /** The licence its front matter declares, when it declares one. */
+  license: string | null;
+  /** The page of the repository. */
+  source_url: string;
+  /** The text, as its author wrote it. */
+  text: string;
+}
+
+/**
+ * Reads the README of `repo` at its source. Nothing of it is kept by the
+ * shell: the caller holds the text for as long as it shows it. Rejects with
+ * the message of the route when the network is cut or the repository has none.
+ */
+export function getModelReadme(repo: string): Promise<ModelReadme> {
+  return invoke<ModelReadme>("get_model_readme", { repo });
+}
+
+/** One dictation file of the registry, with its verdict for this machine. */
+export interface DictationModel {
+  id: string;
+  label: string;
+  publisher: string;
+  /** ISO date the upstream repository was published. */
+  released: string;
+  license: string;
+  /** HuggingFace repository carrying the file, `owner/name`. */
+  repo: string;
+  file: string;
+  quantization: string;
+  size_bytes: number;
+  sha256: string;
+  /** Identifier of the dictation card that describes the model. */
+  card: string;
+  /** Its footprint, the file plus a fixed margin, in gibibytes. */
+  footprint_gb: number;
+  /** Whether that footprint fits this machine on its own. */
+  fits: boolean;
+}
+
+/** The dictation models and the one for this machine, as `GET /api/v1/llm/dictation` answers. */
+export interface DictationModels {
+  models: DictationModel[];
+  /** Identifier of the recommended entry, `null` when the registry has none. */
+  recommended: string | null;
+}
+
+/** The dictation models of the registry. Answered without the network. */
+export function getDictationModels(): Promise<DictationModels> {
+  return invoke<DictationModels>("get_dictation_models");
+}
+
 /** Subscribes to download progress; returns the unlisten handle. */
 export function listenDownloadProgress(
   handler: (progress: DownloadProgress) => void,

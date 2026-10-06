@@ -78,6 +78,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::embeddings::get_embeddings_recommendation,
         commands::embeddings::set_default_embeddings_model,
         commands::model_cards::list_model_cards,
+        commands::model_cards::get_model_readme,
+        commands::model_cards::get_dictation_models,
         commands::model_hub::cancel_model_download,
         commands::model_hub::list_installed_models,
         commands::model_hub::delete_installed_model,

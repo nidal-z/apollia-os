@@ -292,6 +292,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_default_embeddings_model",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Models: the README of a repository, read at its source on demand over
+    // `/api/v1/llm/registry/readme`, and the dictation models with the one
+    // for the machine of the daemon, over `/api/v1/llm/dictation`.
+    "get_dictation_models",
+    "get_model_readme",
     // Named settings of `apollia.toml`, read with their source and written
     // key by key: the developer mode.
     "get_resolved_setting",

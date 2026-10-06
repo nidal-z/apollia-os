@@ -353,6 +353,9 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/ui/src/lib/utils/slugify.test.ts": 3,
     "crates/apollia-desktop/ui/src/lib/connections/tryConnectorPrompt.test.ts": 4,
     "crates/apollia-desktop/ui/src/components/connections/tryConnection.test.ts": 4,
+    # The French texts the card of a model must show, word for word: the
+    # test reads them from the French catalogue and compares.
+    "crates/apollia-desktop/ui/src/components/ai/discoverCard.test.ts": 8,
     "crates/apollia-llm/tests/interval_junction.rs": 3,
     "crates/apollia-sources/tests/office_reader.rs": 3,
     "crates/apollia-sources/tests/results.rs": 4,

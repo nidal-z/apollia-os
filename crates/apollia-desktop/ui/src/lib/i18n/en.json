@@ -4727,7 +4727,8 @@
       "language": "Language model",
       "language_explanation": "This model answers in conversations and does the work of the agents.",
       "embeddings": "Embeddings",
-      "embeddings_explanation": "This model searches your sources and the memory by meaning. It does not converse."
+      "embeddings_explanation": "This model searches your sources and the memory by meaning. It does not converse.",
+      "dictation_explanation": "This model turns your voice into text for dictation. It does not converse."
     },
     "format_explanation": "The file format of the model. Apollia picks the engine that runs it from this: you have nothing to set.",
     "loaded": {
@@ -4980,8 +4981,8 @@
       "variant_bits": "{bits}-bit",
       "variant_memory": "about {size} GB in memory",
       "recommended": "Recommended",
-      "recommended_explanation": "The variant recommended for your hardware: the best balance of speed and quality that fits this computer.",
-      "on_this_computer": "On this computer",
+      "recommended_explanation": "Recommended for your hardware: a good balance of speed and quality.",
+      "downloaded": "Downloaded",
       "on_this_computer_explanation": "This variant is already downloaded on this computer.",
       "verdict": {
         "fits": "Fits this computer",
@@ -5004,6 +5005,52 @@
       "download_plain": "Download",
       "download_started": "Download started. Follow or cancel it from the downloads panel.",
       "token_needed": "This model has restricted access: store your Hugging Face token in the General settings, then start the download again.",
+      "options": {
+        "title": "Choose a download option",
+        "use_default": "Use default"
+      },
+      "offload": {
+        "label": "Full GPU offload possible",
+        "explanation": "Full GPU offload possible: the whole model fits in the memory of this computer's accelerator, which can make its answers much faster. Other factors (the architecture of the model, the integrity of the file, the memory free at load time) can still prevent it from loading."
+      },
+      "conversation": {
+        "use": "Use in a new conversation",
+        "reason": {
+          "not_downloaded": "The chosen variant is not on this computer yet: download it first.",
+          "not_listed": "The variant is on this computer, but it is not yet among the models you can talk to. Close this window, then open it again.",
+          "not_language": "This model does not converse: no conversation opens with it."
+        }
+      },
+      "author_fields": {
+        "title": "Author's own fields",
+        "subtitle": "Settings particular to this model, defined by its author",
+        "type_list": "list",
+        "type_boolean": "yes or no",
+        "default": "default: {value}",
+        "yes": "yes",
+        "no": "no"
+      },
+      "defaults": {
+        "title": "Default parameters",
+        "subtitle": "Values advised by the author of the model",
+        "off": "off",
+        "temperature": "Temperature",
+        "top_p": "Cumulative probability threshold (top-p)",
+        "top_k": "Number of choices kept (top-k)",
+        "min_p": "Minimum probability (min-p)",
+        "repetition_penalty": "Repetition penalty",
+        "presence_penalty": "Presence penalty"
+      },
+      "readme": {
+        "title": "Presentation text (README)",
+        "show": "Show the README",
+        "hide": "Hide the README",
+        "loading": "Reading the README at its source…",
+        "byline": "Repository {repo} · Author: {author} · License: {license}",
+        "license_none": "not declared",
+        "note": "Read at the source at your request; nothing is kept once closed.",
+        "error": "The README could not be read: {detail}"
+      },
       "card_empty": "Choose a model on the left to read its card.",
       "too_large": {
         "title": "Download a variant that is too large?",
