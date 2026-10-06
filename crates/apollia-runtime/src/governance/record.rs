@@ -266,6 +266,13 @@ pub enum GovernanceEvent {
         /// What exactly was refused.
         detail: String,
     },
+    /// The policy fixed a setting the user's file sets otherwise: what the
+    /// setting had opened was closed at startup. Neither value is recorded,
+    /// the policy holds the one in force.
+    PolicySettingEnforced {
+        /// Dotted key of the setting, `server.serve_on_lan` for instance.
+        key: String,
+    },
     /// Governance entered fail-closed.
     FailClosedTriggered {
         /// What cannot be read (`store_unreadable`, `policy_invalid` or
@@ -412,6 +419,7 @@ impl GovernanceEvent {
             GovernanceEvent::PolicyApplied { .. }
             | GovernanceEvent::PolicyChanged { .. }
             | GovernanceEvent::PolicyUnreadable { .. }
+            | GovernanceEvent::PolicySettingEnforced { .. }
             | GovernanceEvent::FailClosedTriggered { .. } => POLICY_RUN_ID,
             GovernanceEvent::JournalExported { .. }
             | GovernanceEvent::JournalExportFailed { .. } => JOURNAL_EXPORT_RUN_ID,
@@ -437,6 +445,7 @@ impl GovernanceEvent {
             GovernanceEvent::PolicyApplied { .. }
             | GovernanceEvent::PolicyChanged { .. }
             | GovernanceEvent::PolicyUnreadable { .. }
+            | GovernanceEvent::PolicySettingEnforced { .. }
             | GovernanceEvent::FailClosedTriggered { .. }
             | GovernanceEvent::JournalExported { .. }
             | GovernanceEvent::JournalPurged { .. }
@@ -467,6 +476,9 @@ impl GovernanceEvent {
             GovernanceEvent::PolicyApplied { .. } => JournalEntryKind::PolicyApplied,
             GovernanceEvent::PolicyChanged { .. } => JournalEntryKind::PolicyChanged,
             GovernanceEvent::PolicyUnreadable { .. } => JournalEntryKind::PolicyUnreadable,
+            GovernanceEvent::PolicySettingEnforced { .. } => {
+                JournalEntryKind::PolicySettingEnforced
+            }
             GovernanceEvent::FailClosedTriggered { .. } => JournalEntryKind::FailClosedTriggered,
             GovernanceEvent::JournalExported { .. } => JournalEntryKind::JournalExported,
             GovernanceEvent::JournalPurged { .. } => JournalEntryKind::JournalPurged,

@@ -449,6 +449,7 @@ fn every_kind_is_said_in_words_and_carries_the_nature_of_its_kind() {
         "policy_applied",
         "policy_changed",
         "policy_unreadable",
+        "policy_setting_enforced",
         "fail_closed_triggered",
         "journal_exported",
         "journal_purged",

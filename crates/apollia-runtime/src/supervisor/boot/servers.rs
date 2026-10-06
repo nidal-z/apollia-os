@@ -27,21 +27,26 @@ impl Supervisor {
     /// the file the desktop reads, when it was started without one.
     ///
     /// It serves `agents`, the exposed agents and workflows, as models, and
-    /// writes each request it answers to `journal`.
-    pub(super) fn spawn_compat_server(
+    /// writes each request it answers to `journal`. What the organisation
+    /// policy of `core` fixes of its settings wins over the file.
+    pub(super) fn spawn_compat_server<B: ExecutionBackend + Clone>(
         &self,
+        core: &Core<B>,
         inference: &Inference,
-        event_sender: &EventBusSender,
         agents: crate::compat_server::ExposedAgents,
         journal: Option<AuditJournalHandle>,
     ) -> crate::compat_server::CompatServerHandle {
+        let imposed = core.org_policy.imposed_settings();
         let settings = self
             .config
             .config_path
             .clone()
             .unwrap_or_else(|| self.config.data_dir.join("apollia.toml"));
         crate::compat_server::CompatServerHandle::spawn(
-            settings.clone(),
+            crate::compat_server::ServerSettings {
+                path: settings.clone(),
+                policy: imposed.clone(),
+            },
             crate::compat_server::ServerRecords {
                 system_db: inference.system_db_path.clone(),
                 journal,
@@ -51,9 +56,10 @@ impl Supervisor {
                 inference.mlx_engine.clone(),
                 Some(crate::installed_models::models_dir(&self.config.data_dir)),
             )
-            .with_files(settings, inference.system_db_path.clone()),
+            .with_files(settings, inference.system_db_path.clone())
+            .under_policy(imposed),
             agents,
-            event_sender,
+            &core.event_sender,
         )
     }
 

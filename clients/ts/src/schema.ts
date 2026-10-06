@@ -7160,6 +7160,8 @@ export interface components {
              *     alone, `http://<IPv4 address on the local network>:<port>` otherwise.
              */
             address: string;
+            /** @description For each setting the organisation policy can fix, whether it does. */
+            imposedByPolicy: components["schemas"]["ServerPolicyLocks"];
             /** @description Why the last start failed, cleared by the next successful start. */
             lastError?: string | null;
             /**
@@ -10381,6 +10383,21 @@ export interface components {
             models: components["schemas"]["ServerModel"][];
             /** @description Server name. */
             server: string;
+        };
+        /**
+         * @description Which settings of the compatible server the organisation policy imposes.
+         *     An imposed setting cannot be written: the value in force is the policy's.
+         */
+        ServerPolicyLocks: {
+            /**
+             * @description `server.allow_request_mcp`: the policy refuses the MCP servers a
+             *     request brings.
+             */
+            allowRequestMcp: boolean;
+            /** @description `server.require_auth`: the policy requires a token on every request. */
+            requireAuth: boolean;
+            /** @description `server.serve_on_lan`: the policy keeps the server on the machine. */
+            serveOnLan: boolean;
         };
         /** @description Body of a failed server call: a readable message and a stable kind. */
         ServerProbeErrorResponse: {

@@ -82,6 +82,11 @@ const STOP_GRACE: Duration = Duration::from_secs(30);
 const TURNED_OFF: &str = "MCP servers brought by a request are turned off. Turn on \
                           `[server] allow_request_mcp` in Apollia to accept them.";
 
+/// What a refusal says when the organisation policy fixed the setting off: no
+/// setting of the user turns it on.
+const REFUSED_BY_POLICY: &str = "MCP servers brought by a request are refused by the \
+                                 organisation policy, which fixes `server.allow_request_mcp` off.";
+
 /// A run of the agent executor started for a request.
 pub struct LaunchedRequest {
     /// The task of the run.
@@ -491,7 +496,12 @@ pub(crate) async fn call_with_request_mcp(
     let refuse = |(kind, message): (ErrorKind, String)| error_response(family, kind, message);
     let invalid = |message: String| error_response(family, ErrorKind::InvalidRequest, message);
     if !models.allows_request_mcp() {
-        return invalid(TURNED_OFF.to_owned());
+        let reason = if models.request_mcp_fixed_by_policy() {
+            REFUSED_BY_POLICY
+        } else {
+            TURNED_OFF
+        };
+        return invalid(reason.to_owned());
     }
     if model.starts_with(MODEL_PREFIX) {
         return invalid(format!(

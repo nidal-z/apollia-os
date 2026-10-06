@@ -73,7 +73,7 @@ pub use forbidden::{mailbox_refusal, ForbiddenConnections, FORBIDDEN_CONNECTION_
 pub use inference_policy::{
     InferenceGovernance, REMOTE_SERVER_DENIED_REASON, SERVER_NOT_ALLOWED_REASON,
 };
-pub(crate) use journal::{record_export, record_policy_at_startup};
+pub(crate) use journal::{record_export, record_policy_at_startup, record_setting_enforced};
 pub(crate) use journal_policy::{record_journal_state_at_startup, start_journal_policy};
 #[cfg(test)]
 pub use no_policy::NoPolicyGovernance;

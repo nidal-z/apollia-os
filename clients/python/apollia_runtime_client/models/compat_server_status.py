@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
+
+if TYPE_CHECKING:
+    from ..models.server_policy_locks import ServerPolicyLocks
+
 
 T = TypeVar("T", bound="CompatServerStatus")
 
@@ -19,6 +23,8 @@ class CompatServerStatus:
         active_tokens (int): How many tokens of the server are in use (not revoked).
         address (str): The address a client copies: `http://127.0.0.1:<port>` on the machine
             alone, `http://<IPv4 address on the local network>:<port>` otherwise.
+        imposed_by_policy (ServerPolicyLocks): Which settings of the compatible server the organisation policy imposes.
+            An imposed setting cannot be written: the value in force is the policy's.
         port (int): The port it listens on, or the configured port when it is stopped.
         running (bool): Whether the listener is open.
         serve_on_lan (bool): Whether it listens on every interface, reachable from the local
@@ -28,6 +34,7 @@ class CompatServerStatus:
 
     active_tokens: int
     address: str
+    imposed_by_policy: ServerPolicyLocks
     port: int
     running: bool
     serve_on_lan: bool
@@ -38,6 +45,8 @@ class CompatServerStatus:
         active_tokens = self.active_tokens
 
         address = self.address
+
+        imposed_by_policy = self.imposed_by_policy.to_dict()
 
         port = self.port
 
@@ -57,6 +66,7 @@ class CompatServerStatus:
             {
                 "activeTokens": active_tokens,
                 "address": address,
+                "imposedByPolicy": imposed_by_policy,
                 "port": port,
                 "running": running,
                 "serveOnLan": serve_on_lan,
@@ -69,10 +79,14 @@ class CompatServerStatus:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.server_policy_locks import ServerPolicyLocks
+
         d = dict(src_dict)
         active_tokens = d.pop("activeTokens")
 
         address = d.pop("address")
+
+        imposed_by_policy = ServerPolicyLocks.from_dict(d.pop("imposedByPolicy"))
 
         port = d.pop("port")
 
@@ -92,6 +106,7 @@ class CompatServerStatus:
         compat_server_status = cls(
             active_tokens=active_tokens,
             address=address,
+            imposed_by_policy=imposed_by_policy,
             port=port,
             running=running,
             serve_on_lan=serve_on_lan,

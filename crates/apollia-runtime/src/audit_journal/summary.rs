@@ -162,9 +162,11 @@ pub fn nature_of(kind: &JournalEntryKind) -> JournalNature {
         | K::RuleAdded
         | K::RuleRemoved
         | K::BatchAccessGranted => JournalNature::AccessChange,
-        K::PolicyApplied | K::PolicyChanged | K::PolicyUnreadable | K::FailClosedTriggered => {
-            JournalNature::Policy
-        }
+        K::PolicyApplied
+        | K::PolicyChanged
+        | K::PolicyUnreadable
+        | K::PolicySettingEnforced
+        | K::FailClosedTriggered => JournalNature::Policy,
         K::LlmCallStarted
         | K::LlmCallCompleted
         | K::LlmCompletion
@@ -309,6 +311,7 @@ pub fn summarize(entry: &JournalEntry) -> JournalSummary {
         | K::PolicyApplied
         | K::PolicyChanged
         | K::PolicyUnreadable
+        | K::PolicySettingEnforced
         | K::FailClosedTriggered
         | K::JournalExported
         | K::JournalPurged
@@ -514,6 +517,11 @@ fn governance_summary(summary: &mut JournalSummary, event: &GovernanceEvent) {
             summary.target = Some(reason.clone());
             summary.outcome = Some(JournalOutcome::Failure);
             "Organisation policy refused"
+        }
+        GovernanceEvent::PolicySettingEnforced { key } => {
+            summary.target = Some(key.clone());
+            summary.outcome = Some(JournalOutcome::Refused);
+            "Setting closed by the organisation policy"
         }
         GovernanceEvent::FailClosedTriggered { cause, .. } => {
             summary.target = Some(cause.clone());

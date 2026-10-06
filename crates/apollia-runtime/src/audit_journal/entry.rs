@@ -132,6 +132,11 @@ pub enum JournalEntryKind {
     /// A deposited policy was refused at startup. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     PolicyUnreadable,
+    /// The organisation policy fixed a setting the user's file sets
+    /// otherwise, and what the setting had opened was closed at startup. The
+    /// payload is a [`crate::governance::GovernanceRecord`]: it names the
+    /// setting.
+    PolicySettingEnforced,
     /// Governance entered fail-closed: it refuses what is sensitive. The
     /// payload is a [`crate::governance::GovernanceRecord`].
     FailClosedTriggered,
@@ -214,6 +219,7 @@ impl JournalEntryKind {
             JournalEntryKind::PolicyApplied => "policy_applied",
             JournalEntryKind::PolicyChanged => "policy_changed",
             JournalEntryKind::PolicyUnreadable => "policy_unreadable",
+            JournalEntryKind::PolicySettingEnforced => "policy_setting_enforced",
             JournalEntryKind::FailClosedTriggered => "fail_closed_triggered",
             JournalEntryKind::JournalExported => "journal_exported",
             JournalEntryKind::JournalPurged => "journal_purged",
@@ -271,6 +277,7 @@ impl JournalEntryKind {
             "policy_applied" => JournalEntryKind::PolicyApplied,
             "policy_changed" => JournalEntryKind::PolicyChanged,
             "policy_unreadable" => JournalEntryKind::PolicyUnreadable,
+            "policy_setting_enforced" => JournalEntryKind::PolicySettingEnforced,
             "fail_closed_triggered" => JournalEntryKind::FailClosedTriggered,
             "journal_exported" => JournalEntryKind::JournalExported,
             "journal_purged" => JournalEntryKind::JournalPurged,
@@ -514,6 +521,10 @@ mod tests {
             (JournalEntryKind::PolicyApplied, "policy_applied"),
             (JournalEntryKind::PolicyChanged, "policy_changed"),
             (JournalEntryKind::PolicyUnreadable, "policy_unreadable"),
+            (
+                JournalEntryKind::PolicySettingEnforced,
+                "policy_setting_enforced",
+            ),
             (
                 JournalEntryKind::FailClosedTriggered,
                 "fail_closed_triggered",

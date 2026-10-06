@@ -439,6 +439,7 @@ from .server_log_line import ServerLogLine
 from .server_log_source import ServerLogSource
 from .server_model import ServerModel
 from .server_models_response import ServerModelsResponse
+from .server_policy_locks import ServerPolicyLocks
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .server_token_view import ServerTokenView
@@ -1030,6 +1031,7 @@ __all__ = (
     "ServerLogSource",
     "ServerModel",
     "ServerModelsResponse",
+    "ServerPolicyLocks",
     "ServerProbeErrorResponse",
     "ServerResponse",
     "ServersListResponse",

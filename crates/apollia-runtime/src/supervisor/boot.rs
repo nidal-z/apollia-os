@@ -203,8 +203,8 @@ impl Supervisor {
         .with_workflows(executors.workflows.clone())
         .with_request_mcp(self.request_mcp(&core, &inference, &governance, &executors));
         let compat_server = self.spawn_compat_server(
+            &core,
             &inference,
-            &core.event_sender,
             exposed_agents,
             governance.audit_journal.clone(),
         );

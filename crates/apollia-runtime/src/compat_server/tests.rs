@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use apollia_core::config::ServerConfig;
+use apollia_core::config::{PolicySettings, ServerConfig};
 use apollia_core::RuntimeEvent;
 use tempfile::TempDir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -36,13 +36,27 @@ pub(crate) fn settings_file(content: &str) -> (TempDir, PathBuf) {
 /// Spawns the compatible server over the `apollia.toml` at `path`, its tokens
 /// in a `system.db` beside it.
 pub(crate) fn spawn_server(path: &std::path::Path, bus: &EventBusSender) -> CompatServerHandle {
+    spawn_server_under(path, bus, PolicySettings::none(), None)
+}
+
+/// The same server under what an organisation policy fixes, its entries
+/// written to `journal`.
+pub(crate) fn spawn_server_under(
+    path: &std::path::Path,
+    bus: &EventBusSender,
+    policy: PolicySettings,
+    journal: Option<crate::audit_journal::AuditJournalHandle>,
+) -> CompatServerHandle {
     CompatServerHandle::spawn(
-        path.to_path_buf(),
+        super::ServerSettings {
+            path: path.to_path_buf(),
+            policy: policy.clone(),
+        },
         super::ServerRecords {
             system_db: path.with_file_name("system.db"),
-            journal: None,
+            journal,
         },
-        super::LocalModels::default(),
+        super::LocalModels::default().under_policy(policy),
         super::ExposedAgents::default(),
         bus,
     )
@@ -60,7 +74,7 @@ pub(crate) async fn listens(port: u16) -> bool {
 
 /// Sends `GET path` to the compatible server and returns the status code and
 /// the JSON body.
-async fn get(port: u16, path: &str) -> (u16, serde_json::Value) {
+pub(crate) async fn get(port: u16, path: &str) -> (u16, serde_json::Value) {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
     let request = format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
     stream.write_all(request.as_bytes()).await.unwrap();

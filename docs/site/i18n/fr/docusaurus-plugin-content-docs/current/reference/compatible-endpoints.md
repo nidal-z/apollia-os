@@ -68,7 +68,7 @@ Quatre routes de l'API native le pilotent pendant que le runtime tourne :
 
 | Route | Effet |
 |---|---|
-| `GET /api/v1/server` | S'il écoute, son port, s'il sert le réseau local, l'adresse à copier, pourquoi son dernier démarrage a échoué, et combien de jetons sont actifs |
+| `GET /api/v1/server` | S'il écoute, son port, s'il sert le réseau local, l'adresse à copier, pourquoi son dernier démarrage a échoué, combien de jetons sont actifs, et lesquels de ses réglages la [politique de l'organisation](#politique-de-lorganisation) fige |
 | `POST /api/v1/server/start` | L'ouvre sur le port configuré et écrit `enabled = true` |
 | `POST /api/v1/server/stop` | Le ferme et écrit `enabled = false` ; l'API native continue de répondre |
 | `POST /api/v1/server/restart` | Le ferme et le rouvre pour qu'il applique les clés `[server]` telles qu'elles sont ; seul cet écouteur est rouvert, l'API native garde ses connexions. Un serveur arrêté reste arrêté |
@@ -132,6 +132,43 @@ Chaque requête est classée, à l'acceptation de sa connexion, comme venue de l
 machine (l'interface de boucle locale) ou du réseau local (toute autre adresse).
 La décision et sa lecture au regard du principe du local d'abord sont écrites
 dans les [décisions d'architecture](/architecture/decisions#local-server).
+
+## Politique de l'organisation
+
+Une organisation qui dépose une politique signée sur le poste ferme trois
+réglages du serveur compatible, par la table `[settings]` de son `policy.toml` :
+
+```toml
+[settings]
+"server.serve_on_lan" = false        # le serveur reste sur la machine
+"server.require_auth" = true         # chaque requête présente un jeton
+"server.allow_request_mcp" = false   # aucune requête n'apporte de serveur MCP
+```
+
+| Clé | La valeur qu'une politique fige | Ce qu'elle ferme |
+|---|---|---|
+| `server.serve_on_lan` | `false` | Le réseau local : le serveur écoute sur la seule interface de boucle locale |
+| `server.require_auth` | `true` | Un serveur sans jeton : chaque requête en présente un |
+| `server.allow_request_mcp` | `false` | Les serveurs MCP apportés par une requête : une telle requête répond `400`, et le message nomme la politique |
+
+Une politique ne fait que fermer. Celle qui fige l'une des trois clés à l'autre
+valeur est refusée en entier à sa lecture, comme une politique qui nomme une clé
+inconnue : ouvrir le serveur reste un geste de l'utilisateur, jamais celui d'un
+fichier déposé sur le poste.
+
+Une clé que la politique fige est lue dans la politique, quoi que dise
+`apollia.toml`, et son écriture est refusée par « setting 'server.serve_on_lan'
+is locked by the organization policy ». `GET /api/v1/server` dit quelles clés
+sont figées dans son champ `imposedByPolicy`, un booléen par clé : `serveOnLan`,
+`requireAuth`, `allowRequestMcp`.
+
+Le runtime lit la politique à son démarrage, avant que le serveur n'ouvre. Un
+serveur qu'`apollia.toml` avait laissé allumé et ouvert contre la politique
+ouvre donc fermé, et le journal d'audit garde une entrée par clé fermée ainsi,
+de nature `policy_setting_enforced`, dans l'exécution
+`governance:policy:organisation`. L'entrée nomme la clé et ne porte aucune
+valeur. La façon dont une politique se dépose et se signe est écrite dans les
+[décisions d'architecture](/architecture/decisions#organisation-policy).
 
 ## Journaux du serveur
 

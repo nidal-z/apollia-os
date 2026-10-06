@@ -159,6 +159,8 @@ impl CompletionModel for Scripted {
 struct Setup {
     /// `[server] allow_request_mcp`.
     allowed: bool,
+    /// Whether the organisation policy fixes that setting off.
+    refused_by_policy: bool,
     /// The `[connections]` section of the organisation policy, when there is
     /// one.
     connections_policy: Option<&'static str>,
@@ -170,6 +172,7 @@ impl Setup {
     fn allowed() -> Self {
         Self {
             allowed: true,
+            refused_by_policy: false,
             connections_policy: None,
             rule_on: None,
         }
@@ -251,6 +254,14 @@ async fn fixture(setup: Setup) -> Fixture {
         Some(models_dir.path().to_path_buf()),
     )
     .with_files(settings.clone(), dir.path().join("system.db"));
+    let models = if setup.refused_by_policy {
+        models.under_policy(
+            apollia_core::config::PolicySettings::none()
+                .impose("server.allow_request_mcp", json!(false)),
+        )
+    } else {
+        models
+    };
     let backend = models.backend_row(MODEL).await;
 
     let asked: Asked = Arc::default();
@@ -459,6 +470,37 @@ async fn test_a_request_that_brings_a_server_is_refused_while_the_setting_is_off
     assert!(said.contains("allow_request_mcp"), "{said}");
     assert_eq!(message["type"], "error");
     assert_eq!(message["error"]["type"], "invalid_request_error");
+    assert_eq!(message["error"]["message"], response["error"]["message"]);
+    assert!(fx.methods().is_empty());
+    assert!(fx.relayed.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_the_policy_that_fixes_the_setting_off_refuses_the_request_whatever_the_file_says() {
+    // GIVEN a runtime whose file turns `[server] allow_request_mcp` on, under
+    // an organisation policy that fixes it off
+    let fx = fixture(Setup {
+        refused_by_policy: true,
+        ..Setup::allowed()
+    })
+    .await;
+
+    // WHEN a response and a message each bring an MCP server
+    let (response_status, response) =
+        send(&fx.router, "/v1/responses", response_with(&fx.mcp_url)).await;
+    let (message_status, message) =
+        send(&fx.router, "/v1/messages", message_with(&fx.mcp_url)).await;
+
+    // THEN both are refused with a 400 that names the policy and the setting,
+    // and neither the server nor the engine was reached
+    assert_eq!(response_status, StatusCode::BAD_REQUEST);
+    assert_eq!(message_status, StatusCode::BAD_REQUEST);
+    let said = response["error"]["message"].as_str().unwrap();
+    assert!(
+        said.contains("refused by the organisation policy"),
+        "{said}"
+    );
+    assert!(said.contains("server.allow_request_mcp"), "{said}");
     assert_eq!(message["error"]["message"], response["error"]["message"]);
     assert!(fx.methods().is_empty());
     assert!(fx.relayed.lock().unwrap().is_empty());

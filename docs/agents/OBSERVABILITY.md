@@ -376,7 +376,10 @@ journaled at the next start, dated when it was made. The run
 `governance:policy:organisation` holds `PolicyApplied` at each start (with the
 key fingerprint and the SHA-256 of the policy file), `PolicyChanged` when that
 digest differs from the last one applied, `PolicyUnreadable` with its reason,
-and `FailClosedTriggered` on each entry into fail-closed. `JournalExported`
+`PolicySettingEnforced` for each setting of the compatible server the policy
+fixes against a file that had left the server on and open (the entry names the
+dotted key and holds no value), and `FailClosedTriggered` on each entry into
+fail-closed. `JournalExported`
 goes to `governance:journal:export`.
 
 A change of `apollia.toml` is `ConfigurationChanged`, in the run

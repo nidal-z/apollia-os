@@ -20,7 +20,7 @@ use super::tokens::ServerTokensHandle;
 use crate::eventbus::EventBus;
 
 /// The IPv4 address of this machine on the local network, if it has one.
-fn lan_ip() -> Option<Ipv4Addr> {
+pub(super) fn lan_ip() -> Option<Ipv4Addr> {
     let address = reachable_address(true, 1);
     let ip: Ipv4Addr = address
         .strip_prefix("http://")?
