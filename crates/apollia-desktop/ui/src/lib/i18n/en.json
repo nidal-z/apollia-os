@@ -74,17 +74,10 @@
     "no_input": "No input",
     "delete": "Delete",
     "clear": "Clear",
-    "status": {
-      "ready": "READY",
-      "untested": "NOT TESTED",
-      "error": "ERROR"
-    },
     "back": "Back",
     "next": "Next",
     "optional_label": "(optional)",
     "na": "N/A",
-    "default_badge": "DEFAULT",
-    "saving": "Saving…",
     "finalize": "Finalize",
     "finalizing": "Finalizing…",
     "copy": "Copy",
@@ -1194,18 +1187,6 @@
       "remaining": "· {remaining} left"
     }
   },
-  "llm": {
-    "model": "Model",
-    "ping_ok": "Ping OK ({latency}ms)",
-    "ping_failed": "Ping failed",
-    "local_ai": "Local AI",
-    "running": "Running",
-    "status_untested": "Not tested",
-    "status_error": "Error",
-    "free_local": "Free (runs on your machine)",
-    "pay_per_use": "Pay per use",
-    "details": "Details"
-  },
   "automations": {
     "title": "Automations",
     "delete": "Delete",
@@ -2015,7 +1996,6 @@
       "appearance": "Appearance",
       "profile": "Profile",
       "stt": "Dictation",
-      "llm": "LLM backends",
       "model_hub": "Model Hub",
       "configuration": "Configuration",
       "system": "System info",
@@ -2470,71 +2450,6 @@
     "stt_model_filter": "Whisper models",
     "stt_model_loaded_toast": "Model \"{name}\" added to your library.",
     "stt_config_hint": "To edit manually, modify the [stt] section in apollia.toml.",
-    "llm_backends": "LLM Backends",
-    "llm_add_backend": "Add backend",
-    "llm_backend_enabled": "Enabled",
-    "llm_backend_default": "Set as default",
-    "llm_no_backends": "No LLM backends configured. Add one to enable AI features.",
-    "llm_set_default": "Set as default",
-    "llm": {
-      "edit": "Edit",
-      "test": "Test connection",
-      "delete_title": "Delete backend",
-      "delete_message": "Delete backend ''{name}''? Active sessions using this backend will fail.",
-      "delete_type_prompt": "Type DELETE to confirm removing the default backend.",
-      "delete_toast": "Backend ''{name}'' deleted",
-      "reload_btn": "Reload",
-      "reload_toast": "LLM engine reloaded",
-      "subtitle": "Language-model backends used by Apollia and your agents."
-    },
-    "llm_dialog": {
-      "title_add": "Add LLM backend",
-      "title_edit": "Edit ''{name}''",
-      "field_name": "Name",
-      "field_provider": "Provider",
-      "field_endpoint": "Endpoint",
-      "field_api_key": "API key",
-      "field_model": "Model",
-      "field_timeout": "Timeout (seconds)",
-      "field_extra_json": "Extra config (JSON object)",
-      "advanced": "Advanced",
-      "section_gen_params": "Generation parameters",
-      "field_temperature": "Temperature",
-      "field_top_k": "Top-K",
-      "field_top_p": "Top-P",
-      "field_repeat_penalty": "Repeat penalty",
-      "gen_params_hint": "Leave blank to use model defaults. Auto-fill from HuggingFace below.",
-      "hf_autofill_title": "Auto-fill from HuggingFace",
-      "hf_autofill_btn": "Fetch params",
-      "hf_no_config": "No generation_config.json found for this repo.",
-      "hf_filled": "Parameters filled from HuggingFace.",
-      "api_key_unchanged": "Leave empty to keep existing key",
-      "test_connection": "Test connection",
-      "testing": "Testing…",
-      "test_ok": "Connection OK ({ms} ms)",
-      "test_failed": "Connection failed",
-      "test_invalid": "Fix validation errors before testing.",
-      "test_local_ok": "Configuration looks valid. Full connection test runs after save.",
-      "field_model_path": "Model file",
-      "browse": "Browse…",
-      "browse_title": "Select a GGUF model file",
-      "scan": "Scan",
-      "scan_empty": "No .gguf files found in ~/.apollia/models, ~/Downloads, or ~/.cache/lm-studio.",
-      "recommended": "Recommended",
-      "multipart_first": "Multi-part model ({total} files) - all parts must be in the same folder.",
-      "multipart_corrected": "Part {part}/{total} selected - path corrected to the first part automatically.",
-      "err_required": "Required",
-      "err_invalid_name": "Use lowercase letters, digits, _ or -",
-      "err_invalid_url": "Must be a valid http(s) URL",
-      "err_invalid_timeout": "Must be a positive number",
-      "err_invalid_json": "Invalid JSON",
-      "err_invalid_json_object": "Must be a JSON object",
-      "warn_cleartext_credentials": "This endpoint uses http:// on another host, so the API key travels unencrypted over the network. Use https://, or a tunnel, unless you fully trust this network.",
-      "notice_remote_egress": "A remote backend sends your prompts to that machine, which can include file contents, memory and workspace data. Local models keep everything on this machine.",
-      "field_context_window": "Context window",
-      "context_window_default": "Default (32k tokens)",
-      "context_window_hint": "How much of a conversation the model holds at once, in tokens. The engine is launched with this window, and compaction and the context gauge are sized against it. A larger window uses more memory, and a model trained on a shorter one runs at its own length."
-    },
     "model_hub": {
       "subtitle": "Browse, download, and manage GGUF models from HuggingFace.",
       "installed": {
@@ -2778,10 +2693,6 @@
       "web_read": {
         "ssrf_guard": "SSRF guard (reject private/loopback hosts)"
       }
-    },
-    "llm_backend": {
-      "provider_local": "local",
-      "provider_openai_compatible": "OpenAI-compatible server"
     },
     "all_saved": "All changes saved",
     "save": "Save",
@@ -4836,6 +4747,20 @@
       "payload": "Payload",
       "hash": "Hash",
       "hash_value": "{hash} (previous: {previous})"
+    },
+    "ai": {
+      "servers": {
+        "timeout_label": "Timeout (seconds)",
+        "timeout_hint": "How long the server may stay silent before a request is given up, from {min} to {max} seconds. Empty: the default of Apollia, ten minutes.",
+        "extra_label": "Extra JSON parameters",
+        "extra_hint": "A JSON object whose fields are added to every request sent to this server. A field the request already carries keeps the value of the request.",
+        "error": {
+          "invalid_timeout": "Type a whole number of seconds, from 60 to 3600.",
+          "invalid_json": "This text is not valid JSON.",
+          "invalid_json_object": "Type a JSON object, between braces.",
+          "reserved_field": "The fields model, messages, stream, stream_options, tools and tool_choice cannot be added here."
+        }
+      }
     }
   },
   "ai": {
@@ -4957,6 +4882,92 @@
       "title": "Delete {name}?",
       "message": "The file is removed from this computer. You will have to download or import it again to use it.",
       "confirm": "Delete"
+    },
+    "servers": {
+      "title": "Servers",
+      "add": "Add a server",
+      "status": {
+        "active": "Active",
+        "active_explanation": "The server answers and its models are offered to conversations and agents.",
+        "disabled": "Disabled",
+        "disabled_explanation": "This server is disabled: its models are no longer offered.",
+        "checking": "Checking…",
+        "checking_explanation": "Apollia is asking the server for the list of its models.",
+        "unreachable": "Unreachable",
+        "unreachable_explanation": "The server does not answer at its address.",
+        "failing": "Failing",
+        "failing_explanation": "Something answers at this address, but not with the list of models."
+      },
+      "enabled_label": "Active",
+      "enabled_aria": "Enable or disable {name}",
+      "test": "Test",
+      "edit": "Edit",
+      "menu_more": "More actions on {name}",
+      "menu": {
+        "copy_address": "Copy address",
+        "delete": "Delete"
+      },
+      "address": "Address",
+      "key": "Key",
+      "key_saved": "Key saved",
+      "key_none": "No key",
+      "model_count": "{count, plural, =0 {No model} one {# model} other {# models}}",
+      "disabled_hint": "This server is disabled: its models are no longer offered to conversations or agents. Turn it back on with the \"Active\" switch.",
+      "loading": "Reading the models of the server…",
+      "no_models": "The server answers, but offers no model. Install or load a model on the server, then test again.",
+      "stale_hint": "Last known list of the models of this server.",
+      "col_model": "Model",
+      "col_window": "Context window",
+      "short_window": "Short window",
+      "short_window_explanation": "The server serves this model with a context window shorter than the one an agent needs.",
+      "window": "{tokens} tokens",
+      "window_unknown": "Not stated",
+      "short_window_warning": "The server opens {model} with a window of {window} tokens, where an agent expects {expected}. A long conversation or a task of several steps may be cut short. Only the person who runs this server can enlarge this window.",
+      "admin_note": "The loading settings of these models belong to the person who runs the server: Apollia does not change them.",
+      "models_label": "Models of the server",
+      "list_error": "The list of servers could not be read.",
+      "empty_title": "No server connected",
+      "empty_hint": "A server makes the models of your organization available without installing them on this computer.",
+      "toast": {
+        "enabled": "{name} is enabled.",
+        "disabled": "{name} is disabled: its models are no longer offered.",
+        "saved": "{name} is saved.",
+        "deleted": "{name} is deleted.",
+        "address_copied": "Address copied."
+      },
+      "delete_dialog": {
+        "title": "Delete the server {name}?",
+        "message": "Its models will no longer be offered and its key is forgotten. This cannot be undone.",
+        "confirm": "Delete",
+        "type_label": "To confirm, type the name of the server: {name}"
+      },
+      "form": {
+        "title_add": "Add a server",
+        "title_edit": "Edit {name}",
+        "intro": "Connect the AI server of your organization: Ollama, vLLM, TGI, LiteLLM or any OpenAI-compatible server. Its models become available to conversations and agents.",
+        "address_label": "Address",
+        "address_hint": "The address the server gives its clients, with http:// or https:// and its port, for example {example}. It often ends with /v1.",
+        "name_label": "Name",
+        "name_hint": "The name this server appears under in Apollia: lowercase letters, digits and hyphens.",
+        "name_fixed_hint": "The name of a saved server does not change: its models are addressed by it.",
+        "key_label": "Key",
+        "key_hint": "Only if the server asks for one. Apollia keeps it with its secrets, never in clear.",
+        "key_saved_hint": "A key is saved and is never shown. Leave the field empty to keep it, or type another one to replace it.",
+        "key_placeholder": "No key",
+        "key_saved_placeholder": "Key saved, type another one…",
+        "test": "Test",
+        "testing": "Testing…",
+        "save": "Save",
+        "untested_hint": "The test is not required: a server saved without one shows its models as soon as it answers.",
+        "test_ok": "{count, plural, one {Connection successful, # model found.} other {Connection successful, # models found.}}",
+        "save_anyway": "The test did not succeed. You can save anyway, for example if the server is off for now: its models will appear once it answers.",
+        "error": {
+          "required": "This field is required.",
+          "invalid_name": "Use only lowercase letters, digits, hyphens and underscores.",
+          "name_taken": "A server already has this name.",
+          "invalid_address": "The address must start with http:// or https://, followed by the name of the server and its port."
+        }
+      }
     }
   },
   "governance": {

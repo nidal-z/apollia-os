@@ -163,8 +163,8 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   cancel, mismatch, match, lock hint, step-2 cancel, and no `-confirm` ever
   clicked), `profile-facts-det` (the off-schema memory facts of the profile
   page, added, edited, deleted by the script itself), `llm-advanced-det` (the
-  advanced panel of the backend dialog, sampling parameters through extra JSON,
-  cancelled without saving), `library-det` (the Library: the packages the
+  developer fields of the server form, the timeout and the extra JSON
+  parameters, each refusal played, cancelled without saving), `library-det` (the Library: the packages the
   application ships read from the real store, then a stubbed package of every
   kind opened, its update through a cancelled file chooser, its uninstall
   dialog cancelled, refused and accepted, the empty state and the unreadable

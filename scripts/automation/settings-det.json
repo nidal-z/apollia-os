@@ -3,7 +3,7 @@
   "stopOnError": false,
   "notes": [
     "Code-verified against routes/Settings.svelte + lib/settings/settingsNav.ts + settings/{General,Appearance,ChatSettings,Developer,Engines,System}.svelte + components/settings/{config/ConfigEditor,DangerZone,config/ConfigCodeArea,UnsavedChangesDialog,UnsavedChangesBadge,SettingsToggle}.svelte + components/settings/{about/AboutBlock,system/EngineList,system/HardwareCard,help/HelpBlock}.svelte + components/observability/CapturePolicyPanel.svelte.",
-    "14 nav keys from SETTINGS_NAV, in two groups: Settings (general, appearance, profile, chat, stt, model-defaults, developer, then llm, model-hub, tools, permissions, integrations until they leave the settings) and System (engines, hardware). The column is identical in both modes. About, Help and the danger zone live in General; the shortcut catalogue and plan mode in Chat; the editor of apollia.toml in its own Configuration entry after Developer, mode on only; the former System page in Hardware; the engine list with the stated versions and the diagnostic copy in Engines; the processor, memory and GPU in Hardware, whose paths, CLI, automatic install and Python interpreter are developer mode only; the capture and retention policy in the capture tab of the Observability screen, developer mode only, where the settings unsaved badge does not exist (the footer reset still restores the form).",
+    "13 nav keys from SETTINGS_NAV, in two groups: Settings (general, appearance, profile, chat, stt, model-defaults, developer, then model-hub, tools, permissions, integrations until they leave the settings) and System (engines, hardware). The column is identical in both modes. About, Help and the danger zone live in General; the shortcut catalogue and plan mode in Chat; the editor of apollia.toml in its own Configuration entry after Developer, mode on only; the former System page in Hardware; the engine list with the stated versions and the diagnostic copy in Engines; the processor, memory and GPU in Hardware, whose paths, CLI, automatic install and Python interpreter are developer mode only; the capture and retention policy in the capture tab of the Observability screen, developer mode only, where the settings unsaved badge does not exist (the footer reset still restores the form).",
     "plan-mode-default-toggle and auto-install-python-deps-toggle ARE the <button role=switch> (Toggle.svelte spreads data-testid onto it), NOT <input> wrappers. They are clicked directly; setChecked would also work, click keeps the two-way boundary explicit.",
     "Settings > Configuration is the editor of apollia.toml, an entry of the column after Developer that exists only with the developer mode on (settingsNav.ts developerOnly, routes/settings/Configuration.svelte). The book turns the mode on, opens it, waits for the first numbered line (config-editor-gutter-1) and copies the path; it types nothing, so the seeded file is never written.",
     "stt-trigger and stt-language-select are native <select> (Select.svelte) with static options (toggle/push-to-talk; the STT_LANGUAGES codes). Both are exercised via selectOption in the STT save branch, then saved through the unsaved dialog. The language values (de discarded, es saved) stay distinct from the one stt-det.json picks later, so each script still produces a real change.",
@@ -48,7 +48,6 @@
     "settings-nav-general",
     "settings-nav-hardware",
     "settings-nav-hardware-shortcut",
-    "settings-nav-llm",
     "settings-nav-model-defaults",
     "settings-nav-model-hub",
     "settings-nav-profile",
@@ -453,18 +452,6 @@
     {
       "kind": "screenshot",
       "label": "04c-nav-developer"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-llm"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-nav-llm"
     },
     {
       "kind": "click",
@@ -2004,18 +1991,6 @@
     {
       "kind": "screenshot",
       "label": "42-builder-nav-developer-configuration"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-llm"
-    },
-    {
-      "kind": "sleep",
-      "ms": 350
-    },
-    {
-      "kind": "screenshot",
-      "label": "40-builder-nav-llm"
     },
     {
       "kind": "click",

@@ -329,7 +329,7 @@ only opens once per profile reload.
 | 5 | `installation-configurer-votre-profil-5.png` | Downloads finish → Continue. The calibration step opens. | 4 progress pips, the agent's first question, the answer field | Type `Maya` but do not send | dialog | hand, see N2 |
 | 6 | `installation-configurer-votre-profil-6.png` | Answer all four questions, reach the end of calibration. | The permission rule cards the agent proposes | Answer with the four onboarding values above | dialog | hand, see N2 |
 | 7 | `installation-configurer-votre-profil-7.png` | Finish onboarding. Settings → Profile. | Identity (Maya, Head of operations, Consulting), Goals, Agent supervision | none, the values are the ones just entered | panel | auto |
-| 8 | `installation-connecter-un-modele-distant-1.png` | Settings → LLM backends → **+ Add LLM backend**. | The dialog, empty, Name and Provider visible | leave every field empty | dialog | auto |
+| 8 | `installation-connecter-un-modele-distant-1.png` | AI → Servers → **Add a server**. | The form, empty, Address, Name and Key visible | leave every field empty | panel | auto |
 | 9 | `installation-telecharger-des-modeles-locaux-1.png` | Settings → Model Hub. | The available-models list: Name, Size, Type, Status | none | panel | auto |
 | 10 | `installation-telecharger-des-modeles-locaux-1bis.png` | Same page, scroll to Installed models. | The installed list with the **In use** badge on the active model | none, the seed installs two | panel | auto |
 | 11 | `installation-telecharger-des-modeles-locaux-2.png` | Click Download on a model row. | The row with a progress bar and a Cancel button | **Qwen3 14B**; capture around 40 % | panel | hand, see N1 |
@@ -451,7 +451,7 @@ Row 54 mutates the seed. Shoot it after 52, 53 and 55, or reload the seed.
 | # | File | Route and gesture | What must be on screen | Values | Crop | How |
 |---|---|---|---|---|---|---|
 | 82 | `troubleshooting-la-dictee-vocale-ne-transcrit-rien-1.png` | Settings → Speech-to-Text → click the shortcut. | The full-screen capture dialog waiting for a combination | do not press anything, shoot the waiting state | dialog | auto |
-| 83 | `troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png` | Settings → LLM backends. | A backend card in error, red icon, Error label; hover it for the native tooltip | the seed marks one backend disabled; see N7 | panel | auto |
+| 83 | `troubleshooting-le-fournisseur-d-ia-ne-repond-pas-1.png` | AI → Servers → the first server. | The server marked Unreachable, the error banner and its Retry | the seeded `gpu-server` refuses at once; see N7 | panel | auto |
 | 84 | `troubleshooting-reinitialiser-apollia-factory-reset-1.png` | Settings → Danger Zone. | The red Factory Reset box with its isolated button | do **not** click | panel | auto |
 | 85 | `troubleshooting-un-agent-est-bloque-1.png` | Inbox → To do, filter on **Approvals**, expand one. | The approval card expanded showing what the agent waits for | see N4 | panel | auto |
 | 86 | `troubleshooting-une-action-est-refusee-1.png` | Inbox → To do, Recent history at the bottom. | The ❌ Rejected line with its reason | none, the seed writes it | panel | auto once a pending item exists, see N4 |
@@ -539,11 +539,11 @@ three need a real account and a real OAuth client. If you have neither, leave
 the three stale images in place: they are the only rows in the set where that is
 the honest answer.
 
-**N7. A backend in error needs the backend to fail** (row 83)
-The seed disables `vllm-qwen` but disabled is not error: the card shows
-grey, not red. To get the red state, configure a backend pointing at an
-unreachable host and let the health check fail. Name it `Remote GPU` and point
-it at `http://127.0.0.1:9/v1`, which refuses instantly.
+**N7. A server in error needs the server to fail** (row 83)
+The seed disables `vllm-qwen` but disabled is not error: the server reads
+Disabled, with no banner. The seeded `gpu-server` points at
+`http://127.0.0.1:9/v1`, which refuses instantly: it is the first server of
+the column, and opening it shows the Unreachable state.
 
 ---
 

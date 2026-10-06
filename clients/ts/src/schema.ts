@@ -2509,7 +2509,11 @@ export interface paths {
         delete: operations["delete_llm_server"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * `PATCH /api/v1/llm/servers/{name}`: change a saved server field by field.
+         *     The change applies to the next request sent to one of its models.
+         */
+        patch: operations["update_llm_server"];
         trace?: never;
     };
     "/api/v1/llm/servers/{name}/models": {
@@ -10524,6 +10528,12 @@ export interface components {
         };
         /** @description Body of `GET /api/v1/llm/servers/{name}/models`. */
         ServerModelsResponse: {
+            /**
+             * Format: int32
+             * @description Window an agent is expected to have, in tokens: a model served with a
+             *     shorter one is marked `context_short`.
+             */
+            expected_context_window: number;
             /** @description Models the server offers, in its order. */
             models: components["schemas"]["ServerModel"][];
             /** @description Server name. */
@@ -10559,10 +10569,18 @@ export interface components {
             base_url: string;
             /** @description Whether the server's models are routable. */
             enabled: boolean;
+            /** @description Fields added to every request sent to this server. Absent when none. */
+            extra_params?: Record<string, never> | null;
             /** @description Whether a key is held for this server. */
             has_key: boolean;
             /** @description Unique name, the first segment of `<server>/<model>`. */
             name: string;
+            /**
+             * Format: int32
+             * @description Seconds the server may stay silent before a request to it is given
+             *     up. Absent when the default of the runtime applies.
+             */
+            timeout_secs?: number | null;
         };
         /** @description A token as the list shows it: never its value. */
         ServerTokenView: {
@@ -11867,6 +11885,34 @@ export interface components {
             name: string;
             /** @description Request settings. Unknown fields, a system prompt among them, are refused. */
             request?: Record<string, never>;
+        };
+        /**
+         * @description Body of `PATCH /api/v1/llm/servers/{name}`. A field left out keeps what
+         *     the server has.
+         */
+        UpdateServerRequest: {
+            /**
+             * @description New key, written to the secret store. `null` or an empty string
+             *     removes the key the server had.
+             */
+            api_key?: string | null;
+            /** @description New base address, with or without the trailing `/v1`. */
+            base_url?: string | null;
+            /** @description Whether the server's models are routable. */
+            enabled?: boolean | null;
+            /**
+             * @description JSON object whose fields are added to every request sent to this
+             *     server; a field the request already carries is left as it is. `model`,
+             *     `messages`, `stream`, `stream_options`, `tools` and `tool_choice` are
+             *     refused. `null` adds nothing.
+             */
+            extra_params?: Record<string, never> | null;
+            /**
+             * Format: int32
+             * @description Seconds the server may stay silent before a request to it is given
+             *     up, 60 to 3600. `null` returns to the default of the runtime.
+             */
+            timeout_secs?: number | null;
         };
         /**
          * @description Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its
@@ -18537,6 +18583,69 @@ export interface operations {
             };
             /** @description Server not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Repository or secret store not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServerRequest"];
+            };
+        };
+        responses: {
+            /** @description Server updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerResponse"];
+                };
+            };
+            /** @description The organisation policy refuses the new address; nothing was changed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Invalid address, timeout out of bounds, or a reserved field among the extra parameters */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

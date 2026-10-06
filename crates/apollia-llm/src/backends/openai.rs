@@ -172,6 +172,27 @@ pub struct OpenAICompatibleClient {
     retry_policy: RetryPolicy,
     /// Session cancellation token: `cancel()` interrupts in-flight calls and delays.
     cancel: CancellationToken,
+    /// Fields added to every request body, for a setting of the server the
+    /// OpenAI protocol does not carry. Empty for every backend but a declared
+    /// server that was given some.
+    extra_params: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Add `extra` to a request body, leaving alone every field the body already
+/// carries: what the request fixed, per agent or per preset, wins over what
+/// the server was declared with.
+fn with_extra_params(
+    mut body: serde_json::Value,
+    extra: &serde_json::Map<String, serde_json::Value>,
+) -> serde_json::Value {
+    if let Some(map) = body.as_object_mut() {
+        for (field, value) in extra {
+            if !map.contains_key(field) {
+                map.insert(field.clone(), value.clone());
+            }
+        }
+    }
+    body
 }
 
 impl OpenAICompatibleClient {
@@ -214,7 +235,19 @@ impl OpenAICompatibleClient {
             config: config.clone(),
             retry_policy: RetryPolicy::default(),
             cancel,
+            extra_params: serde_json::Map::new(),
         }
+    }
+
+    /// Add `extra_params` to every request this client sends. A field a
+    /// request already carries is left as the request set it.
+    #[must_use]
+    pub fn with_extra_params(
+        mut self,
+        extra_params: serde_json::Map<String, serde_json::Value>,
+    ) -> Self {
+        self.extra_params = extra_params;
+        self
     }
     /// Make a single call to the OpenAI-compatible API without retry.
     ///
@@ -236,9 +269,12 @@ impl OpenAICompatibleClient {
             .map_err(|e| LlmError::InferenceError(format!("build request: {e}")))?;
         // A structured-output constraint is applied here, on the serialized
         // body, because the grammar half has no place in the typed builder.
-        let request = with_sampling_extensions(
-            with_structured_output(request, &req, self.config.llama_cpp_extensions)?,
-            &req,
+        let request = with_extra_params(
+            with_sampling_extensions(
+                with_structured_output(request, &req, self.config.llama_cpp_extensions)?,
+                &req,
+            ),
+            &self.extra_params,
         );
 
         // `create_byot` rather than `create`: the crate's own response type drops
@@ -421,9 +457,12 @@ impl CompletionModel for OpenAICompatibleClient {
         // `create_stream` sets this itself; `create_stream_byot` does not, and a
         // request without it would come back as a single non-streamed body.
         request.stream = Some(true);
-        let request = with_sampling_extensions(
-            with_structured_output(request, &req, self.config.llama_cpp_extensions)?,
-            &req,
+        let request = with_extra_params(
+            with_sampling_extensions(
+                with_structured_output(request, &req, self.config.llama_cpp_extensions)?,
+                &req,
+            ),
+            &self.extra_params,
         );
 
         // See `do_complete`: byot recovers the `timings` object that the crate's

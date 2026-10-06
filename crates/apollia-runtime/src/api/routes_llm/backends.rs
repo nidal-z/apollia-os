@@ -151,6 +151,7 @@ pub(crate) fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<Backe
         | LlmBackendError::PresetConflict(_) => (StatusCode::CONFLICT, err.to_string()),
         LlmBackendError::InvalidName(_)
         | LlmBackendError::InvalidAddress(_)
+        | LlmBackendError::InvalidServerSetting(_)
         | LlmBackendError::InvalidPreset(_)
         | LlmBackendError::Serialization(_) => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
         LlmBackendError::Db(_) | LlmBackendError::Io(_) | LlmBackendError::Schema(_) => {

@@ -50,7 +50,6 @@ async function installTauriStub(page: import("@playwright/test").Page): Promise<
       read_config_file: () => ({ path: "~/.apollia/apollia.toml", exists: true, text: "", sha256: "", diagnostics: [], locked: [], pendingRestart: [] }),
       get_system_info: () => ({}),
       get_cli_status: () => ({}),
-      list_llm_backends: () => [],
     };
 
     // Minimal Tauri-v2 invoke shim - only what the UI calls.
@@ -97,7 +96,7 @@ test.describe("settings dirty-state", () => {
     await page.locator('[data-testid="stt-silence"]').fill("-45");
 
     // Attempt to navigate to another sub-route - the nav should be blocked.
-    await page.locator('[data-testid="settings-nav-llm"]').click();
+    await page.locator('[data-testid="settings-nav-developer"]').click();
 
     const dialog = page.locator('[data-testid="settings-unsaved-dialog"]');
     await expect(dialog).toBeVisible();
@@ -119,8 +118,8 @@ test.describe("settings dirty-state", () => {
     await container.evaluate((el) => { (el as HTMLElement).scrollTop = 240; });
     const saved = await container.evaluate((el) => (el as HTMLElement).scrollTop);
 
-    await page.locator('[data-testid="settings-nav-llm"]').click();
-    await page.waitForSelector('[data-testid="llm-backends-section"], [data-testid="llm-backends-empty"]');
+    await page.locator('[data-testid="settings-nav-developer"]').click();
+    await page.waitForSelector('[data-testid="developer-mode-toggle"]');
 
     await page.locator('[data-testid="settings-nav-stt"]').click();
     await page.waitForSelector('[data-testid="stt-config-form"]');

@@ -1,15 +1,14 @@
 {
-  "name": "llm-det (llm backends dashboard + settings panel, operator vs builder, seeded 3 backends, add/edit/delete dialogs cancelled, provider-select reveal, cost ceiling strip, network actions reduced to boundaries)",
+  "name": "llm-det (the AI screen: loaded models, models of this computer, and the servers: list, models, default, short window, test and retry, switch, menu, delete by name cancelled, edit and add under stubs, empty state, list error; developer mode off then on then off)",
   "stopOnError": false,
   "notes": [
-    "LlmBackendCard.svelte no longer suffixes its ids with the backend name: llm-backend-card, llm-backend-badge, set-default, llm-backend-ping-btn, edit-backend, delete-backend are plain and repeated per card, so they are targeted by testid + nth instead of testidPrefix.",
-    "set-default / llm-backend-ping-btn / edit-backend / delete-backend live in the builderActions snippet, so they render in builder mode only; the settings walk runs after the mode is switched to builder. set-default additionally renders only on a non-default backend.",
-    "llm-dialog-enabled-switch and llm-dialog-default-switch are the <button role=switch> a SettingsToggle composes off llm-dialog-enabled / llm-dialog-default (SettingsToggle.svelte:53 passes `${dataTestId}-switch` to Toggle.svelte, which spreads it onto the button, :47-63). The earlier note claiming the inner ids resolve to nothing was wrong; llm-advanced-det drives them by their exact ids.",
-    "llm-dialog-browse is played through a stubbed picker: handleBrowse (LlmBackendDialog.svelte:72-93) calls plugin-dialog `open`, which is the IPC plugin:dialog|open; the stub resolves ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf (a seed file, tests/cli/seed/files/models) once, and applySelectedPath (:115-124) writes it into form.model. The dialog is cancelled afterwards, nothing persisted.",
-    "llm-dialog-test on the ADD path is a pure local validation (handleTest :156-169, `!editing` branch): with name/endpoint/apikey/model filled the form has no errors, so the click renders llm-dialog-test-result without any network call. On the EDIT path the same button pings the backend, which is why it is only played here.",
-    "llm-error-details-toggle: set-default on the DISABLED seeded vllm-qwen (system.sql enabled=0). set_default itself succeeds (apollia-core llm_backend.rs:398-420 only refuses an unknown name), then reload_llm_from_db (commands/llm.rs:378-443) rebuilds the router from enabled configs only (router/construct.rs:222) and resolve_default_backend refuses a default that is not instantiated (router/backends.rs:262-275), so the command rejects before swapping the router; handleSetDefault's catch (settings/Llm.svelte:80-82) sets actionError, humanize keeps the raw string as detail (humanize.ts:261-274) and LlmActionErrorBanner mounts the Disclosure whose header composes llm-error-details-toggle (Disclosure.svelte:75). Cards are ORDER BY name (llm_backend.rs:286) and set-default renders on non-default cards only (LlmBackendCard.svelte:181), so after 11c the four cards are gpu-server (default), automation-saved, local-llama-server, vllm-qwen and set-default nth 2 is the disabled one. The restore is two clicks (nth 1 then nth 0) because the list may or may not have been refreshed by the llm-changed SSE the failed reload emits (sse.ts:595-605): on a stale list nth 1 is local-llama-server, on a refreshed one automation-saved; both succeed, both refresh, and on the refreshed list nth 0 is gpu-server either way, which is the state llm-det already leaves.",
-    "llm-backend-ping-btn is played in the settings list through a stubbed IPC: handlePing -> pingLlmBackend -> ping_llm_backend (LlmBackendCard.svelte:75-97, ipc/llm.ts:21-23) sends a real completion through the router with no handler-side timeout, and nth 0 is gpu-server, an OpenAI-compatible server on a port that refuses, so the real outcome is an error and only the stub can show a success. The block after 07-settings-cards-controls stubs the command twice, once each: a resolve shaped like PingResult (commands/llm.rs:98-107, available:true latency_ms:42) renders llm-ping-result with llm.ping_ok, asserted by 'Ping OK (42ms)', which is the same string in both locales; then a reject with a raw string lands in the catch and is rendered verbatim as pingError on the same anchor. The card clears the feedback after FEEDBACK_MS (5 s, :41), so the assertions sit right after each click. The command is cleared afterwards; nothing is written. On the llm page (04-llm-builder-cards-ping-boundary) the button is still only asserted.",
-    "The Loaded section is shown through a stubbed IPC: no engine holds a model in the deterministic run, so the visit in developer mode stubs list_loaded_models with one resident chat model shaped like the runtime answer (routes_llm/loaded.rs, camelCase, footprintGb 2.5) before the route mounts, asserts the card, its name, memory, load time, summary and unload button, then clears the stub. Nothing is loaded or unloaded: the unload button is only asserted."
+    "The Loaded section is shown through a stubbed IPC: no engine holds a model in the deterministic run, so the visit in developer mode stubs list_loaded_models with one resident chat model shaped like the runtime answer (routes_llm/loaded.rs, camelCase, footprintGb 2.5) before the route mounts, asserts the card, its name, memory, load time, summary and unload button, then clears the stub. Nothing is loaded or unloaded: the unload button is only asserted.",
+    "The servers are walked under stubs, so the book never reaches a network: list_llm_servers (type DeclaredServer of lib/ipc/llmServers.ts, ServerResponse of the runtime), list_llm_server_models (ServerModels, with expected_context_window), get_default_model and set_default_model (DefaultModel), test_llm_server (a list of identifiers, or a rejection shaped like ServerTestFailure: kind and message), save_llm_server and update_llm_server (DeclaredServer). A stub imitates a runtime type and drifts silently when it changes.",
+    "The AI screen reads the servers once at mount (Ai.svelte onMount -> servers.refresh), so a new list_llm_servers stub is followed by leaving the route and coming back (goto dashboard, goto llm).",
+    "Two stubs of one command are answered in the order they were added: the rejection of list_llm_server_models is added first, once, then the answer that lists, so Retry lists again.",
+    "ai-server-save is never played against the real runtime: save_llm_server and update_llm_server are answered by a stub, and the delete dialog is cancelled, so the seeded servers are left untouched and the book is re-runnable. destructive.json deletes a server for real.",
+    "The developer fields of the form (ai-server-timeout, ai-server-extra) are asserted present with the developer mode on and gone with it off; llm-advanced-det plays their refusals one by one.",
+    "ai-server-error-banner-retry and ai-servers-error-banner-retry are composed by ErrorBanner.svelte off the id it is given; ai-server-delete-dialog-typed-name, -confirm and -cancel by ConfirmDialog.svelte."
   ],
   "dynamicTestids": [
     "ai-category-all",
@@ -20,8 +19,7 @@
     "ai-model-menu-pin",
     "ai-model-menu-reveal",
     "ai-model-menu-source",
-    "settings-nav-developer",
-    "settings-nav-llm"
+    "settings-nav-developer"
   ],
   "steps": [
     {
@@ -338,575 +336,1039 @@
       "label": "04-ai-screen-developer-mode"
     },
     {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-llm"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backends-section",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "06-settings-llm-panel"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "add-backend-btn",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-reload-btn",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "llm-reload-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backends-list",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-card",
-      "nth": 0,
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-badge",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "set-default",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-ping-btn",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "edit-backend",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "delete-backend",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-settings-cards-controls"
+      "kind": "stubInvoke",
+      "command": "list_llm_servers",
+      "resolve": [
+        {
+          "name": "ollama-bureau",
+          "base_url": "http://localhost:11434",
+          "has_key": false,
+          "api_key_env": null,
+          "enabled": true,
+          "timeout_secs": null,
+          "extra_params": null
+        },
+        {
+          "name": "vllm-equipe",
+          "base_url": "http://10.0.0.5:8000/v1",
+          "has_key": true,
+          "api_key_env": null,
+          "enabled": false,
+          "timeout_secs": null,
+          "extra_params": null
+        }
+      ]
     },
     {
       "kind": "stubInvoke",
-      "command": "ping_llm_backend",
+      "command": "list_llm_server_models",
       "resolve": {
-        "backend": "gpu-server",
-        "available": true,
-        "latency_ms": 42,
-        "error": null
+        "server": "ollama-bureau",
+        "expected_context_window": 32768,
+        "models": [
+          {
+            "id": "qwen2.5:14b",
+            "route": "ollama-bureau/qwen2.5:14b",
+            "context_window": 32768,
+            "context_short": false
+          },
+          {
+            "id": "llama3.1:8b",
+            "route": "ollama-bureau/llama3.1:8b",
+            "context_window": 131072,
+            "context_short": false
+          },
+          {
+            "id": "mistral:7b",
+            "route": "ollama-bureau/mistral:7b",
+            "context_window": 4096,
+            "context_short": true
+          }
+        ]
+      },
+      "argsMatch": {
+        "name": "ollama-bureau"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_default_model",
+      "resolve": {
+        "backend": "ollama-bureau/qwen2.5:14b",
+        "model_source": "server",
+        "model_id": "ollama-bureau/qwen2.5:14b"
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-servers-nav",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-entry",
+      "timeoutMs": 6000,
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-entry",
+      "nth": 1
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-entry-count",
+      "contains": "3"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-add"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-servers-in-the-column"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-entry",
+      "timeoutMs": 4000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-models",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-name-title",
+      "contains": "ollama-bureau"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-status",
+      "contains": "Active"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-address-value",
+      "contains": "http://localhost:11434"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-key-state",
+      "contains": "No key"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-model-count",
+      "contains": "3 models"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-model-row",
+      "nth": 0,
+      "contains": "Default"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-model-default"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-model-window",
+      "nth": 1,
+      "contains": "131,072 tokens"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-model-short"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-model-short-warning",
+      "contains": "4,096"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-model-short-warning",
+      "contains": "32,768"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-admin-note"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-server-models-default-and-short-window"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-model-menu-btn",
+      "timeoutMs": 4000,
+      "nth": 1
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-model-menu-use-default",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-model-menu-copy-id"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-server-model-menu"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_default_model",
+      "resolve": {
+        "backend": "ollama-bureau/llama3.1:8b",
+        "model_source": "server",
+        "model_id": "ollama-bureau/llama3.1:8b"
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "reload_llm_from_db",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-model-menu-use-default",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-model-row",
+      "timeoutMs": 6000,
+      "nth": 1,
+      "contains": "Default"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-server-model-made-default (stubbed set_default_model)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "set_default_model"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "reload_llm_from_db"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_llm_server_models"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_llm_server_models",
+      "reject": {
+        "kind": "unreachable",
+        "message": "the server at http://localhost:11434/v1/models cannot be reached: connection refused"
+      },
+      "once": true,
+      "argsMatch": {
+        "name": "ollama-bureau"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_llm_server_models",
+      "resolve": {
+        "server": "ollama-bureau",
+        "expected_context_window": 32768,
+        "models": [
+          {
+            "id": "qwen2.5:14b",
+            "route": "ollama-bureau/qwen2.5:14b",
+            "context_window": 32768,
+            "context_short": false
+          },
+          {
+            "id": "llama3.1:8b",
+            "route": "ollama-bureau/llama3.1:8b",
+            "context_window": 131072,
+            "context_short": false
+          },
+          {
+            "id": "mistral:7b",
+            "route": "ollama-bureau/mistral:7b",
+            "context_window": 4096,
+            "context_short": true
+          }
+        ]
+      },
+      "argsMatch": {
+        "name": "ollama-bureau"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-retest",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-status",
+      "contains": "Unreachable"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-error-detail",
+      "contains": "cannot be reached"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-stale"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-models"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-server-unreachable-last-list-kept (stubbed reject)"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-error-banner-retry",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-status",
+      "timeoutMs": 6000,
+      "contains": "Active"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-server-back-after-retry"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_llm_servers"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_llm_servers",
+      "resolve": [
+        {
+          "name": "ollama-bureau",
+          "base_url": "http://localhost:11434",
+          "has_key": false,
+          "api_key_env": null,
+          "enabled": false,
+          "timeout_secs": null,
+          "extra_params": null
+        },
+        {
+          "name": "vllm-equipe",
+          "base_url": "http://10.0.0.5:8000/v1",
+          "has_key": true,
+          "api_key_env": null,
+          "enabled": false,
+          "timeout_secs": null,
+          "extra_params": null
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "update_llm_server",
+      "resolve": {
+        "name": "ollama-bureau",
+        "base_url": "http://localhost:11434",
+        "has_key": false,
+        "api_key_env": null,
+        "enabled": false,
+        "timeout_secs": null,
+        "extra_params": null
       },
       "once": true
     },
     {
       "kind": "click",
-      "testid": "llm-backend-ping-btn",
-      "nth": 0,
+      "testid": "ai-server-enabled",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-ping-result",
-      "timeoutMs": 4000
+      "testid": "ai-server-disabled",
+      "timeoutMs": 6000
     },
     {
       "kind": "expect",
-      "testid": "llm-ping-result",
-      "contains": "Ping OK (42ms)"
+      "testid": "ai-server-status",
+      "contains": "Disabled"
     },
     {
       "kind": "screenshot",
-      "label": "07b-settings-card-ping-ok (stubbed ping_llm_backend, 42 ms)"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "ping_llm_backend",
-      "reject": "automation: ping refused",
-      "once": true
-    },
-    {
-      "kind": "click",
-      "testid": "llm-backend-ping-btn",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-ping-result",
-      "contains": "automation: ping refused"
-    },
-    {
-      "kind": "screenshot",
-      "label": "07c-settings-card-ping-refused (stubbed reject rendered on the card)"
+      "label": "09-server-disabled"
     },
     {
       "kind": "clearStubs",
-      "command": "ping_llm_backend"
-    },
-    {
-      "kind": "click",
-      "testid": "edit-backend",
-      "nth": 0
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-dialog",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-name"
-    },
-    {
-      "kind": "sleep",
-      "ms": 150
-    },
-    {
-      "kind": "sleep",
-      "ms": 150
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-provider"
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-model"
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-save"
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-cancel"
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-llm-edit-dialog"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-cancel"
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "click",
-      "testid": "add-backend-btn"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-dialog",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-name"
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-provider"
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-model"
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-browse"
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-dialog-scan"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "llm-dialog-provider",
-      "value": "llama-cpp",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-scan",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-dialog-scan-result-row",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-scan-result-row",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "screenshot",
-      "label": "07b-scan-result-picked"
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-llm-add-dialog-local"
+      "command": "list_llm_servers"
     },
     {
       "kind": "stubInvoke",
-      "command": "plugin:dialog|open",
-      "resolve": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+      "command": "list_llm_servers",
+      "resolve": [
+        {
+          "name": "ollama-bureau",
+          "base_url": "http://localhost:11434",
+          "has_key": false,
+          "api_key_env": null,
+          "enabled": true,
+          "timeout_secs": null,
+          "extra_params": null
+        },
+        {
+          "name": "vllm-equipe",
+          "base_url": "http://10.0.0.5:8000/v1",
+          "has_key": true,
+          "api_key_env": null,
+          "enabled": false,
+          "timeout_secs": null,
+          "extra_params": null
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "update_llm_server",
+      "resolve": {
+        "name": "ollama-bureau",
+        "base_url": "http://localhost:11434",
+        "has_key": false,
+        "api_key_env": null,
+        "enabled": true,
+        "timeout_secs": null,
+        "extra_params": null
+      },
       "once": true
     },
     {
       "kind": "click",
-      "testid": "llm-dialog-browse",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "screenshot",
-      "label": "09b-llm-browse-picked-seed-gguf"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "llm-dialog-provider",
-      "value": "openai"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-dialog-endpoint",
+      "testid": "ai-server-enabled",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-dialog-apikey",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-dialog-name",
-      "text": "automation-dummy"
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-dialog-endpoint",
-      "text": "https://llm.example.org/v1"
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-dialog-apikey",
-      "text": "sk-automation-dummy-not-real"
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-dialog-model",
-      "text": "qwen3-32b"
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-llm-add-openai-revealed"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-test",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-dialog-test-result",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10b-llm-add-dialog-local-test-ok"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-cancel"
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "click",
-      "testid": "delete-backend",
-      "nth": 0
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-delete-dialog",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-delete-cancel"
-    },
-    {
-      "kind": "expect",
-      "testid": "llm-delete-confirm-btn"
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-llm-delete-dialog"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-delete-cancel"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "llm-delete-dialog",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "delete-backend",
-      "nth": 1,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-delete-dialog",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-delete-confirm-input",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-delete-confirm-input",
-      "text": "DELETE"
-    },
-    {
-      "kind": "screenshot",
-      "label": "09b-delete-default-typed"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-delete-cancel"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "llm-delete-dialog",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-llm-delete-cancelled"
-    },
-    {
-      "kind": "click",
-      "testid": "set-default",
-      "timeoutMs": 4000,
-      "nth": 0
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "11b-set-default"
-    },
-    {
-      "kind": "click",
-      "testid": "add-backend-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-dialog-name",
+      "testid": "ai-server-models",
       "timeoutMs": 6000
     },
     {
-      "kind": "selectOption",
-      "testid": "llm-dialog-provider",
-      "value": "openai"
+      "kind": "waitGone",
+      "testid": "ai-server-disabled",
+      "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-dialog-endpoint",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-dialog-name",
-      "text": "automation-saved"
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-dialog-endpoint",
-      "text": "https://llm.example.org/v1"
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-dialog-apikey",
-      "text": "sk-automation-saved-not-real"
-    },
-    {
-      "kind": "fill",
-      "testid": "llm-dialog-model",
-      "text": "qwen3-32b"
+      "kind": "clearStubs",
+      "command": "update_llm_server"
     },
     {
       "kind": "click",
-      "testid": "llm-dialog-save",
+      "testid": "ai-server-menu-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-menu-copy-address",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-menu-delete"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-server-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-menu-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-delete-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-delete-dialog-confirm"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-delete-dialog-typed-name",
+      "text": "ollama"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-server-delete-name-incomplete"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-delete-dialog-typed-name",
+      "text": "ollama-bureau"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10c-server-delete-name-typed"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-delete-dialog-cancel",
       "timeoutMs": 4000
     },
     {
       "kind": "waitGone",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "11c-backend-saved"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backends-list",
+      "testid": "ai-server-delete-dialog",
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-backend-card",
-      "nth": 3,
-      "timeoutMs": 8000
-    },
-    {
       "kind": "click",
-      "testid": "set-default",
-      "timeoutMs": 4000,
-      "nth": 2
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-action-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-error-details-toggle",
+      "testid": "ai-server-edit",
       "timeoutMs": 4000
     },
     {
-      "kind": "screenshot",
-      "label": "11d-set-default-disabled-backend-error"
+      "kind": "waitFor",
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-address"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-key"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-timeout"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-extra"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-timeout",
+      "text": "5"
     },
     {
       "kind": "click",
-      "testid": "llm-error-details-toggle"
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "screenshot",
-      "label": "11e-error-details-expanded"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-error-details-toggle"
+      "testid": "ai-server-save",
+      "timeoutMs": 4000
     },
     {
       "kind": "sleep",
       "ms": 300
     },
     {
+      "kind": "expect",
+      "testid": "ai-server-form"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-server-edit-timeout-refused"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-timeout",
+      "text": "120"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-extra",
+      "text": "{\"keep_alive\":\"30m\"}"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-key",
+      "text": "sk-automation-not-real"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "update_llm_server",
+      "resolve": {
+        "name": "ollama-bureau",
+        "base_url": "http://localhost:11434",
+        "has_key": true,
+        "api_key_env": null,
+        "enabled": true,
+        "timeout_secs": 120,
+        "extra_params": {
+          "keep_alive": "30m"
+        }
+      },
+      "once": true
+    },
+    {
       "kind": "click",
-      "testid": "set-default",
+      "testid": "ai-server-save",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-server-edit-saved (stubbed update_llm_server)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "update_llm_server"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-entry",
       "timeoutMs": 4000,
       "nth": 1
     },
     {
-      "kind": "waitGone",
-      "testid": "llm-action-error",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 1200
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-backend-card",
-      "nth": 3,
-      "timeoutMs": 8000
+      "testid": "ai-server-disabled",
+      "timeoutMs": 6000
     },
     {
-      "kind": "click",
-      "testid": "set-default",
-      "timeoutMs": 4000,
-      "nth": 0
+      "kind": "expect",
+      "testid": "ai-server-name-title",
+      "contains": "vllm-equipe"
     },
     {
-      "kind": "sleep",
-      "ms": 1200
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backend-card",
-      "nth": 3,
-      "timeoutMs": 8000
+      "kind": "expect",
+      "testid": "ai-server-key-state",
+      "contains": "Key saved"
     },
     {
       "kind": "screenshot",
-      "label": "11f-default-restored-to-gpu-server"
+      "label": "12-second-server-disabled"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-add",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-address",
+      "text": "http://localhost:11500"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_llm_server",
+      "reject": {
+        "kind": "unreachable",
+        "message": "the server at http://localhost:11500/v1/models cannot be reached: connection refused"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-test-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-test-error-detail",
+      "contains": "cannot be reached"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-save-anyway"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-add-server-test-failed-save-still-offered"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_llm_server",
+      "resolve": [
+        "qwen2.5:14b",
+        "llama3.1:8b"
+      ],
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-test-ok",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-test-ok",
+      "contains": "2 models found"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-test-model",
+      "nth": 0,
+      "contains": "qwen2.5:14b"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-test-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-add-server-test-lists-models"
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-name",
+      "text": "automation-server"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "test_llm_server"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_llm_servers"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_llm_servers",
+      "resolve": [
+        {
+          "name": "automation-server",
+          "base_url": "http://localhost:11500",
+          "has_key": false,
+          "api_key_env": null,
+          "enabled": true,
+          "timeout_secs": null,
+          "extra_params": null
+        },
+        {
+          "name": "ollama-bureau",
+          "base_url": "http://localhost:11434",
+          "has_key": false,
+          "api_key_env": null,
+          "enabled": true,
+          "timeout_secs": null,
+          "extra_params": null
+        },
+        {
+          "name": "vllm-equipe",
+          "base_url": "http://10.0.0.5:8000/v1",
+          "has_key": true,
+          "api_key_env": null,
+          "enabled": false,
+          "timeout_secs": null,
+          "extra_params": null
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_llm_server_models",
+      "resolve": {
+        "server": "automation-server",
+        "expected_context_window": 32768,
+        "models": [
+          {
+            "id": "qwen2.5:14b",
+            "route": "automation-server/qwen2.5:14b",
+            "context_window": 32768,
+            "context_short": false
+          },
+          {
+            "id": "llama3.1:8b",
+            "route": "automation-server/llama3.1:8b",
+            "context_window": 131072,
+            "context_short": false
+          },
+          {
+            "id": "mistral:7b",
+            "route": "automation-server/mistral:7b",
+            "context_window": 4096,
+            "context_short": true
+          }
+        ]
+      },
+      "argsMatch": {
+        "name": "automation-server"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "save_llm_server",
+      "resolve": {
+        "name": "automation-server",
+        "base_url": "http://localhost:11500",
+        "has_key": false,
+        "api_key_env": null,
+        "enabled": true,
+        "timeout_secs": null,
+        "extra_params": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-save",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-name-title",
+      "contains": "automation-server"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-models",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13c-add-server-saved (stubbed save_llm_server)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "save_llm_server"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-add",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_llm_servers"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_llm_server_models"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_llm_servers",
+      "resolve": []
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-servers-nav",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-servers-none",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-servers-none",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-servers-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-no-server-connected"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-servers-empty-add",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_llm_servers"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_llm_servers",
+      "reject": "automation: the list of servers cannot be read"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-servers-nav",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-servers-none",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-servers-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-servers-list-error"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_llm_servers"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-servers-error-banner-retry",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-servers-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-entry",
+      "timeoutMs": 6000,
+      "nth": 0
+    },
+    {
+      "kind": "screenshot",
+      "label": "15b-servers-list-back-after-retry (the seeded servers)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_default_model"
     },
     {
       "kind": "goto",
@@ -919,7 +1381,8 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-developer"
+      "testid": "settings-nav-developer",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -936,25 +1399,59 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "llm"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "llm-page",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-servers-nav",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
-      "testid": "settings-nav-llm"
+      "testid": "ai-server-add",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backends-section",
-      "timeoutMs": 15000
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-address"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-key"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-timeout",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-extra",
+      "timeoutMs": 2000
     },
     {
       "kind": "screenshot",
-      "label": "13-back-operator"
+      "label": "16-add-server-developer-mode-off"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-form",
+      "timeoutMs": 6000
     }
   ]
 }

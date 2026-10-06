@@ -107,19 +107,21 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "respond_user_input",
     // Commands whose whole body is a call to a runtime route, served through
     // the methods of `proxy.rs` in both modes.
-    // Models: the inference servers, the loaded models, the costs.
-    "create_llm_backend",
-    "delete_llm_backend",
+    // Models: the loaded models, the costs.
     "list_loaded_models",
-    "set_default_llm_backend",
     // The AI screen: the embeddings model of search.
     "set_embeddings_default",
     "unload_loaded_model",
-    "update_llm_backend",
-    // A server declared from the interface: test, save, and the default model.
+    // The servers of the AI screen: test, save, list, change, forget, and the
+    // default model.
+    "delete_llm_server",
+    "get_default_model",
+    "list_llm_server_models",
+    "list_llm_servers",
     "save_llm_server",
     "set_default_model",
     "test_llm_server",
+    "update_llm_server",
     // MCP servers and the curated catalogue.
     "add_mcp_server",
     "fetch_mcp_curated",
@@ -390,11 +392,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Models: the pin of an installed model, written to the index of the
     // models folder, which the daemon shares since it listens on this machine.
     "set_installed_model_pinned",
-    // LLM engines: the list, the test, the reload. The last ping of each
-    // engine stays in this window's memory, which [`run`] manages in both
-    // modes.
+    // LLM engines: the list and the reload.
     "list_llm_backends",
-    "ping_llm_backend",
     "reload_llm",
     "reload_llm_from_db",
     // Dictation: its settings, the reload of its engine, its status and its

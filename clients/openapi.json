@@ -8078,6 +8078,86 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`PATCH /api/v1/llm/servers/{name}`: change a saved server field by field.\nThe change applies to the next request sent to one of its models.",
+        "operationId": "update_llm_server",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Server name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Server updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The organisation policy refuses the new address; nothing was changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid address, timeout out of bounds, or a reserved field among the extra parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository or secret store not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/llm/servers/{name}/models": {
@@ -28549,9 +28629,16 @@
         "description": "Body of `GET /api/v1/llm/servers/{name}/models`.",
         "required": [
           "server",
-          "models"
+          "models",
+          "expected_context_window"
         ],
         "properties": {
+          "expected_context_window": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Window an agent is expected to have, in tokens: a model served with a\nshorter one is marked `context_short`.",
+            "minimum": 0
+          },
           "models": {
             "type": "array",
             "items": {
@@ -28631,6 +28718,13 @@
             "type": "boolean",
             "description": "Whether the server's models are routable."
           },
+          "extra_params": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Fields added to every request sent to this server. Absent when none."
+          },
           "has_key": {
             "type": "boolean",
             "description": "Whether a key is held for this server."
@@ -28638,6 +28732,15 @@
           "name": {
             "type": "string",
             "description": "Unique name, the first segment of `<server>/<model>`."
+          },
+          "timeout_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seconds the server may stay silent before a request to it is given\nup. Absent when the default of the runtime applies.",
+            "minimum": 0
           }
         }
       },
@@ -31523,6 +31626,49 @@
           "request": {
             "type": "object",
             "description": "Request settings. Unknown fields, a system prompt among them, are refused."
+          }
+        }
+      },
+      "UpdateServerRequest": {
+        "type": "object",
+        "description": "Body of `PATCH /api/v1/llm/servers/{name}`. A field left out keeps what\nthe server has.",
+        "properties": {
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New key, written to the secret store. `null` or an empty string\nremoves the key the server had."
+          },
+          "base_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New base address, with or without the trailing `/v1`."
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the server's models are routable."
+          },
+          "extra_params": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "JSON object whose fields are added to every request sent to this\nserver; a field the request already carries is left as it is. `model`,\n`messages`, `stream`, `stream_options`, `tools` and `tool_choice` are\nrefused. `null` adds nothing."
+          },
+          "timeout_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seconds the server may stay silent before a request to it is given\nup, 60 to 3600. `null` returns to the default of the runtime.",
+            "minimum": 0
           }
         }
       },

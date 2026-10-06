@@ -55,7 +55,6 @@
     configuration: () => import("./settings/Configuration.svelte"),
     engines: () => import("./settings/Engines.svelte"),
     hardware: () => import("./settings/System.svelte"),
-    llm: () => import("./settings/Llm.svelte"),
     "model-hub": () => import("./settings/ModelHub.svelte"),
   };
 
@@ -275,7 +274,6 @@
     configuration: "settings.config_editor.subtitle",
     engines: "settings.engines.subtitle",
     hardware: "settings.system.subtitle",
-    llm: "settings.llm.subtitle",
     "model-hub": "settings.model_hub.subtitle",
   };
 

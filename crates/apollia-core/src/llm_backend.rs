@@ -111,6 +111,11 @@ pub enum LlmBackendError {
     #[error("invalid server address '{0}': expected an http:// or https:// URL")]
     InvalidAddress(String),
 
+    /// A setting of an inference server that cannot be stored: a timeout out
+    /// of bounds, or extra parameters that carry a reserved field.
+    #[error("invalid server setting: {0}")]
+    InvalidServerSetting(String),
+
     /// No model preset with this identifier.
     #[error("preset {0} not found")]
     PresetNotFound(i64),

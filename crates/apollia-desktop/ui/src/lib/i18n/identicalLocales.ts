@@ -53,8 +53,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.integrations.placeholder.client_secret", // GOCSPX-…
   "settings.language_en", // English
   "settings.language_fr", // Français
-  "settings.llm_dialog.field_top_k", // Top-K
-  "settings.llm_dialog.field_top_p", // Top-P
   "settings.model_defaults.images.unit", // pixels
   "settings.model_defaults.unload.unit", // minutes
   "settings.model_hub.detail.param_top_k", // top_k
@@ -162,7 +160,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "library.kind.workflow", // workflow
   "library.uninstall.leaving.agents", // {count, plural, one {# agent} other {# agents}}
   "library.uninstall.leaving.workflows", // {count, plural, one {# workflow} other {# workflows}}
-  "llm.ping_ok", // Ping OK ({latency}ms)
   "memory.meta_expiration", // Expiration
   "memory.meta_namespace", // Namespace
   "memory.meta_type", // Type
@@ -217,8 +214,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.general.interface_title", // Interface
   "settings.hardware.architecture", // Architecture
   "settings.hardware.compatible", // Compatible
-  "settings.llm_backend.provider_local", // local
-  "settings.llm_dialog.field_endpoint", // Endpoint
   "settings.model_hub.detail.param_max_tokens", // max tokens
   "settings.model_hub.detail.param_temperature", // temperature
   "settings.model_hub.filters.type_base", // Base

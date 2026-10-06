@@ -1,6 +1,6 @@
 // ─── LLM backends and cost statistics ───
 
-/** Configured LLM backend - CRUD view returned by `list_llm_backends`. */
+/** Configured LLM backend, as `list_llm_backends` returns it. */
 export interface LlmBackendConfig {
   name: string;
   /** `openai` is any OpenAI-compatible server, at the address the backend designates. */
@@ -9,10 +9,6 @@ export interface LlmBackendConfig {
   config_json: Record<string, unknown>;
   enabled: boolean;
   is_default: boolean;
-  /** Error message of the last in-memory ping (absent = never pinged, or last one OK). */
-  last_ping_error?: string | null;
-  /** RFC 3339 timestamp of the last ping (absent = never pinged). */
-  last_ping_at?: string | null;
 }
 
 /** One local model resident in memory, as `list_loaded_models` returns it. */
@@ -67,12 +63,4 @@ export interface LoadedModelsResponse {
 export interface UnloadedModel {
   modelPath: string;
   stopped: number;
-}
-
-/** Result of an LLM ping. */
-export interface LlmPingResult {
-  backend: string;
-  available: boolean;
-  latency_ms: number | null;
-  error: string | null;
 }

@@ -30,6 +30,12 @@ pub struct ServerEndpoint {
     /// allowed. A refused server stays known, so a request to one of its
     /// models fails with this reason before anything is sent to it.
     pub refusal: Option<String>,
+    /// How long the server may stay silent before a request is given up.
+    /// `None` keeps [`crate::http_client::DEFAULT_IDLE_TIMEOUT`].
+    pub idle_timeout: Option<std::time::Duration>,
+    /// Fields added to every request sent to this server. A field the request
+    /// already carries is left as it is.
+    pub extra_params: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// Hand-written so a logged endpoint never prints its key.
@@ -40,6 +46,14 @@ impl std::fmt::Debug for ServerEndpoint {
             .field("base_url", &self.base_url)
             .field("api_key", &self.api_key.as_ref().map(|_| "<redacted>"))
             .field("refusal", &self.refusal)
+            .field("idle_timeout", &self.idle_timeout)
+            .field(
+                "extra_params",
+                &self
+                    .extra_params
+                    .as_ref()
+                    .map(|params| params.keys().collect::<Vec<_>>()),
+            )
             .finish()
     }
 }
@@ -113,11 +127,16 @@ impl LlmRouter {
             model = %model,
             "llm.server.model.routed"
         );
-        Some(Arc::new(OpenAICompatibleClient::new(
+        let client = OpenAICompatibleClient::with_idle_timeout(
             &config,
             endpoint.api_key.clone().unwrap_or_default(),
             self.cancellation_token.clone(),
-        )) as Arc<dyn CompletionModel>)
+            endpoint
+                .idle_timeout
+                .unwrap_or(crate::http_client::DEFAULT_IDLE_TIMEOUT),
+        )
+        .with_extra_params(endpoint.extra_params.clone().unwrap_or_default());
+        Some(Arc::new(client) as Arc<dyn CompletionModel>)
     }
 
     #[cfg(not(feature = "cloud"))]
@@ -201,6 +220,8 @@ mod tests {
             base_url: "https://api.example.com".into(),
             api_key: Some("sk".into()),
             refusal: Some("refused by the organisation policy".into()),
+            idle_timeout: None,
+            extra_params: None,
         }]);
 
         // WHEN a completion is sent to one of its models
@@ -244,6 +265,54 @@ mod tests {
             })
         }
 
+        // GIVEN a server declared with two extra parameters, one of which the
+        //       request also fixes
+        // WHEN a completion is addressed to one of its models
+        // THEN the body carries the extra parameter the request did not fix,
+        //      and the value of the request for the one it did
+        #[tokio::test]
+        async fn test_the_extra_parameters_of_a_server_travel_with_each_request() {
+            // GIVEN
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/v1/chat/completions"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(completion_body("m")))
+                .mount(&server)
+                .await;
+            let extra = serde_json::json!({ "keep_alive": "30m", "temperature": 0.9 });
+            let router = LlmRouter::empty().with_servers(vec![ServerEndpoint {
+                name: "corp".into(),
+                base_url: server.uri(),
+                api_key: None,
+                refusal: None,
+                idle_timeout: Some(std::time::Duration::from_secs(120)),
+                extra_params: extra.as_object().cloned(),
+            }]);
+            let request = CompletionRequest {
+                messages: vec![ChatMessage::user("bonjour")],
+                temperature: Some(0.25),
+                ..Default::default()
+            };
+
+            // WHEN
+            router
+                .complete_with_observability(
+                    Some("corp/qwen3-32b"),
+                    request,
+                    None,
+                    &ObservabilityConfig::default(),
+                )
+                .await
+                .unwrap();
+
+            // THEN
+            let received = server.received_requests().await.unwrap();
+            let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
+            assert_eq!(body["keep_alive"], "30m");
+            assert_eq!(body["temperature"], 0.25);
+            assert_eq!(body["model"], "qwen3-32b");
+        }
+
         // GIVEN a router with no backend row at all for a declared server, which
         //       serves two models
         // WHEN a completion is addressed to each `<server>/<model>`
@@ -263,6 +332,8 @@ mod tests {
                 base_url: server.uri(),
                 api_key: Some("sk-corp".into()),
                 refusal: None,
+                idle_timeout: None,
+                extra_params: None,
             }]);
             let request = || CompletionRequest {
                 messages: vec![ChatMessage::user("bonjour")],

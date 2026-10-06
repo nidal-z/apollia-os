@@ -66,6 +66,7 @@
       type="button"
       onclick={onretry}
       disabled={loading}
+      data-testid={testid ? `${testid}-banner-retry` : undefined}
       class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-current/30 px-2.5 py-1 text-caption-lg font-medium transition-colors hover:bg-current/10 disabled:opacity-50"
     >
       <RefreshCw size={11} class={loading ? "animate-spin" : ""} />
