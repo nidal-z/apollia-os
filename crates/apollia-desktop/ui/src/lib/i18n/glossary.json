@@ -50,7 +50,6 @@
     },
     "permitted_formats": ["Excel", "CSV", "JSON", "PDF", "GGUF", "MLX"],
     "exemptions": [
-      "agent_detail.memory_link",
       "agent_detail.trigger_config_webhook",
       "agents.install.deps_auto_many",
       "agents.install.deps_auto_one",
@@ -88,8 +87,6 @@
       "companion.error.network.cause_3",
       "companion.error.network.message",
       "companion.error.timeout.cause_3",
-      "dashboard.browse_agents",
-      "dashboard.cold_start_subtitle",
       "empty_states.agents.description",
       "empty_states.agents.title",
       "empty_states.integrations.description",
@@ -200,7 +197,6 @@
     },
     "permitted_formats": ["Excel", "CSV", "JSON", "PDF", "GGUF", "MLX"],
     "exemptions": [
-      "agent_detail.memory_link",
       "agent_detail.trigger_config_webhook",
       "agents.install.deps_auto_many",
       "agents.install.deps_auto_one",
@@ -238,8 +234,6 @@
       "companion.error.network.cause_3",
       "companion.error.network.message",
       "companion.error.timeout.cause_3",
-      "dashboard.browse_agents",
-      "dashboard.cold_start_subtitle",
       "empty_states.agents.description",
       "empty_states.agents.title",
       "empty_states.integrations.description",

@@ -18,20 +18,3 @@ export function formatCost(usd: number): string {
   if (usd < 0.01) return `$${usd.toFixed(4)}`;
   return `$${usd.toFixed(2)}`;
 }
-
-/**
- * Uppercase day headline, e.g. `SATURDAY, AUGUST 15`, localised.
- *
- * Returns an empty string when the date cannot be formatted, so the headline
- * degrades to nothing rather than crashing the dashboard.
- */
-export function formatDayHeadline(date: Date, locale: string): string {
-  if (Number.isNaN(date.getTime())) return "";
-  try {
-    return date
-      .toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })
-      .toUpperCase();
-  } catch {
-    return "";
-  }
-}

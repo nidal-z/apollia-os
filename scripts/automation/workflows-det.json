@@ -1435,7 +1435,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "goto",
@@ -1868,7 +1868,7 @@
     "The seed installs no workflow, so every workflow command is stubbed: list_workflows, get_workflow, list_workflow_runs, get_workflow_run, launch_workflow and cancel_workflow_run. The stubbed values imitate WorkflowListItem of crates/apollia-desktop/src/commands/workflows.rs, and WorkflowView, WorkflowRunView, WorkflowStepView and WorkflowRunDetailView of crates/apollia-runtime/src/api/routes_workflows.rs, InputField of crates/apollia-runtime/src/workflows/fields.rs: a field renamed there drifts here silently. The real launch, the real steps and the real stop are held by the runtime tests of the workflow engine.",
     "get_agent_package_detail is stubbed for the package of the stubbed workflow only (argsMatch), and imitates AgentPackageDetail of crates/apollia-runtime/src/agent_packages.rs; the action family of the workflow is read from its `manifest.workflows[].action`.",
     "A stub is static, so each state of a run is a new stub: the run going (launch_workflow, then get_workflow_run with its second step in progress), then the same run stopped (cancel_workflow_run, list_workflow_runs and get_workflow_run restubbed once the confirmation of the stop is open). The sheet reads a run going again every second, so the stopped state may show before the confirmation is clicked; the confirmation stays open through it.",
-    "The list is read when the screen shows it, so a new list stub is followed by a round trip through the dashboard or by the way back from a sheet.",
+    "The list is read when the screen shows it, so a new list stub is followed by a round trip through the chat or by the way back from a sheet.",
     "workflow-sheet-loading is not played: it shows for the time of one stubbed call. The file field (a native chooser) is not played either: the stubbed workflow declares none; its control is held by the Vitest suite components/workflows/workflowForm.test.ts.",
     "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just desktop-dev-automation-seeded scripts/automation/workflows-det.json"
   ]

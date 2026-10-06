@@ -34,7 +34,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.native_google_name", // Google Workspace
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
   "connections.native_microsoft_name", // Microsoft 365
-  "dashboard.headline_greeting", // {greeting}.
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "dev.workflows.depth", // depth
@@ -89,9 +88,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "agent_adjust.grant_group_workflows", // Workflows
   "agent_adjust.mission_label", // Mission
   "agent_adjust.preset_label", // Preset
-  "agent_detail.execution_mode_direct", // Direct
   "agent_detail.messages_title", // Messages
-  "agent_detail.tags_title", // Tags
   "agents.column_agents", // Agents
   "agents.column_workflows", // Workflows
   "agents.install.done_agents_many", // {n} agents
@@ -143,8 +140,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
   "dev.journal.arguments", // Arguments
-  "inbox.row.type_question", // question
-  "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
   "journal.detail.action", // Action
   "journal.detail.agent", // Agent
