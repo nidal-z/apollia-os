@@ -13228,6 +13228,197 @@
         }
       }
     },
+    "/api/v1/sessions/folders": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/folders`, the folders in the order of\nthe list, each with the conversations it holds.",
+        "operationId": "list_chat_folders",
+        "responses": {
+          "200": {
+            "description": "The folders of the conversation list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatFolder"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/folders`, create a folder, placed\nafter the existing ones.",
+        "operationId": "create_chat_folder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderNameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Folder created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatFolder"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Blank or oversized name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/folders/{id}": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/folders/{id}`, rename a folder.",
+        "operationId": "rename_chat_folder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Folder id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderNameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Folder renamed"
+          },
+          "400": {
+            "description": "Blank or oversized name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Folder not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `DELETE /api/v1/sessions/folders/{id}`, remove a folder. Its\nconversations are kept and go back out of any folder.",
+        "operationId": "delete_chat_folder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Folder id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder removed, its conversations kept"
+          },
+          "404": {
+            "description": "Folder not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/plan-mode-default": {
       "get": {
         "tags": [
@@ -13282,6 +13473,61 @@
         "responses": {
           "200": {
             "description": "Recent session summaries"
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/search": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/search`, the conversations whose\nmessages contain every word of `q`, the best match first, each with an\nexcerpt. A word is matched from its start, and a conversation in the\ntrash is never answered.",
+        "operationId": "search_chat_messages",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "The words searched in the messages",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Most conversations answered (default 20, at most 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The conversations found, each with an excerpt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MessageSearchHit"
+                  }
+                }
+              }
+            }
           },
           "503": {
             "description": "Chat subsystem unavailable",
@@ -13651,6 +13897,61 @@
           },
           "404": {
             "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/folder": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/folder`, put the conversation in a\nfolder, or out of any folder.",
+        "operationId": "set_session_folder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation moved"
+          },
+          "404": {
+            "description": "Session or folder not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -20014,6 +20315,38 @@
           }
         }
       },
+      "ChatFolder": {
+        "type": "object",
+        "description": "A folder of the conversation list.",
+        "required": [
+          "id",
+          "name",
+          "position",
+          "session_ids"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Folder identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name the user gave it."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Place in the list, the lowest first."
+          },
+          "session_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The conversations in the folder, the ones in the trash left out."
+          }
+        }
+      },
       "ChatPlanSnapshot": {
         "type": "object",
         "description": "Snapshot of a session's plan plus its current plan-mode phase.\n\nThe phase is the authoritative gate state: a persisted plan keeps its\n`awaiting_approval` status forever, but once approved the session moves to\n`executing` then `done`. The desktop hydrates the plan tab from `plan` and\ndecides whether to show the approval card from `phase`, never from the\nplan's own status.",
@@ -22250,6 +22583,19 @@
           }
         }
       },
+      "FolderNameBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/sessions/folders` and of\n`PUT /api/v1/sessions/folders/{id}`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the folder: not blank, 100 characters at most."
+          }
+        }
+      },
       "ForkSessionRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions/:id/fork`.",
@@ -24450,6 +24796,43 @@
           "role": {
             "type": "string",
             "description": "Role of the message sender."
+          }
+        }
+      },
+      "MessageSearchHit": {
+        "type": "object",
+        "description": "A conversation that contains the words searched.",
+        "required": [
+          "session_id",
+          "created_at",
+          "excerpt"
+        ],
+        "properties": {
+          "agent_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent of the conversation, when it has one."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO-8601 creation timestamp of the conversation."
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "The passage of the best matching message, on one line."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session identifier."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title the user or the model gave the conversation, when it has one."
           }
         }
       },
@@ -27419,6 +27802,19 @@
               "$ref": "#/components/schemas/ServerResponse"
             },
             "description": "Every declared server, sorted by name."
+          }
+        }
+      },
+      "SessionFolderBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/sessions/{id}/folder`.",
+        "properties": {
+          "folder_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The folder the conversation goes in; `null` takes it out of any\nfolder."
           }
         }
       },

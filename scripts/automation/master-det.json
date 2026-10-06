@@ -3498,6 +3498,336 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-new-folder-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-loose-sessions"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-conversation-item"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-folder-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-rename-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-folder-rename-input",
+      "text": "Coverage folder"
+    },
+    {
+      "kind": "screenshot",
+      "label": "40g-new-folder-named-in-place"
+    },
+    {
+      "kind": "press",
+      "testid": "chat-folder-rename-input",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-rename-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-folder-toggle"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-folder-count"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40h-folder-created-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-move",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-move-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "conversation-row-move-out"
+    },
+    {
+      "kind": "screenshot",
+      "label": "40i-move-to-lists-the-folder"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-move-to",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40j-conversation-in-the-folder"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40k-folder-folded"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": "sovereign"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-search-titles",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-row",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40l-search-by-title"
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": "explicit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-search-messages",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-excerpt",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40m-search-in-the-messages-with-excerpt"
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": "zzz-no-match-xyz"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-search-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-search-input",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-menu-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-folder-menu-delete"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-folder-delete-note"
+    },
+    {
+      "kind": "screenshot",
+      "label": "40n-folder-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-menu-rename",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-rename-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "press",
+      "testid": "chat-folder-rename-input",
+      "key": "Escape"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-rename-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-move",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-move-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-move-out",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-move",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-move-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-move-to",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-menu-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-folder-menu-delete",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-row",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40o-folder-deleted-conversations-kept"
+    },
+    {
       "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 4000

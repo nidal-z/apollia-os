@@ -3731,7 +3731,7 @@
     },
     "no_sessions": "Aucune conversation",
     "no_results": "Aucun résultat",
-    "search_placeholder": "Rechercher…",
+    "search_placeholder": "Rechercher dans les conversations",
     "select_or_start": "Sélectionnez une conversation à gauche ou démarrez-en une nouvelle.",
     "journal_empty": "Activité de l'agent en direct.",
     "conversations_aria": "Conversations",
@@ -3968,6 +3968,27 @@
       "confirm_to_trash": "La conversation ira dans la corbeille d'Apollia, d'où vous pourrez la restaurer.",
       "load_failed": "La corbeille n'a pas pu être lue.",
       "action_failed": "L'action n'a pas abouti : {error}"
+    },
+    "folders": {
+      "new": "Nouveau dossier",
+      "default_name": "Nouveau dossier",
+      "name_label": "Nom du dossier",
+      "actions": "Actions du dossier {name}",
+      "rename": "Renommer le dossier",
+      "delete": "Supprimer le dossier",
+      "delete_note_many": "Ses {count} conversations reviennent hors dossier ; aucune n'est supprimée.",
+      "delete_note_one": "Sa conversation revient hors dossier ; elle n'est pas supprimée.",
+      "delete_note_empty": "Le dossier est vide.",
+      "move_to": "Déplacer vers",
+      "no_folder": "Hors dossier",
+      "empty": "Aucune conversation dans ce dossier.",
+      "action_failed": "L'action n'a pas abouti : {error}"
+    },
+    "search": {
+      "titles": "Titres",
+      "in_messages": "Dans les messages",
+      "pending": "Recherche dans les messages...",
+      "failed": "La recherche dans les messages n'a pas abouti."
     }
   },
   "transcriptions": {

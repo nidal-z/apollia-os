@@ -11,11 +11,15 @@ use rusqlite::{params, Connection};
 use super::types::{ChatError, ChatMode, ChatRole, PlanPhase, SessionConfigUpdate, SessionStatus};
 
 mod approvals;
+mod folders;
 mod forking;
+mod message_search;
 mod profile;
 mod search;
 mod trash;
 
+pub use folders::{ChatFolder, FOLDER_NAME_MAX_CHARS};
+pub use message_search::{MessageSearchHit, MESSAGE_SEARCH_MAX_RESULTS};
 pub use trash::TrashedSession;
 
 /// Raw row from the `chat_sessions` table.
@@ -308,6 +312,11 @@ impl ChatSessionRepository {
             "DELETE FROM chat_sessions_fts WHERE session_id = ?1",
             params![id],
         );
+        tx.execute(
+            "DELETE FROM chat_messages_fts WHERE session_id = ?1",
+            params![id],
+        )
+        .map_err(|e| ChatError::InternalError(format!("delete_session message index: {e}")))?;
 
         let deleted = tx
             .execute("DELETE FROM chat_sessions WHERE id = ?1", params![id])
@@ -527,6 +536,15 @@ impl ChatSessionRepository {
             )
             .map_err(|e| ChatError::InternalError(format!("append_message insert: {e}")))?;
 
+        Self::index_message(
+            &self.conn,
+            params.session_id,
+            next_seq,
+            params.role.as_sql(),
+            params.content,
+        )
+        .map_err(|e| ChatError::InternalError(format!("append_message index: {e}")))?;
+
         Ok(next_seq)
     }
 
@@ -543,15 +561,24 @@ impl ChatSessionRepository {
         from_seq: u32,
         inclusive: bool,
     ) -> Result<u32, ChatError> {
-        let sql = if inclusive {
-            "DELETE FROM chat_messages WHERE session_id = ?1 AND seq >= ?2"
+        let (sql, index_sql) = if inclusive {
+            (
+                "DELETE FROM chat_messages WHERE session_id = ?1 AND seq >= ?2",
+                "DELETE FROM chat_messages_fts WHERE session_id = ?1 AND seq >= ?2",
+            )
         } else {
-            "DELETE FROM chat_messages WHERE session_id = ?1 AND seq > ?2"
+            (
+                "DELETE FROM chat_messages WHERE session_id = ?1 AND seq > ?2",
+                "DELETE FROM chat_messages_fts WHERE session_id = ?1 AND seq > ?2",
+            )
         };
         let deleted = self
             .conn
             .execute(sql, rusqlite::params![session_id, from_seq])
             .map_err(|e| ChatError::InternalError(format!("truncate_messages: {e}")))?;
+        self.conn
+            .execute(index_sql, rusqlite::params![session_id, from_seq])
+            .map_err(|e| ChatError::InternalError(format!("truncate_messages index: {e}")))?;
         Ok(deleted as u32)
     }
 

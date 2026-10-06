@@ -37,6 +37,7 @@ use crate::coordinator::ExecutionBackend;
 
 pub mod approval_history;
 pub mod conversations;
+pub mod folders;
 pub mod pause;
 pub mod plan;
 pub mod session_reads;
@@ -741,6 +742,8 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::NoLlmConfigured => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::BudgetExhausted => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+        ChatError::FolderNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        ChatError::InvalidFolderName(_) => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::NotAwaitingApproval { .. } => (StatusCode::CONFLICT, err.to_string()),
         ChatError::CostCeilingExceeded { .. } => (StatusCode::PAYMENT_REQUIRED, err.to_string()),
         ChatError::ImagesNotSupported { .. } => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),

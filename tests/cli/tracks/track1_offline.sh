@@ -300,6 +300,19 @@ check_exit   "mcp server --sandbox-root (retired) → 1"  1 "$BIN" mcp server --
 # ── A.10 chat hygiene (4 seeded sessions) ───────────────────────────────────
 section "A.10 chat hygiene"
 check_exit   "chat delete (no --confirm)"  1         "$BIN" chat delete seed-session-1
+# `chat list` reads chat.db with no runtime: the four seeded sessions, each
+# with the folder it is in. The first call opens and migrates chat.db, so the
+# folder tables exist for the rows written next the way the desktop writes
+# them; the folder is removed again so the seed counts stay what they were.
+check_content "chat list names a seeded session"     "seed-session-1 .*Discovering the sovereign runtime" "$BIN" chat list
+check_json_field "chat list --json lists the four sessions" "len(d)" "4" "$BIN" chat list --json
+check_json_field "chat list --json: no folder yet"   "[s['folder'] for s in d if s['id']=='seed-session-1'][0]" "None" "$BIN" chat list --json
+e2e_sqlite "$HOME/.apollia/chat.db" "INSERT INTO chat_folders (id, name, position) VALUES ('e2e-folder', 'E2E clients', 0); UPDATE chat_sessions SET folder_id = 'e2e-folder' WHERE id = 'seed-session-1';"
+check_content "chat list shows the folder of a session" "seed-session-1 +E2E clients" "$BIN" chat list
+check_json_field "chat list --json carries the folder" "[s['folder'] for s in d if s['id']=='seed-session-1'][0]" "E2E clients" "$BIN" chat list --json
+check_json_field "chat list --json: the others have none" "sorted({str(s['folder']) for s in d})" "['E2E clients', 'None']" "$BIN" chat list --json
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET folder_id = NULL WHERE folder_id = 'e2e-folder'; DELETE FROM chat_folders WHERE id = 'e2e-folder';"
+check_exit   "chat list (no database) -> 1"  1       "$BIN" chat list --db "$SCRATCH/absent-chat.db"
 check        "chat rename seed-session-4"            "$BIN" chat rename seed-session-4 "Renamed via E2E"
 check_exit   "chat rename empty title"  1            "$BIN" chat rename seed-session-4 "   "
 check        "chat export seed-session-1 md"         "$BIN" chat export seed-session-1 --output "$SCRATCH/c.md"

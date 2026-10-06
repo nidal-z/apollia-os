@@ -157,6 +157,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os permissions audit`↴](#apollia-os-permissions-audit)
 * [`apollia-os permissions add`↴](#apollia-os-permissions-add)
 * [`apollia-os chat`↴](#apollia-os-chat)
+* [`apollia-os chat list`↴](#apollia-os-chat-list)
 * [`apollia-os chat delete`↴](#apollia-os-chat-delete)
 * [`apollia-os chat rename`↴](#apollia-os-chat-rename)
 * [`apollia-os chat export`↴](#apollia-os-chat-export)
@@ -330,7 +331,7 @@ Apollia OS CLI binary (apollia-os)
 * `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
 * `onboard` - Launch onboarding or re-onboarding on a specific topic
 * `permissions` - Permission rule management (list, revoke, audit)
-* `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
+* `chat` - Interactive chat REPL + persisted session hygiene (list, delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
 * `package` - Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
@@ -2576,7 +2577,7 @@ Persists into `governance.db` directly (no runtime required). The rule applies t
 
 ## `apollia-os chat`
 
-Interactive chat REPL + persisted session hygiene (delete, rename, export).
+Interactive chat REPL + persisted session hygiene (list, delete, rename, export).
 
 Without a subcommand: launches the REPL (resume with `--resume <id>`, or list recent sessions with `--list`). With a subcommand: operates on `~/.apollia/chat.db` directly; no runtime required.
 
@@ -2584,6 +2585,7 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 ###### **Subcommands:**
 
+* `list` - List the persisted chat sessions, each with the folder it is in
 * `delete` - Delete a persisted chat session and all of its messages, for good
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
@@ -2594,6 +2596,20 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 * `--resume <SESSION_ID>` - Resume an existing session from its last message
 * `--list` - List the 10 most recent sessions
+
+
+
+## `apollia-os chat list`
+
+List the persisted chat sessions, each with the folder it is in.
+
+Reads the chat database, no runtime required. A session the desktop application sent to its trash is not listed.
+
+**Usage:** `apollia-os chat list [OPTIONS]`
+
+###### **Options:**
+
+* `--db <PATH>` - Override the chat database path (default: `~/.apollia/chat.db`)
 
 
 

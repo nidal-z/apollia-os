@@ -116,6 +116,58 @@ export function listTrashedChatSessions(): Promise<TrashedChatSession[]> {
   return invoke<TrashedChatSession[]>("list_trashed_chat_sessions");
 }
 
+/** A folder of the conversation list, as `list_chat_folders` returns it. */
+export interface ChatFolder {
+  id: string;
+  name: string;
+  position: number;
+  /** The conversations in the folder, the ones in the trash left out. */
+  session_ids: string[];
+}
+
+/** A conversation whose messages contain the words searched. */
+export interface MessageSearchHit {
+  session_id: string;
+  title: string | null;
+  agent_name: string | null;
+  created_at: string;
+  /** The passage of the best matching message, on one line. */
+  excerpt: string;
+}
+
+/** The folders of the conversation list, in their order. */
+export function listChatFolders(): Promise<ChatFolder[]> {
+  return invoke<ChatFolder[]>("list_chat_folders");
+}
+
+/** Create a folder, placed after the existing ones. */
+export function createChatFolder(name: string): Promise<ChatFolder> {
+  return invoke<ChatFolder>("create_chat_folder", { name });
+}
+
+/** Give a folder a new name. */
+export function renameChatFolder(folderId: string, name: string): Promise<void> {
+  return invoke<void>("rename_chat_folder", { folderId, name });
+}
+
+/** Remove a folder; its conversations are kept, out of any folder. */
+export function deleteChatFolder(folderId: string): Promise<void> {
+  return invoke<void>("delete_chat_folder", { folderId });
+}
+
+/** Put a session in a folder, or out of any folder with `null`. */
+export function moveChatSessionToFolder(
+  sessionId: string,
+  folderId: string | null,
+): Promise<void> {
+  return invoke<void>("move_chat_session_to_folder", { sessionId, folderId });
+}
+
+/** The conversations whose messages contain every word of `query`. */
+export function searchChatMessages(query: string, limit?: number): Promise<MessageSearchHit[]> {
+  return invoke<MessageSearchHit[]>("search_chat_messages", { query, limit });
+}
+
 /** Update the per-session config (system prompt, tools, backend). */
 export function updateChatSession(
   sessionId: string,

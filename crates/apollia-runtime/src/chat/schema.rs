@@ -26,8 +26,10 @@ use rusqlite::Connection;
 /// v13 todo table, v14 plan tables, v15 project linkage dropped,
 /// v16 `profile_id` (the profile a conversation designates),
 /// v17 `use_profile` (the profile switch of a conversation),
-/// v18 `deleted_at` (a conversation sent to the trash).
-pub(crate) const SCHEMA_VERSION: u32 = 18;
+/// v18 `deleted_at` (a conversation sent to the trash),
+/// v19 `chat_folders` and `folder_id` (a conversation put in a folder),
+/// v20 `chat_messages_fts` (the search in the content of the messages).
+pub(crate) const SCHEMA_VERSION: u32 = 20;
 
 /// Base tables, applied on first open.
 const BASE_SQL: &str = include_str!("../../migrations/001_chat_tables.sql");
@@ -90,6 +92,8 @@ const MIGRATIONS: [Migration; SCHEMA_VERSION as usize] = [
     migrate_v16,
     migrate_v17,
     migrate_v18,
+    migrate_v19,
+    migrate_v20,
 ];
 
 /// Bring `conn` to the current chat schema version, or refuse it.
@@ -276,6 +280,43 @@ fn migrate_v17(conn: &Connection) -> Result<(), rusqlite::Error> {
 /// list.
 fn migrate_v18(conn: &Connection) -> Result<(), rusqlite::Error> {
     add_column_if_missing(conn, "ALTER TABLE chat_sessions ADD COLUMN deleted_at TEXT")
+}
+
+/// v19: the folders of the conversation list. A folder has a name and a
+/// place in the list; a conversation names the folder it is in, or none.
+/// Nothing ties the two tables but that name: removing a folder empties
+/// `folder_id` on its conversations in the same transaction, in the
+/// repository.
+fn migrate_v19(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS chat_folders (
+            id       TEXT PRIMARY KEY,
+            name     TEXT NOT NULL,
+            position INTEGER NOT NULL
+        );",
+    )?;
+    add_column_if_missing(conn, "ALTER TABLE chat_sessions ADD COLUMN folder_id TEXT")?;
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_chat_sessions_folder ON chat_sessions(folder_id)",
+    )
+}
+
+/// v20: the full-text index of what was said. One row per message a person
+/// or the model wrote, fed when the message is written. The messages already
+/// in the file are indexed here; the index is emptied first, so replaying the
+/// step on a file whose version was never stamped does not double them.
+fn migrate_v20(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS chat_messages_fts USING fts5(
+            session_id UNINDEXED,
+            seq UNINDEXED,
+            content
+        );
+        DELETE FROM chat_messages_fts;
+        INSERT INTO chat_messages_fts (session_id, seq, content)
+            SELECT session_id, seq, content FROM chat_messages
+            WHERE role IN ('user', 'assistant') AND TRIM(content) <> '';",
+    )
 }
 
 /// Returns `true` when `table` already declares a column named `column`.

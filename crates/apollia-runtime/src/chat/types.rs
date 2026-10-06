@@ -584,6 +584,12 @@ pub enum ChatError {
     /// An internal error occurred (SQLite, serialization, etc.).
     #[error("internal error: {0}")]
     InternalError(String),
+    /// The requested folder of the conversation list does not exist.
+    #[error("folder not found: {0}")]
+    FolderNotFound(String),
+    /// The name given to a folder is refused: blank, or too long.
+    #[error("invalid folder name: {0}")]
+    InvalidFolderName(String),
     /// An approve or reject was requested on a session that is not awaiting
     /// approval. The soft plan gate only resolves from the awaiting-approval
     /// phase, so this fails fast instead of starting execution out of order.

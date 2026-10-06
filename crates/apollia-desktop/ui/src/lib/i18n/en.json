@@ -3731,7 +3731,7 @@
     },
     "no_sessions": "No conversations",
     "no_results": "No results",
-    "search_placeholder": "Search…",
+    "search_placeholder": "Search conversations",
     "select_or_start": "Select a conversation on the left or start a new one.",
     "journal_empty": "Live agent activity.",
     "conversations_aria": "Conversations",
@@ -3968,6 +3968,27 @@
       "confirm_to_trash": "The conversation goes to the Apollia trash, where you can restore it.",
       "load_failed": "The trash could not be read.",
       "action_failed": "The action did not complete: {error}"
+    },
+    "folders": {
+      "new": "New folder",
+      "default_name": "New folder",
+      "name_label": "Folder name",
+      "actions": "Actions of the folder {name}",
+      "rename": "Rename folder",
+      "delete": "Delete folder",
+      "delete_note_many": "Its {count} conversations go back out of any folder; none is deleted.",
+      "delete_note_one": "Its conversation goes back out of any folder; it is not deleted.",
+      "delete_note_empty": "The folder is empty.",
+      "move_to": "Move to",
+      "no_folder": "No folder",
+      "empty": "No conversation in this folder.",
+      "action_failed": "The action did not go through: {error}"
+    },
+    "search": {
+      "titles": "Titles",
+      "in_messages": "In the messages",
+      "pending": "Searching the messages...",
+      "failed": "The search in the messages did not go through."
     }
   },
   "transcriptions": {

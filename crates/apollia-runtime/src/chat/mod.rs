@@ -50,8 +50,9 @@ pub use manager::{
 };
 pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use repository::{
-    AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,
-    TrashedSession,
+    AppendMessageParams, ChatApprovalLogRow, ChatFolder, ChatSessionRepository, MessageRow,
+    MessageSearchHit, SessionRow, TrashedSession, FOLDER_NAME_MAX_CHARS,
+    MESSAGE_SEARCH_MAX_RESULTS,
 };
 pub use summarizer::{summarize, SummarizerError};
 pub use title::TitleError;

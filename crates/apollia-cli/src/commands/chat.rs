@@ -37,6 +37,16 @@ use session::{run_list, run_new_session, run_resume};
 /// trip, document this in the `--help`.
 #[derive(Debug, Subcommand, Clone)]
 pub enum ChatHygieneCommand {
+    /// List the persisted chat sessions, each with the folder it is in.
+    ///
+    /// Reads the chat database, no runtime required. A session the desktop
+    /// application sent to its trash is not listed.
+    List {
+        /// Override the chat database path (default: `~/.apollia/chat.db`).
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+
     /// Delete a persisted chat session and all of its messages, for good.
     ///
     /// Nothing goes to the trash of the desktop application: a session
@@ -163,7 +173,10 @@ pub async fn run(
 }
 #[cfg(test)]
 mod hygiene_tests {
-    use super::hygiene::{resolve_chat_db, run_chat_delete, run_chat_rename};
+    use super::hygiene::{
+        format_session_list, listed_sessions, resolve_chat_db, run_chat_delete, run_chat_list,
+        run_chat_rename,
+    };
     use super::*;
     use crate::exit_codes;
     use clap::Parser;
@@ -172,6 +185,96 @@ mod hygiene_tests {
     struct TestCli {
         #[command(subcommand)]
         cmd: ChatHygieneCommand,
+    }
+
+    #[test]
+    fn parses_list_with_and_without_a_database_path() {
+        // GIVEN "chat list", alone and with --db
+        // WHEN clap parses each argument line
+        let bare = TestCli::parse_from(["x", "list"]);
+        let with_db = TestCli::parse_from(["x", "list", "--db", "/tmp/chat.db"]);
+        // THEN both are the list, the second carrying the path given
+        assert!(matches!(bare.cmd, ChatHygieneCommand::List { db: None }));
+        match with_db.cmd {
+            ChatHygieneCommand::List { db } => {
+                assert_eq!(db, Some(PathBuf::from("/tmp/chat.db")));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn list_shows_each_session_with_its_folder_and_leaves_out_the_trash() {
+        use apollia_runtime::chat::{ChatMode, ChatSessionRepository};
+
+        // GIVEN a chat database of three sessions: one in the folder
+        // "Clients", one in no folder, one in the trash
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("chat.db");
+        let repo = ChatSessionRepository::open(&path).expect("open");
+        for (id, day) in [("s-filed", 1), ("s-loose", 2), ("s-trashed", 3)] {
+            let created_at = format!("2026-10-0{day}T00:00:00Z");
+            repo.create_session(id, &ChatMode::Libre, None, "", &[], &created_at, None)
+                .expect("session");
+        }
+        repo.rename_session("s-filed", "Quarterly invoice")
+            .expect("rename");
+        let folder = repo.create_folder("Clients").expect("folder");
+        repo.move_session_to_folder("s-filed", Some(&folder.id))
+            .expect("move");
+        repo.trash_session("s-trashed", "2026-10-04T00:00:00Z")
+            .expect("trash");
+
+        // WHEN the list is read and printed
+        let sessions = listed_sessions(&repo).expect("listed");
+        let table = format_session_list(&sessions);
+        let json = serde_json::to_value(&sessions).expect("json");
+
+        // THEN the two listed sessions come most recent first, the filed one
+        // names its folder on its line, and the JSON carries the same
+        assert_eq!(json.as_array().map(Vec::len), Some(2));
+        assert_eq!(json[0]["id"], "s-loose");
+        assert_eq!(json[0]["folder"], serde_json::Value::Null);
+        assert_eq!(json[1]["id"], "s-filed");
+        assert_eq!(json[1]["folder"], "Clients");
+        assert_eq!(json[1]["title"], "Quarterly invoice");
+        let lines: Vec<&str> = table.lines().collect();
+        assert!(
+            lines[0].starts_with("ID") && lines[0].contains("FOLDER"),
+            "{table}"
+        );
+        let filed = lines
+            .iter()
+            .find(|line| line.starts_with("s-filed"))
+            .expect("a line for the filed session");
+        assert!(
+            filed.contains("Clients") && filed.contains("Quarterly invoice"),
+            "{table}"
+        );
+        assert!(!table.contains("s-trashed"), "{table}");
+        drop(repo);
+        assert_eq!(run_chat_list(Some(&path), true), exit_codes::SUCCESS);
+    }
+
+    #[test]
+    fn list_of_a_missing_database_is_an_error_and_an_empty_one_says_so() {
+        // GIVEN no chat database at the path given, then an empty one
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("chat.db");
+
+        // WHEN the list runs before the file exists
+        let missing = run_chat_list(Some(&path), true);
+
+        // THEN it stops on an error, and nothing was created
+        assert_eq!(missing, exit_codes::GENERAL_ERROR);
+        assert!(!path.exists());
+
+        // WHEN the file exists and holds no session
+        drop(apollia_runtime::chat::ChatSessionRepository::open(&path).expect("open"));
+
+        // THEN the list says there is none
+        assert_eq!(format_session_list(&[]), "No sessions found.\n");
+        assert_eq!(run_chat_list(Some(&path), false), exit_codes::SUCCESS);
     }
 
     #[test]

@@ -274,7 +274,7 @@ enum Commands {
         command: PermissionsCommand,
     },
 
-    /// Interactive chat REPL + persisted session hygiene (delete, rename, export).
+    /// Interactive chat REPL + persisted session hygiene (list, delete, rename, export).
     ///
     /// Without a subcommand: launches the REPL (resume with `--resume <id>`,
     /// or list recent sessions with `--list`). With a subcommand: operates on
@@ -286,7 +286,7 @@ enum Commands {
         /// List the 10 most recent sessions.
         #[arg(long)]
         list: bool,
-        /// Optional hygiene subcommand (delete | rename | export). When
+        /// Optional hygiene subcommand (list | delete | rename | export). When
         /// omitted, the REPL launches.
         #[command(subcommand)]
         command: Option<commands::chat::ChatHygieneCommand>,
