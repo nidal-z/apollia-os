@@ -18,6 +18,9 @@ pub struct SystemInfo {
     pub version: String,
     /// Operating system and architecture (e.g. `"macos aarch64"`).
     pub os: String,
+    /// Processor architecture this build runs on (e.g. `"aarch64"`), shown
+    /// beside the processor in System > Hardware.
+    pub arch: String,
     /// Absolute path to the Python 3 interpreter, if detected.
     pub python_path: Option<String>,
     /// Absolute path to the runtime data directory (`<home>/.apollia`), where
@@ -81,9 +84,70 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
     Ok(SystemInfo {
         version,
         os,
+        arch: std::env::consts::ARCH.to_owned(),
         python_path,
         data_dir,
     })
+}
+
+/// Route of the engine list on the runtime.
+pub(crate) const ENGINES_ROUTE: &str = "/api/v1/engines";
+
+/// Returns the engines of this machine, embedded or installed by the engine
+/// store, each with the version it states at its source, and the dictation
+/// engine, over `GET /api/v1/engines`. Read by System > Engines.
+#[tauri::command]
+pub async fn list_engines(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    link.get_json(ENGINES_ROUTE).await
+}
+
+/// Route of the engine store settings on the runtime.
+pub(crate) const ENGINE_SETTINGS_ROUTE: &str = "/api/v1/engines/settings";
+
+/// Route of the engine update check on the runtime.
+pub(crate) const ENGINE_CHECK_ROUTE: &str = "/api/v1/engines/check";
+
+/// Route of the resource measurement on the runtime.
+pub(crate) const RESOURCE_USAGE_ROUTE: &str = "/api/v1/llm/hardware/usage";
+
+/// Writes the channel the engines follow on the runtime this application
+/// drives, keeping the mirror address the store already holds: the settings
+/// are read, the channel replaced, and the whole written back.
+pub(crate) async fn save_engine_channel_on(
+    link: &RuntimeLink,
+    channel: &str,
+) -> Result<Value, String> {
+    let mut settings = link.get_json(ENGINE_SETTINGS_ROUTE).await?;
+    settings["channel"] = Value::String(channel.to_owned());
+    link.put_json(ENGINE_SETTINGS_ROUTE, &settings).await
+}
+
+/// Sets the channel the engines follow, `stable` or `preview`, over `PUT
+/// /api/v1/engines/settings`. The engine store of the runtime holds the
+/// value; the interface keeps none. Written by System > Engines.
+#[tauri::command]
+pub async fn set_engine_channel(
+    link: State<'_, RuntimeLink>,
+    channel: String,
+) -> Result<Value, String> {
+    save_engine_channel_on(link.inner(), &channel).await
+}
+
+/// Fetches and verifies the manifest of the followed channel and returns, per
+/// variant, whether a newer engine exists, over `POST /api/v1/engines/check`.
+/// A refusal carries the runtime's sentence. Asked by System > Engines.
+#[tauri::command]
+pub async fn check_engine_updates(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    link.post_json(ENGINE_CHECK_ROUTE, &json!({})).await
+}
+
+/// Measures once the memory, the processor load and the video memory the
+/// machine of the runtime is using, over `GET /api/v1/llm/hardware/usage`.
+/// Nothing samples between two calls: the resource monitor of System >
+/// Hardware asks while it is shown and stops when it is not.
+#[tauri::command]
+pub async fn get_resource_usage(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    link.get_json(RESOURCE_USAGE_ROUTE).await
 }
 
 /// Route of the security posture on the runtime.
@@ -273,6 +337,10 @@ mod tests {
             "set_python_interpreter",
             "get_security_posture",
             "get_system_info",
+            "list_engines",
+            "set_engine_channel",
+            "check_engine_updates",
+            "get_resource_usage",
         ];
 
         // WHEN each passes the gate of an attached window
@@ -358,6 +426,107 @@ mod tests {
             info.os.contains(std::env::consts::ARCH),
             "os should contain the current architecture"
         );
+        assert_eq!(info.arch, std::env::consts::ARCH);
+    }
+
+    #[tokio::test]
+    async fn test_the_engine_channel_is_written_through_the_store_route_and_keeps_the_mirror() {
+        // GIVEN a daemon whose engine store follows stable from a mirror
+        let server = MockServer::start().await;
+        authorized("GET", ENGINE_SETTINGS_ROUTE)
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "channel": "stable", "base_url": "https://mirror.example/engines",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let written = json!({
+            "channel": "preview", "base_url": "https://mirror.example/engines",
+        });
+        authorized("PUT", ENGINE_SETTINGS_ROUTE)
+            .and(body_json(written.clone()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(written.clone()))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the window chooses the preview channel
+        let saved = save_engine_channel_on(&attached(&server), "preview").await;
+
+        // THEN the store route received the new channel with the mirror it
+        //      already held, and its answer comes back unchanged
+        assert_eq!(saved.unwrap(), written);
+    }
+
+    #[tokio::test]
+    async fn test_a_refused_update_check_carries_the_sentence_of_the_daemon() {
+        // GIVEN a daemon whose build carries no distribution key
+        let server = MockServer::start().await;
+        authorized("POST", ENGINE_CHECK_ROUTE)
+            .respond_with(ResponseTemplate::new(503).set_body_json(json!({
+                "error": "this build carries no distribution key",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the window asks for the engine updates
+        let checked = attached(&server)
+            .post_json(ENGINE_CHECK_ROUTE, &json!({}))
+            .await;
+
+        // THEN the refusal is the daemon's sentence
+        assert_eq!(
+            checked.unwrap_err(),
+            "this build carries no distribution key"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_the_resource_usage_is_measured_by_the_daemon_and_read_as_it_answers() {
+        // GIVEN a daemon measuring its machine
+        let server = MockServer::start().await;
+        let measured = json!({
+            "ram_used_gb": 21.5, "ram_total_gb": 64.0, "cpu_percent": 37.5,
+            "vram": { "kind": "dedicated", "used_gb": 6.0, "total_gb": 24.0 },
+        });
+        authorized("GET", RESOURCE_USAGE_ROUTE)
+            .respond_with(ResponseTemplate::new(200).set_body_json(measured.clone()))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the window reads the usage through the seam
+        let read = attached(&server).get_json(RESOURCE_USAGE_ROUTE).await;
+
+        // THEN it is the daemon's measurement, unchanged
+        assert_eq!(read.unwrap(), measured);
+    }
+
+    #[tokio::test]
+    async fn test_the_engine_list_is_read_from_the_daemon_as_it_answers() {
+        // GIVEN a daemon listing one engine with the version it states
+        let server = MockServer::start().await;
+        let listed = json!({
+            "engines": [{
+                "engine": "llama-server", "tag": null, "variant": "metal",
+                "path": "/app/llama-server", "source": "embedded",
+                "version": "7001 (0ff1ce0)",
+            }],
+            "channel": "stable", "manifest_sequence": null, "updates": [],
+            "cuda_proposable": false, "dictation": null,
+        });
+        authorized("GET", ENGINES_ROUTE)
+            .respond_with(ResponseTemplate::new(200).set_body_json(listed.clone()))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the window reads the engine list through the seam
+        let read = attached(&server).get_json(ENGINES_ROUTE).await;
+
+        // THEN it is the daemon's answer, version included, unchanged
+        assert_eq!(read.unwrap(), listed);
     }
 }
 

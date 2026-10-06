@@ -49,7 +49,7 @@
     ],
     "publisher": "Apollia",
     "homepage": "https://apollia.fr",
-    "copyright": "Copyright (c) 2026 Nidal Zoumita",
+    "copyright": "Copyright 2026 Apollia",
     "license": "MIT OR Apache-2.0",
     "licenseFile": "../../packaging/windows/eula.rtf",
     "category": "DeveloperTool",
@@ -61,6 +61,17 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "apo"
+        ],
+        "name": "Apollia package",
+        "description": "Apollia package",
+        "mimeType": "application/x-apollia-package",
+        "role": "Viewer"
+      }
     ],
     "resources": [
       "apollia-os*",

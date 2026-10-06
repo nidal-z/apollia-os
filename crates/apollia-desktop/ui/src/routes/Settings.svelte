@@ -32,9 +32,12 @@
   import { RouteTransition } from "$lib/components/ui/route-transition";
   import SettingSectionSkeleton from "../components/settings/SettingSectionSkeleton.svelte";
   import UnsavedChangesBadge from "../components/settings/UnsavedChangesBadge.svelte";
+  import HardwareHeaderActions from "../components/settings/system/HardwareHeaderActions.svelte";
   import UnsavedChangesDialog from "../components/settings/UnsavedChangesDialog.svelte";
   import { Button } from "$lib/components/ui/button";
-  import { SETTINGS_NAV } from "$lib/settings/settingsNav";
+  import { SETTINGS_NAV, visibleSettingsNav } from "$lib/settings/settingsNav";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { settingsSubRouteVisible } from "$lib/stores/settings";
   import { installSettingsCloseGuard, closeSettingsWindow } from "$lib/stores/settingsWindow";
   import { SHORTCUTS, comboFor } from "$lib/navigation/shortcuts";
 
@@ -46,13 +49,14 @@
     chat: () => import("./settings/ChatSettings.svelte"),
     stt: () => import("./settings/Stt.svelte"),
     "model-defaults": () => import("./settings/ModelDefaults.svelte"),
+    integrations: () => import("./settings/Integrations.svelte"),
+    notifications: () => import("./settings/Notifications.svelte"),
     developer: () => import("./settings/Developer.svelte"),
+    configuration: () => import("./settings/Configuration.svelte"),
     engines: () => import("./settings/Engines.svelte"),
     hardware: () => import("./settings/System.svelte"),
     llm: () => import("./settings/Llm.svelte"),
     "model-hub": () => import("./settings/ModelHub.svelte"),
-    tools: () => import("./settings/Tools.svelte"),
-    permissions: () => import("./settings/Permissions.svelte"),
   };
 
   const cache = new Map<SettingsSubRoute, Component>();
@@ -265,13 +269,14 @@
     chat: "settings.chat.subtitle",
     stt: "settings.stt_subtitle",
     "model-defaults": "settings.model_defaults.subtitle",
+    integrations: "settings.integrations_section.subtitle",
+    notifications: "settings.notifications.subtitle",
     developer: "settings.developer.subtitle",
+    configuration: "settings.config_editor.subtitle",
     engines: "settings.engines.subtitle",
     hardware: "settings.system.subtitle",
     llm: "settings.llm.subtitle",
     "model-hub": "settings.model_hub.subtitle",
-    tools: "settings.tools_page.subtitle",
-    permissions: "settings.permissions.subtitle",
   };
 
   const ROUTE_META = new Map<SettingsSubRoute, { titleKey: string; kickerKey: string }>();
@@ -289,6 +294,15 @@
       subtitle: $t(SUBTITLE_KEY[$settingsSubRoute]),
     };
   });
+  // The column with the developer mode in its position; a section of the mode
+  // left open when the mode goes off gives way to Developer, where the switch is.
+  const shownNav = $derived(visibleSettingsNav($developerMode));
+  $effect(() => {
+    if (!settingsSubRouteVisible($settingsSubRoute, $developerMode)) {
+      goToSettingsSubRoute("developer");
+    }
+  });
+
   const currentDirty = $derived($settingsDirtyStore[$settingsSubRoute]?.dirty === true);
 
   // ─── Sub-nav rendering helpers ─────────────────────────────────────
@@ -320,7 +334,7 @@
   lazy-loaded sub-route wrapped in the canonical route transition.
 -->
 {#snippet clusterNav()}
-  {#each SETTINGS_NAV as cluster (cluster.labelKey)}
+  {#each shownNav as cluster (cluster.labelKey)}
     <div>
       <div class="mb-1.5 px-2.5 font-mono text-overline uppercase text-muted-foreground">
         {$t(cluster.labelKey)}
@@ -421,6 +435,9 @@
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden" data-testid="settings-content">
       <PageHeader kicker={head.kicker} title={head.title} subtitle={head.subtitle}>
         {#snippet actions()}
+          {#if $settingsSubRoute === "hardware"}
+            <HardwareHeaderActions />
+          {/if}
           <UnsavedChangesBadge />
           {#if !currentDirty}
             <span

@@ -40,8 +40,12 @@
     type AgentLiveStatus,
   } from "$lib/stores/agentStatus";
   import { triggerAutoName } from "$lib/chat/autoName";
+  import { chatSendKey, composerEnterAction } from "$lib/stores/chatSendKey";
   import { setPlanMode, getPlanModeDefault } from "$lib/ipc/planMode";
   import AgentStatusCard from "./AgentStatusCard.svelte";
+  import ChatTargetSelector from "./ChatTargetSelector.svelte";
+  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
+  import { startRequest } from "$lib/chat/applyTargetChoice";
   import EmptyAgentsState from "./EmptyAgentsState.svelte";
   import { focusTrap } from "$lib/shortcuts/focusTrap";
   import { Textarea } from "$lib/components/ui/textarea";
@@ -61,6 +65,18 @@
 
   let prompt = $state("");
   let creating = $state(false);
+  // The agent or the model chosen in the selector before the conversation
+  // starts; `null` starts a free chat on Apollia's model.
+  let chosenTarget = $state<ChatTarget | null>(null);
+  const chosenConversation = $derived<ConversationTarget | null>(
+    chosenTarget === null
+      ? null
+      : chosenTarget.kind === "model"
+        ? { mode: "libre", agentName: null, model: chosenTarget.route }
+        : chosenTarget.builtin
+          ? { mode: "libre", agentName: null, model: null }
+          : { mode: "agent", agentName: chosenTarget.id, model: null },
+  );
   // Surfaces a stable, human-readable reason when session creation fails. The
   // most common case is a missing LLM backend: `create_chat_session` rejects
   // with `NoLlmConfigured` for Libre/Companion mode, and this picker is opened
@@ -190,7 +206,8 @@
     isRewriting = true;
     createError = null;
     try {
-      // THEN: fetch Work context from profile
+      // THEN: fetch the work context from the default profile, the one a new
+      // conversation follows
       const workContext = await fetchWorkContext();
 
       // THEN: call rewriter
@@ -231,12 +248,16 @@
   }
 
   async function createFreeChat(initialPrompt?: string, tools?: string[]): Promise<void> {
+    if (chosenTarget?.kind === "agent" && !chosenTarget.builtin) {
+      await createAgentChat(chosenTarget.id);
+      return;
+    }
     if (creating) return;
     creating = true;
     createError = null;
     try {
       const request: CreateSessionRequest = {
-        mode: "libre",
+        ...startRequest(chosenTarget),
         tools,
       };
       const session = await createChatSession(request);
@@ -298,9 +319,7 @@
   }
 
   function handleTextareaKeydown(event: KeyboardEvent): void {
-    const isSubmit =
-      (event.metaKey || event.ctrlKey) && event.key === "Enter";
-    if (isSubmit) {
+    if (composerEnterAction(event, $chatSendKey) === "send") {
       event.preventDefault();
       if (prompt.trim().length === 0) return;
       void createFreeChat(prompt);
@@ -314,6 +333,11 @@
     <div class="flex items-center gap-2">
       <Sparkles size={13} class="text-primary/80" />
       <span class="text-xs font-medium">{$t("chat.quickpicker.title")}</span>
+      <ChatTargetSelector
+        conversation={chosenConversation}
+        onpick={(target) => (chosenTarget = target)}
+        disabled={creating}
+      />
     </div>
     <button
       type="button"
@@ -360,7 +384,11 @@
 
   <div class="mt-2 flex items-center justify-between">
     <span class="text-micro text-muted-foreground/50">
-      {$t("chat.quickpicker.submit_hint")}
+      {$t(
+        $chatSendKey === "mod-enter"
+          ? "chat.quickpicker.submit_hint"
+          : "chat.quickpicker.submit_hint_enter",
+      )}
     </span>
     <div class="flex items-center gap-2">
       <Button

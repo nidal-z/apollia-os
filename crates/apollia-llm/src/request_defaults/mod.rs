@@ -1,4 +1,5 @@
-//! The request settings a call starts from, resolved in three levels.
+//! The request settings a call starts from, resolved in three levels, and in
+//! four inside a conversation.
 //!
 //! 1. **The model**: the defaults its publisher recommends, read by
 //!    [`crate::model_defaults::resolve`] from the card copied next to the
@@ -7,6 +8,9 @@
 //!    manifest declares ([`PackageRequestSettings`]).
 //! 3. **The user**: the request settings of the preset chosen for the agent,
 //!    else of the default preset of the agent's model ([`RequestSettings`]).
+//! 4. **The conversation**: the request settings typed for one conversation,
+//!    which hold for it alone. The preset chosen for the conversation takes
+//!    the place of level 3.
 //!
 //! A level wins over the ones below it field by field: a field it leaves
 //! unset keeps the value of the level below. A value the call itself sets is
@@ -92,6 +96,12 @@ impl RequestDefaults {
         }
     }
 
+    /// Resolve four levels: `session` over the three of [`Self::resolve`],
+    /// field by field.
+    pub fn resolve_in_session(model: &Self, package: &Self, preset: &Self, session: &Self) -> Self {
+        session.clone().over(&Self::resolve(model, package, preset))
+    }
+
     /// Resolve the three levels: `preset` over `package` over `model`, field
     /// by field.
     pub fn resolve(model: &Self, package: &Self, preset: &Self) -> Self {
@@ -128,6 +138,30 @@ impl RequestDefaults {
         if req.stop.is_none() {
             req.stop.clone_from(&self.stop);
         }
+    }
+}
+
+/// The three levels of one call, kept apart so a caller can tell what the
+/// user chose (the preset) from what the model and the package recommend.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RequestLevels {
+    /// Level 1: the defaults of the model.
+    pub model: RequestDefaults,
+    /// Level 2: the settings the agent's package declares.
+    pub package: RequestDefaults,
+    /// Level 3: the preset in force.
+    pub preset: RequestDefaults,
+}
+
+impl RequestLevels {
+    /// The three levels resolved.
+    pub fn resolved(&self) -> RequestDefaults {
+        RequestDefaults::resolve(&self.model, &self.package, &self.preset)
+    }
+
+    /// The four levels resolved, `session` over the three.
+    pub fn resolved_in_session(&self, session: &RequestDefaults) -> RequestDefaults {
+        RequestDefaults::resolve_in_session(&self.model, &self.package, &self.preset, session)
     }
 }
 

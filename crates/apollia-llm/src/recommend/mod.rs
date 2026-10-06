@@ -39,6 +39,7 @@ pub mod fit;
 pub mod llama_support;
 pub mod manifest;
 pub mod mlx;
+pub mod ocr;
 pub mod offload;
 pub mod publishers;
 pub mod quant;
@@ -64,6 +65,7 @@ pub use fit::{
 pub use llama_support::LLAMA_CPP_TAG;
 pub use manifest::{Family, FamilyManifest, ManifestError, ToolCalling, Variant};
 pub use mlx::{estimate_mlx_memory, mlx_kv_cache_bytes, MlxConfig, MlxEstimateError};
+pub use ocr::{OcrCatalogue, OcrLanguage};
 pub use offload::{
     active_weight_share, estimated_capacity_gb, plan_offload, MemoryArchitecture, OffloadPlan,
 };

@@ -1,0 +1,19 @@
+# A package the tests embed through the build script, the way the proposed
+# examples of `agents/starters/` are embedded. Never shipped.
+
+[package]
+name = "sample-watch"
+version = "1.2.0"
+publisher = "Apollia"
+description = "Watches a topic and reports what changed."
+sdk = ">=0.2.0-preview"
+
+[[agents]]
+id = "sample-watch"
+name = "Sample watch"
+mission = "Watch the topic you are given and report what changed since the last time."
+examples = ["What is new about local inference this week?"]
+
+[[requires]]
+type = "imap"
+reason = "Reads the newsletters of your mailbox."

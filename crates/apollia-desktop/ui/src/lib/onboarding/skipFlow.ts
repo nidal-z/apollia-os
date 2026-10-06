@@ -8,7 +8,7 @@
  */
 
 export interface ChatCompletionInputs {
-  /** The operator explicitly skipped the optional questions. */
+  /** The operator explicitly skipped the questions. */
   skippedDirectly: boolean;
   /** The agent (or the direct skip) stamped `onboarding.completed_at`. */
   agentFinalized: boolean;
@@ -17,8 +17,8 @@ export interface ChatCompletionInputs {
 }
 
 /**
- * Whether the acquaintance chat is complete and the flow may enter the
- * permissions phase.
+ * Whether the acquaintance chat is complete and the flow may open the
+ * profile review.
  *
  * An explicit operator skip completes immediately: the `minRealReplies` guard
  * only exists to distrust a stale `completed_at` from a previous broken

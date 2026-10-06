@@ -125,11 +125,11 @@ fn make_onboarding_messages() -> Vec<ChatMessage> {
         ),
         (
             ChatRole::User,
-            "Je suis Nidal, CTO d'une startup tech. Je préfère le français.",
+            "Je suis Ada, CTO d'une startup tech. Je préfère le français.",
         ),
         (
             ChatRole::Assistant,
-            "Enchanté Nidal ! Quels outils utilises-tu au quotidien ?",
+            "Enchanté Ada ! Quels outils utilises-tu au quotidien ?",
         ),
         (
             ChatRole::User,
@@ -158,7 +158,7 @@ const ONBOARDING_EXTRACTION_JSON: &str = r#"{
     "preferences": [{"key": "language", "value": "francais"}],
     "habits": [{"key": "editor", "value": "Neovim + tmux"}],
     "context": [
-        {"key": "name", "value": "Nidal"},
+        {"key": "name", "value": "Ada"},
         {"key": "role", "value": "CTO startup tech"},
         {"key": "stack", "value": "Rust + Python"}
     ]
@@ -241,12 +241,9 @@ async fn test_onboarding_agent_e2e() {
 
     // Verify the entries can be injected into a system prompt
     let injection = repo
-        .recall_all_for_injection(50)
-        .expect("recall_all_for_injection");
-    assert!(
-        injection.contains("Section:"),
-        "injection should be grouped into sections"
-    );
+        .recall_persona_brief(None, 50)
+        .expect("recall_persona_brief");
+    assert!(injection.contains("Ada"), "injection should name the user");
     assert!(
         injection.contains("francais"),
         "injection should contain language value"
@@ -341,7 +338,7 @@ async fn test_onboarding_retrigger_topic() {
     let repo = create_user_memory(
         dir.path(),
         &[
-            ("name", "Nidal", WrittenBy::Onboarding),
+            ("name", "Ada", WrittenBy::Onboarding),
             ("role", "CTO", WrittenBy::Onboarding),
             ("preferences.language", "francais", WrittenBy::Onboarding),
         ],
@@ -352,15 +349,11 @@ async fn test_onboarding_retrigger_topic() {
 
     // Verify existing context is available for injection into agent prompt
     let existing_context = repo
-        .recall_all_for_injection(50)
-        .expect("recall_all_for_injection");
+        .recall_persona_brief(None, 50)
+        .expect("recall_persona_brief");
     assert!(
-        existing_context.contains("name: Nidal"),
-        "existing context should include user name"
-    );
-    assert!(
-        existing_context.contains("role: CTO"),
-        "existing context should include user role"
+        existing_context.contains("Ada (CTO)"),
+        "existing context should include user name and role"
     );
 
     // WHEN - simulate partial onboarding focused on preferences

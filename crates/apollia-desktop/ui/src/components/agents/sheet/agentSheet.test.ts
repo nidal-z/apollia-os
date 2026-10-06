@@ -16,7 +16,6 @@ import {
   modelView,
   readableName,
   readsProfile,
-  sourceViews,
   withoutRow,
 } from "./agentSheet";
 
@@ -214,15 +213,6 @@ describe("agent sheet - access", () => {
 });
 
 describe("agent sheet - sources", () => {
-  test("the profile and the memory are named, other sources show as written", () => {
-    // GIVEN the sources checked for an agent
-    // WHEN their views are built
-    const views = sourceViews(["profile", "memory", "~/Documents/Devis"]);
-
-    // THEN profile and memory are recognised
-    expect(views.map((v) => v.kind)).toEqual(["profile", "memory", "other"]);
-  });
-
   test("the agent reads the profile only when it is a checked source", () => {
     // GIVEN two lists of sources
     // WHEN the profile question is asked

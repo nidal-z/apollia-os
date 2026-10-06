@@ -70,9 +70,10 @@ as final, and give it a sandbox root you are willing to lose.
 <!-- claim:hitl-wired-in-chat-path-only -->
 Before a tool call runs in a chat session, persisted permission rules classify
 it, a guard refuses a shell command that chains or redirects, and anything left
-raises an approval request that an operator resolves. Permissions are scoped, so
-authority can be granted at the level of the whole install, a project, or a
-single session.
+raises an approval request that an operator resolves with one of three answers:
+once, always for this agent, or refuse with an optional reason the agent reads.
+An "always" is granted to one agent for one family of actions, never to a tool
+name, a project or a session.
 
 The decision itself is not written down. The permission decision log exists as a
 table, append-only and enforced by triggers, but nothing in the shipped runtime
@@ -85,8 +86,8 @@ Which surface can answer a request depends on the kind. An approval keyed by too
 name is answerable over the HTTP API, with `POST /api/v1/sessions/:id/authorize`,
 as well as from the desktop. The other two are desktop-only: a filesystem
 approval is resolved through a Tauri command and so is an `ask_user` question,
-and the API exposes read routes for pending and resolved approvals but no route
-that answers either. On a headless `apollia-os start`, a risky write therefore
+and the API exposes a read route for pending approvals but no route that
+answers either. On a headless `apollia-os start`, a risky write therefore
 waits out its five-minute timeout and is refused, and an `ask_user` waits with no
 timeout at all.
 
@@ -100,9 +101,8 @@ path would not contain a hostile one.
 
 ### Autonomy tiers
 
-An autonomy tier moves five things and no others: the suggested step budget,
-memory injection, the post-run verification pass, the system-prompt profile, and
-the plan gate. It moves no permission rule and no human checkpoint on a tool
+An autonomy tier moves four things and no others: the suggested step budget,
+the post-run verification pass, the system-prompt profile, and the plan gate. It moves no permission rule and no human checkpoint on a tool
 call, so a higher tier does not widen what an agent is allowed to touch. It
 widens how far a run goes before it stops to ask.
 

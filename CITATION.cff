@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use Apollia OS in your work, please cite it using the metadata from this file."
+title: "Apollia OS"
+abstract: "A sovereign Rust runtime for autonomous AI agents. It runs Python agents in isolation, locally, with tools, and without a cloud dependency."
+type: software
+authors:
+  - name: "Apollia"
+    website: "https://apollia.fr"
+version: "0.3.0"
+license:
+  - Apache-2.0
+  - MIT
+repository-code: "https://github.com/Apollia-OS/apollia-os"
+url: "https://apollia.fr"
+keywords:
+  - "AI agents"
+  - "agent runtime"
+  - "local-first"
+  - "Rust"
+  - "Python"

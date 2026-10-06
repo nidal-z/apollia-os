@@ -102,6 +102,67 @@ pub enum JournalEntryKind {
     /// A folder of this machine was added as a connection. The payload is a
     /// [`crate::governance::ConnectionRecord`].
     FolderAdded,
+    /// The user answered a consent prompt: once, always, or refuse. The payload is a
+    /// [`crate::governance::GovernanceRecord`]; it never carries the call's argument.
+    ConsentAnswered,
+    /// A standing consent ("always") was withdrawn. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    AlwaysWithdrawn,
+    /// The organisation policy refused a call. The payload is a
+    /// [`crate::governance::GovernanceRecord`]; it never carries the call's argument.
+    PolicyRefused,
+    /// A fine rule refused a call. The payload is a
+    /// [`crate::governance::GovernanceRecord`]; it never carries the call's argument.
+    RuleRefused,
+    /// A fine rule was added. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    RuleAdded,
+    /// A fine rule was removed. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    RuleRemoved,
+    /// A family was granted to an agent for one batch run. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    BatchAccessGranted,
+    /// The organisation policy was applied at startup. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    PolicyApplied,
+    /// The policy applied at startup differs from the one applied before. The
+    /// payload is a [`crate::governance::GovernanceRecord`].
+    PolicyChanged,
+    /// A deposited policy was refused at startup. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    PolicyUnreadable,
+    /// The organisation policy fixed a setting the user's file sets
+    /// otherwise, and what the setting had opened was closed at startup. The
+    /// payload is a [`crate::governance::GovernanceRecord`]: it names the
+    /// setting.
+    PolicySettingEnforced,
+    /// Governance entered fail-closed: it refuses what is sensitive. The
+    /// payload is a [`crate::governance::GovernanceRecord`].
+    FailClosedTriggered,
+    /// The journal was exported. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    JournalExported,
+    /// Entries older than the retention of the organisation policy were
+    /// removed. The payload is a [`crate::governance::GovernanceRecord`]: it
+    /// carries the anchor of the prefix removed, which is where verification
+    /// starts from.
+    JournalPurged,
+    /// The journal opened without its signing key: entries are chained and
+    /// not signed. The payload is a [`crate::governance::GovernanceRecord`].
+    JournalUnsigned,
+    /// The daily export the organisation policy asks for could not be
+    /// written. The payload is a [`crate::governance::GovernanceRecord`].
+    JournalExportFailed,
+    /// `apollia.toml` changed. The payload is a
+    /// [`crate::config_reload::ConfigChangeRecord`]: the paths of the keys,
+    /// the origin, the fingerprint of the file before and after, never a value.
+    ConfigurationChanged,
+    /// A request reached the compatible server. The payload is a
+    /// [`crate::compat_server::ServerCallRecord`]: the endpoint, the model or
+    /// the agent named, the name of the token, where the call came from, the
+    /// status, the tokens and the duration, never a message nor an answer.
+    ServerCall,
     /// A run-scoped event with no explicit mapping; `raw_kind` keeps the
     /// original variant name so coverage stays auditable.
     Unknown {
@@ -148,6 +209,24 @@ impl JournalEntryKind {
             JournalEntryKind::AccountConnected => "account_connected",
             JournalEntryKind::AccountDisconnected => "account_disconnected",
             JournalEntryKind::FolderAdded => "folder_added",
+            JournalEntryKind::ConsentAnswered => "consent_answered",
+            JournalEntryKind::AlwaysWithdrawn => "always_withdrawn",
+            JournalEntryKind::PolicyRefused => "policy_refused",
+            JournalEntryKind::RuleRefused => "rule_refused",
+            JournalEntryKind::RuleAdded => "rule_added",
+            JournalEntryKind::RuleRemoved => "rule_removed",
+            JournalEntryKind::BatchAccessGranted => "batch_access_granted",
+            JournalEntryKind::PolicyApplied => "policy_applied",
+            JournalEntryKind::PolicyChanged => "policy_changed",
+            JournalEntryKind::PolicyUnreadable => "policy_unreadable",
+            JournalEntryKind::PolicySettingEnforced => "policy_setting_enforced",
+            JournalEntryKind::FailClosedTriggered => "fail_closed_triggered",
+            JournalEntryKind::JournalExported => "journal_exported",
+            JournalEntryKind::JournalPurged => "journal_purged",
+            JournalEntryKind::JournalUnsigned => "journal_unsigned",
+            JournalEntryKind::JournalExportFailed => "journal_export_failed",
+            JournalEntryKind::ConfigurationChanged => "configuration_changed",
+            JournalEntryKind::ServerCall => "server_call",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
     }
@@ -188,6 +267,24 @@ impl JournalEntryKind {
             "account_connected" => JournalEntryKind::AccountConnected,
             "account_disconnected" => JournalEntryKind::AccountDisconnected,
             "folder_added" => JournalEntryKind::FolderAdded,
+            "consent_answered" => JournalEntryKind::ConsentAnswered,
+            "always_withdrawn" => JournalEntryKind::AlwaysWithdrawn,
+            "policy_refused" => JournalEntryKind::PolicyRefused,
+            "rule_refused" => JournalEntryKind::RuleRefused,
+            "rule_added" => JournalEntryKind::RuleAdded,
+            "rule_removed" => JournalEntryKind::RuleRemoved,
+            "batch_access_granted" => JournalEntryKind::BatchAccessGranted,
+            "policy_applied" => JournalEntryKind::PolicyApplied,
+            "policy_changed" => JournalEntryKind::PolicyChanged,
+            "policy_unreadable" => JournalEntryKind::PolicyUnreadable,
+            "policy_setting_enforced" => JournalEntryKind::PolicySettingEnforced,
+            "fail_closed_triggered" => JournalEntryKind::FailClosedTriggered,
+            "journal_exported" => JournalEntryKind::JournalExported,
+            "journal_purged" => JournalEntryKind::JournalPurged,
+            "journal_unsigned" => JournalEntryKind::JournalUnsigned,
+            "journal_export_failed" => JournalEntryKind::JournalExportFailed,
+            "configuration_changed" => JournalEntryKind::ConfigurationChanged,
+            "server_call" => JournalEntryKind::ServerCall,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
             },
@@ -397,6 +494,53 @@ mod tests {
                 "account_disconnected",
             ),
             (JournalEntryKind::FolderAdded, "folder_added"),
+        ];
+        for (kind, expected) in cases {
+            // WHEN converting to its tag and back
+            let tag = kind.tag().to_string();
+            let back = JournalEntryKind::from_tag(&tag);
+            // THEN the tag is stable and the round trip is identity
+            assert_eq!(tag, expected);
+            assert_eq!(back, kind);
+        }
+    }
+
+    // The kinds of consents, refusals, rules, batches, policy,
+    // configuration and server calls round-trip through their stable tags.
+    #[test]
+    fn test_decision_and_policy_kinds_tags_round_trip() {
+        // GIVEN the kinds and their expected tags
+        let cases = [
+            (JournalEntryKind::ConsentAnswered, "consent_answered"),
+            (JournalEntryKind::AlwaysWithdrawn, "always_withdrawn"),
+            (JournalEntryKind::PolicyRefused, "policy_refused"),
+            (JournalEntryKind::RuleRefused, "rule_refused"),
+            (JournalEntryKind::RuleAdded, "rule_added"),
+            (JournalEntryKind::RuleRemoved, "rule_removed"),
+            (JournalEntryKind::BatchAccessGranted, "batch_access_granted"),
+            (JournalEntryKind::PolicyApplied, "policy_applied"),
+            (JournalEntryKind::PolicyChanged, "policy_changed"),
+            (JournalEntryKind::PolicyUnreadable, "policy_unreadable"),
+            (
+                JournalEntryKind::PolicySettingEnforced,
+                "policy_setting_enforced",
+            ),
+            (
+                JournalEntryKind::FailClosedTriggered,
+                "fail_closed_triggered",
+            ),
+            (JournalEntryKind::JournalExported, "journal_exported"),
+            (JournalEntryKind::JournalPurged, "journal_purged"),
+            (JournalEntryKind::JournalUnsigned, "journal_unsigned"),
+            (
+                JournalEntryKind::JournalExportFailed,
+                "journal_export_failed",
+            ),
+            (
+                JournalEntryKind::ConfigurationChanged,
+                "configuration_changed",
+            ),
+            (JournalEntryKind::ServerCall, "server_call"),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

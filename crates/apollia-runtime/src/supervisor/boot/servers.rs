@@ -25,24 +25,61 @@ impl Supervisor {
     /// The compatible server, which reads and writes its switch in the file
     /// the runtime was started with, or in the data directory's apollia.toml,
     /// the file the desktop reads, when it was started without one.
-    pub(super) fn spawn_compat_server(
+    ///
+    /// It serves `agents`, the exposed agents and workflows, as models, and
+    /// writes each request it answers to `journal`. What the organisation
+    /// policy of `core` fixes of its settings wins over the file.
+    pub(super) fn spawn_compat_server<B: ExecutionBackend + Clone>(
         &self,
+        core: &Core<B>,
         inference: &Inference,
-        event_sender: &EventBusSender,
+        agents: crate::compat_server::ExposedAgents,
+        journal: Option<AuditJournalHandle>,
     ) -> crate::compat_server::CompatServerHandle {
+        let imposed = core.org_policy.imposed_settings();
+        let settings = self
+            .config
+            .config_path
+            .clone()
+            .unwrap_or_else(|| self.config.data_dir.join("apollia.toml"));
         crate::compat_server::CompatServerHandle::spawn(
-            self.config
-                .config_path
-                .clone()
-                .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
-            inference.system_db_path.clone(),
+            crate::compat_server::ServerSettings {
+                path: settings.clone(),
+                policy: imposed.clone(),
+            },
+            crate::compat_server::ServerRecords {
+                system_db: inference.system_db_path.clone(),
+                journal,
+            },
             crate::compat_server::LocalModels::new(
                 inference.llama_server_supervisor.clone(),
                 inference.mlx_engine.clone(),
                 Some(crate::installed_models::models_dir(&self.config.data_dir)),
-            ),
-            event_sender,
+            )
+            .with_files(settings, inference.system_db_path.clone())
+            .under_policy(imposed),
+            agents,
+            &core.event_sender,
         )
+    }
+
+    /// What runs a request to the compatible server that brings an MCP server
+    /// of its own: the connections of the runtime, the agent executor, the
+    /// admission of the organisation policy and the model router. `None` when
+    /// one of them is missing.
+    pub(super) fn request_mcp<B: ExecutionBackend + Clone>(
+        &self,
+        core: &Core<B>,
+        inference: &Inference,
+        governance: &Governance,
+        executors: &Executors,
+    ) -> Option<crate::compat_server::RequestMcp> {
+        Some(crate::compat_server::RequestMcp::new(
+            core.mcp_handle.clone()?,
+            executors.request_runner.clone()?,
+            governance.connection.clone(),
+            inference.llm_router.clone()?,
+        ))
     }
 
     /// The state every API route reads.

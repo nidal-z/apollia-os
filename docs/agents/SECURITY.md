@@ -65,7 +65,8 @@ State :
   exchanged. The desktop surfaces the refusal as `refused_by_policy`.
 - Without a policy the user is free: every connection is admitted. A policy that
   is present but refused (rights, key, signature, schema) cannot be read, and
-  the admission fails closed.
+  the admission fails closed. So does a `governance.db` the runtime cannot
+  read.
 - The decision never comes from the renderer. A value a caller hands the
   runtime is not a gate, since any caller can choose it.
 - `inference.remote_endpoints = "deny"` is parsed but gates no inference call
@@ -186,7 +187,9 @@ Reach of what is persisted :
 - An "always" is not a rule: it is a standing consent for one agent and one
   action family (`apollia_permissions::FamilyConsentStore`, table
   `family_consents`), permanent or bound to one batch run. The "execute code"
-  family never takes one.
+  family never takes one: there, in developer mode, "always" on a single simple
+  command writes a fine rule `allow` for that agent whose prefix is the whole
+  command (`GovernanceHandle::allow_command`).
 - Rules written by an older binary are converted once at startup
   (`apollia_permissions::run_access_upgrade`), and every conversion or removal
   is recorded in the audit journal as a change of access.
@@ -209,16 +212,39 @@ applies deciding :
 3. **Reading** (the `read` family, or a tool that acts on the conversation
    alone). Allowed, no consent asked.
 4. **Executing code.** Allowed only by a fine rule `allow` on a single simple
-   command, in developer mode; otherwise asked, without "always".
+   command, in developer mode; otherwise asked, with "always" offered only on
+   a single simple command in developer mode.
 5. **Standing consent** of the agent for the family, or a grant of the run (a
    batch grants the accesses of its agent for its items). Allowed.
 6. **Otherwise asked**, with three answers: once, always, refuse. A tool
-   nobody classified lands here, without "always".
+   nobody classified lands here, without "always", unless a fine rule `allow`
+   names it in developer mode, which lets it run: it has no family a consent
+   could stand for, so the rule is the only thing that answers for it.
 
 The decision carries its reason (policy, rule, fail closed, consent) and the
-answers offered. A run nobody watches (an item of a batch) waits where an
-attended one would ask. An "always" answered at the prompt is written as a
-standing consent for the agent and the family, never as a rule on a tool name.
+answers offered.
+
+Governance that cannot read what it decides from fails closed, never open: a
+`governance.db` that exists and cannot be read, a policy present and
+refused, or a journal the policy requires (`journal.required = true`) that is
+absent or could not be opened, refuses every sensitive call (line 5 and 6
+above become a refusal) and every new connection, while reading continues. A database that stops
+being readable keeps its last state in force, its deny rules and its disabled
+tools included; one unreadable at startup keeps only the `[tools] disabled`
+list of `apollia.toml`. The runs that build their own dispatcher (the agent
+runners of the desktop and the daemon) read the same state through
+`governance::tool_gate`. The state is served by `GET /api/v1/governance/state`,
+which reads the sources again before it answers (a database whose permissions
+were repaired keeps its modification time), and each change is announced as
+`RuntimeEvent::GovernanceFailClosed`. The desktop shows it as a banner under
+the top bar, with a retry for an unreadable database.
+
+A run nobody watches (an item of a batch) waits where an attended one would
+ask. An "always" answered at the prompt is written as a
+standing consent for the agent and the family, never as a rule on a tool name;
+on code, as the fine rule of line 4, never as a grant by name. The request the
+prompt shows carries the whole command or source of a code executor and the
+folder it runs in, never a truncated preview.
 Those six lines are the whole of it. Nothing else in `apollia-permissions` sits
 in front of a tool call, and the `[permissions]` section of `apollia.toml` is
 inert (see the withdrawn sections of the configuration reference).
@@ -240,10 +266,12 @@ raw-string prefix is escapable by chaining (`git` would match
 `git status; rm -rf ...`). The permission model enforces one invariant for them
 (the set is `apollia_permissions::CODE_EXECUTOR_TOOLS`) :
 
-- A no-prefix rule never auto-approves a code executor, and "always" is never
-  offered for one: every call asks, whichever agent runs it, in a conversation
-  or outside one, since both go through the same decision. A prefix rule
-  approves only in developer mode.
+- A no-prefix rule never auto-approves a code executor, and outside developer
+  mode "always" is never offered for one: every call asks, whichever agent runs
+  it, in a conversation or outside one, since both go through the same
+  decision. A prefix rule approves only in developer mode, and "always" there
+  is offered only on a single simple command, where it writes an `allow` rule
+  for the agent on that whole command; a compound command is asked every time.
 - A prefix rule on a code executor matches only when the argument is a single
   simple command, with no chaining, pipe, redirection, substitution, or
   backgrounding (`;`, `|`, `&`, `` ` ``, `>`, `<`, `(`, `)`, `{`, `}`, `$(`,
@@ -260,9 +288,43 @@ not the primary control. The primary control against an over-broad grant is the
 permission scoping above, not the classifier. Default patterns are deliberately
 left empty to preserve the opt-in, local-first posture.
 
-Audit table is append-only. Never delete a row programmatically.
-Retention is time-based via `[audit].retention_days` in the config, not a
-manual purge command.
+### What the journal promises, and what it does not
+
+The audit journal (`audit_journal.db`, `apollia_runtime::audit_journal`) is
+append-only, hash-chained per run and across runs, and signed when its key can
+be read. The promise made to whoever answers for a fleet is exact, and no
+wider than this:
+
+- **No erase function.** Nothing in the interface, the command line or the API
+  removes an entry: no route under `/api/v1/audit` answers `DELETE` (a test
+  lists them), and no `audit` subcommand or desktop command deletes. Never add
+  one, and never delete a row programmatically.
+- **Alteration is detected, not prevented.** The journal and its HMAC key live
+  in the user's own folder, on the user's own machine. The user can delete or
+  rewrite the file. What the chain guarantees is that an entry changed,
+  removed or reordered shows in `audit verify`; it does not stop the change.
+  A holder of the key can re-sign a rewritten chain.
+- **Only an anchor kept elsewhere detects truncation.** A journal cut at its
+  end is a shorter chain that still verifies against itself. The head anchor
+  (`audit anchor`, and the `anchor` of each daily export file) is what shows
+  it, and only when a copy of it sits outside the machine.
+- **Retention belongs to the organisation policy.** `journal.retention_days`
+  of the signed policy is the only thing that removes entries, at startup and then
+  once a day: the entries older than that many days leave after a signed
+  `journal_purged` entry that carries the anchor of what left, and
+  verification starts from that entry and reports where. Without a policy, or
+  without that key, nothing is ever removed. There is no retention key in
+  `apollia.toml` and no purge command.
+
+The same section of the policy sets the rest: `journal.required = true` fails
+closed without a journal (above); a journal that opens without its signing key
+stays usable, says so in the window and records `journal_unsigned`, because
+its chain is still verified; `journal.export.detail` forbids or requires the
+detail of an export, and an export asked the other way is refused;
+`journal.export.daily_summary_dir` receives one summary file per UTC day with
+the head anchor, caught up at startup before the retention runs. A folder that
+cannot be written is said in the window and recorded as
+`journal_export_failed`; it refuses nothing.
 
 
 
@@ -272,7 +334,14 @@ manual purge command.
 
 The file tools (`file_read`, `file_write`, `file_edit`, `file_list`,
 `file_glob`, `file_grep`, notebook read/edit) resolve every path against a
-`SandboxRoot` jail and reject escapes. A reversible journal logs every write.
+`SandboxRoot` jail and reject escapes. Nothing records a write so that it can be
+undone (see the last rule below).
+
+A write is consented to like any other tool call: `file_write`, `file_edit` and
+`notebook_edit` are in the "write or delete" family, so the decision of
+section 5 asks once, on the same card as every tool, with the same three
+answers. There is no second prompt of their own, no classification of the path
+by risk level and no confirmation word to type.
 
 This jail applies to those tools only. `bash_executor` and `python_executor`
 spawn child processes that dereference paths themselves, so a string-level jail
@@ -281,14 +350,15 @@ described in section 0 instead. And an in-process agent can touch the filesystem
 directly with raw Python, bypassing the tool layer entirely.
 
 Rules :
-- Prefer the file tools for agent filesystem access so the jail and journal
-  apply.
+- Prefer the file tools for agent filesystem access so the jail and the
+  family consent apply.
 - Path validation : file-tool paths are resolved against the sandbox root and
   rejected if they escape (`..`, symlinks pointing outside).
-- The journal is the intended rollback path, and it is not wired: the file
-  tools accept a journal handle through `with_journal`, and no production site
-  passes one, so nothing is recorded and nothing can be reverted. Do not write a
-  rule, a doc page, or an error message that implies otherwise.
+- A rollback journal exists in `apollia-tools` and it is not wired: the file
+  tools accept a journal handle through `with_journal`, only their own tests
+  pass one, and no production site does, so nothing is recorded and nothing can
+  be reverted. Do not write a rule, a doc page, or an error message that implies
+  otherwise.
 
 ---
 
@@ -325,6 +395,18 @@ Rules, held by `scripts/check_http_clients.py` :
 - Never read a response body with `.text()`, `.bytes()` or `.json()`. Read it
   with `apollia_core::net::read_capped_{bytes,text,json}`, which refuse an
   oversized body mid-stream instead of buffering it and measuring afterwards.
+- One exception sits between the two builders, and it is written here rather
+  than tolerated: the MCP server a request to the compatible server brings
+  with it (`[server] allow_request_mcp`, off by default). Its address comes
+  from a third party, so the redirect policy is the one of
+  `safe_client_builder`, every hop public; but trying a server on this machine
+  is the first use of such a request, so the initial check is
+  `assert_public_or_loopback`: the loopback interface is let through, the
+  private network, a link-local address and an internal domain stay refused.
+  The client is built by `request_supplied_client_builder` and handed to the
+  transport (`StreamableHttpTransport::with_client`); the transport never
+  builds one for an address a request gave. A server on this machine cannot
+  redirect at all, since every hop must be public.
 - Two paths in the runtime carry an agent payload straight to the network: the
   webhook notification channel and the `PreToolUse` / `PostToolUse` HTTP hook
   handler. Both apply the initial check and the per-hop one. A hook answer that
@@ -361,7 +443,7 @@ Rules, held by `scripts/check_http_clients.py` :
 | Threat | Mitigation |
 |---|---|
 | Local file exfiltration by a deliberately malicious agent | Not technically prevented: agent code runs in-process (section 0). Defense is the install-chain audit plus HITL on tool actions. The filesystem sandbox and audit journal apply to native tool calls, not to raw agent Python |
-| Buggy agent writing outside its intent via file tools | File-tool path jail (`SandboxRoot`), audit journal, reversible writes |
+| Buggy agent writing outside its intent via file tools | File-tool path jail (`SandboxRoot`), the "write or delete" consent, asked on each write until the user answers "always" for the agent, audit journal. No write can be undone: the rollback journal is not wired (section 6) |
 | Credential leak via prompt injection | **Not mitigated.** No prompt-injection defence exists: fetched content feeds the model context as data with no output-side scanning (`web_read` documents this in-module). The only barrier is that any resulting tool call still goes through the prefix rules, the code-executor guard and HITL, so injected instructions cannot silently execute |
 | Network exfiltration | Profile gating, host pinning, audit log |
 | Token theft from disk | OS keyring or age-encrypted file |

@@ -5,7 +5,12 @@
 //! engine's answer comes back as it gave it: a JSON body read under a cap, or
 //! an event stream passed on chunk by chunk, in order, as the engine sends it.
 //! Nothing is translated from one format into another: an endpoint the engine
-//! of the model does not serve answers 404, never an approximation.
+//! of the model does not serve answers 404, never an approximation. A chat
+//! completion, a response or a message on an `apollia/...` model is not
+//! relayed: the runtime runs the exposed agent or workflow it names (see
+//! [`super::agent_call`]). Neither is a response or a message that brings an
+//! MCP server: the runtime runs its tool loop (see
+//! [`super::request_mcp_run`]).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -13,16 +18,23 @@ use std::time::Duration;
 use apollia_core::net::{read_capped_bytes, ReadCappedError};
 use axum::body::{Body, Bytes};
 use axum::extract::State;
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::{Extension, Json};
 use futures::StreamExt;
 use serde::Serialize;
 use serde_json::Value;
 
+use super::agent_call::{admitted, call_exposed, Caller, ExposedCall};
+use super::agents::{ExposedAgents, MODEL_PREFIX};
 use super::errors::{error_response, ErrorKind, Family};
 use super::logs::RequestedModel;
-use super::models::{HeldModel, LocalModels, ServedModel};
+use super::models::{HeldModel, LocalModels, ServedModel, Unheld};
+use super::origin::CallOrigin;
+use super::reasoning;
+use super::request_mcp::brings_mcp;
+use super::request_mcp_run::call_with_request_mcp;
+use super::tokens::ServerTokensHandle;
 use crate::engine_store::Engine;
 use crate::llama_server::ModelKind;
 
@@ -74,27 +86,47 @@ impl Endpoint {
         }
     }
 
-    fn family(self) -> Family {
+    pub(crate) fn family(self) -> Family {
         Family::of_path(self.path())
     }
 }
 
-/// What the relaying routes share: the local models and the client that
-/// reaches their engines.
+/// What the routes share: the local models and the client that reaches their
+/// engines, the exposed agents and workflows, and the tokens a call to one of
+/// them from the local network is checked against.
 #[derive(Debug, Clone)]
 pub(crate) struct RelayState {
     models: LocalModels,
     client: reqwest::Client,
+    agents: ExposedAgents,
+    tokens: Option<ServerTokensHandle>,
 }
 
 impl RelayState {
     /// The client reaches only the engines' processes on `127.0.0.1`, which
     /// the runtime spawned: an endpoint it configured, never through a proxy.
+    /// No agent nor workflow is served.
+    #[cfg(test)]
     pub(crate) fn new(models: LocalModels) -> Result<Arc<Self>, reqwest::Error> {
+        Self::with_agents(models, ExposedAgents::default(), None)
+    }
+
+    /// As [`Self::new`], serving `agents` too; a call to one of them from the
+    /// local network presents a token `tokens` holds in use.
+    pub(crate) fn with_agents(
+        models: LocalModels,
+        agents: ExposedAgents,
+        tokens: Option<ServerTokensHandle>,
+    ) -> Result<Arc<Self>, reqwest::Error> {
         let client = apollia_core::net::loopback_client_builder()
             .connect_timeout(CONNECT_TIMEOUT)
             .build()?;
-        Ok(Arc::new(Self { models, client }))
+        Ok(Arc::new(Self {
+            models,
+            client,
+            agents,
+            tokens,
+        }))
     }
 }
 
@@ -105,7 +137,8 @@ struct ModelEntry {
     object: &'static str,
     created: i64,
     owned_by: &'static str,
-    /// `llm` for a chat model, `embeddings` for the instance serving vectors.
+    /// `llm` for a chat model, `embeddings` for the instance serving vectors,
+    /// `agent` or `workflow` for an exposed agent or workflow.
     #[serde(rename = "type")]
     kind: &'static str,
 }
@@ -129,14 +162,43 @@ fn entry(model: ServedModel) -> ModelEntry {
     }
 }
 
-/// `GET /v1/models`: the resident models, by their registry identifier.
-pub(crate) async fn list_models(State(state): State<Arc<RelayState>>) -> Response {
-    let data = state.models.served().await.into_iter().map(entry).collect();
+/// `GET /v1/models`: the resident models and, while on-demand loading is on,
+/// the language models of this machine, by their registry identifier, then
+/// the exposed agents and workflows, `apollia/<id>`. A caller of the local
+/// network without a token in use is not told the agents and workflows.
+pub(crate) async fn list_models(
+    State(state): State<Arc<RelayState>>,
+    origin: Option<Extension<CallOrigin>>,
+    headers: HeaderMap,
+) -> Response {
+    let mut data: Vec<ModelEntry> = state.models.listed().await.into_iter().map(entry).collect();
+    if admitted(origin_of(origin), &headers, state.tokens.as_ref()).await {
+        data.extend(
+            state
+                .agents
+                .listed()
+                .await
+                .into_iter()
+                .map(|model| ModelEntry {
+                    id: model.id,
+                    object: "model",
+                    created: 0,
+                    owned_by: "apollia",
+                    kind: model.kind.as_str(),
+                }),
+        );
+    }
     Json(ModelList {
         object: "list",
         data,
     })
     .into_response()
+}
+
+/// The origin of a request; one that carries none, which only a test builds,
+/// is read as the local network, the stricter of the two.
+fn origin_of(origin: Option<Extension<CallOrigin>>) -> CallOrigin {
+    origin.map_or(CallOrigin::LocalNetwork, |Extension(origin)| origin)
 }
 
 /// Relays `body` to the engine serving the model it names, on `endpoint`.
@@ -177,15 +239,21 @@ async fn relay_model(
     id: &str,
 ) -> Response {
     let family = endpoint.family();
-    let Some(held) = state.models.hold(id).await else {
-        return error_response(
-            family,
-            ErrorKind::ModelNotLoaded,
-            format!(
-                "The model '{id}' is not loaded. Load it in Apollia first; \
-                 GET /v1/models lists the loaded models."
-            ),
-        );
+    let held = match state.models.hold(id).await {
+        Ok(held) => held,
+        Err(Unheld::NotLoaded) => {
+            return error_response(
+                family,
+                ErrorKind::ModelNotLoaded,
+                format!(
+                    "The model '{id}' is not loaded. Load it in Apollia first; \
+                     GET /v1/models lists the models it serves."
+                ),
+            )
+        }
+        Err(Unheld::LoadFailed(message)) => {
+            return error_response(family, ErrorKind::EngineUnavailable, message)
+        }
     };
     if !endpoint.served_by(held.served.engine, held.served.kind) {
         return error_response(
@@ -244,22 +312,30 @@ async fn forward(
         status = status.as_u16(),
         "compat_server.relay.answered"
     );
+    let merge_reasoning = endpoint == Endpoint::ChatCompletions
+        && status.is_success()
+        && !state.models.separates_reasoning();
     if content_type.as_bytes().starts_with(b"text/event-stream") {
         let lease = held.lease;
         // SAFETY: an event stream is open-ended by design; it is relayed chunk
         // by chunk as the engine sends it, never buffered, so no cap applies.
+        // Putting the reasoning back holds at most one unfinished event.
         let chunks = answer.bytes_stream().map(move |chunk| {
             let _held_for_the_stream = &lease;
             chunk
         });
-        return (
-            status,
-            [(header::CONTENT_TYPE, content_type)],
-            Body::from_stream(chunks),
-        )
-            .into_response();
+        let body = if merge_reasoning {
+            Body::from_stream(reasoning::merge_stream(chunks))
+        } else {
+            Body::from_stream(chunks)
+        };
+        return (status, [(header::CONTENT_TYPE, content_type)], body).into_response();
     }
     match read_capped_bytes(answer, MAX_ENGINE_ANSWER).await {
+        Ok(bytes) if merge_reasoning => {
+            let bytes = merged_answer(bytes);
+            (status, [(header::CONTENT_TYPE, content_type)], bytes).into_response()
+        }
         Ok(bytes) => (status, [(header::CONTENT_TYPE, content_type)], bytes).into_response(),
         Err(error) => {
             tracing::event!(
@@ -283,17 +359,78 @@ async fn forward(
     }
 }
 
+/// `bytes`, a JSON chat completion, with its reasoning back in `content`; a
+/// body that does not read as JSON is passed on as the engine gave it.
+fn merged_answer(bytes: Vec<u8>) -> Vec<u8> {
+    let Ok(mut answer) = serde_json::from_slice::<Value>(&bytes) else {
+        return bytes;
+    };
+    reasoning::merge_answer(&mut answer);
+    serde_json::to_vec(&answer).unwrap_or(bytes)
+}
+
+/// Answers a call on `endpoint`: an `apollia/...` model is an exposed agent
+/// or workflow, run by the runtime; a request that brings an MCP server has
+/// its tool loop run by the runtime too; any other is relayed to its engine.
+async fn run_or_relay(
+    state: &RelayState,
+    endpoint: Endpoint,
+    origin: Option<Extension<CallOrigin>>,
+    headers: &HeaderMap,
+    body: Bytes,
+) -> Response {
+    let request: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+    let named = request.get("model").and_then(Value::as_str);
+    let brought = brings_mcp(endpoint, &request);
+    let Some(model) = named
+        .filter(|model| brought || model.starts_with(MODEL_PREFIX))
+        .map(str::to_owned)
+    else {
+        return relay(state, endpoint, body).await;
+    };
+    let caller = Caller {
+        origin: origin_of(origin),
+        headers,
+    };
+    let call = ExposedCall {
+        endpoint,
+        body: &request,
+        model: &model,
+    };
+    let mut response = if brought {
+        call_with_request_mcp(
+            &state.models,
+            &state.agents,
+            state.tokens.as_ref(),
+            caller,
+            call,
+        )
+        .await
+    } else {
+        call_exposed(&state.agents, state.tokens.as_ref(), caller, call).await
+    };
+    response.extensions_mut().insert(RequestedModel(model));
+    response
+}
+
 /// `POST /v1/chat/completions`.
 pub(crate) async fn chat_completions(
     State(state): State<Arc<RelayState>>,
+    origin: Option<Extension<CallOrigin>>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    relay(&state, Endpoint::ChatCompletions, body).await
+    run_or_relay(&state, Endpoint::ChatCompletions, origin, &headers, body).await
 }
 
 /// `POST /v1/responses`.
-pub(crate) async fn responses(State(state): State<Arc<RelayState>>, body: Bytes) -> Response {
-    relay(&state, Endpoint::Responses, body).await
+pub(crate) async fn responses(
+    State(state): State<Arc<RelayState>>,
+    origin: Option<Extension<CallOrigin>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    run_or_relay(&state, Endpoint::Responses, origin, &headers, body).await
 }
 
 /// `POST /v1/embeddings`.
@@ -302,8 +439,13 @@ pub(crate) async fn embeddings(State(state): State<Arc<RelayState>>, body: Bytes
 }
 
 /// `POST /v1/messages`.
-pub(crate) async fn messages(State(state): State<Arc<RelayState>>, body: Bytes) -> Response {
-    relay(&state, Endpoint::Messages, body).await
+pub(crate) async fn messages(
+    State(state): State<Arc<RelayState>>,
+    origin: Option<Extension<CallOrigin>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    run_or_relay(&state, Endpoint::Messages, origin, &headers, body).await
 }
 
 /// `POST /v1/messages/count_tokens`.

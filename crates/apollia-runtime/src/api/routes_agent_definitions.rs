@@ -2,6 +2,7 @@
 //! that results.
 //!
 //! - `GET    /api/v1/agent-definitions`                         , list the agents, resolved
+//! - `POST   /api/v1/agent-definitions`                         , create an agent without code
 //! - `GET    /api/v1/agent-definitions/{name}`                  , read one agent, resolved
 //! - `PUT    /api/v1/agent-definitions/{name}/overrides/{field}`, set an override
 //! - `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`, remove an override
@@ -82,12 +83,15 @@ pub struct ResolvedAgentResponse {
     /// `bounded_autonomous` or `long_autonomous`. The user's, else the
     /// package's, else the global default.
     pub autonomy: String,
+    /// Whether the agent plans a task before acting on it: `never`, `auto` or
+    /// `always`. The user's, else the package's, else `auto`.
+    pub planning: String,
     /// Identifier of the user profile designated for the agent; absent when
     /// it runs with the default profile.
     pub profile: Option<String>,
     /// Fields whose value is the user's rather than the package's:
     /// `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
-    /// `profile`.
+    /// `planning`, `profile`.
     pub overridden: Vec<String>,
     /// The definition as the package declares it, before any override.
     #[schema(value_type = Object)]
@@ -109,6 +113,7 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
             sources: agent.sources,
             model: agent.model.map(Into::into),
             autonomy: agent.autonomy.as_str().to_owned(),
+            planning: agent.planning.as_str().to_owned(),
             profile: agent.profile,
             overridden: agent
                 .overridden
@@ -124,7 +129,8 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SetOverrideRequest {
     /// The user's value: a string for `name` and `mission`, a tier name for
-    /// `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
+    /// `autonomy`, a mode for `planning`, a profile identifier for `profile`,
+    /// a list of strings for `examples`, `access` and `sources`.
     /// A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
     #[schema(value_type = Object)]
     pub value: serde_json::Value,
@@ -210,16 +216,54 @@ fn resolved<B: ExecutionBackend + Clone>(
         .ok_or_else(|| api_err(StatusCode::NOT_FOUND, format!("agent '{name}' not found")))
 }
 
-/// `agent` as its card shows it: an agent created without code that reads by
-/// default lists the reading family active on the machine.
+/// The default access in force: `[tools.new_agent]` of the configuration
+/// file read now, the reading family when the runtime was given no file or
+/// the file cannot be read.
+fn default_access_setting<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+) -> apollia_tools::DefaultAccess {
+    use apollia_core::config::{
+        resolve_setting, NewAgentConfig, PolicySettings, NEW_AGENT_ACCESS_KEY,
+        NEW_AGENT_FAMILIES_KEY,
+    };
+    let Some(path) = state.config_path.as_ref() else {
+        return apollia_tools::DefaultAccess::default();
+    };
+    let names = |key: &str| -> Option<Vec<String>> {
+        match resolve_setting(path, key, &PolicySettings::none()) {
+            Ok(setting) => serde_json::from_value(setting.value).ok(),
+            Err(error) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    key = key,
+                    error = %error,
+                    detail = "the reading family stands in",
+                    "agents.default_access.setting_unreadable"
+                );
+                None
+            }
+        }
+    };
+    match (names(NEW_AGENT_FAMILIES_KEY), names(NEW_AGENT_ACCESS_KEY)) {
+        (Some(families), Some(access)) => {
+            apollia_tools::DefaultAccess::from_config(&NewAgentConfig { families, access })
+        }
+        _ => apollia_tools::DefaultAccess::default(),
+    }
+}
+
+/// `agent` as its card shows it: an agent created without code nobody chose
+/// an access for lists the default access, read against the machine.
 async fn shown<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     agent: ResolvedAgent,
 ) -> ResolvedAgentResponse {
     match state.tool_registry_handle.as_ref() {
-        Some(registry) => apollia_tools::with_default_access(agent, registry)
-            .await
-            .into(),
+        Some(registry) => {
+            apollia_tools::with_default_access(agent, registry, &default_access_setting(state))
+                .await
+                .into()
+        }
         None => agent.into(),
     }
 }
@@ -304,7 +348,7 @@ pub async fn get_agent_definition<B: ExecutionBackend + Clone>(
     tag = "agents",
     params(
         ("name" = String, Path, description = "Agent identifier"),
-        ("field" = String, Path, description = "name, mission, examples, access, sources, autonomy or profile"),
+        ("field" = String, Path, description = "name, mission, examples, access, sources, autonomy, planning or profile"),
     ),
     request_body = SetOverrideRequest,
     responses(
@@ -347,7 +391,7 @@ pub async fn set_agent_override<B: ExecutionBackend + Clone>(
     tag = "agents",
     params(
         ("name" = String, Path, description = "Agent identifier"),
-        ("field" = String, Path, description = "name, mission, examples, access, sources, autonomy or profile"),
+        ("field" = String, Path, description = "name, mission, examples, access, sources, autonomy, planning or profile"),
     ),
     responses(
         (status = 200, description = "Override removed, or there was none; the agent in force", body = ResolvedAgentResponse),
@@ -446,7 +490,7 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
     Router::new()
         .route(
             "/api/v1/agent-definitions",
-            get(list_agent_definitions::<B>),
+            get(list_agent_definitions::<B>).post(create::create_agent_definition::<B>),
         )
         .route(
             "/api/v1/agent-definitions/:name",
@@ -466,9 +510,12 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
         )
 }
 
+pub mod create;
 pub mod export;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_create;
 #[cfg(test)]
 mod tests_export;

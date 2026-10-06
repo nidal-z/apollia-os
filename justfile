@@ -566,10 +566,11 @@ cli-build:
 cli-e2e-runtime:
     APOLLIA_REQUIRE_RUNTIME=1 APOLLIA_TEST_MODEL_GGUF=/nonexistent-apollia-e2e.gguf bash tests/cli/cli-e2e.sh
 
-# Builds the daemon, then drives it over HTTP on a throwaway HOME (question,
-# approval, gated MCP call). No model.
+# Builds the daemon, then drives it over HTTP and the CLI on a throwaway HOME:
+# a package workflow pauses on a question, is answered, declined, and left
+# waiting across a restart. No model.
 
-# Typed pauses on the task path, end to end, no model
+# A workflow pausing on a question, end to end, no model
 hitl-e2e: cli-build
     PYTHONPATH=sdk python3 -m pytest tests/hitl/test_hitl_e2e.py -q -p no:cacheprovider
 
@@ -739,6 +740,8 @@ guards:
       "scripts/check_tauri_ipc_args.py"
       "scripts/check_tauri_ipc_callers.py"
       "scripts/check_tracing_messages.py"
+      "scripts/check_tracked_inventory.py"
+      "scripts/check_tracked_inventory.py --selftest"
       "scripts/check_unimported_files.py"
       "scripts/check_ui_vocabulary.py"
       "scripts/check_windows_python_dll.py"

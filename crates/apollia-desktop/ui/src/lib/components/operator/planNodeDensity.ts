@@ -6,7 +6,8 @@
 // still gated per-step by the data itself (an absent hint hides its line even
 // in Builder).
 
-import type { UIMode } from "$lib/stores/mode";
+/** The two densities of a plan step node; "builder" is the developer mode. */
+export type PlanNodeDensity = "operator" | "builder";
 
 /** Fields a plan step node may render, gated by UI mode. */
 export interface NodeFieldVisibility {
@@ -24,7 +25,7 @@ export interface NodeFieldVisibility {
  * provenance chip). Builder returns all-true, exposing dependencies, tool and
  * model hints, the rationale and the change reason.
  */
-export function nodeFields(mode: UIMode): NodeFieldVisibility {
+export function nodeFields(mode: PlanNodeDensity): NodeFieldVisibility {
   const builder = mode === "builder";
   return {
     showDescription: builder,

@@ -271,7 +271,8 @@ pub struct GovernanceSnapshot {
 /// # Errors
 ///
 /// Surfaces the SQLite or secret-store errors encountered while reading when
-/// the store exists but is not usable.
+/// the store exists but is not usable. A caller never reads such an error as
+/// "nothing is disabled": governance then fails closed.
 pub fn load_governance_snapshot(
     base_dir: &Path,
 ) -> Result<GovernanceSnapshot, ToolGovernanceError> {

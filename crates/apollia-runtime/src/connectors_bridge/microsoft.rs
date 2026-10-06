@@ -32,7 +32,7 @@ use crate::connectors_bridge::{
 
 static MICROSOFT_CONNECTOR: OnceCell<Arc<MicrosoftConnector>> = OnceCell::const_new();
 
-async fn get_microsoft_connector() -> Result<Arc<MicrosoftConnector>, String> {
+pub(super) async fn get_microsoft_connector() -> Result<Arc<MicrosoftConnector>, String> {
     let auth = get_auth().await?;
     MICROSOFT_CONNECTOR
         .get_or_try_init(|| async {

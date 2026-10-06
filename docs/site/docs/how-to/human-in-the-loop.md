@@ -116,7 +116,7 @@ apollia-os task list --pending-approval
 apollia-os task resume <task-id> --approve
 apollia-os task resume <task-id> --reject --reason "file it manually this quarter"
 
-# Review resolved decisions
+# List the approvals still waiting for a decision
 apollia-os task approvals
 ```
 

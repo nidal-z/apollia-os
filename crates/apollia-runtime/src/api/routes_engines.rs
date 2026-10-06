@@ -1,10 +1,15 @@
 //! Inference engines: what is installed, the followed channel, updates, and
 //! the verified download or import of an engine.
 //!
-//! - `GET  /api/v1/engines`          , engines embedded and installed, channel, updates
+//! - `GET  /api/v1/engines`          , engines embedded and installed with the
+//!   version each states and the ones in service, the dictation engine,
+//!   channel, updates
 //! - `GET  /api/v1/engines/settings` , the followed channel and the mirror address
-//! - `PUT  /api/v1/engines/settings` , change them
+//! - `PUT  /api/v1/engines/settings` , change them; a new channel is checked at once
 //! - `POST /api/v1/engines/check`    , fetch and verify the channel manifest
+//!
+//! A check that finds an update, and a change of channel, start the automatic
+//! update of the chosen engines when `[engines] auto_update` is on.
 //! - `POST /api/v1/engines/install`  , download, verify and install one variant
 //! - `POST /api/v1/engines/import`   , install from a directory on a disk
 //! - `GET  /api/v1/engines/nodejs`   , where Node.js stands: absent, downloading, ready, failed
@@ -22,8 +27,9 @@ use crate::api::routes_llm::servers::{api_err, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::engine_store::{
-    self, cached_manifest, installed_packages, node::NodeState, Channel, Engine, EngineStore,
-    EngineStoreError, EngineStoreSettings, Source, Variant, VariantUpdate,
+    self, cached_manifest, installed_packages, node::NodeState, version, Channel, Engine,
+    EngineChoices, EngineStore, EngineStoreError, EngineStoreSettings, Source, Variant,
+    VariantUpdate,
 };
 
 /// One engine on this machine.
@@ -39,6 +45,23 @@ pub struct EngineEntry {
     pub path: String,
     /// Embedded, downloaded or imported.
     pub source: Source,
+    /// The version the engine states at its source: the `--version` banner of
+    /// a binary, the package metadata of a Python environment. Unknown when it
+    /// does not answer.
+    pub version: Option<String>,
+    /// True for the build this runtime starts for the model format it serves:
+    /// the `llama-server` binary it resolves, the MLX environment it imports.
+    pub in_service: bool,
+}
+
+/// The dictation engine, whisper.cpp inside the runner the daemon starts.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct DictationEngine {
+    /// The runner binary.
+    pub path: String,
+    /// The whisper.cpp version the runner states with `--version`; unknown
+    /// when it does not answer.
+    pub version: Option<String>,
 }
 
 /// Body of `GET /api/v1/engines`.
@@ -55,6 +78,8 @@ pub struct EnginesResponse {
     pub updates: Vec<VariantUpdate>,
     /// True when an NVIDIA card is detected and no CUDA engine is installed.
     pub cuda_proposable: bool,
+    /// The dictation engine, when a runner is in reach.
+    pub dictation: Option<DictationEngine>,
 }
 
 /// Body of the settings routes.
@@ -130,7 +155,93 @@ fn entry(p: engine_store::InstalledPackage) -> EngineEntry {
         variant: Some(p.variant),
         path: p.path.display().to_string(),
         source: p.source,
+        version: None,
+        in_service: false,
     }
+}
+
+/// The version `entry` states at its source, read from what is on disk.
+async fn stated_version(entry: &EngineEntry) -> Option<String> {
+    let path = Path::new(&entry.path);
+    let binary = |name: &str| {
+        let file = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+        if path.is_file() {
+            Some(path.to_path_buf())
+        } else {
+            engine_store::find_binary(path, &file)
+        }
+    };
+    match entry.engine {
+        Engine::LlamaServer => version::probe_banner(&binary("llama-server")?).await,
+        Engine::NodeJs => version::probe_banner(&binary("node")?).await,
+        Engine::VllmMlx => version::dist_info_version(&path.join("site-packages"), "vllm_mlx"),
+    }
+}
+
+/// `entries`, each with the version it states.
+async fn with_versions(mut entries: Vec<EngineEntry>) -> Vec<EngineEntry> {
+    for entry in &mut entries {
+        entry.version = stated_version(entry).await;
+    }
+    entries
+}
+
+/// What this runtime starts under the engine `choices` of the settings: the
+/// `llama-server` binary and the package directory of the MLX environment,
+/// each `None` when none is in reach.
+fn engines_in_service(choices: EngineChoices) -> (Option<PathBuf>, Option<PathBuf>) {
+    let llama = crate::llama_server::locate::in_service_binary(choices.gguf);
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf));
+    let store_root = apollia_core::paths::data_dir().map(|d| engine_store::store_root(&d));
+    let mlx = crate::mlx_engine::locate(
+        exe_dir.as_deref(),
+        store_root.as_deref(),
+        choices.mlx,
+        |var| std::env::var(var).ok(),
+    )
+    .and_then(|launch| launch.site_packages().map(Path::to_path_buf));
+    (llama, mlx)
+}
+
+/// Mark, among `entries`, the builds the runtime starts: the `llama-server`
+/// entry that holds `llama_binary`, the MLX entry whose packages are
+/// `mlx_site_packages`. Node.js serves no model and is never marked.
+fn mark_in_service(
+    entries: &mut [EngineEntry],
+    llama_binary: Option<&Path>,
+    mlx_site_packages: Option<&Path>,
+) {
+    let llama_name = format!("llama-server{}", std::env::consts::EXE_SUFFIX);
+    for entry in entries {
+        let path = Path::new(&entry.path);
+        entry.in_service = match entry.engine {
+            Engine::LlamaServer => llama_binary.is_some_and(|wanted| {
+                if path.is_file() {
+                    path == wanted
+                } else {
+                    engine_store::find_binary(path, &llama_name).as_deref() == Some(wanted)
+                }
+            }),
+            Engine::VllmMlx => {
+                mlx_site_packages.is_some_and(|wanted| path.join("site-packages") == wanted)
+            }
+            Engine::NodeJs => false,
+        };
+    }
+}
+
+/// The dictation engine of this machine and the version its runner states.
+async fn dictation_engine() -> Option<DictationEngine> {
+    let binary = tokio::task::spawn_blocking(crate::runner_supervisor::dictation_runner_binary)
+        .await
+        .ok()
+        .flatten()?;
+    Some(DictationEngine {
+        path: binary.display().to_string(),
+        version: version::probe_banner(&binary).await,
+    })
 }
 
 /// The engines shipped inside the bundle next to the running executable.
@@ -160,6 +271,8 @@ fn embedded_engines() -> Vec<EngineEntry> {
             variant: cfg!(target_os = "macos").then_some(Variant::Metal),
             path: found.display().to_string(),
             source: Source::Embedded,
+            version: None,
+            in_service: false,
         });
     }
     let mlx = apollia_core::paths::bundled_resource_dirs(&exe_dir, "python")
@@ -173,6 +286,8 @@ fn embedded_engines() -> Vec<EngineEntry> {
             variant: Some(Variant::Metal),
             path: found.display().to_string(),
             source: Source::Embedded,
+            version: None,
+            in_service: false,
         });
     }
     out
@@ -205,6 +320,7 @@ fn engines_view(
         manifest_sequence: manifest.map(|m| m.sequence),
         updates,
         cuda_proposable: nvidia_detected && !has_cuda,
+        dictation: None,
     })
 }
 
@@ -230,9 +346,28 @@ pub async fn list_engines<B: ExecutionBackend + Clone>(
     .await
     .unwrap_or(false);
     let embedded = embedded_engines();
-    engines_view(&data_dir, embedded, nvidia)
-        .map(Json)
-        .map_err(store_err)
+    let mut view = engines_view(&data_dir, embedded, nvidia).map_err(store_err)?;
+    view.engines = with_versions(view.engines).await;
+    let config_file = state.config_path.clone();
+    let imposed = state.inference_governance.imposed_settings();
+    let (llama, mlx) = tokio::task::spawn_blocking(move || {
+        engines_in_service(EngineChoices::read(config_file.as_deref(), &imposed))
+    })
+    .await
+    .unwrap_or((None, None));
+    mark_in_service(&mut view.engines, llama.as_deref(), mlx.as_deref());
+    view.dictation = dictation_engine().await;
+    Ok(Json(view))
+}
+
+/// Check the followed channel in the background and, when the settings ask
+/// for it, install the update of each chosen engine it announces.
+fn spawn_auto_update<B: ExecutionBackend + Clone>(state: &AppState<B>) {
+    engine_store::auto_update::spawn(
+        &state.data_dir,
+        state.config_path.clone(),
+        state.inference_governance.imposed_settings(),
+    );
 }
 
 #[utoipa::path(
@@ -269,13 +404,16 @@ pub async fn set_engine_settings<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<EngineSettingsBody>,
 ) -> Result<Json<EngineSettingsBody>, ApiError> {
+    let root = engine_store::store_root(&state.data_dir);
+    let previous = EngineStoreSettings::load(&root).map_err(store_err)?;
     let settings = EngineStoreSettings {
         channel: body.channel,
         base_url: body.base_url.trim().to_owned(),
     };
-    settings
-        .save(&engine_store::store_root(&state.data_dir))
-        .map_err(store_err)?;
+    settings.save(&root).map_err(store_err)?;
+    if settings.channel != previous.channel {
+        spawn_auto_update(&state);
+    }
     Ok(Json(EngineSettingsBody {
         channel: settings.channel,
         base_url: settings.base_url,
@@ -301,10 +439,14 @@ pub async fn check_engines<B: ExecutionBackend + Clone>(
     let (manifest, _) = engine_store::refresh_manifest(&store, &settings)
         .await
         .map_err(store_err)?;
+    let updates = engine_store::updates(&store.root, &manifest, &store.platform);
+    if updates.iter().any(|u| u.update_available) {
+        spawn_auto_update(&state);
+    }
     Ok(Json(EngineCheckResponse {
         channel: settings.channel,
         manifest_sequence: manifest.sequence,
-        updates: engine_store::updates(&store.root, &manifest, &store.platform),
+        updates,
     }))
 }
 
@@ -331,7 +473,7 @@ pub async fn install_engine<B: ExecutionBackend + Clone>(
         .await
         .map_err(store_err)?;
     Ok(Json(EngineInstalledResponse {
-        installed: vec![entry(installed)],
+        installed: with_versions(vec![entry(installed)]).await,
     }))
 }
 
@@ -359,7 +501,7 @@ pub async fn import_engines<B: ExecutionBackend + Clone>(
             .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?
             .map_err(store_err)?;
     Ok(Json(EngineInstalledResponse {
-        installed: installed.into_iter().map(entry).collect(),
+        installed: with_versions(installed.into_iter().map(entry).collect()).await,
     }))
 }
 

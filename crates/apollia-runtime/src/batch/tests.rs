@@ -13,7 +13,8 @@ use crate::test_support::poll_until_async;
 pub(super) const WAIT: Duration = Duration::from_secs(10);
 
 /// What the scripted runner does with an item, read from its `outcome` field:
-/// `ok`, `fail`, `hang` until cancelled, or `await` an access.
+/// `ok`, `fail`, `hang` until cancelled, `await` an access, or `code`: wait to
+/// execute code unless allowed one call of it.
 #[derive(Default)]
 pub(super) struct Scripted {
     pub(super) started: AtomicU32,
@@ -28,6 +29,12 @@ pub(super) struct Scripted {
     pub(super) released: Mutex<Vec<String>>,
     /// The tasks cancelled.
     pub(super) cancelled: Mutex<Vec<String>>,
+    /// Governance refuses writing into the original file.
+    pub(super) deny_original_write: bool,
+    /// The writes into the original file recorded, as `(batch, location)`.
+    pub(super) original_writes: Mutex<Vec<(String, String)>>,
+    /// The access each start was allowed one call of, in order.
+    pub(super) once: Mutex<Vec<Option<String>>>,
 }
 
 /// The sensitive accesses of the scripted agent: one to grant, one never.
@@ -70,6 +77,27 @@ impl ItemRunner for Arc<Scripted> {
         Ok(())
     }
 
+    async fn allow_original_write(&self, _agent: &str, _location: &str) -> Result<(), String> {
+        if self.deny_original_write {
+            Err("refused by the policy".into())
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn record_original_write(
+        &self,
+        batch_id: &str,
+        _agent: &str,
+        location: &str,
+    ) -> Result<(), String> {
+        self.original_writes
+            .lock()
+            .unwrap()
+            .push((batch_id.to_string(), location.to_string()));
+        Ok(())
+    }
+
     async fn release(&self, batch_id: &str) -> Result<(), String> {
         self.released.lock().unwrap().push(batch_id.to_string());
         Ok(())
@@ -80,9 +108,11 @@ impl ItemRunner for Arc<Scripted> {
         _batch_id: &str,
         _agent: &str,
         input: &serde_json::Value,
+        once: Option<&str>,
     ) -> Result<StartedItem, String> {
         let n = self.started.fetch_add(1, Ordering::SeqCst);
         self.inputs.lock().unwrap().push(input.clone());
+        self.once.lock().unwrap().push(once.map(str::to_owned));
         let task_id = format!("task-{n}");
         let (tx, end) = oneshot::channel();
         let outcome = input["outcome"].as_str().unwrap_or("ok");
@@ -92,11 +122,17 @@ impl ItemRunner for Arc<Scripted> {
             let (status, awaiting) = match outcome {
                 "fail" => (ItemStatus::Failed, None),
                 "await" => (ItemStatus::Awaiting, Some("send_email".to_string())),
+                "code" if once != Some("bash_executor") => {
+                    (ItemStatus::Awaiting, Some("bash_executor".to_string()))
+                }
                 _ => (ItemStatus::Completed, None),
             };
+            let output = input["answer"]
+                .as_str()
+                .map_or_else(|| format!("{outcome} {n}"), str::to_owned);
             let _ = tx.send(ItemEnd {
                 status,
-                output: format!("{outcome} {n}"),
+                output,
                 awaiting,
             });
         }
@@ -153,6 +189,7 @@ pub(super) fn launch(concurrency: Option<u32>, max_failures: Option<u32>) -> Bat
             kind: "memory".into(),
             location: "/data/requests.csv".into(),
             options: BTreeMap::new(),
+            write: None,
         },
         grants: vec![],
         concurrency,
@@ -402,4 +439,18 @@ fn test_item_message_lists_the_fields() {
 
     // THEN
     assert_eq!(message, "client: Durand\nrequest: Refund order 12");
+}
+
+#[test]
+fn test_the_access_an_item_waits_for_is_read_back_from_its_output() {
+    // GIVEN the output an item that waits for a connector tool is recorded with
+    let output = awaiting_output("conn:google:ada@example.com/send_email");
+
+    // WHEN the access is read back from it, and from outputs it did not write
+    let read = awaited_access(&output);
+
+    // THEN the access comes back whole, and nothing comes from anything else
+    assert_eq!(read, Some("conn:google:ada@example.com/send_email"));
+    assert_eq!(awaited_access("sent"), None);
+    assert_eq!(awaited_access(&awaiting_output("")), None);
 }

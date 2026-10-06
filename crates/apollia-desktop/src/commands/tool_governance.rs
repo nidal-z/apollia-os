@@ -1,7 +1,7 @@
 //! Tauri IPC commands for governing native tools and the desktop frontend's
 //! permissions.
 //!
-//! The tools, their configuration, the permission rules and the audit are
+//! The tools, their configuration and the permission rules are
 //! served by [`apollia_runtime::tool_governance`] in both modes: called
 //! directly when the runtime runs in this process, reached over
 //! `/api/v1/governance/...` when the desktop is attached to a daemon. The
@@ -15,16 +15,15 @@
 
 use std::path::PathBuf;
 
-use apollia_permissions::PrefixRule;
 use apollia_runtime::api::routes_tool_governance::{
-    RevokeAllBody, RevokedRule, RevokedRules, ToolConfigBody, ToolEnabledBody,
+    GovernanceStateBody, RevokeAllBody, RevokedRule, RevokedRules, ToolConfigBody, ToolEnabledBody,
 };
 pub use apollia_runtime::tool_credentials::{
     CredentialEntryView as CredentialEntryDto, CredentialTestView as CredentialTestResultDto,
 };
 use apollia_runtime::tool_governance as governance;
 pub use apollia_runtime::tool_governance::{
-    AuditEntryDto, PermissionRuleDto, PermissionRuleFilter, ToolStatusDto,
+    PermissionRuleDto, PermissionRuleFilter, ToolStatusDto,
 };
 use tauri::State;
 
@@ -39,10 +38,6 @@ mod credentials;
 fn home_base_dir() -> Result<PathBuf, String> {
     let home = apollia_core::paths::home_string_or_err()?;
     Ok(apollia_core::paths::data_dir_under(home))
-}
-
-pub(crate) fn rule_to_dto_pub(rule: &PrefixRule) -> PermissionRuleDto {
-    governance::rule_view(rule)
 }
 
 /// A query string of the present pairs, each value encoded, `""` when none is.
@@ -140,6 +135,36 @@ pub(crate) async fn set_tool_config_on(
             Ok(())
         }
     }
+}
+
+/// Whether governance fails closed, and why, after reading its sources again.
+pub(crate) async fn governance_state_on(link: &RuntimeLink) -> Result<GovernanceStateBody, String> {
+    match link {
+        RuntimeLink::Embedded(runtime) => {
+            runtime.governance.refresh().await;
+            Ok(GovernanceStateBody {
+                fail_closed: runtime.governance.state().fail_closed.clone(),
+                journal_notices: runtime
+                    .audit_journal
+                    .as_ref()
+                    .map(apollia_runtime::audit_journal::AuditJournalHandle::notices)
+                    .unwrap_or_default(),
+            })
+        }
+        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/governance/state").await?),
+    }
+}
+
+/// Reads the sources of governance again and says whether it fails closed:
+/// the banner of the window asks it at start, on each change announced, and
+/// when the user retries.
+///
+/// # Errors
+///
+/// Returns a serializable error if the daemon refuses.
+#[tauri::command]
+pub async fn governance_state(link: State<'_, RuntimeLink>) -> Result<GovernanceStateBody, String> {
+    governance_state_on(link.inner()).await
 }
 
 /// Returns the full state of each native tool (enabled flag, config,
@@ -265,7 +290,7 @@ pub async fn governance_test_credential(
     credentials::test(link.inner(), tool_name).await
 }
 // ─────────────────────────────────────────────────────────────────────────────
-// Permission rules and audit, served in both modes
+// Permission rules, served in both modes
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub(crate) async fn list_permission_rules_on(
@@ -325,33 +350,6 @@ pub(crate) async fn revoke_all_rules_on(
     }
 }
 
-pub(crate) async fn list_audit_on(
-    link: &RuntimeLink,
-    tool_name: Option<String>,
-    limit: Option<u32>,
-    offset: Option<u32>,
-) -> Result<Vec<AuditEntryDto>, String> {
-    match link {
-        RuntimeLink::Embedded(_) => {
-            Ok(
-                governance::list_audit(home_base_dir()?, tool_name, limit, offset)
-                    .await
-                    .map_err(|e| e.to_string())?,
-            )
-        }
-        RuntimeLink::Attached(remote) => {
-            let query = query_string(&[
-                ("tool_name", tool_name),
-                ("limit", limit.map(|l| l.to_string())),
-                ("offset", offset.map(|o| o.to_string())),
-            ]);
-            Ok(remote
-                .get(&format!("/api/v1/governance/audit{query}"))
-                .await?)
-        }
-    }
-}
-
 /// Lists the `agent` / `global` permission rules from `governance.db`.
 ///
 /// # Errors
@@ -392,22 +390,6 @@ pub async fn governance_revoke_all_rules(
     link: State<'_, RuntimeLink>,
 ) -> Result<u32, String> {
     revoke_all_rules_on(link.inner(), scope).await
-}
-
-/// Lists the audit log entries, optionally filtered by tool and paginated.
-/// Entries are sorted by date descending.
-///
-/// # Errors
-///
-/// Returns a serializable error if the read fails.
-#[tauri::command]
-pub async fn governance_list_audit(
-    tool_name: Option<String>,
-    limit: Option<u32>,
-    offset: Option<u32>,
-    link: State<'_, RuntimeLink>,
-) -> Result<Vec<AuditEntryDto>, String> {
-    list_audit_on(link.inner(), tool_name, limit, offset).await
 }
 
 #[cfg(test)]

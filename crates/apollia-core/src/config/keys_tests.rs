@@ -127,12 +127,27 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("observability", ReloadClass::Reloadable),
         ("desktop", ReloadClass::Reloadable),
         ("server", ReloadClass::Restart),
+        // Read at every request or every sweep, unlike the listener's keys.
+        ("server.jit_loading", ReloadClass::Reloadable),
+        ("server.jit_auto_unload", ReloadClass::Reloadable),
+        ("server.jit_idle_ttl_minutes", ReloadClass::Reloadable),
+        ("server.jit_keep_last_only", ReloadClass::Reloadable),
+        ("server.separate_reasoning_content", ReloadClass::Reloadable),
+        ("server.allow_request_mcp", ReloadClass::Reloadable),
         ("engines", ReloadClass::Reloadable),
+        // Read once, when each engine supervisor locates what it starts.
+        ("engines.gguf", ReloadClass::Restart),
+        ("engines.mlx", ReloadClass::Restart),
         ("author", ReloadClass::Reloadable),
         // Read again at every model launch, unlike the rest of `[llm]`.
         ("llm.guardrails", ReloadClass::Reloadable),
         // Read again at every residency sweep.
         ("llm.residency", ReloadClass::Reloadable),
+        // Read again at every model load, and at every image attached.
+        ("llm.defaults", ReloadClass::Reloadable),
+        ("llm.images", ReloadClass::Reloadable),
+        // Read again at every model load and every read of the hardware.
+        ("llm.devices", ReloadClass::Reloadable),
     ];
 
     // WHEN every live key of those sections is read, against its longest
@@ -143,7 +158,7 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         .filter(|k| {
             expected
                 .iter()
-                .filter(|(s, _)| k.path.starts_with(&format!("{s}.")))
+                .filter(|(s, _)| k.path == *s || k.path.starts_with(&format!("{s}.")))
                 .max_by_key(|(s, _)| s.len())
                 .is_some_and(|(_, class)| *class != k.reload)
         })
@@ -219,25 +234,49 @@ fn the_named_settings_are_lockable() {
         vec![
             "llm.guardrails.level",
             "llm.guardrails.ceiling_gb",
+            "llm.guardrails.bypass",
             "llm.residency.idle_unload_minutes",
+            "llm.defaults.context",
+            "llm.defaults.context_tokens",
+            "llm.images.limit_side",
+            "llm.images.max_side_px",
+            "llm.devices.disabled",
+            "tools.new_agent.families",
+            "tools.new_agent.access",
             "mcp.approval_ttl_hours",
             "mcp.tool_loading",
             "mcp.tool_search_limit",
             "mcp.server_enabled",
+            "chat.share_profile_default",
             "models.registry_url",
             "models.registry_mirror_url",
             "models.registry_enabled",
             "models.dir",
+            "models.preset_load_settings",
             "models.import.require_verified",
             "desktop.developer_mode",
             "desktop.link_preview_enabled",
             "desktop.update_channel",
             "desktop.background_service_allowed",
+            "desktop.chat_auto_naming",
+            "desktop.chat_debug_blocks",
+            "desktop.resource_widget",
             "server.enabled",
             "server.port",
             "server.require_auth",
+            "server.cors",
+            "server.jit_loading",
+            "server.jit_auto_unload",
+            "server.jit_idle_ttl_minutes",
+            "server.jit_keep_last_only",
+            "server.separate_reasoning_content",
             "server.serve_on_lan",
+            "server.allow_request_mcp",
             "engines.log_level",
+            "engines.gguf",
+            "engines.mlx",
+            "engines.auto_update",
+            "engines.auto_purge",
             "author.name",
         ]
     );

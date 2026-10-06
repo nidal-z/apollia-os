@@ -55,6 +55,7 @@ fn mac() -> HardwareProfile {
             vram_gb: 32.0,
         },
         memory_budget_gb: 24.0,
+        devices: Vec::new(),
     }
 }
 
@@ -66,6 +67,7 @@ fn small_pc() -> HardwareProfile {
         cpu_cores: 4,
         accelerator: AcceleratorProfile::None,
         memory_budget_gb: 2.4,
+        devices: Vec::new(),
     }
 }
 
@@ -81,6 +83,7 @@ fn cuda_box() -> HardwareProfile {
             compute_capability: (8, 9),
         },
         memory_budget_gb: 24.0,
+        devices: Vec::new(),
     }
 }
 

@@ -1,0 +1,2654 @@
+{
+  "name": "batch-view-det (the history of the batches opened from the Agents screen: empty, unreadable, a first page that reads on, its filters; then the view of a batch opened from it: its summary and table, the detail of an item, the decision of a waiting item, a refused command, pause, export, stop, a batch that no longer exists, one that cannot be read)",
+  "notes": [
+    "The stubs imitate BatchView and BatchDetailView (GET /api/v1/batches, GET /api/v1/batches/{id}, the four controls), BatchAccess (GET /api/v1/batches/accesses), PendingDecision and DecideResponse (GET /api/v1/pending-decisions, POST .../decide) and the task timeline. The export is cancelled at the save dialog: writing a file is the shell's part, covered by its own tests."
+  ],
+  "stopOnError": false,
+  "dynamicTestids": [
+    "batch-pause",
+    "batch-resume",
+    "batch-stop",
+    "batch-retry",
+    "batch-tab-all",
+    "batch-tab-completed",
+    "batch-tab-failed",
+    "batch-tab-todo",
+    "batch-tab-awaiting",
+    "batch-tab-canceled",
+    "batch-export-xlsx",
+    "batch-export-csv",
+    "batch-export-json",
+    "batch-decision-once",
+    "batch-decision-always",
+    "batch-decision-refuse"
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batches",
+      "resolve": []
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "agents-batch-history"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-history-agent"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-history-outcome"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-history-search"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-history-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-history-to-agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_batches"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batches",
+      "reject": "API error (503): the batch engine is not running in this runtime"
+    },
+    {
+      "kind": "click",
+      "testid": "agents-batch-history"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-load-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_batches"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batches",
+      "resolve": [
+        {
+          "batchId": "b-1",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "running",
+          "total": 6,
+          "completed": 1,
+          "failed": 1,
+          "canceled": 0,
+          "awaiting": 1,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": null
+        },
+        {
+          "batchId": "b-2",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 1,
+          "failed": 1,
+          "canceled": 0,
+          "awaiting": 1,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-3",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "stopped",
+          "total": 6,
+          "completed": 1,
+          "failed": 1,
+          "canceled": 3,
+          "awaiting": 1,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-4",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-5",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-6",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-7",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-8",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-9",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-10",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-11",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-12",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-13",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-14",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-15",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-16",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-17",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-18",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-19",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-20",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-21",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-22",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-23",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-24",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-25",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-26",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-27",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-28",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-29",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-30",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-31",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-32",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-33",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-34",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-35",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-36",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-37",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-38",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-39",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-40",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-41",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-42",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-43",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-44",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-45",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-46",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-47",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-48",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-49",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-50",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        {
+          "batchId": "b-51",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "completed",
+          "total": 6,
+          "completed": 6,
+          "failed": 0,
+          "canceled": 0,
+          "awaiting": 0,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "agents-batch-history"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-history-period"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-history-counters"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-history-count"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-history-load-older"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-history-first-page"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-history-load-older"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-history-load-older",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "batch-history-outcome",
+      "value": "stopped"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "batch-history-outcome",
+      "value": ""
+    },
+    {
+      "kind": "selectOption",
+      "testid": "batch-history-agent",
+      "value": "triage"
+    },
+    {
+      "kind": "fill",
+      "testid": "batch-history-search",
+      "text": "no such file"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-empty-filtered",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "batch-history-search",
+      "text": ""
+    },
+    {
+      "kind": "selectOption",
+      "testid": "batch-history-agent",
+      "value": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_batch_accesses",
+      "resolve": [
+        {
+          "accessId": "send_email",
+          "permits": "Send an email",
+          "family": "send_external",
+          "grantable": true
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_task_timeline",
+      "resolve": [
+        {
+          "type": "tool_call",
+          "tool_name": "read_page",
+          "duration_ms": 20,
+          "exit_code": 0,
+          "truncated": false,
+          "timestamp": "2026-09-01T09:01:00Z"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_batch",
+      "resolve": {
+        "batch": {
+          "batchId": "b-1",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "running",
+          "total": 6,
+          "completed": 1,
+          "failed": 1,
+          "canceled": 0,
+          "awaiting": 1,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": null
+        },
+        "items": [
+          {
+            "rank": 0,
+            "origin": "row 2",
+            "input": {
+              "client": "Client 1",
+              "request": "A quote"
+            },
+            "status": "completed",
+            "output": "Quote, high priority",
+            "sources": [
+              {
+                "title": "Client sheet"
+              }
+            ],
+            "taskId": "task-0"
+          },
+          {
+            "rank": 1,
+            "origin": "row 3",
+            "input": {
+              "client": "Client 2",
+              "request": "A quote"
+            },
+            "status": "failed",
+            "output": "The attached file is an image",
+            "sources": null,
+            "taskId": "task-1"
+          },
+          {
+            "rank": 2,
+            "origin": "row 4",
+            "input": {
+              "client": "Client 3",
+              "request": "A quote"
+            },
+            "status": "awaiting",
+            "output": "Waiting for a decision: the agent asked to use 'send_email', which is not granted",
+            "sources": null,
+            "taskId": "task-2"
+          },
+          {
+            "rank": 3,
+            "origin": "row 5",
+            "input": {
+              "client": "Client 4",
+              "request": "A quote"
+            },
+            "status": "running",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          },
+          {
+            "rank": 4,
+            "origin": "row 6",
+            "input": {
+              "client": "Client 5",
+              "request": "A quote"
+            },
+            "status": "pending",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          },
+          {
+            "rank": 5,
+            "origin": "row 7",
+            "input": {
+              "client": "Client 6",
+              "request": "A quote"
+            },
+            "status": "pending",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "batch-history-row",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-table",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-summary"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-state"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-treated"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-progress"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-count-completed"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-count-failed"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-count-awaiting"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-count-todo"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-schedule"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-facts"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-tabbar"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-item"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-item-status"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-item-output"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-item-sources"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-pause"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-stop"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-retry"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-export"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-batch-running"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-tab-failed"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-item",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-tab-todo"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-tab-awaiting"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-tab-completed"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-tab-all"
+    },
+    {
+      "kind": "fill",
+      "testid": "batch-search",
+      "text": "no such client"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-table-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "batch-search",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-table",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-item-open",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "detail-sidebar-item",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-item-detail-input"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-item-detail-output"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-item-detail-steps"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-item-detail-sources"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-item-detail"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-item-open",
+      "nth": 0
+    },
+    {
+      "kind": "waitGone",
+      "testid": "detail-sidebar-item",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "batch_item_decision",
+      "resolve": {
+        "id": "batch:b-1:2",
+        "kind": "batch_item",
+        "agentId": "triage",
+        "summary": "The agent asks to send an email",
+        "access": "send_email",
+        "family": "send_external",
+        "answers": [
+          "once",
+          "always",
+          "refuse"
+        ],
+        "questions": null,
+        "allowOther": false,
+        "origin": {
+          "batchId": "b-1",
+          "rank": 2
+        },
+        "askedAt": null
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "batch-item-decision"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-decision-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-decision-summary",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-decision-item"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-decision-access"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-decision-once"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-decision-always"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-decision-refuse"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-item-decision"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "decide_batch_item",
+      "reject": "API error (409): the item no longer waits",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "batch-decision-once"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-decision-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "decide_batch_item",
+      "resolve": {
+        "id": "batch:b-1:2",
+        "answer": "always",
+        "resumed": 1,
+        "message": "ok"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "batch-decision-always"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-decision-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "batch_item_decision"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "batch_item_decision",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "batch-item-decision"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-decision-gone",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-decision-close"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-decision-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "batch_item_decision"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "batch_item_decision",
+      "reject": "API error (503): unreachable"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-item-decision"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-decision-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-decision-close"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-decision-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "control_batch",
+      "reject": "API error (409): cannot pause batch 'b-1': it is paused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "batch-pause"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_batch"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_batch",
+      "resolve": {
+        "batch": {
+          "batchId": "b-1",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "paused",
+          "total": 6,
+          "completed": 1,
+          "failed": 1,
+          "canceled": 0,
+          "awaiting": 1,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": null
+        },
+        "items": [
+          {
+            "rank": 0,
+            "origin": "row 2",
+            "input": {
+              "client": "Client 1",
+              "request": "A quote"
+            },
+            "status": "completed",
+            "output": "Quote, high priority",
+            "sources": [
+              {
+                "title": "Client sheet"
+              }
+            ],
+            "taskId": "task-0"
+          },
+          {
+            "rank": 1,
+            "origin": "row 3",
+            "input": {
+              "client": "Client 2",
+              "request": "A quote"
+            },
+            "status": "failed",
+            "output": "The attached file is an image",
+            "sources": null,
+            "taskId": "task-1"
+          },
+          {
+            "rank": 2,
+            "origin": "row 4",
+            "input": {
+              "client": "Client 3",
+              "request": "A quote"
+            },
+            "status": "awaiting",
+            "output": "Waiting for a decision: the agent asked to use 'send_email', which is not granted",
+            "sources": null,
+            "taskId": "task-2"
+          },
+          {
+            "rank": 3,
+            "origin": "row 5",
+            "input": {
+              "client": "Client 4",
+              "request": "A quote"
+            },
+            "status": "running",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          },
+          {
+            "rank": 4,
+            "origin": "row 6",
+            "input": {
+              "client": "Client 5",
+              "request": "A quote"
+            },
+            "status": "pending",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          },
+          {
+            "rank": 5,
+            "origin": "row 7",
+            "input": {
+              "client": "Client 6",
+              "request": "A quote"
+            },
+            "status": "pending",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "control_batch",
+      "resolve": {
+        "batchId": "b-1",
+        "agent": "triage",
+        "source": {
+          "kind": "csv",
+          "location": "/data/requests.csv",
+          "options": {},
+          "write": {
+            "destination": "copy",
+            "columns": [
+              "Category"
+            ]
+          }
+        },
+        "grants": [
+          "send_email"
+        ],
+        "concurrency": 1,
+        "maxFailures": 10,
+        "state": "paused",
+        "total": 6,
+        "completed": 1,
+        "failed": 1,
+        "canceled": 0,
+        "awaiting": 1,
+        "createdAt": "2026-09-01T09:00:00Z",
+        "updatedAt": "2026-09-01T09:04:00Z",
+        "endedAt": null
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "batch-pause"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-message",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-resume",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-batch-paused"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-export"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-export-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-export-xlsx"
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-export-json"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|save",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "batch-export-csv"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-export-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-stop"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-stop-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-stop-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-stop-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_batch"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "control_batch"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_batch",
+      "resolve": {
+        "batch": {
+          "batchId": "b-1",
+          "agent": "triage",
+          "source": {
+            "kind": "csv",
+            "location": "/data/requests.csv",
+            "options": {},
+            "write": {
+              "destination": "copy",
+              "columns": [
+                "Category"
+              ]
+            }
+          },
+          "grants": [
+            "send_email"
+          ],
+          "concurrency": 1,
+          "maxFailures": 10,
+          "state": "stopped",
+          "total": 6,
+          "completed": 1,
+          "failed": 1,
+          "canceled": 3,
+          "awaiting": 1,
+          "createdAt": "2026-09-01T09:00:00Z",
+          "updatedAt": "2026-09-01T09:04:00Z",
+          "endedAt": "2026-09-01T09:06:00Z"
+        },
+        "items": [
+          {
+            "rank": 0,
+            "origin": "row 2",
+            "input": {
+              "client": "Client 1",
+              "request": "A quote"
+            },
+            "status": "completed",
+            "output": "Quote, high priority",
+            "sources": [
+              {
+                "title": "Client sheet"
+              }
+            ],
+            "taskId": "task-0"
+          },
+          {
+            "rank": 1,
+            "origin": "row 3",
+            "input": {
+              "client": "Client 2",
+              "request": "A quote"
+            },
+            "status": "failed",
+            "output": "The attached file is an image",
+            "sources": null,
+            "taskId": "task-1"
+          },
+          {
+            "rank": 2,
+            "origin": "row 4",
+            "input": {
+              "client": "Client 3",
+              "request": "A quote"
+            },
+            "status": "awaiting",
+            "output": "Waiting for a decision: the agent asked to use 'send_email', which is not granted",
+            "sources": null,
+            "taskId": "task-2"
+          },
+          {
+            "rank": 3,
+            "origin": "row 5",
+            "input": {
+              "client": "Client 4",
+              "request": "A quote"
+            },
+            "status": "canceled",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          },
+          {
+            "rank": 4,
+            "origin": "row 6",
+            "input": {
+              "client": "Client 5",
+              "request": "A quote"
+            },
+            "status": "canceled",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          },
+          {
+            "rank": 5,
+            "origin": "row 7",
+            "input": {
+              "client": "Client 6",
+              "request": "A quote"
+            },
+            "status": "canceled",
+            "output": null,
+            "sources": null,
+            "taskId": null
+          }
+        ]
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "control_batch",
+      "resolve": {
+        "batchId": "b-1",
+        "agent": "triage",
+        "source": {
+          "kind": "csv",
+          "location": "/data/requests.csv",
+          "options": {},
+          "write": {
+            "destination": "copy",
+            "columns": [
+              "Category"
+            ]
+          }
+        },
+        "grants": [
+          "send_email"
+        ],
+        "concurrency": 1,
+        "maxFailures": 10,
+        "state": "stopped",
+        "total": 6,
+        "completed": 1,
+        "failed": 1,
+        "canceled": 3,
+        "awaiting": 1,
+        "createdAt": "2026-09-01T09:00:00Z",
+        "updatedAt": "2026-09-01T09:04:00Z",
+        "endedAt": "2026-09-01T09:06:00Z"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "batch-stop"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-stop-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-stop-dialog-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-count-canceled",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-stop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-tab-canceled"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-item",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-batch-stopped"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-to-history"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_batch"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_batch",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "batch-history-row",
+      "nth": 1
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-missing",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "batch-to-history"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-history-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_batch"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_batch",
+      "reject": "API error (503): unreachable"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-history-row",
+      "nth": 2
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-load-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 8000
+    }
+  ]
+}

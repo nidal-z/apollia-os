@@ -13,7 +13,7 @@ impl ChatSessionRepository {
     ///
     /// Returns the top `limit` sessions whose summary matches the query,
     /// sorted by BM25 relevance. Only closed sessions with a non-empty summary
-    /// are returned.
+    /// are returned, and never one in the trash.
     pub fn find_relevant_sessions(
         &self,
         query: &str,
@@ -30,6 +30,8 @@ impl ChatSessionRepository {
                 "SELECT session_id, created_at, summary
                  FROM chat_sessions_fts
                  WHERE summary MATCH ?1
+                   AND session_id NOT IN
+                       (SELECT id FROM chat_sessions WHERE deleted_at IS NOT NULL)
                  ORDER BY rank
                  LIMIT ?2",
             )
@@ -60,7 +62,8 @@ impl ChatSessionRepository {
     ///
     /// Uses a LEFT JOIN between `chat_sessions` and `chat_messages` (seq=1, role='user')
     /// so that sessions with no messages are still included (first_message = None).
-    /// Results are ordered by `created_at DESC`, limited to `limit` rows.
+    /// Results are ordered by `created_at DESC`, limited to `limit` rows. A
+    /// session in the trash is left out.
     pub fn list_recent_summaries(
         &self,
         limit: usize,
@@ -72,6 +75,7 @@ impl ChatSessionRepository {
                  FROM chat_sessions s
                  LEFT JOIN chat_messages m
                    ON m.session_id = s.id AND m.seq = 1 AND m.role = 'user'
+                 WHERE s.deleted_at IS NULL
                  ORDER BY s.created_at DESC
                  LIMIT ?1",
             )

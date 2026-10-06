@@ -14,15 +14,15 @@ fn set_and_get_roundtrip() {
     // GIVEN an empty user-memory repository
     let (repo, _) = setup();
     // WHEN a schema key is written, then read back
-    repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+    repo.set("name", "Ada", WrittenBy::Onboarding).unwrap();
     let entry = repo.get("name").unwrap().expect("entry should exist");
     // THEN the value lands in the default profile, as a schema field owned by the user
-    assert_eq!(entry.value, "Nidal");
+    assert_eq!(entry.value, "Ada");
     assert_eq!(entry.written_by, WrittenBy::User);
     assert!(entry.in_schema);
     assert_eq!(
         repo.default_profile().unwrap().person_name.as_deref(),
-        Some("Nidal")
+        Some("Ada")
     );
 }
 
@@ -30,7 +30,7 @@ fn set_and_get_roundtrip() {
 fn list_schema_and_extras_are_partitioned() {
     // GIVEN one schema key and one key outside the schema
     let (repo, _) = setup();
-    repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+    repo.set("name", "Ada", WrittenBy::Onboarding).unwrap();
     repo.set("favorite_color", "blue", WrittenBy::User).unwrap();
 
     // WHEN the two listings are read
@@ -59,7 +59,7 @@ fn set_rejects_internal_keys() {
 fn reset_preserves_internal_state() {
     // GIVEN one visible entry, one covered topic and the skip marker
     let (repo, _) = setup();
-    repo.set("name", "Nidal", WrittenBy::User).unwrap();
+    repo.set("name", "Ada", WrittenBy::User).unwrap();
     repo.mark_topic_covered("identity").unwrap();
     repo.set_onboarding_skipped(true).unwrap();
 
@@ -79,7 +79,7 @@ fn list_orders_schema_then_extras() {
     repo.set("zzz_extra", "x", WrittenBy::User).unwrap();
     repo.set("role", "CTO", WrittenBy::User).unwrap();
     repo.set("aaa_extra", "y", WrittenBy::User).unwrap();
-    repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+    repo.set("name", "Ada", WrittenBy::Onboarding).unwrap();
 
     // WHEN everything is listed
     let all = repo.list_all().unwrap();
@@ -108,7 +108,7 @@ fn forget_returns_not_found_when_missing() {
 fn forget_removes_entry() {
     // GIVEN a repository holding one entry
     let (repo, _) = setup();
-    repo.set("name", "Nidal", WrittenBy::User).unwrap();
+    repo.set("name", "Ada", WrittenBy::User).unwrap();
     // WHEN that key is forgotten
     repo.forget("name").unwrap();
     // THEN the entry is gone
@@ -133,7 +133,7 @@ fn update_preserves_provenance() {
 fn recall_persona_brief_reflects_the_profile_fields() {
     // GIVEN the five fields, the free text and one free-form entry, all written
     let (repo, _) = setup();
-    repo.set("name", "Nidal", WrittenBy::User).unwrap();
+    repo.set("name", "Ada", WrittenBy::User).unwrap();
     repo.set("role", "CTO", WrittenBy::User).unwrap();
     repo.set("function", "fintech", WrittenBy::User).unwrap();
     repo.set("tools", "Notion, tableur", WrittenBy::User)
@@ -150,9 +150,9 @@ fn recall_persona_brief_reflects_the_profile_fields() {
     .unwrap();
 
     // WHEN the persona brief is recalled
-    let brief = repo.recall_persona_brief(20).unwrap();
+    let brief = repo.recall_persona_brief(None, 20).unwrap();
     // THEN each value is rendered into it
-    assert!(brief.contains("Nidal (CTO) - fintech"), "{brief}");
+    assert!(brief.contains("Ada (CTO) - fintech"), "{brief}");
     assert!(brief.contains("Preferences: short answers"), "{brief}");
     assert!(brief.contains("Tools: Notion, tableur"), "{brief}");
     assert!(
@@ -160,6 +160,41 @@ fn recall_persona_brief_reflects_the_profile_fields() {
         "{brief}"
     );
     assert!(brief.contains("- timezone: Europe/Paris"), "{brief}");
+}
+
+#[test]
+fn the_persona_brief_of_a_designated_profile_reads_that_profile() {
+    // GIVEN a default profile with one role and a "Formateur" profile with another
+    let (repo, _) = setup();
+    repo.set("role", "CTO", WrittenBy::User).unwrap();
+    let formateur = repo.create_profile("Formateur").unwrap();
+    repo.set_profile_field(&formateur.id, "role", Some("formateur"))
+        .unwrap();
+
+    // WHEN the brief is recalled for "Formateur", for nothing, and for a deleted profile
+    let designated = repo.recall_persona_brief(Some(&formateur.id), 20).unwrap();
+    let default = repo.recall_persona_brief(None, 20).unwrap();
+    let orphan = repo.recall_persona_brief(Some("gone"), 20).unwrap();
+
+    // THEN each reads its own profile, and an orphan designation reads the default
+    assert!(designated.contains("Role: formateur"), "{designated}");
+    assert!(!designated.contains("CTO"), "{designated}");
+    assert!(default.contains("Role: CTO"), "{default}");
+    assert_eq!(orphan, default);
+}
+
+#[test]
+fn the_persona_brief_of_a_blank_profile_is_empty() {
+    // GIVEN a filled default profile and a "Blank" profile with no field
+    let (repo, _) = setup();
+    repo.set("role", "CTO", WrittenBy::User).unwrap();
+    let blank = repo.create_profile("Blank").unwrap();
+
+    // WHEN the brief of the blank profile is recalled
+    let brief = repo.recall_persona_brief(Some(&blank.id), 20).unwrap();
+
+    // THEN it is empty: nothing of the default leaks into it
+    assert_eq!(brief, "");
 }
 
 #[test]
@@ -174,7 +209,7 @@ fn is_empty_on_fresh_and_after_set() {
         repo.is_empty().unwrap(),
         "internal markers should not count as 'visible' entries"
     );
-    repo.set("name", "Nidal", WrittenBy::User).unwrap();
+    repo.set("name", "Ada", WrittenBy::User).unwrap();
     assert!(!repo.is_empty().unwrap());
 }
 
@@ -182,7 +217,7 @@ fn is_empty_on_fresh_and_after_set() {
 fn search_returns_visible_entries() {
     // GIVEN two entries, one of them holding the searched term
     let (repo, _) = setup();
-    repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+    repo.set("name", "Ada", WrittenBy::Onboarding).unwrap();
     repo.set("preferences", "francais", WrittenBy::User)
         .unwrap();
     repo.set("favorite_language", "francais too", WrittenBy::User)

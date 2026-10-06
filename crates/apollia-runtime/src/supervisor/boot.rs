@@ -67,9 +67,23 @@ impl Supervisor {
         // Phase 3: ToolRegistry + native tool registration
         info!("supervisor.tool_registry.starting");
         let tool_registry_handle = ToolRegistryHandle::start();
+
+        // Phase 3a: the existing connections the policy now refuses (see
+        // `ForbiddenConnections`): not started, their tools never registered.
+        let connection_admission = Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
+            &org_policy,
+        )));
+        let mcp_store = self.open_mcp_store();
+        let native_accounts = crate::connectors_bridge::connected_accounts().await;
+        let forbidden_connections = Arc::new(self.forbidden_connections(
+            connection_admission.as_ref(),
+            mcp_store.as_ref(),
+            &native_accounts,
+        ));
         register_builtin_tools(
             &tool_registry_handle,
-            &crate::connectors_bridge::connected_accounts().await,
+            &forbidden_connections.allowed_accounts(&native_accounts),
+            forbidden_connections.offers_mailbox_tools(),
         )
         .await;
 
@@ -79,8 +93,14 @@ impl Supervisor {
         // one-shot migration and logs the count. After migration, `mcp.toml` is no
         // longer consulted. Errors are never fatal: the runtime continues and MCP
         // tools are simply unavailable.
-        let (mcp_handle, mcp_server_repo) =
-            self.start_mcp(&tool_registry_handle, &event_sender).await;
+        let (mcp_handle, mcp_server_repo) = self
+            .start_mcp(
+                &tool_registry_handle,
+                &event_sender,
+                mcp_store,
+                &forbidden_connections,
+            )
+            .await;
 
         // The runner sidecar, the local engines, then phases 4 and 4b: the
         // LlmRouter and its call log.
@@ -116,8 +136,19 @@ impl Supervisor {
                 &core.tool_registry_handle,
                 &core.event_sender,
                 &core.org_policy,
+                governance::Connections {
+                    admission: connection_admission,
+                    forbidden: forbidden_connections,
+                },
             )
             .await;
+
+        // The journal is open: the reloader writes to it the change of
+        // `apollia.toml` made while the runtime was stopped, then every
+        // change it applies.
+        if let (Some(reload), Some(journal)) = (&config_reload, &governance.audit_journal) {
+            reload.attach_journal(journal.clone()).await;
+        }
 
         // Phase 8e: the folders the former settings named, added once as
         // folder connections through the admission and the journal.
@@ -131,8 +162,14 @@ impl Supervisor {
         let stores = self.open_stores(&core.event_sender).await?;
 
         // Phase 14: ChatSessionManager.
-        let (chat_manager, a2a_invoker) =
-            self.start_chat(&core, &inference, &stores, &agent_loader, &agent_runner);
+        let (chat_manager, a2a_invoker) = self.start_chat(
+            &core,
+            &inference,
+            &stores,
+            &governance,
+            &agent_loader,
+            &agent_runner,
+        );
         if let Some(chat) = chat_manager.as_ref() {
             chat.follow_config(config_feed.clone()).await;
         }
@@ -155,8 +192,22 @@ impl Supervisor {
                 triggers.definitions,
             )
             .await;
-        let compat_server = self.spawn_compat_server(&inference, &core.event_sender);
         let batches = executors.batches.take();
+        // The compatible server runs an exposed agent as a batch of one item,
+        // and an exposed workflow through the workflow engine.
+        let exposed_agents = crate::compat_server::ExposedAgents::new(
+            self.config.data_dir.clone(),
+            core.event_sender.clone(),
+        )
+        .with_batches(batches.clone(), stores.task_repository.clone())
+        .with_workflows(executors.workflows.clone())
+        .with_request_mcp(self.request_mcp(&core, &inference, &governance, &executors));
+        let compat_server = self.spawn_compat_server(
+            &core,
+            &inference,
+            exposed_agents,
+            governance.audit_journal.clone(),
+        );
         let mut state = self.app_state(
             &core,
             &inference,

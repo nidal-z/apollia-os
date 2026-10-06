@@ -56,6 +56,7 @@ fn profile(accelerator: AcceleratorProfile, ram_gb: f64, budget_gb: f64) -> Hard
         cpu_cores: 8,
         accelerator,
         memory_budget_gb: budget_gb,
+        devices: Vec::new(),
     }
 }
 

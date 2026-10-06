@@ -9,8 +9,8 @@ use serde_json::Value;
 
 use super::{AttachedError, RuntimeLink};
 use crate::commands::{
-    http_delete_json, http_get_json, http_patch_json, http_post_for_file, http_post_json,
-    http_put_json,
+    http_delete_json, http_get_for_file, http_get_json, http_patch_json, http_post_for_file,
+    http_post_json, http_put_json,
 };
 
 impl RuntimeLink {
@@ -79,6 +79,15 @@ impl RuntimeLink {
         }
     }
 
+    /// `GET path` on the runtime this application drives, for an answer that
+    /// is a file: its bytes.
+    pub(crate) async fn get_for_file(&self, path: &str) -> Result<Vec<u8>, String> {
+        match self {
+            Self::Embedded(runtime) => http_get_for_file(runtime.api_port, path).await,
+            Self::Attached(remote) => Ok(remote.get_for_file(path).await?),
+        }
+    }
+
     /// `PUT path` with a JSON body on the runtime this application drives.
     pub(crate) async fn put_json(&self, path: &str, body: &Value) -> Result<Value, String> {
         match self {
@@ -102,4 +111,9 @@ impl RuntimeLink {
             Self::Attached(remote) => Ok(remote.delete(path).await?),
         }
     }
+}
+
+/// Encodes one path segment of a daemon route.
+pub(crate) fn segment(value: &str) -> std::borrow::Cow<'_, str> {
+    urlencoding::encode(value)
 }

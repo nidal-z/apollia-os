@@ -18,12 +18,18 @@ class CreateSessionRequest:
     Attributes:
         mode (str): Session mode: `"libre"` or `"agent"`.
         agent_name (None | str | Unset): Agent name (required when `mode == "agent"`).
-        system_prompt (None | str | Unset): Custom system prompt.
+        model (None | str | Unset): The model of the session: the identifier of a language model of the
+            model index, `<server>/<model>` for a model of a declared server, or
+            the name of a backend. Absent keeps the model of the agent.
+        system_prompt (None | str | Unset): Instructions of the conversation, added to the mission of its agent and
+            never in its place: 4000 characters at most. Read back as
+            `settings.instructions`.
         tools (list[str] | Unset): List of tool names available in this session.
     """
 
     mode: str
     agent_name: None | str | Unset = UNSET
+    model: None | str | Unset = UNSET
     system_prompt: None | str | Unset = UNSET
     tools: list[str] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -36,6 +42,12 @@ class CreateSessionRequest:
             agent_name = UNSET
         else:
             agent_name = self.agent_name
+
+        model: None | str | Unset
+        if isinstance(self.model, Unset):
+            model = UNSET
+        else:
+            model = self.model
 
         system_prompt: None | str | Unset
         if isinstance(self.system_prompt, Unset):
@@ -56,6 +68,8 @@ class CreateSessionRequest:
         )
         if agent_name is not UNSET:
             field_dict["agent_name"] = agent_name
+        if model is not UNSET:
+            field_dict["model"] = model
         if system_prompt is not UNSET:
             field_dict["system_prompt"] = system_prompt
         if tools is not UNSET:
@@ -77,6 +91,15 @@ class CreateSessionRequest:
 
         agent_name = _parse_agent_name(d.pop("agent_name", UNSET))
 
+        def _parse_model(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        model = _parse_model(d.pop("model", UNSET))
+
         def _parse_system_prompt(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -91,6 +114,7 @@ class CreateSessionRequest:
         create_session_request = cls(
             mode=mode,
             agent_name=agent_name,
+            model=model,
             system_prompt=system_prompt,
             tools=tools,
         )

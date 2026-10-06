@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from apollia.errors import QuestionDeclined
+
 # NOTE on `# NOSONAR S7503` / `# NOSONAR S1172` markers below:
 # Every mock here implements an async Protocol defined in
 # `apollia.context.*`. The runtime call sites use `await`, so the
@@ -122,6 +124,40 @@ class MockWorkflows:
         """Record the call and return the configured result."""
         self.run_calls.append((workflow_id, dict(inputs)))
         return self.results.get(workflow_id)
+
+
+# ctx.user
+class MockUser:
+    """In-memory mock of the ``UserInterface`` Protocol.
+
+    Pre-configure via attributes:
+        ``answers``: ``{question: answer}`` returned by :meth:`ask`. A
+            question with no configured answer returns the empty string.
+        ``declined``: ``{question: reason}``; asking one of these raises
+            ``QuestionDeclined`` with that reason (``None`` for no reason).
+
+    Track via attributes:
+        ``ask_calls``: ordered list of ``(question, options, hint)``.
+    """
+
+    def __init__(self) -> None:
+        """Start with no configured answer and an empty call log."""
+        self.ask_calls: list[tuple[str, list[str], str | None]] = []
+        self.answers: dict[str, str] = {}
+        self.declined: dict[str, str | None] = {}
+
+    async def ask(  # NOSONAR S7503
+        self,
+        question: str,
+        *,
+        options: list[str] | None = None,
+        hint: str | None = None,
+    ) -> str:
+        """Record the call, then answer or decline as configured."""
+        self.ask_calls.append((question, list(options or []), hint))
+        if question in self.declined:
+            raise QuestionDeclined(question, reason=self.declined[question])
+        return self.answers.get(question, "")
 
 
 # ctx.datasources

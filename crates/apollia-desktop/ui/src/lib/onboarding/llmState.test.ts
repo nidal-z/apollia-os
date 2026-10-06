@@ -21,4 +21,19 @@ describe("deriveLlmState", () => {
     expect(deriveLlmState(true, 1)).toBe("ready");
     expect(deriveLlmState(false, 2)).toBe("ready");
   });
+
+  test("waits for a model that is still on its way instead of announcing none", () => {
+    // GIVEN no backend yet, and a language model being downloaded
+    // WHEN the state is derived, hydrated or not
+    // THEN the step waits for it, and never sends the person back
+    expect(deriveLlmState(true, 0, true)).toBe("downloading");
+    expect(deriveLlmState(false, 0, true)).toBe("downloading");
+  });
+
+  test("a download does not hide an engine that is already there", () => {
+    // GIVEN a backend registered while another model is being downloaded
+    // WHEN the state is derived
+    // THEN the conversation can start at once
+    expect(deriveLlmState(true, 1, true)).toBe("ready");
+  });
 });

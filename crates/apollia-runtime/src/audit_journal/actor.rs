@@ -13,11 +13,19 @@ use serde_json::Value;
 use crate::audit_journal::anchor::{self, GlobalHead, GlobalLink};
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft, JournalEntryKind};
 use crate::audit_journal::error::AuditJournalError;
+use crate::audit_journal::filter::JournalFilter;
 use crate::audit_journal::hash::{compute_entry_hash, compute_global_hash, SENTINEL_PREV_HASH};
 use crate::audit_journal::signer::JournalSigner;
+use crate::audit_journal::summary::JournalLine;
 use crate::audit_journal::verify::{
-    verify_entries, verify_journal, JournalAnchor, VerifyChainReport, VerifyJournalReport,
+    verify_entries, verify_entries_after, verify_journal, JournalAnchor, VerifyChainReport,
+    VerifyJournalReport,
 };
+
+mod purge;
+
+pub use purge::PurgeOutcome;
+pub(crate) use purge::PurgeRequest;
 
 /// SQL schema: the chained table, its index, the append-only triggers, and the
 /// mutable head-anchor row.
@@ -118,13 +126,19 @@ pub(crate) enum JournalMessage {
         run_id: String,
         reply: tokio::sync::oneshot::Sender<Vec<JournalEntry>>,
     },
-    /// Return a page of entries across every run, newest global position first,
-    /// or across the listed runs only when `runs` is set.
+    /// Return a page of entries across every run, newest global position first.
     QueryPage {
         limit: usize,
         offset: usize,
-        runs: Option<Vec<String>>,
         reply: tokio::sync::oneshot::Sender<Vec<JournalEntry>>,
+    },
+    /// Return a page of the entries that pass `filter`, each with its summary,
+    /// newest global position first.
+    QueryLines {
+        filter: Box<JournalFilter>,
+        limit: usize,
+        offset: usize,
+        reply: tokio::sync::oneshot::Sender<Vec<JournalLine>>,
     },
     /// Return the last hash of a run, if any.
     LastHash {
@@ -156,6 +170,12 @@ pub(crate) enum JournalMessage {
     /// Return the distinct run ids present in the journal.
     ListRunIds {
         reply: tokio::sync::oneshot::Sender<Vec<String>>,
+    },
+    /// Remove the entries older than the retention, after the entry that says
+    /// so. The reply is `None` when no entry was old enough.
+    Purge {
+        request: PurgeRequest,
+        reply: tokio::sync::oneshot::Sender<Result<Option<PurgeOutcome>, AuditJournalError>>,
     },
     /// Stop the actor after draining the queue. The actor acks once every
     /// message enqueued before this one has been processed (FIFO), letting the
@@ -239,25 +259,39 @@ impl JournalActor {
                 JournalMessage::QueryPage {
                     limit,
                     offset,
-                    runs,
                     reply,
                 } => {
-                    let rows = self
-                        .query_page(limit, offset, runs.as_deref())
-                        .unwrap_or_default();
+                    let rows = self.query_page(limit, offset).unwrap_or_default();
                     let _ = reply.send(rows);
+                }
+                JournalMessage::QueryLines {
+                    filter,
+                    limit,
+                    offset,
+                    reply,
+                } => {
+                    let lines = self.query_lines(&filter, limit, offset).unwrap_or_default();
+                    let _ = reply.send(lines);
                 }
                 JournalMessage::LastHash { run_id, reply } => {
                     let _ = reply.send(self.last_hash(&run_id));
                 }
                 JournalMessage::VerifyChain { run_id, reply } => {
-                    let report = self.query_run(&run_id).map(|entries| {
-                        verify_entries(
-                            &run_id,
-                            &entries,
-                            self.signer.as_deref(),
-                            self.signer.is_some(),
-                        )
+                    let report = self.query_run(&run_id).and_then(|entries| {
+                        let signer = self.signer.as_deref();
+                        let required = self.signer.is_some();
+                        // A run a purge shortened is walked from the last
+                        // entry it lost; any other from the sentinel.
+                        Ok(match self.run_cut(&run_id)? {
+                            Some(cut) => verify_entries_after(
+                                &run_id,
+                                &entries,
+                                Some(&cut),
+                                signer,
+                                required,
+                            ),
+                            None => verify_entries(&run_id, &entries, signer, required),
+                        })
                     });
                     let _ = reply.send(report);
                 }
@@ -270,6 +304,9 @@ impl JournalActor {
                 JournalMessage::ListRunIds { reply } => {
                     let _ = reply.send(self.list_run_ids().unwrap_or_default());
                 }
+                JournalMessage::Purge { request, reply } => {
+                    let _ = reply.send(self.purge(&request));
+                }
                 JournalMessage::Shutdown { ack } => {
                     let _ = ack.send(());
                     break;
@@ -281,11 +318,30 @@ impl JournalActor {
     /// Chain, hash, sign, and insert a drafted entry, advancing both the
     /// per-run chain and the global chain in one transaction.
     fn handle_append(&mut self, draft: JournalEntryDraft) {
+        let Some((entry, link)) = self.chain(draft) else {
+            return;
+        };
+        if let Err(e) = self.insert(&entry, &link) {
+            tracing::error!(
+                error = %e,
+                run_id = %entry.run_id,
+                seq = entry.seq,
+                "audit.journal.insert_failed"
+            );
+            return;
+        }
+        self.advance(entry, link);
+    }
+
+    /// Chain, hash and sign a drafted entry at the head of its run and of the
+    /// global chain, without writing it. `None` (logged) when a head cannot
+    /// be read.
+    fn chain(&mut self, draft: JournalEntryDraft) -> Option<(JournalEntry, GlobalLink)> {
         let head = match self.head_for(&draft.run_id) {
             Ok(head) => head,
             Err(e) => {
                 tracing::error!(error = %e, run_id = %draft.run_id, "audit.journal.head_lookup_failed");
-                return;
+                return None;
             }
         };
         let (seq, prev_hash) = match head {
@@ -309,7 +365,7 @@ impl JournalActor {
 
         if let Err(e) = self.ensure_global_head() {
             tracing::error!(error = %e, run_id = %entry.run_id, "audit.journal.global_head_lookup_failed");
-            return;
+            return None;
         }
         let (global_seq, global_prev_hash) = match &self.global_head {
             Some(h) => (h.global_seq + 1, h.global_hash.clone()),
@@ -317,34 +373,30 @@ impl JournalActor {
         };
         let global_hash = compute_global_hash(&entry.hash, &global_prev_hash, global_seq);
         let (global_signature, global_signing_key_id) = self.sign_global(&global_hash, &entry);
-        let link = GlobalLink {
-            global_seq,
-            global_prev_hash,
-            global_hash: global_hash.clone(),
-            global_signature,
-            global_signing_key_id,
-        };
+        Some((
+            entry,
+            GlobalLink {
+                global_seq,
+                global_prev_hash,
+                global_hash,
+                global_signature,
+                global_signing_key_id,
+            },
+        ))
+    }
 
-        if let Err(e) = self.insert(&entry, &link) {
-            tracing::error!(
-                error = %e,
-                run_id = %entry.run_id,
-                seq = entry.seq,
-                "audit.journal.insert_failed"
-            );
-            return;
-        }
-
+    /// Move the in-memory heads to an entry that was just written.
+    fn advance(&mut self, entry: JournalEntry, link: GlobalLink) {
         self.heads.insert(
-            entry.run_id.clone(),
+            entry.run_id,
             ChainHead {
                 seq: entry.seq,
                 hash: entry.hash,
             },
         );
         self.global_head = Some(GlobalHead {
-            global_seq,
-            global_hash,
+            global_seq: link.global_seq,
+            global_hash: link.global_hash,
         });
     }
 
@@ -502,12 +554,24 @@ impl JournalActor {
     /// rollback on any early return), so a crash can never leave the anchor
     /// ahead of or behind the entries table.
     fn insert(&mut self, e: &JournalEntry, link: &GlobalLink) -> Result<(), AuditJournalError> {
-        let payload = serde_json::to_string(&e.payload)
-            .map_err(|err| AuditJournalError::Serialize(err.to_string()))?;
         let tx = self
             .conn
             .transaction()
             .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
+        Self::insert_in(&tx, e, link)?;
+        tx.commit()
+            .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
+        Ok(())
+    }
+
+    /// The entry insert and the state upsert, inside `tx`.
+    fn insert_in(
+        tx: &rusqlite::Transaction<'_>,
+        e: &JournalEntry,
+        link: &GlobalLink,
+    ) -> Result<(), AuditJournalError> {
+        let payload = serde_json::to_string(&e.payload)
+            .map_err(|err| AuditJournalError::Serialize(err.to_string()))?;
         tx.execute(
             "INSERT INTO audit_journal_entries \
              (seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id, \
@@ -531,10 +595,7 @@ impl JournalActor {
             ],
         )
         .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
-        anchor::upsert_state(&tx, link.global_seq, &link.global_hash, &e.ts)?;
-        tx.commit()
-            .map_err(|err| AuditJournalError::Sqlite(err.to_string()))?;
-        Ok(())
+        anchor::upsert_state(tx, link.global_seq, &link.global_hash, &e.ts)
     }
 
     /// Return the distinct run ids present in the journal, ordered.
@@ -559,40 +620,77 @@ impl JournalActor {
     /// `global_seq`. SQLite sorts NULLs last under `DESC`, so they land at the
     /// tail rather than disappearing: a listing that silently dropped rows would
     /// be worse than one that orders them by a fallback key.
-    ///
-    /// `runs` narrows the page to those runs, passed as one JSON array so the
-    /// statement does not grow with the number of runs.
     fn query_page(
         &self,
         limit: usize,
         offset: usize,
-        runs: Option<&[String]>,
     ) -> Result<Vec<JournalEntry>, AuditJournalError> {
-        let runs_json = match runs {
-            Some(runs) => Some(
-                serde_json::to_string(runs)
-                    .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?,
-            ),
-            None => None,
-        };
         let mut stmt = self
             .conn
             .prepare(
                 "SELECT seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id \
                  FROM audit_journal_entries \
-                 WHERE ?3 IS NULL OR run_id IN (SELECT value FROM json_each(?3)) \
                  ORDER BY global_seq DESC, run_id ASC, seq DESC \
                  LIMIT ?1 OFFSET ?2",
             )
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
         let rows = stmt
-            .query_map(
-                rusqlite::params![limit as i64, offset as i64, runs_json],
-                row_to_entry,
-            )
+            .query_map(rusqlite::params![limit as i64, offset as i64], row_to_entry)
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))
+    }
+
+    /// Read one page of the entries that pass `filter`, each with its summary,
+    /// in the order of [`Self::query_page`].
+    ///
+    /// The filter is applied here, row by row, so `limit` and `offset` count
+    /// matching entries. A row whose kind or date already rules it out is
+    /// dropped before its payload is parsed, and the walk stops once the page
+    /// is full.
+    fn query_lines(
+        &self,
+        filter: &JournalFilter,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<JournalLine>, AuditJournalError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id \
+                 FROM audit_journal_entries \
+                 ORDER BY global_seq DESC, run_id ASC, seq DESC",
+            )
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
+        let mut lines = Vec::new();
+        let mut skipped = 0;
+        while lines.len() < limit {
+            let Some(row) = rows
+                .next()
+                .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?
+            else {
+                break;
+            };
+            let sqlite = |e: rusqlite::Error| AuditJournalError::Sqlite(e.to_string());
+            let ts: String = row.get(2).map_err(sqlite)?;
+            let kind: String = row.get(3).map_err(sqlite)?;
+            if !filter.admits(&JournalEntryKind::from_tag(&kind), &ts) {
+                continue;
+            }
+            let line = JournalLine::of(row_to_entry(row).map_err(sqlite)?);
+            if !filter.matches(&line.entry, &line.summary) {
+                continue;
+            }
+            if skipped < offset {
+                skipped += 1;
+                continue;
+            }
+            lines.push(line);
+        }
+        Ok(lines)
     }
 
     /// Read all entries of a run, ordered by ascending `seq`.

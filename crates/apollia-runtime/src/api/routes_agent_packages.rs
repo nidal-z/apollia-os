@@ -99,7 +99,8 @@ fn joined(error: tokio::task::JoinError) -> ApiError {
     refusal(AgentPackageError::Install(format!("spawn error: {error}")))
 }
 
-/// `GET /api/v1/agent-packages/installed`: the installed packages.
+/// `GET /api/v1/agent-packages/installed`: the installed packages, each with
+/// its publisher, the state of its signature and how much it holds.
 #[utoipa::path(
     get,
     path = "/api/v1/agent-packages/installed",
@@ -120,7 +121,8 @@ pub(crate) async fn list_agent_packages<B: ExecutionBackend + Clone>(
 }
 
 /// `GET /api/v1/agent-packages/installed/{name}`: one installed package, its
-/// manifest as recorded.
+/// manifest as recorded, its publisher, what it installed by kind, and the
+/// automations that would go with it.
 #[utoipa::path(
     get,
     path = "/api/v1/agent-packages/installed/{name}",
@@ -138,9 +140,29 @@ pub(crate) async fn get_agent_package<B: ExecutionBackend + Clone>(
     Path(name): Path<String>,
 ) -> Result<Json<AgentPackageDetail>, ApiError> {
     let data_dir = state.data_dir.clone();
-    let detail = tokio::task::spawn_blocking(move || agent_packages::detail(&data_dir, &name))
-        .await
-        .map_err(joined)?;
+    let triggers = state.trigger_def_repo.clone();
+    let detail = tokio::task::spawn_blocking(move || {
+        let mut detail = agent_packages::detail(&data_dir, &name)?;
+        // The trigger store may be closed or unreadable: the package is
+        // still described, with no automation listed.
+        let rows = triggers
+            .as_deref()
+            .and_then(|repo| {
+                repo.lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .list()
+                    .ok()
+            })
+            .unwrap_or_default();
+        detail.automations = agent_packages::automations_of(
+            &detail,
+            rows.into_iter()
+                .map(|row| (row.id, row.agent, row.workflow)),
+        );
+        Ok(detail)
+    })
+    .await
+    .map_err(joined)?;
     detail.map(Json).map_err(refusal)
 }
 
@@ -232,7 +254,7 @@ pub(crate) async fn install_agent_package<B: ExecutionBackend + Clone + From<Dyn
     responses(
         (status = 200, description = "Uninstalled", body = AgentPackageUninstalled),
         (status = 400, description = "A name that is a path", body = ApiErrorBody),
-        (status = 403, description = "The package carries Apollia", body = ApiErrorBody),
+        (status = 403, description = "The package is part of Apollia", body = ApiErrorBody),
         (status = 404, description = "No such package", body = ApiErrorBody),
         (status = 500, description = "Store or journal failure", body = ApiErrorBody),
         (status = 503, description = "No audit journal", body = ApiErrorBody),

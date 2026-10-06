@@ -110,7 +110,7 @@ contract is the `Ctx` Protocol in `sdk/apollia/types.py` plus the
 per-service interface modules in `sdk/apollia/context/*.py`. There are no
 `.pyi` stubs.
 
-`Ctx` exposes the whole Apollia backend through 17 typed services :
+`Ctx` exposes the whole Apollia backend through 18 typed services :
 
 ```python
 @runtime_checkable
@@ -121,6 +121,7 @@ class Ctx(Protocol):
     a2a: A2AInterface
     agents: AgentsInterface
     workflows: WorkflowsInterface
+    user: UserInterface
     mail: MailInterface
     datasources: DatasourcesInterface
     templates: TemplatesInterface
@@ -142,6 +143,7 @@ class Ctx(Protocol):
 | `a2a` | `A2AInterface` | synchronous agent-to-agent RPC |
 | `agents` | `AgentsInterface` | `run(agent_id, message)`, bound in a workflow run |
 | `workflows` | `WorkflowsInterface` | `run(workflow_id, inputs)`, bound in a workflow run, three levels deep at most |
+| `user` | `UserInterface` | `ask(question, *, options=None, hint=None)`, bound in a workflow run: the run waits in its step until the user answers, a refusal raises `QuestionDeclined` |
 | `mail` | `MailInterface` | durable, auditable inter-agent mailbox |
 | `datasources` | `DatasourcesInterface` | read declared datasources |
 | `templates` | `TemplatesInterface` | render declared templates |
@@ -234,6 +236,7 @@ Hierarchy rooted at `AgentError` :
 AgentError
 ├── DomainError       # business-level failure, retry meaningless
 ├── NeedHumanInput    # captured by the dispatcher, returns input_required
+├── QuestionDeclined  # the user declined a question `ctx.user.ask` asked
 ├── PayloadError      # malformed input, fail-fast to caller
 ├── SchemaError       # the declared schema itself is wrong
 ├── SkillNotFound     # no skill answers the requested skill_id
@@ -254,6 +257,10 @@ Rules :
   `status == "input_required"` carrying `prompt` and `context`, and the runtime
   restitutes `context` verbatim on resume. All others terminate the skill
   invocation.
+- `QuestionDeclined(question, *, reason=None)` is raised inside a workflow
+  step by `ctx.user.ask` when the user refuses to answer. It does not suspend
+  anything: the wait already happened inside `ask`. Caught, the workflow goes
+  on; uncaught, the step and the run fail.
 
 ---
 

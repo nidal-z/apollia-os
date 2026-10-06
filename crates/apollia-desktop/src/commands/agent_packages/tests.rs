@@ -54,6 +54,14 @@ fn listed() -> Value {
         "installed_at": "2026-10-03T07:00:00Z",
         "root_path": "/home/ada/.apollia/agents/packages/veille",
         "root_missing": false,
+        "signature": {
+            "publisher": "Ada",
+            "signed": true,
+            "trusted": false,
+            "key_fingerprint": "0123abcd",
+        },
+        "embedded": false,
+        "counts": { "agents": 1, "workflows": 0, "tools": 1, "connections": 1 },
     })
 }
 
@@ -81,10 +89,15 @@ async fn test_the_packages_are_listed_by_the_daemon() {
     // WHEN the attached arm lists them
     let packages = list(&link).await.unwrap();
 
-    // THEN it reads the daemon's package
+    // THEN it reads the daemon's package, its publisher, its signature and
+    // how much it holds
     assert_eq!(packages.len(), 1);
     assert_eq!(packages[0].name, "veille");
     assert_eq!(packages[0].agents[0].name, "veille-agent");
+    assert_eq!(packages[0].signature.publisher, "Ada");
+    assert!(packages[0].signature.signed);
+    assert!(!packages[0].embedded);
+    assert_eq!(packages[0].counts.tools, 1);
 }
 
 #[tokio::test]
@@ -130,6 +143,14 @@ async fn test_the_detail_of_a_package_is_read_from_the_daemon() {
     full["author"] = json!("Ada");
     full["updated_at"] = json!("2026-10-03T07:00:00Z");
     full["manifest"] = json!({ "package": { "name": "veille" } });
+    full["content"] = json!({
+        "agents": [{ "id": "veille-agent", "name": "Veille", "description": "Watches the news." }],
+        "workflows": [],
+        "tools": [{ "name": "fetch", "description": "Fetches a page.", "family": "read" }],
+        "connections_brought": [],
+        "connections_required": [{ "type": "gmail", "reason": "Send the digest" }],
+    });
+    full["automations"] = json!([{ "id": "daily", "target": "veille-agent" }]);
     let (_server, link) = daemon(
         "GET",
         "/api/v1/agent-packages/installed/veille",
@@ -141,9 +162,14 @@ async fn test_the_detail_of_a_package_is_read_from_the_daemon() {
     // WHEN the attached arm reads it
     let package = detail(&link, "veille").await.unwrap();
 
-    // THEN it is the daemon's, its manifest included
+    // THEN it is the daemon's, its manifest included, with what it holds by
+    // kind and the automation that goes with it
     assert_eq!(package.author, "Ada");
     assert_eq!(package.manifest["package"]["name"], "veille");
+    assert_eq!(package.content.agents[0].name, "Veille");
+    assert_eq!(package.content.tools[0].family, "read");
+    assert_eq!(package.content.connections_required[0].kind, "gmail");
+    assert_eq!(package.automations[0].id, "daily");
 }
 
 #[tokio::test]

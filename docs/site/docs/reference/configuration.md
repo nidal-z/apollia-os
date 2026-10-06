@@ -97,11 +97,11 @@ still accepted, with a `config.key.retired` warning.
 | `[hooks]` | Lifecycle hook handlers (command or HTTP). |
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
-| `[models]` | The signed index of model cards, the models folder (`dir`), and the rule applied to an imported file (`[models.import]`). |
+| `[models]` | The signed index of model cards, the models folder (`dir`), whether a preset carries load settings (`preset_load_settings`), and the rule applied to an imported file (`[models.import]`). |
 | `[observability]` | Trace capture and retention, documented below. |
-| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
-| `[server]` | The compatible server: `enabled`, `port`, `require_auth`. |
-| `[engines]` | Settings of the local inference engines (`log_level`). |
+| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` or `always`), `chat_debug_blocks`, `resource_widget`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
+| `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `cors`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, and `separate_reasoning_content`. |
+| `[engines]` | Settings of the local inference engines (`log_level`, `gguf`, `mlx`, `auto_update`, `auto_purge`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
 
 The tables below are generated from the key registry of the engine, the list
@@ -163,7 +163,13 @@ LLM backends, routing, and the speech-to-text runner. The default file leaves th
 | `llm.routing` | table | not set | Backends answering precise and fast requests, and the hybrid routing ceiling. |
 | `llm.guardrails.level` | one of disabled, lenient, balanced, strict, ceiling | `"balanced"` | How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced. The organization policy can fix it. |
 | `llm.guardrails.ceiling_gb` | float | not set | Largest estimate, in gigabytes, the ceiling level launches. The organization policy can fix it. |
+| `llm.guardrails.bypass` | one of confirm, unrestricted | `"confirm"` | What loading a refused model anyway asks first: confirm, an explicit confirmation, or unrestricted, nothing. The organization policy can fix it. |
 | `llm.residency.idle_unload_minutes` | integer | `60` | Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads. The organization policy can fix it. |
+| `llm.defaults.context` | one of custom, model_max | `"custom"` | Context window of a local model that neither APOLLIA_LLAMA_N_CTX, nor a preset, nor its backend fixes: custom, the figure of llm.defaults.context_tokens, or model_max, the length the model was trained for. The organization policy can fix it. |
+| `llm.defaults.context_tokens` | integer | `0` | Default context window, in tokens, when llm.defaults.context is custom; 0 lets the engine size it to the memory of this machine, model by model, up to 32768. The organization policy can fix it. |
+| `llm.images.limit_side` | boolean | `true` | Scale an image down before it is sent to a model when its largest side exceeds llm.images.max_side_px. The organization policy can fix it. |
+| `llm.images.max_side_px` | integer | `2048` | Largest side, in pixels, of an image sent to a model; proportions are kept. The organization policy can fix it. |
+| `llm.devices.disabled` | string array | `[]` | Graphics devices the local engine is kept away from, each named as the engine lists it (CUDA0, Vulkan1): a listed device receives no layer and its memory is left out of every estimate; empty leaves the engine every device. The organization policy can fix it. |
 
 ### `[api]`
 
@@ -222,6 +228,8 @@ Native tools: limits, static disabling, and per-tool settings.
 | `tools.web_read.max_response_kb` | integer | `2048` | Largest page web_read reads, in KiB (64 to 32768). |
 | `tools.web_read.ssrf_guard` | boolean | `true` | Refuse an address on the local network or the machine itself. |
 | `tools.python_interpreter` | path | not set | Python interpreter used instead of the bundled one. |
+| `tools.new_agent.families` | string array | `["read"]` | Families of tools an agent created without code is granted whole, read against the tools active when it is created: read, read_personal, write_or_delete, send_external, execute_code. The organization policy can fix it. |
+| `tools.new_agent.access` | string array | `[]` | Tools an agent created without code is granted by name, on top of tools.new_agent.families. The organization policy can fix it. |
 
 ### `[mcp]`
 
@@ -250,6 +258,7 @@ Chat session defaults.
 | --- | --- | --- | --- |
 | `chat.plan_mode_default` | boolean | `false` | Start every new conversation in plan mode. |
 | `chat.tool_turn_temperature` | float | not set | Model temperature of a turn that offers tools; none means 0.3. |
+| `chat.share_profile_default` | boolean | `true` | Start every new conversation with the profile shared with the built-in assistant; a conversation that exists keeps its own switch. The organization policy can fix it. |
 
 ### `[models]`
 
@@ -261,6 +270,7 @@ The signed index of model cards, its mirror, the models folder, and the rule app
 | `models.registry_mirror_url` | string | `"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json"` | Address tried when the index does not answer; empty disables it. The organization policy can fix it. |
 | `models.registry_enabled` | boolean | `true` | Read the online index of model cards. The organization policy can fix it. |
 | `models.dir` | path | `""` | Folder the language models, their projectors and the embedding models are kept in; empty means &lt;data dir&gt;/models. Changing it moves no file. The organization policy can fix it. |
+| `models.preset_load_settings` | boolean | `false` | Let a preset be created or modified with load settings; off, a preset takes request settings only and keeps the load settings it holds. The organization policy can fix it. |
 | `models.import.require_verified` | boolean | `false` | Refuse an imported model file that matches no signed card. The organization policy can fix it. |
 
 ### `[workflows]`
@@ -283,6 +293,9 @@ Settings of the desktop application that the engine reads.
 | `desktop.link_preview_enabled` | boolean | `false` | Fetch the preview of a link shown in a conversation. The organization policy can fix it. |
 | `desktop.update_channel` | one of stable, preview | `"stable"` | Update channel of the application: stable receives the published versions, preview the trial versions as well. The organization policy can fix it. |
 | `desktop.background_service_allowed` | boolean | `true` | Allow the application to install the engine as a service of the user's session. The organization policy can fix it. |
+| `desktop.chat_auto_naming` | one of never, auto, always | `"auto"` | Name a new conversation from its first message: never, automatically when the model generates fast enough, or always. The organization policy can fix it. |
+| `desktop.chat_debug_blocks` | boolean | `true` | With the developer mode on, show the raw data of a tool step and the detailed trace in a conversation. The organization policy can fix it. |
+| `desktop.resource_widget` | boolean | `false` | Show the processor, the memory and the video memory in use at the foot of the sidebar. The organization policy can fix it. |
 
 ### `[server]`
 
@@ -293,7 +306,14 @@ The compatible server, which answers the OpenAI and Anthropic formats on the loo
 | `server.enabled` | boolean | `false` | Start the compatible server (OpenAI and Anthropic formats) with the engine. The organization policy can fix it. |
 | `server.port` | integer | `7772` | TCP port of the compatible server. The organization policy can fix it. |
 | `server.require_auth` | boolean | `false` | Require a token of the compatible server on every request; read when the listener opens. The organization policy can fix it. |
+| `server.cors` | boolean | `false` | Let a web page of another origin call the compatible server; read each time the server starts. The organization policy can fix it. |
+| `server.jit_loading` | boolean | `true` | Let a request to the compatible server load the model of this machine it names. The organization policy can fix it. |
+| `server.jit_auto_unload` | boolean | `true` | Unload the models the compatible server loaded after their own idle delay rather than the general one. The organization policy can fix it. |
+| `server.jit_idle_ttl_minutes` | integer | `60` | Minutes without a request after which a model the compatible server loaded is unloaded; 0 keeps it loaded. The organization policy can fix it. |
+| `server.jit_keep_last_only` | boolean | `true` | When the compatible server loads a model, unload the other models it loaded that nothing holds. The organization policy can fix it. |
+| `server.separate_reasoning_content` | boolean | `true` | Keep the reasoning of a model in reasoning_content, apart from content, in the chat completions of the compatible server; off, it goes back into content between think tags. The organization policy can fix it. |
 | `server.serve_on_lan` | boolean | `false` | Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens. The organization policy can fix it. |
+| `server.allow_request_mcp` | boolean | `false` | Let a request to the compatible server bring an MCP server of its own, reached over HTTP for the length of the call; off, such a request is refused. The organization policy can fix it. |
 
 ### `[engines]`
 
@@ -302,6 +322,10 @@ Settings of the local inference engines.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `engines.log_level` | one of error, warning, info, debug | `"debug"` | Log level of the local engine, applied when a model is next loaded. The organization policy can fix it. |
+| `engines.gguf` | one of auto, embedded, cuda, vulkan, cpu, metal | `"auto"` | Engine that serves GGUF models: the automatic choice, the engine shipped with the application, or a variant installed by the engine store. A variant no longer installed falls back to the automatic choice. Read at the next start. The organization policy can fix it. |
+| `engines.mlx` | one of auto, embedded, metal | `"auto"` | Engine that serves MLX models on a Mac with Apple Silicon: the automatic choice, the engine shipped with the application, or the one installed by the engine store. Read at the next start. The organization policy can fix it. |
+| `engines.auto_update` | boolean | `true` | Download and verify the update of a chosen engine when the followed channel announces one; off, the update is only announced. The organization policy can fix it. |
+| `engines.auto_purge` | boolean | `false` | After an update of an engine, delete the builds of its variant left unused the longest, beyond two; the build in service and the shipped engine are never deleted. The organization policy can fix it. |
 
 ### `[author]`
 
@@ -450,8 +474,9 @@ else sees it, but what remains readable locally after a run.
 Turning off a switch empties the matching part of the timeline: the audit trail
 and the cost history are separate and unaffected. The same separation holds for
 retention: the purge deletes from the event log only. The signed audit journal is
-a hash chain that `audit verify` walks end to end, so it is never trimmed on a
-timer.
+a hash chain that `audit verify` walks end to end, so no key of `apollia.toml`
+trims it. Only an organisation policy does, through its own `journal.retention_days`:
+see [Audit and verify](/how-to/audit-and-verify#retention-and-the-organisation-policy).
 
 ### Prompt content (`[llm.observability]`)
 
@@ -549,7 +574,74 @@ An interface says which conversations are open with
 model with `PUT /api/v1/llm/pins`. When the event stream it opened with
 `GET /api/v1/events?client=<id>` ends, the conversations of that client count
 as closed. Each unload is published on the event bus as `LlmModelUnloaded`,
-with its reason: `idle`, `last_conversation`, `requested` or `make_room`.
+with its reason: `idle`, `last_conversation`, `requested`, `make_room`, or
+`server_replaced` when the compatible server loaded another model. The models
+the compatible server loaded follow their own delay, set under `[server]`
+(see the compatible endpoints reference).
+
+## Model defaults (`[llm.defaults]`, `[llm.images]`)
+
+What a local model receives when nothing closer to it says otherwise. The
+application shows these under Settings, Model defaults.
+
+```toml
+[llm.defaults]
+context = "custom"       # or "model_max"
+context_tokens = 16384   # 0 lets the engine size the window to this machine
+
+[llm.images]
+limit_side = true
+max_side_px = 2048
+
+[llm.guardrails]
+bypass = "confirm"       # or "unrestricted"
+```
+
+The context window of a launch is the first of these that speaks:
+
+| Order | Source |
+| --- | --- |
+| 1 | `APOLLIA_LLAMA_N_CTX` |
+| 2 | the window of the model's preset |
+| 3 | the `context_window` of the backend |
+| 4 | `[llm.defaults]` |
+| 5 | 32768 tokens, the value the engine is built with |
+
+With `context = "custom"` and a figure, that figure applies. With
+`context_tokens = 0`, the default, the engine sizes the window model by model:
+the longest one, up to 32768 tokens and never under 4096, at which the estimate
+used by the load guardrail still holds the model within the memory of the
+machine. With `context = "model_max"`, the window is the length the model was
+trained for. Every one of them is capped at the training length, and a model
+whose header cannot be read falls to the last line of the table. The section is
+read at every load, so a change applies to the next model loaded.
+
+`[llm.images]` is read by the chat of the application: an image whose largest
+side exceeds `max_side_px` is scaled down to it, proportions kept, before it is
+sent to a model that reads images. With `limit_side = false` an image travels
+at its own size, up to what the engine accepts.
+
+`bypass` says what the application asks before it loads a model the guardrail
+refused: `confirm` shows a confirmation that recalls the risk, `unrestricted`
+loads at once. The guardrail itself is not weakened: the refusal is still
+shown, and a request that does not confirm is still refused.
+
+`[llm.devices]` names the graphics devices the local engine is kept away from,
+each by the identifier `llama-server --list-devices` prints. The application
+writes it from Settings, Hardware, where every device has a switch.
+
+```toml
+[llm.devices]
+disabled = ["CUDA1"]
+```
+
+A listed device is left out of the `--device` list the engine is launched
+with, and its memory is left out of the estimate the compatibility badge, the
+load guardrail and the offload plan read. With every device listed the engine
+runs on the processor alone (`--device none`, `-ngl 0`). An identifier the
+engine does not list is ignored. A machine with unified memory has a single
+device, which is never held back. The section is read at every load, so a
+change applies to the next model loaded.
 
 ## Dictation (`system.db`, not `apollia.toml`)
 

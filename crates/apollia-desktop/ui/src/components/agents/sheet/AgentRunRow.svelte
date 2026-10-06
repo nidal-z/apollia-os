@@ -13,7 +13,7 @@
   import type { TaskSummary } from "$lib/types";
   import ExecutionTrace from "../../observability/ExecutionTrace.svelte";
   import SmartOutput from "../../common/SmartOutput.svelte";
-  import { statusMeta } from "../../tasks/taskStatus";
+  import { statusMeta } from "./runStatus";
 
   interface Props {
     run: TaskSummary;

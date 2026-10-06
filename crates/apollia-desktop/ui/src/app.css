@@ -236,6 +236,22 @@
     --text-micro-sm: 0.65625rem;
     --text-micro-xs: 0.65625rem;
 
+    /* ── Chat reading scale ──
+       The two chat tiers the type scale above did not carry (the user turn and
+       the answer, 14.5 and 16.5 px), multiplied by the reader's choice in
+       Settings > Appearance. `lib/stores/chatAppearance.ts` names the rung on
+       `<html data-chat-font-size>` and the weight on `data-chat-font-weight`;
+       the values live only here. Rung 3 is the default and leaves both tiers
+       at their size. The density rungs are the leading and the user-bubble
+       padding a compact thread tightens. */
+    --text-chat-user: 0.90625rem;
+    --text-chat-answer: 1.03125rem;
+    --chat-font-scale: 1;
+    --chat-font-weight: 400;
+    --chat-answer-leading: 1.68;
+    --chat-bubble-pad-y: 0.625rem;
+    --chat-bubble-pad-x: 0.9375rem;
+
     /* ── Hover ── */
     --hover-surface-lift: -2px;
     --hover-scale: 1.01;
@@ -1209,38 +1225,11 @@
 .v4-glow   { animation: v4-glow 2s ease-in-out infinite; }
 
 /* ═══════════════════════════════════════════════════════════
-   Chat tool bodies - shared primitives for the per-tool
-   operator/builder layers (components/chat/tool-bodies/*).
+   Shared code, pill, step, meter and file-reference primitives
+   (configuration cards, plan steps, memory rows, tool bodies).
    Every value routes through a design token so both themes and
    the reduced-motion preference are honoured centrally.
    ═══════════════════════════════════════════════════════════ */
-.tb-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-body-xs);
-  color: hsl(var(--foreground));
-  background: hsl(var(--surface-2));
-  border: 1px solid hsl(var(--border-soft));
-  padding: 3px 9px;
-  border-radius: 999px;
-  max-width: 100%;
-  overflow: hidden;
-}
-.tb-chip .tb-chip-key { color: hsl(var(--faint-foreground)); flex: none; }
-.tb-chip .tb-chip-val {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tb-iolabel {
-  font-size: var(--text-micro-lg);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: hsl(var(--faint-foreground));
-}
 
 .tb-code {
   background: hsl(var(--code-bg));
@@ -1260,110 +1249,8 @@
   letter-spacing: -0.01em;
 }
 
-.tb-term {
-  background: hsl(var(--term-bg));
-  color: hsl(var(--term-fg));
-  border: 1px solid hsl(var(--border-soft));
-  border-radius: 9px;
-  padding: 11px 13px;
-  font-size: var(--text-body-xs);
-  line-height: 1.55;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  margin: 0;
-  font-variant-ligatures: none;
-  letter-spacing: -0.01em;
-}
-.tb-term .tb-prompt { color: hsl(var(--primary)); font-weight: 600; }
-.tb-term .tb-out { color: hsl(var(--term-fg) / 0.82); }
-.tb-term .tb-err { color: hsl(var(--destructive)); }
-.tb-term .tb-exit { color: hsl(var(--success)); font-variant-numeric: tabular-nums; }
-.tb-term .tb-exit-nonzero { color: hsl(var(--warning)); font-variant-numeric: tabular-nums; }
-/* Timings dimmed + tabular so successive runs line up. */
-.tb-term .tb-meta { color: hsl(var(--term-fg) / 0.5); font-variant-numeric: tabular-nums; }
 
-.tb-preview {
-  font-size: var(--text-body-xs);
-  color: hsl(var(--muted-foreground));
-  background: hsl(var(--code-bg));
-  border: 1px solid hsl(var(--border-soft));
-  border-radius: 9px;
-  padding: 10px 12px;
-  line-height: 1.55;
-  overflow-x: auto;
-  white-space: pre;
-  margin: 0;
-  font-variant-ligatures: none;
-  letter-spacing: -0.01em;
-}
-.tb-preview .tb-ln {
-  color: hsl(var(--faint-foreground) / 0.7);
-  margin-right: 12px;
-  user-select: none;
-  display: inline-block;
-  min-width: 1.5em;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-/* file_edit before/after coloured by diff convention, using the real
-   semantic tokens (both themes covered). */
-.tb-preview .tb-diff-del { color: hsl(var(--destructive)); }
-.tb-preview .tb-diff-add { color: hsl(var(--success)); }
-.tb-preview .tb-more { color: hsl(var(--faint-foreground)); }
-
-.tb-flist { display: flex; flex-direction: column; gap: 1px; }
-.tb-frow {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 6px 8px;
-  border-radius: 7px;
-  font-size: var(--text-code-sm);
-  transition: background 0.12s var(--ease-apple, cubic-bezier(0.22, 1, 0.36, 1));
-}
-.tb-frow:hover { background: hsl(var(--surface-2) / 0.6); }
-.tb-frow .tb-fi {
-  flex: none;
-  color: hsl(var(--muted-foreground));
-  display: grid;
-  place-items: center;
-}
-.tb-frow .tb-fi.tb-folder { color: hsl(var(--primary)); }
-.tb-frow .tb-fname {
-  color: hsl(var(--foreground));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tb-frow .tb-fmeta {
-  margin-left: auto;
-  flex: none;
-  font-size: var(--text-caption);
-  color: hsl(var(--faint-foreground));
-  font-variant-numeric: tabular-nums;
-}
-
-/* Status badge (http_fetch) and status pill (plan / todo steps). Both derive
-   every colour from a semantic token, so light and dark are covered centrally. */
-.tb-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--text-caption);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid hsl(var(--border-soft));
-  background: hsl(var(--surface-2));
-  color: hsl(var(--foreground));
-}
-.tb-badge.tb-ok    { color: hsl(var(--success)); border-color: hsl(var(--success) / 0.35); background: hsl(var(--success) / 0.08); }
-.tb-badge.tb-warn  { color: hsl(var(--warning)); border-color: hsl(var(--warning) / 0.35); background: hsl(var(--warning) / 0.08); }
-.tb-badge.tb-error { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.35); background: hsl(var(--destructive) / 0.08); }
-.tb-badge.tb-info  { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.35); background: hsl(var(--primary) / 0.08); }
-
+/* Status pill (plan steps), every colour from a semantic token. */
 .tb-pill {
   display: inline-flex;
   align-items: center;
@@ -1414,83 +1301,7 @@
 }
 .tb-step .tb-step-pill { margin-left: auto; }
 
-/* Memory recall cards. */
-.tb-cards { display: flex; flex-direction: column; gap: 6px; }
-.tb-card {
-  border: 1px solid hsl(var(--border-soft));
-  border-radius: 9px;
-  padding: 8px 10px;
-  background: hsl(var(--surface-2) / 0.4);
-}
-.tb-card .tb-card-body {
-  color: hsl(var(--foreground));
-  font-size: var(--text-code-sm);
-  line-height: 1.5;
-}
-
-/* Grep matches grouped by file. */
-.tb-grep { display: flex; flex-direction: column; gap: 8px; }
-.tb-grep-group { display: flex; flex-direction: column; gap: 2px; }
-.tb-grep-file {
-  font-size: var(--text-caption-lg);
-  font-weight: 600;
-  color: hsl(var(--foreground));
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-.tb-grep-file .tb-grep-dir {
-  color: hsl(var(--faint-foreground));
-  font-weight: 400;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tb-grep-row {
-  display: flex;
-  gap: 8px;
-  font-size: var(--text-body-xs);
-  line-height: 1.5;
-}
-.tb-grep-row .tb-grep-ln {
-  color: hsl(var(--primary) / 0.75);
-  flex: none;
-  min-width: 2.5em;
-  text-align: right;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
-}
-.tb-grep-row .tb-grep-text {
-  color: hsl(var(--foreground) / 0.85);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* Readable article extract (web_read). */
-.tb-extract {
-  font-size: var(--text-code-sm);
-  line-height: 1.6;
-  color: hsl(var(--foreground) / 0.85);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.tb-extract-title { font-weight: 600; color: hsl(var(--foreground)); font-size: var(--text-body-sm); letter-spacing: -0.005em; }
-.tb-extract-byline { font-size: var(--text-caption); color: hsl(var(--faint-foreground)); }
-
-/* ── Honest, neutral metric ──
-   Counts, durations, sizes: tabular, muted, never coloured. Green stays
-   reserved for genuine success (exit 0, http-2xx, the shared success check). */
-.tb-metric {
-  font-size: var(--text-caption);
-  color: hsl(var(--muted-foreground));
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.005em;
-}
-
-/* ── Reasoning spark ── the one gradient hero glyph: gradient stroke +
-   soft radial halo. The gradient <linearGradient id="apollia-grad"> lives in
-   ActivityStrip; SVG url() refs resolve document-globally. */
+/* ── Spark ── a glyph on a soft radial halo. */
 .tb-spark {
   position: relative;
   display: inline-grid;
@@ -1508,7 +1319,6 @@
 .tb-spark :global(svg) {
   position: relative;
   z-index: 1;
-  stroke: url(#apollia-grad);
 }
 
 /* ── Faint gradient hairline under strip / section headers ──
@@ -1526,8 +1336,7 @@
   background-size: 100% 1.5px;
 }
 
-/* Same signature at the top edge, for the activity strip's trace panel: a
-   faint gradient hairline sits under the strip header when it expands. */
+/* Same signature at the top edge, under a disclosure header when it opens. */
 .tb-strip-rule {
   background-image: linear-gradient(
     90deg,
@@ -1538,14 +1347,6 @@
   background-repeat: no-repeat;
   background-position: left top;
   background-size: 100% 1.5px;
-}
-
-/* ── file_grep matched-token highlight ── quieter primary tier. */
-.tb-grep-row .tb-hit {
-  background: hsl(var(--primary) / 0.16);
-  color: hsl(var(--foreground));
-  border-radius: 3px;
-  padding: 0 2px;
 }
 
 /* ── memory_search slim relevance meter ── */
@@ -1561,13 +1362,6 @@
   height: 100%;
   border-radius: 999px;
   background: hsl(var(--primary));
-}
-.tb-mrel {
-  margin-left: auto;
-  color: hsl(var(--primary));
-  font-weight: 700;
-  letter-spacing: 0;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ── Clickable file reference ── reveals the file in the OS file manager.
@@ -1596,22 +1390,8 @@
   text-decoration: none;
 }
 
-/* ── memory_search card top-meta row ── source label + relevance sit on top of
-   the recalled excerpt, mirroring the mockup .mtop. */
-.tb-card .tb-card-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: var(--text-micro);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: hsl(var(--faint-foreground));
-}
-
 /* ═══════════════════════════════════════════════════════════
-   Chat turn layout - user bubble, in-flow tool cards, the answer
+   Chat turn layout - user bubble, the answer
    hero, and the action row. Mirrors the validated chat mockup
    (Section 1). Every value routes through a design token so both
    themes are covered centrally.
@@ -1621,96 +1401,36 @@
 .chat-user-bubble {
   max-width: 78%;
   width: fit-content;
-  padding: 10px 15px;
+  padding: var(--chat-bubble-pad-y) var(--chat-bubble-pad-x);
   border-radius: 15px 15px 4px 15px;
   background: hsl(var(--user-bubble));
   color: hsl(var(--foreground));
-  font-size: 14.5px;
+  font-size: calc(var(--text-chat-user) * var(--chat-font-scale));
+  font-weight: var(--chat-font-weight);
+}
+
+/* The reader's rungs (Settings > Appearance). Rung 3 is the `:root` value. */
+:root[data-chat-font-size="1"] { --chat-font-scale: 0.875; }
+:root[data-chat-font-size="2"] { --chat-font-scale: 0.9375; }
+:root[data-chat-font-size="4"] { --chat-font-scale: 1.125; }
+:root[data-chat-font-size="5"] { --chat-font-scale: 1.25; }
+:root[data-chat-font-weight="medium"] { --chat-font-weight: 500; }
+
+/* Compact density, carried by the bubble root of a compact thread. */
+.chat-density-compact {
+  --chat-answer-leading: 1.5;
+  --chat-bubble-pad-y: 0.375rem;
+  --chat-bubble-pad-x: 0.75rem;
 }
 
 /* Assistant answer, the hero: larger type, generous leading. */
 .chat-answer {
   margin-top: 6px;
-  font-size: 16.5px;
-  line-height: 1.68;
+  font-size: calc(var(--text-chat-answer) * var(--chat-font-scale));
+  font-weight: var(--chat-font-weight);
+  line-height: var(--chat-answer-leading);
   letter-spacing: -0.003em;
   color: hsl(var(--foreground));
-}
-
-/* In-flow tool calls (zone 2): each finalized call is a bordered card with a
-   clickable header and an expandable body dispatching to the per-tool body. */
-.chat-flow-tools {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin: 12px 0 4px;
-}
-.chat-flow-tool {
-  border: 1px solid hsl(var(--border-soft));
-  border-radius: 7px;
-  background: hsl(var(--surface-1) / 0.5);
-  overflow: hidden;
-}
-.chat-ft-head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 8px 11px;
-  font-size: var(--text-code-sm);
-  text-align: left;
-  cursor: pointer;
-  user-select: none;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  transition: background 0.15s var(--ease-standard);
-}
-.chat-ft-head:hover { background: hsl(var(--surface-2) / 0.5); }
-.chat-ft-chev {
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  line-height: 0;
-  color: hsl(var(--faint-foreground));
-  transition: transform 0.18s var(--ease-apple);
-}
-.chat-flow-tool.chat-ft-open .chat-ft-chev { transform: rotate(90deg); }
-.chat-ft-ico {
-  flex: none;
-  display: grid;
-  place-items: center;
-  color: hsl(var(--muted-foreground));
-}
-.chat-ft-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: hsl(var(--foreground));
-  font-weight: 550;
-}
-.chat-ft-name.chat-ft-error { color: hsl(var(--destructive)); }
-/* A thought row sits in the same timeline as the actions but stays quieter:
-   the actions are the events, the thoughts are the connective voice. */
-.chat-ft-name.chat-ft-thought {
-  color: hsl(var(--muted-foreground));
-  font-weight: 450;
-  font-style: italic;
-}
-.chat-ft-meta {
-  margin-left: auto;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--text-caption);
-  color: hsl(var(--faint-foreground));
-  font-variant-numeric: tabular-nums;
-}
-.chat-ft-body {
-  padding: 6px 12px 12px;
-  border-top: 1px solid hsl(var(--border-soft));
 }
 
 /* Turn actions (copy / regenerate / edit): a left-aligned row below the turn. */
@@ -1740,7 +1460,8 @@
   outline: 2px solid hsl(var(--primary));
   outline-offset: 1px;
 }
-.chat-actions button:disabled {
+.chat-actions button:disabled,
+.chat-actions button[aria-disabled="true"] {
   opacity: 0.4;
   cursor: not-allowed;
 }

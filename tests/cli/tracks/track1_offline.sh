@@ -157,6 +157,14 @@ check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --soc
 # runtime, exit 2. The real read is covered by the runtime's route tests.
 check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1
 check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
+# The settings and the notes of a conversation are read and written through
+# the runtime: with no runtime, exit 2. A settings document naming a field
+# the settings do not declare is refused before anything is sent, exit 1.
+check_exit   "chat settings get (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat settings get s-1
+check_exit   "chat settings set (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat settings set s-1 '{"max_tokens":256}'
+check_exit   "chat settings set unknown field → 1" 1 "$BIN" --socket "$CHAT_OFF" chat settings set s-1 '{"system_prompt":"x"}'
+check_exit   "chat notes get --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat notes get s-1 --json
+check_exit   "chat notes set (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat notes set s-1 "ask about March"
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
 # Every other uninstall goes through the runtime, which unregisters the agents
@@ -300,6 +308,19 @@ check_exit   "mcp server --sandbox-root (retired) → 1"  1 "$BIN" mcp server --
 # ── A.10 chat hygiene (4 seeded sessions) ───────────────────────────────────
 section "A.10 chat hygiene"
 check_exit   "chat delete (no --confirm)"  1         "$BIN" chat delete seed-session-1
+# `chat list` reads chat.db with no runtime: the four seeded sessions, each
+# with the folder it is in. The first call opens and migrates chat.db, so the
+# folder tables exist for the rows written next the way the desktop writes
+# them; the folder is removed again so the seed counts stay what they were.
+check_content "chat list names a seeded session"     "seed-session-1 .*Discovering the sovereign runtime" "$BIN" chat list
+check_json_field "chat list --json lists the four sessions" "len(d)" "4" "$BIN" chat list --json
+check_json_field "chat list --json: no folder yet"   "[s['folder'] for s in d if s['id']=='seed-session-1'][0]" "None" "$BIN" chat list --json
+e2e_sqlite "$HOME/.apollia/chat.db" "INSERT INTO chat_folders (id, name, position) VALUES ('e2e-folder', 'E2E clients', 0); UPDATE chat_sessions SET folder_id = 'e2e-folder' WHERE id = 'seed-session-1';"
+check_content "chat list shows the folder of a session" "seed-session-1 +E2E clients" "$BIN" chat list
+check_json_field "chat list --json carries the folder" "[s['folder'] for s in d if s['id']=='seed-session-1'][0]" "E2E clients" "$BIN" chat list --json
+check_json_field "chat list --json: the others have none" "sorted({str(s['folder']) for s in d})" "['E2E clients', 'None']" "$BIN" chat list --json
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET folder_id = NULL WHERE folder_id = 'e2e-folder'; DELETE FROM chat_folders WHERE id = 'e2e-folder';"
+check_exit   "chat list (no database) -> 1"  1       "$BIN" chat list --db "$SCRATCH/absent-chat.db"
 check        "chat rename seed-session-4"            "$BIN" chat rename seed-session-4 "Renamed via E2E"
 check_exit   "chat rename empty title"  1            "$BIN" chat rename seed-session-4 "   "
 check        "chat export seed-session-1 md"         "$BIN" chat export seed-session-1 --output "$SCRATCH/c.md"
@@ -307,7 +328,14 @@ check        "chat export seed-session-1 md"         "$BIN" chat export seed-ses
 check        "chat export seed-session-1 json"       "$BIN" chat export seed-session-1 --output "$SCRATCH/c.json" --format json
 check_json   "chat export .json is valid JSON"       /bin/cat "$SCRATCH/c.json"
 check_exit   "chat export unknown session"  1        "$BIN" chat export ghost-sess-id
+check_content "chat delete --help says it is for good" "cannot be restored" "$BIN" chat delete --help
+# A session the desktop sent to the trash (`deleted_at` set) is erased by
+# `chat delete` like any other: the row is gone, not kept for a restore. The
+# column exists by now, since `chat rename` above opened and migrated chat.db.
+e2e_sqlite "$HOME/.apollia/chat.db" "UPDATE chat_sessions SET deleted_at = '2026-07-02T00:00:00Z' WHERE id = 'seed-session-4';"
 check        "chat delete seed-session-4 --confirm"  "$BIN" chat delete seed-session-4 --confirm
+TRASH_LEFT=$(e2e_sqlite "$HOME/.apollia/chat.db" "SELECT COUNT(*) FROM chat_sessions WHERE id = 'seed-session-4';")
+[[ "$TRASH_LEFT" == "0" ]] && _pass "chat delete erased the trashed session for good" || _fail "chat delete erased the trashed session for good" "rows left: $TRASH_LEFT"
 
 # ── A.11 llm (setup validation, no daemon) ──────────────────────────────────
 section "A.11 llm (offline)"
@@ -401,6 +429,14 @@ check_exit "package install --json (missing file) → 1"  1 "$BIN" --socket "$PK
 check_exit "package trust import (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust import "$E2E_KEY" --label "E2E"
 check_exit "package trust list (runtime absent) → 2"    2 "$BIN" --socket "$PKGOFF" package trust list
 check_exit "package trust remove (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust remove "$E2E_KEY" --confirm
+# The decisions waiting for the user live in the runtime: with no runtime the
+# list answers 2, in human and in JSON form. Track 2 lists them, empty.
+check_exit "approvals pending (runtime absent) → 2"        2 "$BIN" --socket "$PKGOFF" approvals pending
+check_exit "approvals pending --json (runtime absent) → 2" 2 "$BIN" --socket "$PKGOFF" approvals pending --json
+# Answering one goes through the runtime too. An answer to a question with no
+# `--value` is refused before the runtime is reached.
+check_exit "approvals decide (runtime absent) → 2"         2 "$BIN" --socket "$PKGOFF" approvals decide workflow-question:none refuse
+check_exit "approvals decide answer without --value → 1"   1 "$BIN" --socket "$PKGOFF" approvals decide workflow-question:none answer
 
 # ── A.13b organisation policy (files only) ──────────────────────────────────
 # The key pair and the policy folder are prepared under the scratch folder;
@@ -436,6 +472,19 @@ OFFSOCK="$RUN_TMP/off.sock"
 check_exit   "status (off) → 2"        2  "$BIN" --socket "$OFFSOCK" status
 check_exit   "audit list (off) → 2"    2  "$BIN" --socket "$OFFSOCK" audit list
 check_exit   "audit stats (off) → 2"   2  "$BIN" --socket "$OFFSOCK" audit stats
+# The usage error of an unknown flag is exit 2 as well, so the message is read
+# too: every filter is parsed, and the refusal is the runtime being off.
+check_exit   "audit journal, every filter (off) → 2" 2 "$BIN" --socket "$OFFSOCK" audit journal --agent flux-quotes --family read --family send_external --nature action --result refused --since 2026-10-01 --until 2026-10-04
+check_content "audit journal, every filter (off): refused by the runtime being off" 'runtime not started' bash -c "'$BIN' --socket '$OFFSOCK' audit journal --agent flux-quotes --family read --family send_external --nature action --result refused --since 2026-10-01 --until 2026-10-04; true"
+# The export writes its file itself, from what the runtime answers: with the
+# runtime off it is refused for that reason and the file is not created. A
+# missing --format or --output, and a format the journal is not written in,
+# are usage errors, told apart from the runtime being off by their message.
+check_exit   "audit export, detail and every filter (off) → 2" 2 "$BIN" --socket "$OFFSOCK" audit export --format csv --detail --agent flux-quotes --family read --nature action --result refused --since 2026-10-01 --until 2026-10-04 --output "$RUN_TMP/journal-off.csv"
+check_content "audit export (off): refused by the runtime being off" 'runtime not started' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format json --output '$RUN_TMP/journal-off.json'; true"
+check_content "audit export (off): no file is written" '^absent$' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format csv --output '$RUN_TMP/journal-off.csv' >/dev/null 2>&1; test -e '$RUN_TMP/journal-off.csv' && echo present || echo absent"
+check_content "audit export without --output: usage error" 'required arguments were not provided' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format csv 2>&1; true"
+check_content "audit export --format pdf: usage error naming the formats" 'possible values: csv, json' bash -c "'$BIN' --socket '$OFFSOCK' audit export --format pdf --output '$RUN_TMP/journal-off.pdf' 2>&1; true"
 check_exit   "llm status (off) → 2"    2  "$BIN" --socket "$OFFSOCK" llm status
 check_exit   "llm backends list (off) → 2" 2 "$BIN" --socket "$OFFSOCK" llm backends list
 check_exit   "task list (off) → 2"     2  "$BIN" --socket "$OFFSOCK" task list

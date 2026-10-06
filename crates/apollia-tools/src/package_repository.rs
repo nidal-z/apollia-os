@@ -285,6 +285,45 @@ impl PackageRepository {
         }
     }
 
+    /// Records whether Apollia ships `package_name` inside its binary. The
+    /// package must be saved first, and saving it again forgets the mark.
+    ///
+    /// # Errors
+    ///
+    /// [`PackageRepositoryError::NotFound`] when the package is not stored,
+    /// or [`PackageRepositoryError::Sqlite`].
+    pub fn set_embedded(
+        &self,
+        package_name: &str,
+        embedded: bool,
+    ) -> Result<(), PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let changed = conn.execute(
+            "UPDATE installed_packages SET embedded = ?2 WHERE name = ?1",
+            params![package_name, embedded],
+        )?;
+        if changed == 0 {
+            return Err(PackageRepositoryError::NotFound(package_name.to_owned()));
+        }
+        Ok(())
+    }
+
+    /// Whether Apollia ships `package_name` inside its binary; `false` for a
+    /// package that is not installed.
+    ///
+    /// # Errors
+    ///
+    /// [`PackageRepositoryError::Sqlite`].
+    pub fn is_embedded(&self, package_name: &str) -> Result<bool, PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let mut stmt = conn.prepare("SELECT embedded FROM installed_packages WHERE name = ?1")?;
+        let mut rows = stmt.query(params![package_name])?;
+        match rows.next()? {
+            Some(row) => Ok(row.get(0)?),
+            None => Ok(false),
+        }
+    }
+
     /// Forgets what `package_name` installed, before an update records the
     /// items of its new version.
     ///
@@ -462,6 +501,36 @@ mod tests {
 
     fn open_test_repo() -> PackageRepository {
         PackageRepository::open(Path::new(":memory:")).expect("open in-memory repo")
+    }
+
+    // GIVEN a saved package
+    // WHEN it is marked as shipped inside the binary, then saved again
+    // THEN the mark reads back, and a new save forgets it
+    #[test]
+    fn test_embedded_mark_is_set_read_and_forgotten_by_a_save() {
+        let repo = open_test_repo();
+        let pkg = test_package("guide");
+        repo.save(&pkg).unwrap();
+        assert!(!repo.is_embedded("guide").unwrap());
+
+        repo.set_embedded("guide", true).unwrap();
+        assert!(repo.is_embedded("guide").unwrap());
+
+        repo.save(&pkg).unwrap();
+        assert!(!repo.is_embedded("guide").unwrap());
+    }
+
+    // GIVEN no package of that name
+    // WHEN it is marked as shipped inside the binary
+    // THEN the mark is refused, and reading it answers false
+    #[test]
+    fn test_embedded_mark_of_an_unknown_package_is_refused() {
+        let repo = open_test_repo();
+
+        let marked = repo.set_embedded("ghost", true);
+
+        assert!(matches!(marked, Err(PackageRepositoryError::NotFound(_))));
+        assert!(!repo.is_embedded("ghost").unwrap());
     }
 
     #[test]

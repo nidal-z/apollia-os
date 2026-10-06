@@ -120,7 +120,13 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("llm.runner", "the engine is chosen from the detected hardware; remove the section"),
     locked(key("llm.guardrails.level", Enum(&["disabled", "lenient", "balanced", "strict", "ceiling"]), Some("\"balanced\""), Reloadable, "How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced.")),
     locked(key("llm.guardrails.ceiling_gb", Float, None, Reloadable, "Largest estimate, in gigabytes, the ceiling level launches.")),
+    locked(key("llm.guardrails.bypass", Enum(&["confirm", "unrestricted"]), Some("\"confirm\""), Reloadable, "What loading a refused model anyway asks first: confirm, an explicit confirmation, or unrestricted, nothing.")),
     locked(key("llm.residency.idle_unload_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a local model nothing holds is unloaded; 0 never unloads.")),
+    locked(key("llm.defaults.context", Enum(&["custom", "model_max"]), Some("\"custom\""), Reloadable, "Context window of a local model that neither APOLLIA_LLAMA_N_CTX, nor a preset, nor its backend fixes: custom, the figure of llm.defaults.context_tokens, or model_max, the length the model was trained for.")),
+    locked(key("llm.defaults.context_tokens", Integer, Some("0"), Reloadable, "Default context window, in tokens, when llm.defaults.context is custom; 0 lets the engine size it to the memory of this machine, model by model, up to 32768.")),
+    locked(key("llm.images.limit_side", Boolean, Some("true"), Reloadable, "Scale an image down before it is sent to a model when its largest side exceeds llm.images.max_side_px.")),
+    locked(key("llm.images.max_side_px", Integer, Some("2048"), Reloadable, "Largest side, in pixels, of an image sent to a model; proportions are kept.")),
+    locked(key("llm.devices.disabled", StringArray, Some("[]"), Reloadable, "Graphics devices the local engine is kept away from, each named as the engine lists it (CUDA0, Vulkan1): a listed device receives no layer and its memory is left out of every estimate; empty leaves the engine every device.")),
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),
@@ -156,6 +162,8 @@ pub const KEYS: &[ConfigKey] = &[
     key("tools.web_read.max_response_kb", Integer, Some("2048"), Reloadable, "Largest page web_read reads, in KiB (64 to 32768)."),
     key("tools.web_read.ssrf_guard", Boolean, Some("true"), Reloadable, "Refuse an address on the local network or the machine itself."),
     key("tools.python_interpreter", Path, None, Reloadable, "Python interpreter used instead of the bundled one."),
+    locked(key("tools.new_agent.families", StringArray, Some("[\"read\"]"), Reloadable, "Families of tools an agent created without code is granted whole, read against the tools active when it is created: read, read_personal, write_or_delete, send_external, execute_code.")),
+    locked(key("tools.new_agent.access", StringArray, Some("[]"), Reloadable, "Tools an agent created without code is granted by name, on top of tools.new_agent.families.")),
     // [mcp]
     locked(key("mcp.approval_ttl_hours", Integer, Some("24"), Reloadable, "Hours an MCP tool approval stays valid; 0 never expires (0 to 8760).")),
     locked(key("mcp.tool_loading", Enum(&["eager", "deferred"]), Some("\"deferred\""), Reloadable, "Load every MCP tool schema up front, or on first use.")),
@@ -166,11 +174,13 @@ pub const KEYS: &[ConfigKey] = &[
     // [chat]
     key("chat.plan_mode_default", Boolean, Some("false"), Reloadable, "Start every new conversation in plan mode."),
     key("chat.tool_turn_temperature", Float, None, Reloadable, "Model temperature of a turn that offers tools; none means 0.3."),
+    locked(key("chat.share_profile_default", Boolean, Some("true"), Reloadable, "Start every new conversation with the profile shared with the built-in assistant; a conversation that exists keeps its own switch.")),
     // [models]
     locked(key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards.")),
     locked(key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it.")),
     locked(key("models.registry_enabled", Boolean, Some("true"), Reloadable, "Read the online index of model cards.")),
     locked(key("models.dir", Path, Some("\"\""), Reloadable, "Folder the language models, their projectors and the embedding models are kept in; empty means <data dir>/models. Changing it moves no file.")),
+    locked(key("models.preset_load_settings", Boolean, Some("false"), Reloadable, "Let a preset be created or modified with load settings; off, a preset takes request settings only and keeps the load settings it holds.")),
     locked(key("models.import.require_verified", Boolean, Some("false"), Reloadable, "Refuse an imported model file that matches no signed card.")),
     // [workflows]
     key("workflows.max_steps", Integer, Some("200"), Restart, "Steps a workflow run may take."),
@@ -181,13 +191,27 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("desktop.link_preview_enabled", Boolean, Some("false"), Reloadable, "Fetch the preview of a link shown in a conversation.")),
     locked(key("desktop.update_channel", Enum(&["stable", "preview"]), Some("\"stable\""), Reloadable, "Update channel of the application: stable receives the published versions, preview the trial versions as well.")),
     locked(key("desktop.background_service_allowed", Boolean, Some("true"), Reloadable, "Allow the application to install the engine as a service of the user's session.")),
+    locked(key("desktop.chat_auto_naming", Enum(&["never", "auto", "always"]), Some("\"auto\""), Reloadable, "Name a new conversation from its first message: never, automatically when the model generates fast enough, or always.")),
+    locked(key("desktop.chat_debug_blocks", Boolean, Some("true"), Reloadable, "With the developer mode on, show the raw data of a tool step and the detailed trace in a conversation.")),
+    locked(key("desktop.resource_widget", Boolean, Some("false"), Reloadable, "Show the processor, the memory and the video memory in use at the foot of the sidebar.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),
     locked(key("server.require_auth", Boolean, Some("false"), Restart, "Require a token of the compatible server on every request; read when the listener opens.")),
+    locked(key("server.cors", Boolean, Some("false"), Restart, "Let a web page of another origin call the compatible server; read each time the server starts.")),
+    locked(key("server.jit_loading", Boolean, Some("true"), Reloadable, "Let a request to the compatible server load the model of this machine it names.")),
+    locked(key("server.jit_auto_unload", Boolean, Some("true"), Reloadable, "Unload the models the compatible server loaded after their own idle delay rather than the general one.")),
+    locked(key("server.jit_idle_ttl_minutes", Integer, Some("60"), Reloadable, "Minutes without a request after which a model the compatible server loaded is unloaded; 0 keeps it loaded.")),
+    locked(key("server.jit_keep_last_only", Boolean, Some("true"), Reloadable, "When the compatible server loads a model, unload the other models it loaded that nothing holds.")),
+    locked(key("server.separate_reasoning_content", Boolean, Some("true"), Reloadable, "Keep the reasoning of a model in reasoning_content, apart from content, in the chat completions of the compatible server; off, it goes back into content between think tags.")),
     locked(key("server.serve_on_lan", Boolean, Some("false"), Restart, "Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens.")),
+    locked(key("server.allow_request_mcp", Boolean, Some("false"), Reloadable, "Let a request to the compatible server bring an MCP server of its own, reached over HTTP for the length of the call; off, such a request is refused.")),
     // [engines]
     locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),
+    locked(key("engines.gguf", Enum(&["auto", "embedded", "cuda", "vulkan", "cpu", "metal"]), Some("\"auto\""), Restart, "Engine that serves GGUF models: the automatic choice, the engine shipped with the application, or a variant installed by the engine store. A variant no longer installed falls back to the automatic choice. Read at the next start.")),
+    locked(key("engines.mlx", Enum(&["auto", "embedded", "metal"]), Some("\"auto\""), Restart, "Engine that serves MLX models on a Mac with Apple Silicon: the automatic choice, the engine shipped with the application, or the one installed by the engine store. Read at the next start.")),
+    locked(key("engines.auto_update", Boolean, Some("true"), Reloadable, "Download and verify the update of a chosen engine when the followed channel announces one; off, the update is only announced.")),
+    locked(key("engines.auto_purge", Boolean, Some("false"), Reloadable, "After an update of an engine, delete the builds of its variant left unused the longest, beyond two; the build in service and the shipped engine are never deleted.")),
     // [author]
     locked(key("author.name", KeyType::String, Some("\"\""), Reloadable, "Publisher name of the agents exported from this machine; empty asks at export.")),
     // [observability]

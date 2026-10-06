@@ -42,11 +42,7 @@ impl LocalEngine for FakeEngine {
         self.engine
     }
 
-    fn default_n_ctx(&self) -> u32 {
-        4096
-    }
-
-    fn launch_window(&self, _backend: &str, requested: Option<u32>) -> u32 {
+    fn launch_window(&self, _backend: &str, _model_path: &str, requested: Option<u32>) -> u32 {
         requested.unwrap_or(4096)
     }
 
@@ -292,4 +288,26 @@ async fn a_guardrail_refusal_reaches_the_caller_with_its_figures() {
         }
         other => panic!("expected a typed load refusal, got {other:?}"),
     }
+}
+
+#[test]
+fn only_the_llama_server_backend_continues_an_answer() {
+    // GIVEN one local backend per engine
+    let on = |engine| -> Arc<dyn CompletionModel> {
+        LocalModelBackend::new(
+            FakeEngine::new(engine),
+            "local".to_owned(),
+            "model".to_owned(),
+            "/models/model".to_owned(),
+            None,
+        )
+    };
+
+    // WHEN each is asked whether a trailing assistant message is continued
+    let llama = on(Engine::LlamaServer).continues_answer();
+    let mlx = on(Engine::VllmMlx).continues_answer();
+
+    // THEN the engine it was measured on says yes, the other says no
+    assert!(llama);
+    assert!(!mlx);
 }

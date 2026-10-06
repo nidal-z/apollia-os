@@ -58,11 +58,18 @@ impl BuiltInChatAgent {
         }
     }
 
-    /// Compact the LLM message buffer in place when it approaches the context
-    /// limit, emitting [`RuntimeEvent::ContextCompacted`] on success.
+    /// Bring the LLM message buffer under the context limit in place, the way
+    /// the conversation chose: summarize its older middle, let its oldest
+    /// exchanges leave, or stop. Emits [`RuntimeEvent::ContextCompacted`]
+    /// when messages were summarized or dropped.
     ///
-    /// Returns `true` when a compaction actually occurred, so the caller can
-    /// re-inject any state (such as the todo list) that the truncation dropped.
+    /// Returns `true` when the buffer changed, so the caller can re-inject
+    /// any state (such as the todo list) that went with the dropped history.
+    ///
+    /// # Errors
+    ///
+    /// [`ChatError::ContextLimitReached`] when the conversation stops at the
+    /// limit and reached it.
     /// `reserve_tokens` is the estimated token cost of the tool schemas sent
     /// alongside the messages in the same request. Folding it into the window
     /// measurement makes compaction fire before the combined prompt (history +
@@ -72,18 +79,35 @@ impl BuiltInChatAgent {
         llm_messages: &mut Vec<LlmChatMessage>,
         session_id: &str,
         reserve_tokens: usize,
-    ) -> bool {
+    ) -> Result<bool, ChatError> {
         let (compacted, was_compacted) = self
             .context_manager
-            .maybe_compact_with_reserve(llm_messages, &self.llm_router, reserve_tokens)
-            .await;
+            .fit_with_reserve(llm_messages, &self.llm_router, reserve_tokens)
+            .await
+            .map_err(|reached| {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    session_id = %session_id,
+                    tokens = reached.tokens,
+                    limit = reached.limit,
+                    "chat.context.limit_reached"
+                );
+                ChatError::ContextLimitReached {
+                    tokens: reached.tokens,
+                    limit: reached.limit,
+                }
+            })?;
         if !was_compacted {
-            return false;
+            return Ok(false);
         }
-        let summary_chars = compacted
-            .get(1)
-            .map(apollia_oria::context_manager::message_char_len)
-            .unwrap_or(0);
+        // A sliding window writes no summary.
+        let summary_chars = match self.context_manager.overflow() {
+            apollia_oria::context_manager::ContextOverflow::SummarizeMiddle => compacted
+                .get(1)
+                .map(apollia_oria::context_manager::message_char_len)
+                .unwrap_or(0),
+            _ => 0,
+        };
         let original_messages = llm_messages.len();
         // PreCompact / PostCompact hooks (non-blocking, best-effort). Both fire
         // only when a compaction actually occurred. The context manager performs
@@ -110,7 +134,7 @@ impl BuiltInChatAgent {
                 .run_post_compact(summary_chars, original_messages, session_id)
                 .await;
         }
-        true
+        Ok(true)
     }
 
     /// Re-inject the current todo list as a reminder message after a context

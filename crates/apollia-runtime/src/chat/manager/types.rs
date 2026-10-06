@@ -34,23 +34,9 @@ pub struct ChatToolsConfig {
     /// indexes of the sources an agent checked. `None` leaves every source
     /// but the memory unsearchable.
     pub source_registry: Option<apollia_sources::SourceRegistryHandle>,
-}
-
-/// Snapshot of a tool-level `scope=session` authorization for an active session.
-///
-/// Returned by `ChatHandle::list_session_authorizations` so the desktop can
-/// display in-memory authorizations in Settings > Permissions (`scope =
-/// 'session'` rules are never persisted).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SessionAuthorizationView {
-    /// Unique session identifier.
-    pub session_id: String,
-    /// Session title (None for untitled sessions).
-    pub session_title: Option<String>,
-    /// Session mode (`"libre"` | `"agent"` | `"companion"`).
-    pub mode: String,
-    /// Name of the tool auto-authorized during this session.
-    pub tool_name: String,
+    /// The governance actor the disabled tools are read from. `None` reads
+    /// `governance.db` under `data_dir` directly.
+    pub governance: Option<crate::governance::GovernanceHandle>,
 }
 
 #[derive(Debug, Default)]
@@ -103,7 +89,10 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// exchange starts.
     pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
+    /// The mission of the agent, read when the message is sent.
     pub(in crate::chat::manager) system_prompt: String,
+    /// What the conversation changes from its agent, for itself alone.
+    pub(in crate::chat::manager) session_settings: SessionSettings,
     pub(in crate::chat::manager) context_window_size: usize,
     pub(in crate::chat::manager) stored_summary: Option<String>,
     pub(in crate::chat::manager) llm_for_summarize: Option<Arc<LlmRouter>>,
@@ -121,7 +110,6 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,
     pub(in crate::chat::manager) session_id_str: String,
-    pub(in crate::chat::manager) hitl_params: HitlInvokerParams,
     pub(in crate::chat::manager) sid: String,
     pub(in crate::chat::manager) mid: String,
     pub(in crate::chat::manager) run_id: RunId,
@@ -141,12 +129,22 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Operator instruction to consume on a resume turn, when this exchange is a
     /// resume carrying a queued injection. `None` for ordinary turns.
     pub(in crate::chat::manager) pending_injection: Option<InjectedInstruction>,
+    /// The answer the exchange continues, when the user asked for the last
+    /// answer to be continued. `None` for every other turn.
+    pub(in crate::chat::manager) answer_prefill: Option<String>,
     /// Backend the session prefers (the free chat's stored choice), tried
     /// before the default at each call of the turn.
     pub(in crate::chat::manager) preferred_backend: Option<String>,
     /// The turn the exchange answers: the identifier its answer is persisted
     /// under.
     pub(in crate::chat::manager) turn_id: Option<String>,
+    /// Whether the conversation is the one that creates an agent: Apollia is
+    /// then offered `propose_agent` and nothing else, under the instructions
+    /// of that conversation.
+    pub(in crate::chat::manager) agent_draft: bool,
+    /// Images of the message answered and of the earlier user messages in
+    /// the window, read back from disk.
+    pub(in crate::chat::manager) turn_images: crate::chat::images::TurnImages,
 }
 
 /// Resolved tool invoker plus the agent workspace path for a session.
@@ -211,6 +209,9 @@ pub struct CreateSessionParams {
     pub agent_name: Option<String>,
     pub system_prompt: Option<String>,
     pub tools: Vec<String>,
+    /// The model chosen for the session, by the name the router routes by.
+    /// `None` keeps the model of the agent, else the default.
+    pub model: Option<String>,
 }
 
 /// Parameters for [`ChatSessionManager::handle_register_user_input_reply`].
@@ -254,7 +255,6 @@ pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
     pub(in crate::chat::manager) folders: &'a apollia_tools::FolderRoots,
     pub(in crate::chat::manager) pending_user_inputs:
         &'a Option<apollia_tools::tools::ask_user::PendingUserInputs>,
-    pub(in crate::chat::manager) hitl: Option<&'a HitlInvokerParams>,
     pub(in crate::chat::manager) extra_executors:
         Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
     /// The sources the agent of the run has checked.
@@ -268,7 +268,6 @@ pub(in crate::chat::manager) struct WorkspaceResolutionParams {
     /// The folders granted to the agent of the run, the roots of its file
     /// tools; the first anchors a relative path.
     pub(in crate::chat::manager) folders: apollia_tools::FolderRoots,
-    pub(in crate::chat::manager) hitl: Option<HitlInvokerParams>,
     pub(in crate::chat::manager) pending_user_inputs:
         Option<apollia_tools::tools::ask_user::PendingUserInputs>,
     pub(in crate::chat::manager) mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,

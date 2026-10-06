@@ -8,9 +8,9 @@
 /// - The SSE task-stream endpoint responds with a structured HTTP reply (not a
 ///   connection error), confirming the server accepts event-stream connections.
 #[tokio::test]
-#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
+#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of weekly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_startup_sse_connect_dashboard_render() {
-    // GIVEN a runtime and a desktop app already up, as the nightly job starts them
+    // GIVEN a runtime and a desktop app already up, as the weekly job starts them
     // WHEN the health endpoint is read, then the task event stream is opened
     // THEN health reports ok and the stream answers without a server error, which is what the dashboard needs to render
     super::with_retry(|| async {

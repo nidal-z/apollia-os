@@ -10,6 +10,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.journal_break import JournalBreak
+    from ..models.journal_start import JournalStart
 
 
 T = TypeVar("T", bound="VerifyJournalReport")
@@ -29,6 +30,7 @@ class VerifyJournalReport:
             all verified.
         runs_checked (int): Number of distinct runs covered by the global chain.
         first_break (JournalBreak | None | Unset):
+        start (JournalStart | None | Unset):
     """
 
     entries_checked: int
@@ -36,10 +38,12 @@ class VerifyJournalReport:
     ok: bool
     runs_checked: int
     first_break: JournalBreak | None | Unset = UNSET
+    start: JournalStart | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.journal_break import JournalBreak
+        from ..models.journal_start import JournalStart
 
         entries_checked = self.entries_checked
 
@@ -57,6 +61,14 @@ class VerifyJournalReport:
         else:
             first_break = self.first_break
 
+        start: dict[str, Any] | None | Unset
+        if isinstance(self.start, Unset):
+            start = UNSET
+        elif isinstance(self.start, JournalStart):
+            start = self.start.to_dict()
+        else:
+            start = self.start
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -69,12 +81,15 @@ class VerifyJournalReport:
         )
         if first_break is not UNSET:
             field_dict["first_break"] = first_break
+        if start is not UNSET:
+            field_dict["start"] = start
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.journal_break import JournalBreak
+        from ..models.journal_start import JournalStart
 
         d = dict(src_dict)
         entries_checked = d.pop("entries_checked")
@@ -102,12 +117,30 @@ class VerifyJournalReport:
 
         first_break = _parse_first_break(d.pop("first_break", UNSET))
 
+        def _parse_start(data: object) -> JournalStart | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                start_type_1 = JournalStart.from_dict(data)
+
+                return start_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(JournalStart | None | Unset, data)
+
+        start = _parse_start(d.pop("start", UNSET))
+
         verify_journal_report = cls(
             entries_checked=entries_checked,
             head_matches_state=head_matches_state,
             ok=ok,
             runs_checked=runs_checked,
             first_break=first_break,
+            start=start,
         )
 
         verify_journal_report.additional_properties = d

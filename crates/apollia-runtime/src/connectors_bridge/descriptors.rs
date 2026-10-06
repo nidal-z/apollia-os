@@ -48,6 +48,7 @@ fn op_to_descriptor(connector_id: &str, op: &OperationSpec) -> ToolDescriptor {
         tags: connector_tags(connector_id, op),
         family: action_family(op),
         family_source: FamilySource::Builtin,
+        target_arg: target_arg_for(op.id).map(str::to_owned),
         is_read_only: read_only,
         risk_score,
         approval_risk_level: Some(risk_level),
@@ -70,6 +71,18 @@ fn action_family(op: &OperationSpec) -> ActionFamily {
         ApprovalPolicy::AlwaysRequireApproval | ApprovalPolicy::ConfirmPhrase => {
             ActionFamily::WriteOrDelete
         }
+    }
+}
+
+/// The argument of a connector operation that names what the call acts on: a
+/// recipient or a file name, never a body. An operation addressed by an opaque
+/// identifier has none.
+fn target_arg_for(op_id: &str) -> Option<&'static str> {
+    match op_id {
+        "gmail.send" | "gmail.compose_draft" | "outlook.send" => Some("to"),
+        "gdrive.workspace_share" => Some("email"),
+        "gdrive.workspace_write" | "gdrive.write_to_folder" => Some("name"),
+        _ => None,
     }
 }
 

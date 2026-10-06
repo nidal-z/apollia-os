@@ -201,6 +201,17 @@ impl ChatSessionManagerHandle {
         let _ = self.tx.send(ChatCommand::SetPackageTools { host }).await;
     }
 
+    /// Take the tools of `package`, just uninstalled, out of what every run
+    /// that starts afterwards can call.
+    pub async fn retire_package_tools(&self, package: &str) {
+        let _ = self
+            .tx
+            .send(ChatCommand::RetirePackageTools {
+                package: package.to_owned(),
+            })
+            .await;
+    }
+
     /// Hand over the live sections of the configuration: from then on a
     /// change of `[tools]`, `[chat]`, `[filesystem]`, `[mcp]` or `[hooks]`
     /// applies to the next conversation and the next exchange.
@@ -451,6 +462,23 @@ impl ChatSessionManagerHandle {
         self.get_session_metrics(session_id.clone())
             .await
             .unwrap_or_else(|| SessionMetrics::new(session_id))
+    }
+
+    /// Empty the profile of every session designating `profile_id`, once that
+    /// profile is deleted; returns how many sessions designated it.
+    pub async fn release_profile(&self, profile_id: String) -> Result<usize, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ReleaseProfile {
+                profile_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
     pub async fn shutdown(&self) {

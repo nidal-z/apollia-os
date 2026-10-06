@@ -94,6 +94,12 @@ pub enum AgentRepositoryError {
     /// A `spawn_blocking` task failed (panic in the worker thread).
     #[error("async task error: {0}")]
     SpawnError(String),
+
+    /// The name carries `/`, the separator of a workflow identifier
+    /// (`<package>/<workflow>`): an agent never shares an identifier with a
+    /// workflow, so the two never answer to the same name.
+    #[error("agent name '{0}' contains '/', which only workflow identifiers carry")]
+    NameOfAWorkflow(String),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

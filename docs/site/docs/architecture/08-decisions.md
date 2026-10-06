@@ -187,6 +187,16 @@ runtime suspends the run, emits an event carrying what is being asked, and
 resumes on the answer. Suspension is a first-class state, not a blocking wait:
 the process is free, and a run can stay parked across a restart.
 
+A workflow asks the user a question from inside a step, through
+`ctx.user.ask`: one question, the choices it proposes when it has some, and a
+free answer the user may always give instead. The question is listed with the
+other decisions waiting for the user, with the run, the workflow and the step
+it comes from, and the answer wakes the step where it stopped. This wait is
+not a parked state: a workflow runs in memory and does not resume, so a run
+that waits on a question when the runtime stops is failed at the next start,
+with that reason, like every interrupted run. A declined question reaches the
+step as `QuestionDeclined`, which the author may catch.
+
 ## Memory {#memory-model}
 
 Memory has three layers: episodic events with an importance score, semantic
@@ -199,11 +209,21 @@ content into an agent's prompt. An agent that wants context asks for it, which
 keeps the prompt something the agent author controls and can reason about.
 
 Three exceptions exist, and none of them is reachable from an agent execution
-path. Two are inside the built-in conversational assistant: a user-persona brief
-at the longest autonomy tier, and past session summaries on the first message of
+path. Two are inside the built-in conversational assistant: a brief of the
+profile of the conversation, and past session summaries on the first message of
 a free chat. The third is outside the assistant, in the desktop prompt-rewrite
-command, which carries the Work section of the user profile into its own one-shot
-prompt and returns text to the composer rather than to a run.
+command, which carries the role, the function and the tools of that profile into
+its own one-shot prompt and returns text to the composer rather than to a run.
+
+The profile brief is appended on every turn of the assistant, at every autonomy
+tier, while the profile switch of the conversation is on. The switch is on by
+default, stored with the conversation, and the conversation gauge reports
+whether the prompt carries the profile. The brief was previously gated by the
+longest autonomy tier, which free chat never runs at, so a profile the user
+filled in never reached the assistant. A setting with no effect is worse than an
+injection the user sees and can turn off, so the gate moved from the tier to the
+conversation. The rule for agents is unchanged: an installed agent reads the
+profile only when it asks for it.
 
 ## Local inference {#local-inference}
 
@@ -245,8 +265,13 @@ Engines have an update channel of their own and do not follow the version of
 Apollia. The embedded engine serves every machine from the first launch; an
 accelerated build, CUDA on a machine with an NVIDIA card, is downloaded on
 demand, or imported from a disk without network, and the launcher then takes the
-newest installed build of that variant over the embedded one. Every download or
-import of an engine is preceded by the verification of a digest manifest
+newest installed build of that variant over the embedded one. Which engine
+serves each model format is a setting, automatic by default; a chosen variant
+that is no longer installed falls back to the automatic choice. The followed
+channel is checked when the runtime starts and when the channel changes, and an
+update it announces for a chosen engine is installed unasked, unless the setting
+that governs it is off, in which case the update is only announced. Every
+download or import of an engine is preceded by the verification of a digest manifest
 signed in the minisign format with a dedicated distribution key. Each channel,
 stable or preview, publishes one such manifest, listing every engine archive
 with its SHA-256. The public half of that key is compiled into the binary and
@@ -432,6 +457,95 @@ release exists to move to, so the advisory is exempted in `deny.toml`, dated
 release. It lifts when `pdf_oxide` drops `ttf-parser` or a maintained release
 of it appears.
 
+Word documents and PowerPoint presentations are read in Rust, by code of our
+own over two crates: `zip`, the one that opens the package archive (see
+[Package archive](#package-archive)), opens the file, and `quick-xml` (MIT), a
+streaming XML reader, reads its parts. A Word document yields the paragraphs
+and the table rows of its body, one row per segment, in the order of the
+document and each with its rank; a presentation yields the text and the speaker
+notes of each slide, slides in numeric order, each with its number. Headers,
+footers, comments and floating text boxes are not read. A file in the legacy
+binary formats, `.doc` or `.ppt`, is a typed error naming the formats that are
+read. The archive comes from elsewhere, so reading it is bounded: more than
+10,000 entries, or more than 64 MiB decompressed across the parts read, and the
+file is refused, the bytes being counted as they are inflated rather than as
+the archive declares them. A dedicated crate was not taken: `docx-rs`, the
+one weighed for Word, is oriented to writing and does not read PowerPoint, and
+`office_oxide`, which the PDF reader brings, is held at an old release (see
+above) and is not called directly.
+
+The cost is named: no crate enters the lock file. `quick-xml` 0.41 was already
+built for the spreadsheet reader and the desktop bundle, and is now a direct
+dependency with its default features off; `zip` was already a direct
+dependency. What these crates do not cover is ours to maintain: the structure
+of the two formats, read here only as far as their text.
+
+Scanned pages and pictures are read by optical character recognition, with an
+engine compiled into the binary. A page of a PDF document that draws no text
+and is a single picture is taken as the document embeds it, without rendering
+the page, and recognised; the `.png`, `.jpg` and `.tiff` files of a source are
+read the same way. The engine is Tesseract, over Leptonica, both built from
+source by `tesseract-rs` (MIT; Tesseract is Apache-2.0, Leptonica BSD-2-Clause)
+and linked statically: the machine that runs Apollia installs nothing, and the
+binary depends on no Tesseract or Leptonica library. Leptonica is built without
+its image codecs, so pictures are decoded in Rust by `image` (MIT or
+Apache-2.0), with its PNG, JPEG and TIFF decoders only. The recognised text
+lives in the index of the source and nowhere else: no file is written beside
+the documents.
+
+The engine reads with one data file per language. French and English, from the
+`tessdata_fast` set (Apache-2.0), are entries of the model registry, each
+pinned by its SHA-256. They are fetched the first time a source holds a scanned
+page, once per run, by the downloader that checks every model against its
+digest; a machine without the network takes the same files from a disk through
+the model import, which accepts a language data file only when its digest is a
+pinned one. A file whose digest is not pinned is never handed to the engine.
+Until the data is there, each page that waits is listed in the state of its
+source as waiting for recognition, and is read once it arrives; a page without
+text that is not a single picture is listed as not read. No rendering engine is
+shipped: `hayro` and PDFium, the ones weighed, stay out until documents show
+the need.
+
+The cost is named: the C++ toolchain enters the build. Compiling the engine
+needs cmake, a C++ compiler and the network, takes one to two minutes (83
+seconds on macOS Apple Silicon, 133 seconds on Linux x64 under emulation), and
+adds 2.8 MB to the binary on macOS and 4.4 MB on Linux. The build script of
+`tesseract-rs` downloads the sources of Tesseract 5.5.2 and Leptonica 1.87.0
+from GitHub without checking a digest, keeps them with the compiled libraries
+in a folder of the home directory rather than under `target/`, and fetches two
+language files there that the product does not read. Recognition therefore sits
+behind the `ocr` feature, off by default: an everyday build compiles none of
+it, and a build that ships recognition turns it on. `tesseract-rs` is pinned to 0.4.0, since a release changes the
+sources it fetches; three crates enter the lock file, `tesseract-rs` itself and
+`aws-lc-rs` with `aws-lc-sys`, which the HTTP client of its build script brings
+and which run at build time only. `image` was already built for the PDF reader
+and adds none. The static build is measured on macOS and on Linux; it is not
+measured on Windows, where the feature stays off until it is.
+
+The results of a batch are written back to the table it read, by default into
+a copy next to the original, `<name> (results YYYY-MM-DD).xlsx`, named in the
+language of the interface, so that the original is read and never opened for
+writing. On explicit request, and for `.xlsx` and `.xlsm` only, they go into the
+original itself, after the dated backup copy the batch contract requires; when
+the backup fails, nothing is written. In both cases the workbook is edited in
+place, by code of our own over `zip` and `quick-xml`: the cells of the added
+column, after the last column of the sheet, are inserted into the XML of that
+sheet as inline strings, the calculation chain is removed so that the
+spreadsheet recomputes on opening, and every other part of the archive is
+copied as it is stored, byte for byte. Formatting, charts, pivot tables,
+comments and macros are therefore kept, which a library that loads a workbook
+and saves it again does not guarantee: `umya-spreadsheet`, the one weighed,
+documents charts corrupted, comments lost and pivot tables not read. The edit is
+tested against a versioned corpus of real workbooks (conditional formatting, a
+chart, pivot tables, comments, a file saved by LibreOffice, a workbook with
+macros). A CSV file gets a copy with its column added, never an edit of the
+original; a `.xls`, `.xlsb` or `.ods` workbook gets a new `.xlsx` copy written by
+`rust_xlsxwriter` (see [Batch export](#batch-export)), its values only.
+
+The cost is named: no crate enters the lock file, `rust_xlsxwriter` becoming a
+direct dependency of the readers. What is ours to maintain is the edit of the
+sheet, a small part of a format whose other parts are never rewritten.
+
 A mailbox connects over IMAP with an application password, so any provider is
 reachable, Gmail included, without an OAuth client and without a relay. The
 client is `async-imap` (MIT or Apache-2.0), on the Tokio runtime, over the
@@ -468,7 +582,7 @@ file, itself, `zopfli` and `zlib-rs` (see [Package archive](#package-archive)).
 
 `rust_xlsxwriter` cannot change a workbook that already exists. Writing results
 back into the file a batch was read from is decided with the reader of
-spreadsheets, not here.
+spreadsheets (see [Documents and sources](#documents-and-sources)).
 
 ## Agent-to-agent messaging {#agent-messaging}
 
@@ -704,6 +818,37 @@ desktop leaves the daemon serving.
 
 Version 0.3.0 delivers both modes.
 
+### One application, and a package file that opens it {#desktop-single-instance}
+
+The `.apo` extension is associated with the desktop application
+(`bundle.fileAssociations` in `tauri.conf.json`), so a package opens the way a
+document does. Opening a package never installs it: whatever brings the file,
+the application shows the preview of the package, and the package is installed
+or updated only from that preview. Three gestures lead there: opening the file
+from the system, dropping it on the window, and the Install button, which opens
+a file chooser.
+
+A file opened from the system has to reach the application that already runs,
+not start a second one beside it. macOS keeps one process per application on its
+own and delivers the file as an event, at launch and afterwards. Windows and
+Linux start a new process with the path among its arguments; there
+`tauri-plugin-single-instance` makes that second process hand its arguments to
+the first and exit, and the first shows its window. The plugin is registered
+before any other, in both runtime modes, and on Windows and Linux only: on macOS
+it would add a second mechanism where the system already provides one. The
+process keeps the paths until the interface takes them, since a file that starts
+the application arrives before the interface is loaded. A file dropped on the
+window comes through the drag-and-drop event of the webview, with no plugin.
+
+The cost is one more Tauri plugin to follow, which brings no library the tree
+did not already hold, and a code path that differs between macOS and the two
+other systems, so each has to be checked on its own machine. On Windows and
+Linux a second launch can no longer open a second window.
+
+Refused: a deep link (`apollia://install`), which does not answer a double-click
+on a file, and offering the button and the drop alone, which leaves a package
+unable to open like a document.
+
 ## Agent distribution {#agent-distribution}
 
 An agent is installed from a local path or a Git URL. Publishing agents to a
@@ -768,6 +913,15 @@ distribution signature covers, so signing the package again would prove
 nothing more. Like any package, it is recorded in the audit journal, a newer
 installed version is never downgraded, and the user's overrides and the
 disabled state of its agents survive an update.
+
+The example packages follow the same rule, with one difference in what happens
+after. They are declarative packages embedded in the runtime at compile time,
+from one folder of the source tree. The application proposes them and installs
+one only when the user chooses it, after the preview every package gets. An
+example is named to the runtime by its package name, never by a path, so only
+what the binary carries is treated as an example; it is unsigned, and neither
+flagged nor refused for it, for the reason above. Once installed it belongs to
+the user: unlike the guide, it is uninstalled like any package.
 
 A package tool runs with a bare context: no memory, no user profile. One
 exception is decided by the host, never by a package. The onboarding of

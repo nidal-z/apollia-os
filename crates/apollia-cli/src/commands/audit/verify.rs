@@ -105,7 +105,27 @@ pub(super) async fn verify_once(client: &RuntimeClient, run_id: &str, json: bool
     }
 }
 
+/// The line that says where the verification started, for a journal whose
+/// beginning a retention purge removed. `None` for a journal verified from
+/// its origin.
+fn start_line(report: &serde_json::Value) -> Option<String> {
+    let start = report.get("start").filter(|start| !start.is_null())?;
+    let global_seq = start.get("global_seq").and_then(|v| v.as_u64())?;
+    let ts = start.get("ts").and_then(|v| v.as_str()).unwrap_or("?");
+    let purged_at = start
+        .get("purged_at")
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
+    Some(format!(
+        "      verified from global_seq={global_seq} ({ts}): earlier entries were removed \
+         by the retention of the organisation policy on {purged_at}"
+    ))
+}
+
 /// `apollia-os audit verify` (no run): verify the whole journal.
+///
+/// A journal whose beginning the retention of the organisation policy removed
+/// is verified from the purge entry, and the output says from where.
 ///
 /// Exit 0 when the global chain, every per-run chain, and the head anchor all
 /// verify, 1 when a link is broken or the head anchor does not match, 2 when the
@@ -149,6 +169,9 @@ pub(super) async fn run_verify_journal(client: &RuntimeClient, json: bool) -> i3
     if ok {
         if !json {
             println!("OK    whole journal  {checked} entries across {runs} runs verified");
+            if let Some(line) = start_line(&report) {
+                println!("{line}");
+            }
         }
         exit_codes::SUCCESS
     } else {
@@ -173,5 +196,37 @@ pub(super) async fn run_verify_journal(client: &RuntimeClient, json: bool) -> i3
             }
         }
         exit_codes::GENERAL_ERROR
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_a_purged_journal_says_where_its_verification_starts() {
+        // GIVEN the report of a journal whose beginning a purge removed, and
+        // the report of one verified from its origin
+        let purged = serde_json::json!({
+            "ok": true,
+            "start": {
+                "global_seq": 42,
+                "ts": "2026-06-01T08:00:00Z",
+                "purged_at": "2026-06-30T00:00:00Z",
+            },
+        });
+        let whole = serde_json::json!({ "ok": true, "start": null });
+
+        // WHEN the start line of each is asked
+        let line = start_line(&purged);
+
+        // THEN the purged one names the position, its date and the purge
+        let line = line.expect("a start line");
+        assert!(line.contains("global_seq=42"), "{line}");
+        assert!(line.contains("2026-06-01T08:00:00Z"), "{line}");
+        assert!(line.contains("2026-06-30T00:00:00Z"), "{line}");
+        // AND the other has none, as does a report from an older runtime
+        assert_eq!(start_line(&whole), None);
+        assert_eq!(start_line(&serde_json::json!({ "ok": true })), None);
     }
 }

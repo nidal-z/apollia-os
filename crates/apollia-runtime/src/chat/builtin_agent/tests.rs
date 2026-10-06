@@ -1029,7 +1029,7 @@ async fn test_tool_call_hitl_always_accept() {
         let approvals = approvals.clone();
         async move {
             poll_until(std::time::Duration::from_secs(5), || {
-                approvals.resolve(&key, ToolDecision::always_accept_default())
+                approvals.resolve(&key, ToolDecision::AlwaysAccept)
             })
             .await;
         }
@@ -1169,6 +1169,7 @@ fn test_build_llm_messages() {
         "Final question",
         None,
         DEFAULT_CONTEXT_WINDOW_SIZE,
+        &crate::chat::images::TurnImages::default(),
     );
 
     // THEN 5 messages in order: system, h1 (user), h2 (assistant), h3 (user), current user
@@ -1315,9 +1316,9 @@ async fn test_events_emitted_in_order() {
         .await
         .expect("should succeed");
 
-    // THEN events are: ResponseStarted (tool iteration), ToolCallStarted,
-    // ToolCallCompleted, ResponseStarted (text iteration), Token("Done"),
-    // ResponseCompleted
+    // THEN events are: ResponseStarted (tool iteration), ToolCallStarted and
+    // its journal twin, ToolCallCompleted and its journal twin, ResponseStarted
+    // (text iteration), Token("Done"), ResponseCompleted
     let mut event_names = Vec::new();
     while let Ok(evt) = event_rx.try_recv() {
         let name = match evt {
@@ -1325,6 +1326,8 @@ async fn test_events_emitted_in_order() {
             RuntimeEvent::ChatToken { .. } => "Token",
             RuntimeEvent::ChatToolCallStarted { .. } => "ToolCallStarted",
             RuntimeEvent::ChatToolCallCompleted { .. } => "ToolCallCompleted",
+            RuntimeEvent::ToolCallStarted { .. } => "JournalCallStarted",
+            RuntimeEvent::ToolCallCompleted { .. } => "JournalCallCompleted",
             RuntimeEvent::ChatResponseCompleted { .. } => "ResponseCompleted",
             RuntimeEvent::LlmCallCompleted { .. } => continue,
             RuntimeEvent::LlmResponseCaptured { .. } => continue,
@@ -1339,7 +1342,9 @@ async fn test_events_emitted_in_order() {
         vec![
             "ResponseStarted",
             "ToolCallStarted",
+            "JournalCallStarted",
             "ToolCallCompleted",
+            "JournalCallCompleted",
             "ResponseStarted",
             "Token",
             "ResponseCompleted"
@@ -1374,7 +1379,14 @@ fn test_truncate_preview_long() {
 fn test_default_system_prompt_used_when_empty() {
     // GIVEN empty system_prompt
     // WHEN the LLM messages are built
-    let messages = build_llm_messages("", &[], "Hello", None, DEFAULT_CONTEXT_WINDOW_SIZE);
+    let messages = build_llm_messages(
+        "",
+        &[],
+        "Hello",
+        None,
+        DEFAULT_CONTEXT_WINDOW_SIZE,
+        &crate::chat::images::TurnImages::default(),
+    );
 
     // THEN first message is the empty string we passed (caller decides default)
     assert_eq!(messages.len(), 2);
@@ -1777,7 +1789,7 @@ async fn test_build_system_prompt_with_non_empty_user_memory() {
     });
 
     // WHEN building the system prompt
-    let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted, true);
+    let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
 
     // THEN the prompt opens with the authoritative environment block
     // (temporal context now leads the prompt) and still carries the
@@ -1790,37 +1802,39 @@ async fn test_build_system_prompt_with_non_empty_user_memory() {
     assert!(prompt.contains("apollia"));
 }
 
-// with a populated repo, a tier whose `inject_memory` is
-// false must NOT inject the persona block, while a tier with it true must.
+// The profile block follows the profile store the agent was handed, not the
+// tier: present at every tier with a store, absent at every tier without.
 #[tokio::test]
-async fn test_inject_memory_flag_gates_persona_block() {
-    // GIVEN an agent with a non-empty user memory repository
-    let repo = make_user_memory_repo(&[("preferences", "langue", "francais")]);
-    let router = make_router(Arc::new(MockStopModel::with_content("ok")));
-    let tool_registry = ToolRegistryHandle::start();
-    let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
-    let event_bus = make_event_bus();
-    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
-        llm_router: router,
-        tool_registry,
-        tool_invoker: invoker,
-        event_bus,
-        user_memory: Some(repo),
-        todo: None,
-        plan: None,
-    });
+async fn test_the_profile_block_follows_the_store_not_the_tier() {
+    // GIVEN an agent handed a non-empty profile store, and one handed none
+    let agent_with = |store: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>| {
+        BuiltInChatAgent::new(BuiltInChatAgentDeps {
+            llm_router: make_router(Arc::new(MockStopModel::with_content("ok"))),
+            tool_registry: ToolRegistryHandle::start(),
+            tool_invoker: Arc::new(MockToolInvoker::new("ok")),
+            event_bus: make_event_bus(),
+            user_memory: store,
+            todo: None,
+            plan: None,
+        })
+    };
+    let handed = agent_with(Some(make_user_memory_repo(&[(
+        "preferences",
+        "langue",
+        "francais",
+    )])));
+    let bare = agent_with(None);
 
-    // WHEN inject_memory is false (e.g. supervised tier)
-    let without = agent.build_system_prompt(None, AutonomyLevel::Supervised, false);
-    // THEN the persona block is absent despite the populated repo
-    assert!(!without.contains("## User Persona"));
-    assert!(!without.contains("francais"));
+    // WHEN the prompt is built at the lowest and at the highest tier
+    for level in [AutonomyLevel::Assisted, AutonomyLevel::LongAutonomous] {
+        let with = handed.build_system_prompt(None, level);
+        let without = bare.build_system_prompt(None, level);
 
-    // WHEN inject_memory is true (e.g. long autonomous tier)
-    let with = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous, true);
-    // THEN the persona block is injected
-    assert!(with.contains("## User Persona"));
-    assert!(with.contains("francais"));
+        // THEN the block is present with the store and absent without it
+        assert!(with.contains("## User Persona"), "{with}");
+        assert!(with.contains("francais"), "{with}");
+        assert!(!without.contains("## User Persona"), "{without}");
+    }
 }
 
 // the effective budget is the tier budget capped by the
@@ -1870,7 +1884,7 @@ async fn test_build_system_prompt_with_empty_user_memory() {
     });
 
     // WHEN building the system prompt
-    let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted, true);
+    let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
 
     // THEN the prompt does NOT contain the user persona block
     assert!(!prompt.contains("User Persona"));
@@ -1894,7 +1908,7 @@ async fn test_build_system_prompt_without_repository() {
     });
 
     // WHEN building the system prompt
-    let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted, true);
+    let prompt = agent.build_system_prompt(Some("Base prompt."), AutonomyLevel::Assisted);
 
     // THEN the prompt does NOT contain the user persona block
     assert!(!prompt.contains("User Persona"));
@@ -1926,7 +1940,7 @@ async fn test_assisted_uses_default_prompt() {
     let agent = make_agent_no_memory();
 
     // WHEN building the prompt for the assisted tier
-    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted);
 
     // THEN it carries the reactive default marker, not the perseverance one
     assert!(prompt.contains("Act first"));
@@ -1939,7 +1953,7 @@ async fn test_bounded_autonomous_uses_perseverance_prompt() {
     let agent = make_agent_no_memory();
 
     // WHEN building the prompt for a bounded-autonomous tier
-    let prompt = agent.build_system_prompt(None, AutonomyLevel::BoundedAutonomous, false);
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::BoundedAutonomous);
 
     // THEN it carries the perseverance marker, not the reactive default
     assert!(prompt.contains("Persevere to the objective"));
@@ -1952,7 +1966,7 @@ async fn test_long_autonomous_uses_perseverance_prompt() {
     let agent = make_agent_no_memory();
 
     // WHEN building the prompt for the long-autonomous tier
-    let prompt = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous, false);
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous);
 
     // THEN it carries the perseverance marker
     assert!(prompt.contains("Persevere to the objective"));
@@ -1965,7 +1979,7 @@ async fn test_custom_prompt_preserved_for_assisted() {
     let custom = "Mon prompt personnalise";
 
     // WHEN building the prompt with the custom base
-    let prompt = agent.build_system_prompt(Some(custom), AutonomyLevel::Assisted, false);
+    let prompt = agent.build_system_prompt(Some(custom), AutonomyLevel::Assisted);
 
     // THEN the custom prompt is used verbatim
     assert!(prompt.contains("Mon prompt personnalise"));
@@ -1978,7 +1992,7 @@ async fn test_all_autonomy_levels_no_panic() {
 
     // WHEN / THEN every tier yields a prompt, and none of them is empty
     for level in AutonomyLevel::ALL {
-        let prompt = agent.build_system_prompt(None, level, false);
+        let prompt = agent.build_system_prompt(None, level);
         assert!(
             !prompt.is_empty(),
             "tier {level:?} produced an empty prompt"
@@ -1992,8 +2006,8 @@ async fn test_temporal_context_always_prepended() {
     let agent = make_agent_no_memory();
 
     // WHEN building both the assisted and an autonomous prompt
-    let p_assisted = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
-    let p_auto = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous, false);
+    let p_assisted = agent.build_system_prompt(None, AutonomyLevel::Assisted);
+    let p_auto = agent.build_system_prompt(None, AutonomyLevel::LongAutonomous);
 
     // THEN both are longer than the bare constant (temporal block prepended)
     assert!(p_assisted.len() > DEFAULT_SYSTEM_PROMPT.len());
@@ -2030,12 +2044,52 @@ fn text_of(msg: &apollia_llm::types::ChatMessage) -> &str {
 }
 
 #[test]
+fn test_history_user_messages_are_rebuilt_with_their_images() {
+    // GIVEN a history whose first user message carried two images, and a
+    // follow-up that carries none
+    let history = make_history(4);
+    let images = vec![
+        apollia_llm::message_image::MessageImage::new("image/png", vec![1u8]),
+        apollia_llm::message_image::MessageImage::new("image/png", vec![2u8]),
+    ];
+    let mut turn = crate::chat::images::TurnImages::default();
+    turn.history.insert(history[0].id.clone(), images.clone());
+
+    // WHEN the messages of the follow-up turn are built
+    let messages = build_llm_messages("system", &history, "and the second?", None, 20, &turn);
+
+    // THEN the first user message carries its images after its text, and the
+    // follow-up stays text alone
+    match &messages[1].content {
+        apollia_llm::types::MessageContent::TextWithImages {
+            text,
+            images: found,
+        } => {
+            assert_eq!(text, &history[0].content);
+            assert_eq!(found, &images);
+        }
+        other => panic!("expected the images, got {other:?}"),
+    }
+    assert_eq!(
+        text_of(messages.last().expect("follow-up")),
+        "and the second?"
+    );
+}
+
+#[test]
 fn test_context_window_short_conversation_includes_all() {
     // GIVEN a conversation shorter than window_size (10 messages, window=20)
     let history = make_history(10);
 
     // WHEN building context without summary
-    let messages = build_llm_messages("system", &history, "new msg", None, 20);
+    let messages = build_llm_messages(
+        "system",
+        &history,
+        "new msg",
+        None,
+        20,
+        &crate::chat::images::TurnImages::default(),
+    );
 
     // THEN all 10 history messages are included (+ system + user = 12)
     assert_eq!(messages.len(), 12);
@@ -2050,7 +2104,14 @@ fn test_context_window_long_conversation_with_summary() {
     let summary = "The user discussed project setup and deployment.";
 
     // WHEN building context with summary
-    let messages = build_llm_messages("system", &history, "new msg", Some(summary), 20);
+    let messages = build_llm_messages(
+        "system",
+        &history,
+        "new msg",
+        Some(summary),
+        20,
+        &crate::chat::images::TurnImages::default(),
+    );
 
     // THEN: system + summary + 20 windowed messages + user = 23
     assert_eq!(messages.len(), 23);
@@ -2074,7 +2135,14 @@ fn test_context_window_long_conversation_without_summary() {
     let history = make_history(40);
 
     // WHEN building context without summary
-    let messages = build_llm_messages("system", &history, "new msg", None, 20);
+    let messages = build_llm_messages(
+        "system",
+        &history,
+        "new msg",
+        None,
+        20,
+        &crate::chat::images::TurnImages::default(),
+    );
 
     // THEN: system + 20 windowed messages + user = 22 (no summary message)
     assert_eq!(messages.len(), 22);
@@ -2150,6 +2218,7 @@ fn mcp_descriptor(full_name: &str) -> apollia_tools::descriptor::ToolDescriptor 
         tags: vec!["mcp".to_string()],
         family: apollia_tools::ActionFamily::WriteOrDelete,
         family_source: apollia_tools::FamilySource::Unsourced,
+        target_arg: None,
         is_read_only: false,
         risk_score: 3,
         approval_risk_level: None,
@@ -3634,7 +3703,7 @@ async fn test_prompt_contains_block_when_plan_mode_on() {
     let agent = plan_agent(Some(plan_handle_for_test()), true);
 
     // WHEN the system prompt is assembled
-    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted);
 
     // THEN it contains the plan-mode block and its key instructions
     assert!(prompt.contains("operating in plan mode"));
@@ -3650,7 +3719,7 @@ async fn test_prompt_omits_block_when_plan_mode_off() {
     let agent = plan_agent(Some(plan_handle_for_test()), false);
 
     // WHEN the system prompt is assembled
-    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted);
 
     // THEN the plan-mode block is absent
     assert!(!prompt.contains("operating in plan mode"));
@@ -4116,7 +4185,7 @@ async fn test_prompt_selects_execute_block_when_executing() {
         plan_agent(Some(plan_handle_for_test()), true).with_plan_phase_start(PlanPhase::Executing);
 
     // WHEN the system prompt is assembled
-    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted);
 
     // THEN it carries the execute block, not the preparation block
     assert!(prompt.contains("approved and you are now executing it"));
@@ -4130,7 +4199,7 @@ async fn test_prompt_selects_plan_mode_block_when_drafting() {
         plan_agent(Some(plan_handle_for_test()), true).with_plan_phase_start(PlanPhase::Drafting);
 
     // WHEN the system prompt is assembled
-    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted, false);
+    let prompt = agent.build_system_prompt(None, AutonomyLevel::Assisted);
 
     // THEN it carries the preparation block, not the execute block
     assert!(prompt.contains("operating in plan mode"));
@@ -4310,6 +4379,8 @@ fn make_test_governance(
         config_path: Some(config),
         policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
         journal: None,
+        events: None,
+        forbidden_connections: Default::default(),
     })
 }
 

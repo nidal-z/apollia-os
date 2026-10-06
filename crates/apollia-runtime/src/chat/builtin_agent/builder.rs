@@ -9,8 +9,10 @@ impl BuiltInChatAgent {
             tool_invoker: deps.tool_invoker,
             event_bus: deps.event_bus,
             user_memory: deps.user_memory,
+            conversation_profile: None,
             composer: None,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
+            session: SessionOverrides::default(),
             meta_handle: None,
             workspace_path: None,
             mcp_index: None,
@@ -18,10 +20,13 @@ impl BuiltInChatAgent {
             tool_search_limit: 20,
             todo: deps.todo,
             plan: deps.plan,
+            agent_draft: None,
             session_plan_mode: false,
             session_plan_phase: PlanPhase::Done,
             hook_executor: None,
             pending_injection: None,
+            answer_prefill: None,
+            turn_images: crate::chat::images::TurnImages::default(),
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
             governance: crate::governance::GovernanceHandle::detached(
                 crate::governance::GovernanceState::default(),
@@ -31,8 +36,34 @@ impl BuiltInChatAgent {
             preferred_backend: None,
             agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
             approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
+            tool_output_dir: None,
+            resilience: apollia_oria::ResilienceLayer::default(),
             turn_id: None,
         }
+    }
+
+    /// Apply what the conversation changes from its agent: its instructions,
+    /// its request settings, its reasoning, its accesses proposed, and what
+    /// its context does at the limit, which the context manager reads here.
+    pub fn with_session_overrides(mut self, session: SessionOverrides) -> Self {
+        self.context_manager =
+            ContextManager::from_config(&ORIAConfig::default()).with_overflow(session.overflow);
+        self.session = session;
+        self
+    }
+
+    /// Offer the `propose_agent` tool, its drafts held to `offer`. `None`,
+    /// the default, leaves the tool out.
+    pub fn with_agent_draft(mut self, offer: Option<DraftOffer>) -> Self {
+        self.agent_draft = offer;
+        self
+    }
+
+    /// Keep a tool output too long for the context whole in `dir`, and give
+    /// the model its beginning and the path. `None` cuts it instead.
+    pub fn with_tool_output_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
+        self.tool_output_dir = dir;
+        self
     }
 
     /// Name the conversation turn the run's model calls are made for, the
@@ -115,6 +146,52 @@ impl BuiltInChatAgent {
         has_tools.then_some(self.tool_turn_temperature)
     }
 
+    /// The request settings every call of a turn on `backend` starts from.
+    ///
+    /// Four levels, field by field: the conversation, over the preset (the
+    /// one of the conversation, else the agent's), over the agent's package,
+    /// over the model. Read once per turn: the levels below the conversation
+    /// come from files.
+    pub(in crate::chat::builtin_agent) fn turn_request_settings(
+        &self,
+        backend: Option<&str>,
+    ) -> TurnRequestSettings {
+        let backend = backend.unwrap_or_else(|| self.llm_router.default_name());
+        let levels = self
+            .session
+            .request_levels
+            .as_ref()
+            .map(|binding| binding.request_levels(&self.llm_router, Some(backend)))
+            .unwrap_or_default();
+        TurnRequestSettings {
+            chosen_temperature: self
+                .session
+                .request
+                .clone()
+                .over(&levels.preset)
+                .temperature,
+            resolved: levels.resolved_in_session(&self.session.request),
+        }
+    }
+
+    /// Apply the request settings of the turn to one of its calls.
+    ///
+    /// A temperature the user chose, for the conversation or in a preset,
+    /// is sent as chosen. Without one, a call that offers tools keeps the
+    /// tool-turn temperature, and the package and the model fill the rest.
+    pub(in crate::chat::builtin_agent) fn apply_request_settings(
+        &self,
+        settings: &TurnRequestSettings,
+        request: &mut CompletionRequest,
+    ) {
+        request.temperature = settings
+            .chosen_temperature
+            .or_else(|| self.turn_temperature(!request.tools.is_empty()));
+        request.thinking = self.session.thinking;
+        request.reasoning_effort = self.session.reasoning_effort;
+        settings.resolved.apply_to(request);
+    }
+
     /// Attaches an operator instruction to a resume turn.
     ///
     /// Set by the manager when resuming a paused session with a queued injection.
@@ -127,6 +204,23 @@ impl BuiltInChatAgent {
         self
     }
 
+    /// Makes the turn continue `answer`, the last answer of the conversation:
+    /// the request ends on it as an assistant message, which an engine that
+    /// continues an answer prefills. The caller checks the engine does
+    /// ([`apollia_llm::types::CompletionModel::continues_answer`]) before
+    /// asking.
+    pub fn with_answer_prefill(mut self, answer: Option<String>) -> Self {
+        self.answer_prefill = answer;
+        self
+    }
+
+    /// Attaches the images of the turn: those of the message answered, sent
+    /// after its text, and those of earlier user messages, replayed with them.
+    pub fn with_turn_images(mut self, images: crate::chat::images::TurnImages) -> Self {
+        self.turn_images = images;
+        self
+    }
+
     /// Sets the plan phase the owning session is in at the start of the turn.
     ///
     /// Threaded from `ChatSession::plan_phase`. A turn opened in
@@ -134,6 +228,13 @@ impl BuiltInChatAgent {
     /// reopening discovery (see [`session_plan_phase`](Self::session_plan_phase)).
     pub fn with_plan_phase_start(mut self, phase: PlanPhase) -> Self {
         self.session_plan_phase = phase;
+        self
+    }
+
+    /// Name the profile the conversation designates, the one the profile
+    /// block is read from. `None` reads the default profile.
+    pub fn with_conversation_profile(mut self, profile_id: Option<String>) -> Self {
+        self.conversation_profile = profile_id;
         self
     }
 

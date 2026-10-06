@@ -46,6 +46,7 @@ fn apple(total_gb: f64) -> HardwareProfile {
             vram_gb: total_gb,
         },
         memory_budget_gb: total_gb * 0.75,
+        devices: Vec::new(),
     }
 }
 
@@ -61,6 +62,7 @@ fn linux_card(vram_gb: f64) -> HardwareProfile {
             compute_capability: (8, 9),
         },
         memory_budget_gb: vram_gb,
+        devices: Vec::new(),
     }
 }
 
@@ -72,6 +74,7 @@ fn small_host(total_gb: f64) -> HardwareProfile {
         cpu_cores: 4,
         accelerator: AcceleratorProfile::None,
         memory_budget_gb: total_gb * 0.60,
+        devices: Vec::new(),
     }
 }
 

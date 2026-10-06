@@ -1,27 +1,33 @@
-//! The onboarding phase machine as the interface sees it: the seven ordered
-//! phases, the counters the graduation screen reads, and the refusals a wrong
-//! transition earns.
+//! The onboarding phase machine as the interface sees it: the ordered phases,
+//! one per step of the first launch and three that close it, the counters the
+//! graduation screen reads, and the refusals a wrong transition earns.
 
 use serde::{Deserialize, Serialize};
-
-use super::VALID_PROFILES;
 
 // ---------------------------------------------------------------------------
 // Phase machine types
 // ---------------------------------------------------------------------------
 
-/// The seven ordered phases of the onboarding flow.
+/// The ordered phases of the onboarding flow: the seven steps of the first
+/// launch, each resumed exactly where it was left, then the three that close
+/// it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingPhase {
-    /// Initial landing screen - shown on first launch.
+    /// Initial landing screen, where the language is chosen.
     Welcome,
-    /// Profile selection: Operator or Builder.
-    ProfileChoice,
-    /// LLM and STT configuration.
+    /// The language model, local or served: the only step that cannot be passed.
     AiSetup,
-    /// AI Companion introduction and first interaction.
+    /// The model search by meaning uses.
+    Embeddings,
+    /// The conversation that proposes a profile.
     Acquaintance,
+    /// The first agent: an example installed, or one described in words.
+    FirstAgent,
+    /// The connection the first agent needs.
+    Connection,
+    /// The first task handed to that agent.
+    FirstTask,
     /// Guided product tour (interactive spotlight steps).
     GuidedTour,
     /// Summary screen showing achievements and stats.
@@ -31,13 +37,30 @@ pub enum OnboardingPhase {
 }
 
 impl OnboardingPhase {
+    /// Every phase, in the order the flow walks them.
+    pub const ORDER: [Self; 10] = [
+        Self::Welcome,
+        Self::AiSetup,
+        Self::Embeddings,
+        Self::Acquaintance,
+        Self::FirstAgent,
+        Self::Connection,
+        Self::FirstTask,
+        Self::GuidedTour,
+        Self::Graduation,
+        Self::Done,
+    ];
+
     /// Returns the lowercase snake_case string stored in UserMemory.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Welcome => "welcome",
-            Self::ProfileChoice => "profile_choice",
             Self::AiSetup => "ai_setup",
+            Self::Embeddings => "embeddings",
             Self::Acquaintance => "acquaintance",
+            Self::FirstAgent => "first_agent",
+            Self::Connection => "connection",
+            Self::FirstTask => "first_task",
             Self::GuidedTour => "guided_tour",
             Self::Graduation => "graduation",
             Self::Done => "done",
@@ -48,16 +71,7 @@ impl OnboardingPhase {
     ///
     /// Returns `None` for unknown strings.
     pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "welcome" => Some(Self::Welcome),
-            "profile_choice" => Some(Self::ProfileChoice),
-            "ai_setup" => Some(Self::AiSetup),
-            "acquaintance" => Some(Self::Acquaintance),
-            "guided_tour" => Some(Self::GuidedTour),
-            "graduation" => Some(Self::Graduation),
-            "done" => Some(Self::Done),
-            _ => None,
-        }
+        Self::ORDER.into_iter().find(|phase| phase.as_str() == s)
     }
 }
 
@@ -77,8 +91,6 @@ pub struct OnboardingStats {
 pub struct OnboardingState {
     /// Current phase of the onboarding flow.
     pub phase: OnboardingPhase,
-    /// Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice.
-    pub profile: Option<String>,
     /// `true` when at least one LLM backend has been configured.
     pub llm_configured: bool,
     /// `true` when the STT engine has been configured and tested.
@@ -95,7 +107,7 @@ pub struct OnboardingState {
     pub skipped: bool,
     /// `true` when the phase has reached `Done`.
     pub completed: bool,
-    /// ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice).
+    /// ISO 8601 timestamp of the first phase transition (Welcome to AiSetup).
     pub started_at: Option<String>,
     /// ISO 8601 timestamp when the phase reached `Done`.
     pub completed_at: Option<String>,
@@ -107,7 +119,6 @@ impl Default for OnboardingState {
     fn default() -> Self {
         Self {
             phase: OnboardingPhase::Welcome,
-            profile: None,
             llm_configured: false,
             stt_configured: false,
             topics_covered: Vec::new(),
@@ -127,19 +138,12 @@ impl OnboardingState {
     /// Returns `true` when advancing from the current phase to `target` is a
     /// legal sequential transition.
     ///
-    /// The only valid transitions are the six consecutive steps in the ordered
-    /// chain: `Welcome → ProfileChoice → AiSetup → Acquaintance → GuidedTour
-    /// → Graduation → Done`.
+    /// The only valid transitions are the consecutive pairs of
+    /// [`OnboardingPhase::ORDER`]: a step passed is still a phase walked.
     pub fn can_advance_to(&self, target: &OnboardingPhase) -> bool {
-        matches!(
-            (&self.phase, target),
-            (OnboardingPhase::Welcome, OnboardingPhase::ProfileChoice)
-                | (OnboardingPhase::ProfileChoice, OnboardingPhase::AiSetup)
-                | (OnboardingPhase::AiSetup, OnboardingPhase::Acquaintance)
-                | (OnboardingPhase::Acquaintance, OnboardingPhase::GuidedTour)
-                | (OnboardingPhase::GuidedTour, OnboardingPhase::Graduation)
-                | (OnboardingPhase::Graduation, OnboardingPhase::Done)
-        )
+        OnboardingPhase::ORDER
+            .windows(2)
+            .any(|pair| pair[0] == self.phase && pair[1] == *target)
     }
 }
 
@@ -206,37 +210,17 @@ pub enum OnboardingError {
         to: OnboardingPhase,
     },
 
-    /// The supplied profile name is not one of the accepted values.
-    #[error("invalid profile: {0}, expected 'operator' or 'builder'")]
-    InvalidProfile(String),
-
     /// A UserMemory read or write operation failed.
     #[error("persistence error: {0}")]
     PersistenceError(String),
 
-    /// The requested phase is not one of the seven.
+    /// The requested phase is not one the flow knows.
     #[error("persistence error: unknown phase: {0}")]
     UnknownPhase(String),
 
     /// The onboarding agent's own memory could not be written.
     #[error("{0}")]
     AgentMemory(String),
-}
-
-// ---------------------------------------------------------------------------
-// Profile validation
-// ---------------------------------------------------------------------------
-
-/// Validates that `profile` is one of the two accepted values.
-///
-/// Returns `Ok(())` for `"operator"` and `"builder"`, and
-/// `Err(OnboardingError::InvalidProfile)` for anything else.
-pub fn validate_profile(profile: &str) -> Result<(), OnboardingError> {
-    if VALID_PROFILES.contains(&profile) {
-        Ok(())
-    } else {
-        Err(OnboardingError::InvalidProfile(profile.to_owned()))
-    }
 }
 
 #[cfg(test)]
@@ -255,12 +239,21 @@ mod tests {
     }
 
     #[test]
-    fn test_valid_transition_welcome_to_profile_choice() {
+    fn test_valid_transition_welcome_to_ai_setup() {
         // GIVEN a state in Welcome phase
         let state = OnboardingState::default();
-        // WHEN checking can_advance_to ProfileChoice
-        // THEN it returns true
-        assert!(state.can_advance_to(&OnboardingPhase::ProfileChoice));
+        // WHEN checking can_advance_to AiSetup
+        // THEN it returns true: no profile question stands between them
+        assert!(state.can_advance_to(&OnboardingPhase::AiSetup));
+    }
+
+    #[test]
+    fn test_profile_choice_is_no_longer_a_phase() {
+        // GIVEN the name the removed usage-profile step was stored under
+        // WHEN it is parsed as a phase
+        let parsed = OnboardingPhase::parse("profile_choice");
+        // THEN it is not one of the phases
+        assert!(parsed.is_none());
     }
 
     #[test]
@@ -273,38 +266,10 @@ mod tests {
     }
 
     #[test]
-    fn test_profile_validation_rejects_invalid() {
-        // GIVEN an invalid profile name
-        let result = validate_profile("hacker");
-        // WHEN the profile is validated
-        // THEN it returns an error
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_profile_validation_accepts_operator() {
-        // GIVEN a valid profile name
-        let result = validate_profile("operator");
-        // WHEN the profile is validated
-        // THEN it succeeds
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_profile_validation_accepts_builder() {
-        // GIVEN a valid profile name
-        let result = validate_profile("builder");
-        // WHEN the profile is validated
-        // THEN it succeeds
-        assert!(result.is_ok());
-    }
-
-    #[test]
     fn test_serialization_roundtrip() {
         // GIVEN a fully populated OnboardingState
         let state = OnboardingState {
             phase: OnboardingPhase::AiSetup,
-            profile: Some("builder".to_string()),
             llm_configured: true,
             stt_configured: false,
             topics_covered: vec!["agents".to_string()],
@@ -322,22 +287,51 @@ mod tests {
         let restored: OnboardingState = serde_json::from_str(&json).unwrap();
         // THEN the restored state matches
         assert_eq!(restored.phase, state.phase);
-        assert_eq!(restored.profile, state.profile);
+        assert!(!json.contains("\"profile\""));
         assert_eq!(restored.llm_configured, state.llm_configured);
+    }
+
+    #[test]
+    fn test_the_seven_steps_of_the_first_launch_are_seven_phases_in_order() {
+        // GIVEN the names the seven steps are stored under, in their order
+        let steps = [
+            "welcome",
+            "ai_setup",
+            "embeddings",
+            "acquaintance",
+            "first_agent",
+            "connection",
+            "first_task",
+        ];
+        // WHEN the first seven phases are read
+        let names: Vec<&str> = OnboardingPhase::ORDER[..7]
+            .iter()
+            .map(OnboardingPhase::as_str)
+            .collect();
+        // THEN each step has its own phase, so a restart reopens exactly on it
+        assert_eq!(names, steps);
+        for name in steps {
+            assert!(OnboardingPhase::parse(name).is_some(), "{name}");
+        }
+    }
+
+    #[test]
+    fn test_a_step_cannot_be_jumped_over() {
+        // GIVEN a flow standing on the AI setup
+        let state = OnboardingState {
+            phase: OnboardingPhase::AiSetup,
+            ..Default::default()
+        };
+        // WHEN the conversation is asked for without the step between them
+        // THEN the move is refused, and the step between them is accepted
+        assert!(!state.can_advance_to(&OnboardingPhase::Acquaintance));
+        assert!(state.can_advance_to(&OnboardingPhase::Embeddings));
     }
 
     #[test]
     fn test_all_sequential_transitions_valid() {
         // GIVEN the full transition chain
-        let phases = [
-            OnboardingPhase::Welcome,
-            OnboardingPhase::ProfileChoice,
-            OnboardingPhase::AiSetup,
-            OnboardingPhase::Acquaintance,
-            OnboardingPhase::GuidedTour,
-            OnboardingPhase::Graduation,
-            OnboardingPhase::Done,
-        ];
+        let phases = OnboardingPhase::ORDER;
         // WHEN checking each consecutive pair
         // THEN all are valid transitions
         for window in phases.windows(2) {
@@ -361,8 +355,11 @@ mod tests {
         // WHEN checking non-sequential targets
         // THEN all are invalid
         let non_targets = [
-            OnboardingPhase::AiSetup,
+            OnboardingPhase::Embeddings,
             OnboardingPhase::Acquaintance,
+            OnboardingPhase::FirstAgent,
+            OnboardingPhase::Connection,
+            OnboardingPhase::FirstTask,
             OnboardingPhase::GuidedTour,
             OnboardingPhase::Graduation,
             OnboardingPhase::Done,
@@ -388,18 +385,6 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("Welcome"));
         assert!(msg.contains("GuidedTour"));
-    }
-
-    #[test]
-    fn test_invalid_profile_error_message() {
-        // GIVEN an invalid profile
-        let err = OnboardingError::InvalidProfile("hacker".to_string());
-        // WHEN it is rendered for the operator
-        // THEN the message names the offending profile and valid ones
-        let msg = err.to_string();
-        assert!(msg.contains("hacker"));
-        assert!(msg.contains("operator"));
-        assert!(msg.contains("builder"));
     }
 
     #[test]
@@ -520,15 +505,7 @@ mod tests {
     #[test]
     fn test_phase_as_str_roundtrip() {
         // GIVEN all phases
-        let phases = [
-            OnboardingPhase::Welcome,
-            OnboardingPhase::ProfileChoice,
-            OnboardingPhase::AiSetup,
-            OnboardingPhase::Acquaintance,
-            OnboardingPhase::GuidedTour,
-            OnboardingPhase::Graduation,
-            OnboardingPhase::Done,
-        ];
+        let phases = OnboardingPhase::ORDER;
         // WHEN converting to string and back
         // THEN all phases roundtrip correctly
         for phase in &phases {

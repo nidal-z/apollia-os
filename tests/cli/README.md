@@ -40,6 +40,7 @@ tests/cli/
   tracks/
     track1_offline.sh   OFFLINE deterministic (seeded content + exit contract)
     track2_runtime.sh   RUNTIME deterministic (daemon on seeded HOME + CRUD)
+    track2_packaged.sh  RUNTIME deterministic (a packaged agent and its workflow)
     track3_llm.sh       LLM capture (non-deterministic: structure only + capture)
   report/               report.json + report.md (git-ignored output)
 ```
@@ -75,6 +76,15 @@ bundled stdio stub).
 | 1 OFFLINE | always | Every command runnable without the daemon, against the seeded HOME. Content assertions (`permissions list` the 4 rules, `memory search` a known hit, …) plus the exit-code contract (daemon-off → 2, validation → 1, clap → 2). |
 | 2 RUNTIME | `APOLLIA_REQUIRE_RUNTIME=1` | Daemon booted on the seeded HOME, so `agent/trigger/notify/mcp/llm-backends list` return seeded state; full CRUD lifecycle; the runtime-only leaves (`a2a`, `audit verify/anchor`, `tools config`, `stt config`, `mcp show/test/restart`, `trigger fire`, `notify events set`, …). |
 | 3 LLM CAPTURE | `APOLLIA_REQUIRE_RUNTIME=1` + a real model | Non-deterministic commands (`run --stream`, `chat` REPL via pty, `llm chat`, `do`, `explain`). Asserts STRUCTURE ONLY (exit code, streaming happened, terminated in time); the full input/output is captured into `report.md` for human review. The content is never asserted, matching the "prove the stream, not the answer" intent. |
+
+Track 2 ends with a phase of its own, `track2_packaged.sh`: a package holding
+an agent declared in `apollia.toml` and a Python workflow is built, installed,
+run to its end, reached through A2A and uninstalled. It runs on a second
+seeded `HOME` and a daemon of its own, started once the first has stopped, so
+the row counts asserted above never see it. That daemon is started twice: the
+runtime hands the workflows of the installed packages to its engine when it
+starts, so the package is installed under the first start and run under the
+second. No model is involved; the workflow counts the words of its input.
 
 Track 3 gracefully skips when no model is wired or the `apollia-runner` sidecar
 is unreachable; the skip and its reason are recorded in the report.
@@ -136,8 +146,8 @@ interactive `chat` REPL is driven under a pty in Track 3.
 The offline track runs on every PR (`cli-e2e` job in `.github/workflows/ci.yml`),
 which builds `apollia-cli`, installs `sqlite3`, verifies the command-coverage
 floor, runs `bash tests/cli/cli-e2e.sh`, and uploads `report/` as an artifact.
-Track 2 runs on the nightly schedule (`cli-e2e-runtime` job in
-`.github/workflows/nightly.yml`: daemon on a throwaway seeded HOME, no model)
+Track 2 runs on the weekly schedule (`cli-e2e-runtime` job in
+`.github/workflows/weekly.yml`: daemon on a throwaway seeded HOME, no model)
 and locally through `just cli-e2e-runtime`. Track 3 needs a real GGUF and stays
 local: `just cli-e2e-model <model.gguf>`, run before releases.
 

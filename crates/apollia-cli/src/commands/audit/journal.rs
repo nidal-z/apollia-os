@@ -65,30 +65,85 @@ pub(super) async fn run_show(client: &RuntimeClient, arg: &str, json: bool) -> i
     exit_codes::SUCCESS
 }
 
-/// The page URI, with the agents filter when any agent is named.
-fn journal_page_uri(limit: u32, offset: u32, agents: &[String]) -> String {
-    let mut uri = format!("/api/v1/audit/journal?limit={limit}&offset={offset}");
-    if !agents.is_empty() {
-        let encoded: Vec<String> = agents
-            .iter()
-            .map(|a| crate::commands::model::urlencode(a))
-            .collect();
-        uri.push_str("&agents=");
-        uri.push_str(&encoded.join(","));
+/// What one page of the journal is asked with: its bounds and its filters.
+pub(super) struct JournalPage<'a> {
+    pub(super) limit: u32,
+    pub(super) offset: u32,
+    pub(super) agents: &'a [String],
+    pub(super) families: &'a [String],
+    pub(super) natures: &'a [String],
+    pub(super) results: &'a [String],
+    pub(super) since: Option<&'a str>,
+    pub(super) until: Option<&'a str>,
+}
+
+/// The page URI: each filter appears only when it is given, its values
+/// encoded and joined by commas as the route reads them.
+fn journal_page_uri(page: &JournalPage<'_>) -> String {
+    let mut uri = format!(
+        "/api/v1/audit/journal?limit={}&offset={}",
+        page.limit, page.offset
+    );
+    let encode = crate::commands::model::urlencode;
+    for (name, values) in [
+        ("agents", page.agents),
+        ("family", page.families),
+        ("nature", page.natures),
+        ("result", page.results),
+    ] {
+        if !values.is_empty() {
+            let encoded: Vec<String> = values.iter().map(|v| encode(v)).collect();
+            uri.push_str(&format!("&{name}={}", encoded.join(",")));
+        }
+    }
+    for (name, value) in [("since", page.since), ("until", page.until)] {
+        if let Some(value) = value {
+            uri.push_str(&format!("&{name}={}", encode(value)));
+        }
     }
     uri
 }
 
+/// The line `audit journal` prints for one entry, from its summary: when, who,
+/// what, the tool, the target and the result. A part the summary does not have
+/// is left out, so the line never shows a placeholder for it.
+fn summary_line(entry: &serde_json::Value) -> String {
+    let summary = entry.get("summary");
+    let part = |key: &str| {
+        summary
+            .and_then(|s| s.get(key))
+            .and_then(|v| v.as_str())
+            .filter(|v| !v.is_empty())
+    };
+    let mut line = part("ts").unwrap_or("?").to_owned();
+    if let Some(agent) = part("agent") {
+        line.push_str(&format!("  {agent}"));
+    }
+    let what = part("what")
+        .or_else(|| entry.get("kind").and_then(|v| v.as_str()))
+        .unwrap_or("?");
+    line.push_str(&format!("  {what}"));
+    if let Some(tool) = part("tool") {
+        line.push_str(&format!(": {tool}"));
+    }
+    if let Some(family) = part("family") {
+        line.push_str(&format!(" ({family})"));
+    }
+    if let Some(target) = part("target") {
+        line.push_str(&format!(" on {target}"));
+    }
+    if let Some(outcome) = part("outcome") {
+        line.push_str(&format!("  [{outcome}]"));
+    }
+    line
+}
+
 /// `apollia-os audit journal`: print a page of the chained journal across every
-/// run, or across the runs of `agents`' tasks, newest global position first.
-pub(super) async fn run_journal(
-    client: &RuntimeClient,
-    limit: u32,
-    offset: u32,
-    agents: &[String],
-    json: bool,
-) -> i32 {
-    let uri = journal_page_uri(limit, offset, agents);
+/// run, narrowed by the filters of `page`, newest global position first. Each
+/// entry is printed as its summary, followed by its run, its position in that
+/// run and whether it is signed, which is what `audit show` reads it whole by.
+pub(super) async fn run_journal(client: &RuntimeClient, page: &JournalPage<'_>, json: bool) -> i32 {
+    let uri = journal_page_uri(page);
     let resp = match client.get(&uri).await {
         Ok(r) => r,
         Err(e) => return handle_error(e, json),
@@ -131,19 +186,16 @@ pub(super) async fn run_journal(
     println!("  Audit journal  ({} entries)", entries.len());
     for e in &entries {
         let run = e.get("run_id").and_then(|v| v.as_str()).unwrap_or("?");
-        let run_short: String = run.chars().take(8).collect();
         let seq = e
             .get("seq")
             .and_then(serde_json::Value::as_u64)
             .unwrap_or(0);
-        let kind = e.get("kind").and_then(|v| v.as_str()).unwrap_or("?");
         let signed = if e.get("signature").map(|v| !v.is_null()).unwrap_or(false) {
             "signed"
         } else {
             "unsigned"
         };
-        let summary = journal_entry_summary(kind, e.get("payload"));
-        println!("  {run_short:<8} [{seq:>3}] {kind:<20} {signed:<8} {summary}");
+        println!("  {}  ({run} #{seq}, {signed})", summary_line(e));
     }
     exit_codes::SUCCESS
 }
@@ -212,6 +264,19 @@ pub(super) async fn resolve_task_to_run(client: &RuntimeClient, id: &str) -> Opt
 mod tests {
     use super::*;
 
+    fn page<'a>(agents: &'a [String], families: &'a [String]) -> JournalPage<'a> {
+        JournalPage {
+            limit: 20,
+            offset: 0,
+            agents,
+            families,
+            natures: &[],
+            results: &[],
+            since: None,
+            until: None,
+        }
+    }
+
     #[test]
     fn the_page_uri_names_the_agents_only_when_there_are_some() {
         // GIVEN no agent, then two agents
@@ -219,8 +284,11 @@ mod tests {
         let two = vec!["flux-quotes".to_string(), "flux invoices".to_string()];
 
         // WHEN the page URIs are built
-        let all = journal_page_uri(20, 0, &none);
-        let filtered = journal_page_uri(20, 40, &two);
+        let all = journal_page_uri(&page(&none, &none));
+        let filtered = journal_page_uri(&JournalPage {
+            offset: 40,
+            ..page(&two, &none)
+        });
 
         // THEN the filter appears only for named agents, each one encoded
         assert_eq!(all, "/api/v1/audit/journal?limit=20&offset=0");
@@ -228,5 +296,80 @@ mod tests {
             filtered,
             "/api/v1/audit/journal?limit=20&offset=40&agents=flux-quotes,flux%20invoices"
         );
+    }
+
+    #[test]
+    fn the_page_uri_carries_every_filter_given() {
+        // GIVEN one value or two for each filter, and a period
+        let agents = vec!["quotes".to_string()];
+        let families = vec!["read".to_string(), "send_external".to_string()];
+        let natures = vec!["action".to_string()];
+        let results = vec!["failure".to_string(), "refused".to_string()];
+
+        // WHEN the page URI is built
+        let uri = journal_page_uri(&JournalPage {
+            natures: &natures,
+            results: &results,
+            since: Some("2026-10-01"),
+            until: Some("2026-10-04T12:00:00+02:00"),
+            ..page(&agents, &families)
+        });
+
+        // THEN each filter is there under the name the route reads, encoded
+        assert_eq!(
+            uri,
+            "/api/v1/audit/journal?limit=20&offset=0&agents=quotes\
+             &family=read,send_external&nature=action&result=failure,refused\
+             &since=2026-10-01&until=2026-10-04T12%3A00%3A00%2B02%3A00"
+        );
+    }
+
+    #[test]
+    fn the_line_of_an_entry_is_its_summary_without_empty_parts() {
+        // GIVEN a finished call with every part, and a policy entry with few
+        let call = serde_json::json!({
+            "kind": "tool_call_completed",
+            "payload": { "content": "SECRET" },
+            "summary": {
+                "ts": "2026-10-04T09:00:00Z", "agent": "quotes", "nature": "action",
+                "what": "Tool call finished", "tool": "file_write",
+                "family": "write_or_delete", "target": "/home/u/a.md", "outcome": "success",
+            },
+        });
+        let policy = serde_json::json!({
+            "kind": "policy_changed",
+            "summary": {
+                "ts": "2026-10-04T09:00:00Z", "agent": null, "nature": "policy",
+                "what": "Organisation policy changed", "tool": null, "family": null,
+                "target": null, "outcome": "success",
+            },
+        });
+
+        // WHEN their lines are written
+        let call_line = summary_line(&call);
+        let policy_line = summary_line(&policy);
+
+        // THEN each reads as a sentence, and nothing of the payload is in it
+        assert_eq!(
+            call_line,
+            "2026-10-04T09:00:00Z  quotes  Tool call finished: file_write \
+             (write_or_delete) on /home/u/a.md  [success]"
+        );
+        assert_eq!(
+            policy_line,
+            "2026-10-04T09:00:00Z  Organisation policy changed  [success]"
+        );
+    }
+
+    #[test]
+    fn an_entry_without_a_summary_falls_back_to_its_kind() {
+        // GIVEN an entry answered by a runtime that sends no summary
+        let entry = serde_json::json!({ "kind": "tool_call_started", "ts": "x" });
+
+        // WHEN its line is written
+        let line = summary_line(&entry);
+
+        // THEN the kind stands for what happened
+        assert_eq!(line, "?  tool_call_started");
     }
 }

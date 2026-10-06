@@ -64,6 +64,7 @@ fn a_dictation_file_on_disk_is_judged_as_the_catalogue_judges_its_entry() {
         cpu_cores: 8,
         accelerator: AcceleratorProfile::None,
         memory_budget_gb: 9.6,
+        devices: Vec::new(),
     };
     let catalogue = DictationCatalogue::embedded().unwrap();
     let entry = catalogue.get("whisper-large-v3-q5_0").unwrap();
@@ -120,6 +121,7 @@ fn onboarding_recommends_what_the_estimator_says_fits() {
             vram_gb: 32.0,
         },
         memory_budget_gb: 24.0,
+        devices: Vec::new(),
     };
     let facts = apollia_llm::gguf_probe::GgufHeaderFacts::default();
     let fits: u64 = 16 * 1024 * 1024 * 1024;

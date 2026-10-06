@@ -5,7 +5,8 @@ from typing import Annotated, Any, NotRequired, TypedDict
 
 import pytest
 from apollia import WorkflowCtx, workflow
-from apollia.errors import AgentConfigError
+from apollia.context.user import UserInterface
+from apollia.errors import AgentConfigError, AgentError, QuestionDeclined
 from apollia.testing import MockContext
 from apollia.types import Ctx
 from apollia.workflow_decorator import WORKFLOW_ATTR, WorkflowSpec
@@ -242,3 +243,81 @@ def test_workflow_refuses_a_malformed_declaration(kwargs: dict[str, Any], messag
     # THEN it is refused at import time
     with pytest.raises(AgentConfigError, match=message):
         workflow("malformed", "Malformed.", **arguments)
+
+
+class Payment(TypedDict):
+    supplier: Annotated[str, "supplier to pay"]
+
+
+def _pay_supplier() -> Any:
+    @workflow(
+        "pay-supplier",
+        "Have an amount validated, then pay it.",
+        inputs=Payment,
+        steps=["validate", "pay"],
+        action="send_external",
+    )
+    async def pay_supplier(ctx: WorkflowCtx, inputs: Payment) -> dict[str, Any]:
+        async with ctx.step("validate"):
+            amount = await ctx.user.ask(
+                f"Which amount for {inputs['supplier']}?",
+                options=["120.00", "240.00"],
+                hint="an amount in euros",
+            )
+        async with ctx.step("pay"):
+            return {"paid": amount}
+
+    return pay_supplier
+
+
+@pytest.mark.asyncio
+async def test_a_step_asks_the_user_and_goes_on_with_the_answer() -> None:
+    # GIVEN a workflow that asks an amount in its first step, and the answer a
+    #       user would give, which is none of the proposed choices
+    pay_supplier = _pay_supplier()
+    ctx = MockContext()
+    ctx.user.answers = {"Which amount for Acme?": "180.50"}
+
+    # WHEN it runs
+    result = await pay_supplier(ctx, {"supplier": "Acme"})
+
+    # THEN the question reached ctx.user.ask with its choices and its hint, and
+    #      the next step ran with the free answer
+    assert ctx.user.ask_calls == [
+        ("Which amount for Acme?", ["120.00", "240.00"], "an amount in euros")
+    ]
+    assert result == {"paid": "180.50"}
+
+
+@pytest.mark.asyncio
+async def test_a_declined_question_raises_a_typed_refusal_in_the_step() -> None:
+    # GIVEN a workflow whose question the user declines, with a reason
+    pay_supplier = _pay_supplier()
+    ctx = MockContext()
+    ctx.user.declined = {"Which amount for Acme?": "not this month"}
+
+    # WHEN it runs
+    with pytest.raises(QuestionDeclined) as refusal:
+        await pay_supplier(ctx, {"supplier": "Acme"})
+
+    # THEN the refusal names the question and the reason, and is an AgentError
+    #      an author can catch to go on without the answer
+    assert refusal.value.question == "Which amount for Acme?"
+    assert refusal.value.reason == "not this month"
+    assert isinstance(refusal.value, AgentError)
+    assert "not this month" in str(refusal.value)
+
+
+def test_the_contract_publishes_ctx_user_with_one_question_at_a_time() -> None:
+    # GIVEN the protocol of the service and the context protocol
+    # WHEN their members are read
+    signature = inspect.signature(UserInterface.ask)
+
+    # THEN Ctx publishes `user`, and `ask` takes the question, then its
+    #      choices and its hint by keyword, both optional
+    assert Ctx.__annotations__["user"] is UserInterface
+    assert list(signature.parameters) == ["self", "question", "options", "hint"]
+    assert signature.parameters["options"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert signature.parameters["options"].default is None
+    assert signature.parameters["hint"].default is None
+    assert isinstance(MockContext().user, UserInterface)

@@ -19,6 +19,8 @@ use axum::Router;
 
 use super::*;
 
+mod auto_update;
+
 fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))

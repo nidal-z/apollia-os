@@ -248,6 +248,10 @@ pub struct LlamaServerConfig {
     /// File holding a Jinja chat template that replaces the model's own
     /// (`--chat-template-file`).
     pub chat_template_file: Option<String>,
+    /// Devices the engine may load onto (`--device`), by the identifiers it
+    /// lists. `None` leaves the choice to the engine; an empty list is
+    /// `--device none`, the processor alone.
+    pub devices: Option<Vec<String>>,
     /// Extra arguments appended verbatim after every generated flag, so a later
     /// entry wins wherever llama-server takes the last occurrence.
     pub extra_args: Vec<String>,
@@ -316,6 +320,7 @@ impl Default for LlamaServerConfig {
             draft_model: None,
             spec_type: None,
             chat_template_file: None,
+            devices: None,
             extra_args: Vec::new(),
         }
     }
@@ -398,6 +403,7 @@ pub(crate) fn build_args(config: &LlamaServerConfig, port: u16) -> Vec<String> {
         args.push("--metrics".to_owned());
     }
     push_load_args(config, &mut args);
+    super::devices::push_args(config.devices.as_deref(), &mut args);
     args.push("--host".to_owned());
     args.push(HOST.to_owned());
     args.push("--port".to_owned());

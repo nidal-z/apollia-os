@@ -62,22 +62,33 @@ const SEG = "[A-Za-z0-9_]+";
  */
 export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   {
-    pattern: new RegExp(`^agents\\.update_restart_(stop|start)_failed_action$`),
-    builtBy: "components/agents/useAgentActions.svelte.ts",
+    pattern: new RegExp(
+      `^batch_view\\.((state|command|tab|column|item_status|step)\\.${SEG}|schedule\\.(paused|completed|interrupted|stopped)|fact\\.written_(copy|original)|export\\.(xlsx|csv|json)(_use)?|decision\\.answer_(once|always|refuse))$`,
+    ),
+    builtBy: "components/batch/view/*.svelte",
   },
   {
-    pattern: new RegExp(`^(approvals\\.risk|hitl\\.impact)\\.${SEG}$`),
-    builtBy:
-      "lib/components/operator/badges/RiskBadge.svelte, components/chat/HitlFilesystemModal.svelte",
+    pattern: new RegExp(`^batch_history\\.((outcome|period)\\.${SEG}|filter\\.outcome_${SEG})$`),
+    builtBy: "components/batch/view/BatchHistory*.svelte",
+  },
+  {
+    pattern: new RegExp(
+      `^packages\\.preview\\.(access\\.family\\.${SEG}\\.(title|hint)|connections\\.(missing|present|brought)|content\\.kind_${SEG}|publisher\\.(trusted|signed_untrusted|unsigned|invalid|shipped)|refusal\\.${SEG}\\.(title|body)|origin_${SEG}|title_(install|update)|(installed|updated)_toast)$`,
+    ),
+    builtBy: "components/packages/*.svelte",
+  },
+  {
+    pattern: new RegExp(`^library\\.(kind\\.${SEG}|uninstall\\.leaving\\.${SEG})$`),
+    builtBy: "components/library/*.svelte",
+  },
+  {
+    pattern: new RegExp(`^agents\\.update_restart_(stop|start)_failed_action$`),
+    builtBy: "components/agents/useAgentActions.svelte.ts",
   },
   {
     pattern: new RegExp(`^connections\\.oauth_client\\.(title|intro|origin)\\.${SEG}$`),
     builtBy:
       "components/connections/detail/NativeClientSection.svelte, lib/connections/oauthClient.ts",
-  },
-  {
-    pattern: new RegExp(`^approvals\\.scope\\.${SEG}$`),
-    builtBy: "components/chat/ApprovalScopeSelect.svelte",
   },
   {
     pattern: new RegExp(`^automations\\.humanize\\.${SEG}$`),
@@ -110,8 +121,12 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "lib/errors/humanize.ts",
   },
   {
-    pattern: new RegExp(`^inbox\\.group\\.${SEG}$`),
-    builtBy: "components/inbox/InboxPendingList.svelte",
+    pattern: new RegExp(`^review\\.answered\\.(once|always|refuse|answer)$`),
+    builtBy: "components/inbox/ReviewItem.svelte",
+  },
+  {
+    pattern: new RegExp(`^review\\.filter\\.(all|decisions|questions|batch_items)$`),
+    builtBy: "routes/Inbox.svelte",
   },
   {
     pattern: new RegExp(`^memory\\.namespaces\\.cat_${SEG}_header$`),
@@ -146,6 +161,14 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   {
     pattern: new RegExp(`^settings\\.help\\.faq_(a|q)_${SEG}$`),
     builtBy: "components/settings/help/HelpBlock.svelte",
+  },
+  {
+    pattern: new RegExp(`^policy\\.reason\\.${SEG}$`),
+    builtBy: "lib/policy/policyRules.ts",
+  },
+  {
+    pattern: new RegExp(`^policy\\.section\\.${SEG}\\.(title|description)$`),
+    builtBy: "components/policy/PolicyScreen.svelte",
   },
   {
     pattern: new RegExp(

@@ -232,6 +232,7 @@ impl AskUser {
             tags: vec!["user-interaction".to_string(), "hitl".to_string()],
             family: crate::descriptor::ActionFamily::Exempt,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: None,
             is_read_only: true,
             risk_score: 0,
             approval_risk_level: None,

@@ -5,12 +5,18 @@ use std::sync::Arc;
 
 use apollia_auth::SecretStore;
 
-use crate::audit_journal::actor::{JournalActor, JournalMessage, MIGRATIONS, SCHEMA_VERSION};
+use crate::audit_journal::actor::{
+    JournalActor, JournalMessage, PurgeOutcome, PurgeRequest, MIGRATIONS, SCHEMA_VERSION,
+};
+use crate::audit_journal::detail::{entry_detail, JournalEntryDetail};
 use crate::audit_journal::entry::{JournalEntry, JournalEntryDraft};
 use crate::audit_journal::error::AuditJournalError;
+use crate::audit_journal::filter::JournalFilter;
+use crate::audit_journal::notice::{DailyExportFailure, JournalNotice, JournalStatus};
 use crate::audit_journal::signer::{
     HmacSigner, JournalSigner, SignerError, SignerUnavailablePolicy,
 };
+use crate::audit_journal::summary::JournalLine;
 use crate::audit_journal::verify::{JournalAnchor, VerifyChainReport, VerifyJournalReport};
 
 /// Capacity of the channel between the handle and the actor.
@@ -23,6 +29,7 @@ const CHANNEL_CAPACITY: usize = 1024;
 #[derive(Clone)]
 pub struct AuditJournalHandle {
     sender: tokio::sync::mpsc::Sender<JournalMessage>,
+    status: tokio::sync::watch::Sender<JournalStatus>,
 }
 
 impl AuditJournalHandle {
@@ -84,6 +91,10 @@ impl AuditJournalHandle {
         warn_unsigned: bool,
     ) -> Result<Self, AuditJournalError> {
         let db_path = db_path.to_path_buf();
+        let (status, _) = tokio::sync::watch::channel(JournalStatus {
+            signed: signer.is_some(),
+            daily_export_failure: None,
+        });
         let (sender, receiver) = tokio::sync::mpsc::channel::<JournalMessage>(CHANNEL_CAPACITY);
         let (init_tx, init_rx) = tokio::sync::oneshot::channel::<Result<(), AuditJournalError>>();
 
@@ -115,7 +126,63 @@ impl AuditJournalHandle {
         init_rx
             .await
             .map_err(|_| AuditJournalError::Open("init channel disconnected".to_string()))??;
-        Ok(Self { sender })
+        Ok(Self { sender, status })
+    }
+
+    /// Whether the entries are signed, and whether the daily export the
+    /// organisation policy asks for is failing.
+    #[must_use]
+    pub fn status(&self) -> JournalStatus {
+        self.status.borrow().clone()
+    }
+
+    /// What a window says about the journal while it is degraded, without
+    /// anything being refused. Empty for a signed journal whose daily export
+    /// is written.
+    #[must_use]
+    pub fn notices(&self) -> Vec<JournalNotice> {
+        self.status().notices()
+    }
+
+    /// Records whether the daily export is failing: `Some` with the folder
+    /// and the reason, `None` once it is written again.
+    pub fn set_daily_export_failure(&self, failure: Option<DailyExportFailure>) {
+        self.status
+            .send_modify(|status| status.daily_export_failure = failure);
+    }
+
+    /// Removes the entries dated more than `retention_days` before `now`,
+    /// after an entry that says so and carries the anchor of what leaves.
+    ///
+    /// What leaves is the beginning of the journal, up to the first entry
+    /// that is not old enough. Verification starts from the purge entry
+    /// afterwards, and reports where. `None` when no entry was old enough:
+    /// nothing is written. This is the one removal the journal knows, and
+    /// only the organisation policy asks for it.
+    pub async fn purge_by_retention(
+        &self,
+        retention_days: u32,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<PurgeOutcome>, AuditJournalError> {
+        let instant = |at: chrono::DateTime<chrono::Utc>| {
+            at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        };
+        let cutoff = now - chrono::Duration::days(i64::from(retention_days));
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        self.sender
+            .send(JournalMessage::Purge {
+                request: PurgeRequest {
+                    retention_days,
+                    cutoff: instant(cutoff),
+                    ts: instant(now),
+                },
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)?;
+        reply_rx
+            .await
+            .map_err(|_| AuditJournalError::ActorUnavailable)?
     }
 
     /// Append a drafted entry (fire-and-forget).
@@ -157,42 +224,16 @@ impl AuditJournalHandle {
     /// Return one page of entries across every run, newest global position
     /// first.
     ///
-    /// This is the only read of the journal that does not require a run id
-    /// up front: `query_run` answers a run that the caller already knows.
+    /// This and [`Self::query_lines`] are the reads of the journal that do not
+    /// require a run id up front: `query_run` answers a run that the caller
+    /// already knows.
     pub async fn query_page(&self, limit: usize, offset: usize) -> Vec<JournalEntry> {
-        self.page(limit, offset, None).await
-    }
-
-    /// Return one page of the entries of `runs`, newest global position first.
-    ///
-    /// The instance journal holds every run of every agent; a caller that
-    /// follows some agents only pages through theirs instead of walking pages
-    /// that belong to others. An empty `runs` answers an empty page.
-    pub async fn query_page_of_runs(
-        &self,
-        runs: Vec<String>,
-        limit: usize,
-        offset: usize,
-    ) -> Vec<JournalEntry> {
-        if runs.is_empty() {
-            return Vec::new();
-        }
-        self.page(limit, offset, Some(runs)).await
-    }
-
-    async fn page(
-        &self,
-        limit: usize,
-        offset: usize,
-        runs: Option<Vec<String>>,
-    ) -> Vec<JournalEntry> {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         if self
             .sender
             .send(JournalMessage::QueryPage {
                 limit,
                 offset,
-                runs,
                 reply: reply_tx,
             })
             .await
@@ -201,6 +242,39 @@ impl AuditJournalHandle {
             return Vec::new();
         }
         reply_rx.await.unwrap_or_default()
+    }
+
+    /// Return one page of the entries that pass `filter`, each with its
+    /// summary, newest global position first. `limit` and `offset` count
+    /// matching entries.
+    pub async fn query_lines(
+        &self,
+        filter: JournalFilter,
+        limit: usize,
+        offset: usize,
+    ) -> Vec<JournalLine> {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .sender
+            .send(JournalMessage::QueryLines {
+                filter: Box::new(filter),
+                limit,
+                offset,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Return the entry `seq` of `run_id` with everything it records: for a
+    /// tool call, its arguments and its output, joined from the entries the
+    /// run captured for replay. `None` when the run has no such entry.
+    pub async fn entry_detail(&self, run_id: &str, seq: u64) -> Option<JournalEntryDetail> {
+        entry_detail(&self.query_run(run_id).await, seq)
     }
 
     /// Return the distinct run ids present in the journal.

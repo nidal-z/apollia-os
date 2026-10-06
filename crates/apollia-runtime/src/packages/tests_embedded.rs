@@ -150,3 +150,74 @@ async fn test_a_new_embedded_version_keeps_the_overrides_and_the_disabled_agent(
     assert_eq!(overrides.len(), 1);
     assert_eq!(overrides[0].value, serde_json::json!("My own mission."));
 }
+
+#[tokio::test]
+async fn test_an_embedded_package_is_marked_and_a_file_is_not() {
+    // GIVEN one package the binary carries and one a user hands over
+    let env = Env::new();
+    let carried = archive(env.data_dir(), "crm.apo", &manifest("1.0.0", &[], ""), None);
+    let handed = archive(
+        env.data_dir(),
+        "desk.apo",
+        &manifest("1.0.0", &[], "").replace("crm", "desk"),
+        None,
+    );
+
+    // WHEN the first is installed as embedded and the second as a file
+    install_embedded(&carried, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+    super::tests_install::install_with(&env, &handed, &super::tests_install::options(), None)
+        .await
+        .unwrap();
+
+    // THEN only the first is recorded as shipped inside the binary
+    assert!(env.packages.is_embedded("crm").unwrap());
+    assert!(!env.packages.is_embedded("desk").unwrap());
+}
+
+#[tokio::test]
+async fn test_an_installation_older_than_the_mark_is_marked_at_the_next_start() {
+    // GIVEN the embedded package installed, its mark lost as before it existed
+    let env = Env::new();
+    let apo = archive(env.data_dir(), "crm.apo", &manifest("1.0.0", &[], ""), None);
+    install_embedded(&apo, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+    env.packages.set_embedded("crm", false).unwrap();
+
+    // WHEN the binary starts again with the same version
+    let outcome = install_embedded(&apo, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+
+    // THEN nothing is installed and the package is marked
+    assert!(matches!(outcome, EmbeddedOutcome::Current { .. }));
+    assert!(env.packages.is_embedded("crm").unwrap());
+}
+
+#[tokio::test]
+async fn test_an_embedded_package_is_never_uninstalled() {
+    // GIVEN a package the binary carries, installed
+    let env = Env::new();
+    let apo = archive(env.data_dir(), "crm.apo", &manifest("1.0.0", &[], ""), None);
+    install_embedded(&apo, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+
+    // WHEN its uninstallation is asked
+    let targets = UninstallTargets::<super::tests_install::FakeMcp> {
+        packages: &env.packages,
+        agents: &env.agents,
+        governance: &env.governance,
+        mcp: None,
+        triggers: None,
+        models: None,
+        data_dir: env.data_dir(),
+    };
+    let result = uninstall_package("crm", UninstallOptions::default(), &targets, "test").await;
+
+    // THEN it is refused as part of Apollia, and the package stays
+    assert!(matches!(result, Err(UninstallError::BuiltIn(name)) if name == "crm"));
+    assert!(env.packages.get("crm").unwrap().is_some());
+}

@@ -357,7 +357,7 @@ async fn estimate_target<B: ExecutionBackend + Clone>(
                 .ok_or_else(no_engine)?;
             let load = llama.explicit_settings(&target.backend, settings).await;
             let estimate = llama.estimate_explicit(&target.model_path, &load).await;
-            let n_ctx = llama.window_for(&load, None);
+            let n_ctx = llama.window_for(&target.model_path, &load, None).await;
             let policy = tokio::task::spawn_blocking(move || {
                 GuardrailPolicy::read(Some(policy_file.as_path()))
             })
@@ -389,7 +389,10 @@ async fn estimate_target<B: ExecutionBackend + Clone>(
                 ));
             }
             let path = PathBuf::from(&target.model_path);
-            let n_ctx = crate::mlx_engine::MlxEngineSupervisor::window(&target.model_path, None);
+            let n_ctx = match &state.mlx_engine {
+                Some(mlx) => mlx.window_for(&target.model_path, None).await,
+                None => crate::mlx_engine::MlxEngineSupervisor::window(&target.model_path, None),
+            };
             let (policy, estimate) = tokio::task::spawn_blocking(move || {
                 (
                     GuardrailPolicy::read(Some(policy_file.as_path())),

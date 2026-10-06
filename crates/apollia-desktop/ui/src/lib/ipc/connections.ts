@@ -56,9 +56,13 @@ export function addFolderConnection(path: string): Promise<Connection> {
   return invoke<Connection>("add_folder_connection", { path });
 }
 
-/** Remove the folder connection `connectionId` (`folder:<id>`); answers the connection it was. */
-export function removeFolderConnection(connectionId: string): Promise<Connection> {
-  return invoke<Connection>("remove_folder_connection", { connectionId });
+/**
+ * Remove the folder connection `connectionId` (`folder:<id>`); answers the
+ * connection it was. Without `confirm`, a folder sources depend on is kept
+ * and the call rejects; with it, those sources and their indexes go with it.
+ */
+export function removeFolderConnection(connectionId: string, confirm: boolean): Promise<Connection> {
+  return invoke<Connection>("remove_folder_connection", { connectionId, confirm });
 }
 
 // ── MCP servers ────────────────────────────────────────────────────────────

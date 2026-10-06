@@ -64,6 +64,27 @@ session state, so a new sink needs no extra guard.
 
 ---
 
+## 2b. A server a request brings
+
+`McpClientManagerHandle::add_request_server` connects a server nobody added as
+a connection, for the length of one request to the compatible server. It
+differs from `add_server` on four points, and a change to either has to keep
+them:
+
+- the transport is built by the caller, over the client its address calls for
+  (`StreamableHttpTransport::with_client`); the session never builds one from
+  the configuration, and never resolves the configuration's environment, so a
+  header a request sent cannot name a secret of the store;
+- its tools are registered `Unclassified` whatever the server declares:
+  neither the hints nor a selection entry classify them;
+- `remove_server` takes its tools out of the registry with its session;
+- it is neither restarted nor reloaded, since both rebuild the transport from
+  the configuration.
+
+Nothing about it is persisted.
+
+---
+
 ## 3. Errors and configuration
 
 - Errors use `thiserror` (`TransportError`, `McpConfigError`, `McpRepoError`).

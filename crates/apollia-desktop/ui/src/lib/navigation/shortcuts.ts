@@ -10,13 +10,14 @@
  * one surface to audit for overlaps and renames.
  */
 
+import type { ChatSendKey } from "$lib/stores/chatSendKey";
+
 export type ShortcutCategory =
   | "global"
   | "navigation"
   | "chat"
   | "settings"
-  | "companion"
-  | "approvals";
+  | "companion";
 
 export type ShortcutScope = "global" | "contextual";
 
@@ -47,7 +48,6 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
   "chat",
   "settings",
   "companion",
-  "approvals",
 ];
 
 export const SHORTCUTS: ShortcutEntry[] = [
@@ -63,6 +63,13 @@ export const SHORTCUTS: ShortcutEntry[] = [
     id: "help.overlay",
     combo: { mac: "?", win: "?" },
     descriptionKey: "settings.shortcuts.items.help_overlay",
+    scope: "global",
+    category: "global",
+  },
+  {
+    id: "chat.new_conversation",
+    combo: { mac: "⌘+T", win: "Ctrl+T" },
+    descriptionKey: "settings.shortcuts.items.chat_new_conversation",
     scope: "global",
     category: "global",
   },
@@ -115,7 +122,7 @@ export const SHORTCUTS: ShortcutEntry[] = [
   },
   {
     id: "chat.send",
-    combo: { mac: "⌘+Enter", win: "Ctrl+Enter" },
+    combo: { mac: "Enter", win: "Enter" },
     descriptionKey: "settings.shortcuts.items.chat_send",
     scope: "contextual",
     category: "chat",
@@ -185,35 +192,24 @@ export const SHORTCUTS: ShortcutEntry[] = [
     scope: "global",
     category: "companion",
   },
-
-  // ── Approvals ──────────────────────────────────────────────────────
-  {
-    id: "approvals.accept",
-    combo: { mac: "A", win: "A" },
-    descriptionKey: "settings.shortcuts.items.approvals_accept",
-    scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
-  },
-  {
-    id: "approvals.refuse",
-    combo: { mac: "R", win: "R" },
-    descriptionKey: "settings.shortcuts.items.approvals_refuse",
-    scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
-  },
-  {
-    id: "approvals.next",
-    combo: { mac: "J / K", win: "J / K" },
-    descriptionKey: "settings.shortcuts.items.approvals_next",
-    scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
-  },
 ];
 
 /** `true` when running on macOS (best-effort browser detection). */
+/** The combo that sends a message under the send key of Settings > Chat. */
+export function sendShortcutCombo(mode: ChatSendKey): ShortcutCombo {
+  return mode === "mod-enter"
+    ? { mac: "⌘+Enter", win: "Ctrl+Enter" }
+    : { mac: "Enter", win: "Enter" };
+}
+
+/** `entries` with the send entry showing the send key in force. */
+export function withSendKey(
+  entries: readonly ShortcutEntry[],
+  mode: ChatSendKey,
+): ShortcutEntry[] {
+  return entries.map((e) => (e.id === "chat.send" ? { ...e, combo: sendShortcutCombo(mode) } : e));
+}
+
 export function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
   // navigator.platform is deprecated but still the most reliable signal across

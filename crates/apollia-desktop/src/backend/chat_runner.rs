@@ -45,6 +45,8 @@ pub struct ProductionChatAgentRunner {
     /// BridgeRunner can inject McpToolExecutor instances into the
     /// dispatcher at run time.
     pub mcp_handle: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
+    /// The governance actor of the runtime, read when a run starts.
+    pub governance: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>>,
     /// Agent registry handle, required to build the A2A invoker so chat-agent
     /// Python agents can call `ctx.a2a_invoke(...)` like task-mode agents.
     pub agent_registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
@@ -164,6 +166,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             user_memory_write,
             pending_user_inputs: self.pending_user_inputs.get().cloned(),
             mcp_handle: self.mcp_handle.get().cloned(),
+            governance: self.governance.get().cloned(),
             a2a_invoker,
             mailbox,
             tools_config,

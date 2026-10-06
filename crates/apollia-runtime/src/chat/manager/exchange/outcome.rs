@@ -85,38 +85,89 @@ impl ChatSessionManager {
         let metadata_json =
             (!metadata.is_empty()).then(|| serde_json::Value::Object(metadata).to_string());
 
-        // Persist assistant response message
-        match self.repository.append_message(&AppendMessageParams {
-            id: &assistant_msg_id,
-            session_id,
-            role: &ChatRole::Assistant,
-            content: &response.content,
-            tool_calls_json: tool_calls_json.as_deref(),
-            tool_name: None,
-            created_at: &now,
-            metadata: metadata_json.as_deref(),
-        }) {
-            Ok(seq) => {
-                let metadata_value = metadata_json
-                    .as_ref()
-                    .and_then(|s| serde_json::from_str(s).ok());
-                session.history.push(ChatMessage {
-                    id: assistant_msg_id,
-                    role: ChatRole::Assistant,
-                    content: response.content,
-                    tool_calls: if response.tool_calls.is_empty() {
-                        None
-                    } else {
-                        Some(response.tool_calls)
-                    },
-                    tool_name: None,
-                    created_at: now,
-                    seq,
-                    metadata: metadata_value,
-                });
+        // A continued answer is already in the history, under the identifier
+        // this exchange was started with: it is rewritten in place, with the
+        // tool calls of the continuation after its own and the generation
+        // total of the continuation in place of its own.
+        let mut response = response;
+        if let Some(at) = session
+            .history
+            .iter()
+            .position(|m| m.id == assistant_msg_id)
+        {
+            let earlier = &session.history[at];
+            let content =
+                super::super::answers::continued_text(&earlier.content, &response.content);
+            let mut tool_calls = earlier.tool_calls.clone().unwrap_or_default();
+            tool_calls.append(&mut response.tool_calls);
+            let mut merged = match earlier.metadata.clone() {
+                Some(serde_json::Value::Object(fields)) => fields,
+                _ => serde_json::Map::new(),
+            };
+            if let Some(total) = generation
+                .as_ref()
+                .and_then(|total| serde_json::to_value(total).ok())
+            {
+                merged.insert("generation".into(), total);
             }
-            Err(e) => {
-                error!(error = %e, "chat.message.persist.failed");
+            let merged = serde_json::Value::Object(merged);
+            let tool_calls_json = if tool_calls.is_empty() {
+                None
+            } else {
+                serde_json::to_string(&tool_calls).ok()
+            };
+            match self.repository.rewrite_message(
+                session_id,
+                &assistant_msg_id,
+                crate::chat::repository::MessageRewrite {
+                    content: &content,
+                    tool_calls_json: tool_calls_json.as_deref(),
+                    metadata: Some(&merged.to_string()),
+                    drop_summary: false,
+                },
+            ) {
+                Ok(()) => {
+                    let message = &mut session.history[at];
+                    message.content = content;
+                    message.tool_calls = (!tool_calls.is_empty()).then_some(tool_calls);
+                    message.metadata = Some(merged);
+                }
+                Err(e) => error!(error = %e, "chat.message.persist.failed"),
+            }
+        } else {
+            // Persist assistant response message
+            match self.repository.append_message(&AppendMessageParams {
+                id: &assistant_msg_id,
+                session_id,
+                role: &ChatRole::Assistant,
+                content: &response.content,
+                tool_calls_json: tool_calls_json.as_deref(),
+                tool_name: None,
+                created_at: &now,
+                metadata: metadata_json.as_deref(),
+            }) {
+                Ok(seq) => {
+                    let metadata_value = metadata_json
+                        .as_ref()
+                        .and_then(|s| serde_json::from_str(s).ok());
+                    session.history.push(ChatMessage {
+                        id: assistant_msg_id,
+                        role: ChatRole::Assistant,
+                        content: response.content,
+                        tool_calls: if response.tool_calls.is_empty() {
+                            None
+                        } else {
+                            Some(response.tool_calls)
+                        },
+                        tool_name: None,
+                        created_at: now,
+                        seq,
+                        metadata: metadata_value,
+                    });
+                }
+                Err(e) => {
+                    error!(error = %e, "chat.message.persist.failed");
+                }
             }
         }
 

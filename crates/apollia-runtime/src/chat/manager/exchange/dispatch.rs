@@ -48,32 +48,59 @@ impl ChatSessionManager {
             // (pushed before dispatch). The agent re-adds it from `user_msg`,
             // so the history handed to the agent drops that trailing entry to
             // keep a single user turn in the LLM prompt.
+            //
+            // A continued answer is still in the history, after the user
+            // message it answers: both are dropped, the user message comes
+            // back from `user_msg` and the answer as the prefill.
+            let answer_prefill = self.answer_prefills.remove(session_id);
+            let answered = session
+                .history
+                .len()
+                .saturating_sub(usize::from(answer_prefill.is_some()));
             let is_first_message = session.history.len() == 1;
-            let history: Vec<ChatMessage> =
-                session.history[..session.history.len().saturating_sub(1)].to_vec();
-            let session_plan_mode = session.plan_mode;
+            let history: Vec<ChatMessage> = session.history[..answered.saturating_sub(1)].to_vec();
+            // The conversation that creates an agent: a free chat created with
+            // the draft tool in its list. It drafts and does nothing else, so
+            // it never plans.
+            let agent_draft = declarative.is_none()
+                && session.mode == ChatMode::Libre
+                && crate::chat::agent_draft_tool::is_draft_session(&session.available_tools);
+            let session_plan_mode = session.plan_mode && !agent_draft;
             let turn_id = session
                 .active_exchange
                 .as_ref()
                 .and_then(|exchange| exchange.answer_id.clone());
             let session_plan_phase = session.plan_phase;
+            // A model chosen for the session wins over the agent's own: the
+            // agent stays the same, the next turns run on the chosen model.
             let preferred_backend = match &declarative {
-                Some(agent) => agent.model.as_ref().map(|m| m.model_id.clone()),
+                Some(agent) => session
+                    .llm_backend
+                    .clone()
+                    .or_else(|| agent.model.as_ref().map(|m| m.model_id.clone())),
                 None => session.llm_backend.clone(),
             };
             // A declarative agent is isolated as the companion is: no
             // principle 6 injection, no prefix rule of Apollia.
-            let is_companion = session.mode == ChatMode::Companion || declarative.is_some();
-            // The principle 6 injections gathered here (user memory, and the
-            // past sessions block on the first message) are made by the
-            // executor for the Apollia agent only. Companion sessions are
-            // isolated from both: the companion helps with the platform, not
-            // with the user's personal context.
+            // So is the conversation that creates an agent: it describes an
+            // agent, not the person.
+            let is_companion =
+                session.mode == ChatMode::Companion || declarative.is_some() || agent_draft;
+            // The principle 6 injections gathered here (the profile of the
+            // conversation while its switch is on, and the past sessions block
+            // on the first message) are made by the executor for the Apollia
+            // agent only. Companion sessions are isolated from both: the
+            // companion helps with the platform, not with the user's personal
+            // context.
             let apollia_context = if is_companion {
                 ApolliaContext::default()
             } else {
                 ApolliaContext {
-                    user_memory: self.user_memory.clone(),
+                    user_memory: crate::chat::profile_injection::switched_store(
+                        session,
+                        self.user_memory.as_ref(),
+                    ),
+                    profile_id: session.profile_id.clone(),
                     past_sessions: if is_first_message {
                         self.build_cross_session_context(content)
                     } else {
@@ -81,16 +108,27 @@ impl ChatSessionManager {
                     },
                 }
             };
+            // The mission is the agent's, read on every message: a declarative
+            // agent's as resolved, Apollia's for a free chat. Nothing the
+            // session holds takes its place; what the session asks for
+            // itself is in its settings, applied by the executor.
             let system_prompt = match &declarative {
                 Some(agent) => agent.mission.clone(),
-                None => session.system_prompt.clone(),
+                None if session.mode == ChatMode::Libre => {
+                    apollia_mission(self.governance_db_path.as_deref())
+                }
+                None => String::new(),
             };
+            let session_settings = session.settings.clone();
             // The agent is offered its granted accesses, read on every message
             // so a change on its card applies to open conversations. An agent
             // created in the interface whose access nobody chose reads by
             // default.
             let available_tools = match &declarative {
                 Some(agent) => apollia_tools::AgentAccess::of(agent),
+                // The draft tool belongs to the loop; no access is offered
+                // beside it.
+                None if agent_draft => apollia_tools::AgentAccess::Listed(Vec::new()),
                 None => {
                     super::super::apollia_agent::apollia_access(self.governance_db_path.as_deref())
                         .unwrap_or_else(|| {
@@ -125,10 +163,31 @@ impl ChatSessionManager {
             let mid = message_id.clone();
             let user_msg = content.to_string();
             let tx = self.tx.clone();
-            let context_window_size = DEFAULT_CONTEXT_WINDOW_SIZE;
+            // What the history does at the limit is the conversation's
+            // choice. Summarizing keeps the recent window and a summary of
+            // what precedes it; the sliding window keeps the recent window
+            // alone; stopping keeps every message, so the limit is reached
+            // rather than passed under by dropping some.
+            let overflow = session_settings.overflow();
+            let context_window_size = match overflow {
+                ContextOverflow::StopAtLimit => usize::MAX,
+                ContextOverflow::SummarizeMiddle | ContextOverflow::SlidingWindow => {
+                    DEFAULT_CONTEXT_WINDOW_SIZE
+                }
+            };
+            let turn_images = self.turn_images(
+                session_id,
+                &session.history[..answered],
+                context_window_size,
+            );
 
-            let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
-            let llm_for_summarize = self.llm_router.clone();
+            let (stored_summary, llm_for_summarize) = match overflow {
+                ContextOverflow::SummarizeMiddle => (
+                    self.repository.get_summary(session_id).unwrap_or(None),
+                    self.llm_router.clone(),
+                ),
+                ContextOverflow::SlidingWindow | ContextOverflow::StopAtLimit => (None, None),
+            };
 
             // The invoker is created per-session inside the task.
             let a2a_for_agent = self.a2a_invoker.clone();
@@ -142,15 +201,6 @@ impl ChatSessionManager {
             let mcp_loading = self.mcp_loading;
             let tool_search_limit = self.tool_search_limit;
             let session_id_str = session_id.to_string();
-
-            // Capture HITL filesystem params for the invoker.
-            let hitl_params = HitlInvokerParams {
-                session_id: session_id.to_string(),
-                event_bus: self.event_bus.clone(),
-                pending_fs: self.pending_fs_approvals.clone(),
-                fs_allow_rules: std::sync::Arc::clone(&session.fs_allow_rules),
-                risk_config: apollia_core::FilesystemRiskConfig::default(),
-            };
 
             tokio::spawn(run_libre_exchange(LibreExchangeParams {
                 agent_id,
@@ -166,6 +216,7 @@ impl ChatSessionManager {
                 available_tools,
                 authorized_tools,
                 system_prompt,
+                session_settings,
                 context_window_size,
                 stored_summary,
                 llm_for_summarize,
@@ -178,21 +229,24 @@ impl ChatSessionManager {
                 mcp_loading,
                 tool_search_limit,
                 session_id_str,
-                hitl_params,
                 sid,
                 mid,
                 run_id: run_id.clone(),
                 user_msg,
                 tx,
-                todo: self.todo_handle.clone(),
+                // A draft keeps no task list.
+                todo: self.todo_handle.clone().filter(|_| !agent_draft),
                 plan: self.plan_handle.clone(),
                 session_plan_mode,
                 session_plan_phase,
                 hook_executor: self.hook_executor.clone(),
                 cancel,
                 pending_injection,
+                answer_prefill,
                 preferred_backend,
                 turn_id,
+                turn_images,
+                agent_draft,
             }));
         }
 

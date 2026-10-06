@@ -3,7 +3,7 @@ import { DEFAULT_ROUTE } from "$lib/navigation/developerRoutes";
 import { openSettingsWindow, requestCloseSettingsWindow } from "$lib/stores/settingsWindow";
 
 /** Routes available in the desktop application. */
-export type Route = "dashboard" | "agents" | "tasks" | "chat" | "inbox" | "integrations" | "llm" | "automations" | "memory" | "transcriptions" | "notifications" | "observability" | "settings" | "design" | "design-motion" | "design-empty-states" | "design-dark-mode";
+export type Route = "dashboard" | "agents" | "batches" | "batch" | "chat" | "inbox" | "integrations" | "llm" | "library" | "automations" | "memory" | "transcriptions" | "observability" | "policy" | "authorizations" | "journal" | "settings" | "design" | "design-motion" | "design-empty-states" | "design-dark-mode";
 
 const screen = writable<Route>(DEFAULT_ROUTE);
 
@@ -89,6 +89,14 @@ export function goForward() {
   futureRoutes.set(future.slice(0, -1));
   pastRoutes.update((p) => [...p, current]);
   currentRoute.set(next);
+}
+
+/**
+ * The sidebar entry a route belongs to: the history of the batches and the
+ * view of a batch live under Agents, which stays marked while they show.
+ */
+export function sidebarRoute(route: Route): Route {
+  return route === "batches" || route === "batch" ? "agents" : route;
 }
 
 // Sidebar state is owned by `./layout.ts` since (breakpoint-derived

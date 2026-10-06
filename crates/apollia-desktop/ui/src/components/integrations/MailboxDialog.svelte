@@ -26,7 +26,7 @@
     prefillFor,
   } from "$lib/integrations/mailbox";
   import type { Refusal } from "$lib/integrations/addConnection";
-  import { openSettingsWindow } from "$lib/stores/settingsWindow";
+  import { navigateTo } from "$lib/stores/navigation";
 
   interface Props {
     open: boolean;
@@ -122,7 +122,7 @@
 
   function openRefusingRule(): void {
     close();
-    openSettingsWindow("permissions");
+    navigateTo("authorizations");
   }
 </script>
 

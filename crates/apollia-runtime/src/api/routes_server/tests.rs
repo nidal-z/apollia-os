@@ -7,7 +7,7 @@ use tempfile::TempDir;
 use crate::api::server::AppState;
 use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
 use crate::compat_server::tests::{
-    file_enabled, free_port, held_port, listens, settings_file, spawn_server,
+    file_enabled, free_port, held_port, listens, settings_file, spawn_server, spawn_server_under,
 };
 
 /// A daemon whose compatible server reads `[server]` from a file holding
@@ -312,4 +312,37 @@ async fn test_a_server_token_does_not_open_the_native_api() {
     // THEN the server token is refused and the internal one accepted
     assert_eq!(with_server_token.status(), StatusCode::UNAUTHORIZED);
     assert_eq!(with_internal.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_the_state_route_says_which_settings_the_policy_imposes() {
+    // GIVEN a daemon without a policy, and one whose policy keeps the server
+    // on the machine and requires its token
+    let (_free_dir, _, _, free) = daemon_with_server("[server]\nport = {port}\n");
+    let (dir, path, _, mut governed) = daemon_with_server("[server]\nport = {port}\n");
+    let policy = apollia_core::config::PolicySettings::none()
+        .impose("server.serve_on_lan", serde_json::json!(false))
+        .impose("server.require_auth", serde_json::json!(true));
+    governed.compat_server = Some(spawn_server_under(
+        &path,
+        &governed.event_sender,
+        policy,
+        None,
+    ));
+
+    // WHEN a client reads the state of each
+    let (_, free) = call(free, "GET", "/api/v1/server", None).await;
+    let (status, body) = call(governed, "GET", "/api/v1/server", None).await;
+
+    // THEN each of the three settings says whether the policy imposes it
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        free["imposedByPolicy"],
+        serde_json::json!({"serveOnLan": false, "requireAuth": false, "allowRequestMcp": false})
+    );
+    assert_eq!(
+        body["imposedByPolicy"],
+        serde_json::json!({"serveOnLan": true, "requireAuth": true, "allowRequestMcp": false})
+    );
+    drop(dir);
 }

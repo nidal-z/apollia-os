@@ -1,8 +1,8 @@
 /**
  * Typed Tauri command wrappers for the first-run onboarding flow.
  *
- * Groups the onboarding lifecycle (phase machine, dismissal, resume), the
- * embedded acquaintance chat, and the proposed-permission triage. Components
+ * Groups the onboarding lifecycle (phase machine, dismissal, resume) and the
+ * embedded acquaintance chat. Components
  * never call `invoke` directly; they
  * import these helpers so the command names and payload shapes live in one
  * typed place (see `crates/apollia-desktop/ui/AGENTS.md`, section 3).
@@ -14,15 +14,6 @@ import type {
   OnboardingState,
   TriggerResult,
 } from "$lib/types";
-
-/** A single permission-rule proposal emitted under `onboarding.proposed_rules`. */
-export interface ProposedRuleView {
-  index: number;
-  tool_name: string;
-  action: string;
-  arg_prefix: string | null;
-  scope: string;
-}
 
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -43,7 +34,7 @@ export async function dismissOnboarding(): Promise<void> {
   return invoke<void>("dismiss_onboarding");
 }
 
-/** Whether the agent has written the authoritative `onboarding.completed_at`. */
+/** Whether the conversation is over: the agent proposed a profile, or the person skipped. */
 export async function checkOnboardingFinalized(): Promise<boolean> {
   return invoke<boolean>("check_onboarding_finalized");
 }
@@ -51,10 +42,10 @@ export async function checkOnboardingFinalized(): Promise<boolean> {
 /**
  * Finalize the acquaintance chat directly, without a model turn.
  *
- * Stamps the same `onboarding.completed_at` key the wrap-up gate reads, so the
- * flow routes straight to the permission proposals. Backs the "skip the
- * optional questions" button; the in-chat "finish" button keeps the
- * conversational nudge instead.
+ * Stamps the same `onboarding.completed_at` key the review gate reads, so the
+ * flow goes straight to the profile form. Backs the "skip the questions"
+ * button; the in-chat "finish" button keeps the conversational nudge, which
+ * lets the agent propose from what was already said.
  */
 export async function finalizeOnboardingChat(): Promise<void> {
   return invoke<void>("finalize_onboarding_chat");
@@ -64,13 +55,10 @@ export async function finalizeOnboardingChat(): Promise<void> {
 
 /** Start a fresh onboarding chat session. */
 export async function triggerOnboarding(): Promise<TriggerResult> {
-  return invoke<TriggerResult>("trigger_onboarding", {
-    topic: null,
-    profile: null,
-  });
+  return invoke<TriggerResult>("trigger_onboarding", { topic: null });
 }
 
-/** Resume an onboarding chat, keeping the profile already collected. */
+/** Start an onboarding chat that completes an existing profile. */
 export async function resumeOnboarding(): Promise<TriggerResult> {
   return invoke<TriggerResult>("resume_onboarding");
 }
@@ -90,21 +78,7 @@ export async function getChatSession(
   return invoke<ChatSessionDetail>("get_chat_session", { sessionId });
 }
 
-// ── Proposed permission triage ───────────────────────────────────────────────
-
-export async function listProposedPermissionRules(): Promise<ProposedRuleView[]> {
-  return invoke<ProposedRuleView[]>("list_proposed_permission_rules");
-}
-
-export async function applyProposedPermissionRule(index: number): Promise<void> {
-  return invoke<void>("apply_proposed_permission_rule", { index });
-}
-
-export async function dismissProposedPermissionRule(
-  index: number,
-): Promise<void> {
-  return invoke<void>("dismiss_proposed_permission_rule", { index });
-}
+// ── Completion ───────────────────────────────────────────────────────────────
 
 /** Record that onboarding is done, so the app boots straight to the shell. */
 export async function markOnboarded(): Promise<void> {

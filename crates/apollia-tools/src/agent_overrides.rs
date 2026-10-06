@@ -48,10 +48,18 @@ impl AgentRepository {
     /// The overrides are left in place. The code columns of an existing row
     /// are left as they are.
     ///
+    /// A name carrying `/` is refused: that separator belongs to workflow
+    /// identifiers (`<package>/<workflow>`), so an agent and a workflow never
+    /// share an identifier.
+    ///
     /// # Errors
     ///
+    /// [`AgentRepositoryError::NameOfAWorkflow`] or
     /// [`AgentRepositoryError::Sqlite`].
     pub fn save_definition(&self, agent: &StoredAgent) -> Result<(), AgentRepositoryError> {
+        if agent.name.contains('/') {
+            return Err(AgentRepositoryError::NameOfAWorkflow(agent.name.clone()));
+        }
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         conn.execute(
             "INSERT INTO agents \

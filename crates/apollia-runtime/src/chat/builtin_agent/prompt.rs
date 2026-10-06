@@ -15,28 +15,22 @@ pub fn built_in_prompt(level: AutonomyLevel) -> &'static str {
 impl BuiltInChatAgent {
     /// Build the effective system prompt for the given autonomy level.
     ///
-    /// When `custom_prompt` is a non-empty string it is used as the base
-    /// (preserving the behavior for agents with a personalized prompt).
-    /// Otherwise the base is selected by tier: the assisted tier uses
+    /// The base is the mission of the agent when it has one, the built-in
+    /// prompt of its tier otherwise: the assisted tier uses
     /// [`DEFAULT_SYSTEM_PROMPT`], every autonomous tier uses
-    /// [`PERSEVERANCE_SYSTEM_PROMPT`].
+    /// [`PERSEVERANCE_SYSTEM_PROMPT`]. What a conversation asks for itself is
+    /// never the base: its instructions are added after it, under their own
+    /// heading, and the mission stays whole.
     ///
     /// Then prepends the authoritative temporal/environment block at the **top**
     /// of the prompt so the LLM treats current date + time + timezone as ground
-    /// truth, not as one fact among its priors. The user persona block is
-    /// appended only when `inject_memory` is true and a memory repository is
-    /// configured (memory stays at the agent's initiative, gated by the tier).
-    pub fn build_system_prompt(
-        &self,
-        custom_prompt: Option<&str>,
-        level: AutonomyLevel,
-        inject_memory: bool,
-    ) -> String {
-        // Base: a non-empty custom prompt (already enriched upstream with the
-        // project / cross-session context) wins; otherwise the tier picks a
-        // built-in profile.
-        let base_prompt = match custom_prompt {
-            Some(custom) if !custom.is_empty() => custom,
+    /// truth, not as one fact among its priors. The profile block of the
+    /// conversation is appended whenever the executor handed a profile store:
+    /// at every tier, for the Apollia agent alone, while the profile switch of
+    /// the conversation is on.
+    pub fn build_system_prompt(&self, mission: Option<&str>, level: AutonomyLevel) -> String {
+        let base_prompt = match mission {
+            Some(mission) if !mission.is_empty() => mission,
             _ => built_in_prompt(level),
         };
 
@@ -61,29 +55,12 @@ impl BuiltInChatAgent {
             workspace_display.as_deref(),
         ));
 
-        // User-persona brief, memory at the agent's initiative, gated by tier.
-        let persona = if inject_memory {
-            self.user_memory
-                .as_ref()
-                .and_then(|repo_mutex| match repo_mutex.lock() {
-                    Ok(repo) => match repo.recall_persona_brief(30) {
-                        Ok(brief) if !brief.is_empty() => {
-                            Some(apollia_prompts::blocks::persona_block(&brief))
-                        }
-                        Ok(_) => None,
-                        Err(e) => {
-                            warn!(error = %e, "memory.user.read.failed");
-                            None
-                        }
-                    },
-                    Err(e) => {
-                        warn!(error = %e, "memory.user.lock.poisoned");
-                        None
-                    }
-                })
-        } else {
-            None
-        };
+        // The profile of the conversation. The store is present only for the
+        // Apollia agent of a conversation whose profile switch is on.
+        let persona = crate::chat::profile_injection::profile_block(
+            self.user_memory.as_deref(),
+            self.conversation_profile.as_deref(),
+        );
 
         // Plan block is phase-aware: plan-first while preparing, execution-first
         // once approved, so the two never contradict each other.
@@ -97,7 +74,25 @@ impl BuiltInChatAgent {
             None
         };
 
-        apollia_prompts::ChatPromptBuilder::new(base_prompt)
+        // The instructions of the conversation were checked when they were
+        // stored; a text the builder still refuses is left out, and said.
+        let builder = apollia_prompts::ChatPromptBuilder::new(base_prompt);
+        let builder = match builder
+            .clone()
+            .session_instructions(self.session.instructions.as_deref())
+        {
+            Ok(with_instructions) => with_instructions,
+            Err(error) => {
+                tracing::event!(
+                    tracing::Level::WARN,
+                    error = %error,
+                    detail = "the turn runs without the instructions of the conversation",
+                    "chat.session.instructions.refused"
+                );
+                builder
+            }
+        };
+        builder
             .temporal(&temporal)
             .working_dir_note(working_dir_note.as_deref())
             .persona(persona.as_deref())

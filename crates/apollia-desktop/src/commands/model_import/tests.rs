@@ -7,8 +7,8 @@ use apollia_core::config::PolicySettings;
 use apollia_llm::{ModelFormat, ModelImportRule, ModelOrigin};
 
 use super::{
-    import_model_file_into, import_model_file_under, import_rule, registry_digests,
-    ImportModelError,
+    import_language_data_pinned_by, import_model_file_into, import_model_file_under, import_rule,
+    registry_digests, ImportModelError,
 };
 use crate::commands::model_index;
 
@@ -244,4 +244,49 @@ fn test_a_policy_requiring_a_hash_refuses_an_unverified_import() {
     );
     assert!(err.to_string().contains("organisation policy"), "{err}");
     assert!(!dir.join("private.gguf").exists());
+}
+
+/// SHA-256 of the bytes `language data, French`.
+const PINNED_SHA256: &str = "ece5944eaf99d515fab0a56c2ae2eb5f8a81603ab80f9a3c19b18f225a73b257";
+
+#[test]
+fn test_a_language_data_file_enters_the_tessdata_folder_only_when_the_registry_pins_it() {
+    // GIVEN, on a key, two language data files, and a registry that pins the
+    // digest of the first under the code `fra`
+    let key = tempfile::tempdir().unwrap();
+    let models = tempfile::tempdir().unwrap();
+    let pinned = write(
+        key.path(),
+        "french copy.TRAINEDDATA",
+        b"language data, French",
+    );
+    let unknown = write(key.path(), "eng.traineddata", b"not a pinned file");
+    let catalogue = apollia_llm::recommend::OcrCatalogue::from_toml(&format!(
+        "[[ocr]]\nlanguage = \"fra\"\nlabel = \"French\"\npublisher = \"test\"\n\
+         released = \"2017-09-14\"\nlicense = \"apache-2.0\"\nrepo = \"owner/tessdata\"\n\
+         file = \"fra.traineddata\"\nsize_bytes = 21\nsha256 = \"{PINNED_SHA256}\"\n\
+         source = \"https://example.invalid\"\n"
+    ))
+    .unwrap();
+
+    // WHEN the pinned one is imported against that registry, and the other
+    // through the model import, which expects a GGUF
+    let imported = import_language_data_pinned_by(&pinned, models.path(), &catalogue);
+    let refused = import(&unknown, models.path(), ModelImportRule::default());
+
+    // THEN the pinned file lands under the name the engine reads, with no
+    // entry in the model index, and the other is refused before any
+    // extension check
+    let dest = models.path().join("tessdata").join("fra.traineddata");
+    assert_eq!(imported.unwrap(), dest.display().to_string());
+    assert!(dest.is_file());
+    assert!(model_index::current(models.path())
+        .ok()
+        .is_none_or(|i| i.verified_digests().is_empty()));
+    assert!(matches!(refused, Err(ImportModelError::OcrData(_))));
+    assert!(!models
+        .path()
+        .join("tessdata")
+        .join("eng.traineddata")
+        .exists());
 }

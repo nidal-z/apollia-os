@@ -193,10 +193,14 @@ pub(crate) async fn get_conversation_stats<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
 ) -> Result<Json<ConversationStatsView>, ApiError> {
-    conversation_stats(state.chat_manager.as_ref(), state.user_memory.is_some(), id)
-        .await
-        .map(Json)
-        .map_err(stats_refusal)
+    conversation_stats(
+        state.chat_manager.as_ref(),
+        state.user_memory.as_deref(),
+        id,
+    )
+    .await
+    .map(Json)
+    .map_err(stats_refusal)
 }
 
 #[cfg(test)]

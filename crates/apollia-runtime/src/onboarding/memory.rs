@@ -1,8 +1,7 @@
 //! Where the onboarding state lives between two launches: the `onboarding_*`
 //! context keys of the user memory, read and written one typed value at a time,
 //! the reset that empties them, and the onboarding agent's own memory under the
-//! memory directory, where its profile, its progress and its completion are
-//! kept.
+//! memory directory, where its progress and its completion are kept.
 
 use std::path::Path;
 
@@ -14,6 +13,10 @@ use super::ONBOARDING_TOPICS;
 // ---------------------------------------------------------------------------
 // Persistence helpers
 // ---------------------------------------------------------------------------
+
+/// The phase name an earlier version stored while the usage-profile question
+/// was on screen.
+const LEGACY_PROFILE_PHASE: &str = "profile_choice";
 
 /// Loads the full `OnboardingState` from UserMemory context keys.
 ///
@@ -27,11 +30,14 @@ pub fn load_state_from_memory(
         return Ok(OnboardingState::default());
     };
 
-    let phase = OnboardingPhase::parse(&phase_str).ok_or_else(|| {
-        OnboardingError::PersistenceError(format!("unrecognised persisted phase: {phase_str}"))
-    })?;
-
-    let profile = read_str(repo, "onboarding_profile")?;
+    // An install that stopped on the usage-profile step, which no longer
+    // exists, resumes on the step that followed it.
+    let phase = match phase_str.as_str() {
+        LEGACY_PROFILE_PHASE => OnboardingPhase::AiSetup,
+        other => OnboardingPhase::parse(other).ok_or_else(|| {
+            OnboardingError::PersistenceError(format!("unrecognised persisted phase: {other}"))
+        })?,
+    };
 
     let llm_configured = read_bool(repo, "onboarding_llm_configured")?;
     let stt_configured = read_bool(repo, "onboarding_stt_configured")?;
@@ -60,7 +66,6 @@ pub fn load_state_from_memory(
 
     Ok(OnboardingState {
         phase,
-        profile,
         llm_configured,
         stt_configured,
         topics_covered,
@@ -84,11 +89,6 @@ pub fn persist_state(
     state: &OnboardingState,
 ) -> Result<(), OnboardingError> {
     write_str(repo, "onboarding_phase", state.phase.as_str())?;
-    write_str(
-        repo,
-        "onboarding_profile",
-        state.profile.as_deref().unwrap_or(""),
-    )?;
 
     write_bool(repo, "onboarding_llm_configured", state.llm_configured)?;
     write_bool(repo, "onboarding_stt_configured", state.stt_configured)?;
@@ -193,56 +193,33 @@ fn write_u64(repo: &UserMemoryRepository, key: &str, value: u64) -> Result<(), O
 // The onboarding agent's memory
 // ---------------------------------------------------------------------------
 
-/// Writes the active onboarding profile to the onboarding agent's semantic
-/// memory so the Python agent can read it via `ctx.memory.recall()` on its
-/// first conversational turn.
-///
-/// Writes to the agent's own namespace (`"onboarding-agent"`) under the key
-/// `"onboarding.active_profile"`.  A missing or unwritable memory store is
-/// treated as a non-fatal degradation - the agent falls back to generic
-/// questioning without the profile section.
-pub fn write_profile_to_agent_memory(memory_dir: &Path, profile: &str) {
-    let db_path = memory_dir.join("onboarding-agent.db");
-
-    let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
-        tracing::warn!(
-            detail = "the profile is not injected",
-            "onboarding.memory.store.absent"
-        );
-        return;
-    };
-    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
-    if let Err(e) = sem.remember(apollia_memory::semantic::RememberInput {
-        namespace: "onboarding-agent",
-        key: "onboarding.active_profile",
-        value: &serde_json::Value::String(profile.to_string()),
-        confidence: 0.95,
-        source: Some("onboarding"),
-        expires_at: None,
-    }) {
-        tracing::warn!(error = %e, "onboarding.profile.write.failed");
-    }
-}
-
 /// Wipes stale onboarding progress before starting a fresh session.
 ///
 /// Without this, two sources of stale state make a fresh session look already
 /// finished on arrival:
 ///   1. `UserMemoryRepository` keeps `onboarding_topic_*` marks across runs.
-///   2. The onboarding agent's semantic DB keeps `user.*` entries from prior
-///      conversations, which mark the matching topics as covered again.
+///   2. The memory of the onboarding agent keeps the completion it recorded
+///      at the end of the previous conversation.
 ///
-/// This helper:
-///   - Forgets every `onboarding_topic_{topic}` entry in the user repo.
-///   - Forgets every `user.*` and meta `onboarding.*` key in the agent's
-///     semantic namespace (`onboarding.active_profile` is preserved - the
-///     caller writes it just after this reset).
+/// This helper forgets every `onboarding_topic_{topic}` entry in the user
+/// repo, then calls [`forget_agent_entries`]. The profiles are not touched:
+/// the agent never writes them.
 pub fn reset_onboarding_progress(repo: &UserMemoryRepository, memory_dir: &Path) {
     for topic in &ONBOARDING_TOPICS {
         let key = format!("onboarding_topic_{topic}");
         let _ = repo.forget(&key);
     }
+    forget_agent_entries(memory_dir);
+}
 
+/// Forgets what the onboarding agent recorded in its own memory: the meta
+/// `onboarding.*` keys, the completion among them, and the `user.*` entries an
+/// older agent kept there.
+///
+/// Every conversation starts with it, the one that completes a profile
+/// included: a completion left by the previous conversation would otherwise
+/// close the new one before the person has answered.
+pub fn forget_agent_entries(memory_dir: &Path) {
     // Both filename/namespace pairs are wiped - the manifest namespace was
     // renamed from "onboarding-agent" to "onboarding" in v2.x and an install
     // upgraded across that change can have entries in either file. Forgetting
@@ -274,9 +251,8 @@ pub fn reset_onboarding_progress(repo: &UserMemoryRepository, memory_dir: &Path)
 
         for entry in entries {
             let is_user = entry.key.starts_with("user.");
-            let is_meta_to_clear =
-                entry.key.starts_with("onboarding.") && entry.key != "onboarding.active_profile";
-            if !is_user && !is_meta_to_clear {
+            let is_meta = entry.key.starts_with("onboarding.");
+            if !is_user && !is_meta {
                 continue;
             }
             if let Err(e) = sem.forget(namespace, &entry.key) {
@@ -388,7 +364,6 @@ mod graduation_tests {
         // GIVEN an onboarding state in Graduation phase with populated stats
         let state = OnboardingState {
             phase: OnboardingPhase::Graduation,
-            profile: Some("operator".to_string()),
             stats: OnboardingStats {
                 total_time_sec: 720,
                 actions_completed: 12,
@@ -397,18 +372,13 @@ mod graduation_tests {
             ..OnboardingState::default()
         };
         // WHEN constructing the OnboardingCompleted event (mirrors advance_onboarding_phase_inner)
-        let profile = state
-            .profile
-            .clone()
-            .unwrap_or_else(|| "unknown".to_string());
         let event = apollia_core::RuntimeEvent::OnboardingCompleted {
-            profile: profile.clone(),
             duration_sec: state.stats.total_time_sec,
             actions_count: state.stats.actions_completed,
         };
         let json = serde_json::to_string(&event).expect("serialize");
-        // THEN the event carries the correct values
-        assert!(json.contains("operator"), "event should carry profile");
+        // THEN the event carries the correct values, and no usage profile
+        assert!(!json.contains("profile"), "event should carry no profile");
         assert!(json.contains("720"), "event should carry duration_sec");
         assert!(json.contains("12"), "event should carry actions_count");
         assert!(state.can_advance_to(&OnboardingPhase::Done));
@@ -420,7 +390,6 @@ mod graduation_tests {
         let (repo, _dir) = make_repo();
         let persisted = OnboardingState {
             phase: OnboardingPhase::Graduation,
-            profile: Some("builder".to_string()),
             stats: OnboardingStats {
                 total_time_sec: 480,
                 actions_completed: 9,
@@ -431,12 +400,47 @@ mod graduation_tests {
         persist_state(&repo, &persisted).expect("persist");
         // WHEN loading the state back from UserMemory
         let loaded = load_state_from_memory(&repo).expect("load");
-        // THEN the stats and profile match what was persisted
+        // THEN the stats and the phase match what was persisted
         assert_eq!(loaded.stats.total_time_sec, 480);
         assert_eq!(loaded.stats.actions_completed, 9);
         assert_eq!(loaded.stats.companion_questions, 5);
-        assert_eq!(loaded.profile, Some("builder".to_string()));
         assert_eq!(loaded.phase, OnboardingPhase::Graduation);
+    }
+
+    #[test]
+    fn test_legacy_profile_phase_resumes_on_ai_setup() {
+        // GIVEN a user memory left on the usage-profile step by an earlier version
+        let (repo, _dir) = make_repo();
+        write_str(&repo, "onboarding_phase", "profile_choice").expect("write");
+        // WHEN the state is loaded
+        let loaded = load_state_from_memory(&repo).expect("load");
+        // THEN the onboarding resumes on the step that followed it
+        assert_eq!(loaded.phase, OnboardingPhase::AiSetup);
+    }
+
+    #[test]
+    fn test_reset_forgets_every_onboarding_meta_key() {
+        // GIVEN an agent memory holding a stale usage profile and a user fact
+        let (repo, dir) = make_repo();
+        let store = apollia_memory::store::MemoryStore::open(&dir.path().join("onboarding.db"))
+            .expect("open");
+        let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+        for key in ["onboarding.active_profile", "user.name"] {
+            sem.remember(apollia_memory::semantic::RememberInput {
+                namespace: "onboarding",
+                key,
+                value: &serde_json::Value::String("x".to_string()),
+                confidence: 0.9,
+                source: Some("onboarding"),
+                expires_at: None,
+            })
+            .expect("remember");
+        }
+        // WHEN a fresh run resets the progress
+        reset_onboarding_progress(&repo, dir.path());
+        // THEN neither survives
+        let left = sem.recall_all("onboarding", None).expect("recall");
+        assert!(left.is_empty(), "left: {left:?}");
     }
 
     #[test]
@@ -485,6 +489,21 @@ mod finalize_tests {
 
         // WHEN checking finalization without any database
         // THEN the gate stays closed
+        assert!(!check_finalized_in(dir.path()));
+    }
+
+    #[test]
+    fn test_forgetting_the_agent_entries_reopens_the_gate() {
+        // GIVEN a memory directory where a previous conversation was completed
+        let dir = tempfile::tempdir().expect("tempdir");
+        finalize_in(dir.path()).expect("finalize");
+        assert!(check_finalized_in(dir.path()));
+
+        // WHEN the entries of the agent are forgotten, as every new
+        // conversation does
+        forget_agent_entries(dir.path());
+
+        // THEN the gate is closed again
         assert!(!check_finalized_in(dir.path()));
     }
 }

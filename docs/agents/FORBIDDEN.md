@@ -221,12 +221,11 @@ public and the tracker is not.
 **NEVER hardcoded secrets, API keys, tokens, or PII** in any committed file. Use
 `SecretStore` backends (Keyring or AgeFile). See `docs/agents/SECURITY.md`.
 
-One exemption, measured and bounded: `.mailmap` carries the maintainer's commit
-addresses, because that is the file git reads to fold an author's identities
-into one. It is the only committed file that holds an address on purpose, and
-it holds nothing else. Every other appearance of a personal address, path or
-handle is a defect; `scripts/check_prose.py` holds the personal-path and stale-
-handle halves of that at zero across the tracked tree.
+No committed file holds a personal name, address, handle, home path or machine
+name: the project speaks as Apollia, and `contact@apollia.fr` is its one public
+address. Test data that needs a first name uses `Ada`. `scripts/check_prose.py`
+holds the name, handle, personal-path and machine-name halves of that at zero
+across the tracked tree.
 
 **NEVER justify a rule by pointing at a document the reader cannot open.** There
 is no numbered decision record to cite. The decisions in force are stated in the

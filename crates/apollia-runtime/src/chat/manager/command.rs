@@ -12,6 +12,8 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// Tool names available in this session.
         tools: Vec<String>,
+        /// The model chosen for the session, `None` for the agent's.
+        model: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
     },
@@ -21,6 +23,12 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Text content.
         content: String,
+        /// Images attached after the text, already decoded and checked for
+        /// count and size.
+        images: Vec<apollia_llm::message_image::MessageImage>,
+        /// Documents attached to the message, already copied and read: their
+        /// text is part of `content`, this is what the metadata lists.
+        documents: Option<crate::chat::documents::MessageDocuments>,
         /// Response channel.
         reply: oneshot::Sender<Result<MessageId, ChatError>>,
     },
@@ -90,18 +98,40 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
-    /// Update session configuration (system_prompt, tools, llm_backend).
+    /// Update session configuration (system_prompt, tools, llm_backend, profile).
     UpdateSession {
         /// Target session.
         session_id: SessionId,
-        /// New system prompt (if Some).
-        system_prompt: Option<String>,
-        /// New available tools (if Some).
-        available_tools: Option<Vec<String>>,
-        /// New LLM backend (if Some, inner None means "use default").
-        llm_backend: Option<Option<String>>,
+        /// The fields to change.
+        update: SessionConfigUpdate,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Replace the settings of a conversation.
+    SetSessionSettings {
+        /// Target session.
+        session_id: SessionId,
+        /// The settings that take the place of the stored ones.
+        settings: SessionSettings,
+        /// Response channel: the settings as stored.
+        reply: oneshot::Sender<Result<SessionSettings, ChatError>>,
+    },
+    /// Replace the notes of a conversation.
+    SetSessionNotes {
+        /// Target session.
+        session_id: SessionId,
+        /// The notes that take the place of the stored ones.
+        notes: String,
+        /// Response channel: the notes as stored.
+        reply: oneshot::Sender<Result<String, ChatError>>,
+    },
+    /// Empty the profile of every session designating `profile_id`, the
+    /// profile having been deleted.
+    ReleaseProfile {
+        /// The deleted profile.
+        profile_id: String,
+        /// Response channel: how many sessions designated it.
+        reply: oneshot::Sender<Result<usize, ChatError>>,
     },
     /// Delete a session and all its data.
     DeleteSession {
@@ -109,6 +139,42 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Send a session to the trash: it keeps its row and its messages.
+    TrashSession {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Take a session out of the trash.
+    RestoreSession {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel: the session, loaded back.
+        reply: oneshot::Sender<Result<SessionDetail, ChatError>>,
+    },
+    /// List the sessions in the trash, the last removed first.
+    ListTrashedSessions {
+        /// Response channel.
+        reply: oneshot::Sender<Result<Vec<crate::chat::repository::TrashedSession>, ChatError>>,
+    },
+    /// Read the folders of the conversation list, after applying `action`
+    /// when one is given.
+    Folders {
+        /// The change to make first, `None` for a plain read.
+        action: Option<super::folders::FolderAction>,
+        /// Response channel: the folders afterwards, or the created one alone.
+        reply: oneshot::Sender<Result<Vec<crate::chat::repository::ChatFolder>, ChatError>>,
+    },
+    /// Search the content of the messages.
+    SearchMessages {
+        /// The words typed.
+        query: String,
+        /// Most conversations answered.
+        limit: usize,
+        /// Response channel: the conversations found, the best match first.
+        reply: oneshot::Sender<Result<Vec<crate::chat::repository::MessageSearchHit>, ChatError>>,
     },
     /// Rename a session (set a user-defined title).
     RenameSession {
@@ -207,6 +273,17 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// One action on a message beside playing a turn again: read whether the
+    /// last answer can be continued, continue it, remove a message, rewrite
+    /// an answer in place.
+    Answer {
+        /// Target session.
+        session_id: SessionId,
+        /// What to do.
+        action: super::answers::AnswerAction,
+        /// Response channel.
+        reply: oneshot::Sender<Result<super::answers::AnswerOutcome, ChatError>>,
+    },
     /// Replace a user message and re-run from it (truncate-in-place).
     EditAndResend {
         /// Target session.
@@ -269,6 +346,12 @@ pub enum ChatCommand {
         /// Used by every run that starts afterwards.
         host: Arc<dyn crate::package_tools::PackageToolHost>,
     },
+    /// Take the tools of an uninstalled package out of what the source of
+    /// the package tool executors hands out.
+    RetirePackageTools {
+        /// The package uninstalled.
+        package: String,
+    },
     /// Hand the live sections of the configuration to the actor.
     FollowConfig {
         /// Read between two commands: a changed section applies to the next
@@ -301,22 +384,6 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Vec<SessionInfo>>,
     },
-    /// List in-memory tool authorizations across all active sessions
-    /// (used by the desktop Settings > Permissions page to surface
-    /// session-only auths that don't live in `governance.db`).
-    ListSessionAuthorizations {
-        /// Response channel.
-        reply: oneshot::Sender<Vec<SessionAuthorizationView>>,
-    },
-    /// Remove an in-memory tool authorization from a specific session.
-    RevokeSessionAuthorization {
-        /// Target session.
-        session_id: SessionId,
-        /// Tool name to remove from `authorized_tools`.
-        tool_name: String,
-        /// Response channel, `true` if the entry existed and was removed.
-        reply: oneshot::Sender<Result<bool, ChatError>>,
-    },
     /// List all A2A skills available from active worker agents.
     ListA2ASkills {
         /// Response channel.
@@ -342,18 +409,6 @@ pub enum ChatCommand {
         required_version: String,
         /// Response channel.
         reply: oneshot::Sender<Option<crate::a2a::A2ACompatibilityWarning>>,
-    },
-    /// Resolve a pending filesystem HITL request.
-    ///
-    /// Called by the `respond_hitl_filesystem` Tauri command when the user
-    /// makes a decision in `HitlFilesystemModal`.
-    ResolveFsHitl {
-        /// Unique request identifier emitted in `HitlFilesystemRequired`.
-        request_id: String,
-        /// User decision.
-        decision: super::super::types::FsHitlDecision,
-        /// Response channel.
-        reply: oneshot::Sender<Result<(), ChatError>>,
     },
     /// List recently resolved chat tool approvals.
     ListApprovalHistory {

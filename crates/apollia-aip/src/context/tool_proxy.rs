@@ -11,6 +11,7 @@ use std::time::Instant;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
+use apollia_runtime::governance::FailClosed;
 use apollia_tools::{AuditTrailHandle, ToolDescriptor, ToolDispatcher, ToolRegistryHandle};
 
 use crate::context::tool_invoke::{
@@ -53,6 +54,16 @@ pub enum ToolProxyError {
         gesture: String,
         /// The operator's reason, when one was given.
         reason: Option<String>,
+    },
+
+    /// Governance cannot read what it decides from, and the tool is
+    /// sensitive: the call is refused without running.
+    #[error("tool '{tool}' refused: governance fails closed ({detail})")]
+    FailClosed {
+        /// The refused tool.
+        tool: String,
+        /// What governance cannot read.
+        detail: String,
     },
 }
 
@@ -208,6 +219,10 @@ pub struct ToolProxy {
     /// cut off here (principle #7). `None` in orchestrated mode, whose ActorLoop
     /// accounts the budget itself, so the counter is never charged twice.
     pub(crate) budget: Option<Arc<apollia_llm::StepBudgetView>>,
+    /// Set when governance failed closed as the run started: every sensitive
+    /// tool call is refused, reading continues. Holds what governance cannot
+    /// read.
+    pub(crate) fail_closed: Option<String>,
 }
 #[pymethods]
 impl ToolProxy {
@@ -246,22 +261,30 @@ impl ToolProxy {
         // parent of the future ToolCallCompleted/Denied. `event_id` is also
         // used as the A2A invoke identifier on the A2A chain side.
         let started_event_id = uuid::Uuid::now_v7().to_string();
-        if let Some(bus) = self.event_bus.as_ref() {
-            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallStarted {
+        // The call is its own identifier here: an agent's code calls the tool,
+        // no model named the call.
+        let started = |family: Option<String>, target: Option<String>| {
+            apollia_core::events::RuntimeEvent::ToolCallStarted {
                 event_id: started_event_id.clone(),
                 task_id: self.task_id.clone().into(),
                 agent_id: self.agent_id.clone().into(),
                 tool_name: tool_name.clone(),
                 args_json: Some(input_str.clone()),
                 run_id: self.run_id.clone(),
-            });
-        }
+                tool_call_id: Some(started_event_id.clone()),
+                family,
+                target,
+            }
+        };
 
         // A2A path: intercept before registry lookup.
         // Accept both `a2a:{skill_id}` (legacy, Anthropic-compatible) and
         // `a2a__{skill_id_with_dots_replaced_by_double_underscore}` (new,
         // OpenAI-compatible; see `A2AInterface::skill_as_tool`).
         if let Some(skill_id) = extract_a2a_skill_id(&tool_name) {
+            if let Some(bus) = self.event_bus.as_ref() {
+                let _ = bus.send(started(None, None));
+            }
             if !self.allowed_tools.iter().any(|t| t == &tool_name) {
                 // Emit ToolCallDenied before returning.
                 if let Some(bus) = self.event_bus.as_ref() {
@@ -349,11 +372,27 @@ impl ToolProxy {
         let agent_id = self.agent_id.clone();
         let task_id = self.task_id.clone();
         let run_id = self.run_id.clone();
+        let fail_closed = self.fail_closed.clone();
         let bus_for_async = self.event_bus.clone();
         let started_event_id_clone = started_event_id.clone();
         let tool_name_for_async = tool_name.clone();
+        // Built here, completed in the future: the family and the target come
+        // from the descriptor, which only the registry actor can answer.
+        let started_event = started(None, None);
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let descriptor = registry.describe(&tool_name).await;
+            let family = descriptor.as_ref().map(|d| d.family.as_str().to_owned());
+            let target = descriptor
+                .as_ref()
+                .and_then(|d| d.call_target(&input_value));
+            if let Some(bus) = bus_for_async.as_ref() {
+                let _ = bus.send(with_family_and_target(
+                    started_event,
+                    family.clone(),
+                    target.clone(),
+                ));
+            }
             let started_at = std::time::Instant::now();
             let result = execute_tool(
                 &ToolCallContext {
@@ -364,6 +403,7 @@ impl ToolProxy {
                     agent_id: &agent_id,
                     task_id: &task_id,
                     run_id: run_id.as_ref().map(|r| r.as_str()),
+                    fail_closed: fail_closed.as_deref(),
                 },
                 &tool_name,
                 input_value,
@@ -383,6 +423,8 @@ impl ToolProxy {
                     tool_name: tool_name_for_async,
                     duration_ms,
                     run_id,
+                    family,
+                    target,
                 },
             );
 
@@ -438,6 +480,39 @@ impl ToolProxy {
         })
     }
 }
+/// The `ToolCallStarted` event `started`, carrying `family` and `target`. Any
+/// other event comes back unchanged.
+fn with_family_and_target(
+    started: apollia_core::events::RuntimeEvent,
+    family: Option<String>,
+    target: Option<String>,
+) -> apollia_core::events::RuntimeEvent {
+    use apollia_core::events::RuntimeEvent;
+    match started {
+        RuntimeEvent::ToolCallStarted {
+            event_id,
+            task_id,
+            agent_id,
+            tool_name,
+            args_json,
+            run_id,
+            tool_call_id,
+            ..
+        } => RuntimeEvent::ToolCallStarted {
+            event_id,
+            task_id,
+            agent_id,
+            tool_name,
+            args_json,
+            run_id,
+            tool_call_id,
+            family,
+            target,
+        },
+        other => other,
+    }
+}
+
 /// Construction parameters for [`ToolProxy::new`].
 ///
 /// Groups the proxy's required dependencies so that callers build it from a
@@ -493,7 +568,16 @@ impl ToolProxy {
             chain_deadline: None,
             event_bus: None,
             budget: None,
+            fail_closed: None,
         }
+    }
+
+    /// Refuses every sensitive tool call of the run while `fail_closed` is
+    /// set: governance could not read what it decides from when the run
+    /// started.
+    pub fn with_fail_closed(mut self, fail_closed: Option<FailClosed>) -> Self {
+        self.fail_closed = fail_closed.as_ref().map(FailClosed::detail);
+        self
     }
 
     /// Wires the live `StepBudget` view enforced on the Direct path.
@@ -611,6 +695,7 @@ impl ToolProxy {
                 agent_id: &self.agent_id,
                 task_id: &self.task_id,
                 run_id: self.run_id.as_ref().map(|r| r.as_str()),
+                fail_closed: self.fail_closed.as_deref(),
             },
             tool_name,
             input,
@@ -684,3 +769,6 @@ fn tool_proxy_error_to_py(error: ToolProxyError) -> PyErr {
         })
     })
 }
+
+#[cfg(test)]
+mod tests;

@@ -94,12 +94,14 @@ pub(in crate::supervisor) fn auto_load_bundled_agents(
 
 /// Phase 3: register the native tool descriptors, the tools of every native
 /// connector account in `accounts` (one set per account, see
-/// [`crate::connectors_bridge::connection_tools`]) and the mailbox tools over
-/// IMAP. A provider with no connected account publishes no tool; an account
-/// connected later registers its own when it connects.
+/// [`crate::connectors_bridge::connection_tools`]) and, when `mailbox_tools`
+/// says so, the mailbox tools over IMAP. A provider with no connected account
+/// publishes no tool; an account connected later registers its own when it
+/// connects.
 pub(crate) async fn register_builtin_tools(
     tool_registry_handle: &ToolRegistryHandle,
     accounts: &[crate::connections::NativeAccounts],
+    mailbox_tools: bool,
 ) {
     for descriptor in native_tool_descriptors() {
         if let Err(e) = tool_registry_handle.register(descriptor).await {
@@ -107,7 +109,9 @@ pub(crate) async fn register_builtin_tools(
         }
     }
     let mut connector_descriptors = crate::connectors_bridge::connector_descriptors_for(accounts);
-    connector_descriptors.extend(crate::connectors_bridge::imap_tool_descriptors());
+    if mailbox_tools {
+        connector_descriptors.extend(crate::connectors_bridge::imap_tool_descriptors());
+    }
     let connector_descriptor_count = connector_descriptors.len();
     for descriptor in connector_descriptors {
         let tool_name = descriptor.name.clone();
@@ -225,7 +229,7 @@ mod tests {
     #[tokio::test]
     async fn a_fresh_install_gives_apollia_the_reading_family_only() {
         let registry = ToolRegistryHandle::start();
-        register_builtin_tools(&registry, &[]).await;
+        register_builtin_tools(&registry, &[], true).await;
         let dir = tempfile::tempdir().unwrap();
         let repo = AgentRepository::open(&dir.path().join("agents.db")).unwrap();
         let apollia = repo
@@ -253,9 +257,59 @@ mod tests {
         #[cfg(feature = "web-search")]
         expected.push("web_search");
 
-        let tools = AgentAccess::of(&apollia).tools(&registry).await;
+        let tools = AgentAccess::of(&apollia)
+            .tools(&registry, &apollia_tools::DefaultAccess::default())
+            .await;
 
         assert_eq!(tools, expected);
         registry.shutdown().await;
+    }
+
+    #[test]
+    fn every_native_tool_designates_its_target_argument_or_none() {
+        // GIVEN the native tools, and the argument each one acts on, copied here
+        // by hand: a path, a folder or an address, never a content
+        #[allow(unused_mut)]
+        let mut expected: Vec<(&str, Option<&str>)> = vec![
+            ("bash_executor", None),
+            ("python_executor", None),
+            ("file_read", Some("path")),
+            ("file_write", Some("path")),
+            ("file_edit", Some("path")),
+            ("file_list", Some("dir")),
+            ("file_glob", Some("path")),
+            ("file_grep", Some("path")),
+            ("http_fetch", Some("url")),
+            ("memory_search", None),
+            ("source_search", None),
+            ("notebook_read", Some("path")),
+            ("notebook_edit", Some("path")),
+            ("ask_user", None),
+            ("code_context", Some("folder")),
+        ];
+        #[cfg(feature = "web-search")]
+        expected.push(("web_search", None));
+        #[cfg(feature = "web-read")]
+        expected.push(("web_read", Some("url")));
+
+        // WHEN the descriptors registered at boot are read
+        let descriptors = native_tool_descriptors();
+        let actual: Vec<(&str, Option<&str>)> = descriptors
+            .iter()
+            .map(|d| (d.name.as_str(), d.target_arg.as_deref()))
+            .collect();
+
+        // THEN each designates exactly the argument of the table, and that
+        // argument is one its input schema declares
+        assert_eq!(actual, expected);
+        for d in &descriptors {
+            if let Some(arg) = d.target_arg.as_deref() {
+                assert!(
+                    d.input_schema["properties"].get(arg).is_some(),
+                    "{} designates `{arg}`, which its schema does not declare",
+                    d.name
+                );
+            }
+        }
     }
 }

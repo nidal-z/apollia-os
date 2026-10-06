@@ -20,7 +20,8 @@ use apollia_aip::package_tools::workflows::PackageWorkflows;
 use apollia_core::{RuntimeEvent, StepBudgetConfig};
 use apollia_runtime::agents::task::Nesting;
 use apollia_runtime::workflows::{
-    AgentRunner, BoxFuture, InputErrorCode, WorkflowError, WorkflowHandle,
+    AgentRunner, BoxFuture, InputErrorCode, UserReply, WorkflowError, WorkflowHandle,
+    WorkflowQuestion,
 };
 use apollia_tools::{InstalledPackage, PackageItemKind, PackageRepository, TaskRepository};
 use pyo3::prelude::*;
@@ -30,7 +31,9 @@ use tokio::sync::broadcast;
 /// The module of `books`: `close` asks an agent, files the answer through the
 /// workflow `file`, then notifies; with `hold`, its first step waits an hour
 /// and writes how the wait ended. `remind` reads the file it is given and
-/// hands its date to `stamp`, which returns the weekday and the date.
+/// hands its date to `stamp`, which returns the weekday and the date. `pay`
+/// asks the user which amount to pay, then asks to confirm it; a declined
+/// confirmation is caught and returned, a declined amount is not.
 const FLOWS_MODULE: &str = r#"
 import asyncio
 import datetime
@@ -38,6 +41,7 @@ import pathlib
 from typing import NotRequired, TypedDict
 
 from apollia import FileInput, LongText, WorkflowCtx, workflow
+from apollia.errors import QuestionDeclined
 
 MARKER = pathlib.Path(__MARKER__)
 
@@ -97,6 +101,28 @@ async def remind(ctx: WorkflowCtx, inputs: Remind) -> dict:
 async def stamp(ctx: WorkflowCtx, inputs: Stamp) -> dict:
     async with ctx.step("stamp"):
         return {"weekday": inputs["day"].isoweekday(), "day": inputs["day"]}
+
+
+class Pay(TypedDict):
+    supplier: str
+    choices: NotRequired[int]
+
+
+@workflow("pay", "Pay a supplier.", inputs=Pay, steps=["validate", "pay"], action="send_external")
+async def pay(ctx: WorkflowCtx, inputs: Pay) -> dict:
+    async with ctx.step("validate"):
+        options = ["120.00", "240.00"] if "choices" not in inputs else [inputs["choices"]]
+        amount = await ctx.user.ask(
+            "Which amount for " + inputs["supplier"] + "?",
+            options=options,
+            hint="an amount in euros",
+        )
+        try:
+            confirmed = await ctx.user.ask("Pay " + amount + " to " + inputs["supplier"] + "?")
+        except QuestionDeclined as declined:
+            return {"paid": None, "question": declined.question, "reason": declined.reason}
+    async with ctx.step("pay"):
+        return {"paid": amount, "confirmed": confirmed}
 "#;
 
 /// `apollia.toml` of `books`, as `python -m apollia describe` writes it.
@@ -138,6 +164,14 @@ description = "Stamp a day."
 action = "read"
 steps = ["stamp"]
 inputs = { type = "object", properties = { day = { type = "string", format = "date" } }, required = ["day"], additionalProperties = false, x-order = ["day"] }
+
+[[workflows]]
+name = "pay"
+module = "flows.py"
+description = "Pay a supplier."
+action = "send_external"
+steps = ["validate", "pay"]
+inputs = { type = "object", properties = { supplier = { type = "string" }, choices = { type = "integer" } }, required = ["supplier"], additionalProperties = false, x-order = ["supplier", "choices"] }
 "#;
 
 /// Answers every agent with `answer to <message>`, and remembers each call.
@@ -187,7 +221,7 @@ fn use_tree_sdk() {
     .expect("sys.path accepts the SDK");
 }
 
-/// The package `books` stored with its four workflows linked, and the engine
+/// The package `books` stored with its five workflows linked, and the engine
 /// attached to them.
 async fn fixture() -> Fixture {
     use_tree_sdk();
@@ -212,7 +246,7 @@ async fn fixture() -> Fixture {
             updated_at: "2026-10-02T00:00:00Z".into(),
         })
         .expect("save the package");
-    for workflow in ["close", "file", "remind", "stamp"] {
+    for workflow in ["close", "file", "remind", "stamp", "pay"] {
         packages
             .link_item("books", PackageItemKind::Workflow, workflow)
             .expect("link the workflow");
@@ -221,7 +255,13 @@ async fn fixture() -> Fixture {
         PackageWorkflows::read(&packages, dir.path().join("venvs")).expect("read the workflows");
     assert_eq!(
         workflows.ids(),
-        vec!["books/close", "books/file", "books/remind", "books/stamp"]
+        vec![
+            "books/close",
+            "books/file",
+            "books/remind",
+            "books/stamp",
+            "books/pay"
+        ]
     );
 
     let repository = Arc::new(
@@ -476,4 +516,183 @@ async fn a_malformed_date_and_an_absent_file_never_start_a_package_workflow() {
         .await
         .expect("read the history");
     assert!(history.is_empty());
+}
+
+/// The run `run_id` once it is no longer running.
+async fn wait_ended(fx: &Fixture, run_id: &str) -> apollia_tools::WorkflowRunRow {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        let detail = fx
+            .engine
+            .detail(run_id)
+            .await
+            .expect("read the run")
+            .expect("the run exists");
+        if detail.run.status != "running" {
+            return detail.run;
+        }
+        assert!(std::time::Instant::now() < deadline, "the run never ended");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
+/// The question `books/pay` waits on once it asked `question`.
+async fn asked(fx: &Fixture, question: &str) -> WorkflowQuestion {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        let waiting = fx.engine.pending_questions().await.expect("read questions");
+        if let Some(found) = waiting.into_iter().find(|q| q.asked.question == question) {
+            return found;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the workflow never asked {question:?}"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+}
+
+// GIVEN a stored package whose workflow `pay` asks the user an amount in its
+//       step `validate`, then asks to confirm it
+// WHEN the user gives a free answer to the first, then answers the second
+// THEN each `ctx.user.ask` stopped the Python step until its answer, the
+//      second question was built from the first answer, and the run went on
+//      to its next step with both
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn package_workflow_asks_the_user_and_goes_on_with_each_answer() {
+    // GIVEN
+    let fx = fixture().await;
+    let run = fx
+        .engine
+        .launch("books/pay", json!({"supplier": "Acme"}))
+        .await
+        .expect("the run starts");
+
+    // WHEN
+    let first = asked(&fx, "Which amount for Acme?").await;
+    let paused = fx
+        .repository
+        .workflow_steps(&run.run_id)
+        .await
+        .expect("read the steps");
+    fx.engine
+        .answer_question(&first.request_id, UserReply::Answer("180.50".into()))
+        .await
+        .expect("the first answer is taken");
+    let second = asked(&fx, "Pay 180.50 to Acme?").await;
+    fx.engine
+        .answer_question(&second.request_id, UserReply::Answer("yes".into()))
+        .await
+        .expect("the second answer is taken");
+
+    // THEN
+    assert_eq!(first.run_id, run.run_id);
+    assert_eq!(first.workflow_id, "books/pay");
+    assert_eq!(first.step.as_deref(), Some("validate"));
+    assert_eq!(first.asked.options, vec!["120.00", "240.00"]);
+    assert_eq!(first.asked.hint.as_deref(), Some("an amount in euros"));
+    let statuses: Vec<&str> = paused.iter().map(|s| s.status.as_str()).collect();
+    assert_eq!(statuses, vec!["running", "pending"]);
+    assert!(second.asked.options.is_empty());
+    let ended = wait_ended(&fx, &run.run_id).await;
+    assert_eq!(ended.status, "completed", "{:?}", ended.error);
+    assert_eq!(
+        ended.output,
+        Some(json!({"paid": "180.50", "confirmed": "yes"}))
+    );
+}
+
+// GIVEN the workflow `pay` waiting on its confirmation, which it asks under a
+//       `try` for `QuestionDeclined`, then a second run waiting on its amount,
+//       asked with no `try`
+// WHEN the user declines each, with a reason
+// THEN the first run received the typed refusal with the question and the
+//      reason and completed without paying; the second failed in its step
+//      with the refusal
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_declined_question_reaches_the_python_step_as_a_typed_refusal() {
+    // GIVEN
+    let fx = fixture().await;
+    let caught = fx
+        .engine
+        .launch("books/pay", json!({"supplier": "Acme"}))
+        .await
+        .expect("the run starts");
+    let amount = asked(&fx, "Which amount for Acme?").await;
+    fx.engine
+        .answer_question(&amount.request_id, UserReply::Answer("120.00".into()))
+        .await
+        .expect("the amount is taken");
+    let confirmation = asked(&fx, "Pay 120.00 to Acme?").await;
+
+    // WHEN
+    fx.engine
+        .answer_question(
+            &confirmation.request_id,
+            UserReply::Declined("not this month".into()),
+        )
+        .await
+        .expect("the refusal is taken");
+    let caught = wait_ended(&fx, &caught.run_id).await;
+    let uncaught = fx
+        .engine
+        .launch("books/pay", json!({"supplier": "Globex"}))
+        .await
+        .expect("the run starts");
+    let amount = asked(&fx, "Which amount for Globex?").await;
+    fx.engine
+        .answer_question(&amount.request_id, UserReply::Declined("no budget".into()))
+        .await
+        .expect("the refusal is taken");
+    let uncaught = wait_ended(&fx, &uncaught.run_id).await;
+
+    // THEN
+    assert_eq!(caught.status, "completed", "{:?}", caught.error);
+    assert_eq!(
+        caught.output,
+        Some(json!({
+            "paid": null,
+            "question": "Pay 120.00 to Acme?",
+            "reason": "not this month"
+        }))
+    );
+    assert_eq!(uncaught.status, "failed");
+    let error = uncaught.error.unwrap_or_default();
+    assert!(error.contains("QuestionDeclined"), "{error}");
+    assert!(error.contains("no budget"), "{error}");
+    let steps = fx
+        .repository
+        .workflow_steps(&uncaught.run_id)
+        .await
+        .expect("read the steps");
+    assert_eq!(steps[0].status, "failed");
+    assert_eq!(steps[1].status, "not_started");
+}
+
+// GIVEN the workflow `pay` asked to propose a choice that is not text
+// WHEN it runs
+// THEN `ctx.user.ask` refuses the call in the step, nothing is listed for the
+//      user, and the run fails naming the field
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_question_whose_choices_are_not_text_is_refused_before_it_is_asked() {
+    // GIVEN
+    let fx = fixture().await;
+
+    // WHEN
+    let run = fx
+        .engine
+        .run_to_end("books/pay", json!({"supplier": "Acme", "choices": 3}))
+        .await
+        .expect("the run ends");
+
+    // THEN
+    assert_eq!(run.status, "failed");
+    let error = run.error.unwrap_or_default();
+    assert!(error.contains("options must be a list of text"), "{error}");
+    assert!(fx
+        .engine
+        .pending_questions()
+        .await
+        .expect("read questions")
+        .is_empty());
 }

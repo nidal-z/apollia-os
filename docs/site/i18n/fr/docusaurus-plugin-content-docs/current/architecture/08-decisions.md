@@ -203,6 +203,17 @@ demandé, et reprend sur la réponse. La suspension est un état de premier rang
 pas une attente bloquante : le processus est libre, et une exécution peut rester
 en attente au travers d'un redémarrage.
 
+Un workflow pose une question à l'utilisateur depuis une étape, par
+`ctx.user.ask` : une question, les choix qu'elle propose quand elle en a, et une
+réponse libre que l'utilisateur peut toujours donner à la place. La question est
+listée avec les autres décisions qui attendent l'utilisateur, avec l'exécution,
+le workflow et l'étape dont elle vient, et la réponse réveille l'étape là où
+elle s'est arrêtée. Cette attente n'est pas un état suspendu : un workflow
+s'exécute en mémoire et ne reprend pas, donc une exécution qui attend une
+réponse quand le runtime s'arrête est mise en échec au démarrage suivant, avec
+cette raison, comme toute exécution interrompue. Une question refusée arrive à
+l'étape sous la forme de `QuestionDeclined`, que l'auteur peut intercepter.
+
 ## Mémoire {#memory-model}
 
 La mémoire a trois couches : les événements épisodiques avec un score
@@ -217,11 +228,22 @@ demande, ce qui garde le prompt sous le contrôle de l'auteur de l'agent.
 
 Trois exceptions existent, et aucune n'est atteignable depuis un chemin
 d'exécution d'agent. Deux vivent à l'intérieur de l'assistant conversationnel
-intégré : un brief de persona utilisateur au palier d'autonomie le plus long, et
-les résumés de sessions passées au premier message d'une conversation libre. La
-troisième vit en dehors de l'assistant, dans la commande de réécriture du bureau,
-qui porte la section Travail du profil utilisateur dans son propre prompt ponctuel
-et rend du texte au composeur plutôt qu'à une exécution.
+intégré : un résumé du profil de la conversation, et les résumés de sessions
+passées au premier message d'une conversation libre. La troisième vit en dehors
+de l'assistant, dans la commande de réécriture du bureau, qui porte le rôle, la
+fonction et les outils de ce profil dans son propre prompt ponctuel et rend du
+texte au composeur plutôt qu'à une exécution.
+
+Le résumé du profil est ajouté à chaque tour de l'assistant, à tous les paliers
+d'autonomie, tant que l'interrupteur de profil de la conversation est allumé.
+L'interrupteur est allumé par défaut, enregistré avec la conversation, et la
+jauge de la conversation dit si le prompt porte le profil. Ce résumé était
+auparavant conditionné par le palier d'autonomie le plus long, que le chat libre
+n'atteint jamais : un profil rempli par l'utilisateur n'arrivait donc jamais à
+l'assistant. Un réglage sans effet est pire qu'une injection que l'utilisateur
+voit et peut couper : la condition est passée du palier à la conversation. La
+règle des agents est inchangée : un agent installé ne lit le profil que
+lorsqu'il le demande.
 
 ## Inférence locale {#local-inference}
 
@@ -266,7 +288,13 @@ d'Apollia. Le moteur embarqué sert chaque machine dès le premier lancement ; u
 version accélérée, CUDA sur une machine dotée d'une carte NVIDIA, se télécharge
 à la demande, ou s'importe depuis un disque sans réseau, et le lanceur prend
 alors la version installée la plus récente de cette variante plutôt que le
-moteur embarqué. Tout téléchargement ou import de moteur est précédé de la
+moteur embarqué. Le moteur qui sert chaque format de modèle est un réglage,
+automatique par défaut ; une variante choisie qui n'est plus installée retombe
+sur le choix automatique. Le canal suivi est vérifié au démarrage du runtime et
+au changement de canal, et une mise à jour qu'il annonce pour un moteur choisi
+est installée sans qu'on la demande, sauf si le réglage qui la gouverne est
+éteint, auquel cas elle est seulement annoncée. Tout téléchargement ou import
+de moteur est précédé de la
 vérification d'un manifeste d'empreintes signé au format minisign avec une clé
 de distribution dédiée. Chaque canal, stable ou préversion, publie un tel
 manifeste, qui liste chaque archive de moteur avec son SHA-256. La moitié
@@ -464,6 +492,106 @@ exempté dans `deny.toml`, daté du 2026-10-04, avec cette raison à côté, et 
 est revu à la prochaine version mineure. L'exemption tombe quand `pdf_oxide`
 abandonne `ttf-parser` ou qu'une version maintenue en paraît.
 
+Les documents Word et les présentations PowerPoint sont lus en Rust, par un
+code propre posé sur deux crates : `zip`, celle qui ouvre l'archive de paquet
+(voir [Archive de paquet](#package-archive)), ouvre le fichier, et `quick-xml`
+(MIT), un lecteur XML en flux, en lit les parties. Un document Word rend les
+paragraphes et les lignes de tableau de son corps, une ligne par segment, dans
+l'ordre du document et chacun avec son rang ; une présentation rend le texte et
+les notes de chaque diapositive, dans l'ordre numérique, chacune avec son
+numéro. Les en-têtes, pieds de page, commentaires et zones de texte flottantes
+ne sont pas lus. Un fichier aux anciens formats binaires, `.doc` ou `.ppt`, est
+une erreur typée qui nomme les formats lus. L'archive vient d'ailleurs, sa
+lecture est donc bornée : au-delà de 10 000 entrées, ou de 64 Mio décompressés
+sur l'ensemble des parties lues, le fichier est refusé, les octets étant comptés
+à mesure qu'ils sont décompressés et non tels que l'archive les déclare. Une
+crate dédiée n'a pas été retenue : `docx-rs`, celle pesée pour Word, est
+tournée vers l'écriture et ne lit pas PowerPoint, et `office_oxide`, qu'apporte
+le lecteur PDF, est tenue à une ancienne version (voir plus haut) et n'est pas
+appelée directement.
+
+Le coût est nommé : aucune crate n'entre dans le fichier de verrouillage.
+`quick-xml` 0.41 était déjà compilée pour le lecteur de classeurs et le paquet
+du bureau, et devient une dépendance directe, fonctionnalités par défaut
+coupées ; `zip` était déjà une dépendance directe. Ce que ces crates ne couvrent
+pas est à notre charge : la structure des deux formats, lue ici jusqu'à leur
+texte seulement.
+
+Les pages scannées et les images sont lues par reconnaissance optique de
+caractères, avec un moteur compilé dans le binaire. Une page de document PDF
+qui ne trace aucun texte et qui est une image unique est prise telle que le
+document l'embarque, sans rendu de la page, puis reconnue ; les fichiers
+`.png`, `.jpg` et `.tiff` d'une source sont lus de la même façon. Le moteur est
+Tesseract, sur Leptonica, tous deux compilés depuis leurs sources par
+`tesseract-rs` (MIT ; Tesseract est sous Apache-2.0, Leptonica sous
+BSD-2-Clause) et liés statiquement : le poste qui exécute Apollia n'installe
+rien, et le binaire ne dépend d'aucune bibliothèque Tesseract ou Leptonica.
+Leptonica est compilée sans ses codecs d'image, les images sont donc décodées
+en Rust par `image` (MIT ou Apache-2.0), avec ses seuls décodeurs PNG, JPEG et
+TIFF. Le texte reconnu vit dans l'index de la source et nulle part ailleurs :
+aucun fichier n'est écrit à côté des documents.
+
+Le moteur lit avec un fichier de données par langue. Le français et l'anglais,
+tirés du jeu `tessdata_fast` (Apache-2.0), sont des entrées du registre des
+modèles, chacune épinglée par son SHA-256. Ils sont obtenus la première fois
+qu'une source contient une page scannée, une fois par exécution, par le
+téléchargeur qui contrôle chaque modèle contre son empreinte ; un poste sans
+réseau prend les mêmes fichiers sur un disque par l'import de modèle, qui
+n'accepte un fichier de données de langue que si son empreinte est épinglée.
+Un fichier dont l'empreinte n'est pas épinglée n'est jamais remis au moteur.
+Tant que les données manquent, chaque page en attente est listée dans l'état de
+sa source comme en attente de reconnaissance, et elle est lue dès qu'elles
+arrivent ; une page sans texte qui n'est pas une image unique est listée comme
+non lue. Aucun moteur de rendu n'est livré : `hayro` et PDFium, ceux qui ont
+été pesés, restent dehors tant que les documents n'en montrent pas le besoin.
+
+Le coût est nommé : la chaîne C++ entre dans la compilation. Compiler le moteur
+demande cmake, un compilateur C++ et le réseau, prend une à deux minutes (83
+secondes sur macOS Apple Silicon, 133 secondes sur Linux x64 sous émulation),
+et ajoute 2,8 Mo au binaire sur macOS et 4,4 Mo sur Linux. Le script de
+compilation de `tesseract-rs` télécharge les sources de Tesseract 5.5.2 et de
+Leptonica 1.87.0 depuis GitHub sans en contrôler l'empreinte, les garde avec
+les bibliothèques compilées dans un dossier du répertoire personnel plutôt que
+sous `target/`, et y pose deux fichiers de langue que le produit ne lit pas. La
+reconnaissance est donc derrière la fonctionnalité `ocr`, désactivée par
+défaut : une compilation de tous les jours n'en compile rien, et une
+compilation qui livre la reconnaissance l'active. `tesseract-rs` est épinglée à 0.4.0, puisqu'une version change les
+sources qu'elle va chercher ; trois crates entrent dans le fichier de
+verrouillage, `tesseract-rs` elle-même et `aws-lc-rs` avec `aws-lc-sys`, que
+le client HTTP de son script de compilation apporte et qui ne s'exécutent qu'à
+la compilation. `image` était déjà compilée pour le lecteur PDF et n'en ajoute
+aucune. La compilation statique est mesurée sur macOS et sur Linux ; elle ne
+l'est pas sur Windows, où la fonctionnalité reste désactivée tant qu'elle ne
+l'est pas.
+
+Les résultats d'un lot sont écrits dans le tableau qu'il a lu, par défaut dans
+une copie posée à côté de l'original, `<nom> (résultats AAAA-MM-JJ).xlsx`,
+nommée dans la langue de l'interface, si bien que l'original est lu et jamais
+ouvert en écriture. Sur demande explicite, et pour `.xlsx` et `.xlsm` seulement,
+ils vont dans l'original lui-même, après la copie de sauvegarde datée qu'exige
+le contrat des lots ; si la sauvegarde échoue, rien n'est écrit. Dans les deux
+cas, le classeur est édité en place, par du code à nous au-dessus de `zip` et
+de `quick-xml` : les cellules de la colonne ajoutée, après la dernière colonne
+de la feuille, sont insérées dans le XML de cette feuille en chaînes en ligne,
+la chaîne de calcul est retirée pour que le tableur recalcule à l'ouverture, et
+toutes les autres parties de l'archive sont recopiées telles qu'elles sont
+stockées, octet pour octet. La mise en forme, les graphiques, les tableaux
+croisés, les commentaires et les macros sont donc conservés, ce que ne garantit
+pas une bibliothèque qui charge un classeur puis l'enregistre de nouveau :
+`umya-spreadsheet`, celle qui a été pesée, documente des graphiques corrompus,
+des commentaires perdus et des tableaux croisés non lus. L'édition est testée
+sur un corpus versionné de classeurs réels (mise en forme conditionnelle,
+graphique, tableaux croisés, commentaires, fichier enregistré par LibreOffice,
+classeur à macros). Un fichier CSV reçoit une copie avec sa colonne ajoutée,
+jamais une édition de l'original ; un classeur `.xls`, `.xlsb` ou `.ods` reçoit
+une copie `.xlsx` neuve écrite par `rust_xlsxwriter` (voir
+[Export d'un lot](#batch-export)), ses valeurs seulement.
+
+Le coût est nommé : aucune crate n'entre dans le fichier de verrouillage,
+`rust_xlsxwriter` devenant une dépendance directe des lecteurs. Ce qui est à
+notre charge est l'édition de la feuille, une petite partie d'un format dont
+les autres parties ne sont jamais réécrites.
+
 Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
 fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
 client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
@@ -501,7 +629,7 @@ fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
 
 `rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
 résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
-tableurs, pas ici.
+tableurs (voir [Documents et sources](#documents-and-sources)).
 
 ## Messagerie entre agents {#agent-messaging}
 
@@ -760,6 +888,38 @@ rattaché laisse le démon servir.
 
 La version 0.3.0 livre les deux modes.
 
+### Une seule application, et un fichier de paquet qui l'ouvre {#desktop-single-instance}
+
+L'extension `.apo` est associée à l'application de bureau
+(`bundle.fileAssociations` dans `tauri.conf.json`) : un paquet s'ouvre comme un
+document. Ouvrir un paquet ne l'installe jamais : quel que soit le geste qui
+apporte le fichier, l'application montre l'aperçu du paquet, et le paquet n'est
+installé ou mis à jour que depuis cet aperçu. Trois gestes y mènent : ouvrir le
+fichier depuis le système, le déposer dans la fenêtre, et le bouton Installer,
+qui ouvre un sélecteur de fichier.
+
+Un fichier ouvert depuis le système doit atteindre l'application qui tourne
+déjà, pas en démarrer une seconde à côté. macOS garde de lui-même un seul
+processus par application et remet le fichier sous forme d'événement, au
+lancement comme ensuite. Windows et Linux démarrent un nouveau processus avec le
+chemin parmi ses arguments ; là, `tauri-plugin-single-instance` fait que ce
+second processus transmet ses arguments au premier et se termine, et le premier
+montre sa fenêtre. Le greffon est enregistré avant tout autre, dans les deux
+modes du runtime, et sous Windows et Linux seulement : sous macOS il ajouterait
+un second mécanisme là où le système en fournit déjà un. Le processus garde les
+chemins jusqu'à ce que l'interface les prenne, car un fichier qui démarre
+l'application arrive avant que l'interface soit chargée. Un fichier déposé dans
+la fenêtre passe par l'événement de glisser-déposer de la vue web, sans greffon.
+
+Le coût est un greffon Tauri de plus à suivre, qui n'apporte aucune bibliothèque
+que l'arbre ne contenait déjà, et un chemin de code qui diffère entre macOS et
+les deux autres systèmes, donc à vérifier sur chacun. Sous Windows et Linux, un
+second lancement ne peut plus ouvrir une seconde fenêtre.
+
+Refusés : un lien profond (`apollia://install`), qui ne répond pas au
+double-clic sur un fichier, et le bouton et le dépôt seuls, qui laissent un
+paquet incapable de s'ouvrir comme un document.
+
 ## Distribution des agents {#agent-distribution}
 
 Un agent s'installe depuis un chemin local ou une URL Git. Publier les agents sur
@@ -829,6 +989,16 @@ signer le paquet une seconde fois ne prouverait rien de plus. Comme tout paquet,
 il est inscrit au journal d'audit, une version installée plus récente n'est
 jamais rétrogradée, et les surcharges de l'utilisateur comme l'état désactivé de
 ses agents survivent à une mise à jour.
+
+Les paquets d'exemple suivent la même règle, à une différence près sur la
+suite. Ce sont des paquets déclaratifs embarqués dans le runtime à la
+compilation, depuis un dossier de l'arbre des sources. L'application les propose
+et n'en installe un que lorsque l'utilisateur le choisit, après l'aperçu que
+reçoit tout paquet. Un exemple est désigné au runtime par le nom de son paquet,
+jamais par un chemin, si bien que seul ce que porte le binaire est traité comme
+un exemple ; il n'est pas signé, et n'est ni signalé ni refusé pour cela, pour
+la raison ci-dessus. Une fois installé, il appartient à l'utilisateur : à la
+différence du guide, il se désinstalle comme tout paquet.
 
 Un outil de paquet s'exécute avec un contexte nu : ni mémoire, ni profil de
 l'utilisateur. Une exception est décidée par l'hôte, jamais par un paquet.

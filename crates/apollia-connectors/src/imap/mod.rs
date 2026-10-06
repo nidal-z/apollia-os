@@ -19,13 +19,15 @@ mod store;
 pub use account::{ImapAccount, ImapAccountInput};
 pub use client::{ImapClient, LOG_DIRECTIVE};
 pub use error::ImapError;
-pub use mail::{MailFolder, MailMessage, MailQuery, MailSummary, DEFAULT_FOLDER};
+pub use mail::{
+    FolderCount, FolderUids, MailFolder, MailMessage, MailQuery, MailSummary, DEFAULT_FOLDER,
+};
 pub use store::{ConnectionProbe, ImapAccountStore, IMAP_INDEX_FILE, IMAP_SECRET_SERVICE};
 
 #[cfg(test)]
 mod client_tests;
 #[cfg(test)]
-mod fake_server;
+pub(crate) mod fake_server;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

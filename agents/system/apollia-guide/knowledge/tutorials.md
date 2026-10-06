@@ -4,8 +4,8 @@
 
 Open the Chat screen, pick the agent, and write your request in your own
 words. When the agent wants to do something sensitive, such as sending an
-email or changing a file, Apollia asks you first; the question also appears in
-the Inbox.
+email or changing a file, Apollia asks you first; the question also appears on
+the To review screen.
 
 ## Install a package someone sent you
 
@@ -50,6 +50,6 @@ schedule, at an interval, when a file changes, or when a webhook is called.
 
 ## See what happened
 
-The Tasks screen lists what agents did, with their results. The Observability
-screen shows the runs, their costs, and the audit journal, which you can
-verify and export.
+The sheet of an agent, on the Agents screen, lists what the agent did, with
+the result of each run. The Observability screen shows the runs, their costs,
+and the audit journal, which you can verify and export.

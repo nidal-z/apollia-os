@@ -52,6 +52,11 @@
 //!
 //! # Layout
 //!
+//! Which engine serves each model format is a setting of `apollia.toml`
+//! ([`selection`]), and so is the automatic update of the chosen engines
+//! ([`auto_update`]), and the builds an update leaves behind can be deleted
+//! on their own ([`purge`]).
+//!
 //! Under `<data_dir>/engines/`:
 //!
 //! - `settings.json`: the followed channel and the base address;
@@ -67,11 +72,15 @@
 //! `url` relative to that manifest.
 
 mod archive;
+pub mod auto_update;
 mod fetch;
 mod installed;
 mod manifest;
 pub mod node;
+pub mod purge;
+pub mod selection;
 mod settings;
+pub mod version;
 
 use std::path::PathBuf;
 
@@ -87,6 +96,7 @@ pub use manifest::{
     archive_kind, compare_tags, current_platform, verify_manifest, ArchiveKind, Channel, Engine,
     Manifest, Package, Variant, MANIFEST_FORMAT,
 };
+pub use selection::{EngineChoices, Resolved};
 pub use settings::{cached_manifest, EngineStoreSettings, DEFAULT_BASE_URL};
 
 /// Errors raised by the engine store. Each message is meant to be shown.

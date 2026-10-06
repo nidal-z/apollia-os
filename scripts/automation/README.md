@@ -157,14 +157,18 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   mutating controls driven to the boundary). `master-det.json` runs all 20 in one
   boot and is the release gate (3989 steps); `just desktop-automation-verdict` reads its report.
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
-  and three books written against the coverage report below, none of them in
+  and four books written against the coverage report below, none of them in
   `regen_master.py`'s `ORDER` yet because none has been through a runtime round:
   `danger-guard-det` (the cancel half of the four destructive guards: step-1
   cancel, mismatch, match, lock hint, step-2 cancel, and no `-confirm` ever
   clicked), `profile-facts-det` (the off-schema memory facts of the profile
   page, added, edited, deleted by the script itself), `llm-advanced-det` (the
   advanced panel of the backend dialog, sampling parameters through extra JSON,
-  cancelled without saving). Fold one into `master-det` by adding it to `ORDER`
+  cancelled without saving), `library-det` (the Library: the packages the
+  application ships read from the real store, then a stubbed package of every
+  kind opened, its update through a cancelled file chooser, its uninstall
+  dialog cancelled, refused and accepted, the empty state and the unreadable
+  list). Fold one into `master-det` by adding it to `ORDER`
   and re-running `regen_master.py --write`, after its first green solo run.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
   config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,
@@ -239,8 +243,8 @@ Five kinds act on the harness rather than on the DOM:
 - **`emitEvent { event, payload? }`** emits a Tauri event from the webview, as
   the backend would; Tauri's JS `emit` reaches every listener, this webview's
   `listen` included. It is how a recipe delivers an event-borne request the
-  product cannot produce on demand (the critical filesystem HITL card, whose
-  level the classifier never returns). The payload imitates a backend type and
+  product cannot produce on demand (a consent card on a seeded session, which
+  only a live tool call raises). The payload imitates a backend type and
   the script's `notes` name it, for the same drift reason as a `stubInvoke`.
 
 Two more substitutions concern file inputs, whose chooser is served by wry as
@@ -371,9 +375,13 @@ a run, and nothing reads them back.
   retire the armed state. Same shape wherever a confirm is rendered inline
   rather than as a dialog: check that the way back is reachable before writing
   the arming click.
-- **Two HITL surfaces**: file tools show the generic `ApprovalCard`
-  (`approval-card-*`, `approval-accept-*`, ...), not the `hitl-fs-modal`
-  fast-path. `bash_executor` is auto-refused with no card.
+- **One consent card**: file tools ask on the same card as every other tool,
+  with three answers and an optional reason. Developer mode off (the seed
+  default), it is `OperatorApprovalCard` (`operator-approval-*`, then
+  `operator-approval-accept-*`, `-always-*`, `-reason-*` and `-refuse-*`); on,
+  the raw `ApprovalCard` (`approval-card-*`, `approval-accept-*`,
+  `approval-always-*`, `approval-reason-*`, `approval-refuse-*`). There is no
+  separate file prompt. `bash_executor` is auto-refused with no card.
 - **The seed default backend** is `local-llama-server` (an OpenAI-compatible
   backend pointing at the llama-server on :8899). Deterministic runs never
   connect to it; the `-llama` runs route real inference through it.

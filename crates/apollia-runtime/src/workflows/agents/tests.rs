@@ -163,6 +163,7 @@ async fn fixture(max_steps: u32) -> Fixture {
         repository: Some(repository.clone()),
         event_bus: state.event_sender.clone(),
         observability: state.obs_config.clone(),
+        plan_cache: None,
     };
     let budget = StepBudgetConfig {
         max_steps,

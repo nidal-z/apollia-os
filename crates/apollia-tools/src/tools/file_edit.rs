@@ -261,6 +261,7 @@ impl FileEdit {
             tags: vec!["file".to_string(), "edit".to_string()],
             family: crate::descriptor::ActionFamily::WriteOrDelete,
             family_source: crate::descriptor::FamilySource::Builtin,
+            target_arg: Some("path".to_string()),
             is_read_only: false,
             risk_score: 5,
             approval_risk_level: None,

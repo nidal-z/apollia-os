@@ -8,10 +8,8 @@
   ],
   "stopOnError": false,
   "dynamicTestids": [
-    "inbox-filter-all",
-    "inbox-filter-approval",
-    "inbox-filter-ask_user",
-    "inbox-tab-pending",
+    "review-filter-decisions",
+    "review-filter-questions",
     "settings-nav-general",
     "settings-nav-llm"
   ],
@@ -91,7 +89,7 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "approval-card-",
+      "testidPrefix": "operator-approval-",
       "nth": 0,
       "timeoutMs": 8000
     },
@@ -104,15 +102,10 @@
       "label": "controle-approuver-ou-refuser-une-action-1"
     },
     {
-      "kind": "click",
-      "testidPrefix": "approval-refuse-",
+      "kind": "fill",
+      "testidPrefix": "operator-approval-reason-",
       "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-reject-dialog",
-      "timeoutMs": 8000
+      "text": "Out of the allowed perimeter for this documentation capture."
     },
     {
       "kind": "sleep",
@@ -123,13 +116,9 @@
       "label": "controle-approuver-ou-refuser-une-action-3"
     },
     {
-      "kind": "fill",
-      "testid": "inbox-reject-reason",
-      "text": "Out of the allowed perimeter for this documentation capture."
-    },
-    {
       "kind": "click",
-      "testid": "inbox-reject-confirm",
+      "testidPrefix": "operator-approval-refuse-",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {
@@ -160,35 +149,20 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-filter-approval",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-approval",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
+      "testid": "review-item",
       "nth": 0,
       "timeoutMs": 8000
     },
     {
       "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
+      "testid": "review-filter-decisions",
       "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "hitl-always-toggle",
+      "testidPrefix": "operator-approval-always-",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {
@@ -204,50 +178,6 @@
       "label": "troubleshooting-un-agent-est-bloque-1"
     },
     {
-      "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "hitl-always-toggle",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 700
-    },
-    {
-      "kind": "screenshot",
-      "label": "controle-approuver-ou-refuser-une-action-4"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 700
-    },
-    {
-      "kind": "screenshot",
-      "label": "troubleshooting-une-action-est-refusee-1"
-    },
-    {
       "kind": "goto",
       "route": "chat"
     },
@@ -258,29 +188,20 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "approval-card-",
+      "testidPrefix": "operator-approval-",
       "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "approval-refuse-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-reject-dialog",
       "timeoutMs": 8000
     },
     {
       "kind": "fill",
-      "testid": "inbox-reject-reason",
+      "testidPrefix": "operator-approval-reason-",
+      "nth": 0,
       "text": "Out of the allowed perimeter for this documentation capture."
     },
     {
       "kind": "click",
-      "testid": "inbox-reject-confirm",
+      "testidPrefix": "operator-approval-refuse-",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {
@@ -311,41 +232,19 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "waitFor",
-      "testid": "inbox-filter-ask_user",
+      "testid": "review-question",
       "timeoutMs": 8000
     },
     {
       "kind": "click",
-      "testid": "inbox-filter-ask_user",
+      "testid": "review-filter-questions",
       "timeoutMs": 5000
     },
     {
       "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
+      "testid": "review-question",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "ask-user-form",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "ask-user-context",
-      "timeoutMs": 5000
     },
     {
       "kind": "sleep",
@@ -356,33 +255,24 @@
       "label": "transversal-utiliser-l-inbox-2"
     },
     {
-      "kind": "click",
-      "testid": "ask-user-refuse",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-reject-dialog",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "fill",
-      "testid": "inbox-reject-reason",
+      "testid": "review-question-reason",
       "text": "Documentation capture, no answer needed for this question."
     },
     {
       "kind": "click",
-      "testid": "inbox-reject-confirm",
+      "testid": "review-question-refuse",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "review-answered",
       "timeoutMs": 8000
     },
     {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 5000
+      "kind": "waitGone",
+      "testid": "review-answered",
+      "timeoutMs": 20000
     },
     {
       "kind": "goto",

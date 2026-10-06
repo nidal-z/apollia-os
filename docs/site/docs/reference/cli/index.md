@@ -65,7 +65,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os tools show`↴](#apollia-os-tools-show)
 * [`apollia-os tools approvals`↴](#apollia-os-tools-approvals)
 * [`apollia-os tools approvals pending`↴](#apollia-os-tools-approvals-pending)
-* [`apollia-os tools approvals resolved`↴](#apollia-os-tools-approvals-resolved)
 * [`apollia-os audit`↴](#apollia-os-audit)
 * [`apollia-os audit list`↴](#apollia-os-audit-list)
 * [`apollia-os audit journal`↴](#apollia-os-audit-journal)
@@ -157,10 +156,17 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os permissions audit`↴](#apollia-os-permissions-audit)
 * [`apollia-os permissions add`↴](#apollia-os-permissions-add)
 * [`apollia-os chat`↴](#apollia-os-chat)
+* [`apollia-os chat list`↴](#apollia-os-chat-list)
 * [`apollia-os chat delete`↴](#apollia-os-chat-delete)
 * [`apollia-os chat rename`↴](#apollia-os-chat-rename)
 * [`apollia-os chat export`↴](#apollia-os-chat-export)
 * [`apollia-os chat capabilities`↴](#apollia-os-chat-capabilities)
+* [`apollia-os chat settings`↴](#apollia-os-chat-settings)
+* [`apollia-os chat settings get`↴](#apollia-os-chat-settings-get)
+* [`apollia-os chat settings set`↴](#apollia-os-chat-settings-set)
+* [`apollia-os chat notes`↴](#apollia-os-chat-notes)
+* [`apollia-os chat notes get`↴](#apollia-os-chat-notes-get)
+* [`apollia-os chat notes set`↴](#apollia-os-chat-notes-set)
 * [`apollia-os chat config`↴](#apollia-os-chat-config)
 * [`apollia-os chat config get`↴](#apollia-os-chat-config-get)
 * [`apollia-os chat config set`↴](#apollia-os-chat-config-set)
@@ -215,6 +221,9 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
 * [`apollia-os review`↴](#apollia-os-review)
+* [`apollia-os approvals`↴](#apollia-os-approvals)
+* [`apollia-os approvals pending`↴](#apollia-os-approvals-pending)
+* [`apollia-os approvals decide`↴](#apollia-os-approvals-decide)
 * [`apollia-os batch`↴](#apollia-os-batch)
 * [`apollia-os batch run`↴](#apollia-os-batch-run)
 * [`apollia-os batch status`↴](#apollia-os-batch-status)
@@ -328,13 +337,14 @@ Apollia OS CLI binary (apollia-os)
 * `stt` - Speech-to-Text management (status, transcribe, transcriptions, model, config)
 * `onboard` - Launch onboarding or re-onboarding on a specific topic
 * `permissions` - Permission rule management (list, revoke, audit)
-* `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
+* `chat` - Interactive chat REPL + persisted session hygiene (list, delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
 * `package` - Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
 * `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
+* `approvals` - The decisions waiting for you (pending)
 * `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export)
 * `workflow` - Run the workflows of installed packages (show, run, status, logs, cancel)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
@@ -426,10 +436,7 @@ Use the positional `<INPUT>` for free-text input (react/conversational agents). 
 * `--detach` - Submit the task and return immediately without waiting for the result.
 
    The task ID is printed so it can be tracked with `apollia-os task status <id>`.
-* `--alternatives` - Display two alternative plans (conservative vs. exploratory) and choose which one to execute before submitting the task.
-
-   Requires the runtime to support plan alternatives (ORIA engine with LLM).
-* `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit. Incompatible with --alternatives
+* `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit
 * `--autonomy <LEVEL>` - Autonomy tier for this run (default: assisted).
 
    Controls the execution budget, memory injection, and verification. Accepted values: assisted, supervised, bounded_autonomous, long_autonomous.
@@ -519,14 +526,14 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission`, `autonomy` and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). A source is an identifier of `source list`, `profile` or `memory`; the runtime refuses any other. The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy`, `planning` (never, auto or always) and `profile` (a profile identifier, see `profile list`) take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). A source is an identifier of `source list`, `profile` or `memory`; the runtime refuses any other. The source `profile` lets the agent read your profile through `ctx.profile`: `agent set <id> sources profile` checks it, a list without it unchecks it, and `agent reset --field sources` goes back to the package default. Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
-* `<FIELD>` - Field to override: name, mission, examples, access, sources, autonomy or profile
+* `<FIELD>` - Field to override: name, mission, examples, access, sources, autonomy, planning or profile
 * `<VALUES>` - The value, or the items of a list
 
 
@@ -851,7 +858,7 @@ Task management (list, status, cancel, inspect, resume, approvals)
 * `cancel` - Cancel a running task
 * `inspect` - Display the full execution plan of an orchestrated task
 * `resume` - Approve or reject a task pending HITL approval
-* `approvals` - List resolved HITL approvals (accepted or rejected)
+* `approvals` - List the task approvals waiting for a decision
 
 
 
@@ -933,13 +940,15 @@ Exactly one of `--approve` or `--reject` must be supplied.
 
 ## `apollia-os task approvals`
 
-List resolved HITL approvals (accepted or rejected)
+List the task approvals waiting for a decision.
+
+The decisions already taken are in the audit journal (`apollia-os audit journal`).
 
 **Usage:** `apollia-os task approvals [OPTIONS]`
 
 ###### **Options:**
 
-* `--pending` - Also include pending approvals
+* `--pending` - Accepted and without effect: the list holds the pending approvals only
 
 
 
@@ -1172,7 +1181,6 @@ Inspect the HITL queue from the tool registry's side
 ###### **Subcommands:**
 
 * `pending` - List approvals pending decision (tasks in `input_required`)
-* `resolved` - List approvals resolved within the `--days` window
 
 
 
@@ -1181,23 +1189,6 @@ Inspect the HITL queue from the tool registry's side
 List approvals pending decision (tasks in `input_required`)
 
 **Usage:** `apollia-os tools approvals pending`
-
-
-
-## `apollia-os tools approvals resolved`
-
-List approvals resolved within the `--days` window
-
-**Usage:** `apollia-os tools approvals resolved [OPTIONS]`
-
-###### **Options:**
-
-* `--days <DAYS>` - Days of history to include (default: 7)
-
-  Default value: `7`
-* `--limit <LIMIT>` - Maximum number of entries to return (default: 50)
-
-  Default value: `50`
 
 
 
@@ -1212,7 +1203,7 @@ Audit trail (list, stats, export, verify, show, replay)
 * `list` - List recent audit events (default)
 * `journal` - Browse the hash-chained journal across every run, newest first
 * `stats` - Display audit statistics
-* `export` - Export the audit trail as JSON, up to `--limit` events
+* `export` - Export the hash-chained journal to a file, as CSV or JSON
 * `verify` - Verify the audit journal's hash chains and signatures
 * `anchor` - Print the exportable head anchor of the global chain
 * `replay` - Replay a captured run and detect divergences
@@ -1238,7 +1229,7 @@ List recent audit events (default)
 
 Browse the hash-chained journal across every run, newest first.
 
-Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing.
+Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing. Each entry is printed as its summary: when, who, what, on what, with which result, and never the content of a call. The filters add up, and `--limit` and `--offset` count the entries that pass them.
 
 **Usage:** `apollia-os audit journal [OPTIONS]`
 
@@ -1250,7 +1241,12 @@ Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), 
 * `--offset <OFFSET>` - Number of entries to skip, newest first. Page through with it
 
   Default value: `0`
-* `--agent <AGENT>` - Keep the runs of this agent's tasks only. Repeat it for several agents
+* `--agent <AGENT>` - Keep what names this agent, and the runs of its tasks. Repeat it for several agents
+* `--family <FAMILY>` - Keep this action family: read, read_personal, write_or_delete, send_external, execute_code. Repeat it for several
+* `--nature <NATURE>` - Keep this nature: action, access_change, policy, system. Repeat it for several
+* `--result <RESULT>` - Keep this result: success, failure, refused. Repeat it for several
+* `--since <DATE>` - Start of the period, included: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--until <DATE>` - End of the period, excluded: YYYY-MM-DD (UTC) or an RFC 3339 instant
 
 
 
@@ -1264,16 +1260,30 @@ Display audit statistics
 
 ## `apollia-os audit export`
 
-Export the audit trail as JSON, up to `--limit` events
+Export the hash-chained journal to a file, as CSV or JSON.
 
-**Usage:** `apollia-os audit export [OPTIONS]`
+The file holds every entry that passes the filters, newest first, each as its summary: when, who, what, on what, with which result, and its place in the chain. `--detail` adds the payload of each entry and the arguments and output of each tool call, which may hold personal data. The filters are those of `audit journal`. The file is written on this machine, and the export is itself recorded in the journal.
+
+**Usage:** `apollia-os audit export [OPTIONS] --format <FORMAT> --output <PATH>`
 
 ###### **Options:**
 
-* `--output <PATH>` - Destination file (default: stdout)
-* `--limit <LIMIT>` - Maximum number of events to include (default: 10000)
+* `--format <FORMAT>` - Format of the file
 
-  Default value: `10000`
+  Possible values:
+  - `csv`:
+    Comma-separated values, UTF-8, one header row
+  - `json`:
+    One JSON document with the entries
+
+* `--detail` - Add the detail of each entry: its payload, and the arguments and output of its tool call. May hold personal data
+* `--agent <AGENT>` - Keep what names this agent, and the runs of its tasks. Repeat it for several agents
+* `--family <FAMILY>` - Keep this action family: read, read_personal, write_or_delete, send_external, execute_code. Repeat it for several
+* `--nature <NATURE>` - Keep this nature: action, access_change, policy, system. Repeat it for several
+* `--result <RESULT>` - Keep this result: success, failure, refused. Repeat it for several
+* `--since <DATE>` - Start of the period, included: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--until <DATE>` - End of the period, excluded: YYYY-MM-DD (UTC) or an RFC 3339 instant
+* `--output <PATH>` - File the export is written to
 
 
 
@@ -1319,7 +1329,7 @@ Compares the replayed run against its captured trace across every category: LLM 
 
 Show a run's full journal, including the model's LLM completions.
 
-Unlike `audit list`/`export` (the tool-only audit trail), this reads the hash-chained journal so the captured reasoning (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
+Unlike `audit list` (the tool-only audit trail), this reads the hash-chained journal so the captured reasoning (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
 
 **Usage:** `apollia-os audit show <RUN_OR_TASK>`
 
@@ -2557,7 +2567,7 @@ Persists into `governance.db` directly (no runtime required). The rule applies t
 
 ## `apollia-os chat`
 
-Interactive chat REPL + persisted session hygiene (delete, rename, export).
+Interactive chat REPL + persisted session hygiene (list, delete, rename, export).
 
 Without a subcommand: launches the REPL (resume with `--resume <id>`, or list recent sessions with `--list`). With a subcommand: operates on `~/.apollia/chat.db` directly; no runtime required.
 
@@ -2565,10 +2575,13 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 ###### **Subcommands:**
 
-* `delete` - Delete a persisted chat session and all of its messages
+* `list` - List the persisted chat sessions, each with the folder it is in
+* `delete` - Delete a persisted chat session and all of its messages, for good
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
 * `capabilities` - Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images
+* `settings` - Read or replace what one conversation changes from its agent: its request settings, its instructions, the accesses it switches off
+* `notes` - Read or replace the notes kept beside one conversation
 * `config` - Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Options:**
@@ -2578,9 +2591,25 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 
 
 
+## `apollia-os chat list`
+
+List the persisted chat sessions, each with the folder it is in.
+
+Reads the chat database, no runtime required. A session the desktop application sent to its trash is not listed.
+
+**Usage:** `apollia-os chat list [OPTIONS]`
+
+###### **Options:**
+
+* `--db <PATH>` - Override the chat database path (default: `~/.apollia/chat.db`)
+
+
+
 ## `apollia-os chat delete`
 
-Delete a persisted chat session and all of its messages
+Delete a persisted chat session and all of its messages, for good.
+
+Nothing goes to the trash of the desktop application: a session deleted here cannot be restored. A session already in that trash is erased the same way.
 
 **Usage:** `apollia-os chat delete [OPTIONS] <SESSION_ID>`
 
@@ -2646,6 +2675,90 @@ Reaches the runtime; exits 2 when it is not running.
 ###### **Arguments:**
 
 * `<SESSION_ID>` - Session id
+
+
+
+## `apollia-os chat settings`
+
+Read or replace what one conversation changes from its agent: its request settings, its instructions, the accesses it switches off
+
+**Usage:** `apollia-os chat settings <COMMAND>`
+
+###### **Subcommands:**
+
+* `get` - Print what a conversation changes from its agent
+* `set` - Replace the settings of a conversation
+
+
+
+## `apollia-os chat settings get`
+
+Print what a conversation changes from its agent.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat settings get <SESSION_ID>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+
+
+
+## `apollia-os chat settings set`
+
+Replace the settings of a conversation.
+
+Reaches the runtime; exits 2 when it is not running. The fields are `preset`, `thinking`, `reasoning_effort` (`low`, `medium`, `high`), `temperature`, `max_tokens`, `context_overflow` (`summarize_middle`, `sliding_window`, `stop_at_limit`), `instructions`, `disabled_accesses`, `proposed_accesses` and `profile_access`. `{}` returns the conversation to the settings of its agent.
+
+**Usage:** `apollia-os chat settings set <SESSION_ID> <SETTINGS>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+* `<SETTINGS>` - The settings, a JSON object. A field left out is inherited
+
+
+
+## `apollia-os chat notes`
+
+Read or replace the notes kept beside one conversation
+
+**Usage:** `apollia-os chat notes <COMMAND>`
+
+###### **Subcommands:**
+
+* `get` - Print the notes kept beside a conversation
+* `set` - Replace the notes kept beside a conversation. They are never sent to a model
+
+
+
+## `apollia-os chat notes get`
+
+Print the notes kept beside a conversation.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat notes get <SESSION_ID>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+
+
+
+## `apollia-os chat notes set`
+
+Replace the notes kept beside a conversation. They are never sent to a model.
+
+Reaches the runtime; exits 2 when it is not running.
+
+**Usage:** `apollia-os chat notes set <SESSION_ID> <NOTES>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+* `<NOTES>` - The notes. An empty string erases them
 
 
 
@@ -3474,6 +3587,56 @@ Automated code or plan review via the apollia-review agent
 * `--task <ID>` - Apollia task ID whose execution plan should be reviewed
 * `--pr <N>` - GitHub pull-request number to fetch via `gh pr diff`
 * `--diff <FILE>` - Local diff / patch file to analyse
+
+
+
+## `apollia-os approvals`
+
+The decisions waiting for you (pending)
+
+**Usage:** `apollia-os approvals <COMMAND>`
+
+###### **Subcommands:**
+
+* `pending` - List every decision waiting for you: consents, paused tasks, batch items waiting for an access, questions from agents and from workflows
+* `decide` - Answer one waiting decision: the run that waits goes on with it
+
+
+
+## `apollia-os approvals pending`
+
+List every decision waiting for you: consents, paused tasks, batch items waiting for an access, questions from agents and from workflows
+
+**Usage:** `apollia-os approvals pending`
+
+
+
+## `apollia-os approvals decide`
+
+Answer one waiting decision: the run that waits goes on with it
+
+**Usage:** `apollia-os approvals decide [OPTIONS] <ID> <ANSWER>`
+
+###### **Arguments:**
+
+* `<ID>` - The `id` of the item, as `approvals pending` prints it
+* `<ANSWER>` - The answer, one of those the item takes
+
+  Possible values:
+  - `once`:
+    This call, or this item, only
+  - `always`:
+    This one and every later one of the same agent in the same family
+  - `refuse`:
+    Not this one
+  - `answer`:
+    The answer to a question, given with `--value`
+
+
+###### **Options:**
+
+* `--value <TEXT>` - The answer to a question: one of its choices, or free text
+* `--reason <TEXT>` - Why, for a refusal; handed to the run that asked
 
 
 

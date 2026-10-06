@@ -16,21 +16,13 @@ class TriggerOnboardingBody:
     """Request body for `POST /api/v1/onboarding/sessions`.
 
     Attributes:
-        profile (None | str | Unset): The profile the agent adapts its questions to, when one was chosen.
         topic (None | str | Unset): One topic to run again; absent for a full onboarding.
     """
 
-    profile: None | str | Unset = UNSET
     topic: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        profile: None | str | Unset
-        if isinstance(self.profile, Unset):
-            profile = UNSET
-        else:
-            profile = self.profile
-
         topic: None | str | Unset
         if isinstance(self.topic, Unset):
             topic = UNSET
@@ -40,8 +32,6 @@ class TriggerOnboardingBody:
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
-        if profile is not UNSET:
-            field_dict["profile"] = profile
         if topic is not UNSET:
             field_dict["topic"] = topic
 
@@ -50,15 +40,6 @@ class TriggerOnboardingBody:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-
-        def _parse_profile(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        profile = _parse_profile(d.pop("profile", UNSET))
 
         def _parse_topic(data: object) -> None | str | Unset:
             if data is None:
@@ -70,7 +51,6 @@ class TriggerOnboardingBody:
         topic = _parse_topic(d.pop("topic", UNSET))
 
         trigger_onboarding_body = cls(
-            profile=profile,
             topic=topic,
         )
 

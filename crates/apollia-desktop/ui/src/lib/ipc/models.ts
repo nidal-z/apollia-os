@@ -26,14 +26,6 @@ export interface GgufModelInfo {
   recommended: boolean;
 }
 
-export interface WhisperModelInfo {
-  path: string;
-  filename: string;
-  size_bytes: number;
-  model_size: string;
-  recommended: boolean;
-}
-
 export interface DownloadProgress {
   id: string;
   downloaded_bytes: number;
@@ -248,10 +240,6 @@ export async function scanForGgufModels(): Promise<GgufModelInfo[]> {
   return invoke<GgufModelInfo[]>("scan_for_gguf_models");
 }
 
-export async function scanForWhisperModels(): Promise<WhisperModelInfo[]> {
-  return invoke<WhisperModelInfo[]>("scan_for_whisper_models");
-}
-
 // ── LLM setup ────────────────────────────────────────────────────────────────
 
 /**
@@ -312,13 +300,6 @@ export async function getSttConfig(): Promise<SttConfig> {
 
 export async function updateSttConfig(config: SttConfig): Promise<void> {
   return invoke<void>("update_stt_config", { config });
-}
-
-export async function setupWhisperModel(
-  modelPath: string,
-  language: string | undefined,
-): Promise<void> {
-  return invoke<void>("setup_whisper_model", { modelPath, language });
 }
 
 export async function reloadStt(): Promise<void> {

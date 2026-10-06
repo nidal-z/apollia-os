@@ -59,6 +59,17 @@ pub trait CompletionModel: Send + Sync {
         false
     }
 
+    /// Whether a request that ends on an assistant message has that message
+    /// continued, rather than answered by a new one.
+    ///
+    /// `false` (the default) is the answer for every engine it was not
+    /// measured on: a server free to close the trailing message and open a new
+    /// turn would answer something other than the rest of the text, and the
+    /// caller would stitch the two together as if they were one answer.
+    fn continues_answer(&self) -> bool {
+        false
+    }
+
     /// Maximum context window of the loaded model, in tokens, when known.
     ///
     /// Lets the router size context compaction to the real model window instead
@@ -91,6 +102,7 @@ pub trait CompletionModel: Send + Sync {
 pub(crate) fn message_char_len(msg: &ChatMessage) -> usize {
     match &msg.content {
         MessageContent::Text(s) => s.len(),
+        MessageContent::TextWithImages { text, .. } => text.len(),
         MessageContent::ToolResult { content, .. } => content.len(),
         MessageContent::WithToolCalls { text, tool_calls } => {
             text.len()
@@ -398,6 +410,14 @@ pub enum Role {
 pub enum MessageContent {
     /// Plain text content.
     Text(String),
+    /// A user message carrying text and one or more images, sent to a model
+    /// that reads images. The images follow the text, in order.
+    TextWithImages {
+        /// Text of the message (may be empty).
+        text: String,
+        /// Images attached to the message, in the order the user gave them.
+        images: Vec<crate::message_image::MessageImage>,
+    },
     /// Result of a tool call (`Tool` role).
     ToolResult {
         /// Identifier of the matching tool call.

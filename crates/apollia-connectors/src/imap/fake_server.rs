@@ -20,20 +20,23 @@ use super::tls_test_material::{TEST_CA_PEM, TEST_SERVER_CERT_PEM, TEST_SERVER_KE
 use super::{ImapAccount, ImapClient};
 
 /// Password the fake mailbox accepts.
-pub(super) const GOOD_PASSWORD: &str = "abcd efgh ijkl mnop";
+pub(crate) const GOOD_PASSWORD: &str = "abcd efgh ijkl mnop";
+
+/// Validity of the identifiers of the fake inbox.
+pub(crate) const UID_VALIDITY: u32 = 42;
 
 /// One message of the fake mailbox.
-pub(super) struct FakeMessage {
+pub(crate) struct FakeMessage {
     pub uid: u32,
     pub seen: bool,
     pub raw: &'static str,
 }
 
 /// Folders of the fake mailbox; `Archive` only holds other folders.
-pub(super) const FOLDERS: &[(&str, bool)] = &[("INBOX", false), ("Archive", true)];
+pub(crate) const FOLDERS: &[(&str, bool)] = &[("INBOX", false), ("Archive", true)];
 
 /// The messages of the fake inbox.
-pub(super) fn inbox() -> Vec<FakeMessage> {
+pub(crate) fn inbox() -> Vec<FakeMessage> {
     vec![
         FakeMessage {
             uid: 3,
@@ -72,7 +75,7 @@ pub(super) fn inbox() -> Vec<FakeMessage> {
 }
 
 /// A running fake server.
-pub(super) struct FakeImap {
+pub(crate) struct FakeImap {
     pub addr: SocketAddr,
     commands: Arc<Mutex<Vec<String>>>,
 }
@@ -116,12 +119,12 @@ impl FakeImap {
 }
 
 /// A client that trusts the test authority only.
-pub(super) fn test_client() -> ImapClient {
+pub(crate) fn test_client() -> ImapClient {
     client_trusting(TEST_CA_PEM)
 }
 
 /// A client that trusts the authority `ca_pem` only.
-pub(super) fn client_trusting(ca_pem: &str) -> ImapClient {
+pub(crate) fn client_trusting(ca_pem: &str) -> ImapClient {
     let mut roots = RootCertStore::empty();
     roots
         .add(CertificateDer::from_pem_slice(ca_pem.as_bytes()).unwrap())
@@ -192,8 +195,21 @@ fn answer(tag: &str, command: &str, upper: &str, inbox: &[FakeMessage]) -> Strin
         let folder = folder.trim_matches('"');
         return if folder == "INBOX" {
             format!(
-                "* {} EXISTS\r\n* 0 RECENT\r\n* FLAGS (\\Seen)\r\n{tag} OK [READ-ONLY] opened\r\n",
+                "* {} EXISTS\r\n* 0 RECENT\r\n* FLAGS (\\Seen)\r\n\
+                 * OK [UIDVALIDITY {UID_VALIDITY}] valid\r\n{tag} OK [READ-ONLY] opened\r\n",
                 inbox.len()
+            )
+        } else {
+            format!("{tag} NO no such folder\r\n")
+        };
+    }
+    if let Some(rest) = upper.strip_prefix("STATUS ") {
+        let folder = rest.split(' ').next().unwrap_or_default().trim_matches('"');
+        return if folder == "INBOX" {
+            format!(
+                "* STATUS \"INBOX\" (MESSAGES {} UNSEEN {})\r\n{tag} OK counted\r\n",
+                inbox.len(),
+                inbox.iter().filter(|m| !m.seen).count()
             )
         } else {
             format!("{tag} NO no such folder\r\n")

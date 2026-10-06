@@ -12,8 +12,9 @@ use clap::Parser;
 
 use crate::commands::a2a::A2aCommand;
 use crate::commands::agent::{AgentCommand, PackageCommand};
+use crate::commands::approvals::ApprovalsCommand;
 use crate::commands::audit::AuditCommand;
-use crate::commands::chat::ChatHygieneCommand;
+use crate::commands::chat::{ChatHygieneCommand, ChatNotesCommand, ChatSettingsCommand};
 use crate::commands::chat_config::ChatConfigCommand;
 use crate::commands::config::ConfigCommand;
 use crate::commands::digest::DigestWindow;
@@ -611,34 +612,6 @@ fn test_cli_parses_tools_approvals_pending() {
     assert!(matches!(command, ToolsApprovalsCmd::Pending));
 }
 
-#[test]
-fn test_cli_parses_tools_approvals_resolved_with_window() {
-    // GIVEN "apollia-os tools approvals resolved --days 3 --limit 5"
-    // WHEN the top-level parser reads it
-    let cli = parse(&[
-        "apollia-os",
-        "tools",
-        "approvals",
-        "resolved",
-        "--days",
-        "3",
-        "--limit",
-        "5",
-    ]);
-    // THEN the window overrides the defaults of 7 days and 50 entries
-    let Commands::Tools {
-        command: ToolsCommand::Approvals { command },
-    } = cli.command
-    else {
-        panic!("expected tools approvals");
-    };
-    let ToolsApprovalsCmd::Resolved { days, limit } = command else {
-        panic!("expected tools approvals resolved");
-    };
-    assert_eq!(days, 3);
-    assert_eq!(limit, 5);
-}
-
 // ─── audit ───────────────────────────────────────────────────────────────────
 
 #[test]
@@ -661,6 +634,11 @@ fn test_cli_parses_audit_journal_with_page() {
                 limit,
                 offset,
                 agents,
+                families,
+                natures,
+                results,
+                since,
+                until,
             },
     } = cli.command
     else {
@@ -668,7 +646,53 @@ fn test_cli_parses_audit_journal_with_page() {
     };
     assert_eq!(limit, 5);
     assert_eq!(offset, 10);
-    assert!(agents.is_empty());
+    // AND no filter is set
+    assert!(agents.is_empty() && families.is_empty() && natures.is_empty());
+    assert!(results.is_empty() && since.is_none() && until.is_none());
+}
+
+#[test]
+fn test_cli_parses_audit_journal_with_every_filter() {
+    // GIVEN "apollia-os audit journal" with a family twice, a nature, a
+    // result and a period
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "audit",
+        "journal",
+        "--family",
+        "read",
+        "--family",
+        "send_external",
+        "--nature",
+        "action",
+        "--result",
+        "refused",
+        "--since",
+        "2026-10-01",
+        "--until",
+        "2026-10-04",
+    ]);
+    // THEN each filter is carried as given, the repeated one in order
+    let Commands::Audit {
+        command:
+            AuditCommand::Journal {
+                families,
+                natures,
+                results,
+                since,
+                until,
+                ..
+            },
+    } = cli.command
+    else {
+        panic!("expected audit journal");
+    };
+    assert_eq!(families, vec!["read", "send_external"]);
+    assert_eq!(natures, vec!["action"]);
+    assert_eq!(results, vec!["refused"]);
+    assert_eq!(since.as_deref(), Some("2026-10-01"));
+    assert_eq!(until.as_deref(), Some("2026-10-04"));
 }
 
 #[test]
@@ -1055,6 +1079,97 @@ fn test_cli_refuses_chat_capabilities_without_a_session() {
     let parsed = Cli::try_parse_from(["apollia-os", "chat", "capabilities"]);
     // THEN it is refused: the session is required
     assert!(parsed.is_err());
+}
+
+#[test]
+fn test_cli_parses_chat_settings_get_and_set() {
+    // GIVEN "apollia-os chat settings get s-1" and the matching set
+    // WHEN the top-level parser reads each
+    let get = parse(&["apollia-os", "chat", "settings", "get", "s-1"]);
+    let set = parse(&[
+        "apollia-os",
+        "chat",
+        "settings",
+        "set",
+        "s-1",
+        r#"{"max_tokens":256}"#,
+    ]);
+    // THEN each carries its session, and the set its document
+    let Commands::Chat {
+        command: Some(ChatHygieneCommand::Settings { command }),
+        ..
+    } = get.command
+    else {
+        panic!("expected chat settings");
+    };
+    let ChatSettingsCommand::Get { session_id } = command else {
+        panic!("expected chat settings get");
+    };
+    assert_eq!(session_id, "s-1");
+    let Commands::Chat {
+        command: Some(ChatHygieneCommand::Settings { command }),
+        ..
+    } = set.command
+    else {
+        panic!("expected chat settings");
+    };
+    let ChatSettingsCommand::Set {
+        session_id,
+        settings,
+    } = command
+    else {
+        panic!("expected chat settings set");
+    };
+    assert_eq!(session_id, "s-1");
+    assert_eq!(settings, r#"{"max_tokens":256}"#);
+}
+
+#[test]
+fn test_cli_refuses_chat_settings_set_without_a_document() {
+    // GIVEN "apollia-os chat settings set s-1" with no settings
+    // WHEN the top-level parser reads it
+    let parsed = Cli::try_parse_from(["apollia-os", "chat", "settings", "set", "s-1"]);
+    // THEN it is refused: the document is required
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn test_cli_parses_chat_notes_get_and_set() {
+    // GIVEN "apollia-os chat notes get s-1" and the matching set
+    // WHEN the top-level parser reads each
+    let get = parse(&["apollia-os", "chat", "notes", "get", "s-1"]);
+    let set = parse(&[
+        "apollia-os",
+        "chat",
+        "notes",
+        "set",
+        "s-1",
+        "ask about March",
+    ]);
+    // THEN each carries its session, and the set its text
+    let Commands::Chat {
+        command: Some(ChatHygieneCommand::Notes { command }),
+        ..
+    } = get.command
+    else {
+        panic!("expected chat notes");
+    };
+    let ChatNotesCommand::Get { session_id } = command else {
+        panic!("expected chat notes get");
+    };
+    assert_eq!(session_id, "s-1");
+    let Commands::Chat {
+        command: Some(ChatHygieneCommand::Notes { command }),
+        ..
+    } = set.command
+    else {
+        panic!("expected chat notes");
+    };
+    let ChatNotesCommand::Set { session_id, notes } = command else {
+        panic!("expected chat notes set");
+    };
+    assert_eq!(session_id, "s-1");
+    assert_eq!(notes, "ask about March");
 }
 
 // ─── mcp ─────────────────────────────────────────────────────────────────────
@@ -1780,4 +1895,51 @@ fn test_cli_parses_service_status() {
         panic!("expected service");
     };
     assert!(matches!(command, ServiceCommand::Status));
+}
+
+// ─── approvals ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_approvals_pending() {
+    // GIVEN "apollia-os approvals pending --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "approvals", "pending", "--json"]);
+    // THEN the pending verb of the approvals noun is selected, in JSON
+    assert!(cli.json);
+    let Commands::Approvals(args) = cli.command else {
+        panic!("expected approvals");
+    };
+    assert!(matches!(args.command, ApprovalsCommand::Pending));
+}
+
+#[test]
+fn test_cli_parses_approvals_decide() {
+    // GIVEN "apollia-os approvals decide <id> answer --value 180.50"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "approvals",
+        "decide",
+        "workflow-question:r-1",
+        "answer",
+        "--value",
+        "180.50",
+    ]);
+    // THEN the decide verb carries the item, the answer and its value
+    let Commands::Approvals(args) = cli.command else {
+        panic!("expected approvals");
+    };
+    let ApprovalsCommand::Decide {
+        id,
+        answer,
+        value,
+        reason,
+    } = args.command
+    else {
+        panic!("expected decide");
+    };
+    assert_eq!(id, "workflow-question:r-1");
+    assert_eq!(answer, crate::commands::approvals::DecideAnswer::Answer);
+    assert_eq!(value.as_deref(), Some("180.50"));
+    assert!(reason.is_none());
 }

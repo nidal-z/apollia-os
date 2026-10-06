@@ -38,6 +38,7 @@ use super::types::{
     ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, InjectedInstruction,
     PendingChatApprovals, PlanPhase, ToolCallRecord, ToolCallStatus, ToolDecision, TurnOutcome,
 };
+use crate::chat::agent_draft_tool::{agent_draft_spec, DraftOffer, AGENT_DRAFT_TOOL_NAME};
 use crate::chat::plan_actor::PlanHandle;
 use crate::chat::plan_tool::{
     self, PLAN_ADD_STEP_TOOL_NAME, PLAN_MODIFY_STEP_TOOL_NAME, PLAN_PROPOSE_TOOL_NAME,
@@ -51,13 +52,17 @@ use crate::composition::Composer;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
+mod approval_request;
 mod builder;
+mod call_journal;
 mod catalog;
 mod context_window;
+mod draft;
 mod governed;
 mod helpers;
 mod hitl;
 mod invoker;
+mod outputs;
 mod plan;
 mod prompt;
 mod react_loop;
@@ -74,13 +79,18 @@ pub(in crate::chat::builtin_agent) use helpers::{
     stamp_inject_provenance, step_status_token, truncate_preview, truncate_tool_output,
     unknown_tool_reason,
 };
-pub use invoker::{HitlInvokerParams, NativeChatToolInvoker};
+pub use invoker::NativeChatToolInvoker;
+pub use outputs::{context_tool_output, default_tool_output_dir, TOOL_OUTPUT_DIR};
 pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};
 pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTracker, RetryCarry};
 
 /// An "always accept" on a code executor covers the current call only.
 #[cfg(test)]
+mod call_journal_tests;
+#[cfg(test)]
 mod code_executor_grant_tests;
+#[cfg(test)]
+mod consent_journal_tests;
 #[cfg(test)]
 mod governed_test_support;
 #[cfg(test)]
@@ -94,6 +104,41 @@ mod tests;
 mod todo_compaction_tests;
 #[cfg(test)]
 mod verification_wire_tests;
+/// A write is consented to on the card of its family, with no prompt of its own.
+#[cfg(test)]
+mod write_consent_tests;
+
+/// What one conversation changes from its agent: the part of its settings
+/// the loop applies. The default changes nothing.
+#[derive(Debug, Clone, Default)]
+pub struct SessionOverrides {
+    /// Instructions added to the mission, after it.
+    pub instructions: Option<String>,
+    /// Request settings of the conversation, the level above the model, the
+    /// package and the preset.
+    pub request: apollia_llm::request_defaults::RequestDefaults,
+    /// Reads the three levels below, the preset of the conversation taking
+    /// the place of the agent's. `None` reads none of them.
+    pub request_levels: Option<apollia_llm::AgentModelBinding>,
+    /// Reasoning on or off, for a model that reads it.
+    pub thinking: Option<bool>,
+    /// Level of reasoning, for a model that reads it.
+    pub reasoning_effort: Option<apollia_llm::ReasoningEffort>,
+    /// What happens when the messages reach the context limit.
+    pub overflow: apollia_oria::context_manager::ContextOverflow,
+    /// Accesses the agent does not hold, proposed for the conversation: each
+    /// of their calls asks, unless a standing consent covers it.
+    pub proposed_accesses: Vec<String>,
+}
+
+/// The request settings of one turn, read once and applied to each call.
+#[derive(Debug, Clone, Default)]
+pub(in crate::chat::builtin_agent) struct TurnRequestSettings {
+    /// The temperature the user chose, for the conversation or in a preset.
+    chosen_temperature: Option<f32>,
+    /// The four levels resolved.
+    resolved: apollia_llm::request_defaults::RequestDefaults,
+}
 
 /// Delay after which a tool approval of a conversation is refused (5 minutes).
 pub(crate) const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -212,14 +257,20 @@ pub struct BuiltInChatAgent {
     tool_invoker: Arc<dyn ToolInvoker>,
     /// Event bus for emitting chat lifecycle events.
     event_bus: EventBusSender,
-    /// Optional user memory repository for injecting user context into the system prompt.
+    /// Profile store the profile block of the system prompt is read from.
+    /// `None` leaves the prompt without a profile block.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// Profile the conversation designates; `None` reads the default profile.
+    conversation_profile: Option<String>,
     /// Reads the agents and workflows granted to the agent, offered as
     /// tools. `None` offers none of them.
     composer: Option<Arc<dyn Composer>>,
-    /// Context window manager: compacts `llm_messages` inside the ReAct loop
-    /// when accumulated messages exceed the model's window threshold.
+    /// Context window manager: brings `llm_messages` under the model's window
+    /// threshold inside the ReAct loop, the way the conversation chose
+    /// (summarize, slide, or stop).
     context_manager: ContextManager,
+    /// What the conversation changes from its agent, for itself alone.
+    session: SessionOverrides,
     /// Optional handle to the `MetaLlmOrchestrator`, used to produce the
     /// `ToolCallRationale` narrated before each tool execution.
     /// Absent by default for backward compatibility; injected by the manager
@@ -240,6 +291,9 @@ pub struct BuiltInChatAgent {
     todo: Option<TodoHandle>,
     /// Optional per-session plan store. `None` disables the `plan_*` tools.
     plan: Option<PlanHandle>,
+    /// What a draft of an agent may hold. `Some` only in the conversation
+    /// that creates an agent, where it enables the `propose_agent` tool.
+    agent_draft: Option<DraftOffer>,
     /// Whether the owning session has plan mode enabled.
     ///
     /// This is the real gate consulted by [`plan_mode_active`](Self::plan_mode_active):
@@ -267,6 +321,14 @@ pub struct BuiltInChatAgent {
     /// the operator text as reason. `None` for every ordinary turn, so behavior is
     /// unchanged when no injection is pending.
     pending_injection: Option<InjectedInstruction>,
+    /// The answer this turn continues. `Some` only when the user asked for the
+    /// last answer to be continued: the request then ends on that answer, as an
+    /// assistant message the engine prefills, and no message is added to ask
+    /// for the rest.
+    answer_prefill: Option<String>,
+    /// Images of the turn: those of the message answered and of the earlier
+    /// user messages in the window. Empty for a turn without images.
+    turn_images: crate::chat::images::TurnImages,
     /// Temperature applied to a turn that advertises tools to the model.
     ///
     /// Lowering it whenever tools are exposed makes structured tool-call output
@@ -289,6 +351,11 @@ pub struct BuiltInChatAgent {
     /// Delay after which a pending tool approval is refused. `None` waits for
     /// the human however long it takes.
     approval_timeout: Option<Duration>,
+    /// Directory where a tool output too long for the context is kept whole.
+    /// `None` cuts such an output instead.
+    tool_output_dir: Option<std::path::PathBuf>,
+    /// Circuit breakers of the tools this loop calls, one per tool.
+    resilience: apollia_oria::ResilienceLayer,
     /// The conversation turn every model call of the run is made for: the
     /// identifier of the answer it produces. `None` outside a conversation.
     turn_id: Option<String>,

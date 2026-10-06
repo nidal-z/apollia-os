@@ -240,6 +240,10 @@ fn test_all_variants_exist_and_clone() {
             tool_call_id: "call-005".into(),
             tool_name: "bash_executor".into(),
             prompt: "Allow bash execution?".into(),
+            answers: Vec::new(),
+            detail: String::new(),
+            code: None,
+            working_dir: None,
         },
         RuntimeEvent::ChatApprovalResolved {
             session_id: "sess-001".into(),
@@ -299,7 +303,6 @@ fn test_all_variants_exist_and_clone() {
             topic: None,
         },
         RuntimeEvent::OnboardingCompleted {
-            profile: "operator".into(),
             duration_sec: 1200,
             actions_count: 18,
         },
@@ -368,19 +371,6 @@ fn test_all_variants_exist_and_clone() {
             old_mtime_ms: 1_700_000_000_000,
             new_mtime_ms: 1_700_000_060_000,
         },
-        // ── HITL filesystem ───────────────────────────────
-        RuntimeEvent::HitlFilesystemRequired {
-            request_id: "req-001".into(),
-            session_id: "sess-001".into(),
-            level: "medium".into(),
-            op: "write".into(),
-            path: "/home/alice/notes.md".into(),
-            preview: FilesystemPreview::Diff {
-                before: "old content".into(),
-                after: "new content".into(),
-                truncated: false,
-            },
-        },
         RuntimeEvent::AgentLog {
             task_id: "task-1".into(),
             agent_id: "agent-1".into(),
@@ -412,6 +402,9 @@ fn test_all_variants_exist_and_clone() {
             tool_name: "web_search".into(),
             args_json: Some("{\"query\":\"hello\"}".into()),
             run_id: None,
+            tool_call_id: None,
+            family: None,
+            target: None,
         },
         RuntimeEvent::ToolCallCompleted {
             parent_event_id: "01900000-0000-7000-8000-000000000001".into(),
@@ -423,6 +416,9 @@ fn test_all_variants_exist_and_clone() {
             duration_ms: 412,
             success: true,
             run_id: None,
+            tool_call_id: None,
+            family: None,
+            target: None,
         },
         RuntimeEvent::ToolCallDenied {
             parent_event_id: "01900000-0000-7000-8000-000000000002".into(),

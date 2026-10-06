@@ -12,7 +12,9 @@ use apollia_tools::registry::ToolRegistryHandle;
 
 use crate::approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
-use crate::manager::views::{log_session_start_error, register_session_tools_in_registry};
+use crate::manager::views::{
+    log_session_start_error, register_session_tools_in_registry, ServerHints,
+};
 use crate::manager::{
     McpClientManager, McpClientManagerHandle, McpCommand, McpConnectionTestResult,
     McpResourcePayload, McpResourceSummary, McpServerDetail, McpServerStatus, ProbeSpec,
@@ -77,6 +79,7 @@ impl McpClientManagerHandle {
                             &server_name,
                             &tags,
                             &session,
+                            ServerHints::Read,
                         )
                         .await;
                     }
@@ -103,6 +106,7 @@ impl McpClientManagerHandle {
             rx,
             tool_registry: tool_registry.clone(),
             reloading: HashSet::new(),
+            request_servers: HashSet::new(),
             event_bus,
             last_call_at: HashMap::new(),
             approvals,
@@ -296,6 +300,44 @@ impl McpClientManagerHandle {
         self.tx
             .send(McpCommand::AddServer {
                 config,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: name.clone(),
+            })?;
+        reply_rx
+            .await
+            .map_err(|_| McpSessionError::ServerExited { server: name })?
+    }
+    /// Connect a server a request brought, for the length of that request.
+    ///
+    /// `transport` is built by the caller, over the client the address calls
+    /// for; `config` names the session and bounds it, and neither its
+    /// transport fields nor its environment are read. The handshake runs, the
+    /// tools are read and, in eager mode, registered unclassified: nothing the
+    /// server declares about a tool classifies it. Nothing is persisted. The
+    /// caller removes the server with [`Self::remove_server`] when the request
+    /// ends, which takes its tools out of the registry too; it can be neither
+    /// restarted nor reloaded, since that would rebuild its transport from
+    /// the configuration.
+    ///
+    /// # Errors
+    ///
+    /// [`McpSessionError::InitializeFailed`] when a server of that name is
+    /// already managed, and the session error when the handshake or the tool
+    /// listing fails.
+    pub async fn add_request_server(
+        &self,
+        config: McpServerConfig,
+        transport: Box<dyn crate::transport::McpTransport>,
+    ) -> Result<McpServerStatus, McpSessionError> {
+        let name = config.name.clone();
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::AddRequestServer {
+                config,
+                transport,
                 reply: reply_tx,
             })
             .await

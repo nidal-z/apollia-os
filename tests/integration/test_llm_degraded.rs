@@ -226,6 +226,9 @@ async fn test_runtime_continues_after_llm_init_failure() {
         routing: None,
         guardrails: Default::default(),
         residency: Default::default(),
+        defaults: Default::default(),
+        images: Default::default(),
+        devices: Default::default(),
     };
 
     // WHEN LlmRouter::from_config() fails (the backend is absent)

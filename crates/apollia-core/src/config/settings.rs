@@ -26,8 +26,10 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    AuthorConfig, DesktopConfig, EnginesConfig, LlmResidencyConfig, McpConfig, ModelsConfig,
-    ServerConfig, ENGINE_LOG_LEVELS,
+    AuthorConfig, DesktopConfig, EnginesConfig, LlmDefaultsConfig, LlmDevicesConfig,
+    LlmImagesConfig, LlmResidencyConfig, McpConfig, ModelsConfig, ServerConfig, CONTEXT_MODES,
+    CONTEXT_MODE_KEY, ENGINE_LOG_LEVELS, GGUF_ENGINE_CHOICES, LOAD_BYPASS_KEY, LOAD_BYPASS_MODES,
+    MLX_ENGINE_CHOICES,
 };
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
@@ -37,7 +39,21 @@ pub const GUARDRAIL_LEVELS: &[&str] = &["disabled", "lenient", "balanced", "stri
 /// Settings whose value is one of a closed list, by dotted key.
 const CHOICES: &[(&str, &[&str])] = &[
     ("llm.guardrails.level", GUARDRAIL_LEVELS),
+    (LOAD_BYPASS_KEY, LOAD_BYPASS_MODES),
+    (CONTEXT_MODE_KEY, CONTEXT_MODES),
     ("engines.log_level", ENGINE_LOG_LEVELS),
+    ("engines.gguf", GGUF_ENGINE_CHOICES),
+    ("engines.mlx", MLX_ENGINE_CHOICES),
+];
+
+/// Settings a policy may fix on one side only, by dotted key, with the one
+/// value it may impose: the value that closes. A policy closes the compatible
+/// server to the local network, requires its token, refuses the MCP servers a
+/// request brings; opening any of the three stays a gesture of the user.
+pub(super) const POLICY_CLOSING_VALUES: &[(&str, bool)] = &[
+    ("server.serve_on_lan", false),
+    ("server.require_auth", true),
+    ("server.allow_request_mcp", false),
 ];
 
 /// Where the value of a resolved setting comes from.
@@ -160,9 +176,12 @@ pub enum SettingError {
 /// `models.registry_mirror_url`, `models.registry_enabled`), the import rule
 /// (`models.import.require_verified`) and the load guardrail
 /// (`llm.guardrails.level`, `llm.guardrails.ceiling_gb`, where `0` sets no
-/// ceiling), the idle unload delay of a local model
-/// (`llm.residency.idle_unload_minutes`, where `0` never unloads), then the
-/// whole `[server]` and `[engines]` sections.
+/// ceiling, `llm.guardrails.bypass`), the idle unload delay of a local model
+/// (`llm.residency.idle_unload_minutes`, where `0` never unloads), the default
+/// context window (`[llm.defaults]`), the image ceiling (`[llm.images]`) and
+/// the graphics devices held back (`[llm.devices]`), then the whole `[server]`
+/// and `[engines]` sections, and the defaults of a new conversation and of a
+/// new agent (`chat.share_profile_default`, `[tools.new_agent]`).
 fn defaults() -> serde_json::Map<String, Value> {
     let mut sections = serde_json::Map::new();
     // A struct of plain fields always serializes; a failure would only make
@@ -177,12 +196,26 @@ fn defaults() -> serde_json::Map<String, Value> {
         );
         sections.insert("models".to_owned(), Value::Object(models));
     }
-    let mut llm = serde_json::json!({ "guardrails": { "level": "balanced", "ceiling_gb": 0.0 } });
-    if let (Some(llm), Ok(residency)) = (
-        llm.as_object_mut(),
-        serde_json::to_value(LlmResidencyConfig::default()),
-    ) {
-        llm.insert("residency".to_owned(), residency);
+    let mut llm = serde_json::json!({
+        "guardrails": { "level": "balanced", "ceiling_gb": 0.0, "bypass": "confirm" }
+    });
+    if let Some(llm) = llm.as_object_mut() {
+        for (name, section) in [
+            (
+                "residency",
+                serde_json::to_value(LlmResidencyConfig::default()),
+            ),
+            (
+                "defaults",
+                serde_json::to_value(LlmDefaultsConfig::default()),
+            ),
+            ("images", serde_json::to_value(LlmImagesConfig::default())),
+            ("devices", serde_json::to_value(LlmDevicesConfig::default())),
+        ] {
+            if let Ok(section) = section {
+                llm.insert(name.to_owned(), section);
+            }
+        }
     }
     sections.insert("llm".to_owned(), llm);
     if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
@@ -196,6 +229,20 @@ fn defaults() -> serde_json::Map<String, Value> {
     }
     if let Ok(author) = serde_json::to_value(AuthorConfig::default()) {
         sections.insert("author".to_owned(), author);
+    }
+    // Of `[chat]` and `[tools]`, only the defaults Settings > Integrations
+    // edits are named settings; the rest of the two sections is read whole.
+    sections.insert(
+        "chat".to_owned(),
+        serde_json::json!({
+            "share_profile_default": super::ChatConfig::default().share_profile_default
+        }),
+    );
+    if let Ok(new_agent) = serde_json::to_value(super::NewAgentConfig::default()) {
+        sections.insert(
+            "tools".to_owned(),
+            serde_json::json!({ "new_agent": new_agent }),
+        );
     }
     sections
 }
@@ -243,7 +290,8 @@ fn check_type(key: &str, value: &Value, default: &Value) -> Result<(), SettingEr
 }
 
 /// Checks that a policy may impose `value` on the setting `key`: the key names
-/// a setting of a typed section, and the value has that setting's type.
+/// a setting of a typed section, the value has that setting's type, and, for a
+/// setting of [`POLICY_CLOSING_VALUES`], it is the value that closes.
 ///
 /// The policy loader calls it on every key of its `[settings]` table, so a
 /// policy that names a setting this build does not know is refused whole
@@ -252,12 +300,25 @@ fn check_type(key: &str, value: &Value, default: &Value) -> Result<(), SettingEr
 /// # Errors
 ///
 /// [`SettingError::UnknownKey`] when `key` names no setting,
-/// [`SettingError::InvalidValue`] when `value` has another type.
+/// [`SettingError::InvalidValue`] when `value` has another type, or would open
+/// what a policy may only close.
 pub fn check_imposed_setting(key: &str, value: &Value) -> Result<(), SettingError> {
     let default = default_of(key).ok_or_else(|| SettingError::UnknownKey {
         key: key.to_owned(),
     })?;
-    check_type(key, value, &default)
+    check_type(key, value, &default)?;
+    let Some((_, closing)) = POLICY_CLOSING_VALUES.iter().find(|(name, _)| *name == key) else {
+        return Ok(());
+    };
+    if value.as_bool() == Some(*closing) {
+        return Ok(());
+    }
+    Err(SettingError::InvalidValue {
+        key: key.to_owned(),
+        reason: format!(
+            "a policy can only impose {closing} here, got {value}: opening the server is left to the user"
+        ),
+    })
 }
 
 /// Reads `path`, an absent file reading as an empty document.

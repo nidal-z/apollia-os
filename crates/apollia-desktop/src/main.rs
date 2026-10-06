@@ -40,6 +40,7 @@ mod file_log;
 mod handlers;
 pub mod i18n;
 pub mod mcp;
+mod package_open;
 mod process_job;
 mod startup;
 pub mod stt;
@@ -202,6 +203,10 @@ fn main() {
     // McpToolExecutor per registered MCP tool into the agent's dispatcher.
     let mcp_handle_lock: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>> =
         Arc::new(std::sync::OnceLock::new());
+    // The governance actor, so a run's dispatcher leaves out the tools it
+    // disabled and refuses what is sensitive while it fails closed.
+    let governance_lock: Arc<std::sync::OnceLock<apollia_runtime::governance::GovernanceHandle>> =
+        Arc::new(std::sync::OnceLock::new());
     // Agent registry + task router, required to build A2A delegate/invoker so
     // task-mode (triggers) and chat-agent flows can call `ctx.a2a_invoke(...)`
     // and discover virtual `a2a:*` tools, on parity with Chat Libre.
@@ -238,6 +243,7 @@ fn main() {
             pending_approvals: pending_approvals_lock.clone(),
             task_repository: task_repository_lock.clone(),
             mcp_handle: mcp_handle_lock.clone(),
+            governance: governance_lock.clone(),
             agent_registry: agent_registry_lock.clone(),
             task_router: task_router_lock.clone(),
             mailbox_handle: mailbox_handle_lock.clone(),
@@ -298,6 +304,7 @@ fn main() {
                 task_repository: task_repository_lock.clone(),
                 pending_user_inputs: pending_user_inputs_lock.clone(),
                 mcp_handle: mcp_handle_lock.clone(),
+                governance: governance_lock.clone(),
                 agent_registry: agent_registry_lock.clone(),
                 task_router: task_router_lock.clone(),
                 mailbox_handle: mailbox_handle_lock.clone(),
@@ -367,6 +374,7 @@ fn main() {
             task_repository: &task_repository_lock,
             pending_user_inputs: &pending_user_inputs_lock,
             mcp_handle: &mcp_handle_lock,
+            governance: &governance_lock,
             agent_registry: &agent_registry_lock,
             task_router: &task_router_lock,
             mailbox_handle: &mailbox_handle_lock,
@@ -422,7 +430,7 @@ fn main() {
 
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
-    let app = tauri::Builder::default()
+    let app = package_open::attach(tauri::Builder::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -462,6 +470,9 @@ fn main() {
             i18n::attach_listener(app);
 
             tray::setup_tray(app)?;
+
+            // A package file that started the application opens its preview.
+            package_open::launch(app.handle());
 
             // Replace the default macOS menu so Cmd+Q / the app-menu "Quit"
             // route through `initiate_quit` instead of the native `terminate:`
@@ -551,6 +562,7 @@ fn main() {
         .build(tauri_context());
 
     or_exit(app, "build the Tauri application").run(|app, event| {
+        package_open::on_run_event(app, &event);
         // Kill every child process before the process exits. Otherwise they
         // are orphaned: `kill_on_drop` never runs because `app.exit`
         // terminates the process before the managed `RuntimeHandle` (and

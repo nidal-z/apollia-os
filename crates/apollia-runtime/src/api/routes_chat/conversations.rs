@@ -1,13 +1,15 @@
 //! The conversations of the chat as the list manages them: change a session's
 //! configuration, rename it, name it from its first message, and erase it.
 //!
-//! - `PATCH  /api/v1/sessions/{id}`                , instructions, tools, server
+//! - `PATCH  /api/v1/sessions/{id}`                , instructions, tools, server, profile, profile switch
 //! - `PUT    /api/v1/sessions/{id}/title`          , the title the user typed
 //! - `POST   /api/v1/sessions/{id}/title/generate` , a title drawn by the model
 //! - `POST   /api/v1/sessions/{id}/erase`          , the session and its messages
 //!
 //! `DELETE /api/v1/sessions/{id}` closes a session and keeps its history;
-//! erasing is a separate action, so the two never share a verb.
+//! erasing is a separate action, so the two never share a verb. Sending a
+//! session to the trash, from where it is restored, is a third one, in
+//! `trash.rs`.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -21,19 +23,51 @@ use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::chat::manager::ChatSessionManagerHandle;
 use crate::chat::title::{name_session, rename_session, TitleError};
+use crate::chat::SessionConfigUpdate;
 use crate::coordinator::ExecutionBackend;
 
 /// Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its
 /// value.
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateSessionBody {
-    /// New system prompt.
+    /// New instructions of the conversation, added to the mission of its agent:
+    /// 4000 characters at most. Written to `settings.instructions`; the other
+    /// settings are left as they are.
     pub system_prompt: Option<String>,
     /// New list of tools available in the session.
     pub tools: Option<Vec<String>>,
-    /// Inference server of the session.
+    /// Model of the session: a backend, `<server>/<model>`, or the
+    /// identifier of a language model of the model index. `null` returns to
+    /// the model of the agent.
     #[schema(value_type = Option<String>)]
     pub llm_backend: Option<Option<String>>,
+    /// Profile the conversation designates; `null` returns it to the current
+    /// default profile.
+    #[serde(
+        default,
+        deserialize_with = "present_or_null",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schema(value_type = Option<String>)]
+    pub profile_id: Option<Option<String>>,
+    /// Profile switch of the conversation: whether the built-in assistant
+    /// receives the profile in its prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_profile: Option<bool>,
+}
+
+/// Reads a present field, `null` included, as `Some`: an absent `profile_id`
+/// keeps the designation, `null` empties it. Pair it with
+/// `skip_serializing_if = "Option::is_none"` so an absent field stays absent.
+///
+/// # Errors
+///
+/// The deserializer's error when the value is neither a string nor `null`.
+pub fn present_or_null<'de, D>(deserializer: D) -> Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer).map(Some)
 }
 
 /// Request body for `PUT /api/v1/sessions/{id}/title`.
@@ -69,14 +103,14 @@ pub fn conversations_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>
         .route("/api/v1/sessions/:id/erase", post(erase_session::<B>))
 }
 
-type Refusal = (StatusCode, Json<ApiErrorBody>);
+pub(super) type Refusal = (StatusCode, Json<ApiErrorBody>);
 
-fn chat_refusal(error: crate::chat::ChatError) -> Refusal {
+pub(super) fn chat_refusal(error: crate::chat::ChatError) -> Refusal {
     let (status, Json(body)) = chat_error_to_response(error);
     (status, Json(ApiErrorBody { error: body.error }))
 }
 
-fn manager<B: ExecutionBackend + Clone>(
+pub(super) fn manager<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
 ) -> Result<&ChatSessionManagerHandle, Refusal> {
     state.chat_manager.as_ref().ok_or_else(|| {
@@ -104,7 +138,7 @@ fn title_refusal(error: TitleError) -> Refusal {
     )
 }
 
-fn done(status: &str) -> axum::response::Response {
+pub(super) fn done(status: &str) -> axum::response::Response {
     (
         StatusCode::OK,
         Json(serde_json::json!({ "status": status })),
@@ -130,8 +164,24 @@ pub async fn update_session<B: ExecutionBackend + Clone>(
     Path(id): Path<String>,
     Json(body): Json<UpdateSessionBody>,
 ) -> Result<axum::response::Response, Refusal> {
-    manager(&state)?
-        .update_session(id, body.system_prompt, body.tools, body.llm_backend)
+    let manager = manager(&state)?;
+    let llm_backend = match body.llm_backend {
+        Some(Some(model)) if !model.trim().is_empty() => Some(Some(
+            super::session_route::session_route(&state, model).await,
+        )),
+        other => other,
+    };
+    manager
+        .update_session(
+            id,
+            SessionConfigUpdate {
+                system_prompt: body.system_prompt,
+                available_tools: body.tools,
+                llm_backend,
+                profile_id: body.profile_id,
+                use_profile: body.use_profile,
+            },
+        )
         .await
         .map_err(chat_refusal)?;
     Ok(done("updated"))

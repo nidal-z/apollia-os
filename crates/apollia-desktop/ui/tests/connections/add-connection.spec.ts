@@ -41,7 +41,7 @@ async function installTauriStub(page: Page, refuse: boolean): Promise<void> {
     (globalThis as unknown as { __invokeCalls: string[] }).__invokeCalls = calls;
     const handlers: Record<string, (args: unknown) => unknown> = {
       get_onboarding_state: () => ({ completed: true, skipped: false, started_at: null }),
-      get_config: () => ({ config_path: "~/.apollia/apollia.toml", config_exists: true, sections: [] }),
+      read_config_file: () => ({ path: "~/.apollia/apollia.toml", exists: true, text: "", sha256: "", diagnostics: [], locked: [], pendingRestart: [] }),
       get_system_info: () => ({}),
       fetch_mcp_curated: () => [notion],
       // Connections lists the built-in tools as the Apollia source; null would break the count.

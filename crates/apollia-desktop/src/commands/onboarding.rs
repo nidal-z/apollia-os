@@ -1,6 +1,6 @@
 //! Tauri IPC commands for onboarding lifecycle management.
 //!
-//! The state machine (7 phases, persisted in the `onboarding_*` keys of the
+//! The state machine (6 phases, persisted in the `onboarding_*` keys of the
 //! user memory) and the chat-based onboarding live in
 //! `apollia_runtime::onboarding`, which serves both modes: embedded, these
 //! commands call it in this process; attached to a daemon, [`remote`] reaches
@@ -8,7 +8,6 @@
 //!
 //! - [`get_onboarding_state`] - full machine state (new)
 //! - [`advance_onboarding_phase`] - validated phase transition (new)
-//! - [`set_onboarding_profile`] - profile selection (new)
 //! - [`trigger_onboarding`] - creates an agent-backed chat session
 //! - [`dismiss_onboarding`] - marks onboarding as skipped
 //!
@@ -80,9 +79,10 @@ pub async fn get_onboarding_state(link: State<'_, RuntimeLink>) -> Result<Onboar
 /// Checks whether the onboarding-agent has written `onboarding.completed_at`
 /// in its semantic memory.
 ///
-/// Used by the desktop's onboarding chat step to detect that the agent has
-/// finished its calibration and finalized the user profile, so the modal can
-/// switch to the wrap-up screen and offer the "Terminer" CTA.
+/// Used by the desktop's onboarding chat step to detect that the conversation
+/// is over, the agent having proposed a profile, so the modal can show that
+/// proposal in the profile form. The agent writes no profile: the person
+/// saves the form, or leaves without saving.
 #[tauri::command]
 pub async fn check_onboarding_finalized(link: State<'_, RuntimeLink>) -> Result<bool, String> {
     match link.inner() {
@@ -96,14 +96,14 @@ pub async fn check_onboarding_finalized(link: State<'_, RuntimeLink>) -> Result<
 
 /// Finalizes the onboarding acquaintance chat without a model turn.
 ///
-/// Backs the "skip the optional questions" button: it stamps the completion
-/// key the wrap-up gate reads ([`check_onboarding_finalized`]), so the modal
-/// moves straight to the permission proposals instead of spending one or more
-/// inference turns nudging the agent to close the interview.
+/// Backs the "skip the questions" button: it stamps the completion key the
+/// review gate reads ([`check_onboarding_finalized`]), so the modal moves
+/// straight to the profile form instead of spending one or more inference
+/// turns nudging the agent to close the interview.
 ///
 /// Deliberately writes the agent's semantic memory rather than widening the
 /// gate to the `UserMemoryRepository` phase machine: `resume_onboarding` (the
-/// profile-enrichment re-entry) runs after a previous full completion, and a
+/// profile-completion re-entry) runs after a previous full completion, and a
 /// phase-machine OR in the gate would instantly finalize that resumed chat.
 #[tauri::command]
 pub async fn finalize_onboarding_chat(link: State<'_, RuntimeLink>) -> Result<(), String> {
@@ -136,25 +136,6 @@ pub async fn advance_onboarding_phase(
     .map_err(shown("onboarding.phase.advance.failed"))
 }
 
-/// Sets the user's onboarding profile to `"operator"` or `"builder"`.
-///
-/// Returns `Err` if the profile string is not one of the two accepted values.
-/// The state is persisted to UserMemory on success.
-#[tauri::command]
-pub async fn set_onboarding_profile(
-    profile: String,
-    link: State<'_, RuntimeLink>,
-) -> Result<OnboardingState, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(state) => embedded(state)
-            .set_profile(profile)
-            .await
-            .map_err(|e| e.to_string()),
-        RuntimeLink::Attached(remote) => remote::set_profile(remote, &profile).await,
-    }
-    .map_err(shown("onboarding.profile.set.failed"))
-}
-
 // ---------------------------------------------------------------------------
 // Tauri commands - legacy
 // ---------------------------------------------------------------------------
@@ -163,37 +144,33 @@ pub async fn set_onboarding_profile(
 ///
 /// Pass `topic = None` for a full onboarding (all 5 topics).
 /// Pass `topic = Some("preferences")` for a single-topic re-run.
-///
-/// Pass `profile = Some("operator")` or `profile = Some("builder")` to inject
-/// the selected profile into the onboarding agent's memory before the session
-/// starts.  Passing `None` preserves backward-compatible generic behaviour.
 #[tauri::command]
 pub async fn trigger_onboarding(
     topic: Option<String>,
-    profile: Option<String>,
     link: State<'_, RuntimeLink>,
 ) -> Result<TriggerResult, String> {
     match link.inner() {
         RuntimeLink::Embedded(state) => embedded(state)
-            .trigger(topic, profile, false)
+            .trigger(topic, false)
             .await
             .map_err(|e| e.to_string()),
-        RuntimeLink::Attached(remote) => remote::trigger(remote, topic, profile).await,
+        RuntimeLink::Attached(remote) => remote::trigger(remote, topic).await,
     }
     .map_err(shown("onboarding.trigger.failed"))
 }
 
-/// Resumes onboarding for profile enrichment without wiping collected facts.
+/// Opens an onboarding conversation that completes an existing profile.
 ///
-/// Unlike `trigger_onboarding` (which resets progress for a fresh run), this
-/// keeps the already-collected Tier 1 + Tier 2 profile so the agent continues
-/// the optional enrichment where it left off. Used by the "complete your
-/// profile" entry point after a user finished calibration but skipped Tier 2.
+/// Unlike `trigger_onboarding` (which resets the progress for a fresh run),
+/// this keeps the topic marks and forgets only the completion the agent
+/// recorded last time. Used by the "complete this profile" banner of
+/// Settings > Profile; the agent proposes, and that page writes the profile
+/// only when the person saves.
 #[tauri::command]
 pub async fn resume_onboarding(link: State<'_, RuntimeLink>) -> Result<TriggerResult, String> {
     match link.inner() {
         RuntimeLink::Embedded(state) => embedded(state)
-            .trigger(None, None, true)
+            .trigger(None, true)
             .await
             .map_err(|e| e.to_string()),
         RuntimeLink::Attached(remote) => remote::resume(remote).await,

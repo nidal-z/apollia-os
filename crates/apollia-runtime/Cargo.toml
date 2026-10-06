@@ -20,6 +20,9 @@ web-search = ["apollia-tools/web-search"]
 brave-search = ["web-search", "apollia-tools/brave-search"]
 ## Native web_read tool (fetch + Readability extraction).
 web-read = ["apollia-tools/web-read"]
+## Optical character recognition of scanned pages and pictures in sources.
+## Compiles Tesseract from source and links it statically; off by default.
+ocr = ["apollia-sources/ocr"]
 
 [dependencies]
 apollia-core          = { workspace = true, features = ["net"] }

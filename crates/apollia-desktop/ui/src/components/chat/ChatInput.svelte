@@ -3,7 +3,8 @@
 
   Responsibilities:
   - Multi-line textarea with auto-resize (1 → 12 lines, scroll beyond).
-  - Keyboard: Enter = send, Shift+Enter = newline, Cmd/Ctrl+Enter = force send.
+  - Keyboard: the send key of Settings > Chat (`chatSendKey`); Enter sends and
+    Shift+Enter breaks the line by default, Cmd/Ctrl+Enter sends otherwise.
   - Slash-command autocomplete (`/export`, `/rename`).
   - Attachments: paperclip button, drag & drop, preview chips above input.
   - ↑ on empty input re-opens the last user message for editing.
@@ -15,12 +16,14 @@
   import { t } from "svelte-i18n";
   import {
     InputRewriter,
+    fetchConversationWorkContext,
     fetchWorkContext,
     type RewriteFallback,
   } from "$lib/chat/rewriteInput";
   import { addToast } from "$lib/components/ui/toast";
   import { chatInputAppend } from "$lib/stores/artifacts";
-  import type { PendingAttachment } from "$lib/chat/attachments";
+  import { chatSendKey, composerEnterAction } from "$lib/stores/chatSendKey";
+  import type { ImageSupport, PendingAttachment } from "$lib/chat/attachments";
   import { createComposerAttachments } from "./useComposerAttachments.svelte";
   import { createComposerDictation } from "./useComposerDictation.svelte";
   import { createComposerRateLimit } from "./useComposerRateLimit.svelte";
@@ -41,6 +44,7 @@
   import MentionResourceMenu from "./MentionResourceMenu.svelte";
   import PinnedResourceChip from "./PinnedResourceChip.svelte";
   import AttachmentChip from "./AttachmentChip.svelte";
+  import ChatBatchOffer from "../batch/ChatBatchOffer.svelte";
   import InputHints from "./InputHints.svelte";
   import ChatComposerToolbar from "./ChatComposerToolbar.svelte";
 
@@ -68,6 +72,15 @@
     onplantoggle?: () => void;
     /** Disables the Plan toggle (e.g. closed session). */
     planDisabled?: boolean;
+    /** What the model of the conversation does with images; `null` unknown. */
+    imageSupport?: ImageSupport | null;
+    /**
+     * Conversation the composer writes in. The prompt rewrite reads the
+     * profile that conversation designates; without it, the default profile.
+     */
+    sessionId?: string | null;
+    /** The agent of the conversation, which a batch on a joined file runs. */
+    agentName?: string | null;
   }
 
   let {
@@ -82,6 +95,9 @@
     planMode = false,
     onplantoggle,
     planDisabled = false,
+    imageSupport = null,
+    sessionId = null,
+    agentName = null,
   }: Props = $props();
 
   const DEFAULT_SUGGESTION_KEYS = [
@@ -103,7 +119,7 @@
 
   let value = $state("");
   const dictation = createComposerDictation();
-  const attachments = createComposerAttachments();
+  const attachments = createComposerAttachments(() => imageSupport);
   const rateLimit = createComposerRateLimit();
   let focused = $state(false);
 
@@ -230,8 +246,10 @@
     // WHEN: rewrite triggered
     isRewriting = true;
     try {
-      // THEN: fetch Work context from profile
-      const workContext = await fetchWorkContext();
+      // THEN: fetch the work context from the profile of the conversation
+      const workContext = sessionId
+        ? await fetchConversationWorkContext(sessionId)
+        : await fetchWorkContext();
 
       // THEN: call rewriter
       const outcome = await rewriter.rewrite(value, workContext);
@@ -501,17 +519,13 @@
       }
     }
 
-    // Cmd/Ctrl+Enter = force send (even mid-line).
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    const enterAction = composerEnterAction(event, $chatSendKey);
+    if (enterAction === "send") {
       event.preventDefault();
       send();
       return;
     }
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      send();
-      return;
-    }
+    if (enterAction === "newline") return;
     // ↑ on empty input → edit last user message.
     if (
       event.key === "ArrowUp" &&
@@ -629,6 +643,7 @@
             onremove={() => attachments.remove(att.id)}
           />
         {/each}
+        <ChatBatchOffer attachments={attachments.items} {agentName} />
       </div>
     {/if}
 

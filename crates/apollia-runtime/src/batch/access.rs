@@ -32,6 +32,15 @@ pub struct BatchAccess {
     pub grantable: bool,
 }
 
+impl BatchAccess {
+    /// Whether the access executes code: no grant covers it, and the user
+    /// allows it one call at a time.
+    #[must_use]
+    pub fn executes_code(&self) -> bool {
+        self.family == family_name(ActionFamily::ExecuteCode)
+    }
+}
+
 /// What a tool descriptor says about one access.
 #[derive(Debug, Clone)]
 pub(crate) struct KnownTool {

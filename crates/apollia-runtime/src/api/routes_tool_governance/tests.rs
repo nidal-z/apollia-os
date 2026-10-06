@@ -357,3 +357,114 @@ async fn test_the_audit_is_refused_without_a_data_directory() {
     // THEN 503
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
 }
+
+#[tokio::test]
+async fn test_the_state_says_governance_decides_normally() {
+    // GIVEN a daemon whose governance database is fresh
+    let dir = TempDir::new().unwrap();
+    GovernanceDb::open(dir.path()).unwrap();
+
+    // WHEN a client asks for the state of governance
+    let (status, body) = call(state_in(&dir), "GET", "/api/v1/governance/state", None).await;
+
+    // THEN it does not fail closed
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["fail_closed"].is_null(), "{body}");
+}
+
+#[tokio::test]
+async fn test_the_state_says_why_governance_fails_closed() {
+    // GIVEN a daemon whose governance actor cannot read its database
+    let dir = TempDir::new().unwrap();
+    let mut state = state_in(&dir);
+    state.governance = Some(crate::governance::GovernanceHandle::detached(
+        crate::governance::GovernanceState {
+            fail_closed: Some(crate::governance::FailClosed::StoreUnreadable {
+                detail: "file is not a database".into(),
+            }),
+            ..crate::governance::GovernanceState::default()
+        },
+        None,
+    ));
+
+    // WHEN a client asks for the state of governance
+    let (status, body) = call(state, "GET", "/api/v1/governance/state", None).await;
+
+    // THEN it names the cause and what could not be read
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["fail_closed"]["cause"], "store_unreadable", "{body}");
+    assert_eq!(
+        body["fail_closed"]["detail"], "file is not a database",
+        "{body}"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_asking_the_state_reads_a_repaired_database_again() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // GIVEN a governance actor started over a database it is not allowed to
+    // read, then the permissions repaired, which leaves its modification time
+    // as it was
+    let dir = TempDir::new().unwrap();
+    GovernanceDb::open(dir.path()).unwrap();
+    let db = dir.path().join(GOVERNANCE_DB_FILENAME);
+    std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let governance =
+        crate::governance::GovernanceHandle::spawn(crate::governance::GovernanceSources {
+            governance_db: Some(db.clone()),
+            config_path: None,
+            policy: Arc::new(apollia_permissions::PolicyVerdict::Absent),
+            journal: None,
+            events: None,
+            forbidden_connections: Default::default(),
+        });
+    assert!(governance.state().fail_closed.is_some());
+    std::fs::set_permissions(&db, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let mut state = state_in(&dir);
+    state.governance = Some(governance);
+
+    // WHEN a client asks for the state of governance
+    let (status, body) = call(state, "GET", "/api/v1/governance/state", None).await;
+
+    // THEN the database is read again and governance decides normally
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["fail_closed"].is_null(), "{body}");
+}
+
+#[tokio::test]
+async fn test_the_state_says_what_degrades_the_journal_without_failing_closed() {
+    // GIVEN a daemon whose journal opened without its signing key, and whose
+    // daily export cannot be written
+    let dir = TempDir::new().unwrap();
+    let journal = crate::audit_journal::AuditJournalHandle::open(&dir.path().join("journal.db"))
+        .await
+        .unwrap();
+    journal.set_daily_export_failure(Some(crate::audit_journal::DailyExportFailure {
+        directory: "/var/lib/apollia/journal-exports".into(),
+        detail: "permission denied".into(),
+    }));
+    let mut state = state_in(&dir);
+    state.audit_journal = Some(journal.clone());
+
+    // WHEN a client asks for the state of governance
+    let (status, body) = call(state, "GET", "/api/v1/governance/state", None).await;
+
+    // THEN nothing is refused, and both notices are served
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["fail_closed"].is_null(), "{body}");
+    assert_eq!(
+        body["journal_notices"],
+        serde_json::json!([
+            { "notice": "unsigned" },
+            {
+                "notice": "daily_export_failed",
+                "directory": "/var/lib/apollia/journal-exports",
+                "detail": "permission denied",
+            },
+        ]),
+        "{body}"
+    );
+    journal.shutdown().await;
+}

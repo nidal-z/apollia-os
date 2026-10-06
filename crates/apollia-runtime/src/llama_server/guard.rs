@@ -10,7 +10,9 @@ use crate::residency::room::{plan_room, Room};
 
 use super::config::env_getter;
 use super::load_settings::{self, LoadSettings};
-use super::{log_level, ngl, parallel, projector, LlamaServerConfig, LlamaServerSupervisor};
+use super::{
+    devices, log_level, ngl, parallel, projector, LlamaServerConfig, LlamaServerSupervisor,
+};
 
 impl LlamaServerSupervisor {
     /// The configuration `model_path` would be launched with at `n_ctx` under
@@ -37,23 +39,32 @@ impl LlamaServerSupervisor {
         // applies to the next one; the environment still wins in `compose`.
         let config_file = self.config_file.clone();
         let imposed = self.imposed.clone();
-        let level =
-            tokio::task::spawn_blocking(move || log_level::read(config_file.as_deref(), &imposed))
-                .await
-                .unwrap_or_default();
+        // The devices held back are read with it and laid on the hardware
+        // probe first: the plans below size the model on what is left.
+        let (level, listed) = tokio::task::spawn_blocking(move || {
+            devices::sync_selection(config_file.as_deref(), &imposed);
+            (
+                log_level::read(config_file.as_deref(), &imposed),
+                apollia_llm::hardware::detect().devices,
+            )
+        })
+        .await
+        .unwrap_or_default();
         log_level::apply(&mut base, level);
         // The preset, then the environment, then the plans: the slot count
         // first, since the offload plan sizes the cache those slots hold (see
         // `parallel` and `ngl` for why the literals were wrong). The window is
-        // already resolved by `effective_n_ctx`: the environment, then the
-        // preset, then the backend's own window, then the default.
-        load_settings::compose(
+        // already resolved by `window_for`: the environment, then the preset,
+        // then the backend's own window, then the default of the settings.
+        let mut config = load_settings::compose(
             &base,
             load,
             env_getter,
             parallel::apply_parallel_plan,
             ngl::apply_offload_plan,
-        )
+        );
+        devices::apply(&mut config, &listed);
+        config
     }
 
     /// Hold the launch of `config` to the guardrail in force now, and return

@@ -15,13 +15,14 @@
     getPendingChatApprovalForSession,
     getPendingUserInputForSession, removePendingUserInput,
   } from "$lib/stores/chat";
-  import { uiMode } from "$lib/stores/mode";
+  import { chatDebugBlocks } from "$lib/stores/developerSettings";
   import { planModeDefault } from "$lib/stores/planModeSetting";
   import { setPlanMode } from "$lib/ipc/planMode";
   import type {
     ChatSessionDetail,
     ChatMessageView,
     ConversationStatsView,
+    PendingChatApproval,
   } from "$lib/types";
   import { groupMessages } from "$lib/chat/groupMessages";
   import ChatMessageScroller from "./ChatMessageScroller.svelte";
@@ -39,21 +40,24 @@
   import ChatInput from "./ChatInput.svelte";
   import { createSessionActions } from "./useSessionActions.svelte";
   import {
-    editAndResendChatMessage,
     getChatSession,
     getConversationStats,
     pauseChatSession,
-    regenerateChatResponse,
     sendChatMessage,
   } from "$lib/ipc/chat";
   import { DEFAULT_PROFILE, getProfileById } from "$lib/ipc/profile";
-  import { type PendingAttachment, composeUserPayload } from "$lib/chat/attachments";
+  import {
+    type PendingAttachment,
+    composeUserPayload,
+    documentPayloads,
+    imagePayloads,
+    sentAttachmentsMetadata,
+  } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
   import { refreshSessionMetrics } from "$lib/stores/chatMetrics";
   import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
   import { latestTurnId } from "$lib/stores/thinking";
-  import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
   import ChatConversationHeader from "./ChatConversationHeader.svelte";
   import NextStepsPanel from "../common/NextStepsPanel.svelte";
   import { sessionScope } from "$lib/stores/nextSteps";
@@ -61,9 +65,14 @@
   import { classifySessionError } from "$lib/stores/runtimeHealth";
   import { agents } from "$lib/stores/sse";
   import { triggerAutoName } from "$lib/chat/autoName";
+  import { noteSessionActivity } from "$lib/stores/chatSessions";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
+  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
+  import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
+  import { createImageSupport } from "./useImageSupport.svelte";
+  import { createAnswerActions } from "./useAnswerActions.svelte";
 
   interface Props {
     sessionId: string;
@@ -105,6 +114,8 @@
      * (session not found) - lets the parent open the QuickPicker.
      */
     onnewChat?: () => void;
+    /** Called with the conversation a choice in the selector opened. */
+    onopensession?: (sessionId: string) => void;
   }
 
   let {
@@ -118,6 +129,7 @@
     collapseActions = true,
     ondelete,
     onnewChat,
+    onopensession,
     inputHidden = false,
   }: Props = $props();
 
@@ -153,6 +165,24 @@
     injectedSheetOpen = true;
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
+  const images = createImageSupport(() => sessionId, () => sessionDetail?.llm_backend);
+
+  const target = $derived<ConversationTarget>({
+    mode: sessionMode,
+    agentName: sessionAgentName,
+    model: sessionDetail?.llm_backend ?? null,
+  });
+
+  async function handleTargetPick(choice: ChatTarget): Promise<void> {
+    try {
+      const outcome = await applyTargetChoice(choice, sessionId, target, messages.length);
+      if (outcome.openedSessionId) onopensession?.(outcome.openedSessionId);
+      else await refreshSession();
+    } catch (err) {
+      pendingError = $t("chat.target_selector.choose_failed", { values: { error: String(err) } });
+    }
+  }
+
   /** Plan-mode state of the active session (drives the header chip + review). */
   let planMode = $state(false);
 
@@ -173,13 +203,7 @@
   let planDefaultApplied = $state(false);
 
   /** Pending tool approval - shown inline when the LLM requests a tool call. */
-  let pendingApproval = $state<{
-    sessionId: string;
-    messageId: string;
-    toolCallId: string;
-    toolName: string;
-    inputPreview: string;
-  } | null>(null);
+  let pendingApproval = $state<Omit<PendingChatApproval, "receivedAt"> | null>(null);
   /** Pending ask_user request - shown inline when the agent needs user input. */
   let pendingUserInput = $state<{
     requestId: string;
@@ -223,7 +247,7 @@
 
   /** Reasoning skin for the live timeline (mirrors the finalized sequence). */
   const liveSkin = $derived<"builder" | "operator">(
-    $uiMode === "builder" ? "builder" : "operator",
+    $chatDebugBlocks ? "builder" : "operator",
   );
 
   // The live chain is rendered in invocation order (no dedup): each tool call
@@ -507,10 +531,11 @@
     if (isFirstUserMessage) {
       triggerAutoName(sessionId, content);
     }
+    noteSessionActivity(sessionId);
 
     // Attachments v1: inline small payloads as fenced blocks, reference larger
     // files by absolute path. The backend sees a single user message - the
-    // authoritative tool-side ingestion happens via the filesystem HITL flow.
+    // authoritative tool-side ingestion happens through the file tools.
     // The composer refuses anything that fits neither form, so the rendering
     // below is total and never emits a tag without content nor path.
     const payload = composeUserPayload(content, attachments);
@@ -519,6 +544,7 @@
       id: `temp-${Date.now()}`, role: "user", content: payload,
       tool_calls: null, tool_name: null,
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
+      metadata: sentAttachmentsMetadata(attachments),
     };
     pendingError = null;
     messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
@@ -526,7 +552,8 @@
     await tick(); scroll.toBottom(true);
 
     try {
-      await sendChatMessage(sessionId, payload);
+      const documents = documentPayloads(attachments);
+      await sendChatMessage(sessionId, payload, imagePayloads(attachments), documents);
     } catch (err: unknown) {
       isProcessing = false;
       const errMsg: ChatMessageView = {
@@ -539,59 +566,30 @@
     }
   }
 
-  // Regenerate the assistant reply to a turn (G9). Optimistically truncate the
-  // local thread back to the user turn, then let the backend replay it; the
-  // streaming events render the new answer and finalizeStreaming reloads the
-  // authoritative history.
-  async function handleRegenerate(messageId: string): Promise<void> {
-    if (isProcessing || isStreaming) return;
-    const msgs = messages ?? [];
-    const idx = msgs.findIndex((m) => m.id === messageId);
-    if (idx < 0) return;
-    let userIdx = -1;
-    for (let i = idx; i >= 0; i--) {
-      if (msgs[i]!.role === "user") { userIdx = i; break; }
-    }
-    if (userIdx < 0) return;
-    pendingError = null;
-    messages = msgs.slice(0, userIdx + 1);
-    isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scroll.toBottom(true);
-    try {
-      await regenerateChatResponse(sessionId, messageId);
-    } catch (err: unknown) {
-      isProcessing = false;
-      addToast(err instanceof Error ? err.message : String(err), "error");
-      void finalizeStreaming();
-    }
-  }
-
-  // Edit a user message and re-run from it (G10). Truncate the local thread
-  // before the edited message, show the new text optimistically, then send it
-  // as a fresh turn through the truncate-in-place backend path.
-  async function handleEdit(messageId: string, newContent: string): Promise<void> {
-    if (isProcessing || isStreaming) return;
-    const msgs = messages ?? [];
-    const idx = msgs.findIndex((m) => m.id === messageId);
-    if (idx < 0) return;
-    pendingError = null;
-    const kept = msgs.slice(0, idx);
-    const tempMsg: ChatMessageView = {
-      id: `temp-${Date.now()}`, role: "user", content: newContent,
-      tool_calls: null, tool_name: null,
-      seq: kept.length, created_at: new Date().toISOString(),
-    };
-    messages = [...kept, tempMsg];
-    isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scroll.toBottom(true);
-    try {
-      await editAndResendChatMessage(sessionId, messageId, newContent);
-    } catch (err: unknown) {
-      isProcessing = false;
-      addToast(err instanceof Error ? err.message : String(err), "error");
-      void finalizeStreaming();
-    }
-  }
+  // The actions under a message: play a turn again, continue the last
+  // answer, branch off, rewrite an answer, remove a message. Each truncates
+  // or reloads the local thread; a turn played again streams as a new one.
+  const answers = createAnswerActions(
+    {
+      sessionId: () => sessionId,
+      messages: () => messages ?? [],
+      setMessages: (next) => { pendingError = null; messages = next; },
+      busy: () => isProcessing || isStreaming,
+      beginTurn: async () => {
+        isProcessing = true; tokenBuffer = ""; liveToolChain = [];
+        await tick(); scroll.toBottom(true);
+      },
+      failTurn: (err) => {
+        isProcessing = false;
+        addToast(err instanceof Error ? err.message : String(err), "error");
+        void finalizeStreaming();
+      },
+      reload: () => refreshSession(),
+      open: (id) => onopensession?.(id),
+      report: (err) => addToast(err instanceof Error ? err.message : String(err), "error"),
+    },
+    () => sessionDetail?.llm_backend,
+  );
 
   // --- Slash-command plumbing --------------------------------
   const lastUserMessageText = $derived.by(() => {
@@ -648,6 +646,8 @@
       {hideConfig}
       {collapseActions}
       renameTrigger={actions.renameTrigger}
+      {target}
+      ontargetpick={onopensession ? (choice) => void handleTargetPick(choice) : undefined}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
@@ -723,8 +723,8 @@
       {scroll}
       {pendingApproval}
       {pendingUserInput}
-      onregenerate={handleRegenerate}
-      onedit={handleEdit}
+      onregenerate={(id) => void answers.regenerate(id)}
+      onedit={(id, content) => void answers.resend(id, content)}
     />
   {/if}
 
@@ -733,7 +733,6 @@
       <NextStepsPanel
         scopeKey={sessionEndScope}
         context="session_end"
-        mode={$uiMode === "builder" ? "builder" : "operator"}
         facts={nextStepsFacts}
         title={$t("next_steps.session_title")}
       />
@@ -751,6 +750,9 @@
       {planMode}
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
+      imageSupport={images.value}
+      {sessionId}
+      agentName={sessionAgentName}
     />
   {/if}
 </div>
@@ -763,5 +765,3 @@
   onupdated={() => void refreshSession()}
 />
 {/if}
-
-<HitlFilesystemModal {sessionId} />

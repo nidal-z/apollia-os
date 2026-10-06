@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::mcp_health::McpHealth;
 
-use super::{AgentId, FilesystemPreview, ModelUnloadReason, RunId, TaskId, ToolCallRationale};
+use super::{AgentId, ModelUnloadReason, RunId, TaskId, ToolCallRationale};
 
 /// Complete catalogue of Apollia OS runtime events.
 ///
@@ -721,8 +721,24 @@ pub enum RuntimeEvent {
         tool_call_id: String,
         /// Name of the tool requiring approval.
         tool_name: String,
-        /// Prompt shown to the user.
+        /// Prompt shown to the user: a short preview of the call, or the
+        /// whole command or source for a tool that runs code.
         prompt: String,
+        /// The answers offered, among `"once"`, `"always"` and `"refuse"`.
+        /// Empty in a request that predates them.
+        #[serde(default)]
+        answers: Vec<String>,
+        /// The full arguments of the call, as JSON, for the detail a short
+        /// preview leaves out.
+        #[serde(default)]
+        detail: String,
+        /// For a tool that runs code, the whole command or source, never
+        /// truncated.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        code: Option<String>,
+        /// For a tool that runs code, the folder it runs in.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        working_dir: Option<String>,
     },
     /// A tool-call approval was resolved by the user.
     ChatApprovalResolved {
@@ -981,8 +997,6 @@ pub enum RuntimeEvent {
     /// The frontend uses this event to permanently hide the resume banner and
     /// enable all application features.
     OnboardingCompleted {
-        /// Profile chosen by the user (`"operator"` or `"builder"`).
-        profile: String,
         /// Total onboarding duration in seconds.
         duration_sec: u64,
         /// Total number of actions completed during the flow.
@@ -1287,6 +1301,22 @@ pub enum RuntimeEvent {
         request_id: String,
     },
 
+    /// Governance started or stopped failing closed.
+    ///
+    /// Emitted by the governance actor when what it decides from can no longer
+    /// be read (`governance.db` unreadable, a deposited policy refused, or
+    /// the journal the policy requires not open) and again when it can. While it fails closed, every sensitive tool call and
+    /// every new connection is refused; reading continues.
+    GovernanceFailClosed {
+        /// `true` while governance fails closed, `false` once it recovered.
+        active: bool,
+        /// `store_unreadable`, `policy_invalid` or `journal_unavailable` while
+        /// active, `None` once recovered.
+        cause: Option<String>,
+        /// What could not be read, `None` once recovered.
+        detail: Option<String>,
+    },
+
     // ── File Timestamp Cache events ──────────────────
     /// A previously read file was modified between two accesses.
     ///
@@ -1324,27 +1354,6 @@ pub enum RuntimeEvent {
     DecisionPointRecorded {
         /// The decision point, chosen plus alternatives (<= 3).
         point: crate::decision_point::DecisionPoint,
-    },
-
-    // ── HITL filesystem events ───────────────────────────────────────────
-    /// A filesystem operation by an agent requires a human approval.
-    ///
-    /// Emitted by `NativeChatToolInvoker` when `RiskClassifier::classify_filesystem`
-    /// returns `RiskLevel::Medium` or higher. The frontend intercepts this event
-    /// via the dedicated Tauri bridge to show `HitlFilesystemModal`.
-    HitlFilesystemRequired {
-        /// Unique identifier of this request (UUID v4).
-        request_id: String,
-        /// Chat session that triggered the operation.
-        session_id: String,
-        /// Risk level: `"medium"` | `"high"` | `"critical"`.
-        level: String,
-        /// Operation type: `"write"` | `"delete"` | `"chmod"`.
-        op: String,
-        /// Canonicalized path of the target.
-        path: String,
-        /// Before/after content preview for display in the modal.
-        preview: FilesystemPreview,
     },
 
     // ── Memory namespaces ─────────────────────
@@ -1498,6 +1507,20 @@ pub enum RuntimeEvent {
         /// Run this call belongs to, when emitted within a correlated run.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         run_id: Option<RunId>,
+        /// Identifier of the call within its run: the identifier the model gave
+        /// the call when there is one, the `event_id` otherwise. It is what
+        /// joins this record to the captured arguments and output of the call.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_call_id: Option<String>,
+        /// Action family of the tool, under its wire name (`read`,
+        /// `write_or_delete`, ...). `None` when the emitter does not know it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        family: Option<String>,
+        /// What the call acts on: the value of the one argument the tool
+        /// designates as its target, an address reduced to its host. Never a
+        /// content. `None` for a tool that designates none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
     },
     /// The tool finished its execution.
     ///
@@ -1525,6 +1548,16 @@ pub enum RuntimeEvent {
         /// Run this call belongs to, when emitted within a correlated run.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         run_id: Option<RunId>,
+        /// Identifier of the call within its run, the one its
+        /// `ToolCallStarted` carries.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_call_id: Option<String>,
+        /// Action family of the tool, as on the `ToolCallStarted`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        family: Option<String>,
+        /// What the call acted on, as on the `ToolCallStarted`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
     },
     /// The tool was denied (manifest, permission rule, HITL).
     ///
@@ -1660,7 +1693,6 @@ impl RuntimeEvent {
                 | RuntimeEvent::StepCompleted { .. }
                 | RuntimeEvent::LlmCallCompleted { .. }
                 | RuntimeEvent::PermissionRequired { .. }
-                | RuntimeEvent::HitlFilesystemRequired { .. }
         )
     }
 }

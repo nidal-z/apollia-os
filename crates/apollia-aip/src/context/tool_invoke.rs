@@ -149,6 +149,9 @@ pub(crate) fn emit_a2a_completion_events(
                 task_id: task_id.clone().into(),
                 agent_id: agent_id.into(),
                 tool_name,
+                tool_call_id: Some(parent_id.clone()),
+                family: None,
+                target: None,
                 output_json: output_str,
                 exit_code: None,
                 duration_ms,
@@ -170,6 +173,9 @@ pub(crate) fn emit_a2a_completion_events(
                 task_id: task_id.clone().into(),
                 agent_id: agent_id.into(),
                 tool_name,
+                tool_call_id: Some(parent_id.clone()),
+                family: None,
+                target: None,
                 output_json: Some(format!("{{\"error\":{:?}}}", e.to_string())),
                 exit_code: None,
                 duration_ms,
@@ -195,6 +201,10 @@ pub(crate) struct ToolCompletionEvent {
     pub(crate) tool_name: String,
     pub(crate) duration_ms: u64,
     pub(crate) run_id: Option<apollia_core::events::RunId>,
+    /// Action family of the tool, under its wire name, when it is registered.
+    pub(crate) family: Option<String>,
+    /// What the call acted on, when the tool designates a target argument.
+    pub(crate) target: Option<String>,
 }
 /// Emits `ToolCallCompleted` or `ToolCallDenied` for a registry tool call result.
 ///
@@ -212,10 +222,15 @@ pub(crate) fn emit_tool_completion_events(
         tool_name,
         duration_ms,
         run_id,
+        family,
+        target,
     } = ev;
     match result {
         Ok(value) => {
             let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                tool_call_id: Some(parent_id.clone()),
+                family,
+                target,
                 parent_event_id: parent_id,
                 task_id: task_id.into(),
                 agent_id: agent_id.into(),
@@ -237,8 +252,21 @@ pub(crate) fn emit_tool_completion_events(
                 detail: None,
             });
         }
+        Err(ToolProxyError::FailClosed { tool, detail }) => {
+            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallDenied {
+                parent_event_id: parent_id,
+                task_id: task_id.into(),
+                agent_id: agent_id.into(),
+                tool_name: tool.clone(),
+                reason: "fail_closed".to_string(),
+                detail: Some(detail.clone()),
+            });
+        }
         Err(e) => {
             let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                tool_call_id: Some(parent_id.clone()),
+                family,
+                target,
                 parent_event_id: parent_id,
                 task_id: task_id.into(),
                 agent_id: agent_id.into(),
@@ -263,6 +291,8 @@ pub(crate) struct ToolCallContext<'a> {
     /// Run this call belongs to, recorded on the audit trail so `audit list`
     /// can surface it and a task_id can be resolved to its run_id.
     pub(crate) run_id: Option<&'a str>,
+    /// What governance cannot read, when it failed closed as the run started.
+    pub(crate) fail_closed: Option<&'a str>,
 }
 /// Shared tool execution logic used by both the Python `call()` and Rust `call_inner()`.
 pub(crate) async fn execute_tool(
@@ -310,7 +340,42 @@ pub(crate) async fn execute_tool(
         None => return Err(ToolProxyError::ToolNotFound(tool_name.to_string())),
     };
 
-    // 3. Execute, timed so the audit record below carries the duration
+    // 3. Governance that failed closed refuses what is sensitive: a tool
+    //    nothing describes is unclassified, hence sensitive.
+    if let Some(detail) = ctx.fail_closed {
+        let family = descriptor
+            .as_ref()
+            .map_or(apollia_tools::ActionFamily::Unclassified, |d| d.family);
+        if apollia_runtime::governance::refused_when_fail_closed(family) {
+            let refusal = ToolProxyError::FailClosed {
+                tool: tool_name.to_string(),
+                detail: detail.to_string(),
+            };
+            tracing::event!(
+                tracing::Level::WARN,
+                tool = %tool_name,
+                agent_id = %ctx.agent_id,
+                "tool.call.fail_closed"
+            );
+            emit_audit_record(
+                ctx,
+                tool_name,
+                &input_hash,
+                &sandbox_profile,
+                AuditOutcome {
+                    duration_ms: start.elapsed().as_millis() as u64,
+                    success: false,
+                    error_code: Some("fail_closed".to_string()),
+                    args_json,
+                    stdout: None,
+                    stderr: None,
+                },
+            );
+            return Err(refusal);
+        }
+    }
+
+    // 4. Execute, timed so the audit record below carries the duration
     let exec_result = ctx.executor.execute_typed(tool_name, input);
     let duration = start.elapsed();
 
@@ -328,7 +393,7 @@ pub(crate) async fn execute_tool(
         ),
     };
 
-    // 4. Record audit (always, success or failure)
+    // 5. Record audit (always, success or failure)
     emit_audit_record(
         ctx,
         tool_name,
@@ -344,7 +409,7 @@ pub(crate) async fn execute_tool(
         },
     );
 
-    // 5. Return result
+    // 6. Return result
     exec_result.map_err(|e| match e {
         ToolCallError::Failed(message) => ToolProxyError::ExecutionFailed(message),
         ToolCallError::ApprovalRequired { prompt, payload } => {
@@ -441,3 +506,6 @@ pub(crate) fn epoch_secs_to_ymd(secs: u64) -> (i32, u32, u32) {
 pub(crate) fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }
+
+#[cfg(test)]
+mod tests;

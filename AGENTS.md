@@ -27,7 +27,7 @@ bottom of this file.
 | Async runtime | Rust 1.89+ , Tokio 1.x |
 | Python bridge | PyO3 0.24 , pyo3-async-runtimes |
 | Local LLM | embedded llama-server (upstream llama.cpp; GGUF, Metal, CUDA, OpenAI-compatible HTTP, `--jinja`) |
-| Local STT | whisper-rs (GGML) |
+| Local STT | whisper-rs (whisper.cpp, GGML models) |
 | Persistence | SQLite + rusqlite + FTS5 (WAL mode) |
 | HTTP API | axum on Unix socket + TCP 7771 |
 | CLI | clap v4 derive |
@@ -70,7 +70,7 @@ the seed's exact row counts, so a fixture change is a suite change.
 `apollia-runner` exposes `local-cuda`, `local-metal` and `local-rocm`, which
 turn on three mutually exclusive `whisper-rs` backends at once. CI omits it for
 the same reason (`ci.yml`), and the feature matrix is exercised in
-`nightly.yml`.
+`weekly.yml`.
 
 The desktop UI is covered by Vitest unit tests and by Playwright suites under
 `crates/apollia-desktop/ui/tests/`. There is no WebDriver for WKWebView on
@@ -105,10 +105,11 @@ run elsewhere, `clippy` on push and the commit-message convention at
    between actors.
 6. **Memory at agent initiative** : never inject memory context into an agent's
    prompt. Three exceptions, all unreachable from an agent execution path: two
-   inside the built-in conversational assistant (a user-persona brief at the
-   `long_autonomous` tier, past session summaries on the first message of a
-   free chat), and one in the desktop prompt-rewrite command (the user profile
-   work context). See `docs/site/docs/explanation/the-8-principles.md`.
+   inside the built-in conversational assistant (the profile of the
+   conversation at every tier, under the profile switch of that conversation;
+   past session summaries on the first message of a free chat), and one in the
+   desktop prompt-rewrite command (the role, function and tools of that
+   profile). See `docs/site/docs/explanation/the-8-principles.md`.
 7. **Non-negotiable safeguards** : `StepBudget` enforced by the runtime, never
    bypassable.
 8. **Human CLI, machine API** : `--json` global, TTY auto-detected.

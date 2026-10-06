@@ -58,6 +58,7 @@ fn apple(total_ram_gb: f64) -> HardwareProfile {
             vram_gb: total_ram_gb,
         },
         memory_budget_gb: total_ram_gb * 0.75,
+        devices: Vec::new(),
     }
 }
 
@@ -73,6 +74,7 @@ fn cuda(vram_gb: f64, total_ram_gb: f64) -> HardwareProfile {
             compute_capability: (8, 6),
         },
         memory_budget_gb: vram_gb,
+        devices: Vec::new(),
     }
 }
 

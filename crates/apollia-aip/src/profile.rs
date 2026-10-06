@@ -59,6 +59,9 @@ pub struct ProfileInterface {
     is_onboarding: bool,
     /// Where each read is reported.
     trace: ReadTrace,
+    /// The conversation the execution answers, when there is one: it may
+    /// open or close the reading for itself.
+    conversation: Option<String>,
 }
 
 /// Where a read of the profile is reported: the bus of the context and the
@@ -271,17 +274,33 @@ impl ProfileInterface {
             agent_name,
             is_onboarding,
             trace: ReadTrace::default(),
+            conversation: None,
         }
+    }
+
+    /// Names the conversation the execution answers. Its settings may open
+    /// the reading of the profile for it, or close it, whatever the profile
+    /// source of the agent says.
+    #[must_use]
+    pub fn in_conversation(mut self, session_id: impl Into<String>) -> Self {
+        self.conversation = Some(session_id.into());
+        self
     }
 
     /// Whether the agent may read the profile: its profile source is checked
     /// (package default, then the user's override), read from the `agents.db`
-    /// beside `user_memory.db`.
+    /// beside `user_memory.db`. In a conversation, what the conversation
+    /// chose for itself comes first.
     pub fn source_checked(&self) -> bool {
-        apollia_runtime::profile::profile_source_checked(
-            data_dir_of(&self.db_path),
-            &self.agent_name,
-        )
+        let data_dir = data_dir_of(&self.db_path);
+        match &self.conversation {
+            Some(session_id) => apollia_runtime::profile::profile_source_checked_in_conversation(
+                data_dir,
+                &self.agent_name,
+                session_id,
+            ),
+            None => apollia_runtime::profile::profile_source_checked(data_dir, &self.agent_name),
+        }
     }
 
     /// Reports each read on `bus`.
@@ -486,6 +505,80 @@ mod tests {
         assert!(!seen("cours"), "checked: ctx.profile is served");
         assert!(seen("veille"), "unchecked: ctx.profile is None");
         assert!(seen("ghost"), "unknown agent: ctx.profile is None");
+    }
+
+    #[test]
+    fn a_conversation_opens_or_closes_the_profile_for_itself_whatever_the_source_says() {
+        // GIVEN an agent whose profile source is checked and one whose source
+        // is cleared, and three conversations: one that says nothing, one
+        // that opens the profile, one that closes it
+        pyo3::prepare_freethreaded_python();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = apollia_core::paths::DataFile::UserMemory.path(dir.path());
+        designate(dir.path(), "veille", "");
+        let agents = AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(dir.path()))
+            .expect("agents.db opens");
+        agents
+            .set_override("veille", OverrideField::Sources, &serde_json::json!([]))
+            .expect("sources unchecked");
+        designate(dir.path(), "cours", "");
+        agents
+            .set_override(
+                "cours",
+                OverrideField::Sources,
+                &serde_json::json!(["profile"]),
+            )
+            .expect("sources checked");
+        let chat = apollia_runtime::chat::ChatSessionRepository::open(
+            &apollia_core::paths::DataFile::Chat.path(dir.path()),
+        )
+        .expect("chat.db opens");
+        for (session, choice) in [
+            ("silent", None),
+            ("opens", Some(true)),
+            ("closes", Some(false)),
+        ] {
+            chat.create_session(
+                session,
+                &apollia_runtime::chat::ChatMode::Agent,
+                Some("cours"),
+                "",
+                &[],
+                "2026-10-06T00:00:00Z",
+                None,
+            )
+            .expect("session");
+            chat.set_session_settings(
+                session,
+                &apollia_runtime::chat::SessionSettings {
+                    profile_access: choice,
+                    ..Default::default()
+                },
+            )
+            .expect("settings");
+        }
+
+        // WHEN each agent gets a context in each conversation
+        let served = |agent: &str, session: &str| {
+            let profile = ProfileInterface::new(db.clone(), agent.to_owned(), false, false)
+                .in_conversation(session);
+            let ctx = crate::context::RuntimeContext::for_package_tool(agent).with_profile(profile);
+            Python::with_gil(|py| {
+                let ctx = Py::new(py, ctx).expect("ctx");
+                !ctx.bind(py)
+                    .getattr("profile")
+                    .expect("ctx.profile")
+                    .is_none()
+            })
+        };
+
+        // THEN a silent conversation follows the source of the agent, and a
+        // conversation that chose decides for both agents
+        assert!(served("cours", "silent"));
+        assert!(!served("veille", "silent"));
+        assert!(served("veille", "opens"));
+        assert!(!served("cours", "closes"));
+        assert!(!served("veille", "unknown-conversation"));
     }
 
     #[tokio::test]

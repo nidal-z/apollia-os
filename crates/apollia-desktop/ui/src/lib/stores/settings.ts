@@ -1,7 +1,14 @@
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+import { readConfigFile, type ConfigFileView } from "$lib/ipc/configFile";
+import {
+  listEngines,
+  getPythonInterpreter,
+  type EnginesResponse,
+  type PythonInterpreterSetting,
+} from "$lib/ipc/system";
+import { getHardwareProfile, type HardwareProfile } from "$lib/ipc/modelHub";
 import type {
-  ApollaConfigView,
   SystemInfo,
   SecurityPosture,
   SttModelInfo,
@@ -13,7 +20,9 @@ import type {
 /**
  * The canonical settings sub-routes, in the order of the navigation column:
  * the "Settings" group, then the "System" group, then the sections that leave
- * the settings for their own screens and stay listed last until they do.
+ * the settings for their own screens and stay listed last until they do. The
+ * built-in tools already live on the Connections screen and the permission
+ * rules on the Authorizations screen.
  */
 export type SettingsSubRoute =
   | "general"
@@ -22,13 +31,14 @@ export type SettingsSubRoute =
   | "chat"
   | "stt"
   | "model-defaults"
+  | "integrations"
+  | "notifications"
   | "developer"
+  | "configuration"
   | "engines"
   | "hardware"
   | "llm"
-  | "model-hub"
-  | "tools"
-  | "permissions";
+  | "model-hub";
 
 export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "general",
@@ -37,13 +47,14 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "chat",
   "stt",
   "model-defaults",
+  "integrations",
+  "notifications",
   "developer",
+  "configuration",
   "engines",
   "hardware",
   "llm",
   "model-hub",
-  "tools",
-  "permissions",
 ];
 
 /**
@@ -56,9 +67,19 @@ export const MOVED_SETTINGS_SUB_ROUTES: Readonly<Record<string, SettingsSubRoute
   help: "general",
   danger: "general",
   shortcuts: "chat",
-  configuration: "developer",
   system: "hardware",
 };
+
+/**
+ * The sections that exist only with the developer mode on: absent from the
+ * column, the palette and the window with the mode off.
+ */
+export const DEVELOPER_ONLY_SETTINGS_SUB_ROUTES: readonly SettingsSubRoute[] = ["configuration"];
+
+/** Whether a section is shown with the developer mode in this position. */
+export function settingsSubRouteVisible(route: SettingsSubRoute, developerMode: boolean): boolean {
+  return developerMode || !DEVELOPER_ONLY_SETTINGS_SUB_ROUTES.includes(route);
+}
 
 /**
  * Key of a settings form in the unsaved-changes store: a settings section, or
@@ -135,13 +156,19 @@ function loadState<T>(): LoadState<T> {
   return { data: null, loading: false, error: null, loaded: false };
 }
 
-export const configStore = writable<LoadState<ApollaConfigView>>(loadState());
+export const configStore = writable<LoadState<ConfigFileView>>(loadState());
 export const systemInfoStore = writable<LoadState<SystemInfo>>(loadState());
 export const securityPostureStore = writable<LoadState<SecurityPosture>>(loadState());
 export const cliStatusStore = writable<LoadState<CliStatus>>(loadState());
 export const sttModelsStore = writable<LoadState<SttModelInfo[]>>(loadState());
 export const sttConfigStore = writable<LoadState<SttConfigView>>(loadState());
 export const llmBackendsStore = writable<LoadState<LlmBackendConfig[]>>(loadState());
+/** System > Engines: the engines of this machine and their stated versions. */
+export const enginesStore = writable<LoadState<EnginesResponse>>(loadState());
+/** System > Hardware: the single hardware probe of the inference. */
+export const hardwareStore = writable<LoadState<HardwareProfile>>(loadState());
+/** System > Hardware, developer mode: the Python interpreter setting. */
+export const pythonInterpreterStore = writable<LoadState<PythonInterpreterSetting>>(loadState());
 
 function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -165,7 +192,7 @@ async function loadOnce<T>(
 
 export const settingsLoaders = {
   config: (force = false) =>
-    loadOnce(configStore, () => invoke<ApollaConfigView>("get_config"), force),
+    loadOnce(configStore, readConfigFile, force),
   systemInfo: (force = false) =>
     loadOnce(systemInfoStore, () => invoke<SystemInfo>("get_system_info"), force),
   securityPosture: (force = false) =>
@@ -182,4 +209,8 @@ export const settingsLoaders = {
     loadOnce(sttConfigStore, () => invoke<SttConfigView>("get_stt_config"), force),
   llmBackends: (force = false) =>
     loadOnce(llmBackendsStore, () => invoke<LlmBackendConfig[]>("list_llm_backends"), force),
+  engines: (force = false) => loadOnce(enginesStore, listEngines, force),
+  hardware: (force = false) => loadOnce(hardwareStore, getHardwareProfile, force),
+  pythonInterpreter: (force = false) =>
+    loadOnce(pythonInterpreterStore, getPythonInterpreter, force),
 };

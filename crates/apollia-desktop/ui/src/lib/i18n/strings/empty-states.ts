@@ -13,7 +13,6 @@ import type { Icon } from "lucide-svelte";
 import {
   Bell,
   Bot,
-  ListTodo,
   MessageSquare,
   Plug,
   Timer,
@@ -22,7 +21,6 @@ import {
 /** Canonical scopes covered by the empty-state catalogue. */
 export type EmptyStateVariant =
   | "agents"
-  | "tasks"
   | "triggers"
   | "chat"
   | "notifications"
@@ -52,14 +50,6 @@ export const EMPTY_STATES: Record<EmptyStateVariant, EmptyStateEntry> = {
     descriptionKey: "empty_states.agents.description",
     primaryCtaKey: "empty_states.agents.primary_cta",
     secondaryCtaKey: "empty_states.agents.secondary_cta",
-  },
-  tasks: {
-    page: "tasks",
-    icon: ListTodo,
-    titleKey: "empty_states.tasks.title",
-    descriptionKey: "empty_states.tasks.description",
-    primaryCtaKey: "empty_states.tasks.primary_cta",
-    secondaryCtaKey: "empty_states.tasks.secondary_cta_operator",
   },
   triggers: {
     page: "triggers",
@@ -98,7 +88,6 @@ export const EMPTY_STATES: Record<EmptyStateVariant, EmptyStateEntry> = {
 /** Ordered list - drives the design showcase iteration. */
 export const EMPTY_STATE_ORDER: EmptyStateVariant[] = [
   "agents",
-  "tasks",
   "triggers",
   "chat",
   "notifications",

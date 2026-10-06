@@ -111,6 +111,9 @@ impl BuiltInChatAgent {
         // Grows during the loop: a tool `tool_search` names is declared from the
         // next iteration on, since the model can only call declared tools.
         let mut specs: Vec<ToolSpec> = tool_specs.to_vec();
+        // The request settings of the turn: the conversation, its preset or
+        // the agent's, the package, the model.
+        let request_settings = self.turn_request_settings(turn_backend.as_deref());
 
         loop {
             // Cooperative pause checkpoint: a pause request cancels the token; we
@@ -161,7 +164,7 @@ impl BuiltInChatAgent {
             // injected when the list is empty).
             let was_compacted = self
                 .maybe_compact_context(llm_messages, session_id, tool_reserve)
-                .await;
+                .await?;
             if was_compacted {
                 if let Some(todo) = self.todo.as_ref() {
                     Self::inject_todo_after_compaction(todo, session_id, llm_messages).await;
@@ -177,10 +180,9 @@ impl BuiltInChatAgent {
             }
 
             promote_discovered_tools(&mut specs, &acc.all_tool_calls);
-            let request = CompletionRequest {
+            let mut request = CompletionRequest {
                 messages: llm_messages.clone(),
                 tools: specs.clone(),
-                temperature: self.turn_temperature(!specs.is_empty()),
                 call_context: self
                     .turn_id
                     .as_ref()
@@ -190,6 +192,7 @@ impl BuiltInChatAgent {
                     }),
                 ..Default::default()
             };
+            self.apply_request_settings(&request_settings, &mut request);
 
             // Opens the iteration this request belongs to. Everything the
             // stream consumer and the tool dispatcher record from here on is
