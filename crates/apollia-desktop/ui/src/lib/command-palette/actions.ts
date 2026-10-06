@@ -31,7 +31,7 @@ import {
   ToggleRight,
   Keyboard,
   Info,
-  Landmark,
+  Code,
   Library,
   KeyRound,
   ScrollText,
@@ -120,20 +120,22 @@ export function buildPaletteActions(): PaletteAction[] {
 
   return [
     // ── Pages ─────────────────────────────────────────────────────
-    nav("nav.agents", "agents", "nav.agents", Bot, ["assistants", "bots"]),
+    // The screens of the sidebar, in its order, and nothing else: a test holds
+    // this list equal to the one the sidebar draws, in both modes.
     nav("nav.chat", "chat", "nav.chat", MessageSquare, ["chat", "conversation"]),
-    nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),
+    nav("nav.agents", "agents", "nav.agents", Bot, ["assistants", "bots"]),
     nav("nav.integrations", "integrations", "nav.connections", Plug, ["integrations", "mcp"]),
     nav("nav.llm", "llm", "nav.llm", Brain, ["llm", "models"]),
+    nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),
+    nav("nav.developer", "developer", "nav.developer", Code, ["developer", "server", "api"], true),
     nav("nav.library", "library", "nav.library", Library, ["library", "packages", "installed"]),
     nav("nav.automations", "automations", "nav.automations", Timer, ["automations", "triggers", "cron"]),
-    nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], true),
-    nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], true),
-    nav("nav.observability", "observability", "nav.observability", Activity, ["observability", "metrics"], true),
-    nav("nav.policy", "policy", "nav.policy", Landmark, ["policy", "politique", "organisation", "organization"]),
     nav("nav.authorizations", "authorizations", "nav.authorizations", KeyRound, ["authorizations", "autorisations", "permissions", "rules"]),
     nav("nav.journal", "journal", "nav.journal", ScrollText, ["journal", "audit", "history", "historique", "activity"]),
     nav("nav.settings", "settings", "nav.settings", SettingsIcon, ["settings", "preferences"]),
+    nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], true),
+    nav("nav.observability", "observability", "nav.observability", Activity, ["observability", "metrics"], true),
+    nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], true),
 
     // ── Create / run actions ──────────────────────────────────────
     {

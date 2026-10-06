@@ -87,11 +87,16 @@ describe("To review - the screen and its name", () => {
   });
 
   test("the screen lists the runtime's one list and keeps no history", () => {
-    // GIVEN the source of the screen
+    // GIVEN the source of the screen, and of the list it shares with the sidebar
     const source = readFileSync(join(__dirname, "../../routes/Inbox.svelte"), "utf-8");
+    const shared = readFileSync(
+      join(__dirname, "../../lib/stores/pendingDecisions.ts"),
+      "utf-8",
+    );
     // WHEN what it reads is looked for
     // THEN it reads the gathered list, answers through one call, and no history
-    expect(source).toContain("listPendingDecisions()");
+    expect(source).toContain("refreshPendingDecisions()");
+    expect(shared).toContain("listPendingDecisions()");
     expect(source).toContain("decidePendingDecision(request)");
     expect(source).not.toMatch(/History|history_title|listResolvedApprovals/);
   });

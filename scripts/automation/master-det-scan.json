@@ -500,52 +500,6 @@
     },
     {
       "kind": "click",
-      "testid": "topbar-inbox",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-topbar-inbox"
-    },
-    {
-      "kind": "goto",
-      "route": "chat"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "topbar-settings",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-topbar-settings"
-    },
-    {
-      "kind": "goto",
-      "route": "chat"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
       "testid": "topbar-user-menu",
       "timeoutMs": 3000
     },
