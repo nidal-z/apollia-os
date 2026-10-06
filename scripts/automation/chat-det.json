@@ -2164,6 +2164,336 @@
       "timeoutMs": 15000
     },
     {
+      "kind": "expect",
+      "testid": "chat-split-button"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40a-split-two-panes (the second pane is empty and active)"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "nth": 1,
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 0,
+      "text": "Left pane draft, not sent."
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 1,
+      "text": "Right pane draft, not sent."
+    },
+    {
+      "kind": "screenshot",
+      "label": "40b-split-two-drafts (one composer per pane)"
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 0,
+      "text": ""
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 1,
+      "text": ""
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_chat_targets",
+      "resolve": {
+        "agents": [
+          {
+            "id": "apollia:chat",
+            "name": "Apollia",
+            "enabled": true,
+            "model": null
+          }
+        ],
+        "installed": [
+          {
+            "id": "Phi-3-mini-Q4",
+            "path": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+            "category": "language",
+            "format": "gguf",
+            "parameters": null
+          }
+        ],
+        "servers": [],
+        "default_model": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": null,
+        "models": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_model_pins",
+      "resolve": {
+        "pins": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 20.0,
+          "totalGb": 24.0,
+          "capacityGb": 16.0,
+          "fit": "too_large",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "refused",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-pane-refusal-title",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "40c-split-pane-refusal (the load guardrail refuses in the first pane only)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-refusal-choose",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-refusal-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 900,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-tabs",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-pane-tab",
+      "nth": 1
+    },
+    {
+      "kind": "screenshot",
+      "label": "40d-split-narrow-tabs (900 px: one pane at a time, the others behind tabs)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-tab",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-tab",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-tabs",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-close-button",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane",
+      "nth": 3,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40e-split-four-panes (the split button is disabled at four)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "chat-close-button",
       "timeoutMs": 4000
@@ -3211,6 +3541,7 @@
     "The trash is played on the session the block itself creates through the picker: the row delete sends it to the trash (Settings > Chat keeps the trash on by default), chat-trash-restore puts it back first in the list (the default sort is newest created first), it is deleted again, and chat-trash-erase removes it for good after one cancelled confirmation. No seeded row is touched and the trash is empty before and after, which is why the block lives here and not in destructive.json. Written against the source and validated statically; not yet through a runtime round.",
     "The folders are played on a folder the block itself creates and deletes: New folder opens on its name, typed in place; a seeded conversation is moved into it through the row menu (Move to), the folder is folded and unfolded, the conversation is taken out (No folder), put back, and the folder is deleted with the conversation still in it, which puts it back out of any folder. No folder is left and no conversation is removed, so the seed reads the same before and after. The search is played in between on two seeded words: sovereign is in the title of seed-session-1 (the Titles section), explicit only in its second message (the In the messages section, with its excerpt; the index of the messages is built from the seeded rows when the runtime first opens chat.db). Dragging a conversation onto a folder is not played: the runner has no drag step. Written against the source and validated statically; not yet through a runtime round.",
     "The loading window is opened and cancelled through stubbed IPC, since no engine runs in the deterministic run: list_chat_targets is resolved with one local language model shaped like ChatTargets (commands/chat/targets.rs; installed entries as the model index lists them, path a seed file), list_loaded_models with an engine and nothing resident (routes_llm/loaded.rs), list_model_pins with PinsResponse (routes_llm/residency.rs), get_last_loaded_model with LastLoadedModelResponse and estimate_model_load with LoadEstimateResponse (routes_llm/load.rs, camelCase). The memory figures are asserted by presence, not by text: their rendering follows the locale, and they render only once the estimate answered. Four more openings replay the window on other answers of the same stub: an estimate the guardrail refuses (the refusal, then 'Load anyway' whose confirmation is cancelled once and confirmed once against a load_model that rejects, so the error shows and nothing loads), a model that takes no setting and cannot be sized (LoadEstimateResponse of an MLX model without memory), an estimate that rejects, and reload_last_loaded_model rejecting, which opens the window with its reason. Nothing is loaded: each window is cancelled, after which the selector still shows no target and the reload line names the stubbed last model; the stubs are cleared before the walk goes on.",
-    "chat-model-eject is only asserted in the open conversation: no model is resident in the deterministic run, so the button is rendered disabled and an eject has nothing to unload."
+    "chat-model-eject is only asserted in the open conversation: no model is resident in the deterministic run, so the button is rendered disabled and an eject has nothing to unload.",
+    "The split-screen block (labels 40a to 40e) plays on the conversation the picker just created: a second pane is opened and filled by a deep link to seed-session-2 (goto with sessionId lands in the active pane), one draft is typed per composer and cleared, the load guardrail refuses a model in the first pane through an estimate_model_load stub that imitates a LoadEstimate (lib/types/llm.ts, verdict refused) with the list_chat_targets, list_loaded_models and list_model_pins stubs of the selector block, the narrow layout is reached at 900 px and left before any other step, and every pane it opened is closed before the block ends, so the step after it finds one pane again."
   ]
 }

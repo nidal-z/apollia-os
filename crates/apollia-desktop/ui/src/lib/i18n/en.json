@@ -4104,7 +4104,19 @@
       "reloading": "Reloading",
       "refused": "The last model could not be reloaded as it was: {error}"
     },
-    "conversation_tokens": "{count} tokens"
+    "conversation_tokens": "{count} tokens",
+    "panes": {
+      "split": "Split",
+      "split_full": "{max} conversations side by side at most",
+      "close": "Close this pane",
+      "aria": "Pane {n}",
+      "tabs_aria": "Open conversations",
+      "untitled": "New conversation",
+      "empty": "Pick a conversation in the list or start a new one.",
+      "refusal_title": "{name} was not loaded in this pane",
+      "refusal_body": "Not enough memory with the models already loaded: estimate {estimated} GB for {budget} GB (guardrails \"{level}\"). Pick a model already loaded, close a pane, or load anyway after confirming.",
+      "refusal_choose": "Pick another model"
+    }
   },
   "transcriptions": {
     "title": "Transcriptions",
