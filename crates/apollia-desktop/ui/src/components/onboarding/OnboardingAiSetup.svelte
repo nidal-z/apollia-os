@@ -2,13 +2,15 @@
   /**
    * First-launch step 2 - the language model.
    *
-   * The shell: the machine probe, the language-engine section and the
-   * navigation. The section lives in `OnboardingLlmSection.svelte` and the
-   * decisions in `aiSetupRules.ts`.
+   * The shell: the machine probe, the choice between a model on this computer
+   * and a server, and the navigation. The first lives in
+   * `OnboardingLlmSection.svelte`, the second in `OnboardingServerForm.svelte`,
+   * and the decisions in `aiSetupRules.ts` and `serverSetup.ts`.
    *
    * This is the only step that cannot be passed, so it carries no "skip":
-   * "Continue" opens once a model is wired, a server is registered, or a
-   * download was launched. Nothing else is asked here. The context window
+   * "Continue" opens once a model is wired, a server model is chosen, or a
+   * download was launched. Nothing else is asked here, and nothing here
+   * leaves the first launch: the server is declared inside the step. The context window
    * follows the default of the model, and dictation is set up in the settings.
    *
    * Designed to render inline inside the {@link OnboardingModal} overlay
@@ -16,16 +18,17 @@
    */
   import { t } from "svelte-i18n";
   import { getAiSetupInfo, type SystemInfo } from "$lib/ipc/models";
-  import { MemoryStick, MonitorCog } from "lucide-svelte";
+  import { Laptop, MemoryStick, MonitorCog, Server } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
   import { llmBackends } from "$lib/stores/sse";
-  import { navigateTo } from "$lib/stores/navigation";
   import OnboardingLlmSection from "./OnboardingLlmSection.svelte";
-  import { canContinueAiStep } from "./aiSetupRules";
+  import OnboardingServerForm from "./OnboardingServerForm.svelte";
+  import { canContinueAiStep, type AiSource } from "./aiSetupRules";
   import { isInFlight } from "./llmDownload";
   import { llmDownload } from "./llmDownloadLive";
   import { ramLabel, osLabel } from "./onboardingFormat";
+  import { serverSetup } from "./serverSetupLive";
   import "./onboarding-ai-setup.css";
 
   interface Props {
@@ -35,11 +38,24 @@
      */
     onnext: (languageModelBytes: number | null) => void;
     onback: () => void;
-    /** Called when the user wants to add a cloud backend; modal should close. */
-    onopencloud: () => void;
   }
 
-  const { onnext, onback, onopencloud }: Props = $props();
+  const { onnext, onback }: Props = $props();
+
+  const SOURCES: { id: AiSource; icon: typeof Laptop; title: string; body: string }[] = [
+    {
+      id: "local",
+      icon: Laptop,
+      title: "onboarding.ai_setup.source.local_title",
+      body: "onboarding.ai_setup.source.local_body",
+    },
+    {
+      id: "server",
+      icon: Server,
+      title: "onboarding.ai_setup.source.server_title",
+      body: "onboarding.ai_setup.source.server_body",
+    },
+  ];
 
   let loading = $state(true);
   let sysInfo = $state<SystemInfo | null>(null);
@@ -49,12 +65,16 @@
   /** Size of the file of that engine, `null` for a server or a backend already there. */
   let llmSizeBytes = $state<number | null>(null);
 
+  /** Which of the two the step shows. A server already chosen is shown again. */
+  let source = $state<AiSource>($serverSetup.chosen === null ? "local" : "server");
+
   const downloading = $derived(isInFlight($llmDownload));
   const canContinue = $derived(
     canContinueAiStep({
       probing: loading,
       engineWired: llmSuccess,
       backendCount: $llmBackends.length,
+      serverChosen: $serverSetup.chosen !== null,
       downloadInFlight: downloading,
     }),
   );
@@ -71,11 +91,6 @@
     } finally {
       loading = false;
     }
-  }
-
-  function openCloudSettings(): void {
-    navigateTo("llm");
-    onopencloud();
   }
 
   function handleContinue(): void {
@@ -115,14 +130,42 @@
       <span>{$t("onboarding.ai_setup.scanning")}</span>
     </div>
   {:else}
-    <OnboardingLlmSection
-      {sysInfo}
-      onconfigured={(configured, sizeBytes) => {
-        llmSuccess = configured;
-        llmSizeBytes = sizeBytes;
-      }}
-      onopencloud={openCloudSettings}
-    />
+    <div
+      class="source-cards"
+      role="radiogroup"
+      aria-label={$t("onboarding.ai_setup.source.label")}
+      data-testid="ai-setup-source"
+    >
+      {#each SOURCES as { id, icon: SourceIcon, title, body } (id)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={source === id}
+          class="source-card"
+          class:source-card-chosen={source === id}
+          onclick={() => (source = id)}
+          data-testid={`ai-setup-source-${id}`}
+        >
+          <SourceIcon size={16} strokeWidth={2} aria-hidden="true" />
+          <span class="source-card-text">
+            <span class="source-card-title">{$t(title)}</span>
+            <span class="source-card-body">{$t(body)}</span>
+          </span>
+        </button>
+      {/each}
+    </div>
+
+    {#if source === "local"}
+      <OnboardingLlmSection
+        {sysInfo}
+        onconfigured={(configured, sizeBytes) => {
+          llmSuccess = configured;
+          llmSizeBytes = sizeBytes;
+        }}
+      />
+    {:else}
+      <OnboardingServerForm setup={serverSetup} />
+    {/if}
   {/if}
 
   <p class="empty-hint" data-testid="ai-setup-continue-hint">

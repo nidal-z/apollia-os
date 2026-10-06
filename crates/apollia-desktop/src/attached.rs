@@ -110,6 +110,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_default_llm_backend",
     "unload_loaded_model",
     "update_llm_backend",
+    // A server declared from the interface: test, save, and the default model.
+    "save_llm_server",
+    "set_default_model",
+    "test_llm_server",
     // MCP servers and the curated catalogue.
     "add_mcp_server",
     "fetch_mcp_curated",

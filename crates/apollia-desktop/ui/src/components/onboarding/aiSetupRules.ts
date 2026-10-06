@@ -111,14 +111,19 @@ export function isLanguageData(path: string): boolean {
   return path.toLowerCase().endsWith(`.${LANGUAGE_DATA_EXTENSION}`);
 }
 
+/** Where the AI of the agents runs: on this computer, or on a server. */
+export type AiSource = "local" | "server";
+
 /** What the AI step knows when "Continue" is asked for. */
 export interface AiStepProgress {
   /** The machine is still being probed: the section is not on screen yet. */
   probing: boolean;
   /** An engine was wired during this session. */
   engineWired: boolean;
-  /** Engines the runtime already holds, a server among them. */
+  /** Engines the runtime already holds. */
   backendCount: number;
+  /** A model of a server was chosen in the step and is the default model. */
+  serverChosen: boolean;
   /** A language model is being downloaded, or has landed and is being wired. */
   downloadInFlight: boolean;
 }
@@ -132,5 +137,10 @@ export interface AiStepProgress {
  */
 export function canContinueAiStep(progress: AiStepProgress): boolean {
   if (progress.probing) return false;
-  return progress.engineWired || progress.backendCount > 0 || progress.downloadInFlight;
+  return (
+    progress.engineWired ||
+    progress.backendCount > 0 ||
+    progress.serverChosen ||
+    progress.downloadInFlight
+  );
 }
