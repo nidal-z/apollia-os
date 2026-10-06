@@ -453,7 +453,6 @@ fn main() {
             tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()),
         ) as commands::model_hub::SharedDownloadManager)
         .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
-        .manage(commands::llm::LlmPingCache::default())
         // Route the macOS app-menu / Cmd+Q "Quit" (id `MENU_QUIT_APP`) to the
         // shared graceful quit. Without this, the default native quit is
         // swallowed by the window `CloseRequested` handler below.

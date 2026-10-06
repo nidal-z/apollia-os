@@ -13,7 +13,6 @@ import type {
   SecurityPosture,
   SttModelInfo,
   SttConfigView,
-  LlmBackendConfig,
   CliStatus,
 } from "$lib/types";
 
@@ -37,7 +36,6 @@ export type SettingsSubRoute =
   | "configuration"
   | "engines"
   | "hardware"
-  | "llm"
   | "model-hub";
 
 export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
@@ -53,7 +51,6 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "configuration",
   "engines",
   "hardware",
-  "llm",
   "model-hub",
 ];
 
@@ -162,7 +159,6 @@ export const securityPostureStore = writable<LoadState<SecurityPosture>>(loadSta
 export const cliStatusStore = writable<LoadState<CliStatus>>(loadState());
 export const sttModelsStore = writable<LoadState<SttModelInfo[]>>(loadState());
 export const sttConfigStore = writable<LoadState<SttConfigView>>(loadState());
-export const llmBackendsStore = writable<LoadState<LlmBackendConfig[]>>(loadState());
 /** System > Engines: the engines of this machine and their stated versions. */
 export const enginesStore = writable<LoadState<EnginesResponse>>(loadState());
 /** System > Hardware: the single hardware probe of the inference. */
@@ -207,8 +203,6 @@ export const settingsLoaders = {
     loadOnce(sttModelsStore, () => invoke<SttModelInfo[]>("list_stt_models"), force),
   sttConfig: (force = false) =>
     loadOnce(sttConfigStore, () => invoke<SttConfigView>("get_stt_config"), force),
-  llmBackends: (force = false) =>
-    loadOnce(llmBackendsStore, () => invoke<LlmBackendConfig[]>("list_llm_backends"), force),
   engines: (force = false) => loadOnce(enginesStore, listEngines, force),
   hardware: (force = false) => loadOnce(hardwareStore, getHardwareProfile, force),
   pythonInterpreter: (force = false) =>

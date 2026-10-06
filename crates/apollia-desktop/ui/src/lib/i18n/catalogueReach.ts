@@ -185,10 +185,6 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/integrations/OauthCredentialHeader.svelte",
   },
   {
-    pattern: new RegExp(`^settings\\.llm_dialog\\.err_${SEG}$`),
-    builtBy: "components/settings/LlmBackendDialog.svelte",
-  },
-  {
     pattern: new RegExp(`^settings\\.nav\\.${SEG}$`),
     builtBy:
       "lib/command-palette/paletteIndex.ts, lib/navigation/breadcrumbSegments.ts",

@@ -44,6 +44,8 @@ fn declare_server(repo: &LlmBackendRepository, name: &str) {
         has_key: false,
         api_key_env: None,
         enabled: true,
+        timeout_secs: None,
+        extra_params: None,
     })
     .unwrap();
 }

@@ -447,6 +447,7 @@ from .server_models_response import ServerModelsResponse
 from .server_policy_locks import ServerPolicyLocks
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
+from .server_response_extra_params_type_0 import ServerResponseExtraParamsType0
 from .server_token_view import ServerTokenView
 from .servers_list_response import ServersListResponse
 from .session_folder_body import SessionFolderBody
@@ -580,6 +581,8 @@ from .update_llm_backend_request_config_json import UpdateLlmBackendRequestConfi
 from .update_preset_request import UpdatePresetRequest
 from .update_preset_request_load import UpdatePresetRequestLoad
 from .update_preset_request_request import UpdatePresetRequestRequest
+from .update_server_request import UpdateServerRequest
+from .update_server_request_extra_params_type_0 import UpdateServerRequestExtraParamsType0
 from .update_session_body import UpdateSessionBody
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
@@ -1046,6 +1049,7 @@ __all__ = (
     "ServerPolicyLocks",
     "ServerProbeErrorResponse",
     "ServerResponse",
+    "ServerResponseExtraParamsType0",
     "ServersListResponse",
     "ServerTokenView",
     "SessionFolderBody",
@@ -1175,6 +1179,8 @@ __all__ = (
     "UpdatePresetRequest",
     "UpdatePresetRequestLoad",
     "UpdatePresetRequestRequest",
+    "UpdateServerRequest",
+    "UpdateServerRequestExtraParamsType0",
     "UpdateSessionBody",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",

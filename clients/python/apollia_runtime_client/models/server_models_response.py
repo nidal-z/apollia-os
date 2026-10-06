@@ -18,15 +18,20 @@ class ServerModelsResponse:
     """Body of `GET /api/v1/llm/servers/{name}/models`.
 
     Attributes:
+        expected_context_window (int): Window an agent is expected to have, in tokens: a model served with a
+            shorter one is marked `context_short`.
         models (list[ServerModel]): Models the server offers, in its order.
         server (str): Server name.
     """
 
+    expected_context_window: int
     models: list[ServerModel]
     server: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        expected_context_window = self.expected_context_window
+
         models = []
         for models_item_data in self.models:
             models_item = models_item_data.to_dict()
@@ -38,6 +43,7 @@ class ServerModelsResponse:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "expected_context_window": expected_context_window,
                 "models": models,
                 "server": server,
             }
@@ -50,6 +56,8 @@ class ServerModelsResponse:
         from ..models.server_model import ServerModel
 
         d = dict(src_dict)
+        expected_context_window = d.pop("expected_context_window")
+
         models = []
         _models = d.pop("models")
         for models_item_data in _models:
@@ -60,6 +68,7 @@ class ServerModelsResponse:
         server = d.pop("server")
 
         server_models_response = cls(
+            expected_context_window=expected_context_window,
             models=models,
             server=server,
         )

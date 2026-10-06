@@ -4,25 +4,29 @@
 //! key. Before it is saved it can be tested (`POST .../servers/test`, which
 //! lists its models and writes nothing); once saved, its models are listed by
 //! name and each one routes as `<server>/<model>` with no backend row of its
-//! own. The key goes to the secret store and is never answered back.
+//! own. The key goes to the secret store and is never answered back. A saved
+//! server is changed field by field (`PATCH .../servers/{name}`): its address,
+//! its key, whether it is enabled, how long it may stay silent, and the
+//! fields added to every request sent to it.
 
 use std::sync::Arc;
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::{delete, get, post};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
 use apollia_auth::SecretStore;
 use apollia_core::inference_server::{
-    route_name, validate_address, validate_server_name, INFERENCE_SERVER_SECRET_SERVICE,
+    route_name, validate_address, validate_extra_params, validate_server_name,
+    validate_server_timeout, INFERENCE_SERVER_SECRET_SERVICE,
 };
 use apollia_core::{InferenceServer, LlmBackendRepository};
 use apollia_llm::server_models::{
     list_server_model_entries, list_server_models, ServerModelsError,
 };
-use apollia_llm::server_window::{context_short, fill_windows};
+use apollia_llm::server_window::{context_short, fill_windows, EXPECTED_CONTEXT_WINDOW};
 
 use crate::api::routes_llm::backends::{map_backend_error, BackendErrorResponse};
 use crate::api::server::AppState;
@@ -69,6 +73,45 @@ fn default_true() -> bool {
     true
 }
 
+/// Body of `PATCH /api/v1/llm/servers/{name}`. A field left out keeps what
+/// the server has.
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct UpdateServerRequest {
+    /// New base address, with or without the trailing `/v1`.
+    #[serde(default)]
+    pub base_url: Option<String>,
+    /// New key, written to the secret store. `null` or an empty string
+    /// removes the key the server had.
+    #[serde(default, deserialize_with = "present")]
+    #[schema(value_type = Option<String>)]
+    pub api_key: Option<Option<String>>,
+    /// Whether the server's models are routable.
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    /// Seconds the server may stay silent before a request to it is given
+    /// up, 60 to 3600. `null` returns to the default of the runtime.
+    #[serde(default, deserialize_with = "present")]
+    #[schema(value_type = Option<u32>)]
+    pub timeout_secs: Option<Option<u32>>,
+    /// JSON object whose fields are added to every request sent to this
+    /// server; a field the request already carries is left as it is. `model`,
+    /// `messages`, `stream`, `stream_options`, `tools` and `tool_choice` are
+    /// refused. `null` adds nothing.
+    #[serde(default, deserialize_with = "present")]
+    #[schema(value_type = Option<Object>)]
+    pub extra_params: Option<Option<serde_json::Map<String, serde_json::Value>>>,
+}
+
+/// Reads a present field, `null` included, as `Some`, so an absent field
+/// (`None`) is told from one that empties the value (`Some(None)`).
+fn present<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
 /// Hand-written so a logged request can never print the key.
 macro_rules! redacted_debug {
     ($ty:ident, $($field:ident),*) => {
@@ -84,6 +127,7 @@ macro_rules! redacted_debug {
 }
 redacted_debug!(TestServerRequest, base_url);
 redacted_debug!(CreateServerRequest, name, base_url, enabled);
+redacted_debug!(UpdateServerRequest, base_url, enabled, timeout_secs);
 
 /// One declared server. The key is never part of it.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -98,6 +142,12 @@ pub struct ServerResponse {
     pub api_key_env: Option<String>,
     /// Whether the server's models are routable.
     pub enabled: bool,
+    /// Seconds the server may stay silent before a request to it is given
+    /// up. Absent when the default of the runtime applies.
+    pub timeout_secs: Option<u32>,
+    /// Fields added to every request sent to this server. Absent when none.
+    #[schema(value_type = Option<Object>)]
+    pub extra_params: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl From<InferenceServer> for ServerResponse {
@@ -108,6 +158,8 @@ impl From<InferenceServer> for ServerResponse {
             has_key: s.has_key,
             api_key_env: s.api_key_env,
             enabled: s.enabled,
+            timeout_secs: s.timeout_secs,
+            extra_params: s.extra_params,
         }
     }
 }
@@ -149,6 +201,9 @@ pub struct ServerModelsResponse {
     pub server: String,
     /// Models the server offers, in its order.
     pub models: Vec<ServerModel>,
+    /// Window an agent is expected to have, in tokens: a model served with a
+    /// shorter one is marked `context_short`.
+    pub expected_context_window: u32,
 }
 
 /// Body of a failed server call: a readable message and a stable kind.
@@ -210,7 +265,8 @@ where
 }
 
 /// Save `req` as a server, its key going to the store `store` opens. A server
-/// saved again without a key loses the one it had.
+/// saved again without a key loses the one it had; it keeps its timeout and
+/// its extra parameters, which this request does not carry.
 pub(crate) fn save_server<F>(
     repo: &LlmBackendRepository,
     req: &CreateServerRequest,
@@ -224,16 +280,16 @@ where
         .as_deref()
         .map(str::trim)
         .filter(|k| !k.is_empty());
-    let had_key = repo
-        .find_server(&req.name)
-        .map_err(map_backend_error)?
-        .is_some_and(|s| s.has_key);
+    let previous = repo.find_server(&req.name).map_err(map_backend_error)?;
+    let had_key = previous.as_ref().is_some_and(|s| s.has_key);
     let server = InferenceServer {
         name: req.name.clone(),
         base_url: req.base_url.trim().trim_end_matches('/').to_string(),
         has_key: key.is_some(),
         api_key_env: None,
         enabled: req.enabled,
+        timeout_secs: previous.as_ref().and_then(|s| s.timeout_secs),
+        extra_params: previous.and_then(|s| s.extra_params),
     };
     validate_server_name(&server.name).map_err(map_backend_error)?;
     validate_address(&server.base_url).map_err(map_backend_error)?;
@@ -249,6 +305,67 @@ where
             None => store.delete(INFERENCE_SERVER_SECRET_SERVICE, &server.name),
         };
         written.map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
+    repo.save_server(&server).map_err(map_backend_error)?;
+    Ok(server)
+}
+
+/// Apply `req` to the saved server `name`: a field it leaves out keeps what
+/// the server has. A new key goes to the store `store` opens, a removed one
+/// leaves it; the store is opened for nothing else.
+pub(crate) fn update_server<F>(
+    repo: &LlmBackendRepository,
+    name: &str,
+    req: UpdateServerRequest,
+    store: F,
+) -> Result<InferenceServer, ApiError>
+where
+    F: FnOnce() -> Result<Box<dyn SecretStore>, String>,
+{
+    let mut server = repo
+        .find_server(name)
+        .map_err(map_backend_error)?
+        .ok_or_else(|| api_err(StatusCode::NOT_FOUND, format!("server '{name}' not found")))?;
+    if let Some(base_url) = req.base_url {
+        server.base_url = base_url.trim().trim_end_matches('/').to_string();
+        validate_address(&server.base_url).map_err(map_backend_error)?;
+    }
+    if let Some(enabled) = req.enabled {
+        server.enabled = enabled;
+    }
+    if let Some(timeout_secs) = req.timeout_secs {
+        if let Some(secs) = timeout_secs {
+            validate_server_timeout(secs).map_err(map_backend_error)?;
+        }
+        server.timeout_secs = timeout_secs;
+    }
+    if let Some(extra_params) = req.extra_params {
+        let extra_params = extra_params.filter(|params| !params.is_empty());
+        if let Some(params) = &extra_params {
+            validate_extra_params(params).map_err(map_backend_error)?;
+        }
+        server.extra_params = extra_params;
+    }
+    if let Some(api_key) = req.api_key {
+        let key = api_key
+            .as_deref()
+            .map(str::trim)
+            .filter(|key| !key.is_empty());
+        if key.is_some() || server.has_key {
+            let store = store().map_err(|e| {
+                api_err(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    format!("secret store unavailable: {e}"),
+                )
+            })?;
+            let written = match key {
+                Some(key) => store.set(INFERENCE_SERVER_SECRET_SERVICE, name, key),
+                None => store.delete(INFERENCE_SERVER_SECRET_SERVICE, name),
+            };
+            written.map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        }
+        server.has_key = key.is_some();
+        server.api_key_env = None;
     }
     repo.save_server(&server).map_err(map_backend_error)?;
     Ok(server)
@@ -409,6 +526,52 @@ pub async fn create_llm_server<B: ExecutionBackend + Clone>(
     Ok((StatusCode::CREATED, Json(server.into())))
 }
 
+/// `PATCH /api/v1/llm/servers/{name}`: change a saved server field by field.
+/// The change applies to the next request sent to one of its models.
+#[utoipa::path(
+    patch,
+    path = "/api/v1/llm/servers/{name}",
+    tag = "llm",
+    params(("name" = String, Path, description = "Server name")),
+    request_body = UpdateServerRequest,
+    responses(
+        (status = 200, description = "Server updated", body = ServerResponse),
+        (status = 403, description = "The organisation policy refuses the new address; nothing was changed", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Invalid address, timeout out of bounds, or a reserved field among the extra parameters", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Repository or secret store not available", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn update_llm_server<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(name): Path<String>,
+    Json(req): Json<UpdateServerRequest>,
+) -> Result<Json<ServerResponse>, ApiError> {
+    if let Some(base_url) = req.base_url.as_deref() {
+        if let Err(reason) = state.inference_governance.server_decision(base_url) {
+            tracing::event!(
+                tracing::Level::WARN,
+                server = %name,
+                reason = %reason,
+                "llm.server.refused_by_policy"
+            );
+            return Err(api_err(StatusCode::FORBIDDEN, reason));
+        }
+    }
+    let server = with_repo(&state, |repo| {
+        update_server(repo, &name, req, || (state.secret_store)())
+    })?;
+    tracing::event!(
+        tracing::Level::INFO,
+        server = %server.name,
+        enabled = server.enabled,
+        has_key = server.has_key,
+        "llm.server.updated"
+    );
+    refresh_router_servers(&state).await;
+    Ok(Json(server.into()))
+}
+
 /// `DELETE /api/v1/llm/servers/{name}`: forget a server and its key.
 #[utoipa::path(
     delete,
@@ -476,6 +639,7 @@ pub async fn list_llm_server_models<B: ExecutionBackend + Clone>(
             })
             .collect(),
         server: server.name,
+        expected_context_window: EXPECTED_CONTEXT_WINDOW,
     }))
 }
 
@@ -487,7 +651,10 @@ pub fn server_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(list_llm_servers::<B>).post(create_llm_server::<B>),
         )
         .route("/api/v1/llm/servers/test", post(test_llm_server::<B>))
-        .route("/api/v1/llm/servers/:name", delete(delete_llm_server::<B>))
+        .route(
+            "/api/v1/llm/servers/:name",
+            patch(update_llm_server::<B>).delete(delete_llm_server::<B>),
+        )
         .route(
             "/api/v1/llm/servers/:name/models",
             get(list_llm_server_models::<B>),
@@ -899,6 +1066,7 @@ mod tests {
                 (serde_json::json!(131_072), serde_json::json!(false)),
             ]
         );
+        assert_eq!(models["expected_context_window"], EXPECTED_CONTEXT_WINDOW);
     }
 
     // GIVEN a server saved with a key, through an encrypted-file secret store
@@ -950,6 +1118,169 @@ mod tests {
         assert!(repo.find_server("corp").unwrap().is_none());
     }
 
+    fn update(body: serde_json::Value) -> UpdateServerRequest {
+        serde_json::from_value(body).unwrap()
+    }
+
+    // GIVEN a server saved with a key
+    // WHEN its address alone is changed, then its key removed with `null`
+    // THEN the first change keeps the key, the second removes it from the store
+    #[test]
+    fn test_updating_a_server_keeps_what_the_request_leaves_out() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+        let req = CreateServerRequest {
+            name: "corp".into(),
+            base_url: "http://10.0.0.5:8000/v1".into(),
+            api_key: Some("sk-very-secret".into()),
+            enabled: true,
+        };
+        save_server(&repo, &req, || Ok(file_store(&dir))).unwrap();
+        let stored = || {
+            file_store(&dir)
+                .get(INFERENCE_SERVER_SECRET_SERVICE, "corp")
+                .unwrap()
+        };
+
+        // WHEN
+        let moved = update_server(
+            &repo,
+            "corp",
+            update(serde_json::json!({ "base_url": "http://10.0.0.6:8000/" })),
+            || Err("the store must not be opened".into()),
+        )
+        .unwrap();
+        let key_after_move = stored();
+        let unkeyed = update_server(
+            &repo,
+            "corp",
+            update(serde_json::json!({ "api_key": null })),
+            || Ok(file_store(&dir)),
+        )
+        .unwrap();
+
+        // THEN
+        assert_eq!(moved.base_url, "http://10.0.0.6:8000");
+        assert!(moved.has_key && moved.enabled);
+        assert_eq!(key_after_move.as_deref(), Some("sk-very-secret"));
+        assert!(!unkeyed.has_key);
+        assert_eq!(unkeyed.base_url, "http://10.0.0.6:8000");
+        assert!(stored().is_none());
+    }
+
+    // GIVEN a saved server
+    // WHEN it is disabled and given a timeout and an extra parameter, then
+    //      saved again by the declaring route, then both settings emptied
+    // THEN the settings are answered and stored, survive the second save,
+    //      and are gone once emptied
+    #[tokio::test]
+    async fn test_patching_a_server_disables_it_and_stores_its_settings() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_with_repo(&dir);
+        let declared = serde_json::json!({ "name": "corp", "base_url": "http://10.0.0.5:8000" });
+        let (status, _) = call(
+            state.clone(),
+            "POST",
+            "/api/v1/llm/servers",
+            Some(declared.clone()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+
+        // WHEN
+        let (status, body) = call(
+            state.clone(),
+            "PATCH",
+            "/api/v1/llm/servers/corp",
+            Some(serde_json::json!({
+                "enabled": false,
+                "timeout_secs": 120,
+                "extra_params": { "keep_alive": "30m" }
+            })),
+        )
+        .await;
+        let (_, saved_again) =
+            call(state.clone(), "POST", "/api/v1/llm/servers", Some(declared)).await;
+        let (_, emptied) = call(
+            state.clone(),
+            "PATCH",
+            "/api/v1/llm/servers/corp",
+            Some(serde_json::json!({ "timeout_secs": null, "extra_params": null })),
+        )
+        .await;
+
+        // THEN
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["enabled"], false);
+        assert_eq!(body["timeout_secs"], 120);
+        assert_eq!(
+            body["extra_params"],
+            serde_json::json!({ "keep_alive": "30m" })
+        );
+        assert_eq!(saved_again["timeout_secs"], 120);
+        assert_eq!(
+            saved_again["extra_params"],
+            serde_json::json!({ "keep_alive": "30m" })
+        );
+        assert!(emptied["timeout_secs"].is_null(), "{emptied}");
+        assert!(emptied["extra_params"].is_null(), "{emptied}");
+        let (_, listed) = call(state, "GET", "/api/v1/llm/servers", None).await;
+        assert!(listed["servers"][0]["timeout_secs"].is_null());
+    }
+
+    // GIVEN a saved server
+    // WHEN it is patched with a timeout out of bounds, with a reserved extra
+    //      parameter, with an address that is not a URL, and under a name
+    //      nothing was saved with
+    // THEN 422 three times and 404 once, and the server is unchanged
+    #[tokio::test]
+    async fn test_patching_a_server_refuses_what_cannot_be_stored() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_with_repo(&dir);
+        call(
+            state.clone(),
+            "POST",
+            "/api/v1/llm/servers",
+            Some(serde_json::json!({ "name": "corp", "base_url": "http://10.0.0.5:8000" })),
+        )
+        .await;
+
+        // WHEN
+        let mut statuses = Vec::new();
+        for body in [
+            serde_json::json!({ "timeout_secs": 5 }),
+            serde_json::json!({ "extra_params": { "messages": [] } }),
+            serde_json::json!({ "base_url": "10.0.0.5:8000" }),
+        ] {
+            let (status, _) = call(
+                state.clone(),
+                "PATCH",
+                "/api/v1/llm/servers/corp",
+                Some(body),
+            )
+            .await;
+            statuses.push(status);
+        }
+        let (unknown, _) = call(
+            state.clone(),
+            "PATCH",
+            "/api/v1/llm/servers/absent",
+            Some(serde_json::json!({ "enabled": false })),
+        )
+        .await;
+
+        // THEN
+        assert_eq!(statuses, vec![StatusCode::UNPROCESSABLE_ENTITY; 3]);
+        assert_eq!(unknown, StatusCode::NOT_FOUND);
+        let (_, listed) = call(state, "GET", "/api/v1/llm/servers", None).await;
+        assert_eq!(listed["servers"][0]["base_url"], "http://10.0.0.5:8000");
+        assert_eq!(listed["servers"][0]["enabled"], true);
+        assert!(listed["servers"][0]["timeout_secs"].is_null());
+    }
+
     // GIVEN a router reaching a local OpenAI-compatible server that records
     //       what it receives
     // WHEN the diagnostic ping is sent to one of its models
@@ -965,6 +1296,8 @@ mod tests {
                 base_url: server.url.clone(),
                 api_key: None,
                 refusal: None,
+                idle_timeout: None,
+                extra_params: None,
             }]),
         ));
         let app_router = llm_routes::<MockBackend>().with_state(state);

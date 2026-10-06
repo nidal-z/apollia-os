@@ -85,7 +85,6 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
                 as crate::commands::model_hub::SharedDownloadManager,
         )
         .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
-        .manage(crate::commands::llm::LlmPingCache::default())
         .on_menu_event(|app, event| {
             if event.id().as_ref() == crate::tray::MENU_QUIT_APP {
                 crate::tray::initiate_quit(app);

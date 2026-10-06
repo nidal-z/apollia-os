@@ -10,8 +10,7 @@
   "dynamicTestids": [
     "review-filter-decisions",
     "review-filter-questions",
-    "settings-nav-general",
-    "settings-nav-llm"
+    "settings-nav-general"
   ],
   "steps": [
     {
@@ -276,24 +275,32 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "llm"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-llm"
+      "testid": "llm-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backends-section",
+      "testid": "ai-server-entry",
+      "nth": 0,
       "timeoutMs": 8000
     },
     {
+      "kind": "click",
+      "testid": "ai-server-entry",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-error",
+      "timeoutMs": 20000
+    },
+    {
       "kind": "sleep",
-      "ms": 2000
+      "ms": 400
     },
     {
       "kind": "screenshot",
@@ -301,11 +308,11 @@
     },
     {
       "kind": "click",
-      "testid": "add-backend-btn"
+      "testid": "ai-server-add"
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-dialog",
+      "testid": "ai-server-form",
       "timeoutMs": 5000
     },
     {
@@ -315,6 +322,10 @@
     {
       "kind": "screenshot",
       "label": "installation-connecter-un-modele-distant-1"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-cancel"
     },
     {
       "kind": "goto",

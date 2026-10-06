@@ -545,7 +545,7 @@ fn test_models_mcp_connections_and_notifications_pass_the_gate_attached() {
     // GIVEN the screens of models, MCP servers, connections, notifications
     // and triggers, through the command each one opens with
     let screens = [
-        "update_llm_backend",
+        "update_llm_server",
         "list_loaded_models",
         "list_mcp_servers",
         "add_mcp_server",
@@ -1184,9 +1184,8 @@ fn bearer() -> String {
 }
 
 #[tokio::test]
-async fn test_the_daemon_engines_are_listed_with_the_last_ping_of_this_window() {
-    // GIVEN a daemon holding one engine, answering only the token, and a ping
-    // of that engine this window recorded earlier
+async fn test_the_daemon_engines_are_listed_with_the_token() {
+    // GIVEN a daemon holding one engine, answering only the token
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/api/v1/llm/backends"))
@@ -1204,92 +1203,17 @@ async fn test_the_daemon_engines_are_listed_with_the_last_ping_of_this_window() 
         .expect(1)
         .mount(&server)
         .await;
-    let cache = crate::commands::llm::LlmPingCache::default();
-    cache.write().unwrap().insert(
-        "local".to_owned(),
-        crate::commands::llm::PingState {
-            last_error: Some("connection refused".to_owned()),
-            last_latency_ms: None,
-            last_ping_at: Some("2026-10-03T00:00:00Z".to_owned()),
-            last_available: false,
-        },
-    );
 
     // WHEN the attached arm lists the engines
-    let views = crate::commands::llm::backends_with_pings(&attached_link(&server), &cache)
+    let views = crate::commands::llm::listed_backends(&attached_link(&server))
         .await
         .unwrap();
 
-    // THEN the daemon's engine comes back with the last ping projected on it
+    // THEN the daemon's engine comes back as the daemon holds it
     assert_eq!(views.len(), 1);
     assert_eq!(views[0].name, "local");
-    assert_eq!(
-        views[0].last_ping_error.as_deref(),
-        Some("connection refused")
-    );
+    assert!(views[0].is_default);
     assert!(gate(LinkMode::Attached, "list_llm_backends").is_ok());
-}
-
-#[tokio::test]
-async fn test_an_engine_is_pinged_on_the_daemon_and_the_outcome_recorded() {
-    // GIVEN a daemon that reaches the engine it is asked about
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/v1/llm/ping"))
-        .and(header("authorization", bearer().as_str()))
-        .and(body_json(serde_json::json!({ "backend": "local" })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "backend": "local",
-            "available": true,
-            "latency_ms": 42,
-            "error": null,
-        })))
-        .expect(1)
-        .mount(&server)
-        .await;
-    let cache = crate::commands::llm::LlmPingCache::default();
-
-    // WHEN the attached arm tests the engine
-    let result =
-        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
-            .await;
-
-    // THEN the engine answered, and this window remembers it for the list
-    assert!(result.available);
-    assert_eq!(result.latency_ms, Some(42));
-    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
-    assert!(recorded.last_available);
-    assert!(recorded.last_error.is_none());
-    assert!(gate(LinkMode::Attached, "ping_llm_backend").is_ok());
-}
-
-#[tokio::test]
-async fn test_a_ping_refused_by_the_daemon_is_a_failed_test_with_its_message() {
-    // GIVEN a daemon serving no router
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/v1/llm/ping"))
-        .respond_with(
-            ResponseTemplate::new(503)
-                .set_body_json(serde_json::json!({ "error": "no LLM router configured" })),
-        )
-        .mount(&server)
-        .await;
-    let cache = crate::commands::llm::LlmPingCache::default();
-
-    // WHEN the attached arm tests an engine
-    let result =
-        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
-            .await;
-
-    // THEN the test failed with the daemon's own words, recorded as such
-    assert!(!result.available);
-    assert_eq!(result.error.as_deref(), Some("no LLM router configured"));
-    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
-    assert_eq!(
-        recorded.last_error.as_deref(),
-        Some("no LLM router configured")
-    );
 }
 
 #[tokio::test]
@@ -1342,10 +1266,9 @@ async fn test_a_list_or_reload_refused_by_the_daemon_shows_its_message() {
             .await;
     }
     let link = attached_link(&server);
-    let cache = crate::commands::llm::LlmPingCache::default();
 
     // WHEN the attached arm lists and reloads
-    let listed = crate::commands::llm::backends_with_pings(&link, &cache).await;
+    let listed = crate::commands::llm::listed_backends(&link).await;
     let reloaded = crate::commands::llm::reload_runtime_router(&link).await;
 
     // THEN the interface reads the daemon's own words, not an unavailability

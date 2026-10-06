@@ -56,6 +56,8 @@ fn state_with_repo(dir: &tempfile::TempDir) -> AppState<MockBackend> {
         has_key: false,
         api_key_env: None,
         enabled: true,
+        timeout_secs: None,
+        extra_params: None,
     })
     .unwrap();
     let mut state = test_app_state_no_llm();

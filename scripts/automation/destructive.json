@@ -3,8 +3,8 @@
   "stopOnError": false,
   "destructive": true,
   "notes": [
-    "The LLM block switches to builder mode first: delete-backend now lives in LlmBackendCard's builderActions snippet, absent in the operator default this script boots into.",
-    "llm-empty-add-btn is reached through a stub, not through deletions: LlmBackendRepository::delete refuses the default backend (crates/apollia-core/src/llm_backend.rs:432, CannotDeleteDefault, mapped to 409 at apollia-runtime routes_llm/backends.rs:150) and set-default only moves the flag, so a table with one backend can never be emptied from the UI. The block arms stubInvoke list_llm_backends resolve [] (an empty array, no backend type to drift), clicks llm-reload-btn of Settings > LLM so its handleReload() refreshes the list through the settings loader, which then reads [] and mounts llm-backends-empty, plays llm-empty-add-btn into llm-backend-dialog, cancels, clears the stub, reloads again for the real list, and re-enters Settings > LLM so the model-hub step that follows finds the settings page it expects.",
+    "The LLM block deletes a server for real: the seeded system.db turns each OpenAI-compatible engine row into a server at its first opening, sorted by name, so the first entry of the column is gpu-server (tests/cli/seed/fragments/system.sql). The confirmation asks for that name. Its engine row stays: only the server and its key are forgotten.",
+    "ai-servers-empty is reached through a stub rather than through deletions, so the two other seeded servers stay for the rest of the book: list_llm_servers resolves [] (type DeclaredServer), the screen is left and reopened because it reads the servers at mount, and the stub is cleared after the form is cancelled.",
     "One uninstall of apollia-guide serves agent-uninstall-confirm, the five companion-error-* anchors and agent-unavailable-install: rows are addressed by agents-search then agent-list-row nth 0 (store order, no sort, Agents.svelte:107; the expect on agent-detail-title guards the row), never nth -1. Uninstall unregisters the guide (commands/agents/lifecycle.rs:240-248) and it is re-provisioned only at boot (main.rs:171), so create_companion_session rejects GuideAgentNotInstalled (commands/onboarding/companion.rs:95-102); the message carries none of timeout/network/connect/session, so the error is kind internal / ERR_COMPANION_UNKNOWN (stores/companion.ts:183-220) and the details toggle renders on error.message (CompanionErrorState.svelte:121). companion-error-settings maps internal to the settings route with the panel left mounted (CompanionPanel.svelte:328-340); companion-error-close hides it, the store's enabled stays true, so no later step toggles the companion.",
     "agent-unavailable-install: seed-session-2 is an agent-mode session on apollia-guide (tests/cli/seed/fragments/chat.sql:39-42); it is opened through the palette's Sessions group (paletteIndex.ts:98-124, keywords carry the session id; the group lists the freshest chatSessions when no session was touched through the palette yet, recentSessionsStore.ts:53-66) so the banner condition of ChatConversation.svelte:142-147 holds with the guide gone from $agents. The mapper's seed-classifier route is refuted: seed-classifier is a worker and Agents.svelte:107 keeps workers out of agent-list-row.",
     "update-install-btn stays unplayed and a boundary even in this book: it renders only on phase available (UpdateCheckPanel.svelte:184), which needs a signed latest.json from the GitHub endpoint of tauri.conf.json (commands/updates.rs:130-141, offline the check fails at transport), and acting on it runs install_update, which replaces the binary and restarts the app before the report is written.",
@@ -19,7 +19,6 @@
     "settings-nav-appearance",
     "settings-nav-developer",
     "settings-nav-general",
-    "settings-nav-llm",
     "settings-nav-model-hub",
     "settings-nav-notifications",
     "settings-nav-profile"
@@ -222,21 +221,23 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "llm"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "llm-page",
       "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-llm"
     },
     {
       "kind": "waitFor",
-      "testid": "add-backend-btn",
-      "timeoutMs": 15000
+      "testid": "ai-servers-nav",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-entry",
+      "timeoutMs": 15000,
+      "nth": 0
     },
     {
       "kind": "screenshot",
@@ -244,13 +245,44 @@
     },
     {
       "kind": "click",
-      "testid": "delete-backend",
+      "testid": "ai-server-entry",
+      "timeoutMs": 4000,
       "nth": 0
     },
     {
       "kind": "waitFor",
-      "testid": "llm-delete-dialog",
+      "testid": "ai-server-panel",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-server-name-title",
+      "contains": "gpu-server"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-menu-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-menu-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-menu-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-delete-dialog",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-server-delete-dialog-typed-name",
+      "text": "gpu-server"
     },
     {
       "kind": "screenshot",
@@ -258,12 +290,18 @@
     },
     {
       "kind": "click",
-      "testid": "llm-delete-confirm-btn"
+      "testid": "ai-server-delete-dialog-confirm",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitGone",
-      "testid": "llm-delete-dialog",
+      "testid": "ai-server-delete-dialog",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-server-panel",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
@@ -271,69 +309,73 @@
     },
     {
       "kind": "stubInvoke",
-      "command": "list_llm_backends",
+      "command": "list_llm_servers",
       "resolve": []
     },
     {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
       "kind": "waitFor",
-      "testid": "llm-reload-btn",
-      "timeoutMs": 4000
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-servers-none",
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
-      "testid": "llm-reload-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backends-empty",
-      "timeoutMs": 25000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12b-llm-empty-state (list_llm_backends stubbed to [], the only way to an empty table: the repository refuses to delete the default backend)"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-empty-add-btn",
+      "testid": "ai-servers-none",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-dialog",
+      "testid": "ai-servers-empty",
       "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
-      "label": "12c-llm-empty-add-dialog"
+      "label": "12b-llm-empty-state (list_llm_servers stubbed to [])"
     },
     {
       "kind": "click",
-      "testid": "llm-dialog-cancel",
+      "testid": "ai-servers-empty-add",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-server-form",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-llm-empty-add-form"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-server-cancel",
       "timeoutMs": 4000
     },
     {
       "kind": "waitGone",
-      "testid": "llm-backend-dialog",
+      "testid": "ai-server-form",
       "timeoutMs": 6000
     },
     {
       "kind": "clearStubs",
-      "command": "list_llm_backends"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-reload-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-backends-list",
-      "timeoutMs": 25000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12d-llm-list-restored"
+      "command": "list_llm_servers"
     },
     {
       "kind": "goto",
@@ -342,15 +384,6 @@
     {
       "kind": "waitFor",
       "testid": "settings-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-llm"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "add-backend-btn",
       "timeoutMs": 15000
     },
     {

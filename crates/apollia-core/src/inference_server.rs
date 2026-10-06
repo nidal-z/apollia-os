@@ -37,6 +37,56 @@ pub struct InferenceServer {
     pub api_key_env: Option<String>,
     /// When `false`, the server's models are not routable.
     pub enabled: bool,
+    /// Seconds the server may stay silent before a request to it is given
+    /// up. `None` keeps the default of the runtime.
+    pub timeout_secs: Option<u32>,
+    /// Fields added to every request sent to this server, for a setting the
+    /// OpenAI protocol does not carry. `None` adds nothing.
+    pub extra_params: Option<serde_json::Map<String, serde_json::Value>>,
+}
+
+/// Shortest silence a server can be allowed, in seconds. Anything shorter
+/// would cut a healthy generation on a slow server.
+pub const MIN_SERVER_TIMEOUT_SECS: u32 = 60;
+
+/// Longest silence a server can be allowed, in seconds.
+pub const MAX_SERVER_TIMEOUT_SECS: u32 = 3600;
+
+/// Request fields the extra parameters of a server may not carry: the ones
+/// that say which model is asked what, and how the answer travels.
+pub const RESERVED_EXTRA_PARAMS: &[&str] = &[
+    "model",
+    "messages",
+    "stream",
+    "stream_options",
+    "tools",
+    "tool_choice",
+];
+
+/// Refuse a timeout outside
+/// [`MIN_SERVER_TIMEOUT_SECS`]..=[`MAX_SERVER_TIMEOUT_SECS`].
+pub fn validate_server_timeout(timeout_secs: u32) -> Result<(), LlmBackendError> {
+    if (MIN_SERVER_TIMEOUT_SECS..=MAX_SERVER_TIMEOUT_SECS).contains(&timeout_secs) {
+        return Ok(());
+    }
+    Err(LlmBackendError::InvalidServerSetting(format!(
+        "the timeout must be between {MIN_SERVER_TIMEOUT_SECS} and {MAX_SERVER_TIMEOUT_SECS} seconds, got {timeout_secs}"
+    )))
+}
+
+/// Refuse extra parameters that carry one of [`RESERVED_EXTRA_PARAMS`].
+pub fn validate_extra_params(
+    params: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), LlmBackendError> {
+    match RESERVED_EXTRA_PARAMS
+        .iter()
+        .find(|reserved| params.contains_key(**reserved))
+    {
+        Some(reserved) => Err(LlmBackendError::InvalidServerSetting(format!(
+            "the extra parameters may not carry '{reserved}'"
+        ))),
+        None => Ok(()),
+    }
 }
 
 /// The OpenAI API base of a server address: the address itself when it ends
@@ -96,11 +146,14 @@ fn row_to_server(row: &rusqlite::Row<'_>) -> Result<InferenceServer, rusqlite::E
         has_key: row.get::<_, i64>(2)? != 0,
         api_key_env: row.get(3)?,
         enabled: row.get::<_, i64>(4)? != 0,
+        timeout_secs: row.get(5)?,
+        extra_params: row
+            .get::<_, Option<String>>(6)?
+            .and_then(|json| serde_json::from_str(&json).ok()),
     })
 }
 
-const SELECT_SERVER: &str =
-    "SELECT name, base_url, has_key, api_key_env, enabled FROM inference_servers";
+const SELECT_SERVER: &str = "SELECT name, base_url, has_key, api_key_env, enabled, timeout_secs, extra_json FROM inference_servers";
 
 impl LlmBackendRepository {
     /// Every declared server, sorted by name.
@@ -135,18 +188,36 @@ impl LlmBackendRepository {
     /// # Errors
     /// - [`LlmBackendError::InvalidName`] if the name does not match `[a-z0-9_-]+`.
     /// - [`LlmBackendError::InvalidAddress`] if the address is not an HTTP URL.
+    /// - [`LlmBackendError::InvalidServerSetting`] if the timeout is out of
+    ///   bounds or the extra parameters carry a reserved field.
     /// - [`LlmBackendError::Db`] for any SQLite error.
     pub fn save_server(&self, server: &InferenceServer) -> Result<(), LlmBackendError> {
         validate_name(&server.name)?;
         validate_address(&server.base_url)?;
+        if let Some(timeout_secs) = server.timeout_secs {
+            validate_server_timeout(timeout_secs)?;
+        }
+        let extra_json = match server.extra_params.as_ref().filter(|p| !p.is_empty()) {
+            Some(params) => {
+                validate_extra_params(params)?;
+                Some(
+                    serde_json::to_string(params)
+                        .map_err(|e| LlmBackendError::Serialization(e.to_string()))?,
+                )
+            }
+            None => None,
+        };
         self.conn.borrow().execute(
-            "INSERT INTO inference_servers (name, base_url, has_key, api_key_env, enabled)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO inference_servers
+                (name, base_url, has_key, api_key_env, enabled, timeout_secs, extra_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(name) DO UPDATE SET
                 base_url        = excluded.base_url,
                 has_key         = excluded.has_key,
                 api_key_env     = excluded.api_key_env,
                 enabled         = excluded.enabled,
+                timeout_secs    = excluded.timeout_secs,
+                extra_json      = excluded.extra_json,
                 legacy_key_from = NULL,
                 updated_at      = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
             params![
@@ -155,6 +226,8 @@ impl LlmBackendRepository {
                 server.has_key as i64,
                 server.api_key_env,
                 server.enabled as i64,
+                server.timeout_secs,
+                extra_json,
             ],
         )?;
         Ok(())
@@ -422,6 +495,8 @@ mod tests {
             has_key: true,
             api_key_env: None,
             enabled: true,
+            timeout_secs: None,
+            extra_params: None,
         };
         repo.save_server(&server).unwrap();
         server.base_url = "http://10.0.0.10:8000".into();
@@ -454,6 +529,8 @@ mod tests {
             has_key: false,
             api_key_env: None,
             enabled: true,
+            timeout_secs: None,
+            extra_params: None,
         };
 
         for address in ["", "10.0.0.5:8000", "ftp://host/v1", "http://"] {
@@ -470,6 +547,110 @@ mod tests {
             repo.save_server(&server("Bad/Name", "http://h")),
             Err(LlmBackendError::InvalidName(_))
         ));
+    }
+
+    // GIVEN a server saved with a timeout and extra parameters
+    // WHEN it is read back, then saved again without them
+    // THEN both came back as written, and both are gone after the second save
+    #[test]
+    fn test_a_server_keeps_its_timeout_and_extra_parameters() {
+        // GIVEN
+        let dir = tempfile::TempDir::new().unwrap();
+        let repo = open_repo(&dir);
+        let mut extra = serde_json::Map::new();
+        extra.insert("keep_alive".into(), serde_json::json!("30m"));
+        let mut server = InferenceServer {
+            name: "corp".into(),
+            base_url: "http://10.0.0.9:8000".into(),
+            has_key: false,
+            api_key_env: None,
+            enabled: true,
+            timeout_secs: Some(120),
+            extra_params: Some(extra),
+        };
+        repo.save_server(&server).unwrap();
+
+        // WHEN
+        let read = repo.find_server("corp").unwrap().unwrap();
+        server.timeout_secs = None;
+        server.extra_params = None;
+        repo.save_server(&server).unwrap();
+
+        // THEN
+        assert_eq!(read.timeout_secs, Some(120));
+        assert_eq!(
+            read.extra_params.unwrap().get("keep_alive"),
+            Some(&serde_json::json!("30m"))
+        );
+        assert_eq!(repo.find_server("corp").unwrap().unwrap(), server);
+    }
+
+    // GIVEN a timeout out of bounds, and extra parameters naming the model
+    // WHEN a server is saved with each
+    // THEN both are refused and nothing is stored
+    #[test]
+    fn test_save_server_refuses_a_timeout_out_of_bounds_and_a_reserved_parameter() {
+        // GIVEN
+        let dir = tempfile::TempDir::new().unwrap();
+        let repo = open_repo(&dir);
+        let server = |timeout_secs, extra: Option<serde_json::Value>| InferenceServer {
+            name: "corp".into(),
+            base_url: "http://10.0.0.9:8000".into(),
+            has_key: false,
+            api_key_env: None,
+            enabled: true,
+            timeout_secs,
+            extra_params: extra.and_then(|v| v.as_object().cloned()),
+        };
+
+        // WHEN
+        let short = repo.save_server(&server(Some(MIN_SERVER_TIMEOUT_SECS - 1), None));
+        let long = repo.save_server(&server(Some(MAX_SERVER_TIMEOUT_SECS + 1), None));
+        let reserved =
+            repo.save_server(&server(None, Some(serde_json::json!({"model": "another"}))));
+
+        // THEN
+        for refused in [short, long, reserved] {
+            assert!(
+                matches!(refused, Err(LlmBackendError::InvalidServerSetting(_))),
+                "{refused:?}"
+            );
+        }
+        assert!(repo.list_servers().unwrap().is_empty());
+    }
+
+    // GIVEN a database at schema v11, whose servers have no setting columns
+    // WHEN it is opened at the current version
+    // THEN its server is still there, with no timeout and no extra parameter
+    #[test]
+    fn test_v12_adds_the_setting_columns_and_keeps_the_servers() {
+        // GIVEN
+        let dir = tempfile::TempDir::new().unwrap();
+        v2_database_with(
+            &dir,
+            &[(
+                "vllm",
+                "openai",
+                "m",
+                r#"{"base_url":"http://10.0.0.5:8000/v1"}"#,
+            )],
+        );
+        {
+            let conn = Connection::open(dir.path().join(DataFile::System.file_name())).unwrap();
+            for step in &SYSTEM_DB_MIGRATIONS[2..11] {
+                step(&conn).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 11).unwrap();
+        }
+
+        // WHEN
+        let servers = open_repo(&dir).list_servers().unwrap();
+
+        // THEN
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].name, "vllm");
+        assert_eq!(servers[0].timeout_secs, None);
+        assert_eq!(servers[0].extra_params, None);
     }
 
     // GIVEN addresses with and without a trailing `/v1`

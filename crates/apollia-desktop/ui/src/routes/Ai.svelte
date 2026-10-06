@@ -3,8 +3,10 @@
    * Ai - the AI screen: the models resident in memory and the models of this
    * computer, by category, with the default model of the machine.
    *
-   * The servers, the catalogue and the panel of a model are not here yet; the
-   * management of the engines stays in Settings until the screen takes them.
+   * The column also lists the servers: choosing one, or adding one, replaces
+   * the models of this computer by that server in the content. The catalogue
+   * and the panel of a model are not here yet; the management of the engines
+   * stays in Settings until the screen takes them.
    */
   import { onMount } from "svelte";
   import { get } from "svelte/store";
@@ -33,6 +35,10 @@
   import { cn } from "$lib/utils";
   import LoadedModelsSection from "../components/ai/LoadedModelsSection.svelte";
   import InstalledModelsSection from "../components/ai/InstalledModelsSection.svelte";
+  import ServersNav from "../components/ai/ServersNav.svelte";
+  import ServersSection from "../components/ai/ServersSection.svelte";
+  import type { ServersView } from "../components/ai/servers";
+  import { servers } from "../components/ai/serversLive";
   import { unloadErrorKey } from "../components/ai/loadedModels";
   import {
     CATEGORY_FILTERS,
@@ -58,6 +64,8 @@
   let searchTarget = $state<InstalledModel | null>(null);
   let deleteTarget = $state<InstalledModel | null>(null);
   let working = $state(false);
+  /** What the content shows in place of the models of this computer, if anything. */
+  let serversView = $state<ServersView | null>(null);
 
   const loadedPaths = $derived(new Set((loaded?.models ?? []).map((m) => m.modelPath)));
 
@@ -240,6 +248,7 @@
 
   onMount(() => {
     void refresh();
+    void servers.refresh();
   });
 </script>
 
@@ -255,12 +264,15 @@
         type="button"
         class={cn(
           "flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-          filter === entry
+          filter === entry && serversView === null
             ? "bg-muted font-medium text-foreground"
             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
         )}
-        aria-current={filter === entry ? "page" : undefined}
-        onclick={() => (filter = entry)}
+        aria-current={filter === entry && serversView === null ? "page" : undefined}
+        onclick={() => {
+          filter = entry;
+          serversView = null;
+        }}
         data-testid="ai-category-{entry}"
       >
         <span>{$t(categoryLabelKey(entry))}</span>
@@ -269,31 +281,47 @@
         </span>
       </button>
     {/each}
+    <ServersNav
+      servers={$servers.servers}
+      models={$servers.models}
+      selected={serversView?.kind === "server" || serversView?.kind === "edit"
+        ? serversView.name
+        : null}
+      adding={serversView?.kind === "add"}
+      none={serversView?.kind === "none"}
+      onselect={(name) => (serversView = { kind: "server", name })}
+      onadd={() => (serversView = { kind: "add" })}
+      onnone={() => (serversView = { kind: "none" })}
+    />
   </nav>
 
   <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-auto p-6" data-testid="ai-content">
-    <LoadedModelsSection
-      view={loaded}
-      error={loadedError}
-      {unloading}
-      onunload={unload}
-      onretry={loadLoaded}
-    />
-    <InstalledModelsSection
-      models={installed}
-      {loadedPaths}
-      {filter}
-      bind:query
-      {platform}
-      {modelsDir}
-      error={installedError}
-      {importing}
-      {onselect}
-      onimport={importFile}
-      ondiscover={discover}
-      onrevealfolder={revealFolder}
-      onretry={loadInstalled}
-    />
+    {#if serversView !== null}
+      <ServersSection {servers} view={serversView} onview={(view) => (serversView = view)} />
+    {:else}
+      <LoadedModelsSection
+        view={loaded}
+        error={loadedError}
+        {unloading}
+        onunload={unload}
+        onretry={loadLoaded}
+      />
+      <InstalledModelsSection
+        models={installed}
+        {loadedPaths}
+        {filter}
+        bind:query
+        {platform}
+        {modelsDir}
+        error={installedError}
+        {importing}
+        {onselect}
+        onimport={importFile}
+        ondiscover={discover}
+        onrevealfolder={revealFolder}
+        onretry={loadInstalled}
+      />
+    {/if}
   </div>
 </div>
 

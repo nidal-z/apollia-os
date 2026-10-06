@@ -45,7 +45,7 @@
       case "permissions":
         return "/authorizations";
       default:
-        return "/settings/llm";
+        return "/llm";
     }
   });
 

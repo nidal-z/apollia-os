@@ -74,17 +74,10 @@
     "no_input": "Aucune entrée",
     "delete": "Supprimer",
     "clear": "Effacer",
-    "status": {
-      "ready": "PRÊT",
-      "untested": "NON TESTÉ",
-      "error": "ERREUR"
-    },
     "back": "Retour",
     "next": "Suivant",
     "optional_label": "(facultatif)",
     "na": "N/A",
-    "default_badge": "PAR DÉFAUT",
-    "saving": "Enregistrement…",
     "finalize": "Finaliser",
     "finalizing": "Finalisation…",
     "copy": "Copier",
@@ -1155,18 +1148,6 @@
       "remaining": "· {remaining} restant"
     }
   },
-  "llm": {
-    "model": "Modèle",
-    "ping_ok": "Ping OK ({latency}ms)",
-    "ping_failed": "Ping échoué",
-    "local_ai": "IA locale",
-    "running": "En cours",
-    "status_untested": "Non testé",
-    "status_error": "Erreur",
-    "free_local": "Gratuit (tourne sur votre machine)",
-    "pay_per_use": "Paiement à l'utilisation",
-    "details": "Détails"
-  },
   "automations": {
     "title": "Automatisations",
     "delete": "Supprimer",
@@ -1976,7 +1957,6 @@
       "appearance": "Apparence",
       "profile": "Profil",
       "stt": "Dictée",
-      "llm": "Backends LLM",
       "model_hub": "Hub de modèles",
       "configuration": "Configuration",
       "system": "Informations système",
@@ -2431,71 +2411,6 @@
     "stt_model_filter": "Modèles Whisper",
     "stt_model_loaded_toast": "Modèle « {name} » ajouté à votre bibliothèque.",
     "stt_config_hint": "Pour modifier manuellement, éditez la section [stt] dans apollia.toml.",
-    "llm_backends": "Backends LLM",
-    "llm_add_backend": "Ajouter un backend",
-    "llm_backend_enabled": "Activé",
-    "llm_backend_default": "Définir par défaut",
-    "llm_no_backends": "Aucun backend LLM configuré. Ajoutez-en un pour activer les fonctionnalités IA.",
-    "llm_set_default": "Définir par défaut",
-    "llm": {
-      "edit": "Modifier",
-      "test": "Tester la connexion",
-      "delete_title": "Supprimer le backend",
-      "delete_message": "Supprimer le backend « {name} » ? Les sessions actives qui l'utilisent échoueront.",
-      "delete_type_prompt": "Saisissez DELETE pour confirmer la suppression du backend par défaut.",
-      "delete_toast": "Backend « {name} » supprimé",
-      "reload_btn": "Recharger",
-      "reload_toast": "Moteur LLM rechargé",
-      "subtitle": "Backends de modèle de langage utilisés par Apollia et vos agents."
-    },
-    "llm_dialog": {
-      "title_add": "Ajouter un backend LLM",
-      "title_edit": "Modifier « {name} »",
-      "field_name": "Nom",
-      "field_provider": "Fournisseur",
-      "field_endpoint": "Endpoint",
-      "field_api_key": "Clé API",
-      "field_model": "Modèle",
-      "field_timeout": "Timeout (secondes)",
-      "field_extra_json": "Config supplémentaire (objet JSON)",
-      "advanced": "Avancé",
-      "section_gen_params": "Paramètres de génération",
-      "field_temperature": "Température",
-      "field_top_k": "Top-K",
-      "field_top_p": "Top-P",
-      "field_repeat_penalty": "Pénalité de répétition",
-      "gen_params_hint": "Laisser vide pour utiliser les valeurs par défaut du modèle. Auto-remplissage depuis HuggingFace ci-dessous.",
-      "hf_autofill_title": "Auto-remplissage depuis HuggingFace",
-      "hf_autofill_btn": "Récupérer les paramètres",
-      "hf_no_config": "Aucun generation_config.json trouvé pour ce dépôt.",
-      "hf_filled": "Paramètres récupérés depuis HuggingFace.",
-      "api_key_unchanged": "Laisser vide pour conserver la clé existante",
-      "test_connection": "Tester la connexion",
-      "testing": "Test en cours…",
-      "test_ok": "Connexion OK ({ms} ms)",
-      "test_failed": "Échec de la connexion",
-      "test_invalid": "Corrigez les erreurs de validation avant de tester.",
-      "test_local_ok": "La configuration semble valide. Le test complet s'exécutera après l'enregistrement.",
-      "field_model_path": "Fichier modèle",
-      "browse": "Parcourir…",
-      "browse_title": "Sélectionner un fichier modèle GGUF",
-      "scan": "Scanner",
-      "scan_empty": "Aucun fichier .gguf trouvé dans ~/.apollia/models, ~/Downloads ou ~/.cache/lm-studio.",
-      "recommended": "Recommandé",
-      "multipart_first": "Modèle multi-partie ({total} fichiers) - tous les fichiers doivent être dans le même dossier.",
-      "multipart_corrected": "Partie {part}/{total} sélectionnée - chemin corrigé vers la première partie automatiquement.",
-      "err_required": "Requis",
-      "err_invalid_name": "Utilisez lettres minuscules, chiffres, _ ou -",
-      "err_invalid_url": "Doit être une URL http(s) valide",
-      "err_invalid_timeout": "Doit être un nombre positif",
-      "err_invalid_json": "JSON invalide",
-      "err_invalid_json_object": "Doit être un objet JSON",
-      "warn_cleartext_credentials": "Cet endpoint utilise http:// vers une autre machine : la clé d'API circule en clair sur le réseau. Préférez https://, ou un tunnel, sauf si vous avez pleine confiance dans ce réseau.",
-      "notice_remote_egress": "Un backend distant envoie vos prompts vers cette machine, ce qui peut inclure du contenu de fichiers, de la mémoire et des données du workspace. Un modèle local garde tout sur cette machine.",
-      "field_context_window": "Fenêtre de contexte",
-      "context_window_default": "Par défaut (32k tokens)",
-      "context_window_hint": "La part d'une conversation que le modèle garde en mémoire, en tokens. Le moteur est lancé avec cette fenêtre, et la compaction comme la jauge de contexte sont calibrées dessus. Une fenêtre plus grande consomme plus de mémoire, et un modèle entraîné sur une fenêtre plus courte tourne à la sienne."
-    },
     "model_hub": {
       "subtitle": "Parcourez, téléchargez et gérez les modèles GGUF depuis HuggingFace.",
       "installed": {
@@ -2739,10 +2654,6 @@
       "web_read": {
         "ssrf_guard": "Garde SSRF (rejeter les hôtes privés/loopback)"
       }
-    },
-    "llm_backend": {
-      "provider_local": "local",
-      "provider_openai_compatible": "Serveur compatible OpenAI"
     },
     "all_saved": "Tous les changements enregistrés",
     "save": "Enregistrer",
@@ -4809,6 +4720,20 @@
       "payload": "Charge",
       "hash": "Empreinte",
       "hash_value": "{hash} (précédente : {previous})"
+    },
+    "ai": {
+      "servers": {
+        "timeout_label": "Délai d'expiration (secondes)",
+        "timeout_hint": "Le temps pendant lequel le serveur peut rester silencieux avant qu'une requête soit abandonnée, de {min} à {max} secondes. Vide : la valeur par défaut d'Apollia, dix minutes.",
+        "extra_label": "Paramètres JSON supplémentaires",
+        "extra_hint": "Un objet JSON dont les champs sont ajoutés à chaque requête envoyée à ce serveur. Un champ que la requête porte déjà garde la valeur de la requête.",
+        "error": {
+          "invalid_timeout": "Saisissez un nombre entier de secondes, de 60 à 3600.",
+          "invalid_json": "Ce texte n'est pas du JSON valide.",
+          "invalid_json_object": "Saisissez un objet JSON, entre accolades.",
+          "reserved_field": "Les champs model, messages, stream, stream_options, tools et tool_choice ne peuvent pas être ajoutés ici."
+        }
+      }
     }
   },
   "ai": {
@@ -4930,6 +4855,92 @@
       "title": "Supprimer {name} ?",
       "message": "Le fichier est retiré de ce poste. Il faudra le télécharger ou l'importer de nouveau pour s'en servir.",
       "confirm": "Supprimer"
+    },
+    "servers": {
+      "title": "Serveurs",
+      "add": "Ajouter un serveur",
+      "status": {
+        "active": "Actif",
+        "active_explanation": "Le serveur répond et ses modèles sont proposés aux conversations et aux agents.",
+        "disabled": "Désactivé",
+        "disabled_explanation": "Ce serveur est désactivé : ses modèles ne sont plus proposés.",
+        "checking": "Vérification…",
+        "checking_explanation": "Apollia demande au serveur la liste de ses modèles.",
+        "unreachable": "Injoignable",
+        "unreachable_explanation": "Le serveur ne répond pas à son adresse.",
+        "failing": "En erreur",
+        "failing_explanation": "Quelque chose répond à cette adresse, mais pas avec la liste des modèles."
+      },
+      "enabled_label": "Actif",
+      "enabled_aria": "Activer ou désactiver {name}",
+      "test": "Tester",
+      "edit": "Modifier",
+      "menu_more": "Plus d'actions sur {name}",
+      "menu": {
+        "copy_address": "Copier l'adresse",
+        "delete": "Supprimer"
+      },
+      "address": "Adresse",
+      "key": "Clé",
+      "key_saved": "Clé enregistrée",
+      "key_none": "Sans clé",
+      "model_count": "{count, plural, =0 {Aucun modèle} one {# modèle} other {# modèles}}",
+      "disabled_hint": "Ce serveur est désactivé : ses modèles ne sont plus proposés aux conversations ni aux agents. Réactivez-le avec l'interrupteur « Actif ».",
+      "loading": "Lecture des modèles du serveur…",
+      "no_models": "Le serveur répond, mais ne propose aucun modèle. Installez ou chargez un modèle sur le serveur, puis testez de nouveau.",
+      "stale_hint": "Dernière liste connue des modèles de ce serveur.",
+      "col_model": "Modèle",
+      "col_window": "Fenêtre de contexte",
+      "short_window": "Fenêtre courte",
+      "short_window_explanation": "Le serveur sert ce modèle avec une fenêtre de contexte plus courte que celle dont un agent a besoin.",
+      "window": "{tokens} jetons",
+      "window_unknown": "Non indiquée",
+      "short_window_warning": "Le serveur ouvre {model} avec une fenêtre de {window} jetons, alors qu'un agent en attend {expected}. Une longue conversation ou une tâche à plusieurs étapes peut être coupée. Seule la personne qui gère ce serveur peut agrandir cette fenêtre.",
+      "admin_note": "Les réglages de chargement de ces modèles appartiennent à la personne qui gère le serveur : Apollia ne les modifie pas.",
+      "models_label": "Modèles du serveur",
+      "list_error": "La liste des serveurs n'a pas pu être lue.",
+      "empty_title": "Aucun serveur connecté",
+      "empty_hint": "Un serveur met à disposition les modèles de votre organisation, sans les installer sur ce poste.",
+      "toast": {
+        "enabled": "{name} est activé.",
+        "disabled": "{name} est désactivé : ses modèles ne sont plus proposés.",
+        "saved": "{name} est enregistré.",
+        "deleted": "{name} est supprimé.",
+        "address_copied": "Adresse copiée."
+      },
+      "delete_dialog": {
+        "title": "Supprimer le serveur {name} ?",
+        "message": "Ses modèles ne seront plus proposés et sa clé est oubliée. Cette suppression ne peut pas être annulée.",
+        "confirm": "Supprimer",
+        "type_label": "Pour confirmer, saisissez le nom du serveur : {name}"
+      },
+      "form": {
+        "title_add": "Ajouter un serveur",
+        "title_edit": "Modifier {name}",
+        "intro": "Branchez le serveur d'IA de votre organisation : Ollama, vLLM, TGI, LiteLLM ou tout serveur compatible OpenAI. Ses modèles deviennent disponibles pour les conversations et les agents.",
+        "address_label": "Adresse",
+        "address_hint": "L'adresse que le serveur donne à ses clients, avec http:// ou https:// et son port, par exemple {example}. Elle se termine souvent par /v1.",
+        "name_label": "Nom",
+        "name_hint": "Le nom sous lequel ce serveur apparaît dans Apollia : lettres minuscules, chiffres et tirets.",
+        "name_fixed_hint": "Le nom d'un serveur enregistré ne change pas : ses modèles sont désignés par lui.",
+        "key_label": "Clé",
+        "key_hint": "Seulement si le serveur en demande une. Apollia la garde avec ses secrets, jamais en clair.",
+        "key_saved_hint": "Une clé est enregistrée et n'est jamais montrée. Laissez le champ vide pour la garder, ou saisissez-en une autre pour la remplacer.",
+        "key_placeholder": "Aucune clé",
+        "key_saved_placeholder": "Clé enregistrée, saisissez-en une autre…",
+        "test": "Tester",
+        "testing": "Test en cours…",
+        "save": "Enregistrer",
+        "untested_hint": "Le test n'est pas obligatoire : un serveur enregistré sans test montre ses modèles dès qu'il répond.",
+        "test_ok": "{count, plural, one {Connexion réussie, # modèle trouvé.} other {Connexion réussie, # modèles trouvés.}}",
+        "save_anyway": "Le test n'a pas réussi. Vous pouvez enregistrer quand même, par exemple si le serveur est éteint pour l'instant : ses modèles apparaîtront quand il répondra.",
+        "error": {
+          "required": "Ce champ est requis.",
+          "invalid_name": "Utilisez seulement des lettres minuscules, des chiffres, des tirets et des tirets bas.",
+          "name_taken": "Un serveur porte déjà ce nom.",
+          "invalid_address": "L'adresse doit commencer par http:// ou https://, suivie du nom du serveur et de son port."
+        }
+      }
     }
   },
   "governance": {
