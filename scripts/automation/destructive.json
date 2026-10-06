@@ -314,7 +314,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -1185,7 +1185,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",

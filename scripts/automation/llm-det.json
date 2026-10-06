@@ -4,7 +4,7 @@
   "notes": [
     "The Loaded section is shown through a stubbed IPC: no engine holds a model in the deterministic run, so the visit in developer mode stubs list_loaded_models with one resident chat model shaped like the runtime answer (routes_llm/loaded.rs, camelCase, footprintGb 2.5) before the route mounts, asserts the card, its name, memory, load time, summary and unload button, then clears the stub. Nothing is loaded or unloaded: the unload button is only asserted.",
     "The servers are walked under stubs, so the book never reaches a network: list_llm_servers (type DeclaredServer of lib/ipc/llmServers.ts, ServerResponse of the runtime), list_llm_server_models (ServerModels, with expected_context_window), get_default_model and set_default_model (DefaultModel), test_llm_server (a list of identifiers, or a rejection shaped like ServerTestFailure: kind and message), save_llm_server and update_llm_server (DeclaredServer). A stub imitates a runtime type and drifts silently when it changes.",
-    "The AI screen reads the servers once at mount (Ai.svelte onMount -> servers.refresh), so a new list_llm_servers stub is followed by leaving the route and coming back (goto dashboard, goto llm).",
+    "The AI screen reads the servers once at mount (Ai.svelte onMount -> servers.refresh), so a new list_llm_servers stub is followed by leaving the route and coming back (goto chat, goto llm).",
     "Two stubs of one command are answered in the order they were added: the rejection of list_llm_server_models is added first, once, then the answer that lists, so Retry lists again.",
     "ai-server-save is never played against the real runtime: save_llm_server and update_llm_server are answered by a stub, and the delete dialog is cancelled, so the seeded servers are left untouched and the book is re-runnable. destructive.json deletes a server for real.",
     "The developer fields of the form (ai-server-timeout, ai-server-extra) are asserted present with the developer mode on and gone with it off; llm-advanced-det plays their refusals one by one.",
@@ -401,7 +401,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -1236,7 +1236,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -1307,7 +1307,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
