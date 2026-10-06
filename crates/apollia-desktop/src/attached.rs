@@ -41,8 +41,7 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// compiled into this binary. `get_resolved_setting` and `set_setting` need
 /// none: they read and write the `apollia.toml` of the data directory, never
 /// the runtime (`set_setting` then shows its write to the runtime, in either
-/// mode, for the journal), and neither does `get_models_dir`, which reads the
-/// same file.
+/// mode, for the journal), and neither does `get_models_dir`.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
     "create_chat_session",
