@@ -30,7 +30,6 @@ describe("settings router", () => {
       "configuration",
       "engines",
       "hardware",
-      "model-hub",
     ]);
   });
 
@@ -42,7 +41,7 @@ describe("settings router", () => {
 
   it("parseSettingsPath resolves known sub-routes", () => {
     expect(parseSettingsPath("/settings/stt")).toBe("stt");
-    expect(parseSettingsPath("settings/model-hub")).toBe("model-hub");
+    expect(parseSettingsPath("settings/model-defaults")).toBe("model-defaults");
     expect(parseSettingsPath("/settings/engines")).toBe("engines");
   });
 
@@ -84,9 +83,9 @@ describe("settings router", () => {
   it("switching sub-routes does not create a new store instance (shared across mounts)", () => {
     setSettingsSubRoute("stt");
     const stateA = get(settingsSubRoute);
-    setSettingsSubRoute("model-hub");
+    setSettingsSubRoute("model-defaults");
     const stateB = get(settingsSubRoute);
     expect(stateA).toBe("stt");
-    expect(stateB).toBe("model-hub");
+    expect(stateB).toBe("model-defaults");
   });
 });

@@ -567,7 +567,7 @@ proof = "crates/apollia-desktop/src/commands/model_hub.rs"
 evidence = ""
 note = """
 The install page said there is no in-app model downloader. There is one, reached
-from onboarding and from the Model Hub screen, and it is the path most first-time
+from onboarding and from the discovery window of the AI screen, and it is the path most first-time
 users take. Denying a shipped feature sends a reader hunting for a GGUF by hand
 on their first five minutes with the product.
 """

@@ -4,9 +4,10 @@
    * computer, by category, with the default model of the machine.
    *
    * The column also lists the servers: choosing one, or adding one, replaces
-   * the models of this computer by that server in the content. The catalogue
-   * and the panel of a model are not here yet; the management of the engines
-   * stays in Settings until the screen takes them.
+   * the models of this computer by that server in the content. "Discover
+   * models" opens the discovery window over the screen. The panel of a model
+   * is not here yet; the management of the engines stays in Settings until
+   * the screen takes them.
    */
   import { onMount } from "svelte";
   import { get } from "svelte/store";
@@ -28,7 +29,6 @@
     setEmbeddingsDefault,
     setInstalledModelPinned,
   } from "$lib/ipc/aiModels";
-  import { openSettingsWindow } from "$lib/stores/settingsWindow";
   import { openExternalUrl } from "$lib/utils/externalLink";
   import { reportError } from "$lib/errors/reportError";
   import { addToast } from "$lib/components/ui/toast";
@@ -36,6 +36,7 @@
   import { cn } from "$lib/utils";
   import LoadedModelsSection from "../components/ai/LoadedModelsSection.svelte";
   import InstalledModelsSection from "../components/ai/InstalledModelsSection.svelte";
+  import DiscoverWindow from "../components/ai/DiscoverWindow.svelte";
   import ServersNav from "../components/ai/ServersNav.svelte";
   import ServersSection from "../components/ai/ServersSection.svelte";
   import type { ServersView } from "../components/ai/servers";
@@ -67,6 +68,7 @@
   let searchTarget = $state<InstalledModel | null>(null);
   let deleteTarget = $state<InstalledModel | null>(null);
   let working = $state(false);
+  let discovering = $state(false);
   /** What the content shows in place of the models of this computer, if anything. */
   let serversView = $state<ServersView | null>(null);
 
@@ -256,7 +258,7 @@
   }
 
   function discover(): void {
-    openSettingsWindow("model-hub");
+    discovering = true;
   }
 
   function revealFolder(): void {
@@ -358,6 +360,13 @@
     {/if}
   </div>
 </div>
+
+<DiscoverWindow
+  open={discovering}
+  {installed}
+  onclose={() => (discovering = false)}
+  ondownloaded={() => void loadInstalled()}
+/>
 
 <ConfirmDialog
   open={searchTarget !== null}

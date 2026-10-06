@@ -164,8 +164,8 @@ octroi des permissions). Vous pouvez démarrer avec un backend cloud ou pointer
 l'application vers un fichier de modèle local que vous possédez déjà. Pour
 <!-- claim:desktop-downloads-models-in-app -->
 exécuter une inférence entièrement locale, téléchargez un GGUF depuis
-l'application elle-même : le parcours d'accueil le propose, et Réglages,
-Model Hub fait de même par la suite. Déposer un fichier `.gguf` à la main dans
+l'application elle-même : le parcours d'accueil le propose, et l'écran IA,
+Découvrir des modèles, fait de même par la suite. Déposer un fichier `.gguf` à la main dans
 `~/.apollia/models/` fonctionne aussi, avant ou après le parcours d'accueil.
 
 ## L'interpréteur Python sur lequel tournent les agents

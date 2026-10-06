@@ -76,7 +76,7 @@ describe("i18n catalogue - the scan reaches both trees", () => {
     // THEN it is not there, so one guard's exemption list cannot answer this
     // guard's question and make its 226 keys immortal
     expect(named).toEqual([]);
-    expect(REACHED.get("settings.model_hub.filters.lang_de")).not.toContain(
+    expect(REACHED.get("settings.language_en")).not.toContain(
       "lib/i18n/identicalLocales.ts",
     );
   });

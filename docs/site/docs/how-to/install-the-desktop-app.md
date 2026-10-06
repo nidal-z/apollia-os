@@ -155,7 +155,7 @@ onboarding flow (choosing a model backend, granting permissions). You can start
 with a cloud backend or point the app at a local model file you already have. To
 <!-- claim:desktop-downloads-models-in-app -->
 run fully local inference, download a GGUF from within the app: onboarding offers
-it, and Settings, Model Hub does the same afterwards. Dropping a `.gguf` file
+it, and the AI screen, Discover models, does the same afterwards. Dropping a `.gguf` file
 into `~/.apollia/models/` by hand also works, before or after onboarding.
 
 ## The Python interpreter agents run on

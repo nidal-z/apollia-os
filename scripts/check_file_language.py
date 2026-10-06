@@ -297,7 +297,7 @@ FRENCH_DATA: dict[str, int] = {
     # The French label and explanation of the trash row of Settings > Chat,
     # pinned word for word by the test of that row.
     "crates/apollia-desktop/ui/src/routes/settings/ChatSettings.test.ts": 3,
-    "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 3,
+    "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 1,
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
     "crates/apollia-memory/src/profile_schema.rs": 10,
     "crates/apollia-memory/src/user_memory/persona.rs": 1,
