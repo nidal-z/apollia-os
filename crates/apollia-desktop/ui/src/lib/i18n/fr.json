@@ -171,7 +171,6 @@
     "progress": "Progression"
   },
   "nav": {
-    "dashboard": "Accueil",
     "agents": "Assistants",
     "inbox": "À valider",
     "llm": "IA",
@@ -187,7 +186,6 @@
     "sidebar_label": "Navigation principale",
     "developer_group": "Mode développeur",
     "sidebar": {
-      "dashboard": "Accueil",
       "chat": "Chat",
       "agents": "Assistants",
       "automations": "Automatisations",
@@ -732,54 +730,13 @@
       "disconnect_warning": "Déconnecter {name} ? La configuration et tous les secrets stockés seront supprimés."
     }
   },
-  "dashboard": {
-    "greeting_morning": "Bonjour",
-    "greeting_afternoon": "Bon après-midi",
-    "greeting_evening": "Bonsoir",
-    "no_recent_activity": "Aucune activité récente.",
-    "status_working": "EN COURS",
-    "status_submitted": "SOUMISE",
-    "status_completed": "TERMINÉE",
-    "status_failed": "ÉCHOUÉE",
-    "status_approval": "APPROBATION",
-    "status_canceled": "ANNULÉE",
-    "cold_start_title": "Bienvenue ! Votre journée démarre.",
-    "cold_start_subtitle": "Essayez d'ouvrir un chat ou parcourez vos assistants.",
-    "browse_agents": "Parcourir mes assistants",
-    "headline_pending_one": "Vous avez {count} décision en attente.",
-    "headline_pending_other": "Vous avez {count} décisions en attente.",
-    "headline_agents_one": "{count} agent est au travail pour vous.",
-    "headline_agents_other": "{count} agents sont au travail pour vous.",
-    "headline_greeting": "{greeting}.",
-    "subtitle_pending_one": "{count} décision en attente",
-    "subtitle_pending_other": "{count} décisions en attente",
-    "subtitle_agents_one": "{count} agent au travail",
-    "subtitle_agents_other": "{count} agents au travail",
-    "subtitle_deliverables_one": "{count} livrable prêt",
-    "subtitle_deliverables_other": "{count} livrables prêts",
-    "subtitle_calm": "Tout est calme. Lancez une conversation quand vous êtes prêt.",
-    "header_action_new_chat": "Nouvelle conversation",
-    "card_pending_title": "Décisions en attente",
-    "card_deliverables_title": "Livrables prêts",
-    "card_agents_title": "Au travail",
-    "see_all_arrow": "Voir tout →",
-    "see_all_short_arrow": "Tout voir →",
-    "see_all_pending_aria": "Voir toutes les décisions en attente",
-    "pending_empty_title": "Rien ne vous attend",
-    "pending_empty_desc": "Vous êtes à jour. Les décisions en attente apparaîtront ici.",
-    "deliverables_empty": "Aucun livrable terminé aujourd'hui.",
-    "agents_empty": "Aucun agent actif pour l'instant.",
-    "recent_activity_title": "Activité récente",
-    "inbox_more_one": "+ {count} autre dans À valider →",
-    "inbox_more_other": "+ {count} autres dans À valider →",
-    "open_task_aria": "Ouvrir la tâche {name}",
-    "agent_detail_aria": "Détails de l'agent {name}",
-    "pending_untitled": "(sans titre)",
-    "ctx_open_inbox": "Ouvrir dans À valider",
-    "ctx_open_deliverable": "Ouvrir le livrable",
-    "ctx_agent_detail": "Ouvrir le détail de l'agent",
-    "ctx_agent_logs": "Voir les journaux",
-    "ctx_open_task": "Ouvrir la tâche"
+  "run_status": {
+    "working": "EN COURS",
+    "submitted": "SOUMISE",
+    "completed": "TERMINÉE",
+    "failed": "ÉCHOUÉE",
+    "approval": "APPROBATION",
+    "canceled": "ANNULÉE"
   },
   "agents": {
     "install": {
@@ -926,19 +883,6 @@
     }
   },
   "inbox": {
-    "row": {
-      "type_approval": "approbation",
-      "type_question": "question",
-      "type_error": "erreur",
-      "type_deliverable": "livrable",
-      "type_trigger": "trigger",
-      "type_memory": "mémoire",
-      "type_cost": "coût",
-      "action_allow": "Autoriser",
-      "action_reply": "Répondre",
-      "action_resolve": "Résoudre",
-      "open_conversation": "Ouvrir la conversation"
-    },
     "open_in_inbox": "Ouvrir dans À valider",
     "error": {
       "details": "Détails techniques",
@@ -3478,8 +3422,6 @@
     }
   },
   "agent_detail": {
-    "activity_title": "Activité récente",
-    "no_activity": "Aucune activité récente pour cet agent.",
     "triggers_title": "Déclencheurs",
     "no_triggers": "Aucun déclencheur configuré pour cet agent.",
     "trigger_cron": "Exécution planifiée (cron)",
@@ -3488,16 +3430,6 @@
     "trigger_webhook": "Exécution via webhook",
     "trigger_oneshot": "Déclencheur unique",
     "trigger_disabled": "Désactivé",
-    "memory_link": "Voir la mémoire du namespace \"{namespace}\"",
-    "tools_title": "Outils",
-    "tools_required_label": "Requis",
-    "tools_optional_label": "Optionnel",
-    "tags_title": "Tags",
-    "execution_mode_title": "Mode d'exécution",
-    "execution_mode_auto": "Automatique",
-    "execution_mode_direct": "Direct",
-    "execution_mode_orchestrated": "Orchestré",
-    "install_path_title": "Emplacement",
     "trigger_config_cron": "Expression : {config}",
     "trigger_config_interval": "Toutes les {config}",
     "trigger_config_file_watch": "Surveille : {config}",

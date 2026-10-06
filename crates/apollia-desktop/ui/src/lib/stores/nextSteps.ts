@@ -2,7 +2,7 @@
  * Next Steps store.
  *
  * Powers the `NextStepsPanel` on two surfaces:
- *   - `global` - Dashboard, rolling context of the last ~12h.
+ *   - `global` - rolling context of the last ~12h.
  *   - `session:<id>` - end-of-session debrief on `ChatConversation`.
  *
  * Responsibilities:
@@ -273,7 +273,7 @@ function createStore() {
 
 export const nextSteps = createStore();
 
-/** Key for the Dashboard panel - single global scope. */
+/** Key for the global panel - single global scope. */
 export const GLOBAL_SCOPE = "global";
 /** Helper to compute a stable per-session scope key. */
 export function sessionScope(sessionId: string): string {

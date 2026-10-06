@@ -1,7 +1,7 @@
 <script lang="ts" module>
   import type { Route } from "$lib/stores/navigation";
   import {
-    LayoutDashboard, MessageSquare, Bot, ShieldCheck,
+    MessageSquare, Bot, ShieldCheck,
     Repeat, Brain, Database, Activity, Mic, Library, ScrollText,
   } from "lucide-svelte";
 
@@ -10,7 +10,7 @@
   /** A primary entry of the sidebar; `developer` hides it with the mode off. */
   export interface PrimaryNavEntry {
     route: Route;
-    Icon: typeof LayoutDashboard;
+    Icon: typeof MessageSquare;
     labelKey: string;
     badge: Badge;
     developer?: boolean;
@@ -20,7 +20,6 @@
   // labels out of the source array lets the bundle preserve a single
   // translation map (`nav.sidebar.*`) shared by drawer + rail.
   export const PRIMARY_NAV: readonly PrimaryNavEntry[] = [
-    { route: "dashboard"      as Route, Icon: LayoutDashboard, labelKey: "nav.sidebar.dashboard",      badge: "none"      },
     { route: "chat"           as Route, Icon: MessageSquare,   labelKey: "nav.sidebar.chat",           badge: "chat"      },
     { route: "agents"         as Route, Icon: Bot,             labelKey: "nav.sidebar.agents",         badge: "none"      },
     { route: "library"        as Route, Icon: Library,         labelKey: "nav.sidebar.library",        badge: "none"      },
@@ -38,7 +37,7 @@
   /** An entry of the developer group, below the secondary entries. */
   export interface DeveloperNavEntry {
     route: Route;
-    Icon: typeof LayoutDashboard;
+    Icon: typeof MessageSquare;
     labelKey: string;
   }
 

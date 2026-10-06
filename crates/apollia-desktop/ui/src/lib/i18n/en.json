@@ -171,7 +171,6 @@
     "progress": "Progress"
   },
   "nav": {
-    "dashboard": "Home",
     "agents": "Agents",
     "inbox": "To review",
     "llm": "AI",
@@ -187,7 +186,6 @@
     "sidebar_label": "Main navigation",
     "developer_group": "Developer mode",
     "sidebar": {
-      "dashboard": "Home",
       "chat": "Chat",
       "agents": "Agents",
       "automations": "Automations",
@@ -732,54 +730,13 @@
       "disconnect_warning": "Disconnect {name}? This will remove the configuration and all stored secrets."
     }
   },
-  "dashboard": {
-    "greeting_morning": "Good morning",
-    "greeting_afternoon": "Good afternoon",
-    "greeting_evening": "Good evening",
-    "no_recent_activity": "No recent activity.",
-    "status_working": "WORKING",
-    "status_submitted": "SUBMITTED",
-    "status_completed": "COMPLETED",
-    "status_failed": "FAILED",
-    "status_approval": "APPROVAL",
-    "status_canceled": "CANCELED",
-    "cold_start_title": "Welcome! Your day is just starting.",
-    "cold_start_subtitle": "Try opening a chat or browse your assistants.",
-    "browse_agents": "Browse my assistants",
-    "headline_pending_one": "You have {count} decision waiting.",
-    "headline_pending_other": "You have {count} decisions waiting.",
-    "headline_agents_one": "{count} agent is working for you.",
-    "headline_agents_other": "{count} agents are working for you.",
-    "headline_greeting": "{greeting}.",
-    "subtitle_pending_one": "{count} decision waiting",
-    "subtitle_pending_other": "{count} decisions waiting",
-    "subtitle_agents_one": "{count} agent at work",
-    "subtitle_agents_other": "{count} agents at work",
-    "subtitle_deliverables_one": "{count} deliverable ready",
-    "subtitle_deliverables_other": "{count} deliverables ready",
-    "subtitle_calm": "All quiet. Start a conversation whenever you are ready.",
-    "header_action_new_chat": "New conversation",
-    "card_pending_title": "Decisions waiting",
-    "card_deliverables_title": "Ready deliverables",
-    "card_agents_title": "At work",
-    "see_all_arrow": "See all →",
-    "see_all_short_arrow": "See all →",
-    "see_all_pending_aria": "See all pending decisions",
-    "pending_empty_title": "Nothing waiting for you",
-    "pending_empty_desc": "You are up to date. Pending decisions will appear here.",
-    "deliverables_empty": "No deliverable completed today.",
-    "agents_empty": "No active agent right now.",
-    "recent_activity_title": "Recent activity",
-    "inbox_more_one": "+ {count} more in To review →",
-    "inbox_more_other": "+ {count} more in To review →",
-    "open_task_aria": "Open task {name}",
-    "agent_detail_aria": "Agent details for {name}",
-    "pending_untitled": "(untitled)",
-    "ctx_open_inbox": "Open in To review",
-    "ctx_open_deliverable": "Open deliverable",
-    "ctx_agent_detail": "Open agent details",
-    "ctx_agent_logs": "View logs",
-    "ctx_open_task": "Open task"
+  "run_status": {
+    "working": "WORKING",
+    "submitted": "SUBMITTED",
+    "completed": "COMPLETED",
+    "failed": "FAILED",
+    "approval": "APPROVAL",
+    "canceled": "CANCELED"
   },
   "agents": {
     "install": {
@@ -926,19 +883,6 @@
     }
   },
   "inbox": {
-    "row": {
-      "type_approval": "approval",
-      "type_question": "question",
-      "type_error": "error",
-      "type_deliverable": "deliverable",
-      "type_trigger": "trigger",
-      "type_memory": "memory",
-      "type_cost": "cost",
-      "action_allow": "Allow",
-      "action_reply": "Reply",
-      "action_resolve": "Resolve",
-      "open_conversation": "Open conversation"
-    },
     "open_in_inbox": "Open in To review",
     "error": {
       "details": "Technical details",
@@ -3478,8 +3422,6 @@
     }
   },
   "agent_detail": {
-    "activity_title": "Recent activity",
-    "no_activity": "No recent activity for this agent.",
     "triggers_title": "Triggers",
     "no_triggers": "No triggers configured for this agent.",
     "trigger_cron": "Runs on a schedule (cron)",
@@ -3488,16 +3430,6 @@
     "trigger_webhook": "Runs via webhook",
     "trigger_oneshot": "One-time trigger",
     "trigger_disabled": "Disabled",
-    "memory_link": "View memory for namespace \"{namespace}\"",
-    "tools_title": "Tools",
-    "tools_required_label": "Required",
-    "tools_optional_label": "Optional",
-    "tags_title": "Tags",
-    "execution_mode_title": "Execution mode",
-    "execution_mode_auto": "Automatic",
-    "execution_mode_direct": "Direct",
-    "execution_mode_orchestrated": "Orchestrated",
-    "install_path_title": "Location",
     "trigger_config_cron": "Expression: {config}",
     "trigger_config_interval": "Every {config}",
     "trigger_config_file_watch": "Watches: {config}",

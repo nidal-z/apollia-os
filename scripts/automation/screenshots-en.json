@@ -403,7 +403,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -726,7 +726,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -930,7 +930,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -1528,28 +1528,6 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-bento",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "observabilite-lire-le-digest-quotidien-1"
-    },
-    {
-      "kind": "goto",
       "route": "observability"
     },
     {
@@ -1721,11 +1699,11 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -1788,11 +1766,11 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 8000
     },
     {

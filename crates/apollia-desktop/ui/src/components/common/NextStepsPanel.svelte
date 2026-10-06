@@ -13,7 +13,7 @@
 <script lang="ts">
   /**
    * Next Steps panel - renders up to 3 Meta-LLM-generated
-   * cards for either the Dashboard (`context="global_context"`)
+   * cards for either the rolling global context (`context="global_context"`)
    * or the end-of-session debrief (`context="session_end"`).
    *
    * The store handles caching, dismiss persistence, and feedback, and words
@@ -54,7 +54,6 @@
   // ── Allowlists (mirror backend, last line of defence) ────────────────
 
   const ROUTE_ALLOWLIST: Record<string, { route: Route }> = {
-    "/dashboard": { route: "dashboard" },
     "/agents": { route: "agents" },
     "/chat": { route: "chat" },
     "/automations": { route: "automations" },

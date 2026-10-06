@@ -87,7 +87,6 @@ export function parseApolliaActions(content: string): {
  * onboarding is a modal, not a route.
  */
 const ROUTE_ALLOWLIST: Record<string, Route> = {
-  "/dashboard": "dashboard",
   "/agents": "agents",
   "/chat": "chat",
   "/automations": "automations",

@@ -27,7 +27,7 @@ function offeredIds(): string[] {
 }
 
 const TECHNICAL = ["nav.transcriptions", "nav.memory", "nav.observability"];
-const FOR_EVERYONE = ["nav.dashboard", "nav.llm", "agents.create", "automations.create", "chat.new"];
+const FOR_EVERYONE = ["nav.chat", "nav.llm", "agents.create", "automations.create", "chat.new"];
 
 describe("paletteIndex - the developer mode filters the technical actions", () => {
   beforeEach(() => {
@@ -41,7 +41,7 @@ describe("paletteIndex - the developer mode filters the technical actions", () =
     // WHEN the palette computes its groups
     const ids = offeredIds();
 
-    // THEN LLM, the dashboard and the creation actions are offered, the
+    // THEN LLM, the chat and the creation actions are offered, the
     // technical pages are not
     for (const id of FOR_EVERYONE) expect(ids).toContain(id);
     for (const id of TECHNICAL) expect(ids).not.toContain(id);

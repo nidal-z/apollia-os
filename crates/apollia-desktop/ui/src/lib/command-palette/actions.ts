@@ -12,7 +12,6 @@
 import { get } from "svelte/store";
 import { t } from "svelte-i18n";
 import {
-  LayoutDashboard,
   Bot,
   MessageSquare,
   ShieldCheck,
@@ -121,7 +120,6 @@ export function buildPaletteActions(): PaletteAction[] {
 
   return [
     // ── Pages ─────────────────────────────────────────────────────
-    nav("nav.dashboard", "dashboard", "nav.dashboard", LayoutDashboard, ["home"]),
     nav("nav.agents", "agents", "nav.agents", Bot, ["assistants", "bots"]),
     nav("nav.chat", "chat", "nav.chat", MessageSquare, ["chat", "conversation"]),
     nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),

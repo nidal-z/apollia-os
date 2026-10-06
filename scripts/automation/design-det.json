@@ -5,7 +5,7 @@
     "design-empty-states and design-motion are members of Route (lib/stores/navigation.ts:4) rendered by Main.svelte:97-100 only under isDev = import.meta.env.DEV (Main.svelte:28), which is true for the `cargo tauri dev` boot the recipes use. `goto` is a plain navigateTo, no hash needed.",
     "empty-state-primary-cta and empty-state-secondary-cta (EmptyState.svelte:95-113) render only when the caller passes both a label and an action; every production caller mounts EmptyState only on an empty list, which the seed never is. The showcase route mounts all six variants of EMPTY_STATE_ORDER with both CTAs bound to `noop` (routes/DesignEmptyStates.svelte:23-25, 63-72; every entry of lib/i18n/strings/empty-states.ts carries primaryCtaKey and secondaryCtaKey), so nth 0 is the `agents` variant and the click is inert: nothing is written to the seed HOME or to localStorage.",
     "design-disclosure-toggle is composed by Disclosure off the testid DesignMotion.svelte:209 hands it (Disclosure.svelte:75, `${testid}-toggle`); the click flips component-local `expanded` (Disclosure.svelte:53, 59-61) and the open body renders the sentence asserted with `contains` (DesignMotion.svelte:215-219). The 400 ms sleep covers the slide transition before each screenshot.",
-    "Standalone book: not in regen_master.py ORDER. Every block returns to the dashboard so it can be folded in later without touching another section."
+    "Standalone book: not in regen_master.py ORDER. Every block returns to the chat so it can be folded in later without touching another section."
   ],
   "steps": [
     {
@@ -73,7 +73,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -130,7 +130,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",

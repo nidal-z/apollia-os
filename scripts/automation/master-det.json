@@ -75,7 +75,6 @@
     "danger-card-clear-logs",
     "danger-card-clear-memories",
     "danger-card-factory-reset",
-    "dashboard-agent-row-seed-classifier",
     "empty-state-plan-cache",
     "engine-format-gguf",
     "engine-format-gguf-fell-back",
@@ -113,7 +112,6 @@
     "nav-agents",
     "nav-automations",
     "nav-chat",
-    "nav-dashboard",
     "nav-inbox",
     "nav-integrations",
     "nav-journal",
@@ -229,7 +227,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -273,15 +271,6 @@
     {
       "kind": "expect",
       "testid": "topbar"
-    },
-    {
-      "kind": "click",
-      "testid": "nav-dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
@@ -347,7 +336,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -446,7 +435,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -468,7 +457,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -520,7 +509,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -556,7 +545,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -587,7 +576,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -622,7 +611,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -734,7 +723,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -769,7 +758,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -831,7 +820,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -931,7 +920,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -963,675 +952,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-02-dashboard-det"
+      "label": "section-02-chat-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-dashboard-operator"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-page"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-cta-new-chat"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-bento",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-dashboard-bento"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-recent-see-all"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-activity-",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-dashboard-activity"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "list_pending_approvals",
-      "resolve": [
-        {
-          "task_id": "stub-approval-1",
-          "agent_name": "seed-classifier",
-          "prompt": "Send the weekly digest to the mailing list",
-          "context": {
-            "risk": {
-              "level": "medium",
-              "summary": "Send the weekly digest to the mailing list"
-            }
-          },
-          "suspended_at": "2026-09-01T08:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-2",
-          "agent_name": "seed-classifier",
-          "prompt": "Delete the stale export files under exports/",
-          "context": {
-            "risk": {
-              "level": "high",
-              "summary": "Delete the stale export files under exports/"
-            }
-          },
-          "suspended_at": "2026-09-01T09:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-3",
-          "agent_name": "seed-planner",
-          "prompt": "Publish the release checklist to the shared drive",
-          "context": {
-            "risk": {
-              "level": "medium",
-              "summary": "Publish the release checklist to the shared drive"
-            }
-          },
-          "suspended_at": "2026-09-01T10:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-4",
-          "agent_name": "seed-classifier",
-          "prompt": "Archive the closed tickets of last quarter",
-          "context": {
-            "risk": {
-              "level": "low",
-              "summary": "Archive the closed tickets of last quarter"
-            }
-          },
-          "suspended_at": "2026-09-01T11:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-5",
-          "agent_name": "seed-planner",
-          "prompt": "Rename the preview build artifacts",
-          "context": {
-            "risk": {
-              "level": "low",
-              "summary": "Rename the preview build artifacts"
-            }
-          },
-          "suspended_at": "2026-09-01T12:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-6",
-          "agent_name": "seed-classifier",
-          "prompt": "Post the changelog to the announcement channel",
-          "context": {
-            "risk": {
-              "level": "medium",
-              "summary": "Post the changelog to the announcement channel"
-            }
-          },
-          "suspended_at": "2026-09-01T13:00:00Z"
-        }
-      ]
-    },
-    {
-      "kind": "goto",
-      "route": "inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-pending-list",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-inbox-more",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-inbox-more",
-      "contains": "1"
-    },
-    {
-      "kind": "screenshot",
-      "label": "03b-dashboard-inbox-more (six stubbed pending approvals, five rows shown, the overflow link)"
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-inbox-more",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03c-inbox-more-opens-inbox"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "list_pending_approvals"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "goto",
-      "route": "inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "dashboard-inbox-more",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-dashboard-agents-pending-best-effort"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-agent-row-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "dashboard-agent-row-",
-      "nth": 0,
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04b-agent-sheet"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-logs-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-logs-copy-btn",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-logs-copy-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "screenshot",
-      "label": "04e-agent-logs-copied"
-    },
-    {
-      "kind": "press",
-      "testid": "app-main",
-      "key": "Escape"
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-task-row",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-task-row",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agents-page",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04f-sheet-task-row-opens-agent-sheet"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "sleep",
-      "ms": 900
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-cta-new-chat",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-cta-new-chat-nav"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-recent-see-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-recent-see-all-nav"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-dashboard-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-bento",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-activity-",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-dashboard-builder-agent-tech-best-effort"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-messages-tab",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-message-item",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10b-agent-sheet-messages"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-message-item",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-message-payload",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10c-agent-message-expanded"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-message-item",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "agent-message-payload",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "press",
-      "testid": "agent-detail-sheet",
-      "key": "Escape"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10d-agent-sheet-closed"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-memory-link",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10e-agent-sheet-builder-memory-link"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-memory-link",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "memory-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10f-memory-link-opens-memory"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-back-operator"
-    },
-    {
-      "kind": "screenshot",
-      "label": "section-03-chat-det"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -4133,7 +3458,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "agents"
     },
     {
       "kind": "waitFor",
@@ -4285,7 +3610,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "agents"
     },
     {
       "kind": "waitFor",
@@ -4307,11 +3632,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-04-agents-det"
+      "label": "section-03-agents-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -5662,11 +4987,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-05-automations-det"
+      "label": "section-04-automations-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -6696,11 +6021,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-06-inbox-det"
+      "label": "section-05-inbox-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -7342,11 +6667,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-07-notifications-det"
+      "label": "section-06-notifications-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -8155,7 +7480,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -8164,11 +7489,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-08-memory-det"
+      "label": "section-07-memory-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -8211,7 +7536,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -8966,7 +8291,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -8985,11 +8310,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-09-connections-det"
+      "label": "section-08-connections-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -10011,11 +9336,11 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -11309,7 +10634,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11465,7 +10790,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11518,7 +10843,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11738,7 +11063,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11871,7 +11196,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11894,7 +11219,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "sleep",
@@ -11906,11 +11231,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-10-observability-det"
+      "label": "section-09-observability-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11953,7 +11278,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -12668,7 +11993,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -12682,11 +12007,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-11-coach-det"
+      "label": "section-10-coach-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -12725,7 +12050,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "sleep",
@@ -12733,7 +12058,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "01-operator-dashboard"
+      "label": "01-operator-chat"
     },
     {
       "kind": "click",
@@ -12925,7 +12250,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "sleep",
@@ -12933,7 +12258,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "09-builder-dashboard"
+      "label": "09-builder-chat"
     },
     {
       "kind": "click",
@@ -13017,7 +12342,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "screenshot",
@@ -13025,11 +12350,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-12-settings-det"
+      "label": "section-11-settings-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -16134,11 +15459,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-13-profile-det"
+      "label": "section-12-profile-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -16587,11 +15912,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-14-llm-det"
+      "label": "section-13-llm-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -17521,11 +16846,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-15-model-hub-det"
+      "label": "section-14-model-hub-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -18190,11 +17515,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-16-stt-det"
+      "label": "section-15-stt-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -18643,7 +17968,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -18961,7 +18286,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -18975,11 +18300,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-17-tools-det"
+      "label": "section-16-tools-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -19925,11 +19250,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-18-permissions-det"
+      "label": "section-17-permissions-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -20560,11 +19885,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-19-journal-det"
+      "label": "section-18-journal-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -21473,7 +20798,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",

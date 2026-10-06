@@ -14,7 +14,6 @@
 // type because the icons come from `lucide-svelte` (compiled with Svelte 4).
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 import {
-  LayoutDashboard,
   Bot,
   MessageSquare,
   ShieldCheck,
@@ -43,11 +42,10 @@ export interface RouteMeta {
 }
 
 export const routeMeta: Record<Route, RouteMeta> = {
-  dashboard: { labelKey: "nav.dashboard", parent: null, icon: LayoutDashboard, homeFor: ["operator", "builder"] },
   agents: { labelKey: "nav.agents", parent: null, icon: Bot },
   batches: { labelKey: "batch_history.title", parent: "agents", icon: Layers },
   batch: { labelKey: "batch_view.title_loading", parent: "batches", icon: Layers },
-  chat: { labelKey: "nav.chat", parent: null, icon: MessageSquare },
+  chat: { labelKey: "nav.chat", parent: null, icon: MessageSquare, homeFor: ["operator", "builder"] },
   inbox: { labelKey: "nav.inbox", parent: null, icon: ShieldCheck },
   integrations: { labelKey: "nav.connections", parent: null, icon: Plug },
   llm: { labelKey: "nav.llm", parent: null, icon: Brain },
@@ -84,5 +82,5 @@ export function homeRouteFor(mode: "operator" | "builder"): Route {
   const entry = (Object.entries(routeMeta) as Array<[Route, RouteMeta]>).find(
     ([, meta]) => meta.homeFor?.includes(mode),
   );
-  return entry?.[0] ?? "dashboard";
+  return entry?.[0] ?? "chat";
 }
