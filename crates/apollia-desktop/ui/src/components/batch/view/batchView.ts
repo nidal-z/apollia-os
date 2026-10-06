@@ -210,7 +210,9 @@ export function entryOf(item: BatchItem): { title: string; summary: string } {
   return { title: filled[0], summary: filled.slice(1).join(" · ") };
 }
 
+// i18n-ignore: marker of the runtime output text, matched on the wire, never shown
 const AWAITING_PREFIX = "Waiting for a decision: the agent asked to use '";
+// i18n-ignore: marker of the runtime output text, matched on the wire, never shown
 const AWAITING_SUFFIX = "', which is not granted";
 
 /** The access a waiting item reached for, read from the output recorded for it. */
