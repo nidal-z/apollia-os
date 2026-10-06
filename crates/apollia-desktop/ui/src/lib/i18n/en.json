@@ -3593,6 +3593,17 @@
       "examples_empty": "Apollia proposes no example for now. Go back to install a package or to create an agent by describing your need.",
       "example_install": "Install this example",
       "example_use": "Choose this agent"
+    },
+    "connection": {
+      "title": "A useful connection",
+      "subtitle_missing_one": "{name} needs a connection you do not have yet. Add it now, or later from the Connections screen.",
+      "subtitle_missing_many": "{name} needs connections you do not have yet. Add them now, or later from the Connections screen.",
+      "subtitle_present_one": "The connection {name} needs is already there. You can continue, or review it later from the Connections screen.",
+      "subtitle_present_many": "The connections {name} needs are already there. You can continue, or review them later from the Connections screen.",
+      "add": "Add",
+      "present": "Present",
+      "add_later": "To add from the Connections screen",
+      "skip": "Skip"
     }
   },
   "agent_detail": {
@@ -4180,6 +4191,7 @@
     "step_language": "Language",
     "step_ai": "AI",
     "step_first_agent": "First agent",
+    "step_connection": "Connection",
     "model_percent": "Model: {percent}%",
     "model_downloading": "Model: downloading",
     "model_installing": "Model: installing",

@@ -12,8 +12,8 @@ import {
   stepOfPhase,
 } from "./onboardingSteps";
 
-// The list is not frozen here: two steps are still to be added after the
-// first agent. What is held is the order of the steps that exist, that each
+// The list is not frozen here: one step is still to be added after the
+// connection. What is held is the order of the steps that exist, that each
 // one stands for its own phase of the backend, that the usage-profile question
 // is not one of them, and that the modal draws this list and no other.
 
@@ -22,20 +22,21 @@ function source(file: string): string {
 }
 
 describe("onboarding steps - the order of the first launch", () => {
-  test("the steps come in the order language, AI, embeddings, who I am, first agent", () => {
+  test("the steps come in the order language, AI, embeddings, who I am, first agent, connection", () => {
     // GIVEN the steps of the first-launch modal
     const ids = ONBOARDING_STEPS.map((step) => step.id);
 
     // WHEN their order is read
     // THEN it is the order of the first launch, the embeddings model third,
-    // the conversation fourth and the first agent fifth
-    expect(ids).toEqual(["welcome", "ai-setup", "embeddings", "chat", "first-agent"]);
+    // the conversation fourth, the first agent fifth and the connection sixth
+    expect(ids).toEqual(["welcome", "ai-setup", "embeddings", "chat", "first-agent", "connection"]);
     expect(ONBOARDING_STEPS.map((step) => step.labelKey)).toEqual([
       "onboarding_modal.step_language",
       "onboarding_modal.step_ai",
       "onboarding_modal.step_search",
       "onboarding_modal.step_about",
       "onboarding_modal.step_first_agent",
+      "onboarding_modal.step_connection",
     ]);
   });
 
@@ -71,8 +72,8 @@ describe("onboarding steps - the order of the first launch", () => {
     const modal = source("./OnboardingModal.svelte");
 
     // WHEN the progress and the step count are read
-    // THEN both count this list, so the two steps still to come add
-    // themselves by an entry here and leave no empty step meanwhile
+    // THEN both count this list, so the step still to come adds
+    // itself by an entry here and leaves no empty step meanwhile
     expect(modal).toContain("{#each STEPS as step, i (step.id)}");
     expect(modal).toContain("total: STEPS.length");
     for (const step of ONBOARDING_STEPS) {
@@ -132,11 +133,11 @@ describe("onboarding steps - the flow resumes where it was left", () => {
   });
 
   test("a phase with no step yet reopens on the last step before it", () => {
-    // GIVEN the phases of the steps still to be built, and those that close the flow
+    // GIVEN the phase of the step still to be built, and those that close the flow
     // WHEN each is turned into a step
-    // THEN each lands on the first agent, the last step that exists
-    for (const phase of ["connection", "first_task", "guided_tour", "graduation", "done"]) {
-      expect(stepOfPhase(phase), phase).toBe("first-agent");
+    // THEN each lands on the connection, the last step that exists
+    for (const phase of ["first_task", "guided_tour", "graduation", "done"]) {
+      expect(stepOfPhase(phase), phase).toBe("connection");
     }
   });
 
@@ -184,7 +185,30 @@ describe("onboarding steps - what follows a step", () => {
     // asked from the settings still closes the modal
     expect(modal).toContain('onclose={enriching ? onclose : () => advanceFrom("chat")}');
     expect(modal).toContain('onnext={() => advanceFrom("first-agent")}');
-    expect(modal).toContain("const next = nextStep(step);");
+    expect(modal).toContain("const next = nextStep(step, passed);");
+  });
+
+  test("the connection follows the first agent, unless it is passed over", () => {
+    // GIVEN the first agent, once an agent is kept or the step skipped
+    // WHEN the step after it is asked for
+    // THEN it is the connection, on its own phase of the backend
+    expect(nextStep("first-agent")).toBe("connection");
+    expect(phaseOfStep("connection")).toBe("connection");
+    // AND a connection step with nothing to show is stepped over: nothing
+    // follows it yet, so the modal closes
+    expect(nextStep("first-agent", ["connection"])).toBeNull();
+    expect(nextStep("chat", ["connection"])).toBe("first-agent");
+  });
+
+  test("a first launch resumed on a connection step with nothing left returns to the first agent", () => {
+    // GIVEN the source of the modal
+    const modal = source("./OnboardingModal.svelte");
+
+    // WHEN the restore of the stored phase is read
+    // THEN the connection step reopens only with something to propose
+    expect(modal).toContain(
+      'currentStep = step === "connection" && (await connectionIsPassed()) ? "first-agent" : step;',
+    );
   });
 });
 
