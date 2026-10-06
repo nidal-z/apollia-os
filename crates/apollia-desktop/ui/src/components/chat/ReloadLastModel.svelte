@@ -23,6 +23,9 @@
     reloadLastRequests,
   } from "$lib/stores/modelResidency";
 
+  /** Whether the chat shortcut reloads from this line: the one of the active pane. */
+  let { listens = true }: { listens?: boolean } = $props();
+
   let reloading = $state(false);
   const shown = $derived(showReloadLast($loadedModels, $lastLoadedModel));
 
@@ -57,7 +60,7 @@
   let seenRequests: number | null = null;
   $effect(() => {
     const requests = $reloadLastRequests;
-    if (seenRequests === null) {
+    if (seenRequests === null || !listens) {
       seenRequests = requests;
       return;
     }

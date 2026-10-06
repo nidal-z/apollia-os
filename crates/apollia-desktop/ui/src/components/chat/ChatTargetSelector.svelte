@@ -28,6 +28,7 @@
     targetLabel,
     type ChatTarget,
     type ConversationTarget,
+    type ModelTarget,
   } from "$lib/chat/chatTargets";
   import ModelEjectButton from "./ModelEjectButton.svelte";
 
@@ -40,9 +41,23 @@
     disabled?: boolean;
     /** Shows the eject button, for the selector of an open conversation. */
     ejectable?: boolean;
+    /** Whether the chat shortcut opens this selector: the one of the active pane. */
+    listens?: boolean;
+    /**
+     * Asked before the loading window opens on a model that is not in
+     * memory; `false` keeps the window closed, the owner says why.
+     */
+    loadgate?: (target: ModelTarget) => Promise<boolean>;
   }
 
-  let { conversation, onpick, disabled = false, ejectable = false }: Props = $props();
+  let {
+    conversation,
+    onpick,
+    disabled = false,
+    ejectable = false,
+    listens = true,
+    loadgate,
+  }: Props = $props();
 
   let open = $state(false);
   let query = $state("");
@@ -79,11 +94,12 @@
   });
 
   // The chat shortcut: each request toggles the selector. The value the
-  // store holds when the selector mounts is not a request.
+  // store holds when the selector mounts is not a request, nor is one made
+  // while another pane was the active one.
   let seenRequests: number | null = null;
   $effect(() => {
     const requests = $chatTargetSelectorRequests;
-    if (seenRequests === null) {
+    if (seenRequests === null || !listens) {
       seenRequests = requests;
       return;
     }
@@ -110,9 +126,10 @@
     query = "";
   }
 
-  function pick(target: ChatTarget): void {
+  async function pick(target: ChatTarget): Promise<void> {
     close();
     if (needsLoadWindow(target, $loadedModels)) {
+      if (loadgate && !(await loadgate(target))) return;
       askModelLoad({
         modelId: target.route,
         format: target.format,
@@ -131,7 +148,7 @@
     } else if (event.key === "Enter") {
       event.preventDefault();
       const first = shown.agents[0] ?? shown.models[0];
-      if (first) pick(first);
+      if (first) void pick(first);
     }
   }
 
@@ -216,7 +233,7 @@
               type="button"
               role="option"
               aria-selected="false"
-              onclick={() => pick(agent)}
+              onclick={() => void pick(agent)}
               class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-xs hover:bg-muted"
               data-testid="chat-target-selector-agent-option"
               data-target-id={agent.id}
@@ -254,7 +271,7 @@
               type="button"
               role="option"
               aria-selected="false"
-              onclick={() => pick(model)}
+              onclick={() => void pick(model)}
               class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-xs hover:bg-muted"
               data-testid="chat-target-selector-model-option"
               data-target-route={model.route}

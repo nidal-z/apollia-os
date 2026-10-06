@@ -3152,6 +3152,341 @@
       "timeoutMs": 15000
     },
     {
+      "kind": "expect",
+      "testid": "chat-split-button"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40a-split-two-panes (the second pane is empty and active)"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "nth": 1,
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 0,
+      "text": "Left pane draft, not sent."
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 1,
+      "text": "Right pane draft, not sent."
+    },
+    {
+      "kind": "screenshot",
+      "label": "40b-split-two-drafts (one composer per pane)"
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 0,
+      "text": ""
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 1,
+      "text": ""
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_chat_targets",
+      "resolve": {
+        "agents": [
+          {
+            "id": "apollia:chat",
+            "name": "Apollia",
+            "enabled": true,
+            "model": null
+          }
+        ],
+        "installed": [
+          {
+            "id": "Phi-3-mini-Q4",
+            "path": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+            "category": "language",
+            "format": "gguf",
+            "parameters": null
+          }
+        ],
+        "servers": [],
+        "default_model": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": null,
+        "models": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_model_pins",
+      "resolve": {
+        "pins": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 20.0,
+          "totalGb": 24.0,
+          "capacityGb": 16.0,
+          "fit": "too_large",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "refused",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-pane-refusal-title",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "40c-split-pane-refusal (the load guardrail refuses in the first pane only)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-refusal-choose",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-refusal-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-panes",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 900,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-tabs",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-pane-tab",
+      "nth": 1
+    },
+    {
+      "kind": "screenshot",
+      "label": "40d-split-narrow-tabs (900 px: one pane at a time, the others behind tabs)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-tab",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-tab",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-tabs",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-close-button",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane",
+      "nth": 3,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40e-split-four-panes (the split button is disabled at four)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "chat-close-button",
       "timeoutMs": 4000

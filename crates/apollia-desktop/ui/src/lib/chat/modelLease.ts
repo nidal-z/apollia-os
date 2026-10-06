@@ -19,7 +19,7 @@ import {
   type TargetGroups,
 } from "$lib/chat/chatTargets";
 
-/** The pane of the chat, while it shows one conversation at a time. */
+/** The first pane of the chat, the only one until the screen is divided. */
 export const MAIN_PANE = "main";
 
 /** What a pane holds a lease for. */

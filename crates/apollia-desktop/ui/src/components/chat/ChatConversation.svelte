@@ -72,7 +72,10 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
-  import { MAIN_PANE, paneLeases, syncConversationLease } from "$lib/chat/modelLease";
+  import { paneLeases, syncConversationLease } from "$lib/chat/modelLease";
+  import { SOLE_SEAT, type PaneSeat } from "$lib/chat/chatPanes";
+  import { paneLoads } from "$lib/stores/chatPanes";
+  import PaneRefusalCard from "./PaneRefusalCard.svelte";
   import { chatTargets } from "$lib/stores/chatTargets";
   import ReloadLastModel from "./ReloadLastModel.svelte";
   import { createModelCapabilities } from "./useModelCapabilities.svelte";
@@ -85,21 +88,11 @@
     embedded?: boolean;
     /** When true, hide the config button in the header. */
     hideConfig?: boolean;
-    /**
-     * When provided, the Settings button toggles the shell's
-     * ContextDrawer instead of opening the internal Sheet. The internal Sheet
-     * is suppressed in this mode - the parent owns the config panel.
-     */
+    /** When provided, Settings toggles the shell's ContextDrawer; the internal Sheet is suppressed. */
     onconfigtoggle?: () => void;
-    /**
-     * When provided (responsive), renders a hamburger button in
-     * the header that opens the shell's sessions overlay on small viewports.
-     */
+    /** When provided (responsive), a header hamburger opens the shell's sessions overlay. */
     onsessionsopen?: () => void;
-    /**
-     * When provided (responsive), renders a panel button in the header that
-     * toggles the shell's journal / plan rail on viewports below lg.
-     */
+    /** When provided (responsive), a header button toggles the journal / plan rail below lg. */
     oncontextopen?: () => void;
     /**
      * When true, collapses header actions into an overflow
@@ -122,6 +115,8 @@
     onopensession?: (sessionId: string) => void;
     /** What the empty input suggests asking, in place of the chat's own suggestions. */
     suggestions?: string[];
+    /** The pane of the chat that shows this conversation. */
+    pane?: PaneSeat;
   }
 
   let {
@@ -138,6 +133,7 @@
     onopensession,
     inputHidden = false,
     suggestions,
+    pane = SOLE_SEAT,
   }: Props = $props();
 
   let messages = $state<ChatMessageView[]>([]);
@@ -183,7 +179,14 @@
   // The conversation holds its local model in memory while it is open here.
   $effect(() => {
     const known = sessionDetail?.id === sessionId ? target : null;
-    void syncConversationLease(paneLeases, MAIN_PANE, sessionId, known, $chatTargets);
+    void syncConversationLease(paneLeases, pane.id, sessionId, known, $chatTargets);
+  });
+
+  // The right panel and the shortcuts read the conversation of the active pane.
+  $effect(() => {
+    if (!pane.active || sessionDetail?.id !== sessionId) return;
+    currentSession.set(sessionDetail);
+    chatConversationStats.set(conversationStats);
   });
 
   async function handleTargetPick(choice: ChatTarget): Promise<void> {
@@ -229,9 +232,6 @@
   const inputDisabled = $derived(
     isProcessing || isStreaming || sessionStatus === "closed",
   );
-
-  // summaryText / summarizedCount derivations removed; the
-  // banner moved to ContextDrawer > Memory tab (MemoryInjectedPanel).
 
   const hasCrossSessionRefs = $derived(
     (conversationStats?.cross_sessions_referenced ?? 0) > 0,
@@ -369,6 +369,7 @@
       liveToolChain = [];
       pendingApproval = null;
       messages = [];
+      paneLoads.dismiss(pane.id);
       void loadSession().then(() => restoreGlobalState());
     }
   });
@@ -376,7 +377,7 @@
   onDestroy(() => {
     scroll.dispose();
     subscriptions.dispose();
-    currentSession.set(null);
+    currentSession.update((shown) => (shown?.id === sessionId ? null : shown));
     closeSessionBuffer(sessionId);
   });
 
@@ -489,7 +490,6 @@
     sessionDetail = detail;
     planMode = detail.plan_mode;
     isProcessing = detail.status === "processing";
-    currentSession.set(detail);
     void loadConversationStats();
     void maybeInheritPlanModeDefault(detail);
   }
@@ -521,7 +521,6 @@
     try {
       const stats = await getConversationStats(sessionId);
       conversationStats = stats;
-      chatConversationStats.set(stats);
     } catch {
       conversationStats = null;
     }
@@ -673,6 +672,10 @@
       renameTrigger={actions.renameTrigger}
       {target}
       ontargetpick={onopensession ? (choice) => void handleTargetPick(choice) : undefined}
+      active={pane.active}
+      loadgate={pane.divided ? (choice) => paneLoads.gate(pane.id, choice) : undefined}
+      onsplit={pane.split}
+      canSplit={pane.canSplit}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
@@ -692,6 +695,8 @@
     turnId={currentTurnId}
     onclose={() => (injectedSheetOpen = false)}
   />
+
+  <PaneRefusalCard {pane} onpick={(choice) => void handleTargetPick(choice)} />
 
   <!-- Agent disparu inline banner. Rendered above the
        messages so the transcript stays readable. -->
@@ -759,7 +764,7 @@
   {/if}
 
   {#if !inputHidden}
-    <ReloadLastModel />
+    <ReloadLastModel listens={pane.active} />
     <ChatInput
       disabled={inputDisabled}
       busy={isProcessing || isStreaming}
@@ -776,6 +781,7 @@
       {sessionId}
       agentName={sessionAgentName}
       {suggestions}
+      active={pane.active}
     />
   {/if}
 </div>
