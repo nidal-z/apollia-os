@@ -1,5 +1,5 @@
 /**
- * What the "loaded models" block can say about a resident model.
+ * What the "Loaded" section of the AI screen can say about a resident model.
  *
  * Pure and i18n-agnostic: labels are catalogue keys resolved by the caller.
  */
@@ -21,5 +21,5 @@ export function canUnload(model: LoadedModel): boolean {
  * list and the click with a message naming it "in use".
  */
 export function unloadErrorKey(message: string): string | null {
-  return /\bin use\b/i.test(message) ? "llm.loaded.in_use_error" : null;
+  return /\bin use\b/i.test(message) ? "ai.loaded.in_use_error" : null;
 }

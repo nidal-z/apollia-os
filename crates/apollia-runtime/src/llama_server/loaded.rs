@@ -74,7 +74,7 @@ pub enum ModelKind {
 }
 
 /// One resident model, as the supervisor launched it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LoadedModel {
     /// The engine serving it, chosen by the model's format.
     pub engine: crate::engine_store::Engine,
@@ -98,6 +98,9 @@ pub struct LoadedModel {
     pub last_used_at: DateTime<Utc>,
     /// Requests being served right now.
     pub active_requests: usize,
+    /// Memory the load guardrail estimated for it at launch, in gigabytes;
+    /// `None` when the launch was not estimated.
+    pub footprint_gb: Option<f64>,
 }
 
 /// Why a model could not be unloaded.
@@ -151,6 +154,7 @@ fn listed(instance: &mut Instance, kind: ModelKind) -> Option<(u64, LoadedModel)
             loaded_at: instance.loaded_at,
             last_used_at: instance.last_used_at,
             active_requests: instance.in_flight.load(Ordering::Acquire),
+            footprint_gb: instance.footprint_gb,
         },
     ))
 }

@@ -19,6 +19,7 @@
  * identifier, a code fragment, or a placeholder the runtime fills.
  */
 export const IDENTICAL_BY_NATURE: string[] = [
+  "ai.installed.group", // {label} · {count}
   "authorizations.apollia_name", // Apollia
   "chat.generation.seconds", // {value} s
   "connections.capabilities.group_gdocs", // Google Docs
@@ -41,7 +42,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dev.workflows.parent_run", // parent_run_id
   "dev.workflows.run_id", // run_id
   "dev.workflows.workflow_id", // workflow_id
-  "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
@@ -84,6 +84,10 @@ export const IDENTICAL_BY_NATURE: string[] = [
  * keeps ("Backend", "Endpoint", "Builder", "Chat").
  */
 export const IDENTICAL_BY_DECISION: string[] = [
+  "ai.capability.vision.label", // Vision
+  "ai.category.embeddings", // Embeddings
+  "ai.installed.col_actions", // Actions
+  "ai.kind.embeddings", // Embeddings
   "a11y.actions_menu", // Actions
   "agent_adjust.grant_group_agents", // Agents
   "agent_adjust.grant_group_workflows", // Workflows
@@ -159,9 +163,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "library.uninstall.leaving.agents", // {count, plural, one {# agent} other {# agents}}
   "library.uninstall.leaving.workflows", // {count, plural, one {# workflow} other {# workflows}}
   "llm.ping_ok", // Ping OK ({latency}ms)
-  "llm.table.backend", // Backend
-  "llm.table.tokens", // Tokens
-  "llm.table.total", // Total
   "memory.meta_expiration", // Expiration
   "memory.meta_namespace", // Namespace
   "memory.meta_type", // Type

@@ -1,24 +1,17 @@
 // Typed IPC wrappers for the LLM surface.
 //
-// Centralises every `invoke` the top-level "LLM models" page and its cards
+// Centralises every `invoke` the engines of Settings > LLM and the AI screen
 // need, so `.svelte` files never call `invoke` directly (frontend rule). The
-// cost-breakdown call already lives in `./llmCosts.ts`; this module covers the
-// backend list, ping, default selection, engine reload and deletion, and the
-// local models resident in memory.
+// cost-breakdown call lives in `./llmCosts.ts`; this module covers the ping,
+// default selection, engine reload and deletion, and the local models
+// resident in memory.
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  LlmBackendConfig,
   LlmPingResult,
-  LlmCostStatsResponse,
   LoadedModelsResponse,
   UnloadedModel,
 } from "$lib/types";
-
-/** Lists the configured LLM backends (CRUD view). */
-export async function listLlmBackends(): Promise<LlmBackendConfig[]> {
-  return invoke<LlmBackendConfig[]>("list_llm_backends");
-}
 
 /** Lists the local models resident in memory. */
 export async function listLoadedModels(): Promise<LoadedModelsResponse> {
@@ -62,9 +55,4 @@ export async function reloadLlm(): Promise<void> {
 /** Deletes a backend by name. */
 export async function deleteLlmBackend(name: string): Promise<void> {
   return invoke<void>("delete_llm_backend", { name });
-}
-
-/** Reads aggregated cost/token stats over a trailing window (days). */
-export async function getLlmCostStats(days: number): Promise<LlmCostStatsResponse> {
-  return invoke<LlmCostStatsResponse>("get_llm_cost_stats", { days });
 }

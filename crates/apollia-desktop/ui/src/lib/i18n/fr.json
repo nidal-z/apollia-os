@@ -82,7 +82,6 @@
     "back": "Retour",
     "next": "Suivant",
     "optional_label": "(facultatif)",
-    "no_data": "Aucune donnée",
     "na": "N/A",
     "default_badge": "PAR DÉFAUT",
     "saving": "Enregistrement…",
@@ -175,7 +174,7 @@
     "dashboard": "Accueil",
     "agents": "Assistants",
     "inbox": "À valider",
-    "llm": "Modèles LLM",
+    "llm": "IA",
     "automations": "Automatisations",
     "memory": "Mémoire",
     "observability": "Observabilité",
@@ -195,7 +194,7 @@
       "inbox": "À valider",
       "memory": "Mémoire",
       "observability": "Observabilité",
-      "llm": "Modèles LLM",
+      "llm": "IA",
       "transcriptions": "Transcriptions",
       "integrations": "Connexions",
       "settings": "Paramètres",
@@ -1196,18 +1195,6 @@
     }
   },
   "llm": {
-    "title": "Backends LLM",
-    "title_operator": "Modèles LLM",
-    "subtitle": "Les modèles IA qui alimentent vos assistants",
-    "empty_title": "Aucun backend LLM configuré",
-    "empty_subtitle": "Éditez apollia.toml pour ajouter un backend.",
-    "empty_operator": "Aucun modèle IA configuré",
-    "empty_operator_hint": "Ajoutez un modèle dans apollia.toml ou contactez votre administrateur.",
-    "open_settings": "Ouvrir les paramètres",
-    "session_stats_title": "Statistiques de session (7 jours)",
-    "loading_stats": "Chargement des statistiques...",
-    "no_calls": "Aucun appel LLM enregistré au cours des 7 derniers jours.",
-    "no_calls_operator": "Aucune activité enregistrée.",
     "model": "Modèle",
     "ping_ok": "Ping OK ({latency}ms)",
     "ping_failed": "Ping échoué",
@@ -1217,27 +1204,7 @@
     "status_error": "Erreur",
     "free_local": "Gratuit (tourne sur votre machine)",
     "pay_per_use": "Paiement à l'utilisation",
-    "used_today": "Utilisé {count} fois sur les {days} derniers jours, {cost} dépensés",
-    "table": {
-      "backend": "Backend",
-      "model": "Modèle",
-      "calls": "Appels",
-      "tokens": "Tokens",
-      "cost_usd": "Coût USD",
-      "total": "Total"
-    },
-    "default_set_toast": "''{name}'' défini comme modèle par défaut",
-    "details": "Détails",
-    "loaded": {
-      "title": "Chargés en mémoire",
-      "empty": "Aucun modèle n'est chargé en mémoire.",
-      "since": "Chargé à {time}",
-      "in_use": "En réponse",
-      "engine_mlx": "MLX",
-      "unload": "Décharger",
-      "unloaded_toast": "{name} déchargé, sa mémoire est libérée.",
-      "in_use_error": "{name} est en cours d'usage : une réponse est en cours. Réessayez quand elle sera terminée."
-    }
+    "details": "Détails"
   },
   "automations": {
     "title": "Automatisations",
@@ -4869,6 +4836,127 @@
       "payload": "Charge",
       "hash": "Empreinte",
       "hash_value": "{hash} (précédente : {previous})"
+    }
+  },
+  "ai": {
+    "column_title": "Modèles du poste",
+    "categories_label": "Catégories de modèles",
+    "category": {
+      "all": "Tous",
+      "language": "Modèles de langage",
+      "embeddings": "Embeddings",
+      "dictation": "Dictée",
+      "draft": "Brouillons"
+    },
+    "kind": {
+      "language": "Modèle de langage",
+      "language_explanation": "Ce modèle répond dans les conversations et fait travailler les agents.",
+      "embeddings": "Embeddings",
+      "embeddings_explanation": "Ce modèle sert à chercher par le sens dans vos sources et dans la mémoire. Il ne converse pas."
+    },
+    "format_explanation": "Format du fichier du modèle. Apollia choisit d'après lui le moteur qui le fait tourner : vous n'avez rien à régler.",
+    "loaded": {
+      "title": "Chargés",
+      "summary": "{count, plural, one {# modèle en mémoire, {size} Go} other {# modèles en mémoire, {size} Go}}",
+      "empty": "Aucun modèle n'est chargé. Un modèle se charge à la première question qu'on lui pose.",
+      "no_engine": "Ce poste ne fait tourner aucun modèle lui-même.",
+      "error": "La liste des modèles chargés n'a pas pu être lue.",
+      "ready": "Prêt",
+      "ready_explanation": "Le modèle est en mémoire et répond sans attendre de chargement.",
+      "answering": "En réponse",
+      "answering_explanation": "Le modèle répond en ce moment ; il ne peut pas être déchargé avant la fin de sa réponse.",
+      "memory": "{size} Go en mémoire",
+      "since": "chargé {when}",
+      "unload": "Décharger",
+      "unloaded_toast": "{name} déchargé, sa mémoire est libérée.",
+      "in_use_error": "{name} est en cours d'usage : une réponse est en cours. Réessayez quand elle sera terminée."
+    },
+    "installed": {
+      "title": "Sur ce poste",
+      "filter_placeholder": "Filtrer les modèles…",
+      "filter_label": "Filtrer les modèles",
+      "import": "Importer un fichier",
+      "discover": "Découvrir des modèles",
+      "col_params": "Paramètres",
+      "col_name": "Nom",
+      "col_size": "Taille",
+      "col_modified": "Modifié",
+      "col_actions": "Actions",
+      "params_billions": "{n} Md",
+      "params_millions": "{n} M",
+      "params_explanation": "Nombre de paramètres du modèle, en milliards (Md) ou en millions (M). Plus il est grand, plus le modèle est capable, et plus il demande de mémoire.",
+      "size": "{size} Go",
+      "group": "{label} · {count}",
+      "footer": "{count, plural, one {Vous avez # modèle, qui occupe {size} Go.} other {Vous avez # modèles, qui occupent {size} Go.}}",
+      "folder_label": "Dossier des modèles",
+      "pinned_explanation": "Épinglé en haut : ce modèle reste en tête de sa catégorie.",
+      "empty_title": "Aucun modèle sur ce poste",
+      "empty_hint": "Découvrez un modèle adapté à votre poste, ou importez un fichier de modèle que vous avez déjà.",
+      "empty_language": "Aucun modèle de langage sur ce poste. Découvrez-en un pour converser et faire travailler vos agents.",
+      "empty_embeddings": "Aucun modèle d'embeddings sur ce poste. Sans lui, la recherche se fait par les mots seulement.",
+      "empty_dictation": "Aucun modèle de dictée sur ce poste.",
+      "empty_draft": "Un brouillon est un petit modèle de la même famille qu'un plus grand, qui accélère ses réponses. Aucun n'est installé.",
+      "no_match": "Aucun modèle ne correspond à « {query} ».",
+      "error": "La liste des modèles du poste n'a pas pu être lue.",
+      "import_title": "Importer un fichier de modèle"
+    },
+    "badge": {
+      "default": "Par défaut",
+      "default_explanation": "Le modèle avec lequel les conversations et les agents répondent quand aucun autre n'est choisi.",
+      "search": "Pour la recherche",
+      "search_explanation": "Le modèle qui sert à chercher par le sens dans vos sources et dans la mémoire.",
+      "loaded": "Chargé",
+      "loaded_explanation": "Ce modèle est en mémoire en ce moment.",
+      "unverified": "Origine non vérifiée",
+      "unverified_explanation": "Ce fichier ne correspond à aucune empreinte publiée : Apollia ne peut pas garantir d'où il vient."
+    },
+    "capability": {
+      "vision": {
+        "label": "Vision",
+        "explanation": "Ce modèle sait lire des images."
+      },
+      "tools": {
+        "label": "Outils",
+        "explanation": "Ce modèle a été entraîné pour utiliser des outils."
+      },
+      "reasoning": {
+        "label": "Raisonnement",
+        "explanation": "Ce modèle peut réfléchir avant de répondre."
+      }
+    },
+    "menu": {
+      "more": "Plus d'actions sur {name}",
+      "reveal_mac": "Afficher dans le Finder",
+      "reveal_windows": "Afficher dans l'Explorateur",
+      "reveal_linux": "Afficher dans le gestionnaire de fichiers",
+      "pin": "Épingler en haut",
+      "unpin": "Ne plus épingler en haut",
+      "copy_id": "Copier l'identifiant",
+      "copy_path": "Copier le chemin",
+      "source": "Voir la source",
+      "source_none": "Ce modèle a été importé depuis un fichier : sa page d'origine n'est pas connue.",
+      "use_default": "Utiliser par défaut",
+      "use_search": "Utiliser pour la recherche",
+      "delete": "Supprimer"
+    },
+    "toast": {
+      "copied_id": "Identifiant copié.",
+      "copied_path": "Chemin copié.",
+      "copy_failed": "La copie n'a pas pu se faire.",
+      "default_set": "{name} répond désormais par défaut.",
+      "search_set": "{name} sert désormais à la recherche. Les sources et la mémoire sont réindexées.",
+      "deleted": "{name} supprimé.",
+      "imported": "{name} importé."
+    },
+    "search_dialog": {
+      "title": "Utiliser {name} pour la recherche ?",
+      "message": "Les sources et la mémoire seront réindexées avec ce modèle. Pendant la réindexation, la recherche par le sens peut être incomplète.",
+      "confirm": "Utiliser et réindexer"
+    },
+    "delete_dialog": {
+      "title": "Supprimer {name} ?",
+      "message": "Le fichier est retiré de ce poste. Il faudra le télécharger ou l'importer de nouveau pour s'en servir.",
+      "confirm": "Supprimer"
     }
   },
   "governance": {

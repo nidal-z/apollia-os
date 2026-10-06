@@ -25074,9 +25074,24 @@
             "description": "Requests being answered right now. An unload is refused above zero.",
             "minimum": 0
           },
+          "capabilities": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What the model can do, from the model index."
+          },
           "engine": {
             "$ref": "#/components/schemas/EngineName",
             "description": "The engine serving the model, chosen by its format: `llama-server` for\nGGUF, `vllm-mlx` for MLX."
+          },
+          "footprintGb": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Memory the load guardrail estimated for it at launch, in gigabytes;\nabsent when the launch was not estimated."
           },
           "kind": {
             "$ref": "#/components/schemas/ModelKind",
@@ -25093,6 +25108,13 @@
           "model": {
             "type": "string",
             "description": "Display name, the model file name without its extension."
+          },
+          "modelId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the model in the model index, the name an agent uses;\nabsent for a file the index does not hold."
           },
           "modelPath": {
             "type": "string",
@@ -25126,6 +25148,15 @@
             "type": "integer",
             "format": "int32",
             "description": "Loopback port of the process serving it.",
+            "minimum": 0
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Size of its weights on disk, from the model index.",
             "minimum": 0
           }
         }

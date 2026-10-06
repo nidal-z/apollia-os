@@ -72,7 +72,7 @@ describe("loadedModels", () => {
     const key = unloadErrorKey(message);
 
     // THEN it finds the in-use wording, and nothing for another failure
-    expect(key).toBe("llm.loaded.in_use_error");
+    expect(key).toBe("ai.loaded.in_use_error");
     expect(unloadErrorKey("model /models/a.gguf is not loaded")).toBeNull();
   });
 });

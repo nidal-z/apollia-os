@@ -8,9 +8,9 @@
  * backend nobody has tested since launch carries no error and used to read as
  * running while nothing had contacted it.
  *
- * The route that lists backends (`routes/Llm.svelte`) does not ping on mount;
- * only the settings route does. Splitting `untested` out is what keeps the two
- * surfaces from disagreeing about what green means.
+ * Nothing pings a backend on its own: only the settings route does, on
+ * request. Splitting `untested` out is what keeps a backend nobody tested from
+ * reading as running.
  *
  * Pure and i18n-agnostic: labels are catalogue keys resolved by the caller.
  */

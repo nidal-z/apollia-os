@@ -36,6 +36,21 @@ export interface LoadedModel {
   lastUsedAt: string;
   /** Requests being answered right now; an unload is refused above zero. */
   activeRequests: number;
+  /** Memory the load guardrail estimated at launch, in GB; null when not estimated. */
+  footprintGb?: number | null;
+  /** Identifier of the model in the model index; null for a file it does not hold. */
+  modelId?: string | null;
+  /** Size of the weights on disk, from the model index. */
+  sizeBytes?: number | null;
+  /** What the model can do, from the model index. */
+  capabilities?: ModelCapabilities | null;
+}
+
+/** What a model can do, as the model index computed it. */
+export interface ModelCapabilities {
+  tools: boolean;
+  reasoning: boolean;
+  vision: boolean;
 }
 
 /** Resident local models and the engine that holds them. */
@@ -60,19 +75,4 @@ export interface LlmPingResult {
   available: boolean;
   latency_ms: number | null;
   error: string | null;
-}
-
-/** One row of cost and token statistics. */
-export interface LlmCostStatsRow {
-  backend: string;
-  model: string;
-  call_count: number;
-  total_tokens: number;
-  total_cost_usd: number;
-}
-
-/** Aggregated response of the cost and token statistics. */
-export interface LlmCostStatsResponse {
-  rows: LlmCostStatsRow[];
-  days: number;
 }

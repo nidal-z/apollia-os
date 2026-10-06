@@ -9,6 +9,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { ModelCapabilities } from "$lib/types";
 
 // ── Hardware profile ──────────────────────────────────────────────────────
 
@@ -145,15 +146,40 @@ export interface VariantDownloadRequest {
 
 // ── Installed models ──────────────────────────────────────────────────────
 
+/** What an installed model is for, as the model index files it. */
+export type ModelCategory = "language" | "embeddings" | "dictation" | "draft";
+
 export interface InstalledModel {
+  /** Identifier in the model index, the name an agent uses. */
+  id: string;
   path: string;
   name: string;
   size_bytes: number;
   kind: "llm" | "stt";
+  /** Storage format of the weights. */
+  format: "gguf" | "mlx";
+  /** Category in force, the developer override included. */
+  category: ModelCategory;
+  /** Parameter count read from the header, for example `"8B"`. */
+  parameters: string | null;
+  /** Last modification of the weights, RFC 3339. */
+  modified_at: string | null;
+  /** When the model was pinned to the top of its category, RFC 3339. */
+  pinned_at: string | null;
   /** False when the weights matched no published or verified digest. */
   origin_verified: boolean;
   in_use: boolean;
   used_by: string | null;
+  /** What the model can do; null until the index is rebuilt by this build. */
+  capabilities: ModelCapabilities | null;
+  /** The page the model was downloaded from; null for an imported model. */
+  source_url: string | null;
+  /** The registry entry of an embeddings file, the key search names. */
+  embedding_entry: string | null;
+  /** Whether this is the model the machine chats with by default. */
+  default_chat: boolean;
+  /** Whether this is the embeddings model search uses. */
+  default_search: boolean;
 }
 
 /** Progress events are emitted on this channel for every active download. */

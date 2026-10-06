@@ -8,9 +8,18 @@
     "llm-dialog-browse is played through a stubbed picker: handleBrowse (LlmBackendDialog.svelte:72-93) calls plugin-dialog `open`, which is the IPC plugin:dialog|open; the stub resolves ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf (a seed file, tests/cli/seed/files/models) once, and applySelectedPath (:115-124) writes it into form.model. The dialog is cancelled afterwards, nothing persisted.",
     "llm-dialog-test on the ADD path is a pure local validation (handleTest :156-169, `!editing` branch): with name/endpoint/apikey/model filled the form has no errors, so the click renders llm-dialog-test-result without any network call. On the EDIT path the same button pings the backend, which is why it is only played here.",
     "llm-error-details-toggle: set-default on the DISABLED seeded vllm-qwen (system.sql enabled=0). set_default itself succeeds (apollia-core llm_backend.rs:398-420 only refuses an unknown name), then reload_llm_from_db (commands/llm.rs:378-443) rebuilds the router from enabled configs only (router/construct.rs:222) and resolve_default_backend refuses a default that is not instantiated (router/backends.rs:262-275), so the command rejects before swapping the router; handleSetDefault's catch (settings/Llm.svelte:80-82) sets actionError, humanize keeps the raw string as detail (humanize.ts:261-274) and LlmActionErrorBanner mounts the Disclosure whose header composes llm-error-details-toggle (Disclosure.svelte:75). Cards are ORDER BY name (llm_backend.rs:286) and set-default renders on non-default cards only (LlmBackendCard.svelte:181), so after 11c the four cards are gpu-server (default), automation-saved, local-llama-server, vllm-qwen and set-default nth 2 is the disabled one. The restore is two clicks (nth 1 then nth 0) because the list may or may not have been refreshed by the llm-changed SSE the failed reload emits (sse.ts:595-605): on a stale list nth 1 is local-llama-server, on a refreshed one automation-saved; both succeed, both refresh, and on the refreshed list nth 0 is gpu-server either way, which is the state llm-det already leaves.",
-    "llm-backend-ping-btn is played in the settings list through a stubbed IPC: handlePing -> pingLlmBackend -> ping_llm_backend (LlmBackendCard.svelte:75-97, ipc/llm.ts:21-23) sends a real completion through the router with no handler-side timeout, and nth 0 is gpu-server, an OpenAI-compatible server on a port that refuses, so the real outcome is an error and only the stub can show a success. The block after 07-settings-cards-controls stubs the command twice, once each: a resolve shaped like PingResult (commands/llm.rs:98-107, available:true latency_ms:42) renders llm-ping-result with llm.ping_ok, asserted by 'Ping OK (42ms)', which is the same string in both locales; then a reject with a raw string lands in the catch and is rendered verbatim as pingError on the same anchor. The card clears the feedback after FEEDBACK_MS (5 s, :41), so the assertions sit right after each click. The command is cleared afterwards; nothing is written. On the llm page (04-llm-builder-cards-ping-boundary) the button is still only asserted."
+    "llm-backend-ping-btn is played in the settings list through a stubbed IPC: handlePing -> pingLlmBackend -> ping_llm_backend (LlmBackendCard.svelte:75-97, ipc/llm.ts:21-23) sends a real completion through the router with no handler-side timeout, and nth 0 is gpu-server, an OpenAI-compatible server on a port that refuses, so the real outcome is an error and only the stub can show a success. The block after 07-settings-cards-controls stubs the command twice, once each: a resolve shaped like PingResult (commands/llm.rs:98-107, available:true latency_ms:42) renders llm-ping-result with llm.ping_ok, asserted by 'Ping OK (42ms)', which is the same string in both locales; then a reject with a raw string lands in the catch and is rendered verbatim as pingError on the same anchor. The card clears the feedback after FEEDBACK_MS (5 s, :41), so the assertions sit right after each click. The command is cleared afterwards; nothing is written. On the llm page (04-llm-builder-cards-ping-boundary) the button is still only asserted.",
+    "The Loaded section is shown through a stubbed IPC: no engine holds a model in the deterministic run, so the visit in developer mode stubs list_loaded_models with one resident chat model shaped like the runtime answer (routes_llm/loaded.rs, camelCase, footprintGb 2.5) before the route mounts, asserts the card, its name, memory, load time, summary and unload button, then clears the stub. Nothing is loaded or unloaded: the unload button is only asserted."
   ],
   "dynamicTestids": [
+    "ai-category-all",
+    "ai-category-draft",
+    "ai-model-menu-copy_id",
+    "ai-model-menu-copy_path",
+    "ai-model-menu-delete",
+    "ai-model-menu-pin",
+    "ai-model-menu-reveal",
+    "ai-model-menu-source",
     "settings-nav-developer",
     "settings-nav-llm"
   ],
@@ -66,28 +75,160 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "01-llm-operator"
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-grid",
+      "testid": "ai-categories",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "llm-backend-card",
+      "testid": "ai-loaded-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
       "nth": 0,
-      "timeoutMs": 6000
+      "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-badge",
+      "testid": "ai-model-format",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-installed-total",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-content"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-installed-section"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-installed-table"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-installed-footer"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-models-dir"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-name",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-filter-shortcut"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-import-btn"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-ai-screen"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-category-draft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-category-empty",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "02-llm-operator-cards"
+      "label": "02-ai-drafts-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-category-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-filter-input",
+      "text": "no-model-has-this-name"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-category-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-filter-input",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-menu-btn",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-reveal"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-pin"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-copy_id"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-copy_path"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-source"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-delete"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-ai-actions-menu"
+    },
+    {
+      "kind": "press",
+      "key": "Escape"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-menu",
+      "timeoutMs": 3000
     },
     {
       "kind": "goto",
@@ -116,6 +257,33 @@
       "ms": 800
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": 1,
+        "models": [
+          {
+            "engine": "llama-server",
+            "kind": "chat",
+            "model": "Phi-3-mini-Q4",
+            "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+            "port": 8081,
+            "nCtx": 4096,
+            "nGpuLayers": 0,
+            "loadedAt": "2026-01-01T00:00:00Z",
+            "lastUsedAt": "2026-01-01T00:00:00Z",
+            "activeRequests": 0,
+            "origin": "app",
+            "footprintGb": 2.5,
+            "modelId": null,
+            "sizeBytes": null,
+            "capabilities": null
+          }
+        ]
+      }
+    },
+    {
       "kind": "goto",
       "route": "llm"
     },
@@ -125,52 +293,49 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "03-llm-builder"
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-grid",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "llm-backend-card",
+      "testid": "ai-model-row",
       "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-format",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-loaded-card",
       "timeoutMs": 6000
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-backend-type-badge",
-      "timeoutMs": 3000
+      "kind": "expect",
+      "testid": "ai-loaded-summary"
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-backend-badge",
-      "timeoutMs": 3000
+      "kind": "expect",
+      "testid": "ai-loaded-name"
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-backend-ping-btn",
-      "timeoutMs": 3000
+      "kind": "expect",
+      "testid": "ai-loaded-memory"
     },
     {
-      "kind": "screenshot",
-      "label": "04-llm-builder-cards-ping-boundary"
+      "kind": "expect",
+      "testid": "ai-loaded-since"
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-stats-table",
-      "timeoutMs": 6000
+      "kind": "expect",
+      "testid": "ai-loaded-unload-btn"
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-stats-total-row",
-      "timeoutMs": 4000
+      "kind": "clearStubs",
+      "command": "list_loaded_models"
     },
     {
       "kind": "screenshot",
-      "label": "05-llm-builder-stats"
+      "label": "04-ai-screen-developer-mode"
     },
     {
       "kind": "goto",
@@ -790,39 +955,6 @@
     {
       "kind": "screenshot",
       "label": "13-back-operator"
-    },
-    {
-      "kind": "goto",
-      "route": "llm"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "llm-add-backend-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "12-llm-route-add-dialog"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-cancel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 4000
     }
   ]
 }

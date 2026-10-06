@@ -14,7 +14,7 @@
   import Batches from "../../../routes/Batches.svelte";
   import Batch from "../../../routes/Batch.svelte";
   import Inbox from "../../../routes/Inbox.svelte";
-  import Llm from "../../../routes/Llm.svelte";
+  import Ai from "../../../routes/Ai.svelte";
   import Automations from "../../../routes/Automations.svelte";
   import Library from "../../../routes/Library.svelte";
   import Memory from "../../../routes/Memory.svelte";
@@ -99,7 +99,7 @@
           {:else if shownRoute === "inbox"}
             <Inbox />
           {:else if shownRoute === "llm"}
-            <Llm />
+            <Ai />
           {:else if shownRoute === "library"}
             <Library />
           {:else if shownRoute === "automations"}

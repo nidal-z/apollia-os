@@ -281,6 +281,7 @@ from .load_model_request_advanced import LoadModelRequestAdvanced
 from .load_model_response import LoadModelResponse
 from .load_origin import LoadOrigin
 from .loaded_model_dto import LoadedModelDto
+from .loaded_model_dto_capabilities_type_0 import LoadedModelDtoCapabilitiesType0
 from .loaded_models_response import LoadedModelsResponse
 from .locked_key_body import LockedKeyBody
 from .locked_key_body_value import LockedKeyBodyValue
@@ -878,6 +879,7 @@ __all__ = (
     "LlmStatusResponse",
     "LlmStatusResponseBackendsItem",
     "LoadedModelDto",
+    "LoadedModelDtoCapabilitiesType0",
     "LoadedModelsResponse",
     "LoadEstimateResponse",
     "LoadModelRequest",
