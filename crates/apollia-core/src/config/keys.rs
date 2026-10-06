@@ -202,6 +202,7 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("server.jit_keep_last_only", Boolean, Some("true"), Reloadable, "When the compatible server loads a model, unload the other models it loaded that nothing holds.")),
     locked(key("server.separate_reasoning_content", Boolean, Some("true"), Reloadable, "Keep the reasoning of a model in reasoning_content, apart from content, in the chat completions of the compatible server; off, it goes back into content between think tags.")),
     locked(key("server.serve_on_lan", Boolean, Some("false"), Restart, "Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens.")),
+    locked(key("server.allow_request_mcp", Boolean, Some("false"), Reloadable, "Let a request to the compatible server bring an MCP server of its own, reached over HTTP for the length of the call; off, such a request is refused.")),
     // [engines]
     locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),
     locked(key("engines.gguf", Enum(&["auto", "embedded", "cuda", "vulkan", "cpu", "metal"]), Some("\"auto\""), Restart, "Engine that serves GGUF models: the automatic choice, the engine shipped with the application, or a variant installed by the engine store. A variant no longer installed falls back to the automatic choice. Read at the next start.")),

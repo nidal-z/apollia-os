@@ -200,7 +200,8 @@ impl Supervisor {
             core.event_sender.clone(),
         )
         .with_batches(batches.clone(), stores.task_repository.clone())
-        .with_workflows(executors.workflows.clone());
+        .with_workflows(executors.workflows.clone())
+        .with_request_mcp(self.request_mcp(&core, &inference, &governance, &executors));
         let compat_server = self.spawn_compat_server(
             &inference,
             &core.event_sender,

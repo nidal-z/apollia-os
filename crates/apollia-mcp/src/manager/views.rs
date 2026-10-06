@@ -74,6 +74,24 @@ impl McpClientManager {
             .unwrap_or(false)
     }
 }
+/// Whether the annotations a server declares on its tools classify them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ServerHints {
+    /// A connection someone added: its hints classify, as
+    /// [`classify_mcp_tool`] reads them.
+    Read,
+    /// A server nobody added as a connection: nothing it declares classifies.
+    Ignored,
+}
+
+/// The registry names of the tools `session` exposes, `mcp:<server>/<tool>`.
+pub(super) fn registry_names(server_name: &str, session: &McpSession) -> Vec<String> {
+    session_tool_names(session)
+        .into_iter()
+        .map(|tool| format!("mcp:{server_name}/{tool}"))
+        .collect()
+}
+
 /// Register every tool exposed by a freshly started session in the tool registry
 /// under the `mcp:<server>/<tool>` naming convention.
 ///
@@ -87,19 +105,28 @@ impl McpClientManager {
 /// descriptor, because every call to such a server is held by the approval
 /// gate of the executor at run time and the flag can be toggled on a running
 /// server, which a descriptor registered once would not follow.
+///
+/// `hints` says whether the server's own annotations may classify its tools.
+/// A server nobody added as a connection, such as one a request brings, is
+/// read with [`ServerHints::Ignored`]: its tools stay unclassified whatever
+/// it declares about them.
 pub(super) async fn register_session_tools_in_registry(
     tool_registry: &ToolRegistryHandle,
     server_name: &str,
     tags: &[String],
     session: &McpSession,
+    hints: ServerHints,
 ) {
     let has_account = session.config().has_account();
     for tool_def in session.tools() {
-        let (family, family_source) = classify_mcp_tool(
-            session.config().tool_families.get(&tool_def.name).copied(),
-            tool_def.annotations.as_ref(),
-            has_account,
-        );
+        let (family, family_source) = match hints {
+            ServerHints::Read => classify_mcp_tool(
+                session.config().tool_families.get(&tool_def.name).copied(),
+                tool_def.annotations.as_ref(),
+                has_account,
+            ),
+            ServerHints::Ignored => classify_mcp_tool(None, None, has_account),
+        };
         let (is_read_only, risk_score) = descriptor_risk(family, family_source);
         let mut tool_tags = vec!["mcp".to_string(), server_name.to_string()];
         tool_tags.extend(tags.iter().cloned());

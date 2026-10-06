@@ -8,7 +8,9 @@
 //! of the model does not serve answers 404, never an approximation. A chat
 //! completion, a response or a message on an `apollia/...` model is not
 //! relayed: the runtime runs the exposed agent or workflow it names (see
-//! [`super::agent_call`]).
+//! [`super::agent_call`]). Neither is a response or a message that brings an
+//! MCP server: the runtime runs its tool loop (see
+//! [`super::request_mcp_run`]).
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,6 +32,8 @@ use super::logs::RequestedModel;
 use super::models::{HeldModel, LocalModels, ServedModel, Unheld};
 use super::origin::CallOrigin;
 use super::reasoning;
+use super::request_mcp::brings_mcp;
+use super::request_mcp_run::call_with_request_mcp;
 use super::tokens::ServerTokensHandle;
 use crate::engine_store::Engine;
 use crate::llama_server::ModelKind;
@@ -366,7 +370,8 @@ fn merged_answer(bytes: Vec<u8>) -> Vec<u8> {
 }
 
 /// Answers a call on `endpoint`: an `apollia/...` model is an exposed agent
-/// or workflow, run by the runtime; any other is relayed to its engine.
+/// or workflow, run by the runtime; a request that brings an MCP server has
+/// its tool loop run by the runtime too; any other is relayed to its engine.
 async fn run_or_relay(
     state: &RelayState,
     endpoint: Endpoint,
@@ -375,10 +380,10 @@ async fn run_or_relay(
     body: Bytes,
 ) -> Response {
     let request: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
-    let Some(model) = request
-        .get("model")
-        .and_then(Value::as_str)
-        .filter(|model| model.starts_with(MODEL_PREFIX))
+    let named = request.get("model").and_then(Value::as_str);
+    let brought = brings_mcp(endpoint, &request);
+    let Some(model) = named
+        .filter(|model| brought || model.starts_with(MODEL_PREFIX))
         .map(str::to_owned)
     else {
         return relay(state, endpoint, body).await;
@@ -387,17 +392,23 @@ async fn run_or_relay(
         origin: origin_of(origin),
         headers,
     };
-    let mut response = call_exposed(
-        &state.agents,
-        state.tokens.as_ref(),
-        caller,
-        ExposedCall {
-            endpoint,
-            body: &request,
-            model: &model,
-        },
-    )
-    .await;
+    let call = ExposedCall {
+        endpoint,
+        body: &request,
+        model: &model,
+    };
+    let mut response = if brought {
+        call_with_request_mcp(
+            &state.models,
+            &state.agents,
+            state.tokens.as_ref(),
+            caller,
+            call,
+        )
+        .await
+    } else {
+        call_exposed(&state.agents, state.tokens.as_ref(), caller, call).await
+    };
     response.extensions_mut().insert(RequestedModel(model));
     response
 }

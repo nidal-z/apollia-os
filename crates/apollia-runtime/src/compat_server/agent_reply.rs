@@ -116,6 +116,21 @@ fn outcome_error(outcome: RunOutcome) -> (ErrorKind, String, Map<String, Value>)
                 extra,
             )
         }
+        RunOutcome::Unapproved { access, task_id } => {
+            let mut extra = Map::new();
+            extra.insert("access".to_owned(), Value::String(access.clone()));
+            extra.insert("task_id".to_owned(), Value::String(task_id));
+            (
+                ErrorKind::ApprovalPending,
+                format!(
+                    "The model reached for '{access}', a tool of an MCP server this request \
+                     brought. Nobody watches the call to approve it, and the connection ended \
+                     with the call, so nothing is left to decide. Allow the tool with a rule \
+                     in the developer mode of Apollia, then send the request again."
+                ),
+                extra,
+            )
+        }
         RunOutcome::Failed { message } => (ErrorKind::RunFailed, message, Map::new()),
         // Every caller answers this case itself before asking for an error.
         RunOutcome::Answered { .. } => (

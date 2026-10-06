@@ -310,6 +310,7 @@ The compatible server, which answers the OpenAI and Anthropic formats on the loo
 | `server.jit_keep_last_only` | boolean | `true` | When the compatible server loads a model, unload the other models it loaded that nothing holds. The organization policy can fix it. |
 | `server.separate_reasoning_content` | boolean | `true` | Keep the reasoning of a model in reasoning_content, apart from content, in the chat completions of the compatible server; off, it goes back into content between think tags. The organization policy can fix it. |
 | `server.serve_on_lan` | boolean | `false` | Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens. The organization policy can fix it. |
+| `server.allow_request_mcp` | boolean | `false` | Let a request to the compatible server bring an MCP server of its own, reached over HTTP for the length of the call; off, such a request is refused. The organization policy can fix it. |
 
 ### `[engines]`
 

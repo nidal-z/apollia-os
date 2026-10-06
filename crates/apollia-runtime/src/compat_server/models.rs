@@ -14,7 +14,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use apollia_core::config::{
-    resolve_setting, PolicySettings, ServerConfig, JIT_LOADING_KEY, SEPARATE_REASONING_KEY,
+    resolve_setting, PolicySettings, ServerConfig, ALLOW_REQUEST_MCP_KEY, JIT_LOADING_KEY,
+    SEPARATE_REASONING_KEY,
 };
 use apollia_core::llm_backend::LlmBackendRepository;
 use apollia_llm::model_index::{
@@ -226,6 +227,15 @@ impl LocalModels {
         )
     }
 
+    /// Whether `[server] allow_request_mcp` is on now, read at every request;
+    /// the default, off, when the file cannot be read.
+    pub(crate) fn allows_request_mcp(&self) -> bool {
+        self.switch(
+            ALLOW_REQUEST_MCP_KEY,
+            ServerConfig::default().allow_request_mcp,
+        )
+    }
+
     /// The boolean setting `key` of the file now, `default` when the file
     /// cannot be read or the runtime was given none.
     fn switch(&self, key: &str, default: bool) -> bool {
@@ -305,7 +315,7 @@ impl LocalModels {
     /// The backend row of the model `id`, written when it has none yet: the
     /// key its load preset is kept under. The identifier itself when there is
     /// no `system.db` or the row cannot be written.
-    async fn backend_row(&self, id: &str) -> String {
+    pub(crate) async fn backend_row(&self, id: &str) -> String {
         let (Some(system_db), Some(models_dir)) = (self.system_db.clone(), self.models_dir.clone())
         else {
             return id.to_owned();

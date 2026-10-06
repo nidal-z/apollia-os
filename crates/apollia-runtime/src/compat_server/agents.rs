@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use apollia_tools::{ExposedItem, ExposedItemRepository, ExposedKind, TaskRepository};
 
+use super::request_mcp_run::RequestMcp;
 use crate::agents::task::resolve_stored;
 use crate::batch::BatchHandle;
 use crate::eventbus::EventBusSender;
@@ -24,8 +25,9 @@ use crate::workflows::{WorkflowDescriptor, WorkflowHandle};
 /// The prefix of every model that is an agent or a workflow.
 pub(crate) const MODEL_PREFIX: &str = "apollia/";
 
-/// What the compatible server reaches to serve agents and workflows. Without
-/// it, the server lists none and answers a call to one `run_unavailable`.
+/// What the compatible server reaches to serve agents and workflows, and to
+/// run the tool loop of a request that brings an MCP server. Without it, the
+/// server lists none and answers a call to one `run_unavailable`.
 #[derive(Clone, Default)]
 pub struct ExposedAgents {
     data_dir: Option<PathBuf>,
@@ -33,6 +35,7 @@ pub struct ExposedAgents {
     batches: Option<BatchHandle>,
     tasks: Option<Arc<TaskRepository>>,
     workflows: Option<WorkflowHandle>,
+    request_mcp: Option<RequestMcp>,
 }
 
 impl std::fmt::Debug for ExposedAgents {
@@ -41,6 +44,7 @@ impl std::fmt::Debug for ExposedAgents {
             .field("data_dir", &self.data_dir)
             .field("batches", &self.batches.is_some())
             .field("workflows", &self.workflows.is_some())
+            .field("request_mcp", &self.request_mcp.is_some())
             .finish()
     }
 }
@@ -100,6 +104,19 @@ impl ExposedAgents {
     pub fn with_workflows(mut self, workflows: Option<WorkflowHandle>) -> Self {
         self.workflows = workflows;
         self
+    }
+
+    /// The same, running the tool loop of a request that brings an MCP server
+    /// through `request_mcp`.
+    #[must_use]
+    pub fn with_request_mcp(mut self, request_mcp: Option<RequestMcp>) -> Self {
+        self.request_mcp = request_mcp;
+        self
+    }
+
+    /// What runs a request that brings an MCP server, when this runtime can.
+    pub(crate) fn request_mcp(&self) -> Option<&RequestMcp> {
+        self.request_mcp.as_ref()
     }
 
     /// What runs a call, `None` when this runtime has no bus to follow one.

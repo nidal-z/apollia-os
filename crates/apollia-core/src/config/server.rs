@@ -26,6 +26,9 @@ pub const JIT_KEEP_LAST_ONLY_KEY: &str = "server.jit_keep_last_only";
 /// Dotted key of the switch that keeps the reasoning of a model apart from its
 /// answer in the chat completions the server relays.
 pub const SEPARATE_REASONING_KEY: &str = "server.separate_reasoning_content";
+/// Dotted key of the switch that lets a request bring an MCP server of its
+/// own.
+pub const ALLOW_REQUEST_MCP_KEY: &str = "server.allow_request_mcp";
 
 /// Minutes a model the server loaded stays loaded unused, when the file names
 /// no delay.
@@ -105,6 +108,13 @@ pub struct ServerConfig {
     /// whatever this says.
     #[serde(default)]
     pub serve_on_lan: bool,
+    /// Whether a request may bring an MCP server of its own: the `mcp` tool of
+    /// a response, the `mcp_servers` of a message. Off by default: such a
+    /// request is refused. On, the runtime connects to the server over HTTP
+    /// for the length of the call and runs the tool loop itself. Read at
+    /// every request.
+    #[serde(default)]
+    pub allow_request_mcp: bool,
 }
 
 impl Default for ServerConfig {
@@ -120,6 +130,7 @@ impl Default for ServerConfig {
             jit_keep_last_only: true,
             separate_reasoning_content: true,
             serve_on_lan: false,
+            allow_request_mcp: false,
         }
     }
 }
@@ -263,6 +274,23 @@ mod tests {
         // THEN the network is open and no token is required
         assert!(server.serve_on_lan);
         assert!(!server.require_auth);
+    }
+
+    #[test]
+    fn test_server_config_refuses_request_mcp_servers_unless_told_otherwise() {
+        // GIVEN a [server] section that does not name the key, and one that
+        // turns it on
+        let silent = "[server]\nenabled = true\n";
+        let on = "[server]\nallow_request_mcp = true\n";
+
+        // WHEN each is read
+        let by_default = ServerConfig::from_toml_str(silent).unwrap();
+        let turned_on = ServerConfig::from_toml_str(on).unwrap();
+
+        // THEN a request brings no MCP server by default, and may when the
+        // file says so
+        assert!(!by_default.allow_request_mcp);
+        assert!(turned_on.allow_request_mcp);
     }
 
     #[test]
