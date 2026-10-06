@@ -133,6 +133,7 @@ fn every_section_carries_the_reload_class_of_the_measured_table() {
         ("server.jit_idle_ttl_minutes", ReloadClass::Reloadable),
         ("server.jit_keep_last_only", ReloadClass::Reloadable),
         ("server.separate_reasoning_content", ReloadClass::Reloadable),
+        ("server.allow_request_mcp", ReloadClass::Reloadable),
         ("engines", ReloadClass::Reloadable),
         // Read once, when each engine supervisor locates what it starts.
         ("engines.gguf", ReloadClass::Restart),
@@ -264,6 +265,7 @@ fn the_named_settings_are_lockable() {
             "server.jit_keep_last_only",
             "server.separate_reasoning_content",
             "server.serve_on_lan",
+            "server.allow_request_mcp",
             "engines.log_level",
             "engines.gguf",
             "engines.mlx",

@@ -44,6 +44,12 @@
 //! answers as a model would: the steps in `reasoning_content`, the answer in
 //! `content`, an `approval_pending` error when the agent waits for a decision.
 //!
+//! A response or a message may bring an MCP server of its own when `[server]
+//! allow_request_mcp` is on, which it is not by default. The request is then
+//! not relayed: the runtime connects to the server over HTTP for the length of
+//! the call and runs the tool loop itself, under governance (see the
+//! `request_mcp_run` module).
+//!
 //! Every request it answers, and every line the local `llama-server` prints,
 //! enters a bounded ring of recent lines that the native API streams (see
 //! [`ServerLogsHandle`]); clearing it never touches the audit journal.
@@ -73,6 +79,8 @@ mod models;
 mod origin;
 mod reasoning;
 mod relay;
+mod request_mcp;
+mod request_mcp_run;
 mod router;
 mod tokens;
 
@@ -95,6 +103,8 @@ mod reasoning_tests;
 #[cfg(test)]
 mod relay_tests;
 #[cfg(test)]
+mod request_mcp_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 
 pub use actor::{CompatServerHandle, CompatServerStatus, ServerRecords};
@@ -107,6 +117,9 @@ pub use logs::{
 pub use models::LocalModels;
 pub use origin::{
     admit_agent_call, admits_agent_call, reachable_address, CallOrigin, AGENT_TOKEN_REQUIRED,
+};
+pub use request_mcp_run::{
+    LaunchedRequest, LaunchedRequestRunner, RequestAgentRunner, RequestMcp, REQUEST_AGENT_ID,
 };
 pub use tokens::{CreatedServerToken, ServerTokensError, ServerTokensHandle, SERVER_TOKEN_PREFIX};
 

@@ -217,7 +217,9 @@ applies deciding :
 5. **Standing consent** of the agent for the family, or a grant of the run (a
    batch grants the accesses of its agent for its items). Allowed.
 6. **Otherwise asked**, with three answers: once, always, refuse. A tool
-   nobody classified lands here, without "always".
+   nobody classified lands here, without "always", unless a fine rule `allow`
+   names it in developer mode, which lets it run: it has no family a consent
+   could stand for, so the rule is the only thing that answers for it.
 
 The decision carries its reason (policy, rule, fail closed, consent) and the
 answers offered.
@@ -393,6 +395,18 @@ Rules, held by `scripts/check_http_clients.py` :
 - Never read a response body with `.text()`, `.bytes()` or `.json()`. Read it
   with `apollia_core::net::read_capped_{bytes,text,json}`, which refuse an
   oversized body mid-stream instead of buffering it and measuring afterwards.
+- One exception sits between the two builders, and it is written here rather
+  than tolerated: the MCP server a request to the compatible server brings
+  with it (`[server] allow_request_mcp`, off by default). Its address comes
+  from a third party, so the redirect policy is the one of
+  `safe_client_builder`, every hop public; but trying a server on this machine
+  is the first use of such a request, so the initial check is
+  `assert_public_or_loopback`: the loopback interface is let through, the
+  private network, a link-local address and an internal domain stay refused.
+  The client is built by `request_supplied_client_builder` and handed to the
+  transport (`StreamableHttpTransport::with_client`); the transport never
+  builds one for an address a request gave. A server on this machine cannot
+  redirect at all, since every hop must be public.
 - Two paths in the runtime carry an agent payload straight to the network: the
   webhook notification channel and the `PreToolUse` / `PostToolUse` HTTP hook
   handler. Both apply the initial check and the per-hop one. A hook answer that

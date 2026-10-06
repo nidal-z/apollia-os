@@ -60,6 +60,10 @@ pub(crate) enum RunOutcome {
         task_id: Option<String>,
         access: Option<String>,
     },
+    /// The run reached for a tool of an MCP server the request brought, which
+    /// nobody was there to approve. Nothing waits for a decision: the
+    /// connection ended with the call.
+    Unapproved { access: String, task_id: String },
     /// The run failed or was stopped.
     Failed { message: String },
 }
@@ -86,6 +90,11 @@ pub(crate) struct StopOnDrop {
 }
 
 impl StopOnDrop {
+    /// A guard that stops nothing: what follows the run stops it itself.
+    pub(crate) fn nothing() -> Self {
+        Self { stop: None }
+    }
+
     /// The run ended and the caller received it: nothing is stopped.
     pub(crate) fn release(&mut self) {
         self.stop = None;
@@ -302,7 +311,7 @@ fn summary(text: &str) -> String {
 }
 
 /// The step `event` shows, when it is a tool call of the run `task_id`.
-fn agent_step(event: &RuntimeEvent, task_id: &str) -> Option<String> {
+pub(crate) fn agent_step(event: &RuntimeEvent, task_id: &str) -> Option<String> {
     match event {
         RuntimeEvent::ChatToolCallStarted {
             session_id,
@@ -437,6 +446,7 @@ fn outcome_name(outcome: &RunOutcome) -> &'static str {
     match outcome {
         RunOutcome::Answered { .. } => "answered",
         RunOutcome::Pending { .. } => "pending",
+        RunOutcome::Unapproved { .. } => "unapproved",
         RunOutcome::Failed { .. } => "failed",
     }
 }

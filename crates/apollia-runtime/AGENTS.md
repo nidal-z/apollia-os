@@ -129,7 +129,14 @@ OpenAI's `{"error": {"message", "type", "code"}}`, or Anthropic's
 `{"type": "error", "error": {"type", "message"}}` on `/v1/messages` and
 `/v1/messages/count_tokens` (`src/compat_server/errors.rs`). They serve the
 local models only, relayed to the engine that runs them; a remote backend is
-never relayed. Their authentication is
+never relayed. A response or a message that brings an MCP server of its own
+(`[server] allow_request_mcp`, off by default) is not relayed either: the
+runtime connects to the server over HTTP for the length of the call, through
+`McpClientManagerHandle::add_request_server`, and runs the tool loop through
+the agent executor under the agent `request-mcp`, which is stored nowhere
+(`src/compat_server/request_mcp_run.rs`). Its tools are unclassified, the run
+is unattended, and the connection is removed when the call ends or its caller
+goes away. Their authentication is
 not the native API's: with `[server] require_auth`, a request presents a token
 of the server (`apo_...`, `Authorization: Bearer` or `x-api-key`), and the
 internal token never opens them. Each request carries its `CallOrigin`

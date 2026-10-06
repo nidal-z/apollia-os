@@ -17,6 +17,9 @@ pub(super) struct Executors {
     pub(super) batches: Option<crate::batch::BatchHandle>,
     pub(super) workflows: Option<crate::workflows::WorkflowHandle>,
     pub(super) trigger_engine: TriggerEngineHandle,
+    /// Runs the agent executor for a request to the compatible server that
+    /// brings an MCP server; `None` without the executor or the task store.
+    pub(super) request_runner: Option<Arc<dyn crate::compat_server::RequestAgentRunner>>,
 }
 
 impl Supervisor {
@@ -137,6 +140,10 @@ impl Supervisor {
             plan_cache: stores.plan_cache.clone(),
             ..launcher
         });
+        let request_runner = launcher.clone().map(|launcher| {
+            Arc::new(crate::compat_server::LaunchedRequestRunner::new(launcher))
+                as Arc<dyn crate::compat_server::RequestAgentRunner>
+        });
         let batches = match (&stores.task_repository, &launcher) {
             (Some(repo), Some(launcher)) => Some(crate::batch::BatchHandle::spawn(
                 repo.clone(),
@@ -200,6 +207,7 @@ impl Supervisor {
             batches,
             workflows,
             trigger_engine,
+            request_runner,
         }
     }
 }

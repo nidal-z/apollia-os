@@ -329,18 +329,36 @@ impl McpSession {
                     cause: e.to_string(),
                 })?;
 
-        let transport: Arc<dyn McpTransport> = Arc::from(
-            create_transport(&config, resolved_env).map_err(|e| match e {
-                TransportError::NodeRequired { command } => McpSessionError::NodeRequired {
-                    server: config.name.clone(),
-                    command,
-                },
-                other => McpSessionError::SpawnFailed {
-                    server: config.name.clone(),
-                    cause: other.to_string(),
-                },
-            })?,
-        );
+        let transport = create_transport(&config, resolved_env).map_err(|e| match e {
+            TransportError::NodeRequired { command } => McpSessionError::NodeRequired {
+                server: config.name.clone(),
+                command,
+            },
+            other => McpSessionError::SpawnFailed {
+                server: config.name.clone(),
+                cause: other.to_string(),
+            },
+        })?;
+        Self::start_with_transport(config, transport, mode).await
+    }
+
+    /// Perform the MCP `initialize` handshake over a transport the caller
+    /// built, then read the tools as `mode` says.
+    ///
+    /// `config` names the session and bounds it (timeouts, tool count); its
+    /// transport fields and its environment are not read, so nothing in it is
+    /// resolved against the environment or the secret store.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpSessionError`] when the `initialize` handshake fails or
+    /// times out, or the boot `tools/list` cannot be read.
+    pub async fn start_with_transport(
+        config: McpServerConfig,
+        transport: Box<dyn McpTransport>,
+        mode: LoadingMode,
+    ) -> Result<Self, McpSessionError> {
+        let transport: Arc<dyn McpTransport> = Arc::from(transport);
 
         let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>> =
             Arc::new(Mutex::new(HashMap::new()));

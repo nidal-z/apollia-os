@@ -90,6 +90,10 @@ pub(crate) enum ErrorKind {
     RunFailed,
     /// This runtime cannot run agents or workflows.
     RunUnavailable,
+    /// The organisation policy refuses what the request asks for.
+    RefusedByPolicy,
+    /// An MCP server the request brought did not answer.
+    McpServerUnavailable,
 }
 
 impl ErrorKind {
@@ -100,7 +104,8 @@ impl ErrorKind {
             Self::ModelNotLoaded | Self::EndpointNotServed | Self::UnknownEndpoint => {
                 StatusCode::NOT_FOUND
             }
-            Self::EngineUnavailable => StatusCode::BAD_GATEWAY,
+            Self::EngineUnavailable | Self::McpServerUnavailable => StatusCode::BAD_GATEWAY,
+            Self::RefusedByPolicy => StatusCode::FORBIDDEN,
             Self::NotExposed => StatusCode::NOT_FOUND,
             Self::ApprovalPending => StatusCode::CONFLICT,
             Self::RunFailed => StatusCode::INTERNAL_SERVER_ERROR,
@@ -121,6 +126,8 @@ impl ErrorKind {
             Self::ApprovalPending => ("approval_pending", "approval_pending"),
             Self::RunFailed => ("server_error", "run_failed"),
             Self::RunUnavailable => ("server_error", "run_unavailable"),
+            Self::RefusedByPolicy => ("invalid_request_error", "refused_by_policy"),
+            Self::McpServerUnavailable => ("server_error", "mcp_server_unavailable"),
         }
     }
 
@@ -134,7 +141,11 @@ impl ErrorKind {
             | Self::UnknownEndpoint
             | Self::NotExposed => "not_found_error",
             Self::ApprovalPending => "approval_pending",
-            Self::EngineUnavailable | Self::RunFailed | Self::RunUnavailable => "api_error",
+            Self::RefusedByPolicy => "permission_error",
+            Self::EngineUnavailable
+            | Self::RunFailed
+            | Self::RunUnavailable
+            | Self::McpServerUnavailable => "api_error",
         }
     }
 }

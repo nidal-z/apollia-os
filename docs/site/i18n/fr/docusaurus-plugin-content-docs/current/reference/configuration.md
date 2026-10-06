@@ -313,6 +313,7 @@ Le serveur compatible, qui répond aux formats OpenAI et Anthropic sur l'interfa
 | `server.jit_keep_last_only` | booléen | `true` | Quand le serveur compatible charge un modèle, décharger les autres modèles qu'il a chargés et que rien ne retient. La politique de l'organisation peut l'imposer. |
 | `server.separate_reasoning_content` | booléen | `true` | Garder le raisonnement d'un modèle dans reasoning_content, à part de content, dans les complétions de chat du serveur compatible ; éteint, il revient dans content entre balises think. La politique de l'organisation peut l'imposer. |
 | `server.serve_on_lan` | booléen | `false` | Ouvrir le serveur compatible au réseau local, sur toutes les interfaces ; l'API native reste sur l'interface de boucle locale. Lu à l'ouverture de l'écoute. La politique de l'organisation peut l'imposer. |
+| `server.allow_request_mcp` | booléen | `false` | Laisser une requête au serveur compatible apporter son propre serveur MCP, joint en HTTP le temps de l'appel ; éteint, une telle requête est refusée. La politique de l'organisation peut l'imposer. |
 
 ### `[engines]`
 

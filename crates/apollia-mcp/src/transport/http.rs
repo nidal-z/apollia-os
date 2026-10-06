@@ -76,19 +76,39 @@ impl StreamableHttpTransport {
         let client = apollia_core::net::configured_endpoint_client_builder_for(&url)
             .build()
             .map_err(|e| TransportError::Io(e.to_string()))?;
-
-        let (tx, rx) = mpsc::channel(RESPONSE_BUFFER_CAPACITY);
-
-        Ok(Self {
+        Ok(Self::with_client(
             client,
             url,
+            auth_headers,
+            timeout,
+            max_response_bytes,
+        ))
+    }
+
+    /// Build a transport targeting `url` over `client`.
+    ///
+    /// For an address nobody declared in the configuration, such as one a
+    /// request brings: the caller builds the client with the network policy
+    /// that address calls for, and this transport adds none of its own. The
+    /// other arguments are those of [`Self::new`].
+    pub fn with_client(
+        client: reqwest::Client,
+        url: impl Into<String>,
+        auth_headers: Vec<(String, String)>,
+        timeout: Duration,
+        max_response_bytes: u64,
+    ) -> Self {
+        let (tx, rx) = mpsc::channel(RESPONSE_BUFFER_CAPACITY);
+        Self {
+            client,
+            url: url.into(),
             session_id: Mutex::new(None),
             auth_headers,
             timeout,
             max_response_bytes,
             response_tx: tx,
             response_rx: Mutex::new(rx),
-        })
+        }
     }
 }
 
@@ -286,7 +306,7 @@ fn parse_sse_data_events(body: &str) -> Vec<String> {
 // ─── tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::sync::Arc;
 
@@ -298,7 +318,9 @@ mod tests {
     use tokio::sync::Mutex as TokioMutex;
 
     /// Bind a random local port, serve `app`, and return the bound address.
-    async fn start_server(app: Router) -> std::net::SocketAddr {
+    /// The one listener the HTTP tests of this crate bind: the tests of a
+    /// server a request brings borrow it.
+    pub(crate) async fn start_server(app: Router) -> std::net::SocketAddr {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("TcpListener::bind must succeed in tests");

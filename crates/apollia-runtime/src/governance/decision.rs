@@ -16,8 +16,9 @@
 //!    allowed;
 //! 6. asked, with the three answers.
 //!
-//! A tool nobody classified skips line 5 and is asked without "always". An
-//! unattended run waits where an attended one would ask. Governance that
+//! A tool nobody classified skips line 5 and is asked without "always",
+//! unless a fine rule `allow` names it in developer mode, which lets it run.
+//! An unattended run waits where an attended one would ask. Governance that
 //! cannot read what it decides from refuses every sensitive call.
 //!
 //! A run may also hold a grant for one call only ([`once_grant`]): the answer
@@ -157,6 +158,14 @@ pub fn decide(state: &GovernanceState, call: &AccessCall<'_>, now: i64) -> Acces
         return ask(call, &NO_ALWAYS_ANSWERS);
     }
     let Some(consent_family) = family.consent_family() else {
+        // No family, so no consent can stand for the tool: in developer mode,
+        // a fine rule naming it is the one thing that lets it run unasked.
+        let allow = matching.iter().find(|r| r.action == RuleAction::Allow);
+        if let (true, Some(rule)) = (state.developer_mode, allow) {
+            return AccessDecision::Allowed {
+                reason: DecisionReason::Rule { rule_id: rule.id },
+            };
+        }
         return ask(call, &NO_ALWAYS_ANSWERS);
     };
     let standing = state

@@ -57,6 +57,25 @@ impl Supervisor {
         )
     }
 
+    /// What runs a request to the compatible server that brings an MCP server
+    /// of its own: the connections of the runtime, the agent executor, the
+    /// admission of the organisation policy and the model router. `None` when
+    /// one of them is missing.
+    pub(super) fn request_mcp<B: ExecutionBackend + Clone>(
+        &self,
+        core: &Core<B>,
+        inference: &Inference,
+        governance: &Governance,
+        executors: &Executors,
+    ) -> Option<crate::compat_server::RequestMcp> {
+        Some(crate::compat_server::RequestMcp::new(
+            core.mcp_handle.clone()?,
+            executors.request_runner.clone()?,
+            governance.connection.clone(),
+            inference.llm_router.clone()?,
+        ))
+    }
+
     /// The state every API route reads.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn app_state<B: ExecutionBackend + Clone>(

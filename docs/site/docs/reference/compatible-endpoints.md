@@ -425,6 +425,96 @@ Apollia or through the native API with
 run goes on; its result is read from the task (`GET /api/v1/tasks/{task_id}`)
 or the batch (`GET /api/v1/batches/{batch_id}`).
 
+## MCP servers a request brings
+
+A response or a message can bring an MCP server of its own, to try a tool with
+a model without adding the server as a connection. The compatible server reads
+the two public forms: the `mcp` tool of the Responses API and the
+`mcp_servers` of the Messages API.
+
+```toml
+[server]
+allow_request_mcp = false   # whether a request may bring an MCP server
+```
+
+The setting is off by default, and read at every request. While it is off, a
+request that brings a server answers `400`: "MCP servers brought by a request
+are turned off."
+
+```bash
+curl http://127.0.0.1:7772/v1/responses \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "acme/chat",
+    "input": "List the open tickets.",
+    "tools": [{
+      "type": "mcp",
+      "server_label": "tickets",
+      "server_url": "http://localhost:3000/mcp",
+      "authorization": "the-token-of-that-server"
+    }]
+  }'
+```
+
+| | `POST /v1/responses` | `POST /v1/messages` |
+|---|---|---|
+| Where the server is named | An entry of `tools` whose `type` is `mcp` | An entry of `mcp_servers` whose `type` is `url` |
+| Its address | `server_url` | `url` |
+| Its secret | `authorization`, sent as a bearer; `headers`, an object of strings | `authorization_token`, sent as a bearer |
+| The tools kept | `allowed_tools`, a list of names or `{"tool_names": [...]}` | `tool_configuration.allowed_tools`; `tool_configuration.enabled: false` leaves the server out |
+| Its label | `server_label`, read and never used as a name | `name`, read and never used as a name |
+
+With the setting on, such a request is not relayed to the engine of the model.
+Apollia connects to the server, offers its tools to the model, runs each tool
+the model calls and answers once the model has its final answer, in the format
+of the endpoint: the answer and the steps sit where an
+[agent called as a model](#responses-and-messages) puts them. What bounds it:
+
+- **A model only.** On an `apollia/...` model the request answers `400`: an
+  agent or a workflow works with the connections it was given in Apollia.
+- **HTTP only.** The server is reached over streamable HTTP, at an `http` or
+  `https` address. A request never starts a process: a `stdio` server, a
+  `command`, or an address of another scheme answers `400`. A `connector_id`
+  is not served.
+- **This machine or a public host.** The address is `localhost`, a loopback
+  address, or a public host. A server on the private network, a link-local
+  address or an internal domain answers `400`, and so does a redirect towards
+  one: a public server cannot send the connection to an internal address, and
+  a server on this machine cannot redirect at all.
+- **The organisation policy admits it.** Each server passes the admission a
+  connection passes when someone adds it. With `[connections] remote = "deny"`
+  in the policy, a server that is not on this machine answers `403` with the
+  reason of the policy, before anything is connected.
+- **The connection lasts as long as the call.** It is opened for the request
+  and removed when the answer ends, and when the client goes away before the
+  end. Nothing is written to the connections of Apollia.
+- **Its tools are unclassified.** Whatever the server declares about a tool,
+  Apollia treats it as sensitive, and nobody watches the call to approve it.
+  The first tool the model calls ends the call on `409 approval_pending`,
+  naming the tool in `access`, unless a rule set in the developer mode of
+  Apollia allows that tool. Nothing waits for a decision afterwards, since the
+  connection is gone: set the rule, then send the request again.
+- **No other tool.** The tool calls are run by Apollia, so the request cannot
+  bring function tools beside the server; it answers `400`.
+- **One server per host, four at most.** A server is named after the host of
+  its address, `request-mcp:<host>`, and its tools
+  `mcp:request-mcp:<host>/<tool>`: that is the name a rule and the journal
+  read. Two servers on one host in a request answer `400`.
+- **The local network needs a token**, as a call to an agent does, whatever
+  `require_auth` says.
+- **The sampling fields are not applied.** The run uses the settings the model
+  has in Apollia; `temperature`, `max_tokens` and the like are read and left
+  aside. Instructions (`instructions`, `system`) open the conversation.
+
+| Status | OpenAI `code` | Anthropic `type` | When |
+|---|---|---|---|
+| `400` | `invalid_request` | `invalid_request_error` | The setting is off, the model is an agent or a workflow, the server asks for a process, its address is not allowed, or the request brings other tools |
+| `401` | `invalid_api_key` | `authentication_error` | The call comes from the local network without a token in use |
+| `403` | `refused_by_policy` | `permission_error` | The organisation policy refuses the server |
+| `409` | `approval_pending` | `approval_pending` | The model called a tool no rule allows; `access` names it |
+| `502` | `mcp_server_unavailable` | `api_error` | The server did not answer the handshake |
+| `503` | `run_unavailable` | `api_error` | This runtime cannot run the request, the model is not one Apollia runs agents on yet, or another request is using a server on the same host |
+
 ## Endpoints
 
 The table lists every path the compatible server serves.
@@ -435,9 +525,9 @@ The table lists every path the compatible server serves.
 |---|---|---|
 | `GET` | `/v1/models` | OpenAI. The loaded models, as a list: `id` (registry identifier), `object`, `created`, `owned_by`, and `type`, `llm` or `embeddings`; then the agents and workflows available to other applications, `apollia/<id>`, of `type` `agent` or `workflow` |
 | `POST` | `/v1/chat/completions` | OpenAI. Relayed to the model's engine; on an `apollia/...` model, run by Apollia (agents and workflows above) |
-| `POST` | `/v1/responses` | OpenAI. Relayed to the model's engine; on an `apollia/...` model, run by Apollia |
+| `POST` | `/v1/responses` | OpenAI. Relayed to the model's engine; on an `apollia/...` model, or with an `mcp` tool, run by Apollia |
 | `POST` | `/v1/embeddings` | OpenAI. Relayed to the search-by-meaning model |
-| `POST` | `/v1/messages` | Anthropic. Relayed to the model's engine; on an `apollia/...` model, run by Apollia |
+| `POST` | `/v1/messages` | Anthropic. Relayed to the model's engine; on an `apollia/...` model, or with `mcp_servers`, run by Apollia |
 | `POST` | `/v1/messages/count_tokens` | Anthropic. Relayed to the model's engine (`llama-server` only) |
 
 Measured on `llama-server` at the release Apollia pins (`b10092`): the four
