@@ -2,12 +2,13 @@
   /**
    * InstalledModelsSection - the "On this computer" section of the AI screen:
    * the filter, the table of the models of the chosen category, and the
-   * footer with their count, their size and the models folder.
+   * footer with their count, their size and the models folder. A click on
+   * a row, or on its gear, opens the panel of that model.
    */
   import { locale, t } from "svelte-i18n";
-  import { ArrowUpToLine, Download, FolderOpen, Search, Upload } from "lucide-svelte";
+  import { ArrowUpToLine, Download, FolderOpen, Search, Settings, Upload } from "lucide-svelte";
   import type { InstalledModel } from "$lib/ipc/modelHub";
-  import { formatRelativeTime } from "$lib/utils";
+  import { cn, formatRelativeTime } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Tooltip } from "$lib/components/ui/tooltip";
@@ -39,7 +40,11 @@
     modelsDir: string | null;
     error: string | null;
     importing: boolean;
+    /** Identifier of the model whose panel is open, if any. */
+    openId: string | null;
     onselect: (model: InstalledModel, entry: MenuEntryId) => void;
+    /** Opens the panel of a model. */
+    onopen: (model: InstalledModel) => void;
     onimport: () => void;
     ondiscover: () => void;
     onrevealfolder: () => void;
@@ -55,7 +60,9 @@
     modelsDir,
     error,
     importing,
+    openId,
     onselect,
+    onopen,
     onimport,
     ondiscover,
     onrevealfolder,
@@ -65,6 +72,13 @@
   const lang = $derived($locale ?? "fr");
   const groups = $derived(groupModels(models, filter, query));
   const shown = $derived(groups.reduce((n, g) => n + g.models.length, 0));
+
+  /** A click on a row opens its panel, unless it landed on a control of the row. */
+  function openFromRow(event: MouseEvent, model: InstalledModel): void {
+    const target = event.target;
+    if (target instanceof Element && target.closest("button, a, [role='menu']")) return;
+    onopen(model);
+  }
 </script>
 
 <section class="flex min-h-0 flex-1 flex-col gap-3" data-testid="ai-installed-section">
@@ -156,7 +170,18 @@
             {/if}
             {#each group.models as model (model.path)}
               {@const params = parameterCount(model.parameters, lang)}
-              <tr class="border-t border-border hover:bg-muted/50" data-testid="ai-model-row" data-model-id={model.id}>
+              <!-- The gear of the row is the keyboard path to the same panel. -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <tr
+                class={cn(
+                  "cursor-pointer border-t border-border hover:bg-muted/50",
+                  openId === model.id && "bg-muted",
+                )}
+                aria-selected={openId === model.id}
+                onclick={(event) => openFromRow(event, model)}
+                data-testid="ai-model-row"
+                data-model-id={model.id}
+              >
                 <td class="px-3 py-2">
                   {#if model.parameters}
                     <ExplainedBadge
@@ -226,7 +251,18 @@
                   {model.modified_at ? formatRelativeTime(model.modified_at, lang) : ""}
                 </td>
                 <td class="px-3 py-2 text-right">
-                  <ModelActionsMenu {model} {platform} {onselect} />
+                  <div class="inline-flex items-center gap-0.5">
+                    <Tooltip
+                      content={$t("ai.panel.open")}
+                      onclick={() => onopen(model)}
+                      triggerLabel={$t("ai.panel.open_named", { values: { name: model.id } })}
+                      triggerTestid="ai-model-settings-btn"
+                      triggerClass="h-7 w-7 justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                    >
+                      <Settings size={15} strokeWidth={1.75} aria-hidden="true" />
+                    </Tooltip>
+                    <ModelActionsMenu {model} {platform} {onselect} />
+                  </div>
                 </td>
               </tr>
             {/each}

@@ -146,6 +146,9 @@ describe("the AI screen explains every icon and badge on hover", () => {
     expect(names).toContain("Ai.svelte");
     expect(names).toContain("CapabilityIcon.svelte");
     expect(names).toContain("InstalledModelsSection.svelte");
+    expect(names).toContain("ModelPanel.svelte");
+    expect(names).toContain("ModelInfoTab.svelte");
+    expect(names).toContain("ModelDevSections.svelte");
   });
 
   test.each(files.map((f) => [path.relative(SRC, f), f]))("%s carries no native title", (_name, file) => {

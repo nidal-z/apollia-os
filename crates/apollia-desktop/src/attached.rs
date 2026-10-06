@@ -402,6 +402,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Models: the pin of an installed model, written to the index of the
     // models folder, which the daemon shares since it listens on this machine.
     "set_installed_model_pinned",
+    // Models: the panel of an installed model. Its detail and its two
+    // overrides read and write that same index; its presets are runtime
+    // routes.
+    "get_installed_model_detail",
+    "set_installed_model_category_override",
+    "set_installed_model_source_override",
+    "create_model_preset",
+    "update_model_preset",
     // LLM engines: the list and the reload.
     "list_llm_backends",
     "reload_llm",
