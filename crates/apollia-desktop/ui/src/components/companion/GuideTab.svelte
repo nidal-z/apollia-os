@@ -1,8 +1,11 @@
 <script lang="ts">
   /**
-   * The Guide tab of the detail sidebar: the guide's chat session, opened on
-   * the context of the current screen. The session is created the first time
-   * the tab is shown.
+   * The Guide tab of the detail sidebar. From the top: where the user is and
+   * what the screen is for, the actions the guide offers from here, then the
+   * guide's conversation, whose answers carry their own action buttons. The
+   * session is created the first time the tab is shown with a model able to
+   * answer. With none, the documentation page of the screen takes the place
+   * of the conversation.
    */
   import { untrack } from "svelte";
   import { t } from "svelte-i18n";
@@ -11,11 +14,39 @@
     COMPANION_SESSION_TIMEOUT_MS,
   } from "$lib/stores/companion";
   import { detailSidebar, guideVisible } from "$lib/stores/detailSidebar";
+  import { chatTargets, refreshChatTargets } from "$lib/stores/chatTargets";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { guideContext, guideContextKey } from "$lib/stores/guideContext";
   import { navigateTo, type Route } from "$lib/stores/navigation";
+  import { guideModelState } from "$lib/apolliaGuide/guideModel";
+  import { guideScreenView } from "$lib/apolliaGuide/screenContexts";
   import { addToast } from "$lib/components/ui/toast";
   import ChatConversation from "../chat/ChatConversation.svelte";
   import CompanionSessionSkeleton from "./CompanionSessionSkeleton.svelte";
   import CompanionErrorState from "./CompanionErrorState.svelte";
+  import GuideDocumentation from "./GuideDocumentation.svelte";
+  import GuideScreenContext from "./GuideScreenContext.svelte";
+
+  const view = $derived(guideScreenView($guideContext, $t, $developerMode));
+  // The models are read again each time the tab is shown and each time the
+  // screen changes under it: a model installed or a server connected since
+  // the last read brings the conversation back. A read that could not be
+  // made leaves the conversation its chance: it says itself what fails.
+  let modelsAsked = $state(false);
+  const model = $derived.by(() => {
+    const state = guideModelState($chatTargets);
+    return state === "unknown" && modelsAsked ? "available" : state;
+  });
+
+  $effect(() => {
+    if (!$guideVisible) return;
+    void guideContextKey($guideContext);
+    untrack(() => {
+      void refreshChatTargets().then(() => {
+        modelsAsked = true;
+      });
+    });
+  });
 
   const sessionId = $derived($companionStore.sessionId);
   const route = $derived($companionStore.currentRoute);
@@ -47,7 +78,13 @@
   }
 
   $effect(() => {
-    if ($guideVisible && !sessionId && sessionStatus === "idle" && !sessionError) {
+    if (
+      $guideVisible &&
+      model === "available" &&
+      !sessionId &&
+      sessionStatus === "idle" &&
+      !sessionError
+    ) {
       untrack(() => void ensureSession());
     }
   });
@@ -82,26 +119,39 @@
   role="tabpanel"
   aria-label={$t("detailSidebar.tab_guide")}
   data-testid="companion-panel"
+  data-model={model}
 >
-  {#if sessionError}
-    <CompanionErrorState
-      error={sessionError}
-      onRetry={handleRetry}
-      onOpenSettings={handleOpenSettings}
-      onClose={handleErrorClose}
-    />
-  {:else if showSkeleton}
-    <CompanionSessionSkeleton status={sessionStatus} />
-  {:else if sessionId}
-    <ChatConversation
-      {sessionId}
-      onclose={() => detailSidebar.close()}
-      embedded={true}
-      hideConfig={true}
-    />
+  {#if view}
+    <div class="max-h-[55%] shrink-0 overflow-y-auto border-b border-border">
+      <GuideScreenContext {view} />
+    </div>
+  {/if}
+  {#if model === "none" && view}
+    <GuideDocumentation id={view.id} />
   {:else}
-    <div class="flex h-full items-center justify-center text-muted-foreground">
-      <span class="text-sm">{$t("companion.no_session")}</span>
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {#if sessionError}
+        <CompanionErrorState
+          error={sessionError}
+          onRetry={handleRetry}
+          onOpenSettings={handleOpenSettings}
+          onClose={handleErrorClose}
+        />
+      {:else if showSkeleton || model === "unknown"}
+        <CompanionSessionSkeleton status={sessionStatus} />
+      {:else if sessionId}
+        <ChatConversation
+          {sessionId}
+          onclose={() => detailSidebar.close()}
+          embedded={true}
+          hideConfig={true}
+          suggestions={view ? [view.question] : undefined}
+        />
+      {:else}
+        <div class="flex h-full items-center justify-center text-muted-foreground">
+          <span class="text-sm">{$t("companion.no_session")}</span>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>

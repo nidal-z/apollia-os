@@ -41,9 +41,22 @@ static LOCALE: AtomicU8 = AtomicU8::new(0);
 /// Accepts BCP 47 tags (`en`, `en-US`, `fr-FR`); anything that is not
 /// English resolves to French, mirroring the two-catalogue frontend.
 pub fn set_locale(tag: &str) {
-    let base = tag.split(['-', '_']).next().unwrap_or("");
-    let value = u8::from(base.eq_ignore_ascii_case("en"));
+    let value = u8::from(UiLocale::from_tag(tag) == UiLocale::En);
     LOCALE.store(value, Ordering::Relaxed);
+}
+
+impl UiLocale {
+    /// The interface locale a BCP 47 tag names (`en`, `en-US`, `fr-FR`).
+    /// Anything that is not English is French, as in the two catalogues of
+    /// the frontend.
+    pub fn from_tag(tag: &str) -> Self {
+        let base = tag.split(['-', '_']).next().unwrap_or("");
+        if base.eq_ignore_ascii_case("en") {
+            Self::En
+        } else {
+            Self::Fr
+        }
+    }
 }
 
 /// The interface locale last transmitted by the frontend.

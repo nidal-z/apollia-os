@@ -23,7 +23,7 @@ sidebar_position: 4
 
    ![The Home screen, with the help icon of the top bar](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
 
-2. The **detail sidebar** opens on the right of the screen, on its **Guide** tab. A dedicated chat session starts, and a short spinner shows while it is created (1 to 2 seconds).
+2. The **detail sidebar** opens on the right of the screen, on its **Guide** tab. At the top, the guide says which screen you are on and what it is for, and offers actions; each one opens the screen it names. Below, a dedicated chat session starts, and a short spinner shows while it is created (1 to 2 seconds).
 
 3. Ask a quick question. The guide answers in the column while the screen stays usable on its left.
 
@@ -49,6 +49,7 @@ The help icon also works during the first launch: the top bar and the detail sid
 ## If it does not work
 
 - **The guide does not answer / no reply arrives**: check the **Apollia state dot** in the top bar. If it is amber, configure an LLM provider in **Settings → LLM models**.
+- **The tab shows a documentation page instead of the conversation**: no model can answer yet. The page is the one of the current screen, read without a network, and **Open in the browser** leaves for the same page of the public site. Install a model or connect a server in **AI**, and the conversation comes back.
 - **The Guide tab opens then shows an error**: the session could not start. Click **Retry** in the tab, or collapse it and open it again.
 
 > **Concept:** [Apollia explanation](/explanation)

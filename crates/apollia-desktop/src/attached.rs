@@ -34,10 +34,8 @@ pub(crate) use proxy::segment;
 /// shares since it listens on this machine. [`run`] manages the download
 /// manager it holds. `list_model_cards` needs none either: it reads the model
 /// registry, the data directory and its `apollia.toml`, never the runtime.
-/// `get_companion_context` needs none: it answers from a table of help texts
-/// compiled into this binary. `get_resolved_setting` and `set_setting` need
-/// none: they read and write the `apollia.toml` of the data directory, never
-/// the runtime (`set_setting` then shows its write to the runtime, in either
+/// `get_resolved_setting` and `set_setting` need none: they read and write the
+/// `apollia.toml` of the data directory, never the runtime (`set_setting` then shows its write to the runtime, in either
 /// mode, for the journal), and neither does `get_models_dir`.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
@@ -316,10 +314,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_import_namespace",
     "purge_memory",
     // The companion: its preference and its guide session, over
-    // `/api/v1/companion/...`. Its per-route help text is a table compiled
-    // into the window and needs no route.
+    // `/api/v1/companion/...`.
     "create_companion_session",
-    "get_companion_context",
     "get_companion_enabled",
     "set_companion_enabled",
     // The transcription history, over `/api/v1/stt/transcriptions`, and the
@@ -468,6 +464,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
 /// reason it needs no route. `scripts/check_attached_coverage.py` reads the
 /// reasons and refuses an entry without one.
 pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
+    (
+        "get_documentation_page",
+        "reads a page of the documentation archive compiled into this application",
+    ),
     (
         "get_system_info",
         "describes this application, its version, and the machine that carries the window",

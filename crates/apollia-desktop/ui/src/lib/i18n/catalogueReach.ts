@@ -100,6 +100,12 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   },
   {
     pattern: new RegExp(
+      `^guide\\.context\\.${SEG}(\\.${SEG})?\\.(name|text|question|action\\.(label|result)|secondary\\.(first|second))$`,
+    ),
+    builtBy: "lib/apolliaGuide/screenContexts.ts",
+  },
+  {
+    pattern: new RegExp(
       `^companion\\.error\\.${SEG}\\.(cause_1|cause_2|cause_3|message|title)$`,
     ),
     builtBy: "components/companion/CompanionErrorState.svelte",

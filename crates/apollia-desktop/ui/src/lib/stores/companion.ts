@@ -9,7 +9,9 @@
  * UserMemory so it survives application reinstalls.
  */
 import { get, writable } from "svelte/store";
+import { t } from "svelte-i18n";
 import { invoke } from "@tauri-apps/api/core";
+import { guideContextPrompt } from "$lib/apolliaGuide/screenContexts";
 import { detailSidebar, guideVisible } from "$lib/stores/detailSidebar";
 import {
   guidePromptDetails,
@@ -212,18 +214,16 @@ function createCompanionStore() {
     },
 
     /**
-     * Gives the guide the context of the screen: the route's text, followed
-     * by the declared sub-screen and the object it shows. The text is looked
-     * up by route; the sub-screen and the object reach the guide through the
-     * lines `guidePromptDetails` appends.
+     * Gives the guide the context of the screen: the text of the interface
+     * catalogue for that screen or declared sub-screen, in the language of
+     * the interface, with the action the guide may offer, followed by the
+     * declared sub-screen and the object it shows.
      */
     async updateContext(context: GuideContext): Promise<void> {
       try {
-        const routeText = await invoke<string>("get_companion_context", {
-          route: context.route,
-        });
+        const screenText = guideContextPrompt(context, get(t));
         const details = guidePromptDetails(context);
-        const text = details ? `${routeText}\n\n${details}` : routeText;
+        const text = [screenText, details].filter((part) => part !== "").join("\n\n");
         let currentSessionId: string | null = null;
         update((s) => {
           currentSessionId = s.sessionId;

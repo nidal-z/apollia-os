@@ -27,7 +27,8 @@
   import { Sparkles, RotateCw } from "lucide-svelte";
   import { invokeNextStepCommand } from "$lib/ipc/nextSteps";
   import NextStepCard from "./NextStepCard.svelte";
-  import { navigateTo, type Route } from "$lib/stores/navigation";
+  import { navigateTo } from "$lib/stores/navigation";
+  import { allowedGuideRoute } from "$lib/apolliaGuide/actionButtons";
   import {
     nextSteps,
     type NextStep,
@@ -50,23 +51,6 @@
   let { scopeKey, context, facts, title }: Props = $props();
 
   const visible = $derived(nextSteps.visible(scopeKey));
-
-  // ── Allowlists (mirror backend, last line of defence) ────────────────
-
-  const ROUTE_ALLOWLIST: Record<string, { route: Route }> = {
-    "/agents": { route: "agents" },
-    "/chat": { route: "chat" },
-    "/automations": { route: "automations" },
-    "/automations?wizard=open": { route: "automations" },
-    "/integrations": { route: "integrations" },
-    "/inbox": { route: "inbox" },
-    "/llm": { route: "llm" },
-    "/triggers": { route: "automations" },
-    "/memory": { route: "memory" },
-    "/memory?new": { route: "memory" },
-    "/observability": { route: "observability" },
-    "/settings": { route: "settings" },
-  };
 
   // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -96,9 +80,9 @@
     const btn = step.actionButton;
     if (btn.action === "navigate") {
       const route = btn.payload?.route as string | undefined;
-      const hit = route ? ROUTE_ALLOWLIST[route] : undefined;
-      if (hit) {
-        navigateTo(hit.route);
+      const target = route ? allowedGuideRoute(route) : null;
+      if (target) {
+        navigateTo(target);
       } else {
         console.warn("next-steps: dropped non-allowlisted route", route);
       }

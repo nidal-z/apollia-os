@@ -92,13 +92,12 @@ async fn test_a_refusal_of_the_daemon_reaches_the_panel_as_its_own_words() {
 }
 
 #[test]
-fn test_the_four_companion_commands_pass_the_gate_attached() {
+fn test_the_three_companion_commands_pass_the_gate_attached() {
     // GIVEN the application attached to a daemon
     // WHEN each command of the companion is gated
     // THEN none is refused, and none is a window exception
     for command in [
         "create_companion_session",
-        "get_companion_context",
         "get_companion_enabled",
         "set_companion_enabled",
     ] {

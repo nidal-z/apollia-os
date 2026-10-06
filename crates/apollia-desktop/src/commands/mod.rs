@@ -24,6 +24,7 @@ pub mod chat;
 pub mod cli;
 pub mod config;
 pub mod connections;
+pub mod documentation;
 pub mod embeddings;
 pub mod example_dataset;
 pub mod hardware_window;

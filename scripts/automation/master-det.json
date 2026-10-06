@@ -12667,6 +12667,16 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "guide-context",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "guide-action",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
       "label": "04-guide-tab"
     },
