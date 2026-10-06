@@ -511,10 +511,7 @@ mod tests {
     //      do not contend for a single pipe
     #[test]
     fn test_pipe_name_carries_the_account() {
-        assert_eq!(
-            pipe_name_for(Some("nidal")),
-            r"\\.\pipe\apollia-runtime-nidal"
-        );
+        assert_eq!(pipe_name_for(Some("ada")), r"\\.\pipe\apollia-runtime-ada");
     }
 
     // GIVEN an account name holding characters a pipe name cannot carry

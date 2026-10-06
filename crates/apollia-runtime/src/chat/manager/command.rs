@@ -107,6 +107,24 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Replace the settings of a conversation.
+    SetSessionSettings {
+        /// Target session.
+        session_id: SessionId,
+        /// The settings that take the place of the stored ones.
+        settings: SessionSettings,
+        /// Response channel: the settings as stored.
+        reply: oneshot::Sender<Result<SessionSettings, ChatError>>,
+    },
+    /// Replace the notes of a conversation.
+    SetSessionNotes {
+        /// Target session.
+        session_id: SessionId,
+        /// The notes that take the place of the stored ones.
+        notes: String,
+        /// Response channel: the notes as stored.
+        reply: oneshot::Sender<Result<String, ChatError>>,
+    },
     /// Empty the profile of every session designating `profile_id`, the
     /// profile having been deleted.
     ReleaseProfile {
@@ -254,6 +272,17 @@ pub enum ChatCommand {
         message_id: MessageId,
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// One action on a message beside playing a turn again: read whether the
+    /// last answer can be continued, continue it, remove a message, rewrite
+    /// an answer in place.
+    Answer {
+        /// Target session.
+        session_id: SessionId,
+        /// What to do.
+        action: super::answers::AnswerAction,
+        /// Response channel.
+        reply: oneshot::Sender<Result<super::answers::AnswerOutcome, ChatError>>,
     },
     /// Replace a user message and re-run from it (truncate-in-place).
     EditAndResend {

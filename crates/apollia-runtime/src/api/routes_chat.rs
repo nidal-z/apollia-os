@@ -13,6 +13,10 @@
 //! - `GET    /api/v1/sessions/:id/workspace`  , the working directory
 //! - `POST   /api/v1/sessions/:id/messages/:message_id/regenerate`, run a turn again
 //! - `POST   /api/v1/sessions/:id/messages/:message_id/resend`, edit and resend
+//! - `GET    /api/v1/sessions/:id/continuation`, whether the last answer continues
+//! - `POST   /api/v1/sessions/:id/messages/:message_id/continue`, continue it
+//! - `PUT    /api/v1/sessions/:id/messages/:message_id`, rewrite an answer
+//! - `DELETE /api/v1/sessions/:id/messages/:message_id`, remove a message
 //! - `GET    /api/v1/sessions/approval-history`, decisions on chat tool calls
 //!
 //! The plan mode of a session lives in [`plan`].
@@ -35,6 +39,7 @@ use crate::api::server::AppState;
 use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
 
+pub mod answers;
 pub mod approval_history;
 pub mod conversations;
 pub mod folders;
@@ -42,6 +47,7 @@ pub mod pause;
 pub mod plan;
 pub mod session_reads;
 mod session_route;
+pub mod settings;
 mod sse;
 pub mod trash;
 pub mod turns;
@@ -56,7 +62,9 @@ pub struct CreateSessionRequest {
     pub mode: String,
     /// Agent name (required when `mode == "agent"`).
     pub agent_name: Option<String>,
-    /// Custom system prompt.
+    /// Instructions of the conversation, added to the mission of its agent and
+    /// never in its place: 4000 characters at most. Read back as
+    /// `settings.instructions`.
     pub system_prompt: Option<String>,
     /// List of tool names available in this session.
     #[serde(default)]
@@ -744,11 +752,18 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
         ChatError::FolderNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
         ChatError::InvalidFolderName(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::MessageNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        ChatError::MessageRefused(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::ContinuationRefused(_) => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
         ChatError::NotAwaitingApproval { .. } => (StatusCode::CONFLICT, err.to_string()),
         ChatError::CostCeilingExceeded { .. } => (StatusCode::PAYMENT_REQUIRED, err.to_string()),
         ChatError::ImagesNotSupported { .. } => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
         ChatError::ImageRejected(_) => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::DocumentRejected(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::InvalidSettings(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::ContextLimitReached { .. } => {
+            (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
+        }
     };
     (status, Json(ErrorResponse { error: msg }))
 }

@@ -25,7 +25,7 @@ use futures::{Stream, StreamExt};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use super::{LoadConsent, LocalEngine, LocalEngineError};
+use super::{Engine, LoadConsent, LocalEngine, LocalEngineError};
 use crate::llama_server::ModelLease;
 
 /// The error a call reports when the engine could not serve the model.
@@ -195,6 +195,15 @@ impl<E: LocalEngine> CompletionModel for LocalModelBackend<E> {
     /// it.
     fn carries_seed(&self) -> bool {
         true
+    }
+
+    /// Return `true` for `llama-server` alone: with its chat template applied,
+    /// it prefills the answer from a trailing assistant message and returns
+    /// that text followed by its continuation (measured on llama-server 10092,
+    /// 2026-10-06, streamed or not, with tools and with reasoning on).
+    /// `vllm-mlx` was not measured, so it is not asked.
+    fn continues_answer(&self) -> bool {
+        self.supervisor.engine() == Engine::LlamaServer
     }
 
     fn backend_name(&self) -> &str {

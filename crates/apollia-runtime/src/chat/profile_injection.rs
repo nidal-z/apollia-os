@@ -70,7 +70,6 @@ pub(crate) fn test_session(
         id: "sess-profile".into(),
         mode,
         agent_name: None,
-        system_prompt: String::new(),
         status: super::types::SessionStatus::Active,
         history: vec![],
         authorized_tools: std::collections::HashSet::new(),
@@ -85,6 +84,8 @@ pub(crate) fn test_session(
         plan_phase: super::types::PlanPhase::Done,
         profile_id: profile_id.map(str::to_owned),
         use_profile,
+        settings: crate::chat::SessionSettings::default(),
+        notes: String::new(),
     }
 }
 

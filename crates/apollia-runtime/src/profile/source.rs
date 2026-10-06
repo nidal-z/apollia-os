@@ -56,6 +56,23 @@ pub fn profile_source_checked(data_dir: &Path, agent_id: &str) -> bool {
     }
 }
 
+/// Whether `agent_id` may read the user profile in the conversation
+/// `session_id`: what the conversation chose for itself when it chose, the
+/// profile source of the agent otherwise ([`profile_source_checked`]). A
+/// conversation this runtime does not hold changes nothing.
+///
+/// This opens or closes the reading the agent does through its profile
+/// interface. It never places the profile in the prompt of an agent.
+pub fn profile_source_checked_in_conversation(
+    data_dir: &Path,
+    agent_id: &str,
+    session_id: &str,
+) -> bool {
+    let source = profile_source_checked(data_dir, agent_id);
+    crate::chat::session_settings::stored_settings(data_dir, session_id)
+        .map_or(source, |settings| settings.profile_readable(source))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

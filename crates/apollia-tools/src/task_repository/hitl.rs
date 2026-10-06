@@ -10,8 +10,7 @@ use apollia_core::{truncate_with_marker, AIPTask, InputResponseData, Observabili
 use rusqlite::params;
 
 use crate::task_repository::{
-    open_conn, ApprovalInfo, PauseRecord, PausedTaskRow, ResolvedApprovalRow, TaskRepoError,
-    TaskRepository,
+    open_conn, ApprovalInfo, PauseRecord, PausedTaskRow, TaskRepoError, TaskRepository,
 };
 
 impl TaskRepository {
@@ -529,63 +528,6 @@ impl TaskRepository {
                     }))
                 }
             }
-        })
-        .await
-        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
-    }
-    /// Lists resolved approvals (approved or rejected) from the last `days` days.
-    ///
-    /// Returns at most `limit` rows sorted by `responded_at` descending. Reads
-    /// the `task_approvals` table joined to `tasks` to fetch the `agent_name`.
-    ///
-    /// # Errors
-    ///
-    /// - [`TaskRepoError::Sqlite`] on a SQLite error
-    /// - [`TaskRepoError::Internal`] if the `spawn_blocking` fails
-    pub async fn list_resolved_approvals(
-        &self,
-        limit: u32,
-        days: u32,
-    ) -> Result<Vec<ResolvedApprovalRow>, TaskRepoError> {
-        let path = self.db_path.clone();
-
-        tokio::task::spawn_blocking(move || -> Result<Vec<ResolvedApprovalRow>, TaskRepoError> {
-            let conn = open_conn(&path)?;
-
-            let mut stmt = conn.prepare(
-                "SELECT ta.task_id, \
-                        COALESCE(t.agent_name, ''), \
-                        ta.approved, \
-                        ta.reason, \
-                        ta.suspended_at, \
-                        ta.responded_at, \
-                        ta.wait_duration_ms \
-                 FROM task_approvals ta \
-                 LEFT JOIN tasks t ON ta.task_id = t.task_id \
-                 WHERE ta.approved IS NOT NULL \
-                   AND ta.responded_at IS NOT NULL \
-                   AND ta.responded_at >= datetime('now', ?1) \
-                 ORDER BY ta.responded_at DESC \
-                 LIMIT ?2",
-            )?;
-
-            let days_param = format!("-{days} days");
-            let rows = stmt
-                .query_map(params![&days_param, limit], |row| {
-                    let approved_int: i32 = row.get(2)?;
-                    Ok(ResolvedApprovalRow {
-                        task_id: row.get(0)?,
-                        agent_name: row.get(1)?,
-                        approved: approved_int != 0,
-                        reason: row.get(3)?,
-                        suspended_at: row.get(4)?,
-                        responded_at: row.get(5)?,
-                        wait_duration_ms: row.get(6)?,
-                    })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-
-            Ok(rows)
         })
         .await
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?

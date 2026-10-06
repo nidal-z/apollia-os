@@ -118,6 +118,7 @@ TYPED_PLACEHOLDERS = {
     "<PROVIDER>": "openai",  # llm backends create --provider <PROVIDER>
     "<p>": "openai",  # the same flag, as the first-agent tutorial spells it
     "<FORMAT>": "json",  # batch export --format <FORMAT>
+    "<ANSWER>": "refuse",  # approvals decide <ID> <ANSWER>
 }
 
 # The Python SDK installs its own `apollia` console script

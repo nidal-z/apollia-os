@@ -3,6 +3,7 @@
   import { Avatar } from "$lib/components/ui/avatar";
   import type { MessageGroup } from "$lib/chat/groupMessages";
   import ChatMessageBubble from "./ChatMessageBubble.svelte";
+  import { isEdited } from "$lib/chat/answerActions";
 
   interface Props {
     group: MessageGroup;
@@ -56,6 +57,15 @@
       <Avatar name={displayName} size="xs" ring={false} />
       <span class="text-body-sm font-semibold text-foreground">{displayName}</span>
       <span class="text-caption-lg tabular-nums text-muted-foreground/50">{headerTime}</span>
+      {#if group.messages.some(isEdited)}
+        <span
+          class="rounded-full bg-surface-2 px-2 text-caption text-muted-foreground"
+          title={$t("chat.edited_hint")}
+          data-testid="chat-message-edited-{group.key}"
+        >
+          {$t("chat.edited_mark")}
+        </span>
+      {/if}
     </div>
   {/if}
 

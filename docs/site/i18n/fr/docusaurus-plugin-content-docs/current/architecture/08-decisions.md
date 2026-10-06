@@ -203,6 +203,17 @@ demandé, et reprend sur la réponse. La suspension est un état de premier rang
 pas une attente bloquante : le processus est libre, et une exécution peut rester
 en attente au travers d'un redémarrage.
 
+Un workflow pose une question à l'utilisateur depuis une étape, par
+`ctx.user.ask` : une question, les choix qu'elle propose quand elle en a, et une
+réponse libre que l'utilisateur peut toujours donner à la place. La question est
+listée avec les autres décisions qui attendent l'utilisateur, avec l'exécution,
+le workflow et l'étape dont elle vient, et la réponse réveille l'étape là où
+elle s'est arrêtée. Cette attente n'est pas un état suspendu : un workflow
+s'exécute en mémoire et ne reprend pas, donc une exécution qui attend une
+réponse quand le runtime s'arrête est mise en échec au démarrage suivant, avec
+cette raison, comme toute exécution interrompue. Une question refusée arrive à
+l'étape sous la forme de `QuestionDeclined`, que l'auteur peut intercepter.
+
 ## Mémoire {#memory-model}
 
 La mémoire a trois couches : les événements épisodiques avec un score
@@ -619,6 +630,12 @@ fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
 `rust_xlsxwriter` ne sait pas modifier un classeur existant. Écrire les
 résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
 tableurs (voir [Documents et sources](#documents-and-sources)).
+
+L'application de bureau écrit un classeur de plus avec lui : le jeu de
+démonstration sur lequel un agent d'exemple s'essaie, construit depuis un
+tableau que l'application porte quand l'utilisateur en demande une copie.
+Aucune crate n'entre pour cela dans le fichier de verrouillage,
+`rust_xlsxwriter` devenant une dépendance directe du bureau.
 
 ## Messagerie entre agents {#agent-messaging}
 

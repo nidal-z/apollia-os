@@ -21,7 +21,9 @@ class CreateSessionRequest:
         model (None | str | Unset): The model of the session: the identifier of a language model of the
             model index, `<server>/<model>` for a model of a declared server, or
             the name of a backend. Absent keeps the model of the agent.
-        system_prompt (None | str | Unset): Custom system prompt.
+        system_prompt (None | str | Unset): Instructions of the conversation, added to the mission of its agent and
+            never in its place: 4000 characters at most. Read back as
+            `settings.instructions`.
         tools (list[str] | Unset): List of tool names available in this session.
     """
 

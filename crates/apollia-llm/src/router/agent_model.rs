@@ -22,7 +22,7 @@ use serde::Serialize;
 use apollia_core::manifest::PackageRequestSettings;
 use apollia_core::model_preset::RequestSettings;
 
-use crate::request_defaults::{self, RequestDefaults};
+use crate::request_defaults::{self, RequestDefaults, RequestLevels};
 use crate::router::LlmRouter;
 use crate::types::{CompletionModel, LlmError};
 
@@ -282,6 +282,7 @@ pub struct AgentModelBinding {
     declared: Option<String>,
     system_db: Option<PathBuf>,
     package_request: Option<PackageRequestSettings>,
+    session_preset: Option<i64>,
 }
 
 impl AgentModelBinding {
@@ -297,7 +298,18 @@ impl AgentModelBinding {
             declared,
             system_db,
             package_request: None,
+            session_preset: None,
         }
+    }
+
+    /// The preset chosen for the conversation the calls belong to. It takes
+    /// the place of the agent's preset at the preset level of
+    /// [`Self::request_levels`], when it is a preset of the model the call
+    /// runs on.
+    #[must_use]
+    pub fn with_session_preset(mut self, preset: Option<i64>) -> Self {
+        self.session_preset = preset;
+        self
     }
 
     // TEST-ONLY: the runners of the Python agent path read the package level
@@ -316,6 +328,11 @@ impl AgentModelBinding {
     /// preset of the user's assignment. The preset counts only when the call
     /// runs on the assigned model: a preset belongs to one model.
     pub fn request_defaults(&self, router: &LlmRouter, backend: Option<&str>) -> RequestDefaults {
+        self.request_levels(router, backend).resolved()
+    }
+
+    /// The three levels [`Self::request_defaults`] resolves, kept apart.
+    pub fn request_levels(&self, router: &LlmRouter, backend: Option<&str>) -> RequestLevels {
         let models_dir = self
             .system_db
             .as_deref()
@@ -339,10 +356,18 @@ impl AgentModelBinding {
         let preset = self
             .system_db
             .as_deref()
-            .and_then(|path| read_preset(path, &self.agent, backend))
+            .and_then(|path| {
+                self.session_preset
+                    .and_then(|id| read_session_preset(path, id, backend))
+                    .or_else(|| read_preset(path, &self.agent, backend))
+            })
             .map(|settings| RequestDefaults::from_preset(&settings))
             .unwrap_or_default();
-        RequestDefaults::resolve(&model, &package, &preset)
+        RequestLevels {
+            model,
+            package,
+            preset,
+        }
     }
 
     /// The agent's name.
@@ -402,6 +427,30 @@ fn read_preset(path: &Path, agent: &str, used: Option<&str>) -> Option<RequestSe
                 error = %error,
                 detail = "the call runs without the agent's preset",
                 "llm.agent_model.preset_unreadable"
+            );
+            None
+        }
+    }
+}
+
+/// The request settings of the preset `id`, chosen for a conversation, when
+/// it is a preset of the model `used`. `None` otherwise: a preset belongs to
+/// one model, and the agent's own preset then stays in force.
+fn read_session_preset(path: &Path, id: i64, used: Option<&str>) -> Option<RequestSettings> {
+    if !path.exists() {
+        return None;
+    }
+    let read = apollia_core::LlmBackendRepository::open(path).and_then(|repo| repo.find_preset(id));
+    match read {
+        Ok(Some(preset)) if used == Some(preset.model_id.as_str()) => Some(preset.request),
+        Ok(_) => None,
+        Err(error) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                preset = id,
+                error = %error,
+                detail = "the call runs without the preset of the conversation",
+                "llm.agent_model.session_preset_unreadable"
             );
             None
         }

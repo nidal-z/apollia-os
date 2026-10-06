@@ -72,6 +72,44 @@ export function editAndResendChatMessage(
   });
 }
 
+/** Whether the last answer of a conversation can be continued, and why not. */
+export interface ChatContinuation {
+  available: boolean;
+  reason: "engine" | "agent" | "no_model" | null;
+}
+
+/**
+ * Branch off into a new conversation holding the messages up to and including
+ * `messageId`; resolves with the id of the new conversation.
+ */
+export function forkChatSession(sessionId: string, messageId: string): Promise<string> {
+  return invoke<string>("fork_chat_session", { sessionId, messageId });
+}
+
+/** Whether the model of the conversation continues its last answer. */
+export function getChatContinuation(sessionId: string): Promise<ChatContinuation> {
+  return invoke<ChatContinuation>("get_chat_continuation", { sessionId });
+}
+
+/** Continue `messageId`, the last answer; the rest streams as an answer does. */
+export function continueChatResponse(sessionId: string, messageId: string): Promise<void> {
+  return invoke<void>("continue_chat_response", { sessionId, messageId });
+}
+
+/** Replace the text of an answer in place; no turn is played again. */
+export function editChatResponse(
+  sessionId: string,
+  messageId: string,
+  content: string,
+): Promise<void> {
+  return invoke<void>("edit_chat_response", { sessionId, messageId, content });
+}
+
+/** Remove a message and, for an answer, the steps of its turn. */
+export function deleteChatMessage(sessionId: string, messageId: string): Promise<void> {
+  return invoke<void>("delete_chat_message", { sessionId, messageId });
+}
+
 /** Write an exported conversation to `destPath` with the given MIME type. */
 export function exportConversation(
   destPath: string,

@@ -21,7 +21,9 @@ pub use manage::{
     ProfileDetailView, ProfileFieldView, ProfileSummaryView, ProfileUpdate, DEFAULT_PROFILE_ALIAS,
 };
 pub use resolve::{profile_for_agent, profile_for_execution};
-pub use source::{profile_source_checked, profile_source_checked_in};
+pub use source::{
+    profile_source_checked, profile_source_checked_in, profile_source_checked_in_conversation,
+};
 
 /// The profile repository as the runtime already shares it, borrowed for one
 /// operation. The lock is the one `user_memory.db` was opened behind at

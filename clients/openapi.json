@@ -1322,65 +1322,6 @@
         }
       }
     },
-    "/api/v1/approvals/resolved": {
-      "get": {
-        "tags": [
-          "governance"
-        ],
-        "summary": "Handler for `GET /api/v1/approvals/resolved`.",
-        "description": "Returns the last `limit` resolved approvals (approved or rejected)\nwithin the last `days` days.",
-        "operationId": "list_resolved_approvals",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Maximum number of resolved approvals to return (default 20)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          },
-          {
-            "name": "days",
-            "in": "query",
-            "description": "Look-back window in days (default 7)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Recently resolved approvals",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResolvedApprovalResponse"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/artifacts": {
       "post": {
         "tags": [
@@ -13838,6 +13779,58 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/continuation": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/continuation`: whether the last\nanswer can be continued on the model the next turn runs on, and why not.",
+        "operationId": "get_continuation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether the last answer can be continued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Continuation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/erase": {
       "post": {
         "tags": [
@@ -14065,6 +14058,244 @@
           },
           "422": {
             "description": "The model of the session does not read images",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/messages/{message_id}": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/messages/{message_id}`: replace the\ntext of an answer, marked edited. No turn is played again.",
+        "operationId": "edit_answer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Answer to rewrite",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Answer rewritten"
+          },
+          "400": {
+            "description": "A user message, or an empty text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or message not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `DELETE /api/v1/sessions/{id}/messages/{message_id}`: remove a\nmessage and, for an answer, the tool messages of its turn.",
+        "operationId": "delete_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message to remove",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Messages removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedMessages"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or message not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/messages/{message_id}/continue": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/messages/{message_id}/continue`.",
+        "description": "`message_id` is the last answer of the session. Its turn runs again with\nthe answer as the prefill, and the answer that lands replaces it under the\nsame id.",
+        "operationId": "continue_answer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "The last answer of the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Answer being continued"
+          },
+          "400": {
+            "description": "Not the last answer, or an empty one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session or message not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The model does not continue an answer",
             "content": {
               "application/json": {
                 "schema": {
@@ -18235,6 +18466,270 @@
           {}
         ]
       }
+    },
+    "/api/v1/sessions/{id}/notes": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/notes`.",
+        "operationId": "get_session_notes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The notes of the conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionNotes"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/notes`.",
+        "operationId": "put_session_notes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionNotes"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The notes as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionNotes"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown field, or notes too long",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/settings": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/settings`.",
+        "operationId": "get_session_settings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The settings of the conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSettings"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/settings`.",
+        "operationId": "put_session_settings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The settings as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown field, or a value that cannot be applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -20770,6 +21265,48 @@
           }
         }
       },
+      "ContextOverflowSetting": {
+        "type": "string",
+        "description": "What a conversation does when it reaches the context limit of its model.",
+        "enum": [
+          "summarize_middle",
+          "sliding_window",
+          "stop_at_limit"
+          ]
+        },
+      "Continuation": {
+        "type": "object",
+        "description": "Whether the last answer of a conversation can be continued.",
+        "required": [
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "`true` when the model of the conversation continues an answer."
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContinuationRefusal",
+                "description": "Why not, when it does not."
+              }
+            ]
+          }
+        }
+      },
+      "ContinuationRefusal": {
+        "type": "string",
+        "description": "Why the last answer of a conversation cannot be continued.",
+        "enum": [
+          "engine",
+          "agent",
+          "no_model"
+        ]
+      },
       "ConversationStatsView": {
         "type": "object",
         "description": "Statistics of one chat conversation.",
@@ -21159,7 +21696,7 @@
               "string",
               "null"
             ],
-            "description": "Custom system prompt."
+            "description": "Instructions of the conversation, added to the mission of its agent and\nnever in its place: 4000 characters at most. Read back as\n`settings.instructions`."
           },
           "tools": {
             "type": "array",
@@ -21427,7 +21964,7 @@
               "object",
               "null"
             ],
-            "description": "The answer to the typed question of a paused task: a proposition id,\nfree text when it allows it, or a value."
+            "description": "The answer to the typed question of a paused task: a proposition id,\nfree text when it allows it, or a value. For the question of a\nworkflow: the chosen choice or free text, when `answers` is not given."
           }
         }
       },
@@ -21438,12 +21975,19 @@
           "id",
           "answer",
           "resumed",
+          "batchItemsResumed",
           "message"
         ],
         "properties": {
           "answer": {
             "$ref": "#/components/schemas/PendingAnswer",
             "description": "The answer applied."
+          },
+          "batchItemsResumed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many other batch items, waiting on an access this answer now\ncovers, ran again besides the item answered.",
+            "minimum": 0
           },
           "id": {
             "type": "string",
@@ -21651,6 +22195,21 @@
           }
         }
       },
+      "DeletedMessages": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/sessions/{id}/messages/{message_id}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Messages removed: the one named and, for an answer, the tool messages\nof its turn.",
+            "minimum": 0
+          }
+        }
+      },
       "DeletedProfile": {
         "type": "object",
         "description": "Answer of `DELETE /api/v1/profiles/{id}`.",
@@ -21853,6 +22412,19 @@
               "null"
             ],
             "description": "The path the user chose, absent when the default applies. An empty\npath means the root of My Drive."
+          }
+        }
+      },
+      "EditAnswerRequest": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/sessions/{id}/messages/{message_id}`.",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The new text of the answer."
           }
         }
       },
@@ -25702,6 +26274,20 @@
             ],
             "description": "When it was asked, RFC 3339, when known."
           },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The whole command or source, when the consent is about running code."
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The full arguments of the call a consent is about, as the chat card\nshows them behind \"see more\"."
+          },
           "family": {
             "type": [
               "string",
@@ -25731,6 +26317,13 @@
           "summary": {
             "type": "string",
             "description": "What is asked, in a sentence."
+          },
+          "workingDir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The folder that code runs in."
           }
         }
       },
@@ -25809,7 +26402,14 @@
               "string",
               "null"
             ],
-            "description": "The `ask_user` request of a question."
+            "description": "The `ask_user` request of a question, or the request of a workflow's."
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The workflow run that asked a question."
           },
           "sessionId": {
             "type": [
@@ -25817,6 +26417,13 @@
               "null"
             ],
             "description": "The conversation, for a consent or a question asked in one."
+          },
+          "step": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The step the run waits in."
           },
           "taskId": {
             "type": [
@@ -25831,6 +26438,13 @@
               "null"
             ],
             "description": "The tool call a consent is about."
+          },
+          "workflowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its workflow, `<package>/<workflow>`."
           }
         }
       },
@@ -27004,45 +27618,6 @@
           }
         }
       },
-      "ResolvedApprovalResponse": {
-        "type": "object",
-        "description": "One resolved HITL approval entry.",
-        "required": [
-          "task_id",
-          "agent_name",
-          "approved"
-        ],
-        "properties": {
-          "agent_name": {
-            "type": "string"
-          },
-          "approved": {
-            "type": "boolean"
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "responded_at": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "task_id": {
-            "type": "string"
-          },
-          "wait_duration_ms": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          }
-        }
-      },
       "ResourceUsageResponse": {
         "type": "object",
         "description": "The memory and the processor in use at the time of the request.",
@@ -27772,6 +28347,105 @@
             "description": "Whether the model reads images."
           }
         }
+      },
+      "SessionNotes": {
+        "type": "object",
+        "description": "The notes of a conversation, as `GET` answers them and `PUT` takes them.",
+        "required": [
+          "notes"
+        ],
+        "properties": {
+          "notes": {
+            "type": "string",
+            "description": "Free text the user keeps beside the conversation. It is never sent to\na model."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionSettings": {
+        "type": "object",
+        "description": "The settings of one conversation. Every field is optional: one left out\nis inherited from the agent. An unknown field is refused.",
+        "properties": {
+          "context_overflow": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContextOverflowSetting",
+                "description": "What happens at the context limit; summarizing when left out."
+              }
+            ]
+          },
+          "disabled_accesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses of the agent switched off for this conversation."
+          },
+          "instructions": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Instructions added to the mission of the agent for this conversation."
+          },
+          "max_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Upper bound on the length of an answer, in tokens.",
+            "minimum": 0
+          },
+          "preset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Preset chosen for the conversation, a preset of its model. It takes\nthe place of the agent's preset."
+          },
+          "profile_access": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "For an installed agent, whether it may read the user profile in this\nconversation, whatever its own profile source says. Left out, the\nsource of the agent decides. The profile is read by a tool and never\nplaced in the prompt of an installed agent."
+          },
+          "proposed_accesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses the agent does not hold, proposed for this conversation:\nthe model may call them and each call asks for consent."
+          },
+          "reasoning_effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Level of reasoning (`low`, `medium`, `high`), for a model that reads it."
+          },
+          "temperature": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Sampling temperature, between 0 and 2."
+          },
+          "thinking": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Reasoning on or off, for a model that reads it."
+          }
+        },
+        "additionalProperties": false
       },
       "SessionWorkspace": {
         "type": "object",
@@ -30294,7 +30968,7 @@
               "string",
               "null"
             ],
-            "description": "New system prompt."
+            "description": "New instructions of the conversation, added to the mission of its agent:\n4000 characters at most. Written to `settings.instructions`; the other\nsettings are left as they are."
           },
           "tools": {
             "type": [

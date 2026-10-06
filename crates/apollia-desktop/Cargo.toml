@@ -34,12 +34,8 @@ apollia-memory   = { workspace = true }
 apollia-tools        = { workspace = true }
 apollia-permissions  = { workspace = true }
 apollia-aip      = { workspace = true }
-apollia-oria     = { workspace = true }
 apollia-auth        = { workspace = true }
 dashmap             = { workspace = true }
-async-trait      = { workspace = true }
-futures          = { workspace = true }
-pyo3             = { workspace = true }
 chrono           = { workspace = true }
 uuid             = { workspace = true }
 serde            = { workspace = true }
@@ -55,6 +51,8 @@ tracing-subscriber = { workspace = true }
 tauri          = { workspace = true }
 tauri-plugin-dialog = { workspace = true }
 dirs = { workspace = true }
+# Builds the workbook of the demonstration dataset an example comes with.
+rust_xlsxwriter = { workspace = true }
 tauri-plugin-notification = { workspace = true }
 tauri-plugin-global-shortcut = { workspace = true }
 tauri-plugin-opener = { workspace = true }
@@ -83,6 +81,8 @@ objc2 = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
 
 [dev-dependencies]
+# Reads the demonstration workbook back the way a batch launch previews it.
+apollia-sources = { workspace = true }
 tempfile = { workspace = true }
 wiremock = { workspace = true }
 

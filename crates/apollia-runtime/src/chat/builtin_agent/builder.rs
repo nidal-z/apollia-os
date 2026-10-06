@@ -12,6 +12,7 @@ impl BuiltInChatAgent {
             conversation_profile: None,
             composer: None,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
+            session: SessionOverrides::default(),
             meta_handle: None,
             workspace_path: None,
             mcp_index: None,
@@ -24,6 +25,7 @@ impl BuiltInChatAgent {
             session_plan_phase: PlanPhase::Done,
             hook_executor: None,
             pending_injection: None,
+            answer_prefill: None,
             turn_images: crate::chat::images::TurnImages::default(),
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
             governance: crate::governance::GovernanceHandle::detached(
@@ -38,6 +40,16 @@ impl BuiltInChatAgent {
             resilience: apollia_oria::ResilienceLayer::default(),
             turn_id: None,
         }
+    }
+
+    /// Apply what the conversation changes from its agent: its instructions,
+    /// its request settings, its reasoning, its accesses proposed, and what
+    /// its context does at the limit, which the context manager reads here.
+    pub fn with_session_overrides(mut self, session: SessionOverrides) -> Self {
+        self.context_manager =
+            ContextManager::from_config(&ORIAConfig::default()).with_overflow(session.overflow);
+        self.session = session;
+        self
     }
 
     /// Offer the `propose_agent` tool, its drafts held to `offer`. `None`,
@@ -134,6 +146,52 @@ impl BuiltInChatAgent {
         has_tools.then_some(self.tool_turn_temperature)
     }
 
+    /// The request settings every call of a turn on `backend` starts from.
+    ///
+    /// Four levels, field by field: the conversation, over the preset (the
+    /// one of the conversation, else the agent's), over the agent's package,
+    /// over the model. Read once per turn: the levels below the conversation
+    /// come from files.
+    pub(in crate::chat::builtin_agent) fn turn_request_settings(
+        &self,
+        backend: Option<&str>,
+    ) -> TurnRequestSettings {
+        let backend = backend.unwrap_or_else(|| self.llm_router.default_name());
+        let levels = self
+            .session
+            .request_levels
+            .as_ref()
+            .map(|binding| binding.request_levels(&self.llm_router, Some(backend)))
+            .unwrap_or_default();
+        TurnRequestSettings {
+            chosen_temperature: self
+                .session
+                .request
+                .clone()
+                .over(&levels.preset)
+                .temperature,
+            resolved: levels.resolved_in_session(&self.session.request),
+        }
+    }
+
+    /// Apply the request settings of the turn to one of its calls.
+    ///
+    /// A temperature the user chose, for the conversation or in a preset,
+    /// is sent as chosen. Without one, a call that offers tools keeps the
+    /// tool-turn temperature, and the package and the model fill the rest.
+    pub(in crate::chat::builtin_agent) fn apply_request_settings(
+        &self,
+        settings: &TurnRequestSettings,
+        request: &mut CompletionRequest,
+    ) {
+        request.temperature = settings
+            .chosen_temperature
+            .or_else(|| self.turn_temperature(!request.tools.is_empty()));
+        request.thinking = self.session.thinking;
+        request.reasoning_effort = self.session.reasoning_effort;
+        settings.resolved.apply_to(request);
+    }
+
     /// Attaches an operator instruction to a resume turn.
     ///
     /// Set by the manager when resuming a paused session with a queued injection.
@@ -143,6 +201,16 @@ impl BuiltInChatAgent {
     /// Absent for every ordinary turn.
     pub fn with_pending_injection(mut self, injection: Option<InjectedInstruction>) -> Self {
         self.pending_injection = injection;
+        self
+    }
+
+    /// Makes the turn continue `answer`, the last answer of the conversation:
+    /// the request ends on it as an assistant message, which an engine that
+    /// continues an answer prefills. The caller checks the engine does
+    /// ([`apollia_llm::types::CompletionModel::continues_answer`]) before
+    /// asking.
+    pub fn with_answer_prefill(mut self, answer: Option<String>) -> Self {
+        self.answer_prefill = answer;
         self
     }
 

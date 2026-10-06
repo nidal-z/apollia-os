@@ -114,7 +114,6 @@ actually configures in this repository.
 | `.pre-commit-config.yaml` | The hook list, and the file to read for it rather than a copy of it: file hygiene and secret detection, `ruff` on `sdk/`, `rustfmt` and `cargo check` on the workspace, nine of the repository guards under `scripts/` (the prose rules among them), and the documentation-site build. Two entries run outside the commit itself: `clippy` on push, and the commit-message convention at `commit-msg`. Not to be bypassed. |
 | `.editorconfig` | Editor-agnostic whitespace rules: LF endings, final newline, and per-language indent sizes (4 for Rust/Python/TOML, 2 for web and Markdown). |
 | `.python-version` | Pins the local Python interpreter (`3.13.7`) for tooling like `pyenv`. |
-| `.mailmap` | Canonicalizes contributor name and email across git history. |
 | `.cargo/` | Cargo defaults: `config.toml` sets build environment (macOS deployment target, an accelerated dev profile) and `audit.toml` holds the `cargo-audit` advisory ignores (mirrored from `deny.toml`). |
 | `.github/` | GitHub configuration: CI, CodeQL, weekly deep-check, and release workflows (`.github/workflows/`), plus `CODEOWNERS`, issue and PR templates, `dependabot.yml`, and `FUNDING.yml`. |
 | `.gitignore` | Paths git does not track (see below). |

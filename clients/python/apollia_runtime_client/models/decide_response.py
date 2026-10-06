@@ -17,12 +17,15 @@ class DecideResponse:
 
     Attributes:
         answer (PendingAnswer): An answer a decision takes.
+        batch_items_resumed (int): How many other batch items, waiting on an access this answer now
+            covers, ran again besides the item answered.
         id (str): The item answered.
         message (str): What happened, to show the user.
         resumed (int): How many waiting runs, conversations or items went on.
     """
 
     answer: PendingAnswer
+    batch_items_resumed: int
     id: str
     message: str
     resumed: int
@@ -30,6 +33,8 @@ class DecideResponse:
 
     def to_dict(self) -> dict[str, Any]:
         answer = self.answer.value
+
+        batch_items_resumed = self.batch_items_resumed
 
         id = self.id
 
@@ -42,6 +47,7 @@ class DecideResponse:
         field_dict.update(
             {
                 "answer": answer,
+                "batchItemsResumed": batch_items_resumed,
                 "id": id,
                 "message": message,
                 "resumed": resumed,
@@ -55,6 +61,8 @@ class DecideResponse:
         d = dict(src_dict)
         answer = PendingAnswer(d.pop("answer"))
 
+        batch_items_resumed = d.pop("batchItemsResumed")
+
         id = d.pop("id")
 
         message = d.pop("message")
@@ -63,6 +71,7 @@ class DecideResponse:
 
         decide_response = cls(
             answer=answer,
+            batch_items_resumed=batch_items_resumed,
             id=id,
             message=message,
             resumed=resumed,

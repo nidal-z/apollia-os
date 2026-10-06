@@ -1,18 +1,27 @@
-"""End-to-end: typed pauses on the task path, against a real `apollia-os` daemon.
+"""End-to-end: a workflow pauses on a question, against a real `apollia-os` daemon.
 
-What is proved, on a throwaway HOME, through the public HTTP API only:
+What is proved, on a throwaway HOME, through the public HTTP API and the CLI:
 
-1. An agent installed by ``POST /api/v1/agents`` asks a typed question, then an
-   approval, is resumed twice by ``POST /api/v1/tasks/{id}/resume`` with an
-   answer, and returns what it received.
-2. ``GET /api/v1/tasks?status=input_required`` lists each pause with its agent,
-   skill, creation time, prompt and payload.
-3. An answer that does not fit the pending pause is a 422 ``INVALID_ANSWER``
-   and leaves the task paused.
-4. A call to a tool on an MCP server declared ``requires_approval`` pauses the
-   task on an ``approbation`` payload naming ``<server>/<tool>`` and its
-   arguments; resumed approved, the call runs; resumed declined, the agent
-   receives ``ToolApprovalDenied``.
+1. A workflow of an installed package asks the user from inside a step
+   (``ctx.user.ask``): the run waits in that step, and
+   ``GET /api/v1/pending-decisions`` lists the question with the run, the
+   workflow and the step it comes from, its choices, and when it was asked.
+2. An answer the question does not take is a 422 with its typed code and
+   leaves the run paused.
+3. ``POST /api/v1/pending-decisions/decide`` answers it: the run goes on in
+   the step that asked, asks a second question built from the first answer,
+   and returns what it received across both. A free answer outside the
+   choices is taken.
+4. A declined question reaches the workflow as ``QuestionDeclined`` with the
+   reason; left uncaught, it fails the step and the run.
+5. ``apollia-os approvals pending`` shows the paused run and
+   ``apollia-os approvals decide`` answers it.
+6. A run that waits when the runtime stops is failed at the next start, with
+   its reason, and no longer listed.
+
+The package is assembled in the throwaway HOME from ``hitl_e2e_agent.py``:
+``python -m apollia describe`` writes its workflow descriptor, ``apollia-os
+package build`` and ``package install`` do the rest.
 
 Needs a built daemon, the ``apollia-os`` binary at ``target/debug`` (``just
 cli-build``) or at ``APOLLIA_E2E_BIN``. Without one the module is skipped and
@@ -24,6 +33,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -35,8 +45,7 @@ from typing import Any
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-AGENT = Path(__file__).resolve().parent / "hitl_e2e_agent.py"
-MOCK_MCP = REPO / "crates" / "apollia-mcp" / "tests" / "mock_mcp_server.py"
+MODULE = Path(__file__).resolve().parent / "hitl_e2e_agent.py"
 BINARY = Path(os.environ.get("APOLLIA_E2E_BIN", REPO / "target" / "debug" / "apollia-os"))
 
 pytestmark = pytest.mark.skipif(
@@ -45,6 +54,16 @@ pytestmark = pytest.mark.skipif(
 )
 
 DEADLINE_SECS = 60.0
+WORKFLOW = "hitl-e2e/purge"
+FIRST = "Which list should be purged?"
+
+MANIFEST = """[package]
+name = "hitl-e2e"
+version = "1.0.0"
+publisher = "Apollia tests"
+description = "A workflow that pauses on questions."
+sdk = ">=0.3"
+"""
 
 
 def _free_port() -> int:
@@ -59,19 +78,16 @@ class Daemon:
     def __init__(self, home: Path, port: int) -> None:
         self.home = home
         self.port = port
-        self.env = {**os.environ, "HOME": str(home)}
+        # The SDK of this tree goes first on the interpreter's path, so the
+        # workflow imports the `apollia` this checkout holds and not the one
+        # the embedded interpreter was bundled with.
+        self.env = {**os.environ, "HOME": str(home), "PYTHONPATH": str(REPO / "sdk")}
         self.log = home / "daemon.log"
         self.process: subprocess.Popen[bytes] | None = None
         self.token = ""
 
     def start(self) -> None:
-        # Eager loading puts every MCP tool descriptor in the registry, which is
-        # where install-time resolution reads it. Under the default, deferred,
-        # the descriptors never reach the registry and an agent requiring a tool
-        # of a gated server installed whatever the descriptor said, so the suite
-        # missed the refusal it now holds against.
-        (self.home / "apollia.toml").write_text('[mcp]\ntool_loading = "eager"\n')
-        with self.log.open("wb") as log:
+        with self.log.open("ab") as log:
             self.process = subprocess.Popen(
                 [str(BINARY), "start", "--port", str(self.port)],
                 cwd=self.home,
@@ -103,6 +119,7 @@ class Daemon:
             self.process.wait(timeout=30)
         except subprocess.TimeoutExpired:
             self.process.kill()
+            self.process.wait(timeout=30)
 
     def request(self, method: str, path: str, body: Any = None) -> tuple[int, Any]:
         data = None if body is None else json.dumps(body).encode()
@@ -120,6 +137,38 @@ class Daemon:
             raw = err.read()
             return err.code, json.loads(raw) if raw else None
 
+    def cli(self, *args: str) -> subprocess.CompletedProcess[str]:
+        """Run `apollia-os` against this daemon, as its user would."""
+        return subprocess.run(
+            [str(BINARY), *args],
+            cwd=self.home,
+            env=self.env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+
+def install_package(d: Daemon) -> None:
+    """Build the package `hitl-e2e` from the workflow module and install it."""
+    folder = d.home / "hitl-e2e"
+    folder.mkdir()
+    (folder / "apollia.toml").write_text(MANIFEST)
+    shutil.copy(MODULE, folder / MODULE.name)
+    described = subprocess.run(
+        [sys.executable, "-m", "apollia", "describe", str(folder)],
+        env=d.env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert described.returncode == 0, described.stdout + described.stderr
+    archive = d.home / "hitl-e2e.apo"
+    built = d.cli("package", "build", str(folder), "-o", str(archive))
+    assert built.returncode == 0, built.stdout + built.stderr
+    installed = d.cli("package", "install", str(archive), "--json")
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+
 
 @pytest.fixture(scope="module")
 def daemon() -> Iterator[Daemon]:
@@ -127,210 +176,264 @@ def daemon() -> Iterator[Daemon]:
     d = Daemon(home, _free_port())
     try:
         d.start()
-        added = subprocess.run(
-            [
-                str(BINARY),
-                "--json",
-                "mcp",
-                "add",
-                "calc",
-                "--command",
-                "python3",
-                "--arg",
-                str(MOCK_MCP),
-                "--require-approval",
-            ],
-            env=d.env,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        assert added.returncode == 0, added.stdout + added.stderr
+        install_package(d)
+        # The workflows of the installed packages are handed to the engine
+        # when the runtime starts: a package installed under a running
+        # runtime is launchable from its next start.
+        d.stop()
+        d.start()
         yield d
     finally:
         d.stop()
         shutil.rmtree(home, ignore_errors=True)
 
 
-@pytest.fixture(scope="module")
-def agent_id(daemon: Daemon) -> str:
-    status, body = daemon.request("POST", "/api/v1/agents", {"agent_path": str(AGENT)})
-    assert status == 201, body
-    return str(body["agent_id"])
-
-
-def submit(daemon: Daemon, agent: str, skill: str) -> str:
+def launch(daemon: Daemon) -> str:
     status, body = daemon.request(
-        "POST", "/api/v1/tasks", {"agent_id": agent, "skill_id": skill, "input": {}}
+        "POST", "/api/v1/workflows/hitl-e2e/purge/runs", {"inputs": {"crm": "acme"}}
     )
-    assert status == 202, body
-    return str(body["task_id"])
+    assert status in (200, 201, 202), body
+    return str(body["runId"])
 
 
-def wait_paused(daemon: Daemon, task_id: str, genre: str) -> dict[str, Any]:
-    """The listed pause of `task_id` once it carries a payload of `genre`."""
+def pending(daemon: Daemon, run_id: str) -> list[dict[str, Any]]:
+    """The decisions waiting that come from the run `run_id`."""
+    status, body = daemon.request("GET", "/api/v1/pending-decisions")
+    assert status == 200, body
+    return [i for i in body["items"] if i["origin"].get("runId") == run_id]
+
+
+def wait_paused(daemon: Daemon, run_id: str, question: str) -> dict[str, Any]:
+    """The listed item of `run_id` once it waits on `question`."""
     deadline = time.monotonic() + DEADLINE_SECS
     last: Any = None
     while time.monotonic() < deadline:
-        status, body = daemon.request("GET", "/api/v1/tasks?status=input_required")
-        assert status == 200, body
-        for item in body["tasks"]:
+        for item in pending(daemon, run_id):
             last = item
-            if item["task_id"] == task_id and (item.get("payload") or {}).get("genre") == genre:
+            if item["summary"] == question:
                 return item
         time.sleep(0.2)
-    raise AssertionError(f"task {task_id} never paused on a {genre}; last listed: {last}")
+    raise AssertionError(f"run {run_id} never paused on {question!r}; last listed: {last}")
 
 
-def wait_completed(daemon: Daemon, task_id: str) -> Any:
-    """The result data of `task_id` once it completed."""
+def decide(daemon: Daemon, item: dict[str, Any], **answer: Any) -> tuple[int, Any]:
+    return daemon.request("POST", "/api/v1/pending-decisions/decide", {"id": item["id"], **answer})
+
+
+def read_run(daemon: Daemon, run_id: str) -> dict[str, Any]:
+    status, body = daemon.request("GET", f"/api/v1/workflow-runs/{run_id}")
+    assert status == 200, body
+    return dict(body)
+
+
+def wait_ended(daemon: Daemon, run_id: str) -> dict[str, Any]:
+    """The run `run_id` with its steps, once it is no longer running."""
     deadline = time.monotonic() + DEADLINE_SECS
-    body: Any = None
+    body: dict[str, Any] = {}
     while time.monotonic() < deadline:
-        status, body = daemon.request("GET", f"/api/v1/tasks/{task_id}")
-        assert status == 200, body
-        if body["status"] == "completed":
+        body = read_run(daemon, run_id)
+        if body["run"]["status"] != "running":
             return body
-        assert body["status"] != "failed", body
         time.sleep(0.2)
-    raise AssertionError(f"task {task_id} never completed; last: {body}")
+    raise AssertionError(f"run {run_id} never ended; last: {body}")
 
 
-def result_data(body: Any) -> dict[str, Any]:
-    """The dict a skill returned, from a completed task's result."""
-    result = body["result"]
-    text = result if isinstance(result, str) else json.dumps(result)
-    return dict(json.loads(text)) if text.strip().startswith("{") else {"raw": text}
+def step_statuses(detail: dict[str, Any]) -> dict[str, str]:
+    return {s["name"]: s["status"] for s in detail["steps"]}
 
 
-def test_question_then_approval_resumed_twice_returns_both_answers(
-    daemon: Daemon, agent_id: str
-) -> None:
-    # GIVEN a task running the skill that asks, then asks for an approval
-    task_id = submit(daemon, agent_id, "hitl.ask")
+def test_two_questions_answered_in_turn_return_both_answers(daemon: Daemon) -> None:
+    # GIVEN a run of the workflow that asks which list, then a confirmation
+    run_id = launch(daemon)
 
-    # WHEN it pauses on the question
-    first = wait_paused(daemon, task_id, "choix")
+    # WHEN it pauses on the first question
+    first = wait_paused(daemon, run_id, FIRST)
 
-    # THEN the listing says who asks, from which skill, what, and when
-    assert first["agent"] == "hitl-e2e-agent"
-    assert first["skill"] == "hitl.ask"
-    assert first["prompt"] == "Which list should be purged?"
-    assert first["created_at"]
-    assert [p["id"] for p in first["payload"]["propositions"]] == ["leads", "clients"]
+    # THEN the listing says what is asked, by which workflow, in which step,
+    #      when, with the choices proposed and a free answer besides them
+    assert first["kind"] == "question"
+    assert first["origin"]["workflowId"] == WORKFLOW
+    assert first["origin"]["step"] == "choose"
+    assert first["id"] == f"workflow-question:{first['origin']['requestId']}"
+    assert first["askedAt"]
+    assert first["answers"] == ["answer", "refuse"]
+    assert first["allowOther"] is True
+    assert first["questions"] == [
+        {
+            "id": "answer",
+            "question": FIRST,
+            "type": "single_choice",
+            "options": ["leads", "clients"],
+            "hint": "a list of the CRM",
+        }
+    ]
+    # AND the run waits inside the step that asked
+    waiting = read_run(daemon, run_id)
+    assert waiting["run"]["status"] == "running"
+    assert step_statuses(waiting) == {
+        "choose": "running",
+        "confirm": "pending",
+        "purge": "pending",
+    }
 
-    # WHEN the operator answers with an id that is not proposed
-    status, body = daemon.request(
-        "POST", f"/api/v1/tasks/{task_id}/resume", {"approved": True, "answer": "prospects"}
-    )
-    # THEN the answer is refused with the typed code and the task stays paused
+    # WHEN it is given an answer a question does not take, then an empty one
+    status, body = decide(daemon, first, answer="once")
+    # THEN each is refused with its typed code and the run stays paused
+    assert status == 422, body
+    assert body["code"] == "ANSWER_NOT_OFFERED"
+    status, body = decide(daemon, first, answer="answer", value="")
     assert status == 422, body
     assert body["code"] == "INVALID_ANSWER"
-    wait_paused(daemon, task_id, "choix")
+    assert wait_paused(daemon, run_id, FIRST)["id"] == first["id"]
 
-    # WHEN the operator picks a proposition
-    status, body = daemon.request(
-        "POST", f"/api/v1/tasks/{task_id}/resume", {"approved": True, "answer": "clients"}
-    )
+    # WHEN the user picks a choice
+    status, body = decide(daemon, first, answer="answer", value="clients")
+    assert status == 200, body
+    assert body["resumed"] == 1
+
+    # THEN the run, resumed, pauses again on the question it built from the answer
+    second = wait_paused(daemon, run_id, "Purge the list clients of acme?")
+    assert second["origin"]["step"] == "confirm"
+    assert second["questions"][0]["options"] == ["yes", "no"]
+    assert second["id"] != first["id"]
+
+    # WHEN the first question is answered again, then the second one properly
+    status, body = decide(daemon, first, answer="answer", value="leads")
+    assert status == 404, body
+    assert body["code"] == "UNKNOWN_ITEM"
+    status, body = decide(daemon, second, answer="answer", value="yes")
     assert status == 200, body
 
-    # THEN the agent, resumed, pauses again on the approval it built from the answer
-    second = wait_paused(daemon, task_id, "approbation")
-    assert second["payload"]["geste"] == "crm/purge"
-    assert second["payload"]["risque"] == "critical"
-    assert second["payload"]["detail"] == ["list: clients"]
+    # THEN the run completes, every step done, with what it received across both
+    ended = wait_ended(daemon, run_id)
+    assert ended["run"]["status"] == "completed", ended
+    assert ended["run"]["output"] == {"list": "clients", "purged": True, "confirmation": "yes"}
+    assert step_statuses(ended) == {
+        "choose": "completed",
+        "confirm": "completed",
+        "purge": "completed",
+    }
+    assert pending(daemon, run_id) == []
 
-    # WHEN an approval is answered with an answer, then decided properly
-    status, body = daemon.request(
-        "POST", f"/api/v1/tasks/{task_id}/resume", {"approved": True, "answer": "yes"}
-    )
-    assert status == 422, body
-    status, body = daemon.request(
-        "POST",
-        f"/api/v1/tasks/{task_id}/resume",
-        {"approved": True, "reason": "checked with sales"},
-    )
+
+def test_a_free_answer_is_taken_and_a_declined_question_is_a_typed_refusal(
+    daemon: Daemon,
+) -> None:
+    # GIVEN a run paused on its first question
+    run_id = launch(daemon)
+    first = wait_paused(daemon, run_id, FIRST)
+
+    # WHEN the user answers with a list that is not proposed
+    status, body = decide(daemon, first, answer="answer", value="prospects")
     assert status == 200, body
 
-    # THEN the task completes and the agent returns what it received across both
-    returned = result_data(wait_completed(daemon, task_id))
-    assert returned == {
-        "is_resumed": True,
-        "list": "clients",
-        "purge_approved": True,
-        "purge_reason": "checked with sales",
-        "answered_gesture": "crm/purge",
+    # THEN the workflow goes on with the free answer
+    second = wait_paused(daemon, run_id, "Purge the list prospects of acme?")
+
+    # WHEN the user declines the confirmation, saying why
+    status, body = decide(daemon, second, answer="refuse", reason="not on production")
+    assert status == 200, body
+
+    # THEN the workflow caught QuestionDeclined, naming the question and the reason
+    ended = wait_ended(daemon, run_id)
+    assert ended["run"]["status"] == "completed", ended
+    assert ended["run"]["output"] == {
+        "list": "prospects",
+        "purged": False,
+        "declined_question": "Purge the list prospects of acme?",
+        "decline_reason": "not on production",
     }
 
 
-def test_a_gated_mcp_call_pauses_and_runs_once_approved(daemon: Daemon, agent_id: str) -> None:
-    # GIVEN a task calling a tool on a server declared requires_approval
-    task_id = submit(daemon, agent_id, "hitl.mcp")
+def test_a_declined_question_left_uncaught_fails_the_run_in_its_step(daemon: Daemon) -> None:
+    # GIVEN a run paused on the question it does not guard
+    run_id = launch(daemon)
+    first = wait_paused(daemon, run_id, FIRST)
 
-    # WHEN the call is made
-    paused = wait_paused(daemon, task_id, "approbation")
-
-    # THEN the task paused on an approval naming the server, the tool and the arguments
-    assert paused["payload"]["geste"] == "calc/add"
-    assert paused["payload"]["detail"] == ["a: 2", "b: 3"]
-
-    # WHEN it is approved
-    status, body = daemon.request("POST", f"/api/v1/tasks/{task_id}/resume", {"approved": True})
+    # WHEN the user declines it
+    status, body = decide(daemon, first, answer="refuse", reason="wrong CRM")
     assert status == 200, body
 
-    # THEN the call ran on the real server
-    assert result_data(wait_completed(daemon, task_id)) == {"mcp": "5"}
-
-
-def test_a_declined_mcp_call_reaches_the_agent_as_a_typed_refusal(
-    daemon: Daemon, agent_id: str
-) -> None:
-    # GIVEN a task paused on a gated MCP call
-    task_id = submit(daemon, agent_id, "hitl.mcp")
-    wait_paused(daemon, task_id, "approbation")
-
-    # WHEN the operator declines it
-    status, body = daemon.request(
-        "POST",
-        f"/api/v1/tasks/{task_id}/resume",
-        {"approved": False, "reason": "not on production"},
-    )
-    assert status == 200, body
-
-    # THEN the agent caught ToolApprovalDenied, naming the gesture and the reason
-    assert result_data(wait_completed(daemon, task_id)) == {
-        "mcp": "denied",
-        "tool": "calc/add",
-        "reason": "not on production",
+    # THEN the step that asked failed with the refusal, and the next never started
+    ended = wait_ended(daemon, run_id)
+    assert ended["run"]["status"] == "failed", ended
+    assert "QuestionDeclined" in ended["run"]["error"]
+    assert "wrong CRM" in ended["run"]["error"]
+    assert step_statuses(ended) == {
+        "choose": "failed",
+        "confirm": "not_started",
+        "purge": "not_started",
     }
+    assert pending(daemon, run_id) == []
 
 
-def test_the_engine_pause_keeps_the_context_of_the_resumed_run(
-    daemon: Daemon, agent_id: str
+def test_the_cli_shows_a_paused_run_and_answers_it(daemon: Daemon) -> None:
+    # GIVEN a run paused on its first question
+    run_id = launch(daemon)
+    first = wait_paused(daemon, run_id, FIRST)
+
+    # WHEN the decisions waiting are listed from the command line
+    listed = daemon.cli("approvals", "pending", "--json")
+    human = daemon.cli("approvals", "pending")
+
+    # THEN the paused run is there, in JSON and in the table, with its id
+    assert listed.returncode == 0, listed.stdout + listed.stderr
+    mine = [i for i in json.loads(listed.stdout)["items"] if i["origin"].get("runId") == run_id]
+    assert [i["id"] for i in mine] == [first["id"]]
+    assert human.returncode == 0, human.stdout + human.stderr
+    assert FIRST in human.stdout
+    assert first["id"] in human.stdout + human.stderr
+
+    # WHEN an answer is given with no value, then with one
+    empty = daemon.cli("approvals", "decide", first["id"], "answer")
+    answered = daemon.cli(
+        "approvals", "decide", first["id"], "answer", "--value", "leads", "--json"
+    )
+
+    # THEN the first is refused and the second resumes the run
+    assert empty.returncode == 1, empty.stdout + empty.stderr
+    assert answered.returncode == 0, answered.stdout + answered.stderr
+    assert json.loads(answered.stdout)["resumed"] == 1
+    second = wait_paused(daemon, run_id, "Purge the list leads of acme?")
+
+    # WHEN the confirmation is declined from the command line, then declined again
+    declined = daemon.cli("approvals", "decide", second["id"], "refuse", "--reason", "too late")
+    again = daemon.cli("approvals", "decide", second["id"], "refuse")
+
+    # THEN the workflow was told once, and the item that no longer waits exits 1
+    assert declined.returncode == 0, declined.stdout + declined.stderr
+    assert again.returncode == 1, again.stdout + again.stderr
+    ended = wait_ended(daemon, run_id)
+    assert ended["run"]["output"]["decline_reason"] == "too late"
+    status = daemon.cli("workflow", "status", run_id, "--json")
+    assert status.returncode == 0, status.stdout + status.stderr
+    assert json.loads(status.stdout)["run"]["status"] == "completed"
+
+
+def test_a_run_paused_when_the_runtime_stops_is_failed_at_the_next_start(
+    daemon: Daemon,
 ) -> None:
-    # GIVEN a task paused on the agent's own card, its state in the context
-    task_id = submit(daemon, agent_id, "hitl.card_then_write")
-    wait_paused(daemon, task_id, "approbation")
+    # GIVEN a run paused on its first question
+    run_id = launch(daemon)
+    wait_paused(daemon, run_id, FIRST)
 
-    # WHEN the card is approved, and the resumed run makes the gated call
-    status, body = daemon.request("POST", f"/api/v1/tasks/{task_id}/resume", {"approved": True})
+    # WHEN the runtime stops and starts again on the same HOME
+    daemon.stop()
+    daemon.start()
+
+    # THEN the run is failed with a reason a user can read, nothing waits for
+    #      it any more, and the workflow can be launched again
+    ended = read_run(daemon, run_id)
+    assert ended["run"]["status"] == "failed", ended
+    assert ended["run"]["error"] == "the runtime stopped during the run", ended
+    assert step_statuses(ended) == {
+        "choose": "failed",
+        "confirm": "not_started",
+        "purge": "not_started",
+    }
+    assert pending(daemon, run_id) == []
+    again = launch(daemon)
+    wait_paused(daemon, again, FIRST)
+    status, body = daemon.request("POST", f"/api/v1/workflow-runs/{again}/cancel")
     assert status == 200, body
-    deadline = time.monotonic() + DEADLINE_SECS
-    gate: dict[str, Any] = {}
-    while time.monotonic() < deadline and gate.get("payload", {}).get("geste") != "calc/add":
-        status, pending = daemon.request("GET", "/api/v1/approvals/pending")
-        assert status == 200, pending
-        gate = next((p for p in pending if p["task_id"] == task_id), {})
-        time.sleep(0.2)
-
-    # THEN the approvals list shows the engine's card, typed, and the agent's state
-    assert gate["payload"]["geste"] == "calc/add", gate
-    assert gate["skill_id"] == "hitl.card_then_write"
-    assert gate["context"] == {"records": ["r-1"], "index": 0}
-
-    # WHEN the engine's card is approved
-    status, body = daemon.request("POST", f"/api/v1/tasks/{task_id}/resume", {"approved": True})
-    assert status == 200, body
-
-    # THEN the agent resumed with its state, and the write ran once
-    assert result_data(wait_completed(daemon, task_id)) == {"record": "r-1", "mcp": "5"}
+    assert pending(daemon, again) == []

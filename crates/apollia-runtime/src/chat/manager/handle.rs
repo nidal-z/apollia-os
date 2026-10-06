@@ -196,6 +196,7 @@ impl ChatSessionManagerHandle {
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
             pending_injections: HashMap::new(),
+            answer_prefills: HashMap::new(),
             pending_plan_continuations: HashMap::new(),
             config_feed: None,
             plan_mode_default_tx,
@@ -407,6 +408,58 @@ impl ChatSessionManagerHandle {
             .send(ChatCommand::UpdateSession {
                 session_id,
                 update,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Replace the settings of a conversation; returns them as stored.
+    ///
+    /// # Errors
+    ///
+    /// [`ChatError::InvalidSettings`] for settings that cannot be applied,
+    /// [`ChatError::SessionNotFound`], [`ChatError::SessionClosed`].
+    pub async fn set_session_settings(
+        &self,
+        session_id: SessionId,
+        settings: SessionSettings,
+    ) -> Result<SessionSettings, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::SetSessionSettings {
+                session_id,
+                settings,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Replace the notes of a conversation; returns them as stored.
+    ///
+    /// # Errors
+    ///
+    /// [`ChatError::InvalidSettings`] for notes too long,
+    /// [`ChatError::SessionNotFound`], [`ChatError::SessionClosed`].
+    pub async fn set_session_notes(
+        &self,
+        session_id: SessionId,
+        notes: String,
+    ) -> Result<String, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::SetSessionNotes {
+                session_id,
+                notes,
                 reply: reply_tx,
             })
             .await

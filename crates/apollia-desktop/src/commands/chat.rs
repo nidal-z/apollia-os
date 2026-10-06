@@ -14,7 +14,8 @@ use crate::attached::{segment, RuntimeLink};
 
 /// Automatic session naming lives in `naming`, the on-disk export in `export`,
 /// the daemon routes of the conversations in `conversations`, the images of
-/// the chat in `images`.
+/// the chat in `images`, the actions under an answer in `answers`.
+pub mod answers;
 pub(crate) mod conversations;
 pub mod export;
 pub mod folders;
@@ -528,33 +529,6 @@ pub async fn respond_user_input(
         .map_err(|e| e.to_string())
 }
 
-/// Reject a pending `ask_user` request with a mandatory reason.
-#[tauri::command]
-pub async fn respond_user_input_rejected(
-    link: State<'_, RuntimeLink>,
-    request_id: String,
-    reason: String,
-) -> Result<(), String> {
-    let state = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            let path = format!("/api/v1/user-inputs/{}/reject", segment(&request_id));
-            let body = serde_json::json!({ "reason": reason });
-            let _: serde_json::Value = remote.post(&path, &body).await?;
-            return Ok(());
-        }
-    };
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "chat subsystem not available".to_string())?;
-
-    manager
-        .reject_user_input(request_id, reason)
-        .await
-        .map_err(|e| e.to_string())
-}
-
 /// List all currently pending `ask_user` requests (for inbox / reconnection).
 #[tauri::command]
 pub async fn list_pending_user_inputs(
@@ -573,60 +547,6 @@ pub async fn list_pending_user_inputs(
         .list_pending_user_inputs()
         .await
         .map_err(|e| e.to_string())
-}
-
-/// List recently resolved chat tool approvals for the history view.
-#[tauri::command]
-pub async fn list_chat_approval_history(
-    link: State<'_, RuntimeLink>,
-    limit: Option<i64>,
-    days: Option<i64>,
-) -> Result<Vec<ResolvedChatApproval>, String> {
-    let (limit, days) = (limit.unwrap_or(20), days.unwrap_or(7));
-    let state = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            return Ok(remote::approval_history(remote, limit, days).await?);
-        }
-    };
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "chat subsystem not available".to_string())?;
-
-    let rows = manager
-        .list_approval_history(limit, days)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(rows
-        .into_iter()
-        .map(|r| ResolvedChatApproval {
-            session_id: r.session_id,
-            message_id: r.message_id,
-            tool_name: r.tool_name,
-            decision: r.decision,
-            resolved_at: r.resolved_at,
-            reason: r.reason,
-        })
-        .collect())
-}
-
-/// Resolved chat tool approval entry for the UI history.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolvedChatApproval {
-    /// Session identifier.
-    pub session_id: String,
-    /// Message identifier the approval was attached to.
-    pub message_id: String,
-    /// Tool that required approval.
-    pub tool_name: String,
-    /// Decision taken (`accept`, `refuse`, `always_accept`).
-    pub decision: String,
-    /// ISO-8601 timestamp of the resolution.
-    pub resolved_at: String,
-    /// Operator-provided refusal reason (only set for `refuse` decisions).
-    pub reason: Option<String>,
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -699,7 +619,9 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         id: session.id,
         mode: session.mode.as_sql().to_string(),
         agent_name: session.agent_name,
-        system_prompt: session.system_prompt,
+        // The instructions of the conversation, under the name the
+        // configuration panel reads them by.
+        system_prompt: session.settings.instructions.unwrap_or_default(),
         status: session.status.as_sql().to_string(),
         available_tools: session.available_tools,
         authorized_tools,

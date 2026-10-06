@@ -98,9 +98,7 @@ ASYNC_TRAIT_TRAITS = {
 # above and their impls. Empties as the traits migrate.
 ASYNC_TRAIT_MANIFESTS = {
     "crates/apollia-aip/Cargo.toml",
-    "crates/apollia-cli/Cargo.toml",
     "crates/apollia-core/Cargo.toml",
-    "crates/apollia-desktop/Cargo.toml",
     "crates/apollia-eval/Cargo.toml",
     "crates/apollia-llm/Cargo.toml",
     "crates/apollia-mcp/Cargo.toml",

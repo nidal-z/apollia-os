@@ -497,6 +497,9 @@ impl BuiltInChatAgent {
         let request = super::approval_request::approval_request(call, decision.answers());
 
         let prompt = request.prompt.clone();
+        let detail = request.detail.clone();
+        let code = request.code.clone();
+        let working_dir = request.working_dir.clone();
         let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
@@ -524,6 +527,9 @@ impl BuiltInChatAgent {
                         .ok()
                         .and_then(|v| v.as_str().map(str::to_owned)),
                     prompt,
+                    detail: Some(detail).filter(|d| !d.is_empty()),
+                    code,
+                    working_dir,
                     answers: decision.answers().to_vec(),
                     asked_at: chrono::Utc::now().to_rfc3339(),
                 },
@@ -611,6 +617,9 @@ impl BuiltInChatAgent {
                 }
             }
             ToolDecision::AlwaysAccept => {
+                if self.always_holds_for_run(call, asked.family) {
+                    acc.authorized.insert(call.name.clone());
+                }
                 if asked.always_offered && is_code_call(call, asked.family) {
                     self.allow_command_for_good(call).await;
                 } else if asked.always_offered {

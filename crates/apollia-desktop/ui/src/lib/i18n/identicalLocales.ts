@@ -41,7 +41,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "dev.workflows.parent_run", // parent_run_id
   "dev.workflows.run_id", // run_id
   "dev.workflows.workflow_id", // workflow_id
-  "inbox.activity.filter.llm", // LLM
   "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
@@ -138,10 +137,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
   "dev.journal.arguments", // Arguments
-  "inbox.chips.questions", // Questions
-  "inbox.filter_by_agent", // Agent
-  "inbox.history.origin_chat", // Chat
-  "inbox.history.session", // Session
   "inbox.row.type_question", // question
   "inbox.row.type_trigger", // trigger
   "integrations.wizard.local_loopback_badge", // Local
@@ -200,6 +195,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "project_migration.row_instructions_title", // Instructions
   "project_migration.where_chat_title", // Chat
   "project_migration.where_sources_title", // Agents › Apollia › Sources
+  "review.filter.questions", // Questions
+  "review.question.badge", // Question
   "settings.about.contact_title", // Contact
   "settings.about.docs_title", // Documentation
   "settings.chat.conversations_title", // Conversations

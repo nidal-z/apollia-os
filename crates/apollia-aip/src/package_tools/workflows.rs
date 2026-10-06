@@ -6,9 +6,10 @@
 //! manifests the package store holds, running no Python; the module of a
 //! workflow is imported on its first run, the way a package tool's is.
 //!
-//! A run calls the decorated function with a `ctx` that adds three things to
-//! the context a package tool gets: `ctx.agents.run`, `ctx.workflows.run`, and
-//! the private hook the SDK calls each time a step opens or closes. Each goes
+//! A run calls the decorated function with a `ctx` that adds four things to
+//! the context a package tool gets: `ctx.agents.run`, `ctx.workflows.run`,
+//! `ctx.user.ask`, which stops the run on a question until the user answers,
+//! and the private hook the SDK calls each time a step opens or closes. Each goes
 //! back to the workflow engine of the runtime through
 //! [`WorkflowServices`]. Cancelling the run's token cancels the coroutine at
 //! its next await point, inside whatever step it is in.
@@ -18,7 +19,8 @@ use std::sync::Arc;
 
 use apollia_core::paths::DataFile;
 use apollia_runtime::workflows::{
-    BoxFuture, WorkflowCall, WorkflowDescriptor, WorkflowHandle, WorkflowHost, WorkflowServices,
+    BoxFuture, QuestionAsked, UserReply, WorkflowCall, WorkflowDescriptor, WorkflowHandle,
+    WorkflowHost, WorkflowServices,
 };
 use apollia_tools::{PackageItemKind, PackageRepository, PackageRepositoryError};
 use pyo3::exceptions::PyRuntimeError;
@@ -33,8 +35,8 @@ use crate::apollia_manifest::WorkflowDecl;
 use crate::cancel;
 use crate::context::RuntimeContext;
 
-/// The `ctx` of a workflow, built around the runtime context. `agents` and
-/// `workflows` reach the engine; `_apollia_step_hook` is what the SDK's
+/// The `ctx` of a workflow, built around the runtime context. `agents`,
+/// `workflows` and `user` reach the engine; `_apollia_step_hook` is what the SDK's
 /// `ctx.step` reports through, and is absent from any other context, so a
 /// workflow run under a test double reports nothing.
 ///
@@ -72,12 +74,32 @@ class _Workflows:
         return json.loads(answer)
 
 
+class _User:
+    def __init__(self, services):
+        self._services = services
+
+    async def ask(self, question, *, options=None, hint=None):
+        from apollia.errors import PayloadError, QuestionDeclined
+
+        if not isinstance(question, str):
+            raise PayloadError('ctx.user.ask: the question must be text', field='question')
+        if isinstance(options, str) or not all(isinstance(o, str) for o in options or []):
+            raise PayloadError('ctx.user.ask: options must be a list of text', field='options')
+        if hint is not None and not isinstance(hint, str):
+            raise PayloadError('ctx.user.ask: the hint must be text', field='hint')
+        reply = json.loads(await self._services.ask_user(question, list(options or []), hint))
+        if reply['declined'] is not None:
+            raise QuestionDeclined(question, reason=reply['declined'])
+        return reply['answer']
+
+
 class WorkflowContext:
     def __init__(self, inner, services):
         self._apollia_inner = inner
         self._apollia_services = services
         self.agents = _Agents(services)
         self.workflows = _Workflows(services)
+        self.user = _User(services)
 
     def __getattr__(self, name):
         return getattr(self.__dict__['_apollia_inner'], name)
@@ -171,6 +193,38 @@ impl PyWorkflowServices {
                 .await
                 .map(|output| output.to_string())
                 .map_err(PyRuntimeError::new_err)
+        })
+    }
+
+    /// Ask the user a question; resolves, once the user replied, to a JSON
+    /// object holding `answer`, or `declined` with the reason given.
+    #[pyo3(signature = (question, options, hint=None))]
+    fn ask_user<'py>(
+        &self,
+        py: Python<'py>,
+        question: String,
+        options: Vec<String>,
+        hint: Option<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let services = Arc::clone(&self.services);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let reply = services
+                .ask_user(QuestionAsked {
+                    question,
+                    options,
+                    hint,
+                })
+                .await
+                .map_err(PyRuntimeError::new_err)?;
+            let reply = match reply {
+                UserReply::Answer(answer) => {
+                    serde_json::json!({"answer": answer, "declined": null})
+                }
+                UserReply::Declined(reason) => {
+                    serde_json::json!({"answer": null, "declined": reason})
+                }
+            };
+            Ok(reply.to_string())
         })
     }
 }

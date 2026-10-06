@@ -166,6 +166,14 @@ check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --soc
 # runtime, exit 2. The real read is covered by the runtime's route tests.
 check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1
 check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
+# The settings and the notes of a conversation are read and written through
+# the runtime: with no runtime, exit 2. A settings document naming a field
+# the settings do not declare is refused before anything is sent, exit 1.
+check_exit   "chat settings get (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat settings get s-1
+check_exit   "chat settings set (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat settings set s-1 '{"max_tokens":256}'
+check_exit   "chat settings set unknown field → 1" 1 "$BIN" --socket "$CHAT_OFF" chat settings set s-1 '{"system_prompt":"x"}'
+check_exit   "chat notes get --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat notes get s-1 --json
+check_exit   "chat notes set (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat notes set s-1 "ask about March"
 # Apollia is built in: uninstalling it is refused, exit 1.
 check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
 # Every other uninstall goes through the runtime, which unregisters the agents
@@ -434,6 +442,10 @@ check_exit "package trust remove (runtime absent) → 2"  2 "$BIN" --socket "$PK
 # list answers 2, in human and in JSON form. Track 2 lists them, empty.
 check_exit "approvals pending (runtime absent) → 2"        2 "$BIN" --socket "$PKGOFF" approvals pending
 check_exit "approvals pending --json (runtime absent) → 2" 2 "$BIN" --socket "$PKGOFF" approvals pending --json
+# Answering one goes through the runtime too. An answer to a question with no
+# `--value` is refused before the runtime is reached.
+check_exit "approvals decide (runtime absent) → 2"         2 "$BIN" --socket "$PKGOFF" approvals decide workflow-question:none refuse
+check_exit "approvals decide answer without --value → 1"   1 "$BIN" --socket "$PKGOFF" approvals decide workflow-question:none answer
 
 # ── A.13b organisation policy (files only) ──────────────────────────────────
 # The key pair and the policy folder are prepared under the scratch folder;

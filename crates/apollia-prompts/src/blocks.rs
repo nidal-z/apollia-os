@@ -207,6 +207,19 @@ pub fn working_directory_note(path: Option<&str>) -> String {
     }
 }
 
+/// Heading of the block that carries the instructions of a conversation.
+pub const SESSION_INSTRUCTIONS_HEADING: &str = "## Instructions for this conversation";
+
+/// Wraps the instructions a user typed for one conversation under a stable
+/// heading. They add to the mission above them and hold for this conversation
+/// only.
+pub fn session_instructions_block(instructions: &str) -> String {
+    format!(
+        "{SESSION_INSTRUCTIONS_HEADING}\nThe user added these instructions for this \
+         conversation only. Follow them together with everything above.\n\n{instructions}"
+    )
+}
+
 /// Wraps a user-persona memory brief under a stable header.
 pub fn persona_block(brief: &str) -> String {
     format!(

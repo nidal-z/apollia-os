@@ -24,6 +24,7 @@ use tauri::Manager;
 
 pub(crate) use client::AttachedClient;
 pub(crate) use error::AttachedError;
+pub(crate) use proxy::segment;
 
 /// Capacity of the local bus the relay publishes the daemon's events on, the
 /// same order as the runtime's own bus.
@@ -41,8 +42,7 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// compiled into this binary. `get_resolved_setting` and `set_setting` need
 /// none: they read and write the `apollia.toml` of the data directory, never
 /// the runtime (`set_setting` then shows its write to the runtime, in either
-/// mode, for the journal), and neither does `get_models_dir`, which reads the
-/// same file.
+/// mode, for the journal), and neither does `get_models_dir`.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
     "create_chat_session",
@@ -75,13 +75,19 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_targets",
     // The model calls behind the total of one answer.
     "list_turn_llm_calls",
-    // The chat: a turn played again, a decision on a tool call, the history
-    // of those decisions, and the skills of the worker agents.
+    // The chat: a turn played again, a decision on a tool call, and the
+    // skills of the worker agents.
     "authorize_chat_tool",
     "edit_and_resend_chat_message",
     "list_a2a_skills",
-    "list_chat_approval_history",
     "regenerate_chat_response",
+    // The actions under an answer: branch off, continue the last answer,
+    // rewrite an answer, remove a message.
+    "continue_chat_response",
+    "delete_chat_message",
+    "edit_chat_response",
+    "fork_chat_session",
+    "get_chat_continuation",
     // Agents: the registry and the uninstall of an agent.
     "agent_status_snapshot",
     "list_agents",
@@ -91,15 +97,15 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_tasks",
     // Tasks: the delegation tree, over `/api/v1/tasks/{id}/delegation-tree`.
     "get_delegation_tree",
-    // Approvals: the pending and resolved ones, and the decision that resumes
-    // the task.
+    // Approvals: the task pauses waiting for a decision.
     "list_pending_approvals",
-    "list_resolved_approvals",
-    "resume_task",
+    // Every decision waiting for the user in one list, and the answer to one,
+    // over `/api/v1/pending-decisions`.
+    "decide_pending_decision",
+    "list_pending_decisions",
     // The questions an agent asked the user.
     "list_pending_user_inputs",
     "respond_user_input",
-    "respond_user_input_rejected",
     // Commands whose whole body is a call to a runtime route, served through
     // the methods of `proxy.rs` in both modes.
     // Models: the inference servers, the loaded models, the costs.
@@ -177,13 +183,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_batch",
     "list_batches",
     "preview_batch_source",
-    // Notifications and the activity feed.
+    // Notifications.
     "create_notification_channel",
     "delete_notification_channel",
     "get_notification_events",
     "get_notification_logs",
     "list_notification_channels",
-    "list_runtime_activity",
     "set_notification_events",
     "test_notification_channel",
     "update_notification_channel",
@@ -473,6 +478,7 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "install_update",
         "replaces this application, not the daemon",
     ),
+    ("copy_example_dataset", "writes files this application carries into a folder the user chose"),
     (
         "get_cli_status",
         "reads the command-line link this application installs",
@@ -582,11 +588,6 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "opens the browser of this machine and awaits the sign-in on its loopback; the token goes to the secret store the daemon reads",
     ),
 ];
-
-/// Encodes one path segment of a daemon route.
-pub(crate) fn segment(value: &str) -> std::borrow::Cow<'_, str> {
-    urlencoding::encode(value)
-}
 
 /// Where the runtime this application drives lives.
 #[derive(Clone)]
