@@ -3490,6 +3490,11 @@
       "kind": "clearStubs"
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-panes",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "resizeWindow",
       "width": 900,
       "height": 800
