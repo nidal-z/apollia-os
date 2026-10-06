@@ -7614,6 +7614,13 @@ export interface components {
         CreateSessionRequest: {
             /** @description Agent name (required when `mode == "agent"`). */
             agent_name?: string | null;
+            /**
+             * @description Limit the conversation to `tools`: of the accesses of its agent only
+             *     they are offered, and those the agent does not hold are proposed,
+             *     each of their calls asking for consent. Read back as
+             *     `settings.only_accesses`. Refused when `tools` is empty.
+             */
+            limited_to_tools?: boolean;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
             /**
@@ -8873,11 +8880,19 @@ export interface components {
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
             activeRequests: number;
+            /** @description What the model can do, from the model index. */
+            capabilities?: Record<string, never> | null;
             /**
              * @description The engine serving the model, chosen by its format: `llama-server` for
              *     GGUF, `vllm-mlx` for MLX.
              */
             engine: components["schemas"]["EngineName"];
+            /**
+             * Format: double
+             * @description Memory the load guardrail estimated for it at launch, in gigabytes;
+             *     absent when the launch was not estimated.
+             */
+            footprintGb?: number | null;
             /**
              * @description What the model serves: `chat`, or `embeddings` for the instance that
              *     serves search by meaning, which counts neither against `maxLoaded` nor
@@ -8890,6 +8905,11 @@ export interface components {
             loadedAt: string;
             /** @description Display name, the model file name without its extension. */
             model: string;
+            /**
+             * @description Identifier of the model in the model index, the name an agent uses;
+             *     absent for a file the index does not hold.
+             */
+            modelId?: string | null;
             /** @description Path the model was loaded from; the key an unload takes. */
             modelPath: string;
             /**
@@ -8918,6 +8938,11 @@ export interface components {
              * @description Loopback port of the process serving it.
              */
             port: number;
+            /**
+             * Format: int64
+             * @description Size of its weights on disk, from the model index.
+             */
+            sizeBytes?: number | null;
         };
         /** @description Response body for `GET /api/v1/llm/loaded-models`. */
         LoadedModelsResponse: {
@@ -10694,6 +10719,13 @@ export interface components {
              * @description Upper bound on the length of an answer, in tokens.
              */
             max_tokens?: number | null;
+            /**
+             * @description Accesses the conversation is limited to. When the list is not empty,
+             *     of the accesses of the agent only those it names are kept, and those
+             *     it names that the agent does not hold are proposed: each of their
+             *     calls asks for consent.
+             */
+            only_accesses?: string[];
             /**
              * Format: int64
              * @description Preset chosen for the conversation, a preset of its model. It takes

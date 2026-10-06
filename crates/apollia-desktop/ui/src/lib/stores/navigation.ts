@@ -3,7 +3,7 @@ import { DEFAULT_ROUTE } from "$lib/navigation/developerRoutes";
 import { openSettingsWindow, requestCloseSettingsWindow } from "$lib/stores/settingsWindow";
 
 /** Routes available in the desktop application. */
-export type Route = "dashboard" | "agents" | "batches" | "batch" | "chat" | "inbox" | "integrations" | "llm" | "library" | "automations" | "memory" | "transcriptions" | "observability" | "policy" | "authorizations" | "journal" | "settings" | "design" | "design-motion" | "design-empty-states" | "design-dark-mode";
+export type Route = "agents" | "batches" | "batch" | "chat" | "inbox" | "integrations" | "llm" | "library" | "automations" | "memory" | "transcriptions" | "observability" | "policy" | "authorizations" | "journal" | "settings" | "design" | "design-motion" | "design-empty-states" | "design-dark-mode";
 
 const screen = writable<Route>(DEFAULT_ROUTE);
 

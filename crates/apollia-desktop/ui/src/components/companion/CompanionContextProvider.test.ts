@@ -108,13 +108,13 @@ describe("CompanionContextProvider - debounce", () => {
     );
 
     // WHEN
-    debouncedUpdate("dashboard");
+    debouncedUpdate("agents");
     vi.advanceTimersByTime(499);
     expect(updates).toHaveLength(0);
 
     vi.advanceTimersByTime(1);
     expect(updates).toHaveLength(1);
-    expect(updates[0]).toBe("dashboard");
+    expect(updates[0]).toBe("agents");
 
     vi.useRealTimers();
   });

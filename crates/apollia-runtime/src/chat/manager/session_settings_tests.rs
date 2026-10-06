@@ -517,6 +517,135 @@ async fn test_an_access_proposed_for_a_conversation_is_offered_and_asks_before_i
 }
 
 #[tokio::test]
+async fn test_a_conversation_limited_to_the_tools_of_a_connection_offers_the_model_nothing_else() {
+    // GIVEN a chat whose assistant reads by default (`notes_read`,
+    // `web_lookup`), and two conversations: one limited to `notes_write`,
+    // which the assistant does not hold, and `notes_read`, which it does;
+    // the other left as it is
+    let dir = tempfile::tempdir().unwrap();
+    let before = governance_rows(&dir);
+    let chat = Chat::over(&dir, Vec::new(), true).await;
+    let limited = chat
+        .handle
+        .create_limited_session(CreateSessionParams {
+            mode: ChatMode::Libre,
+            agent_name: None,
+            system_prompt: None,
+            tools: vec!["notes_write".into(), "notes_read".into()],
+            model: None,
+        })
+        .await
+        .expect("create limited session")
+        .id;
+    let free = chat.session(None, &[]).await;
+
+    // WHEN a message is sent in each
+    chat.turn(&limited, "what can you do here?").await;
+    chat.turn(&free, "what can you do here?").await;
+
+    // THEN the limited conversation offers the model its two tools, and
+    // beside them only what the loop itself brings, which the other
+    // conversation is offered as well without being granted it; the other
+    // conversation still offers the reading access left out of the first;
+    // nothing was written to governance
+    let requests = chat.requests();
+    let in_limited = offered(&requests[0]);
+    let in_free = offered(&requests[1]);
+    let granted = ["notes_read", "web_lookup", "notes_write"];
+    let of_the_loop: Vec<&str> = in_free
+        .iter()
+        .copied()
+        .filter(|name| !granted.contains(name))
+        .collect();
+    assert!(in_limited.contains(&"notes_write"), "{in_limited:?}");
+    assert!(in_limited.contains(&"notes_read"), "{in_limited:?}");
+    assert!(!in_limited.contains(&"web_lookup"), "{in_limited:?}");
+    let beside: Vec<&str> = in_limited
+        .iter()
+        .copied()
+        .filter(|name| !["notes_write", "notes_read"].contains(name))
+        .collect();
+    assert!(
+        beside.iter().all(|name| of_the_loop.contains(name)),
+        "{beside:?} against {of_the_loop:?}"
+    );
+    assert!(in_free.contains(&"web_lookup"), "{in_free:?}");
+    assert!(!in_free.contains(&"notes_write"), "{in_free:?}");
+    assert_eq!(governance_rows(&dir), before);
+    chat.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn test_a_tool_outside_the_limit_of_a_conversation_is_refused_and_one_inside_asks() {
+    // GIVEN a conversation limited to `notes_write`, which the assistant
+    // does not hold; the model calls `web_lookup`, which the assistant
+    // holds, then `notes_write`
+    let dir = tempfile::tempdir().unwrap();
+    let chat = Chat::over(
+        &dir,
+        vec![call_of("web_lookup"), call_of("notes_write")],
+        true,
+    )
+    .await;
+    let limited = chat
+        .handle
+        .create_limited_session(CreateSessionParams {
+            mode: ChatMode::Libre,
+            agent_name: None,
+            system_prompt: None,
+            tools: vec!["notes_write".into()],
+            model: None,
+        })
+        .await
+        .expect("create limited session")
+        .id;
+
+    // WHEN a message is sent, and the question the turn raises is refused
+    let mut events = chat.bus.subscribe();
+    chat.handle
+        .send_message(limited.clone(), "write it down".into())
+        .await
+        .expect("send");
+    let (seen, asked) = collect_events_until(Duration::from_secs(10), &mut events, |event| {
+        matches!(event, RuntimeEvent::ChatApprovalRequired { .. })
+    })
+    .await;
+    assert!(asked, "the tool of the connection never asked");
+    let Some(RuntimeEvent::ChatApprovalRequired {
+        message_id,
+        tool_call_id,
+        tool_name,
+        ..
+    }) = seen.last().cloned()
+    else {
+        unreachable!("the last event is the approval");
+    };
+    chat.handle
+        .resolve_tool(
+            limited.clone(),
+            message_id,
+            tool_call_id,
+            tool_name.clone(),
+            crate::chat::types::ToolDecision::refuse(),
+        )
+        .await
+        .expect("refuse");
+    let (_, ended) = collect_events_until(Duration::from_secs(10), &mut events, |event| {
+        matches!(event, RuntimeEvent::ChatResponseCompleted { .. })
+    })
+    .await;
+
+    // THEN the call outside the limit was answered as an unknown tool, and
+    // the tool of the limit asked before running
+    assert!(ended, "the turn never ended");
+    let requests = chat.requests();
+    let refusal = text_of(&requests[1].messages.last().expect("tool result").content);
+    assert!(refusal.contains("unknown tool `web_lookup`"), "{refusal}");
+    assert_eq!(tool_name, "notes_write");
+    chat.handle.shutdown().await;
+}
+
+#[tokio::test]
 async fn test_a_conversation_set_to_stop_at_the_limit_fails_its_turn_with_a_readable_message() {
     // GIVEN a conversation set to stop at the limit, whose first exchange is
     // already longer than the window of its model

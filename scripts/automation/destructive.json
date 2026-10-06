@@ -4,7 +4,7 @@
   "destructive": true,
   "notes": [
     "The LLM block switches to builder mode first: delete-backend now lives in LlmBackendCard's builderActions snippet, absent in the operator default this script boots into.",
-    "llm-empty-add-btn is reached through a stub, not through deletions: LlmBackendRepository::delete refuses the default backend (crates/apollia-core/src/llm_backend.rs:432, CannotDeleteDefault, mapped to 409 at apollia-runtime routes_llm/backends.rs:150) and set-default only moves the flag, so a table with one backend can never be emptied from the UI. The block arms stubInvoke list_llm_backends resolve [] (an empty array, no backend type to drift), clicks llm-reload-btn so the route's own refresh() (routes/Llm.svelte:44-50, 85) writes [] into the sse llmBackends store (the 10 s watchdog of sse.ts:709 would do it too, hence the 25 s waits), plays llm-empty-add-btn (routes/Llm.svelte:130) into llm-backend-dialog, cancels, clears the stub, reloads again for the real list, and re-enters Settings > LLM so the model-hub step that follows finds the settings page it expects.",
+    "llm-empty-add-btn is reached through a stub, not through deletions: LlmBackendRepository::delete refuses the default backend (crates/apollia-core/src/llm_backend.rs:432, CannotDeleteDefault, mapped to 409 at apollia-runtime routes_llm/backends.rs:150) and set-default only moves the flag, so a table with one backend can never be emptied from the UI. The block arms stubInvoke list_llm_backends resolve [] (an empty array, no backend type to drift), clicks llm-reload-btn of Settings > LLM so its handleReload() refreshes the list through the settings loader, which then reads [] and mounts llm-backends-empty, plays llm-empty-add-btn into llm-backend-dialog, cancels, clears the stub, reloads again for the real list, and re-enters Settings > LLM so the model-hub step that follows finds the settings page it expects.",
     "One uninstall of apollia-guide serves agent-uninstall-confirm, the five companion-error-* anchors and agent-unavailable-install: rows are addressed by agents-search then agent-list-row nth 0 (store order, no sort, Agents.svelte:107; the expect on agent-detail-title guards the row), never nth -1. Uninstall unregisters the guide (commands/agents/lifecycle.rs:240-248) and it is re-provisioned only at boot (main.rs:171), so create_companion_session rejects GuideAgentNotInstalled (commands/onboarding/companion.rs:95-102); the message carries none of timeout/network/connect/session, so the error is kind internal / ERR_COMPANION_UNKNOWN (stores/companion.ts:183-220) and the details toggle renders on error.message (CompanionErrorState.svelte:121). companion-error-settings maps internal to the settings route with the panel left mounted (CompanionPanel.svelte:328-340); companion-error-close hides it, the store's enabled stays true, so no later step toggles the companion.",
     "agent-unavailable-install: seed-session-2 is an agent-mode session on apollia-guide (tests/cli/seed/fragments/chat.sql:39-42); it is opened through the palette's Sessions group (paletteIndex.ts:98-124, keywords carry the session id; the group lists the freshest chatSessions when no session was touched through the palette yet, recentSessionsStore.ts:53-66) so the banner condition of ChatConversation.svelte:142-147 holds with the guide gone from $agents. The mapper's seed-classifier route is refuted: seed-classifier is a worker and Agents.svelte:107 keeps workers out of agent-list-row.",
     "update-install-btn stays unplayed and a boundary even in this book: it renders only on phase available (UpdateCheckPanel.svelte:184), which needs a signed latest.json from the GitHub endpoint of tauri.conf.json (commands/updates.rs:130-141, offline the check fails at transport), and acting on it runs install_update, which replaces the binary and restarts the app before the report is written.",
@@ -275,15 +275,6 @@
       "resolve": []
     },
     {
-      "kind": "goto",
-      "route": "llm"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-page",
-      "timeoutMs": 15000
-    },
-    {
       "kind": "waitFor",
       "testid": "llm-reload-btn",
       "timeoutMs": 4000
@@ -295,7 +286,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "llm-empty",
+      "testid": "llm-backends-empty",
       "timeoutMs": 25000
     },
     {
@@ -337,12 +328,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "llm-grid",
+      "testid": "llm-backends-list",
       "timeoutMs": 25000
     },
     {
       "kind": "screenshot",
-      "label": "12d-llm-grid-restored"
+      "label": "12d-llm-list-restored"
     },
     {
       "kind": "goto",
@@ -1161,7 +1152,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",

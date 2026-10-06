@@ -108,30 +108,6 @@ pub struct PingResult {
     pub error: Option<String>,
 }
 
-/// Cost/token statistics row for a backend+model.
-#[derive(Debug, Serialize)]
-pub struct CostStatsRow {
-    /// Backend name.
-    pub backend: String,
-    /// Model identifier.
-    pub model: String,
-    /// Number of LLM calls.
-    pub call_count: u64,
-    /// Total tokens (prompt + completion).
-    pub total_tokens: u64,
-    /// Estimated total cost in USD.
-    pub total_cost_usd: f64,
-}
-
-/// Aggregated cost/token statistics response.
-#[derive(Debug, Serialize)]
-pub struct CostStatsResponse {
-    /// Rows per backend+model.
-    pub rows: Vec<CostStatsRow>,
-    /// Number of aggregated days.
-    pub days: u32,
-}
-
 /// Deserializes a JSON value into an `LlmBackendView`.
 fn parse_backend_view(json: serde_json::Value) -> Result<LlmBackendView, String> {
     serde_json::from_value(json).map_err(|e| format!("invalid backend response: {e}"))
@@ -307,55 +283,6 @@ pub(crate) async fn ping_and_record(
     }
 
     result
-}
-
-/// Fetches the cost/token statistics aggregated over N days.
-///
-/// Delegates to `GET /api/v1/llm/costs?days=N`.
-#[tauri::command]
-pub async fn get_llm_cost_stats(
-    state: State<'_, RuntimeLink>,
-    days: Option<u32>,
-) -> Result<CostStatsResponse, String> {
-    let d = days.unwrap_or(7);
-    let path = format!("/api/v1/llm/costs?days={d}");
-    let json = state.get_json(&path).await;
-
-    match json {
-        Ok(resp) => {
-            let rows = resp
-                .get("rows")
-                .and_then(|v| v.as_array())
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|r| CostStatsRow {
-                    backend: r
-                        .get("backend")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    model: r
-                        .get("model")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    call_count: r.get("call_count").and_then(|v| v.as_u64()).unwrap_or(0),
-                    total_tokens: r.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-                    total_cost_usd: r
-                        .get("total_cost_usd")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(0.0),
-                })
-                .collect();
-
-            Ok(CostStatsResponse { rows, days: d })
-        }
-        Err(_) => Ok(CostStatsResponse {
-            rows: vec![],
-            days: d,
-        }),
-    }
 }
 
 /// Reloads the LLM router from `system.db`.
@@ -662,46 +589,5 @@ mod tests {
         assert_eq!(json["available"], false);
         assert!(json["latency_ms"].is_null());
         assert_eq!(json["error"], "connection refused");
-    }
-
-    #[test]
-    fn test_cost_stats_response_serializes() {
-        // GIVEN a CostStatsResponse with one row
-        let resp = CostStatsResponse {
-            rows: vec![CostStatsRow {
-                backend: "anthropic".to_string(),
-                model: "sonnet".to_string(),
-                call_count: 15,
-                total_tokens: 3000,
-                total_cost_usd: 0.045,
-            }],
-            days: 7,
-        };
-
-        // WHEN serialized
-        let json = serde_json::to_value(&resp).expect("serialize");
-
-        // THEN rows and days are correct
-        assert_eq!(json["days"], 7);
-        let rows = json["rows"].as_array().expect("rows is array");
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0]["call_count"], 15);
-        assert_eq!(rows[0]["total_tokens"], 3000);
-    }
-
-    #[test]
-    fn test_cost_stats_response_empty() {
-        // GIVEN an empty CostStatsResponse
-        let resp = CostStatsResponse {
-            rows: vec![],
-            days: 30,
-        };
-
-        // WHEN serialized
-        let json = serde_json::to_value(&resp).expect("serialize");
-
-        // THEN rows is empty array
-        assert_eq!(json["days"], 30);
-        assert_eq!(json["rows"].as_array().expect("rows").len(), 0);
     }
 }

@@ -5,8 +5,19 @@
  * this factory carries that decision as live state, coalesces several scroll
  * requests inside one animation frame, and counts what landed while the
  * operator was reading further up.
+ *
+ * Two choices of Settings > Appearance are read here, at the moment they
+ * apply: whether a sent message scrolls to the top of the thread, and whether
+ * the thread follows an answer while it arrives.
  */
-import { computeScrollFollow } from "$lib/chat/scrollFollow";
+import { get } from "svelte/store";
+import {
+  computeScrollFollow,
+  computeSendSpace,
+  followsGeneration,
+  sendScroll,
+} from "$lib/chat/scrollFollow";
+import { chatAppearance } from "$lib/stores/chatAppearance";
 
 export interface ConversationScroll {
   /** Bound to the scrolling element by the view. */
@@ -17,6 +28,18 @@ export interface ConversationScroll {
   readonly showJump: boolean;
   /** Messages that landed while the operator was reading further up. */
   readonly unread: number;
+  /** Height, in pixels, of the room kept under the thread after a send. */
+  readonly sendSpace: number;
+  /**
+   * A message was just sent and is in the thread: bring it to the top, or go
+   * to the bottom, as Appearance says.
+   */
+  sent(): void;
+  /**
+   * A chunk of the answer landed, or the turn settled: follow it, unless
+   * Appearance says not to.
+   */
+  follow(): void;
   /**
    * Scroll to the newest content. `force` also overrides a released scroll,
    * which is what the operator asked for by pressing the button.
@@ -49,6 +72,48 @@ export function createConversationScroll(isBusy: () => boolean): ConversationScr
   /** Offset at the previous scroll event, read to tell a follow from a user. */
   let previousScrollTop = 0;
   let lastSeenMessageCount = 0;
+  /** Top of the last sent message inside the scrolled content, once pinned. */
+  let anchorTop: number | null = null;
+  let sendSpace = $state(0);
+
+  function padding(el: HTMLElement): { top: number; bottom: number } {
+    const style = getComputedStyle(el);
+    return {
+      top: parseFloat(style.paddingTop) || 0,
+      bottom: parseFloat(style.paddingBottom) || 0,
+    };
+  }
+
+  /** Offset of a child edge inside the scrolled content. */
+  function offsetIn(el: HTMLElement, edge: "top" | "bottom", child: Element): number {
+    return child.getBoundingClientRect()[edge] - el.getBoundingClientRect().top + el.scrollTop;
+  }
+
+  /** Bottom of the thread proper, the spacer left out. */
+  function contentBottom(el: HTMLElement): number {
+    const spacer = el.querySelector("[data-chat-send-spacer]");
+    const last = spacer?.previousElementSibling;
+    return last ? offsetIn(el, "bottom", last) : 0;
+  }
+
+  function refreshSendSpace(): void {
+    if (!container || anchorTop === null) {
+      sendSpace = 0;
+      return;
+    }
+    const pad = padding(container);
+    sendSpace = computeSendSpace({
+      clientHeight: container.clientHeight,
+      anchorTop,
+      contentBottom: contentBottom(container),
+      inset: pad.top + pad.bottom,
+    });
+  }
+
+  function dropAnchor(): void {
+    anchorTop = null;
+    sendSpace = 0;
+  }
 
   function toBottom(force = false): void {
     if (!force && released) return;
@@ -77,7 +142,54 @@ export function createConversationScroll(isBusy: () => boolean): ConversationScr
     get unread() {
       return unread;
     },
-    toBottom,
+    get sendSpace() {
+      return sendSpace;
+    },
+
+    // A forced scroll from outside is a load, a turn played again or the
+    // operator's own jump: the thread it pinned a message in is not this one.
+    toBottom(force = false): void {
+      if (force) dropAnchor();
+      toBottom(force);
+    },
+
+    sent(): void {
+      released = false;
+      showJump = false;
+      unread = 0;
+      const groups = container?.querySelectorAll("[data-message-id]");
+      const anchor = groups && groups.length > 0 ? groups[groups.length - 1] : null;
+      const mode = sendScroll({
+        scrollSentToTop: get(chatAppearance).scrollSentToTop,
+        hasAnchor: anchor !== null,
+      });
+      if (mode === "bottom" || !container || !anchor) {
+        dropAnchor();
+        toBottom(true);
+        return;
+      }
+      const top = offsetIn(container, "top", anchor);
+      anchorTop = top;
+      refreshSendSpace();
+      // The room is laid out before the next frame, which is when the offset
+      // becomes reachable.
+      if (followFrame !== null) cancelAnimationFrame(followFrame);
+      followFrame = requestAnimationFrame(() => {
+        followFrame = null;
+        if (!container) return;
+        container.scrollTo({ top: top - padding(container).top, behavior: "instant" });
+      });
+    },
+
+    follow(): void {
+      // The room only ever shrinks while an answer arrives; once it is gone
+      // there is nothing left to measure on each chunk.
+      if (sendSpace > 0) refreshSendSpace();
+      if (!followsGeneration({ followGeneration: get(chatAppearance).followGeneration, released })) {
+        return;
+      }
+      toBottom();
+    },
 
     onScroll(): void {
       if (!container) return;
@@ -107,6 +219,7 @@ export function createConversationScroll(isBusy: () => boolean): ConversationScr
         unread += count - lastSeenMessageCount;
       }
       lastSeenMessageCount = count;
+      refreshSendSpace();
     },
 
     reset(): void {
@@ -115,6 +228,7 @@ export function createConversationScroll(isBusy: () => boolean): ConversationScr
       unread = 0;
       previousScrollTop = 0;
       lastSeenMessageCount = 0;
+      dropAnchor();
     },
 
     dispose(): void {

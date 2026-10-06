@@ -15,6 +15,7 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { contextDrawerOpen } from "$lib/stores/chatLayout";
   import { chatDensity, chatFullWidth } from "$lib/stores/chatAppearance";
+  import { lastAnswerId } from "$lib/chat/generationStats";
   import MessageGroup from "./MessageGroup.svelte";
   import StreamingMessage from "./StreamingMessage.svelte";
   import A2ADelegationCard from "./A2ADelegationCard.svelte";
@@ -90,6 +91,9 @@
     onregenerate,
     onedit,
   }: Props = $props();
+
+  // The answer "last message only" keeps its generation figures under.
+  const lastAnswer = $derived(lastAnswerId(messageGroups.flatMap((g) => g.messages)));
 </script>
 
 <div class="relative flex-1 min-h-0">
@@ -128,6 +132,7 @@
           agentName={sessionAgentName}
           variant={$chatDensity === "compact" ? "compact" : "default"}
           busy={isProcessing || isStreaming}
+          lastAnswerId={lastAnswer}
           {onregenerate}
           {onedit}
         />
@@ -262,6 +267,13 @@
       </div>
     {/if}
   {/if}
+  <!-- The room under a short answer that lets the sent message reach the top. -->
+  <div
+    class="!mt-0 shrink-0"
+    style:height="{scroll.sendSpace}px"
+    aria-hidden="true"
+    data-chat-send-spacer
+  ></div>
 </div>
 <ScrollToBottomButton
   visible={scroll.showJump}

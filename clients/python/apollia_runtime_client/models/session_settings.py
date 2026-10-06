@@ -21,6 +21,10 @@ class SessionSettings:
             disabled_accesses (list[str] | Unset): Accesses of the agent switched off for this conversation.
             instructions (None | str | Unset): Instructions added to the mission of the agent for this conversation.
             max_tokens (int | None | Unset): Upper bound on the length of an answer, in tokens.
+            only_accesses (list[str] | Unset): Accesses the conversation is limited to. When the list is not empty,
+                of the accesses of the agent only those it names are kept, and those
+                it names that the agent does not hold are proposed: each of their
+                calls asks for consent.
             preset (int | None | Unset): Preset chosen for the conversation, a preset of its model. It takes
                 the place of the agent's preset.
             profile_access (bool | None | Unset): For an installed agent, whether it may read the user profile in this
@@ -38,6 +42,7 @@ class SessionSettings:
     disabled_accesses: list[str] | Unset = UNSET
     instructions: None | str | Unset = UNSET
     max_tokens: int | None | Unset = UNSET
+    only_accesses: list[str] | Unset = UNSET
     preset: int | None | Unset = UNSET
     profile_access: bool | None | Unset = UNSET
     proposed_accesses: list[str] | Unset = UNSET
@@ -69,6 +74,10 @@ class SessionSettings:
             max_tokens = UNSET
         else:
             max_tokens = self.max_tokens
+
+        only_accesses: list[str] | Unset = UNSET
+        if not isinstance(self.only_accesses, Unset):
+            only_accesses = self.only_accesses
 
         preset: int | None | Unset
         if isinstance(self.preset, Unset):
@@ -115,6 +124,8 @@ class SessionSettings:
             field_dict["instructions"] = instructions
         if max_tokens is not UNSET:
             field_dict["max_tokens"] = max_tokens
+        if only_accesses is not UNSET:
+            field_dict["only_accesses"] = only_accesses
         if preset is not UNSET:
             field_dict["preset"] = preset
         if profile_access is not UNSET:
@@ -171,6 +182,8 @@ class SessionSettings:
 
         max_tokens = _parse_max_tokens(d.pop("max_tokens", UNSET))
 
+        only_accesses = cast(list[str], d.pop("only_accesses", UNSET))
+
         def _parse_preset(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -223,6 +236,7 @@ class SessionSettings:
             disabled_accesses=disabled_accesses,
             instructions=instructions,
             max_tokens=max_tokens,
+            only_accesses=only_accesses,
             preset=preset,
             profile_access=profile_access,
             proposed_accesses=proposed_accesses,

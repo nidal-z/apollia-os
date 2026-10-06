@@ -631,6 +631,12 @@ fichier de verrouillage, lui-même, `zopfli` et `zlib-rs` (voir
 résultats dans le fichier d'où un lot a été lu se décide avec le lecteur de
 tableurs (voir [Documents et sources](#documents-and-sources)).
 
+L'application de bureau écrit un classeur de plus avec lui : le jeu de
+démonstration sur lequel un agent d'exemple s'essaie, construit depuis un
+tableau que l'application porte quand l'utilisateur en demande une copie.
+Aucune crate n'entre pour cela dans le fichier de verrouillage,
+`rust_xlsxwriter` devenant une dépendance directe du bureau.
+
 ## Messagerie entre agents {#agent-messaging}
 
 Un agent directeur délègue à des agents travailleurs par identifiant de skill,

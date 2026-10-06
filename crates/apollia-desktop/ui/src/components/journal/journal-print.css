@@ -1,0 +1,47 @@
+/*
+ * The page the journal is printed from. On screen it is a preview inside a
+ * dialog; on paper it is the only thing left of the window: every other child
+ * of the body is taken out, and the dialog that carries the preview flows as
+ * an ordinary document so the entries run over as many pages as they need.
+ *
+ * The dialog is reached by the anchor it is given, since the primitive
+ * relocates itself under the body and takes no class on its outer layer.
+ */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body > * {
+    display: none !important;
+  }
+
+  body > [data-testid="journal-print"] {
+    display: block !important;
+    position: static !important;
+    padding: 0 !important;
+    transform: none !important;
+  }
+
+  body > [data-testid="journal-print"] > div {
+    width: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body > [data-testid="journal-print"] button,
+  .journal-print-controls {
+    display: none !important;
+  }
+
+  .journal-print-page tr,
+  .journal-print-page pre {
+    break-inside: avoid;
+  }
+
+  .journal-print-page thead {
+    display: table-header-group;
+  }
+}

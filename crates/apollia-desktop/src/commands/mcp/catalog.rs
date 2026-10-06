@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel};
+use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel, TryExample};
 use crate::mcp::official::is_official_registry_entry;
 use crate::mcp::registry_client::{
     RegistryIcon, RegistryPackage, RegistryRemote, RegistryRepository, RegistryServer,
@@ -308,6 +308,10 @@ pub struct ConnectorEnrichmentView {
     /// Set for providers that require manual dev-portal registration (Figma).
     /// `None` for providers that support CIMD or anonymous DCR.
     pub oauth_pre_registered_client_id_env: Option<String>,
+    /// Questions offered to try the connection, both locales kept: the
+    /// interface picks the one it shows.
+    #[serde(default)]
+    pub examples: Vec<TryExample>,
 }
 
 /// Pair of a package identifier and its enrichment view.
@@ -344,6 +348,7 @@ pub fn list_mcp_enrichments() -> Vec<EnrichmentEntry> {
                 auth_help_i18n_key: e.auth_help_i18n_key,
                 default_requires_approval: e.default_requires_approval,
                 oauth_pre_registered_client_id_env: e.oauth_pre_registered_client_id_env,
+                examples: e.examples,
             },
         })
         .collect()

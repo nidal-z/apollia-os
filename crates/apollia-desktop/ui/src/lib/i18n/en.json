@@ -82,7 +82,6 @@
     "back": "Back",
     "next": "Next",
     "optional_label": "(optional)",
-    "no_data": "No data",
     "na": "N/A",
     "default_badge": "DEFAULT",
     "saving": "Saving…",
@@ -172,10 +171,9 @@
     "progress": "Progress"
   },
   "nav": {
-    "dashboard": "Home",
     "agents": "Agents",
     "inbox": "To review",
-    "llm": "LLM models",
+    "llm": "AI",
     "automations": "Automations",
     "memory": "Memory",
     "observability": "Observability",
@@ -188,14 +186,13 @@
     "sidebar_label": "Main navigation",
     "developer_group": "Developer mode",
     "sidebar": {
-      "dashboard": "Home",
       "chat": "Chat",
       "agents": "Agents",
       "automations": "Automations",
       "inbox": "To review",
       "memory": "Memory",
       "observability": "Observability",
-      "llm": "LLM models",
+      "llm": "AI",
       "transcriptions": "Transcriptions",
       "integrations": "Connections",
       "settings": "Settings",
@@ -627,6 +624,24 @@
       "remove_confirm_plain": "Remove the connection",
       "remove_confirm_sources": "Remove the connection and {count, plural, one {its source} other {its # sources}}"
     },
+    "try": {
+      "action": "Try",
+      "title": "Try {name}",
+      "subtitle": "A conversation with Apollia, limited to the tools of this connection. Nothing is sent or changed without your consent.",
+      "choose": "Pick a question",
+      "general_label": "General question",
+      "general_question": "What can I do with {name}?",
+      "no_example": "This connection offers no example: Apollia first tells you what it allows.",
+      "own": "Or ask your own",
+      "own_placeholder": "Write a question…",
+      "quoted": "“{question}”",
+      "launch": "Start the trial",
+      "not_found": "This connection no longer exists.",
+      "no_tools": "This connection offers no tool yet.",
+      "native_added_title": "{provider} is added",
+      "native_added_body": "The account {account} is connected. You choose which agents can use it from their card.",
+      "done": "Done"
+    },
     "badge_builtin": "Built in"
   },
   "integrations": {
@@ -671,8 +686,7 @@
         "loading": "Generating suggestions…",
         "error": "Suggestions are not available right now.",
         "empty": "No suggestions - explore the tools from the chat.",
-        "try": "Try",
-        "no_tools": "No tool is available for this connection yet, so the example cannot run."
+        "try": "Try"
       },
       "optional": "optional",
       "auth_help_link": "Where to find your key",
@@ -733,54 +747,13 @@
       "disconnect_warning": "Disconnect {name}? This will remove the configuration and all stored secrets."
     }
   },
-  "dashboard": {
-    "greeting_morning": "Good morning",
-    "greeting_afternoon": "Good afternoon",
-    "greeting_evening": "Good evening",
-    "no_recent_activity": "No recent activity.",
-    "status_working": "WORKING",
-    "status_submitted": "SUBMITTED",
-    "status_completed": "COMPLETED",
-    "status_failed": "FAILED",
-    "status_approval": "APPROVAL",
-    "status_canceled": "CANCELED",
-    "cold_start_title": "Welcome! Your day is just starting.",
-    "cold_start_subtitle": "Try opening a chat or browse your assistants.",
-    "browse_agents": "Browse my assistants",
-    "headline_pending_one": "You have {count} decision waiting.",
-    "headline_pending_other": "You have {count} decisions waiting.",
-    "headline_agents_one": "{count} agent is working for you.",
-    "headline_agents_other": "{count} agents are working for you.",
-    "headline_greeting": "{greeting}.",
-    "subtitle_pending_one": "{count} decision waiting",
-    "subtitle_pending_other": "{count} decisions waiting",
-    "subtitle_agents_one": "{count} agent at work",
-    "subtitle_agents_other": "{count} agents at work",
-    "subtitle_deliverables_one": "{count} deliverable ready",
-    "subtitle_deliverables_other": "{count} deliverables ready",
-    "subtitle_calm": "All quiet. Start a conversation whenever you are ready.",
-    "header_action_new_chat": "New conversation",
-    "card_pending_title": "Decisions waiting",
-    "card_deliverables_title": "Ready deliverables",
-    "card_agents_title": "At work",
-    "see_all_arrow": "See all →",
-    "see_all_short_arrow": "See all →",
-    "see_all_pending_aria": "See all pending decisions",
-    "pending_empty_title": "Nothing waiting for you",
-    "pending_empty_desc": "You are up to date. Pending decisions will appear here.",
-    "deliverables_empty": "No deliverable completed today.",
-    "agents_empty": "No active agent right now.",
-    "recent_activity_title": "Recent activity",
-    "inbox_more_one": "+ {count} more in To review →",
-    "inbox_more_other": "+ {count} more in To review →",
-    "open_task_aria": "Open task {name}",
-    "agent_detail_aria": "Agent details for {name}",
-    "pending_untitled": "(untitled)",
-    "ctx_open_inbox": "Open in To review",
-    "ctx_open_deliverable": "Open deliverable",
-    "ctx_agent_detail": "Open agent details",
-    "ctx_agent_logs": "View logs",
-    "ctx_open_task": "Open task"
+  "run_status": {
+    "working": "WORKING",
+    "submitted": "SUBMITTED",
+    "completed": "COMPLETED",
+    "failed": "FAILED",
+    "approval": "APPROVAL",
+    "canceled": "CANCELED"
   },
   "agents": {
     "install": {
@@ -906,22 +879,27 @@
       "install": "Install",
       "installed": "Installed",
       "open_sheet": "Open the sheet"
+    },
+    "trial": {
+      "action": "Try with the example",
+      "title": "Try with the example",
+      "what": "Apollia copies the demonstration dataset into the folder you choose: a workbook of made-up requests and a small folder of reference documents.",
+      "fictional": "Everything is made up for the trial, no real data. Nothing is copied until you confirm.",
+      "destination": "Destination folder",
+      "folder_name": "Apollia, example",
+      "choose": "Choose…",
+      "choose_title": "Choose where to copy the example",
+      "copy": "Copy the example",
+      "copied_title": "Example copied",
+      "copied_where": "The demonstration dataset is in {folder}.",
+      "kept": "{count, plural, one {# file was already there and was left as it is.} other {# files were already there and were left as they are.}}",
+      "proposal": "The workbook holds {count, plural, one {# request} other {# requests}}: the batch gives back a table, one line per request, with its sources. The folder of reference documents is what the agent checks each request against.",
+      "also_source": "Also add the folder as a source",
+      "later": "Later",
+      "launch": "Launch the batch on the workbook"
     }
   },
   "inbox": {
-    "row": {
-      "type_approval": "approval",
-      "type_question": "question",
-      "type_error": "error",
-      "type_deliverable": "deliverable",
-      "type_trigger": "trigger",
-      "type_memory": "memory",
-      "type_cost": "cost",
-      "action_allow": "Allow",
-      "action_reply": "Reply",
-      "action_resolve": "Resolve",
-      "open_conversation": "Open conversation"
-    },
     "open_in_inbox": "Open in To review",
     "error": {
       "details": "Technical details",
@@ -1178,18 +1156,6 @@
     }
   },
   "llm": {
-    "title": "LLM Backends",
-    "title_operator": "LLM models",
-    "subtitle": "AI models powering your assistants",
-    "empty_title": "No LLM backend configured",
-    "empty_subtitle": "Edit apollia.toml to add a backend.",
-    "empty_operator": "No AI model configured",
-    "empty_operator_hint": "Add a model in apollia.toml or ask your administrator.",
-    "open_settings": "Open settings",
-    "session_stats_title": "Session Statistics (7 days)",
-    "loading_stats": "Loading statistics...",
-    "no_calls": "No LLM calls recorded in the last 7 days.",
-    "no_calls_operator": "No activity recorded yet.",
     "model": "Model",
     "ping_ok": "Ping OK ({latency}ms)",
     "ping_failed": "Ping failed",
@@ -1199,27 +1165,7 @@
     "status_error": "Error",
     "free_local": "Free (runs on your machine)",
     "pay_per_use": "Pay per use",
-    "used_today": "Used {count} times over the last {days} days, {cost} spent",
-    "table": {
-      "backend": "Backend",
-      "model": "Model",
-      "calls": "Calls",
-      "tokens": "Tokens",
-      "cost_usd": "Cost USD",
-      "total": "Total"
-    },
-    "default_set_toast": "''{name}'' set as the default model",
-    "details": "Details",
-    "loaded": {
-      "title": "Loaded in memory",
-      "empty": "No model is loaded in memory.",
-      "since": "Loaded at {time}",
-      "in_use": "Answering",
-      "engine_mlx": "MLX",
-      "unload": "Unload",
-      "unloaded_toast": "{name} unloaded, its memory is free.",
-      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
-    }
+    "details": "Details"
   },
   "automations": {
     "title": "Automations",
@@ -1890,12 +1836,6 @@
     "kpi_avg": "Avg / day",
     "kpi_peak": "Peak day",
     "kpi_top_backend": "Top backend",
-    "verify_ok": "Trace is intact - no broken link.",
-    "verify_fail": "Trace is corrupted - integrity compromised.",
-    "verify_broken_at": "Broken link at entry: {entry}",
-    "verify_run": "Verify integrity",
-    "verify_loading": "Verifying...",
-    "verify_error": "Verification error: {message}",
     "hooks_title": "Active hooks",
     "hooks_load_error": "Failed to load hooks: {message}",
     "audit_purpose_title": "Why this trail?",
@@ -2822,7 +2762,24 @@
         "next_steps": "Next-step suggestions",
         "reset_one": "Reset \"{name}\""
       },
+      "nav_position_label": "Navigation bar position",
+      "nav_position_hint": "The detail sidebar moves to the opposite side.",
+      "nav_position_left": "Left",
+      "nav_position_right": "Right",
       "chat_style_title": "Chat style",
+      "view_mode_label": "View mode",
+      "view_mode_hint": "In plain text, an answer is shown as received, with no formatting.",
+      "view_mode_markdown": "Rendered Markdown",
+      "view_mode_plain": "Plain text",
+      "generation_info_label": "Generation info",
+      "generation_info_help": "The line under an answer: its speed, its length, the delay before the first word, its duration and why it ended.",
+      "generation_info_last": "Last message only",
+      "generation_info_all": "All messages",
+      "scroll_sent_top_label": "Scroll the sent message to the top",
+      "follow_generation_label": "Follow the message being generated",
+      "message_style_label": "Message style",
+      "message_style_bubble": "Bubbles",
+      "message_style_block": "Blocks",
       "font_size_label": "Font size",
       "font_size_hint": "Applies to chat messages.",
       "font_size_value": "Step {step} of {max}",
@@ -2837,7 +2794,9 @@
       "full_width_label": "Expand the chat to the window width",
       "reasoning_title": "Reasoning",
       "reasoning_expand_label": "Expand reasoning blocks by default",
-      "reasoning_expand_hint": "A block you open or close keeps your choice."
+      "reasoning_expand_hint": "A block you open or close keeps your choice.",
+      "reasoning_vignette_label": "Show the reasoning block vignette",
+      "reasoning_vignette_hint": "A thought still arriving fades out where its text runs past the block."
     },
     "configuration": {},
     "integrations": {
@@ -3374,7 +3333,7 @@
       },
       "server": {
         "address_label": "Server address",
-          "address_hint": "The address the server gives its clients, with http:// or https:// and its port, for example {example}.",
+        "address_hint": "The address the server gives its clients, with http:// or https:// and its port, for example {example}.",
         "key_label": "Key",
         "key_hint": "Only if the server asks for one. Apollia keeps it with its secrets, never in plain text in its configuration.",
         "test": "Test",
@@ -3499,8 +3458,6 @@
     }
   },
   "agent_detail": {
-    "activity_title": "Recent activity",
-    "no_activity": "No recent activity for this agent.",
     "triggers_title": "Triggers",
     "no_triggers": "No triggers configured for this agent.",
     "trigger_cron": "Runs on a schedule (cron)",
@@ -3509,16 +3466,6 @@
     "trigger_webhook": "Runs via webhook",
     "trigger_oneshot": "One-time trigger",
     "trigger_disabled": "Disabled",
-    "memory_link": "View memory for namespace \"{namespace}\"",
-    "tools_title": "Tools",
-    "tools_required_label": "Required",
-    "tools_optional_label": "Optional",
-    "tags_title": "Tags",
-    "execution_mode_title": "Execution mode",
-    "execution_mode_auto": "Automatic",
-    "execution_mode_direct": "Direct",
-    "execution_mode_orchestrated": "Orchestrated",
-    "install_path_title": "Location",
     "trigger_config_cron": "Expression: {config}",
     "trigger_config_interval": "Every {config}",
     "trigger_config_file_watch": "Watches: {config}",
@@ -4872,6 +4819,127 @@
       "hash_value": "{hash} (previous: {previous})"
     }
   },
+  "ai": {
+    "column_title": "Models on this computer",
+    "categories_label": "Model categories",
+    "category": {
+      "all": "All",
+      "language": "Language models",
+      "embeddings": "Embeddings",
+      "dictation": "Dictation",
+      "draft": "Draft models"
+    },
+    "kind": {
+      "language": "Language model",
+      "language_explanation": "This model answers in conversations and does the work of the agents.",
+      "embeddings": "Embeddings",
+      "embeddings_explanation": "This model searches your sources and the memory by meaning. It does not converse."
+    },
+    "format_explanation": "The file format of the model. Apollia picks the engine that runs it from this: you have nothing to set.",
+    "loaded": {
+      "title": "Loaded",
+      "summary": "{count, plural, one {# model in memory, {size} GB} other {# models in memory, {size} GB}}",
+      "empty": "No model is loaded. A model loads the first time it is asked a question.",
+      "no_engine": "This computer runs no model by itself.",
+      "error": "The list of loaded models could not be read.",
+      "ready": "Ready",
+      "ready_explanation": "The model is in memory and answers without waiting to load.",
+      "answering": "Answering",
+      "answering_explanation": "The model is answering right now; it cannot be unloaded before its answer ends.",
+      "memory": "{size} GB in memory",
+      "since": "loaded {when}",
+      "unload": "Unload",
+      "unloaded_toast": "{name} unloaded, its memory is free.",
+      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
+    },
+    "installed": {
+      "title": "On this computer",
+      "filter_placeholder": "Filter models…",
+      "filter_label": "Filter models",
+      "import": "Import a file",
+      "discover": "Discover models",
+      "col_params": "Parameters",
+      "col_name": "Name",
+      "col_size": "Size",
+      "col_modified": "Modified",
+      "col_actions": "Actions",
+      "params_billions": "{n}B",
+      "params_millions": "{n}M",
+      "params_explanation": "The number of parameters of the model, in billions (B) or millions (M). The larger it is, the more capable the model, and the more memory it needs.",
+      "size": "{size} GB",
+      "group": "{label} · {count}",
+      "footer": "{count, plural, one {You have # model, taking up {size} GB.} other {You have # models, taking up {size} GB.}}",
+      "folder_label": "Models folder",
+      "pinned_explanation": "Pinned to top: this model stays first in its category.",
+      "empty_title": "No model on this computer",
+      "empty_hint": "Discover a model suited to your computer, or import a model file you already have.",
+      "empty_language": "No language model on this computer. Discover one to converse and to put your agents to work.",
+      "empty_embeddings": "No embeddings model on this computer. Without one, search goes by words alone.",
+      "empty_dictation": "No dictation model on this computer.",
+      "empty_draft": "A draft model is a small model of the same family as a larger one, which speeds up its answers. None is installed.",
+      "no_match": "No model matches “{query}”.",
+      "error": "The list of models on this computer could not be read.",
+      "import_title": "Import a model file"
+    },
+    "badge": {
+      "default": "Default",
+      "default_explanation": "The model conversations and agents answer with when no other is chosen.",
+      "search": "For search",
+      "search_explanation": "The model that searches your sources and the memory by meaning.",
+      "loaded": "Loaded",
+      "loaded_explanation": "This model is in memory right now.",
+      "unverified": "Unverified origin",
+      "unverified_explanation": "This file matches no published fingerprint: Apollia cannot vouch for where it comes from."
+    },
+    "capability": {
+      "vision": {
+        "label": "Vision",
+        "explanation": "This model can read images."
+      },
+      "tools": {
+        "label": "Tools",
+        "explanation": "This model has been trained to use tools."
+      },
+      "reasoning": {
+        "label": "Reasoning",
+        "explanation": "This model can think before it answers."
+      }
+    },
+    "menu": {
+      "more": "More actions on {name}",
+      "reveal_mac": "Show in Finder",
+      "reveal_windows": "Show in Explorer",
+      "reveal_linux": "Show in file manager",
+      "pin": "Pin to top",
+      "unpin": "Unpin from top",
+      "copy_id": "Copy identifier",
+      "copy_path": "Copy path",
+      "source": "View source",
+      "source_none": "This model was imported from a file: its page of origin is not known.",
+      "use_default": "Use by default",
+      "use_search": "Use for search",
+      "delete": "Delete"
+    },
+    "toast": {
+      "copied_id": "Identifier copied.",
+      "copied_path": "Path copied.",
+      "copy_failed": "The copy could not be made.",
+      "default_set": "{name} now answers by default.",
+      "search_set": "{name} now serves search. The sources and the memory are being indexed again.",
+      "deleted": "{name} deleted.",
+      "imported": "{name} imported."
+    },
+    "search_dialog": {
+      "title": "Use {name} for search?",
+      "message": "The sources and the memory will be indexed again with this model. While that runs, search by meaning may be incomplete.",
+      "confirm": "Use and index again"
+    },
+    "delete_dialog": {
+      "title": "Delete {name}?",
+      "message": "The file is removed from this computer. You will have to download or import it again to use it.",
+      "confirm": "Delete"
+    }
+  },
   "governance": {
     "fail_closed": {
       "title": "Sensitive actions blocked",
@@ -5288,6 +5356,59 @@
     "empty_body": "The actions of the agents and the access changes will be written here.",
     "empty_filtered_title": "No entry matches these filters",
     "empty_filtered_body": "Widen the period or clear the filters to see the whole journal again.",
+    "export": {
+      "action": "Export",
+      "title": "Export the journal",
+      "intro": "The export takes over the filters in force: {filters}. It holds every entry that matches them, not only the ones shown.",
+      "format": "File format",
+      "format_csv": "CSV, to open in a spreadsheet",
+      "format_pdf": "PDF, to print or to archive",
+      "pdf_hint": "The PDF goes through the print dialog of your system: choose to save as PDF there.",
+      "content": "Content",
+      "summary_always": "Always included: the summary of each entry (who, what, target, when, result).",
+      "include_detail": "Include the detail (parameters of each action)",
+      "personal_data": "Contains personal data: addresses, file names, recipients. Share this file with care.",
+      "detail_required_badge": "Required by the policy",
+      "detail_required": "Your organization requires the detail in every export.",
+      "detail_forbidden_badge": "Forbidden by the policy",
+      "detail_forbidden": "The detail cannot be exported: the policy of your organization forbids it. The export holds the summary alone.",
+      "cancel": "Cancel",
+      "confirm": "Export",
+      "csv_file": "CSV file",
+      "written": "Journal exported: {path}",
+      "failed": "The export could not be made: {message}"
+    },
+    "verify": {
+      "action": "Verify integrity",
+      "running": "Verifying…",
+      "failed": "The verification could not be made: {message}",
+      "intact_title": "The journal is intact",
+      "intact_origin": "{count, plural, one {The only entry of the journal, since its beginning, was not modified.} other {The # entries of the journal, since its beginning, were neither modified nor moved, and none was inserted.}}",
+      "intact_purge": "{count, plural, one {The only entry of the journal, since {date} (last purge), was not modified.} other {The # entries of the journal, since {date} (last purge), were neither modified nor moved, and none was inserted.}}",
+      "empty_title": "The journal is empty",
+      "empty_body": "There is no entry to verify yet.",
+      "altered_title": "Alteration detected at entry {entry}",
+      "altered_body": "Entry {entry} no longer matches what was written. From this entry on, the journal can no longer serve as proof.",
+      "altered_before": "{count, plural, =0 {No verified entry precedes it.} one {The entry that precedes it is intact.} other {The # entries that precede it are intact.}}",
+      "since_purge": "The verification starts on {date}, the first entry the last purge kept.",
+      "end_title": "Alteration detected at the end of the journal",
+      "end_body": "{count, plural, =0 {The journal holds no entry any more, though it had recorded some: entries were removed, or its state was replaced.} one {The entry present is intact, but it is not the last one the journal had recorded: entries were removed at the end, or its state was replaced.} other {The # entries present follow one another, but the last is not the one the journal had recorded: entries were removed at the end, or its state was replaced.}}",
+      "limit": "Limit: a removal of the last entries may not show here. It is only caught for certain with an anchor exported beforehand and kept elsewhere; an export of the journal made earlier stands for one, for the entries it holds.",
+      "checked_at": "Verified on {date} at {time}.",
+      "export_as_is": "Export the journal as it is",
+      "close": "Close"
+    },
+    "print": {
+      "summary": "Exported on {date} · {filters} · {count, plural, =0 {no entry} one {# entry} other {# entries}}, newest first",
+      "detail_note": "This export holds the detail of each entry: it may contain personal data.",
+      "hint": "Preview of the page. The print dialog of your system prints it or saves it as a PDF.",
+      "print": "Print or save as PDF",
+      "close": "Close the preview",
+      "place": "Place in the journal",
+      "place_value": "{run} · no. {seq}",
+      "empty": "No entry matches these filters.",
+      "failed": "The print dialog could not open: {message}"
+    },
     "tab_entry": "Entry",
     "detail": {
       "agent": "Agent",

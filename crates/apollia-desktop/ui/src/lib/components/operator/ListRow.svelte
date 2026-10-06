@@ -6,7 +6,7 @@
    * dimmed), padding profile, bottom hairline, hover, and the button role +
    * Enter-to-activate keyboard handling. The inner layout (columns, or
    * leading + content + trailing) is supplied by the caller via `children`, so
-   * domain rows (TaskRow, InboxRow, ConversationRow, ...) stay thin wrappers and
+   * domain rows (ConversationRow, ...) stay thin wrappers and
    * render pixel-identically to before.
    */
   import { cn } from "$lib/utils";

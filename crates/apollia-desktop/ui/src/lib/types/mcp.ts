@@ -170,6 +170,17 @@ export interface ConnectorEnrichmentView {
    *  env var via `mcp_oauth_resolve_client_id` and passes the value to
    *  `mcp_oauth_login`. */
   oauth_pre_registered_client_id_env: string | null;
+  /** Questions offered to try the connection, one per tool they exercise. */
+  examples?: TryExample[];
+}
+
+/** One question offered to try a connection, its texts keyed by locale. */
+export interface TryExample {
+  /** Name of the tool on the server. */
+  tool: string;
+  /** What the tool does, in a few words. */
+  label: Record<string, string>;
+  question: Record<string, string>;
 }
 
 /** Result of testing an MCP server connection without persisting a session. */

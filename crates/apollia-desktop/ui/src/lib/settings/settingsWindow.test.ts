@@ -74,7 +74,7 @@ function reset(): void {
   closeSettingsWindow();
   settingsSubRoute.set(DEFAULT_SETTINGS_SUB_ROUTE);
   settingsDirtyStore.set({});
-  currentRoute.set("dashboard");
+  currentRoute.set("agents");
 }
 
 beforeEach(reset);
@@ -145,7 +145,7 @@ describe("settings window (criterion 1)", () => {
   });
 
   it("closes the window when another screen is navigated to", () => {
-    // GIVEN the window open above the dashboard
+    // GIVEN the window open above the Agents screen
     navigateTo("settings");
 
     // WHEN the Chat is navigated to (a sidebar entry, a help topic)
@@ -251,8 +251,8 @@ describe("unsaved changes in the window (criterion 3)", () => {
     });
 
     try {
-      // WHEN the window is closed on the way to the dashboard
-      navigateTo("dashboard");
+      // WHEN the window is closed on the way to the Agents screen
+      navigateTo("agents");
 
       // THEN the dialog is asked, the window stays open, the Chat stays on screen
       expect(asked).toBeTypeOf("function");
@@ -264,9 +264,9 @@ describe("unsaved changes in the window (criterion 3)", () => {
       closeSettingsWindow();
       asked?.();
 
-      // THEN the window is closed and the dashboard is on screen
+      // THEN the window is closed and the Agents screen is shown
       expect(get(settingsWindowOpen)).toBe(false);
-      expect(get(currentRoute)).toBe("dashboard");
+      expect(get(currentRoute)).toBe("agents");
     } finally {
       uninstall();
     }

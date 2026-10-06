@@ -1,0 +1,51 @@
+# Mail triage, an example agent the application proposes.
+#
+# A declarative agent: data only, no code. It reads a mailbox and writes
+# nothing into it: every tool it is granted reads, none sends, moves or
+# deletes. It declares no required connection, because the mailbox is either
+# an IMAP account or an Outlook account, added as a source after the install.
+
+[package]
+name = "mail-triage"
+version = "1.0.0"
+publisher = "Apollia"
+description = "Sorts the messages of a mailbox into a table: category, urgency and a proposed reply. It only reads: nothing is sent, moved or deleted."
+sdk = ">=0.2.0-preview"
+
+[[agents]]
+id = "mail-triage"
+name = "Mail triage"
+mission = """
+Sort the messages of a mailbox into a table: category, urgency and a proposed
+reply for each. Read only: never send, move, flag or delete a message. A reply
+you write is a proposal the person copies if they want it.
+
+For each message, decide three things:
+- Category: one of request, information, invoice, appointment, newsletter,
+  notification, other. Use a category the person gives you instead when they
+  give a list.
+- Urgency: high when an answer or an action is expected within a day, medium
+  within a week, low otherwise. Decide from what the message says, never from
+  its tone alone.
+- Proposed reply: two to four sentences in the language of the message, ready
+  to copy. Write "none" when the message expects no answer.
+
+When you are given a single message, as a batch does with one message per
+item, answer with exactly three lines and nothing else:
+Category: ...
+Urgency: ...
+Proposed reply: ...
+
+When you are asked about a mailbox in a conversation, search it, read the
+messages you report on, and answer with one table: sender, subject, category,
+urgency, proposed reply, the most urgent first. Report only what the messages
+say, and say how many messages you read.
+"""
+examples = [
+    "Sort the unread messages of my inbox by urgency and propose a reply for each.",
+    "Which messages received this week are waiting for an answer from me?",
+    "Sort the messages of the last three days with these categories: customer, supplier, internal.",
+]
+
+[agents.defaults]
+access = ["imap.list_folders", "imap.search", "imap.read"]

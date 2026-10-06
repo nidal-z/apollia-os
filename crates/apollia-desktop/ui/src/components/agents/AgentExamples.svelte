@@ -6,16 +6,18 @@
    * A band names them and opens them; opened, one card per example gives its
    * name, its mission and what it requires. "Install" hands the example to
    * the route, which opens the preview every package gets; an installed
-   * example says so and leads to the sheet of its agent. On a screen with
-   * nothing else the cards are open from the start. Nothing is installed from
-   * here without that gesture.
+   * example says so and leads to the sheet of its agent. An example that
+   * comes with a demonstration dataset also offers "Try with the example",
+   * installed or not. On a screen with nothing else the cards are open from
+   * the start. Nothing is installed or copied from here without a gesture.
    */
   import { t } from "svelte-i18n";
   import { Sparkles } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import type { ExamplePackage } from "$lib/ipc/packageExamples";
-  import { exampleCards } from "./agentExamples";
+  import { exampleCards, type ExampleCard } from "./agentExamples";
+  import { hasDataset } from "./exampleTrial";
 
   interface Props {
     examples: ExamplePackage[];
@@ -25,9 +27,11 @@
     onInstall: (name: string) => void;
     /** Open the sheet of the agent an installed example brought. */
     onOpenSheet: (agentId: string) => void;
+    /** Try the example of that card on its demonstration dataset. */
+    onTry: (card: ExampleCard) => void;
   }
 
-  let { examples, openByDefault, onInstall, onOpenSheet }: Props = $props();
+  let { examples, openByDefault, onInstall, onOpenSheet, onTry }: Props = $props();
 
   // What the user chose; until then the screen decides.
   let chosen = $state<boolean | null>(null);
@@ -68,7 +72,18 @@
                 {$t("agents.examples.requires", { values: { list: card.requires.join(", ") } })}
               </p>
             {/if}
-            <div class="mt-auto pt-1">
+            <div class="mt-auto flex flex-col gap-2 pt-1">
+              {#if hasDataset(card.name)}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="w-full"
+                  onclick={() => onTry(card)}
+                  data-testid="agents-example-try"
+                >
+                  {$t("agents.trial.action")}
+                </Button>
+              {/if}
               {#if !card.installed}
                 <Button
                   variant="primary-solid"

@@ -2,6 +2,16 @@
   "name": "master-det (per-page deterministic suite, one boot, no model) [SCAN cap=3000ms]",
   "stopOnError": false,
   "dynamicTestids": [
+    "ai-category-all",
+    "ai-category-draft",
+    "ai-model-menu-copy_id",
+    "ai-model-menu-copy_path",
+    "ai-model-menu-delete",
+    "ai-model-menu-pin",
+    "ai-model-menu-reveal",
+    "ai-model-menu-source",
+    "appearance-message-style-block",
+    "appearance-message-style-bubble",
     "approval-card-file_write",
     "approval-detail-file_write",
     "approval-see-more-file_write",
@@ -67,7 +77,6 @@
     "danger-card-clear-logs",
     "danger-card-clear-memories",
     "danger-card-factory-reset",
-    "dashboard-agent-row-seed-classifier",
     "empty-state-plan-cache",
     "engine-format-gguf",
     "engine-format-gguf-fell-back",
@@ -105,7 +114,6 @@
     "nav-agents",
     "nav-automations",
     "nav-chat",
-    "nav-dashboard",
     "nav-inbox",
     "nav-integrations",
     "nav-journal",
@@ -222,7 +230,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -269,16 +277,6 @@
     {
       "kind": "expect",
       "testid": "topbar"
-    },
-    {
-      "kind": "click",
-      "testid": "nav-dashboard",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
@@ -350,7 +348,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -452,7 +450,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -475,7 +473,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -528,7 +526,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -565,7 +563,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -598,7 +596,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -635,7 +633,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -753,7 +751,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -790,7 +788,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -852,7 +850,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -952,7 +950,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -984,684 +982,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-02-dashboard-det"
+      "label": "section-02-chat-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-dashboard-operator"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-page"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-cta-new-chat"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-bento",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-dashboard-bento"
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-recent-see-all"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-activity-",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-dashboard-activity"
-    },
-    {
-      "kind": "stubInvoke",
-      "command": "list_pending_approvals",
-      "resolve": [
-        {
-          "task_id": "stub-approval-1",
-          "agent_name": "seed-classifier",
-          "prompt": "Send the weekly digest to the mailing list",
-          "context": {
-            "risk": {
-              "level": "medium",
-              "summary": "Send the weekly digest to the mailing list"
-            }
-          },
-          "suspended_at": "2026-09-01T08:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-2",
-          "agent_name": "seed-classifier",
-          "prompt": "Delete the stale export files under exports/",
-          "context": {
-            "risk": {
-              "level": "high",
-              "summary": "Delete the stale export files under exports/"
-            }
-          },
-          "suspended_at": "2026-09-01T09:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-3",
-          "agent_name": "seed-planner",
-          "prompt": "Publish the release checklist to the shared drive",
-          "context": {
-            "risk": {
-              "level": "medium",
-              "summary": "Publish the release checklist to the shared drive"
-            }
-          },
-          "suspended_at": "2026-09-01T10:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-4",
-          "agent_name": "seed-classifier",
-          "prompt": "Archive the closed tickets of last quarter",
-          "context": {
-            "risk": {
-              "level": "low",
-              "summary": "Archive the closed tickets of last quarter"
-            }
-          },
-          "suspended_at": "2026-09-01T11:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-5",
-          "agent_name": "seed-planner",
-          "prompt": "Rename the preview build artifacts",
-          "context": {
-            "risk": {
-              "level": "low",
-              "summary": "Rename the preview build artifacts"
-            }
-          },
-          "suspended_at": "2026-09-01T12:00:00Z"
-        },
-        {
-          "task_id": "stub-approval-6",
-          "agent_name": "seed-classifier",
-          "prompt": "Post the changelog to the announcement channel",
-          "context": {
-            "risk": {
-              "level": "medium",
-              "summary": "Post the changelog to the announcement channel"
-            }
-          },
-          "suspended_at": "2026-09-01T13:00:00Z"
-        }
-      ]
-    },
-    {
-      "kind": "goto",
-      "route": "inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-pending-list",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-inbox-more",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "expect",
-      "testid": "dashboard-inbox-more",
-      "contains": "1"
-    },
-    {
-      "kind": "screenshot",
-      "label": "03b-dashboard-inbox-more (six stubbed pending approvals, five rows shown, the overflow link)"
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-inbox-more",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-row-primary",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03c-inbox-more-opens-inbox"
-    },
-    {
-      "kind": "clearStubs",
-      "command": "list_pending_approvals"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "dashboard-inbox-more",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-dashboard-agents-pending-best-effort"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-agent-row-",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "dashboard-agent-row-",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04b-agent-sheet"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-logs-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-logs-copy-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-logs-copy-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
-    },
-    {
-      "kind": "screenshot",
-      "label": "04e-agent-logs-copied"
-    },
-    {
-      "kind": "press",
-      "testid": "app-main",
-      "key": "Escape",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-task-row",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-task-row",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agents-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04f-sheet-task-row-opens-agent-sheet"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 900
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-cta-new-chat",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-cta-new-chat-nav"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-recent-see-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-recent-see-all-nav"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-dashboard-builder"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-bento",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "dashboard-activity-",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10-dashboard-builder-agent-tech-best-effort"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-messages-tab",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-message-item",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10b-agent-sheet-messages"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-message-item",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-message-payload",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10c-agent-message-expanded"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-message-item",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "agent-message-payload",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "press",
-      "testid": "agent-detail-sheet",
-      "key": "Escape",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10d-agent-sheet-closed"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "dashboard-agent-row-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-memory-link",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10e-agent-sheet-builder-memory-link"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-memory-link",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "memory-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "agent-detail-sheet",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "10f-memory-link-opens-memory"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-off",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "11-back-operator"
-    },
-    {
-      "kind": "screenshot",
-      "label": "section-03-chat-det"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -4223,7 +3548,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "agents"
     },
     {
       "kind": "waitFor",
@@ -4375,7 +3700,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "agents"
     },
     {
       "kind": "waitFor",
@@ -4397,11 +3722,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-04-agents-det"
+      "label": "section-03-agents-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -5767,11 +5092,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-05-automations-det"
+      "label": "section-04-automations-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -6826,11 +6151,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-06-inbox-det"
+      "label": "section-05-inbox-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -7479,11 +6804,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-07-notifications-det"
+      "label": "section-06-notifications-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -8306,7 +7631,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -8315,11 +7640,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-08-memory-det"
+      "label": "section-07-memory-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -8365,7 +7690,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 3000
     },
     {
@@ -9124,7 +8449,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 3000
     },
     {
@@ -9143,11 +8468,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-09-connections-det"
+      "label": "section-08-connections-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -10180,11 +9505,11 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 3000
     },
     {
@@ -11482,7 +10807,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11638,7 +10963,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11691,7 +11016,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -11911,7 +11236,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -12044,7 +11369,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -12067,7 +11392,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "sleep",
@@ -12079,11 +11404,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-10-observability-det"
+      "label": "section-09-observability-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -12129,7 +11454,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 3000
     },
     {
@@ -12861,7 +12186,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 3000
     },
     {
@@ -12875,11 +12200,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-11-coach-det"
+      "label": "section-10-coach-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -12921,7 +12246,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "sleep",
@@ -12929,7 +12254,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "01-operator-dashboard"
+      "label": "01-operator-chat"
     },
     {
       "kind": "click",
@@ -13132,7 +12457,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "sleep",
@@ -13140,7 +12465,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "09-builder-dashboard"
+      "label": "09-builder-chat"
     },
     {
       "kind": "click",
@@ -13229,7 +12554,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "screenshot",
@@ -13237,11 +12562,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-12-settings-det"
+      "label": "section-11-settings-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -13961,6 +13286,151 @@
       "kind": "click",
       "testid": "theme-system",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "appearance-nav-position-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-nav-position"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-nav-position-select",
+      "value": "right",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar"
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-navigation-right"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-nav-position-select",
+      "value": "left",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-view-mode"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-view-mode-select",
+      "value": "plain",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-view-mode-select",
+      "value": "markdown",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-generation-info"
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-generation-info-help"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-generation-info-select",
+      "value": "all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "appearance-generation-info-select",
+      "value": "last",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-scroll-sent-top"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-scroll-sent-top-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-scroll-sent-top-toggle",
+      "checked": true
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-follow-generation"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-follow-generation-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-follow-generation-toggle",
+      "checked": true
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-message-style"
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-message-style-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "appearance-message-style-block",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "17c-chat-style-blocks"
+    },
+    {
+      "kind": "click",
+      "testid": "appearance-message-style-bubble",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "appearance-reasoning-vignette"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-reasoning-vignette-toggle",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-reasoning-vignette-toggle",
+      "checked": true
     },
     {
       "kind": "sleep",
@@ -16472,11 +15942,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-13-profile-det"
+      "label": "section-12-profile-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -16953,11 +16423,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-14-llm-det"
+      "label": "section-13-llm-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -17007,28 +16477,163 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "screenshot",
-      "label": "01-llm-operator"
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-grid",
+      "testid": "ai-categories",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "llm-backend-card",
+      "testid": "ai-loaded-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
       "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-badge",
+      "testid": "ai-model-format",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-installed-total",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-content"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-installed-section"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-installed-table"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-installed-footer"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-models-dir"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-name",
+      "nth": 0
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-filter-shortcut"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-import-btn"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-ai-screen"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-category-draft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-category-empty",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "02-llm-operator-cards"
+      "label": "02-ai-drafts-empty"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-category-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-filter-input",
+      "text": "no-model-has-this-name",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-category-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "ai-filter-input",
+      "text": "",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-menu-btn",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-reveal"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-pin"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-copy_id"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-copy_path"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-source"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-model-menu-delete"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-ai-actions-menu"
+    },
+    {
+      "kind": "press",
+      "key": "Escape",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-menu",
+      "timeoutMs": 3000
     },
     {
       "kind": "goto",
@@ -17059,6 +16664,33 @@
       "ms": 800
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": 1,
+        "models": [
+          {
+            "engine": "llama-server",
+            "kind": "chat",
+            "model": "Phi-3-mini-Q4",
+            "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+            "port": 8081,
+            "nCtx": 4096,
+            "nGpuLayers": 0,
+            "loadedAt": "2026-01-01T00:00:00Z",
+            "lastUsedAt": "2026-01-01T00:00:00Z",
+            "activeRequests": 0,
+            "origin": "app",
+            "footprintGb": 2.5,
+            "modelId": null,
+            "sizeBytes": null,
+            "capabilities": null
+          }
+        ]
+      }
+    },
+    {
       "kind": "goto",
       "route": "llm"
     },
@@ -17068,52 +16700,49 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "screenshot",
-      "label": "03-llm-builder"
-    },
-    {
       "kind": "waitFor",
-      "testid": "llm-grid",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "llm-backend-card",
+      "testid": "ai-model-row",
       "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-type-badge",
+      "testid": "ai-model-format",
+      "nth": 0,
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "llm-backend-badge",
+      "testid": "ai-loaded-card",
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "llm-backend-ping-btn",
-      "timeoutMs": 3000
+      "kind": "expect",
+      "testid": "ai-loaded-summary"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-memory"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-since"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-loaded-unload-btn"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_loaded_models"
     },
     {
       "kind": "screenshot",
-      "label": "04-llm-builder-cards-ping-boundary"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-stats-table",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-stats-total-row",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-llm-builder-stats"
+      "label": "04-ai-screen-developer-mode"
     },
     {
       "kind": "goto",
@@ -17759,45 +17388,12 @@
       "label": "13-back-operator"
     },
     {
-      "kind": "goto",
-      "route": "llm"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "llm-add-backend-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "screenshot",
-      "label": "12-llm-route-add-dialog"
-    },
-    {
-      "kind": "click",
-      "testid": "llm-dialog-cancel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "llm-dialog-name",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "section-15-model-hub-det"
+      "label": "section-14-model-hub-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -18488,11 +18084,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-16-stt-det"
+      "label": "section-15-stt-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -18956,7 +18552,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 3000
     },
     {
@@ -19281,7 +18877,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 3000
     },
     {
@@ -19295,11 +18891,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-17-tools-det"
+      "label": "section-16-tools-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -20260,11 +19856,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-18-permissions-det"
+      "label": "section-17-permissions-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -20931,11 +20527,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "section-19-journal-det"
+      "label": "section-18-journal-det"
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -21238,6 +20834,635 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "verify_journal",
+      "resolve": {
+        "ok": true,
+        "entries_checked": 1284,
+        "runs_checked": 12,
+        "first_break": null,
+        "head_matches_state": true,
+        "start": {
+          "global_seq": 40,
+          "ts": "2026-09-12T08:00:00Z",
+          "purged_at": "2026-10-01T00:00:00Z"
+        }
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-body",
+      "timeoutMs": 3000,
+      "contains": "1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-limit",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verdict-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02b-journal-verdict-intact (since the last purge, limit of the check)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verdict-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "verify_journal",
+      "resolve": {
+        "ok": false,
+        "entries_checked": 218,
+        "runs_checked": 4,
+        "first_break": {
+          "global_seq": 217,
+          "run_id": "run-journal-det",
+          "reason": "global_hash_mismatch"
+        },
+        "head_matches_state": true,
+        "start": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-title",
+      "timeoutMs": 3000,
+      "contains": "217"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-limit",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02c-journal-verdict-altered (entry 217)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_org_policy",
+      "resolve": {
+        "state": "active",
+        "dir": "${HOME}/.apollia/policy",
+        "key_fingerprint": "ab12cd34",
+        "publisher": "IT",
+        "signed_at": "2026-10-01T00:00:00Z",
+        "policy": {
+          "schema_version": 1,
+          "signed_at": "2026-10-01T00:00:00Z",
+          "connections": {
+            "allow": [],
+            "deny": [],
+            "remote": null
+          },
+          "families": {
+            "deny": []
+          },
+          "inference": {
+            "allowed_servers": [],
+            "remote_endpoints": null,
+            "require_model_hash": false
+          },
+          "settings": {},
+          "packages": {
+            "require_signature": false,
+            "trusted_publishers": []
+          },
+          "journal": {
+            "required": false,
+            "retention_days": null,
+            "export": {
+              "detail": "require",
+              "daily_summary_dir": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verdict-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-filters",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-format-csv",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-detail-required",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02d-journal-export-detail-required (box frozen, personal data warning)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verdict-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "verify_journal",
+      "reject": "audit journal not available",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verify-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "verify_journal",
+      "resolve": {
+        "ok": true,
+        "entries_checked": 1284,
+        "runs_checked": 12,
+        "first_break": null,
+        "head_matches_state": true,
+        "start": {
+          "global_seq": 40,
+          "ts": "2026-09-12T08:00:00Z",
+          "purged_at": "2026-10-01T00:00:00Z"
+        }
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verify",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verify-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-verdict-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-verdict",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_org_policy"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_org_policy",
+      "resolve": {
+        "state": "active",
+        "dir": "${HOME}/.apollia/policy",
+        "key_fingerprint": "ab12cd34",
+        "publisher": "IT",
+        "signed_at": "2026-10-01T00:00:00Z",
+        "policy": {
+          "schema_version": 1,
+          "signed_at": "2026-10-01T00:00:00Z",
+          "connections": {
+            "allow": [],
+            "deny": [],
+            "remote": null
+          },
+          "families": {
+            "deny": []
+          },
+          "inference": {
+            "allowed_servers": [],
+            "remote_endpoints": null,
+            "require_model_hash": false
+          },
+          "settings": {},
+          "packages": {
+            "require_signature": false,
+            "trusted_publishers": []
+          },
+          "journal": {
+            "required": false,
+            "retention_days": null,
+            "export": {
+              "detail": "forbid",
+              "daily_summary_dir": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-detail-forbidden",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02e-journal-export-detail-forbidden (no box)"
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_org_policy"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_org_policy",
+      "resolve": {
+        "state": "none",
+        "dir": "${HOME}/.apollia/policy"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-detail-required",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02f-journal-export-detail-chosen (personal data warning)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|save",
+      "resolve": "${HOME}/journal-det-export.csv",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "export_journal",
+      "resolve": {
+        "path": "${HOME}/journal-det-export.csv",
+        "bytes": 412
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "export_journal",
+      "reject": "the organisation policy forbids the detail in an export of the journal",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|save",
+      "resolve": "${HOME}/journal-det-export.csv",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-format-pdf",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-export-pdf-hint",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-detail",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "read_journal_export",
+      "resolve": {
+        "detail": true,
+        "count": 1,
+        "entries": [
+          {
+            "run_id": "run-journal-det",
+            "seq": 3,
+            "kind": "tool_call_completed",
+            "hash": "9f2c41d07a",
+            "agent": "apollia:chat",
+            "nature": "action",
+            "family": "read",
+            "what": "Tool call completed",
+            "tool": "file_read",
+            "target": "notes/plan.md",
+            "outcome": "success",
+            "ts": "2026-10-02T12:32:00Z",
+            "detail": {
+              "payload": {
+                "tool_name": "file_read",
+                "target": "notes/plan.md"
+              },
+              "tool_call": {
+                "tool_call_id": "call-det-1",
+                "arguments": {
+                  "path": "notes/plan.md"
+                },
+                "output": {
+                  "content": "the plan of the week"
+                },
+                "status": "success"
+              }
+            }
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-summary",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-table",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-row",
+      "timeoutMs": 3000,
+      "contains": "notes/plan.md"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-detail",
+      "timeoutMs": 3000,
+      "contains": "the plan of the week"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02g-journal-print-preview (the page the system prints)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "print_journal",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "journal-print-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-print-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-print",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "read_journal_export",
+      "resolve": {
+        "detail": false,
+        "count": 0,
+        "entries": []
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-format-pdf",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-export-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-print-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-print-personal-data",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-print-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-print",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_org_policy"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "print_journal"
+    },
+    {
       "kind": "clearStubs",
       "command": "get_journal_entry"
     },
@@ -21248,7 +21473,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",

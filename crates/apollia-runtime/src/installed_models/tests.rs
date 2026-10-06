@@ -101,3 +101,129 @@ fn test_a_model_a_backend_references_is_marked_in_use() {
     assert_eq!(owner.as_deref(), Some("LLM backend 'local'"));
     assert_eq!(other, None);
 }
+
+#[test]
+fn test_a_downloaded_model_names_its_source_page_and_an_imported_one_none() {
+    // GIVEN a model downloaded from a catalogue repository and one imported
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    std::fs::write(dir.join("fetched.gguf"), b"GGUF1").unwrap();
+    std::fs::write(dir.join("brought.gguf"), b"GGUF2").unwrap();
+    let mut index = ModelIndex::default();
+    let origin = ModelOrigin::Catalog {
+        repo: "org/model-GGUF".into(),
+        file: "fetched.gguf".into(),
+    };
+    index
+        .record(dir, &dir.join("fetched.gguf"), origin)
+        .unwrap();
+    index
+        .record(dir, &dir.join("brought.gguf"), ModelOrigin::Import)
+        .unwrap();
+    index.save(&index_path(dir)).unwrap();
+
+    // WHEN the installed models are listed
+    let list = list_in(dir, &[]).unwrap();
+
+    // THEN the downloaded one points at its repository page, the other at nothing
+    let by_name = |n: &str| list.iter().find(|m| m.name == n).unwrap();
+    assert_eq!(
+        by_name("fetched.gguf").source_url.as_deref(),
+        Some("https://huggingface.co/org/model-GGUF")
+    );
+    assert_eq!(by_name("brought.gguf").source_url, None);
+}
+
+#[test]
+fn test_an_embeddings_file_of_the_registry_is_named_by_its_entry() {
+    // GIVEN the file of a registry embeddings entry, filed as embeddings, and a
+    //       language model carrying no entry
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    std::fs::write(dir.join("multilingual-e5-small-q8_0.gguf"), b"GGUF1").unwrap();
+    std::fs::write(dir.join("chat.gguf"), b"GGUF2").unwrap();
+    let mut index = ModelIndex::default();
+    let id = index
+        .record(
+            dir,
+            &dir.join("multilingual-e5-small-q8_0.gguf"),
+            ModelOrigin::Import,
+        )
+        .unwrap()
+        .id
+        .clone();
+    index
+        .set_category_override(&id, Some(ModelCategory::Embeddings))
+        .unwrap();
+    index
+        .record(dir, &dir.join("chat.gguf"), ModelOrigin::Import)
+        .unwrap();
+    index.save(&index_path(dir)).unwrap();
+
+    // WHEN the installed models are listed
+    let list = list_in(dir, &[]).unwrap();
+
+    // THEN the embeddings file names its registry entry, the other none
+    let by_name = |n: &str| list.iter().find(|m| m.name == n).unwrap();
+    assert_eq!(
+        by_name("multilingual-e5-small-q8_0.gguf")
+            .embedding_entry
+            .as_deref(),
+        Some("multilingual-e5-small")
+    );
+    assert_eq!(by_name("chat.gguf").embedding_entry, None);
+}
+
+#[test]
+fn test_the_default_chat_and_search_models_are_marked() {
+    // GIVEN a language model, an embeddings file of the registry and another
+    //       language model, the first the default of chat and the registry
+    //       entry the default of search
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    for name in ["a.gguf", "b.gguf", "multilingual-e5-small-q8_0.gguf"] {
+        std::fs::write(dir.join(name), name.as_bytes()).unwrap();
+    }
+    let mut index = ModelIndex::default();
+    index
+        .record(dir, &dir.join("a.gguf"), ModelOrigin::Import)
+        .unwrap();
+    index
+        .record(dir, &dir.join("b.gguf"), ModelOrigin::Import)
+        .unwrap();
+    let id = index
+        .record(
+            dir,
+            &dir.join("multilingual-e5-small-q8_0.gguf"),
+            ModelOrigin::Import,
+        )
+        .unwrap()
+        .id
+        .clone();
+    index
+        .set_category_override(&id, Some(ModelCategory::Embeddings))
+        .unwrap();
+    index.save(&index_path(dir)).unwrap();
+    let mut list = list_in(dir, &[]).unwrap();
+
+    // WHEN the defaults are marked
+    mark_defaults(
+        &mut list,
+        Some(&dir.join("a.gguf")),
+        Some("multilingual-e5-small"),
+    );
+
+    // THEN only the chat default and the search default carry a mark
+    let marks: Vec<(&str, bool, bool)> = list
+        .iter()
+        .map(|m| (m.name.as_str(), m.default_chat, m.default_search))
+        .collect();
+    assert_eq!(
+        marks,
+        vec![
+            ("a.gguf", true, false),
+            ("b.gguf", false, false),
+            ("multilingual-e5-small-q8_0.gguf", false, true),
+        ]
+    );
+}

@@ -584,6 +584,11 @@ file, itself, `zopfli` and `zlib-rs` (see [Package archive](#package-archive)).
 back into the file a batch was read from is decided with the reader of
 spreadsheets (see [Documents and sources](#documents-and-sources)).
 
+The desktop application writes one more workbook with it: the demonstration
+dataset an example agent can be tried on, built from a table the application
+carries when the user asks for a copy. No crate enters the lock file for it,
+`rust_xlsxwriter` becoming a direct dependency of the desktop.
+
 ## Agent-to-agent messaging {#agent-messaging}
 
 A director agent delegates to worker agents by skill identifier, over a durable

@@ -22,6 +22,18 @@
      * spread on that element. Takes the place of `children`.
      */
     trigger?: Snippet<[Record<string, unknown>]>;
+    /**
+     * Makes the trigger itself the action: the trigger is already a button,
+     * so an icon button that explains itself on hover passes its click here
+     * rather than nesting a second button inside it.
+     */
+    onclick?: (event: MouseEvent) => void;
+    /** Accessible name of the trigger, for an action trigger. */
+    triggerLabel?: string;
+    /** `data-testid` of the trigger, for an action trigger. */
+    triggerTestid?: string;
+    /** Extra classes on the trigger, for an action trigger. */
+    triggerClass?: string;
   }
 
   let {
@@ -32,6 +44,10 @@
     class: className = "",
     children,
     trigger,
+    onclick,
+    triggerLabel,
+    triggerTestid,
+    triggerClass = "",
   }: Props = $props();
 </script>
 
@@ -46,7 +62,12 @@
         {/snippet}
       </TooltipPrimitive.Trigger>
     {:else}
-      <TooltipPrimitive.Trigger class="inline-flex items-center">
+      <TooltipPrimitive.Trigger
+        class={cn("inline-flex items-center", triggerClass)}
+        {onclick}
+        aria-label={triggerLabel}
+        data-testid={triggerTestid}
+      >
         {@render children?.()}
       </TooltipPrimitive.Trigger>
     {/if}

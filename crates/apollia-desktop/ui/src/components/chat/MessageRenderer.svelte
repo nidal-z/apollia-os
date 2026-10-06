@@ -1,5 +1,23 @@
+<script lang="ts" module>
+  import type { ChatViewMode } from "$lib/stores/chatAppearance";
+
+  /**
+   * How an answer is shown. "plain" is the text as received, nothing rendered
+   * and nothing parsed out of it; otherwise Markdown, unless the text carries
+   * confidence or citation markers, which have their own rendering.
+   */
+  export function answerRendering(input: {
+    viewMode: ChatViewMode;
+    hasMarkup: boolean;
+  }): "plain" | "markdown" | "assertions" {
+    if (input.viewMode === "plain") return "plain";
+    return input.hasMarkup ? "assertions" : "markdown";
+  }
+</script>
+
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import { chatViewMode } from "$lib/stores/chatAppearance";
   import { MarkdownContent } from "$lib/components/ui/markdown";
   import AssertionInline from "./AssertionInline.svelte";
   import CitationFootnote from "./CitationFootnote.svelte";
@@ -59,9 +77,12 @@
   // Fast path: no markers at all → delegate to plain Markdown rendering so
   // we don't break code blocks, tables, etc.
   const hasMarkup = $derived(parsed.assertions.length > 0);
+  const rendering = $derived(answerRendering({ viewMode: $chatViewMode, hasMarkup }));
 </script>
 
-{#if !hasMarkup}
+{#if rendering === "plain"}
+  <p class="whitespace-pre-wrap break-words" data-testid="message-plain">{content}</p>
+{:else if rendering === "markdown"}
   <MarkdownContent {content} />
 {:else}
   <div class="space-y-2" data-testid="message-renderer">

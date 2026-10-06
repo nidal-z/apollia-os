@@ -290,7 +290,7 @@ than expanding it to nothing.
   that needs an extra click to open, a tab that kept its previous selection. A
   runtime round is the only way to catch those.
 - **Regenerate `master-det`** after editing any `<page>-det.json`. `master-det`
-  is a concatenation (a head, then per page `[section marker, goto dashboard,
+  is a concatenation (a head, then per page `[section marker, goto chat,
   waitFor app-main]` + the page steps minus their 2-step onboarding preamble):
   ```sh
   python3 scripts/automation/tools/regen_master.py           # dry-run (checks it still matches)

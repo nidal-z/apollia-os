@@ -1,0 +1,368 @@
+{
+  "name": "example-trial-det (try with the example: the copy dialog of the demonstration dataset, cancelled, refused, done, then the batch on the copied workbook)",
+  "stopOnError": false,
+  "notes": [
+    "Code-verified against routes/Agents.svelte, components/agents/AgentExamples.svelte, ExampleTrialDialog.svelte, exampleTrial.ts and components/batch/BatchLaunchDialog.svelte.",
+    "list_example_packages is stubbed with the example installed, so the trial opens its copy dialog at once; the value imitates ExamplePackage of crates/apollia-runtime/src/packages/examples.rs. The trial of an example not installed, which goes through the preview of the package first, is held by the Playwright spec tests/agents/example-trial.spec.ts.",
+    "copy_example_dataset is stubbed: nothing is written by this book. Its value imitates ExampleDatasetCopy of crates/apollia-desktop/src/commands/example_dataset.rs, whose tests hold the real copy and read the workbook back. The first answer is a refusal, to show the error line; the second names a file left as it was, to show the kept line.",
+    "The folder picker (plugin:dialog|open) answers a folder of the throwaway home. The calls that make the copied folder a source of the agent are stubbed too (list_connections, add_folder_connection, list_sources, add_source, get_agent_definition, set_agent_override): their values imitate Connection and Source of the runtime's registries and ResolvedAgent of the agent definitions. The stubbed agent is not installed, so the launch dialog is opened on the workbook and cancelled, never launched.",
+    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just desktop-dev-automation-seeded scripts/automation/example-trial-det.json"
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_example_packages",
+      "resolve": [
+        {
+          "name": "qualify-requests",
+          "version": "1.0.0",
+          "description": "Qualifies a batch of requests.",
+          "agents": [
+            {
+              "id": "qualify-requests",
+              "name": "Qualify requests",
+              "mission": "Qualifies each request of a batch, with its sources."
+            }
+          ],
+          "requires": [],
+          "installedVersion": "1.0.0"
+        }
+      ]
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/example-trial"
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-examples",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "agents-examples-show"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-example-try",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "agents-example-installed"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-card-with-trial"
+    },
+    {
+      "kind": "click",
+      "testid": "agents-example-try"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "example-trial-title"
+    },
+    {
+      "kind": "expect",
+      "testid": "example-trial-fictional"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-trial-choose-folder"
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "example-trial-title",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "agents-example-try"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-title",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-choose"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "copy_example_dataset",
+      "reject": "the destination could not be written",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-copy"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-error",
+      "contains": "could not be written",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "copy_example_dataset",
+      "argsMatch": {
+        "example": "qualify-requests"
+      },
+      "resolve": {
+        "destination": "${HOME}/example-trial",
+        "workbook": "${HOME}/example-trial/demandes.xlsx",
+        "folder": "${HOME}/example-trial/referentiel",
+        "rows": 12,
+        "kept": [
+          "LISEZ-MOI.md"
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-copy"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-copied",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "example-trial-where",
+      "contains": "example-trial"
+    },
+    {
+      "kind": "expect",
+      "testid": "example-trial-kept"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-trial-copied"
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-later"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "example-trial-copied",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "copy_example_dataset"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "copy_example_dataset",
+      "argsMatch": {
+        "example": "qualify-requests"
+      },
+      "resolve": {
+        "destination": "${HOME}/example-trial",
+        "workbook": "${HOME}/example-trial/demandes.xlsx",
+        "folder": "${HOME}/example-trial/referentiel",
+        "rows": 12,
+        "kept": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": []
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "add_folder_connection",
+      "resolve": {
+        "id": "folder:example-trial",
+        "kind": "folder",
+        "label": "referentiel",
+        "account": null,
+        "path": "${HOME}/example-trial/referentiel",
+        "provenance": "user",
+        "remote": false,
+        "official": false,
+        "state": "connected",
+        "tools": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_sources",
+      "resolve": []
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "add_source",
+      "resolve": {
+        "id": "source:example-trial",
+        "kind": "folder",
+        "label": "referentiel",
+        "group": null,
+        "reference": "folder:example-trial",
+        "indexState": "absent",
+        "addedAt": "2026-10-06T00:00:00Z"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_agent_definition",
+      "argsMatch": {
+        "name": "qualify-requests"
+      },
+      "resolve": {
+        "id": "qualify-requests",
+        "origin": "package",
+        "package": "qualify-requests",
+        "version": "1.0.0",
+        "enabled": true,
+        "name": "Qualify requests",
+        "mission": "",
+        "examples": [],
+        "access": [],
+        "sources": [],
+        "model": null,
+        "autonomy": "assisted",
+        "profile": null,
+        "overridden": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_agent_override",
+      "argsMatch": {
+        "name": "qualify-requests"
+      },
+      "resolve": {
+        "id": "qualify-requests",
+        "origin": "package",
+        "package": "qualify-requests",
+        "version": "1.0.0",
+        "enabled": true,
+        "name": "Qualify requests",
+        "mission": "",
+        "examples": [],
+        "access": [],
+        "sources": [
+          "source:example-trial"
+        ],
+        "model": null,
+        "autonomy": "assisted",
+        "profile": null,
+        "overridden": [
+          "sources"
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "agents-example-try"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-title",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "example-trial-destination",
+      "text": "${HOME}/example-trial"
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-copy"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-copied",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "example-trial-also-source",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "example-trial-also-source",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-launch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-title"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-batch-on-the-workbook"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-launch-title",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 <script lang="ts" module>
   import type { Route } from "$lib/stores/navigation";
   import {
-    LayoutDashboard, MessageSquare, Bot, ShieldCheck,
+    MessageSquare, Bot, ShieldCheck,
     Repeat, Brain, Database, Activity, Mic, Library, ScrollText,
   } from "lucide-svelte";
 
@@ -10,7 +10,7 @@
   /** A primary entry of the sidebar; `developer` hides it with the mode off. */
   export interface PrimaryNavEntry {
     route: Route;
-    Icon: typeof LayoutDashboard;
+    Icon: typeof MessageSquare;
     labelKey: string;
     badge: Badge;
     developer?: boolean;
@@ -20,7 +20,6 @@
   // labels out of the source array lets the bundle preserve a single
   // translation map (`nav.sidebar.*`) shared by drawer + rail.
   export const PRIMARY_NAV: readonly PrimaryNavEntry[] = [
-    { route: "dashboard"      as Route, Icon: LayoutDashboard, labelKey: "nav.sidebar.dashboard",      badge: "none"      },
     { route: "chat"           as Route, Icon: MessageSquare,   labelKey: "nav.sidebar.chat",           badge: "chat"      },
     { route: "agents"         as Route, Icon: Bot,             labelKey: "nav.sidebar.agents",         badge: "none"      },
     { route: "library"        as Route, Icon: Library,         labelKey: "nav.sidebar.library",        badge: "none"      },
@@ -38,7 +37,7 @@
   /** An entry of the developer group, below the secondary entries. */
   export interface DeveloperNavEntry {
     route: Route;
-    Icon: typeof LayoutDashboard;
+    Icon: typeof MessageSquare;
     labelKey: string;
   }
 
@@ -71,6 +70,8 @@
     openNewChatRequested,
   } from "$lib/stores/chat";
   import { developerMode } from "$lib/stores/developerMode";
+  import { navPosition } from "$lib/stores/chatAppearance";
+  import { navSide } from "$lib/layout/navSide";
   import { resourceWidgetVisible } from "$lib/stores/developerSettings";
   import { whileShown } from "$lib/settings/resourceMonitor";
   import { openSettingsWindow } from "$lib/stores/settingsWindow";
@@ -106,6 +107,7 @@
   );
 
   let drawerRef: HTMLElement | null = $state(null);
+  const side = $derived(navSide($navPosition));
   let previouslyFocused: HTMLElement | null = null;
 
   $effect(() => {
@@ -168,13 +170,13 @@
     ></div>
     <div
       bind:this={drawerRef}
-      class="fixed inset-y-0 left-0 z-overlay flex w-64 max-w-[85vw] flex-col glass-panel border-r glass-border shadow-xl"
+      class="fixed inset-y-0 {side.drawerEdge} z-overlay flex w-64 max-w-[85vw] flex-col glass-panel glass-border shadow-xl"
       role="dialog"
       tabindex="-1"
       aria-modal="true"
       aria-label={$t("nav.sidebar_label")}
       onkeydown={handleKeydown}
-      transition:fly={{ x: -280, duration: 220, easing: cubicOut }}
+      transition:fly={{ x: side.drawerFlyX, duration: 220, easing: cubicOut }}
       data-testid="sidebar"
       data-state="drawer"
     >
@@ -278,11 +280,13 @@
 {:else}
   <!-- V3 64px icon rail - permanent, no expand -->
   <aside
-    class="rail v4-hair flex h-full w-16 flex-shrink-0 flex-col items-center border-r border-border bg-muted py-3 gap-1"
+    class="rail v4-hair flex h-full w-16 flex-shrink-0 flex-col items-center {side.railBorder} border-border bg-muted py-3 gap-1"
+    class:rail-right={side.nav === "right"}
     role="navigation"
     aria-label={$t("nav.sidebar_label")}
     data-testid="sidebar"
     data-state="rail"
+    data-nav-position={side.nav}
   >
     <!-- Logo -->
     <div class="mb-4 p-1.5">
@@ -317,7 +321,7 @@
           `title` would draw a second label, in the system chrome and after the
           system delay, over the one below.
         -->
-        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-overlay ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+        <span class="tooltip pointer-events-none absolute {side.railTooltip} top-1/2 z-overlay -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
           {label}
         </span>
       </div>
@@ -344,7 +348,7 @@
           {/if}
           <item.Icon size={17} strokeWidth={1.5} />
         </button>
-        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-overlay ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+        <span class="tooltip pointer-events-none absolute {side.railTooltip} top-1/2 z-overlay -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
           {label}
         </span>
       </div>
@@ -375,7 +379,7 @@
               {/if}
               <item.Icon size={17} strokeWidth={1.5} />
             </button>
-            <span class="tooltip pointer-events-none absolute left-full top-1/2 z-overlay ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+            <span class="tooltip pointer-events-none absolute {side.railTooltip} top-1/2 z-overlay -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-caption font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
               {label}
             </span>
           </div>
@@ -423,6 +427,14 @@
     background: linear-gradient(180deg, hsl(var(--grad-a)), hsl(var(--grad-b)));
     transform-origin: center;
     animation: active-bar-in var(--motion-base) var(--ease-apple);
+  }
+
+  /* Navigation on the right: the bar anchors to the other edge of the rail,
+     and the mirror puts its rounded side toward the content. */
+  .rail-right .active-bar {
+    left: auto;
+    right: calc(-1 * var(--rail-gutter));
+    scale: -1 1;
   }
 
   @keyframes active-bar-in {

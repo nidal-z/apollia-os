@@ -2709,7 +2709,7 @@ Reaches the runtime; exits 2 when it is not running.
 
 Replace the settings of a conversation.
 
-Reaches the runtime; exits 2 when it is not running. The fields are `preset`, `thinking`, `reasoning_effort` (`low`, `medium`, `high`), `temperature`, `max_tokens`, `context_overflow` (`summarize_middle`, `sliding_window`, `stop_at_limit`), `instructions`, `disabled_accesses`, `proposed_accesses` and `profile_access`. `{}` returns the conversation to the settings of its agent.
+Reaches the runtime; exits 2 when it is not running. The fields are `preset`, `thinking`, `reasoning_effort` (`low`, `medium`, `high`), `temperature`, `max_tokens`, `context_overflow` (`summarize_middle`, `sliding_window`, `stop_at_limit`), `instructions`, `disabled_accesses`, `proposed_accesses`, `only_accesses` and `profile_access`. `{}` returns the conversation to the settings of its agent.
 
 **Usage:** `apollia-os chat settings set <SESSION_ID> <SETTINGS>`
 

@@ -18,7 +18,7 @@ vi.hoisted(() => {
 
 import { get } from "svelte/store";
 import { DEFAULT_ROUTE, DEVELOPER_ROUTES, reachableRoute } from "./developerRoutes";
-import { currentRoute } from "$lib/stores/navigation";
+import { currentRoute, type Route } from "$lib/stores/navigation";
 import { buildPaletteActions } from "$lib/command-palette/actions";
 
 describe("developerRoutes - the router keeps the developer screens out of reach", () => {
@@ -59,13 +59,40 @@ describe("developerRoutes - the router keeps the developer screens out of reach"
     expect(shown).toEqual(["llm", "inbox"]);
   });
 
-  test("the default route is the one the application opens on", () => {
-    // GIVEN the navigation store at import
-    // WHEN its first value is read
+  test("the application opens on the chat", () => {
+    // GIVEN the navigation store at import, before any navigation
+    // WHEN its first value and the fallback of the router are read
     const first = get(currentRoute);
 
-    // THEN it is the route the router falls back to
-    expect(first).toBe(DEFAULT_ROUTE);
+    // THEN both are the chat, a screen where work is done
+    expect(first).toBe("chat");
+    expect(DEFAULT_ROUTE).toBe("chat");
+  });
+
+  test.each([
+    ["a route no screen answers to", "onboarding"],
+    ["a route that was removed", "dashboard"],
+    ["the settings, which are a window and not a screen", "settings"],
+  ])("%s resolves to the chat", (_label, requested) => {
+    // GIVEN a request for a route the router has no screen for
+    const route = requested as Route;
+
+    // WHEN the router resolves it, developer mode on or off
+    const shown = [reachableRoute(route, false), reachableRoute(route, true)];
+
+    // THEN the chat is shown, never an empty window
+    expect(shown).toEqual(["chat", "chat"]);
+  });
+
+  test("a design screen is reachable in a development build only", () => {
+    // GIVEN the design reference, a screen of the development build
+    // WHEN the router resolves it in a packaged build, then in a development one
+    const packaged = reachableRoute("design", false);
+    const development = reachableRoute("design", false, true);
+
+    // THEN the packaged build falls back to the chat
+    expect(packaged).toBe("chat");
+    expect(development).toBe("design");
   });
 
   test("the palette flags every developer route, so it does not list them with the mode off", () => {

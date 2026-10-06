@@ -12,6 +12,7 @@ pub mod agent_export;
 pub mod agent_packages;
 pub mod agent_sheet;
 pub mod agents;
+pub mod ai_models;
 pub mod artifacts;
 pub mod authorizations;
 #[cfg(debug_assertions)]
@@ -24,6 +25,7 @@ pub mod cli;
 pub mod config;
 pub mod connections;
 pub mod embeddings;
+pub mod example_dataset;
 pub mod hardware_window;
 pub mod hf_token;
 pub mod hitl;

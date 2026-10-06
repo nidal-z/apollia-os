@@ -73,7 +73,7 @@ export const COMPANION_SESSION_TIMEOUT_MS = 10_000;
 const DEFAULT_COMPANION_STATE: CompanionState = {
   enabled: false,
   sessionId: null,
-  currentRoute: "dashboard",
+  currentRoute: "chat",
   currentSubscreen: null,
   currentObject: null,
   currentContext: "",

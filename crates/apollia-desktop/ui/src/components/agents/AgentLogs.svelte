@@ -48,12 +48,12 @@
   let sortBy = $state<SortKey>("recent");
 
   const STATUS_I18N: Record<string, string> = {
-    working: "dashboard.status_working",
-    submitted: "dashboard.status_submitted",
-    completed: "dashboard.status_completed",
-    failed: "dashboard.status_failed",
-    input_required: "dashboard.status_approval",
-    canceled: "dashboard.status_canceled",
+    working: "run_status.working",
+    submitted: "run_status.submitted",
+    completed: "run_status.completed",
+    failed: "run_status.failed",
+    input_required: "run_status.approval",
+    canceled: "run_status.canceled",
   };
 
   const STATUS_CONFIG: Record<string, { variant: "success" | "destructive" | "warning" | "info" | "secondary"; icon: typeof Activity }> = {
@@ -67,12 +67,12 @@
 
   const STATUS_FILTERS: { key: StatusKey; i18n: string }[] = [
     { key: "all", i18n: "agents.filter_all" },
-    { key: "completed", i18n: "dashboard.status_completed" },
-    { key: "failed", i18n: "dashboard.status_failed" },
-    { key: "working", i18n: "dashboard.status_working" },
-    { key: "input_required", i18n: "dashboard.status_approval" },
-    { key: "submitted", i18n: "dashboard.status_submitted" },
-    { key: "canceled", i18n: "dashboard.status_canceled" },
+    { key: "completed", i18n: "run_status.completed" },
+    { key: "failed", i18n: "run_status.failed" },
+    { key: "working", i18n: "run_status.working" },
+    { key: "input_required", i18n: "run_status.approval" },
+    { key: "submitted", i18n: "run_status.submitted" },
+    { key: "canceled", i18n: "run_status.canceled" },
   ];
 
   const SORT_OPTIONS: { key: SortKey; i18n: string }[] = [
@@ -127,7 +127,7 @@
     const header = `Apollia · ${$t('agents.logs_title')} · ${agentId} · ${new Date().toISOString()}`;
     const lines = [header, "─".repeat(header.length), ""];
     for (const task of filteredTasks) {
-      const status = $t(STATUS_I18N[task.status] ?? "dashboard.status_submitted");
+      const status = $t(STATUS_I18N[task.status] ?? "run_status.submitted");
       lines.push(
         `[${status}] ${formatRelativeTime(task.created_at)} (${formatAbsoluteTime(task.created_at)}) · ${formatDuration(task.duration_ms)}`,
         `  ID: ${task.id}`,
@@ -333,7 +333,7 @@
                       'text-muted-foreground'} shrink-0"
                   />
                   <Badge variant={cfg.variant} class="text-micro-xs px-1.5 py-0 shrink-0">
-                    {$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}
+                    {$t(STATUS_I18N[task.status] ?? "run_status.submitted")}
                   </Badge>
                 </div>
                 <div class="flex items-center gap-1.5 shrink-0">

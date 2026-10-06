@@ -82,7 +82,6 @@
     "back": "Retour",
     "next": "Suivant",
     "optional_label": "(facultatif)",
-    "no_data": "Aucune donnée",
     "na": "N/A",
     "default_badge": "PAR DÉFAUT",
     "saving": "Enregistrement…",
@@ -172,10 +171,9 @@
     "progress": "Progression"
   },
   "nav": {
-    "dashboard": "Accueil",
     "agents": "Assistants",
     "inbox": "À valider",
-    "llm": "Modèles LLM",
+    "llm": "IA",
     "automations": "Automatisations",
     "memory": "Mémoire",
     "observability": "Observabilité",
@@ -188,14 +186,13 @@
     "sidebar_label": "Navigation principale",
     "developer_group": "Mode développeur",
     "sidebar": {
-      "dashboard": "Accueil",
       "chat": "Chat",
       "agents": "Assistants",
       "automations": "Automatisations",
       "inbox": "À valider",
       "memory": "Mémoire",
       "observability": "Observabilité",
-      "llm": "Modèles LLM",
+      "llm": "IA",
       "transcriptions": "Transcriptions",
       "integrations": "Connexions",
       "settings": "Paramètres",
@@ -627,6 +624,24 @@
       "remove_confirm_plain": "Retirer la connexion",
       "remove_confirm_sources": "Retirer la connexion et {count, plural, one {sa source} other {ses # sources}}"
     },
+    "try": {
+      "action": "Essayer",
+      "title": "Essayer {name}",
+      "subtitle": "Une conversation avec Apollia, limitée aux outils de cette connexion. Rien n'est envoyé ni modifié sans votre accord.",
+      "choose": "Choisissez une question",
+      "general_label": "Question générale",
+      "general_question": "Que puis-je faire avec {name} ?",
+      "no_example": "Cette connexion ne propose pas d'exemple : Apollia vous dit d'abord ce qu'elle permet.",
+      "own": "Ou posez la vôtre",
+      "own_placeholder": "Écrire une question…",
+      "quoted": "« {question} »",
+      "launch": "Lancer l'essai",
+      "not_found": "Cette connexion n'existe plus.",
+      "no_tools": "Cette connexion ne propose encore aucun outil.",
+      "native_added_title": "{provider} est ajouté",
+      "native_added_body": "Le compte {account} est connecté. Vous choisissez quels agents y ont accès depuis leur fiche.",
+      "done": "Terminé"
+    },
     "badge_builtin": "Intégrée"
   },
   "integrations": {
@@ -671,8 +686,7 @@
         "loading": "Génération des suggestions…",
         "error": "Les suggestions ne sont pas disponibles pour l'instant.",
         "empty": "Aucune suggestion - explorez les outils depuis le chat.",
-        "try": "Essayer",
-        "no_tools": "Aucun outil n'est disponible pour cette connexion pour l'instant, l'exemple ne peut pas s'exécuter."
+        "try": "Essayer"
       },
       "optional": "optionnel",
       "auth_help_link": "Où trouver votre clé",
@@ -733,54 +747,13 @@
       "disconnect_warning": "Déconnecter {name} ? La configuration et tous les secrets stockés seront supprimés."
     }
   },
-  "dashboard": {
-    "greeting_morning": "Bonjour",
-    "greeting_afternoon": "Bon après-midi",
-    "greeting_evening": "Bonsoir",
-    "no_recent_activity": "Aucune activité récente.",
-    "status_working": "EN COURS",
-    "status_submitted": "SOUMISE",
-    "status_completed": "TERMINÉE",
-    "status_failed": "ÉCHOUÉE",
-    "status_approval": "APPROBATION",
-    "status_canceled": "ANNULÉE",
-    "cold_start_title": "Bienvenue ! Votre journée démarre.",
-    "cold_start_subtitle": "Essayez d'ouvrir un chat ou parcourez vos assistants.",
-    "browse_agents": "Parcourir mes assistants",
-    "headline_pending_one": "Vous avez {count} décision en attente.",
-    "headline_pending_other": "Vous avez {count} décisions en attente.",
-    "headline_agents_one": "{count} agent est au travail pour vous.",
-    "headline_agents_other": "{count} agents sont au travail pour vous.",
-    "headline_greeting": "{greeting}.",
-    "subtitle_pending_one": "{count} décision en attente",
-    "subtitle_pending_other": "{count} décisions en attente",
-    "subtitle_agents_one": "{count} agent au travail",
-    "subtitle_agents_other": "{count} agents au travail",
-    "subtitle_deliverables_one": "{count} livrable prêt",
-    "subtitle_deliverables_other": "{count} livrables prêts",
-    "subtitle_calm": "Tout est calme. Lancez une conversation quand vous êtes prêt.",
-    "header_action_new_chat": "Nouvelle conversation",
-    "card_pending_title": "Décisions en attente",
-    "card_deliverables_title": "Livrables prêts",
-    "card_agents_title": "Au travail",
-    "see_all_arrow": "Voir tout →",
-    "see_all_short_arrow": "Tout voir →",
-    "see_all_pending_aria": "Voir toutes les décisions en attente",
-    "pending_empty_title": "Rien ne vous attend",
-    "pending_empty_desc": "Vous êtes à jour. Les décisions en attente apparaîtront ici.",
-    "deliverables_empty": "Aucun livrable terminé aujourd'hui.",
-    "agents_empty": "Aucun agent actif pour l'instant.",
-    "recent_activity_title": "Activité récente",
-    "inbox_more_one": "+ {count} autre dans À valider →",
-    "inbox_more_other": "+ {count} autres dans À valider →",
-    "open_task_aria": "Ouvrir la tâche {name}",
-    "agent_detail_aria": "Détails de l'agent {name}",
-    "pending_untitled": "(sans titre)",
-    "ctx_open_inbox": "Ouvrir dans À valider",
-    "ctx_open_deliverable": "Ouvrir le livrable",
-    "ctx_agent_detail": "Ouvrir le détail de l'agent",
-    "ctx_agent_logs": "Voir les journaux",
-    "ctx_open_task": "Ouvrir la tâche"
+  "run_status": {
+    "working": "EN COURS",
+    "submitted": "SOUMISE",
+    "completed": "TERMINÉE",
+    "failed": "ÉCHOUÉE",
+    "approval": "APPROBATION",
+    "canceled": "ANNULÉE"
   },
   "agents": {
     "install": {
@@ -906,22 +879,27 @@
       "install": "Installer",
       "installed": "Installé",
       "open_sheet": "Ouvrir la fiche"
+    },
+    "trial": {
+      "action": "Essayer avec l'exemple",
+      "title": "Essayer avec l'exemple",
+      "what": "Apollia copie le jeu de démonstration dans le dossier que vous choisissez : un classeur de demandes fictives et un petit dossier de référentiel.",
+      "fictional": "Tout est inventé pour l'essai, aucune donnée réelle. Rien n'est copié tant que vous ne confirmez pas.",
+      "destination": "Dossier de destination",
+      "folder_name": "Apollia, exemple",
+      "choose": "Choisir…",
+      "choose_title": "Choisir où copier l'exemple",
+      "copy": "Copier l'exemple",
+      "copied_title": "Exemple copié",
+      "copied_where": "Le jeu de démonstration est dans {folder}.",
+      "kept": "{count, plural, one {# fichier était déjà là et a été laissé tel quel.} other {# fichiers étaient déjà là et ont été laissés tels quels.}}",
+      "proposal": "Le classeur contient {count, plural, one {# demande} other {# demandes}} : le lot rend un tableau, une ligne par demande, avec ses sources. Le dossier de référentiel est ce à quoi l'agent confronte chaque demande.",
+      "also_source": "Ajouter aussi le dossier comme source",
+      "later": "Plus tard",
+      "launch": "Lancer le lot sur le classeur"
     }
   },
   "inbox": {
-    "row": {
-      "type_approval": "approbation",
-      "type_question": "question",
-      "type_error": "erreur",
-      "type_deliverable": "livrable",
-      "type_trigger": "trigger",
-      "type_memory": "mémoire",
-      "type_cost": "coût",
-      "action_allow": "Autoriser",
-      "action_reply": "Répondre",
-      "action_resolve": "Résoudre",
-      "open_conversation": "Ouvrir la conversation"
-    },
     "open_in_inbox": "Ouvrir dans À valider",
     "error": {
       "details": "Détails techniques",
@@ -1178,18 +1156,6 @@
     }
   },
   "llm": {
-    "title": "Backends LLM",
-    "title_operator": "Modèles LLM",
-    "subtitle": "Les modèles IA qui alimentent vos assistants",
-    "empty_title": "Aucun backend LLM configuré",
-    "empty_subtitle": "Éditez apollia.toml pour ajouter un backend.",
-    "empty_operator": "Aucun modèle IA configuré",
-    "empty_operator_hint": "Ajoutez un modèle dans apollia.toml ou contactez votre administrateur.",
-    "open_settings": "Ouvrir les paramètres",
-    "session_stats_title": "Statistiques de session (7 jours)",
-    "loading_stats": "Chargement des statistiques...",
-    "no_calls": "Aucun appel LLM enregistré au cours des 7 derniers jours.",
-    "no_calls_operator": "Aucune activité enregistrée.",
     "model": "Modèle",
     "ping_ok": "Ping OK ({latency}ms)",
     "ping_failed": "Ping échoué",
@@ -1199,27 +1165,7 @@
     "status_error": "Erreur",
     "free_local": "Gratuit (tourne sur votre machine)",
     "pay_per_use": "Paiement à l'utilisation",
-    "used_today": "Utilisé {count} fois sur les {days} derniers jours, {cost} dépensés",
-    "table": {
-      "backend": "Backend",
-      "model": "Modèle",
-      "calls": "Appels",
-      "tokens": "Tokens",
-      "cost_usd": "Coût USD",
-      "total": "Total"
-    },
-    "default_set_toast": "''{name}'' défini comme modèle par défaut",
-    "details": "Détails",
-    "loaded": {
-      "title": "Chargés en mémoire",
-      "empty": "Aucun modèle n'est chargé en mémoire.",
-      "since": "Chargé à {time}",
-      "in_use": "En réponse",
-      "engine_mlx": "MLX",
-      "unload": "Décharger",
-      "unloaded_toast": "{name} déchargé, sa mémoire est libérée.",
-      "in_use_error": "{name} est en cours d'usage : une réponse est en cours. Réessayez quand elle sera terminée."
-    }
+    "details": "Détails"
   },
   "automations": {
     "title": "Automatisations",
@@ -1890,12 +1836,6 @@
     "kpi_avg": "Moyenne / jour",
     "kpi_peak": "Jour le plus cher",
     "kpi_top_backend": "Backend principal",
-    "verify_ok": "Trace intègre - aucun maillon rompu.",
-    "verify_fail": "Trace altérée - intégrité compromise.",
-    "verify_broken_at": "Maillon rompu : entrée {entry}",
-    "verify_run": "Vérifier l'intégrité",
-    "verify_loading": "Vérification en cours...",
-    "verify_error": "Erreur lors de la vérification : {message}",
     "hooks_title": "Hooks actifs",
     "hooks_load_error": "Impossible de charger les hooks : {message}",
     "audit_purpose_title": "Pourquoi cette piste ?",
@@ -2822,7 +2762,24 @@
         "next_steps": "Suggestions de suite",
         "reset_one": "Réinitialiser « {name} »"
       },
+      "nav_position_label": "Position de la barre de navigation",
+      "nav_position_hint": "Le panneau de détail passe du côté opposé.",
+      "nav_position_left": "Gauche",
+      "nav_position_right": "Droite",
       "chat_style_title": "Style du chat",
+      "view_mode_label": "Affichage",
+      "view_mode_hint": "En texte brut, une réponse s'affiche telle que reçue, sans mise en forme.",
+      "view_mode_markdown": "Rendu Markdown",
+      "view_mode_plain": "Texte brut",
+      "generation_info_label": "Infos de génération",
+      "generation_info_help": "La ligne sous une réponse : sa vitesse, sa longueur, le délai avant le premier mot, sa durée et la raison de sa fin.",
+      "generation_info_last": "Dernier message seulement",
+      "generation_info_all": "Tous les messages",
+      "scroll_sent_top_label": "Défiler le message envoyé en haut",
+      "follow_generation_label": "Suivre le message en cours",
+      "message_style_label": "Style des messages",
+      "message_style_bubble": "Bulles",
+      "message_style_block": "Blocs",
       "font_size_label": "Taille de police",
       "font_size_hint": "S'applique aux messages du chat.",
       "font_size_value": "Cran {step} sur {max}",
@@ -2837,7 +2794,9 @@
       "full_width_label": "Élargir le chat à la largeur de la fenêtre",
       "reasoning_title": "Raisonnement",
       "reasoning_expand_label": "Déplier les blocs de raisonnement par défaut",
-      "reasoning_expand_hint": "Un bloc que vous ouvrez ou refermez garde votre choix."
+      "reasoning_expand_hint": "Un bloc que vous ouvrez ou refermez garde votre choix.",
+      "reasoning_vignette_label": "Afficher la vignette du bloc de raisonnement",
+      "reasoning_vignette_hint": "Un raisonnement en cours s'estompe là où son texte dépasse du bloc."
     },
     "configuration": {},
     "integrations": {
@@ -3374,7 +3333,7 @@
       },
       "server": {
         "address_label": "Adresse du serveur",
-          "address_hint": "L'adresse que le serveur donne à ses clients, avec http:// ou https:// et son port, par exemple {example}.",
+        "address_hint": "L'adresse que le serveur donne à ses clients, avec http:// ou https:// et son port, par exemple {example}.",
         "key_label": "Clé",
         "key_hint": "Seulement si le serveur en demande une. Apollia la garde avec ses secrets, jamais en clair dans sa configuration.",
         "test": "Tester",
@@ -3499,8 +3458,6 @@
     }
   },
   "agent_detail": {
-    "activity_title": "Activité récente",
-    "no_activity": "Aucune activité récente pour cet agent.",
     "triggers_title": "Déclencheurs",
     "no_triggers": "Aucun déclencheur configuré pour cet agent.",
     "trigger_cron": "Exécution planifiée (cron)",
@@ -3509,16 +3466,6 @@
     "trigger_webhook": "Exécution via webhook",
     "trigger_oneshot": "Déclencheur unique",
     "trigger_disabled": "Désactivé",
-    "memory_link": "Voir la mémoire du namespace \"{namespace}\"",
-    "tools_title": "Outils",
-    "tools_required_label": "Requis",
-    "tools_optional_label": "Optionnel",
-    "tags_title": "Tags",
-    "execution_mode_title": "Mode d'exécution",
-    "execution_mode_auto": "Automatique",
-    "execution_mode_direct": "Direct",
-    "execution_mode_orchestrated": "Orchestré",
-    "install_path_title": "Emplacement",
     "trigger_config_cron": "Expression : {config}",
     "trigger_config_interval": "Toutes les {config}",
     "trigger_config_file_watch": "Surveille : {config}",
@@ -4872,6 +4819,127 @@
       "hash_value": "{hash} (précédente : {previous})"
     }
   },
+  "ai": {
+    "column_title": "Modèles du poste",
+    "categories_label": "Catégories de modèles",
+    "category": {
+      "all": "Tous",
+      "language": "Modèles de langage",
+      "embeddings": "Embeddings",
+      "dictation": "Dictée",
+      "draft": "Brouillons"
+    },
+    "kind": {
+      "language": "Modèle de langage",
+      "language_explanation": "Ce modèle répond dans les conversations et fait travailler les agents.",
+      "embeddings": "Embeddings",
+      "embeddings_explanation": "Ce modèle sert à chercher par le sens dans vos sources et dans la mémoire. Il ne converse pas."
+    },
+    "format_explanation": "Format du fichier du modèle. Apollia choisit d'après lui le moteur qui le fait tourner : vous n'avez rien à régler.",
+    "loaded": {
+      "title": "Chargés",
+      "summary": "{count, plural, one {# modèle en mémoire, {size} Go} other {# modèles en mémoire, {size} Go}}",
+      "empty": "Aucun modèle n'est chargé. Un modèle se charge à la première question qu'on lui pose.",
+      "no_engine": "Ce poste ne fait tourner aucun modèle lui-même.",
+      "error": "La liste des modèles chargés n'a pas pu être lue.",
+      "ready": "Prêt",
+      "ready_explanation": "Le modèle est en mémoire et répond sans attendre de chargement.",
+      "answering": "En réponse",
+      "answering_explanation": "Le modèle répond en ce moment ; il ne peut pas être déchargé avant la fin de sa réponse.",
+      "memory": "{size} Go en mémoire",
+      "since": "chargé {when}",
+      "unload": "Décharger",
+      "unloaded_toast": "{name} déchargé, sa mémoire est libérée.",
+      "in_use_error": "{name} est en cours d'usage : une réponse est en cours. Réessayez quand elle sera terminée."
+    },
+    "installed": {
+      "title": "Sur ce poste",
+      "filter_placeholder": "Filtrer les modèles…",
+      "filter_label": "Filtrer les modèles",
+      "import": "Importer un fichier",
+      "discover": "Découvrir des modèles",
+      "col_params": "Paramètres",
+      "col_name": "Nom",
+      "col_size": "Taille",
+      "col_modified": "Modifié",
+      "col_actions": "Actions",
+      "params_billions": "{n} Md",
+      "params_millions": "{n} M",
+      "params_explanation": "Nombre de paramètres du modèle, en milliards (Md) ou en millions (M). Plus il est grand, plus le modèle est capable, et plus il demande de mémoire.",
+      "size": "{size} Go",
+      "group": "{label} · {count}",
+      "footer": "{count, plural, one {Vous avez # modèle, qui occupe {size} Go.} other {Vous avez # modèles, qui occupent {size} Go.}}",
+      "folder_label": "Dossier des modèles",
+      "pinned_explanation": "Épinglé en haut : ce modèle reste en tête de sa catégorie.",
+      "empty_title": "Aucun modèle sur ce poste",
+      "empty_hint": "Découvrez un modèle adapté à votre poste, ou importez un fichier de modèle que vous avez déjà.",
+      "empty_language": "Aucun modèle de langage sur ce poste. Découvrez-en un pour converser et faire travailler vos agents.",
+      "empty_embeddings": "Aucun modèle d'embeddings sur ce poste. Sans lui, la recherche se fait par les mots seulement.",
+      "empty_dictation": "Aucun modèle de dictée sur ce poste.",
+      "empty_draft": "Un brouillon est un petit modèle de la même famille qu'un plus grand, qui accélère ses réponses. Aucun n'est installé.",
+      "no_match": "Aucun modèle ne correspond à « {query} ».",
+      "error": "La liste des modèles du poste n'a pas pu être lue.",
+      "import_title": "Importer un fichier de modèle"
+    },
+    "badge": {
+      "default": "Par défaut",
+      "default_explanation": "Le modèle avec lequel les conversations et les agents répondent quand aucun autre n'est choisi.",
+      "search": "Pour la recherche",
+      "search_explanation": "Le modèle qui sert à chercher par le sens dans vos sources et dans la mémoire.",
+      "loaded": "Chargé",
+      "loaded_explanation": "Ce modèle est en mémoire en ce moment.",
+      "unverified": "Origine non vérifiée",
+      "unverified_explanation": "Ce fichier ne correspond à aucune empreinte publiée : Apollia ne peut pas garantir d'où il vient."
+    },
+    "capability": {
+      "vision": {
+        "label": "Vision",
+        "explanation": "Ce modèle sait lire des images."
+      },
+      "tools": {
+        "label": "Outils",
+        "explanation": "Ce modèle a été entraîné pour utiliser des outils."
+      },
+      "reasoning": {
+        "label": "Raisonnement",
+        "explanation": "Ce modèle peut réfléchir avant de répondre."
+      }
+    },
+    "menu": {
+      "more": "Plus d'actions sur {name}",
+      "reveal_mac": "Afficher dans le Finder",
+      "reveal_windows": "Afficher dans l'Explorateur",
+      "reveal_linux": "Afficher dans le gestionnaire de fichiers",
+      "pin": "Épingler en haut",
+      "unpin": "Ne plus épingler en haut",
+      "copy_id": "Copier l'identifiant",
+      "copy_path": "Copier le chemin",
+      "source": "Voir la source",
+      "source_none": "Ce modèle a été importé depuis un fichier : sa page d'origine n'est pas connue.",
+      "use_default": "Utiliser par défaut",
+      "use_search": "Utiliser pour la recherche",
+      "delete": "Supprimer"
+    },
+    "toast": {
+      "copied_id": "Identifiant copié.",
+      "copied_path": "Chemin copié.",
+      "copy_failed": "La copie n'a pas pu se faire.",
+      "default_set": "{name} répond désormais par défaut.",
+      "search_set": "{name} sert désormais à la recherche. Les sources et la mémoire sont réindexées.",
+      "deleted": "{name} supprimé.",
+      "imported": "{name} importé."
+    },
+    "search_dialog": {
+      "title": "Utiliser {name} pour la recherche ?",
+      "message": "Les sources et la mémoire seront réindexées avec ce modèle. Pendant la réindexation, la recherche par le sens peut être incomplète.",
+      "confirm": "Utiliser et réindexer"
+    },
+    "delete_dialog": {
+      "title": "Supprimer {name} ?",
+      "message": "Le fichier est retiré de ce poste. Il faudra le télécharger ou l'importer de nouveau pour s'en servir.",
+      "confirm": "Supprimer"
+    }
+  },
   "governance": {
     "fail_closed": {
       "title": "Actions sensibles bloquées",
@@ -5288,6 +5356,59 @@
     "empty_body": "Les actions des agents et les changements d'accès s'inscriront ici.",
     "empty_filtered_title": "Aucune entrée ne correspond à ces filtres",
     "empty_filtered_body": "Élargissez la période ou effacez les filtres pour revoir tout le journal.",
+    "export": {
+      "action": "Exporter",
+      "title": "Exporter le journal",
+      "intro": "L'export reprend les filtres en cours : {filters}. Il contient toutes les entrées qui leur correspondent, pas seulement celles affichées.",
+      "format": "Format du fichier",
+      "format_csv": "CSV, à ouvrir dans un tableur",
+      "format_pdf": "PDF, à imprimer ou à archiver",
+      "pdf_hint": "Le PDF passe par la fenêtre d'impression de votre système : choisissez-y l'enregistrement en PDF.",
+      "content": "Contenu",
+      "summary_always": "Toujours inclus : le résumé de chaque entrée (qui, quoi, cible, quand, résultat).",
+      "include_detail": "Inclure le détail (paramètres de chaque action)",
+      "personal_data": "Contient des données personnelles : adresses, noms de fichiers, destinataires. Partagez ce fichier avec précaution.",
+      "detail_required_badge": "Imposé par la politique",
+      "detail_required": "Votre organisation exige le détail dans chaque export.",
+      "detail_forbidden_badge": "Interdit par la politique",
+      "detail_forbidden": "Le détail ne peut pas être exporté : la politique de votre organisation l'interdit. L'export contient le résumé seul.",
+      "cancel": "Annuler",
+      "confirm": "Exporter",
+      "csv_file": "Fichier CSV",
+      "written": "Journal exporté : {path}",
+      "failed": "L'export n'a pas pu être fait : {message}"
+    },
+    "verify": {
+      "action": "Vérifier l'intégrité",
+      "running": "Vérification en cours…",
+      "failed": "La vérification n'a pas pu être faite : {message}",
+      "intact_title": "Le journal est intact",
+      "intact_origin": "{count, plural, one {La seule entrée du journal, depuis son début, n'a pas été modifiée.} other {Les # entrées du journal, depuis son début, n'ont été ni modifiées ni déplacées, et aucune n'a été insérée.}}",
+      "intact_purge": "{count, plural, one {La seule entrée du journal, depuis le {date} (dernière purge), n'a pas été modifiée.} other {Les # entrées du journal, depuis le {date} (dernière purge), n'ont été ni modifiées ni déplacées, et aucune n'a été insérée.}}",
+      "empty_title": "Le journal est vide",
+      "empty_body": "Il n'y a encore aucune entrée à vérifier.",
+      "altered_title": "Altération détectée à l'entrée {entry}",
+      "altered_body": "L'entrée {entry} ne correspond plus à ce qui avait été écrit. À partir de cette entrée, le journal ne peut plus servir de preuve.",
+      "altered_before": "{count, plural, =0 {Aucune entrée vérifiée ne la précède.} one {L'entrée qui la précède est intacte.} other {Les # entrées qui la précèdent sont intactes.}}",
+      "since_purge": "La vérification part du {date}, première entrée gardée par la dernière purge.",
+      "end_title": "Altération détectée à la fin du journal",
+      "end_body": "{count, plural, =0 {Le journal ne contient plus d'entrée, alors qu'il en avait enregistré : des entrées ont été retirées, ou son état a été remplacé.} one {L'entrée présente est intacte, mais ce n'est pas la dernière que le journal avait enregistrée : des entrées ont été retirées à la fin, ou son état a été remplacé.} other {Les # entrées présentes se suivent, mais la dernière n'est pas celle que le journal avait enregistrée : des entrées ont été retirées à la fin, ou son état a été remplacé.}}",
+      "limit": "Limite : une suppression des dernières entrées peut ne pas se voir ici. Elle ne se détecte de façon sûre qu'avec une ancre exportée auparavant et gardée ailleurs ; un export du journal fait plus tôt en tient lieu pour les entrées qu'il contient.",
+      "checked_at": "Vérifié le {date} à {time}.",
+      "export_as_is": "Exporter le journal en l'état",
+      "close": "Fermer"
+    },
+    "print": {
+      "summary": "Exporté le {date} · {filters} · {count, plural, =0 {aucune entrée} one {# entrée} other {# entrées}}, les plus récentes d'abord",
+      "detail_note": "Cet export contient le détail de chaque entrée : il peut contenir des données personnelles.",
+      "hint": "Aperçu de la page. La fenêtre d'impression de votre système permet de l'imprimer ou de l'enregistrer en PDF.",
+      "print": "Imprimer ou enregistrer en PDF",
+      "close": "Fermer l'aperçu",
+      "place": "Place dans le journal",
+      "place_value": "{run} · n° {seq}",
+      "empty": "Aucune entrée ne correspond à ces filtres.",
+      "failed": "La fenêtre d'impression n'a pas pu s'ouvrir : {message}"
+    },
     "tab_entry": "Entrée",
     "detail": {
       "agent": "Agent",

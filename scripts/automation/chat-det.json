@@ -2512,7 +2512,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "agents"
     },
     {
       "kind": "waitFor",
@@ -2664,7 +2664,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "agents"
     },
     {
       "kind": "waitFor",
@@ -2686,7 +2686,7 @@
     }
   ],
   "notes": [
-    "Stubs that imitate a backend type, and the type they copy: meta_rewrite_input resolves a RewriteInputIpcResponse (crates/apollia-desktop/src/commands/meta_rewrite.rs, camelCase rewrittenText + fallback in noRouter/noBackend/callFailed/emptyAnswer), armed once per click so the composer and the picker each see one fallback and one success; list_mcp_resources resolves one McpResourceView (lib/chat/mcpResources.ts: server, uri, name, mime_type, description), armed before the first mention open of the composer because ChatInput loads the list once per instance (resourcesLoaded); get_chat_session is rejected with a sqlite-worded string (classifySessionError, lib/stores/runtimeHealth.ts) for the corrupted panel and patched with status closed under argsMatch seed-session-1 for the end-of-session panel; plugin:opener|open_url resolves null so the link-preview-fallback click never reaches the host browser. Every stub is cleared before the block that armed it ends, and the page is reloaded (dashboard then chat) after the fault blocks.",
+    "Stubs that imitate a backend type, and the type they copy: meta_rewrite_input resolves a RewriteInputIpcResponse (crates/apollia-desktop/src/commands/meta_rewrite.rs, camelCase rewrittenText + fallback in noRouter/noBackend/callFailed/emptyAnswer), armed once per click so the composer and the picker each see one fallback and one success; list_mcp_resources resolves one McpResourceView (lib/chat/mcpResources.ts: server, uri, name, mime_type, description), armed before the first mention open of the composer because ChatInput loads the list once per instance (resourcesLoaded); get_chat_session is rejected with a sqlite-worded string (classifySessionError, lib/stores/runtimeHealth.ts) for the corrupted panel and patched with status closed under argsMatch seed-session-1 for the end-of-session panel; plugin:opener|open_url resolves null so the link-preview-fallback click never reaches the host browser. Every stub is cleared before the block that armed it ends, and the page is reloaded (agents then chat) after the fault blocks.",
     "chat-mention-menu-item is clicked for the record but the pin itself is done by Enter: the item's handler is onmousedown (MentionResourceMenu.svelte), which el.click() never fires, so the press step targets the active element, the textarea insertTrigger focused (ChatInput.svelte).",
     "session-corrupted-delete deletes the session the block itself creates through the picker (the reject stub carries no argsMatch, so the freshly created session's first load is the one it answers); no seeded row is touched, which is why the block lives here and not in destructive.json. session-corrupted-export is a blob download anchor: wry 0.55.1 (src/wkwebview/navigation.rs) cancels a shouldPerformDownload navigation when no download handler is registered, and crates/apollia-desktop/src registers none, so the click is inert on macOS.",
     "Seeded sessions are opened through the command palette (command-item-session.<id>, paletteIndex.ts). The group is fed by recentSessionsStore, which persists apollia.commandPalette.recentSessions in the webview's real localStorage (not in the runner's reset list) and, once any touched id resolves, lists only touched ids; this book touches seed-session-2 then seed-session-1 on every run, so both stay listed across runs. goto.sessionId is reserved for the ghost id, as types.ts asks.",
