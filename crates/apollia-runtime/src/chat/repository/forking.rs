@@ -85,8 +85,8 @@ impl ChatSessionRepository {
     /// Create a child session that forks from `parent_id`, copying the first
     /// `up_to_count` messages (or all messages when `None`).
     ///
-    /// The child inherits the parent's mode, system prompt, available tools, and
-    /// LLM backend. Its `parent_session_id` is set to `parent_id` and its
+    /// The child inherits the parent's mode, agent, system prompt, available
+    /// tools, LLM backend, profile and profile switch. Its `parent_session_id` is set to `parent_id` and its
     /// `fork_depth` is `parent.fork_depth + 1`.
     ///
     /// Returns the fully-populated [`ChatSession`] for the new child.
@@ -127,8 +127,8 @@ impl ChatSessionRepository {
         tx.execute(
             "INSERT INTO chat_sessions
                     (id, mode, agent_name, system_prompt, available_tools, created_at,
-                     llm_backend, parent_session_id, fork_depth)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                     llm_backend, parent_session_id, fork_depth, profile_id, use_profile)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 child_id,
                 parent_row.mode,
@@ -139,6 +139,8 @@ impl ChatSessionRepository {
                 parent_row.llm_backend,
                 parent_id,
                 child_fork_depth,
+                parent_row.profile_id,
+                parent_row.use_profile,
             ],
         )
         .map_err(|e| ChatError::InternalError(format!("create_fork_session insert: {e}")))?;

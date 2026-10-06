@@ -48,9 +48,17 @@ impl ChatSessionManager {
             // (pushed before dispatch). The agent re-adds it from `user_msg`,
             // so the history handed to the agent drops that trailing entry to
             // keep a single user turn in the LLM prompt.
+            //
+            // A continued answer is still in the history, after the user
+            // message it answers: both are dropped, the user message comes
+            // back from `user_msg` and the answer as the prefill.
+            let answer_prefill = self.answer_prefills.remove(session_id);
+            let answered = session
+                .history
+                .len()
+                .saturating_sub(usize::from(answer_prefill.is_some()));
             let is_first_message = session.history.len() == 1;
-            let history: Vec<ChatMessage> =
-                session.history[..session.history.len().saturating_sub(1)].to_vec();
+            let history: Vec<ChatMessage> = session.history[..answered.saturating_sub(1)].to_vec();
             // The conversation that creates an agent: a free chat created with
             // the draft tool in its list. It drafts and does nothing else, so
             // it never plans.
@@ -148,7 +156,11 @@ impl ChatSessionManager {
             let user_msg = content.to_string();
             let tx = self.tx.clone();
             let context_window_size = DEFAULT_CONTEXT_WINDOW_SIZE;
-            let turn_images = self.turn_images(session_id, &session.history, context_window_size);
+            let turn_images = self.turn_images(
+                session_id,
+                &session.history[..answered],
+                context_window_size,
+            );
 
             let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
             let llm_for_summarize = self.llm_router.clone();
@@ -205,6 +217,7 @@ impl ChatSessionManager {
                 hook_executor: self.hook_executor.clone(),
                 cancel,
                 pending_injection,
+                answer_prefill,
                 preferred_backend,
                 turn_id,
                 turn_images,

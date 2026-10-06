@@ -1,7 +1,9 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
   import { t, locale } from "svelte-i18n";
-  import { Copy, Check, RefreshCw, Pencil } from "lucide-svelte";
+  import { getContext } from "svelte";
+  import { ANSWER_ACTIONS, type AnswerActionsContext } from "$lib/chat/answerActions";
+  import MessageActions from "./MessageActions.svelte";
   import type { ChatMessageView } from "$lib/types";
   import { developerMode } from "$lib/stores/developerMode";
   import MessageRenderer from "./MessageRenderer.svelte";
@@ -131,27 +133,17 @@
   const widthClass = "w-full";
   const compact = $derived(variant === "compact");
 
-  let copied = $state(false);
-
-  async function handleCopy(): Promise<void> {
-    if (!message.content) return;
-    try {
-      await navigator.clipboard.writeText(isUser ? userText : message.content);
-      copied = true;
-      setTimeout(() => { copied = false; }, 1500);
-    } catch {
-      // clipboard API may not be available
-    }
-  }
-
-  // Inline edit of a user turn (G10). Opening the editor seeds it with the
-  // current text; saving hands the new content up so the parent truncates the
-  // history from this message and re-runs.
+  // Inline edit. A user turn hands its new text up, and the parent truncates
+  // the history from it and runs again; an answer is rewritten in place
+  // through the conversation, and nothing runs.
+  const answers = getContext<AnswerActionsContext | undefined>(ANSWER_ACTIONS);
   let editing = $state(false);
   let editValue = $state("");
 
-  const canRegenerate = $derived(!isUser && !!onregenerate && !!message.content);
-  const canEdit = $derived(isUser && !!onedit && !!message.content);
+  const canEdit = $derived(
+    !!message.content &&
+      (isUser ? !!onedit : !!answers && message.role === "assistant"),
+  );
 
   function startEdit(): void {
     editValue = isUser ? userText : (message.content ?? "");
@@ -166,6 +158,10 @@
     const next = editValue.trim();
     if (!next) return;
     editing = false;
+    if (!isUser) {
+      if (next !== (message.content ?? "").trim()) answers?.editAnswer(message.id, next);
+      return;
+    }
     // The text of an attached document stays behind the edited text, so the
     // agent still reads it.
     onedit?.(message.id, next + documentsText(message.content ?? "", message.metadata));
@@ -213,8 +209,7 @@
         : 'chat-user-bubble'
       : `${widthClass} text-foreground ${compact ? "py-0.5" : "py-1"}`}"
   >
-    {#if isUser}
-      {#if editing}
+    {#if editing}
         <div class="flex flex-col gap-2">
           <!-- svelte-ignore a11y_autofocus -->
           <textarea
@@ -243,16 +238,15 @@
                 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               data-testid="chat-message-edit-save-{message.id}"
             >
-              {$t("chat.edit_save")}
+              {isUser ? $t("chat.edit_save") : $t("common.save")}
             </button>
           </div>
         </div>
-      {:else}
+    {:else if isUser}
         <MessageImages {sessionId} messageId={message.id} metadata={message.metadata} />
         {#if userText}
           <p class="whitespace-pre-wrap break-words">{userText}</p>
         {/if}
-      {/if}
     {:else if isEmptyAgentResponse}
       <p
         class="whitespace-pre-wrap break-words text-body-md italic text-muted-foreground/80"
@@ -315,50 +309,14 @@
     </div>
   {/if}
 
-  <!-- Zone 5: turn actions - a row below the turn (mockup .actions). Assistant
-       turns get regenerate + copy; user turns get the inline edit affordance. -->
-  {#if isUser}
-    {#if canEdit && !editing}
-      <div class="chat-actions" data-testid="chat-message-actions-{message.id}">
-        <button
-          type="button"
-          onclick={startEdit}
-          disabled={busy}
-          title={$t("chat.edit_message")}
-          aria-label={$t("chat.edit_message")}
-          data-testid="chat-message-edit-{message.id}"
-        >
-          <Pencil size={15} />
-        </button>
-      </div>
-    {/if}
-  {:else if message.content}
-    <div class="chat-actions" data-testid="chat-message-actions-{message.id}">
-      {#if canRegenerate}
-        <button
-          type="button"
-          onclick={() => onregenerate?.(message.id)}
-          disabled={busy}
-          title={$t("chat.regenerate")}
-          aria-label={$t("chat.regenerate")}
-          data-testid="chat-message-regenerate-{message.id}"
-        >
-          <RefreshCw size={15} />
-        </button>
-      {/if}
-      <button
-        type="button"
-        onclick={handleCopy}
-        title={$t("chat.copy_message")}
-        aria-label={$t("chat.copy_message")}
-        data-testid="chat-message-copy-{message.id}"
-      >
-        {#if copied}
-          <Check size={15} class="text-success" />
-        {:else}
-          <Copy size={15} />
-        {/if}
-      </button>
-    </div>
+  <!-- Zone 5: the actions of the turn, a row below it. -->
+  {#if !editing && (isUser ? canEdit || !!answers : !!message.content || !!answers)}
+    <MessageActions
+      {message}
+      copyText={isUser ? userText : (message.content ?? "")}
+      {busy}
+      onregenerate={isUser ? undefined : onregenerate}
+      onstartedit={canEdit ? startEdit : undefined}
+    />
   {/if}
 </div>

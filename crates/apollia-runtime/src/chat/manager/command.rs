@@ -255,6 +255,17 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// One action on a message beside playing a turn again: read whether the
+    /// last answer can be continued, continue it, remove a message, rewrite
+    /// an answer in place.
+    Answer {
+        /// Target session.
+        session_id: SessionId,
+        /// What to do.
+        action: super::answers::AnswerAction,
+        /// Response channel.
+        reply: oneshot::Sender<Result<super::answers::AnswerOutcome, ChatError>>,
+    },
     /// Replace a user message and re-run from it (truncate-in-place).
     EditAndResend {
         /// Target session.

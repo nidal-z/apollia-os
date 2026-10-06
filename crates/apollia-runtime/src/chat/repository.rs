@@ -10,6 +10,7 @@ use rusqlite::{params, Connection};
 
 use super::types::{ChatError, ChatMode, ChatRole, PlanPhase, SessionConfigUpdate, SessionStatus};
 
+mod answers;
 mod approvals;
 mod folders;
 mod forking;
@@ -18,6 +19,7 @@ mod profile;
 mod search;
 mod trash;
 
+pub use answers::MessageRewrite;
 pub use folders::{ChatFolder, FOLDER_NAME_MAX_CHARS};
 pub use message_search::{MessageSearchHit, MESSAGE_SEARCH_MAX_RESULTS};
 pub use trash::TrashedSession;

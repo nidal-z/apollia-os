@@ -40,11 +40,9 @@
   import ChatInput from "./ChatInput.svelte";
   import { createSessionActions } from "./useSessionActions.svelte";
   import {
-    editAndResendChatMessage,
     getChatSession,
     getConversationStats,
     pauseChatSession,
-    regenerateChatResponse,
     sendChatMessage,
   } from "$lib/ipc/chat";
   import { DEFAULT_PROFILE, getProfileById } from "$lib/ipc/profile";
@@ -74,6 +72,7 @@
   import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
   import { createImageSupport } from "./useImageSupport.svelte";
+  import { createAnswerActions } from "./useAnswerActions.svelte";
 
   interface Props {
     sessionId: string;
@@ -567,59 +566,30 @@
     }
   }
 
-  // Regenerate the assistant reply to a turn (G9). Optimistically truncate the
-  // local thread back to the user turn, then let the backend replay it; the
-  // streaming events render the new answer and finalizeStreaming reloads the
-  // authoritative history.
-  async function handleRegenerate(messageId: string): Promise<void> {
-    if (isProcessing || isStreaming) return;
-    const msgs = messages ?? [];
-    const idx = msgs.findIndex((m) => m.id === messageId);
-    if (idx < 0) return;
-    let userIdx = -1;
-    for (let i = idx; i >= 0; i--) {
-      if (msgs[i]!.role === "user") { userIdx = i; break; }
-    }
-    if (userIdx < 0) return;
-    pendingError = null;
-    messages = msgs.slice(0, userIdx + 1);
-    isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scroll.toBottom(true);
-    try {
-      await regenerateChatResponse(sessionId, messageId);
-    } catch (err: unknown) {
-      isProcessing = false;
-      addToast(err instanceof Error ? err.message : String(err), "error");
-      void finalizeStreaming();
-    }
-  }
-
-  // Edit a user message and re-run from it (G10). Truncate the local thread
-  // before the edited message, show the new text optimistically, then send it
-  // as a fresh turn through the truncate-in-place backend path.
-  async function handleEdit(messageId: string, newContent: string): Promise<void> {
-    if (isProcessing || isStreaming) return;
-    const msgs = messages ?? [];
-    const idx = msgs.findIndex((m) => m.id === messageId);
-    if (idx < 0) return;
-    pendingError = null;
-    const kept = msgs.slice(0, idx);
-    const tempMsg: ChatMessageView = {
-      id: `temp-${Date.now()}`, role: "user", content: newContent,
-      tool_calls: null, tool_name: null,
-      seq: kept.length, created_at: new Date().toISOString(),
-    };
-    messages = [...kept, tempMsg];
-    isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scroll.toBottom(true);
-    try {
-      await editAndResendChatMessage(sessionId, messageId, newContent);
-    } catch (err: unknown) {
-      isProcessing = false;
-      addToast(err instanceof Error ? err.message : String(err), "error");
-      void finalizeStreaming();
-    }
-  }
+  // The actions under a message: play a turn again, continue the last
+  // answer, branch off, rewrite an answer, remove a message. Each truncates
+  // or reloads the local thread; a turn played again streams as a new one.
+  const answers = createAnswerActions(
+    {
+      sessionId: () => sessionId,
+      messages: () => messages ?? [],
+      setMessages: (next) => { pendingError = null; messages = next; },
+      busy: () => isProcessing || isStreaming,
+      beginTurn: async () => {
+        isProcessing = true; tokenBuffer = ""; liveToolChain = [];
+        await tick(); scroll.toBottom(true);
+      },
+      failTurn: (err) => {
+        isProcessing = false;
+        addToast(err instanceof Error ? err.message : String(err), "error");
+        void finalizeStreaming();
+      },
+      reload: () => refreshSession(),
+      open: (id) => onopensession?.(id),
+      report: (err) => addToast(err instanceof Error ? err.message : String(err), "error"),
+    },
+    () => sessionDetail?.llm_backend,
+  );
 
   // --- Slash-command plumbing --------------------------------
   const lastUserMessageText = $derived.by(() => {
@@ -753,8 +723,8 @@
       {scroll}
       {pendingApproval}
       {pendingUserInput}
-      onregenerate={handleRegenerate}
-      onedit={handleEdit}
+      onregenerate={(id) => void answers.regenerate(id)}
+      onedit={(id, content) => void answers.resend(id, content)}
     />
   {/if}
 

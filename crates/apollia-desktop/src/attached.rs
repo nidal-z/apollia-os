@@ -24,6 +24,7 @@ use tauri::Manager;
 
 pub(crate) use client::AttachedClient;
 pub(crate) use error::AttachedError;
+pub(crate) use proxy::segment;
 
 /// Capacity of the local bus the relay publishes the daemon's events on, the
 /// same order as the runtime's own bus.
@@ -81,6 +82,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "edit_and_resend_chat_message",
     "list_a2a_skills",
     "regenerate_chat_response",
+    // The actions under an answer: branch off, continue the last answer,
+    // rewrite an answer, remove a message.
+    "continue_chat_response",
+    "delete_chat_message",
+    "edit_chat_response",
+    "fork_chat_session",
+    "get_chat_continuation",
     // Agents: the registry and the uninstall of an agent.
     "agent_status_snapshot",
     "list_agents",
@@ -591,11 +599,6 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "opens the browser of this machine and awaits the sign-in on its loopback; the token goes to the secret store the daemon reads",
     ),
 ];
-
-/// Encodes one path segment of a daemon route.
-pub(crate) fn segment(value: &str) -> std::borrow::Cow<'_, str> {
-    urlencoding::encode(value)
-}
 
 /// Where the runtime this application drives lives.
 #[derive(Clone)]

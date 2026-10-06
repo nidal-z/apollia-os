@@ -213,6 +213,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         hook_executor,
         cancel,
         pending_injection,
+        answer_prefill,
         preferred_backend,
         turn_id,
         turn_images,
@@ -396,7 +397,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         },
         &runtime_budget,
         cancel,
-    );
+    )
+    .continuing(answer_prefill);
     let summary = resolve_exchange_summary(ExchangeSummaryParams {
         history: &history,
         context_window_size,

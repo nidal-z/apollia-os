@@ -334,6 +334,13 @@ impl AgentExecutor {
         }
     }
 
+    /// Makes the run continue `answer`, the last answer of the conversation,
+    /// instead of answering anew. `None` leaves an ordinary run.
+    pub fn continuing(mut self, answer: Option<String>) -> Self {
+        self.agent = self.agent.with_answer_prefill(answer);
+        self
+    }
+
     /// The agent this executor runs.
     pub fn spec(&self) -> &AgentRunSpec {
         &self.spec

@@ -112,3 +112,8 @@ impl RuntimeLink {
         }
     }
 }
+
+/// Encodes one path segment of a daemon route.
+pub(crate) fn segment(value: &str) -> std::borrow::Cow<'_, str> {
+    urlencoding::encode(value)
+}

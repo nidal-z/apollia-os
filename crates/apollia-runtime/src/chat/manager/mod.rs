@@ -196,6 +196,10 @@ struct ChatSessionManager {
     /// Operator instructions queued for a paused session, consumed on the next
     /// resume turn. At most one is held per session.
     pending_injections: HashMap<SessionId, InjectedInstruction>,
+    /// The answer the next exchange of a session continues, set when the user
+    /// asks for the last answer to be continued and taken by the dispatch of
+    /// that exchange.
+    answer_prefills: HashMap<SessionId, String>,
     /// Plan continuation directives that arrived while the session was still
     /// `Processing`, re-dispatched when its `ExchangeComplete` lands.
     ///
@@ -221,6 +225,7 @@ struct ChatSessionManager {
 mod actor;
 mod agent_draft;
 mod agent_task;
+mod answers;
 mod apollia_agent;
 mod authz;
 mod code_context;
@@ -246,6 +251,8 @@ mod user_input;
 
 #[cfg(test)]
 mod agent_draft_tests;
+#[cfg(test)]
+mod answers_tests;
 #[cfg(test)]
 mod documents_tests;
 #[cfg(test)]
@@ -298,6 +305,7 @@ pub(in crate::chat::manager) fn default_access_of(
 }
 
 pub use agent_task::AgentTaskRun;
+pub use answers::{AnswerAction, AnswerOutcome, Continuation, ContinuationRefusal};
 pub use command::ChatCommand;
 pub use folders::FolderAction;
 pub use handle::ChatSessionManagerHandle;

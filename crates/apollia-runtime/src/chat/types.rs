@@ -590,6 +590,17 @@ pub enum ChatError {
     /// The name given to a folder is refused: blank, or too long.
     #[error("invalid folder name: {0}")]
     InvalidFolderName(String),
+    /// The session holds no message with this id.
+    #[error("message not found: {0}")]
+    MessageNotFound(String),
+    /// The action does not apply to this message: an answer that is not the
+    /// last one to continue, a user message to rewrite in place, an empty text.
+    #[error("message refused: {0}")]
+    MessageRefused(String),
+    /// The last answer cannot be continued; the reason is the one the
+    /// continuation read of the session reports.
+    #[error("the answer cannot be continued: {0}")]
+    ContinuationRefused(String),
     /// An approve or reject was requested on a session that is not awaiting
     /// approval. The soft plan gate only resolves from the awaiting-approval
     /// phase, so this fails fast instead of starting execution out of order.

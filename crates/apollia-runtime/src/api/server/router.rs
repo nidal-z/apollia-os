@@ -94,7 +94,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_chat::user_inputs::{
         answer_user_input, list_pending_user_inputs, reject_user_input,
     };
-    use crate::api::routes_chat::{approval_history, turns};
+    use crate::api::routes_chat::{answers, approval_history, turns};
     use crate::api::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
@@ -325,6 +325,18 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/sessions/:id/messages/:message_id/resend",
             post(turns::resend_message::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/continuation",
+            get(answers::get_continuation::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id/continue",
+            post(answers::continue_answer::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id",
+            axum::routing::put(answers::edit_answer::<B>).delete(answers::delete_message::<B>),
         )
         .route(
             "/api/v1/sessions/:id/authorize",
