@@ -68,8 +68,8 @@ SCRIPT_DIRS = ("packaging", "crates/apollia-desktop/scripts")
 # entry left with the step it named when the release dropped that preset.
 EXEMPT_WORKFLOW_STEPS = {
     ("release.yml", "Install Vulkan SDK (Linux)"),
-    ("nightly.yml", "Install ROCm"),
-    ("nightly.yml", "Install Vulkan SDK"),
+    ("weekly.yml", "Install ROCm"),
+    ("weekly.yml", "Install Vulkan SDK"),
 }
 
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")

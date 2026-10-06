@@ -8,7 +8,7 @@
 /// A 503 from the user-profile endpoint is treated as a pass: user memory is
 /// an optional subsystem and its absence does not impair runtime operation.
 #[tokio::test]
-#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
+#[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of weekly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_onboarding_first_launch_skip_to_dashboard() {
     // GIVEN a healthy runtime, as on a first launch
     // WHEN the skip writes the terminal onboarding phase to the user profile

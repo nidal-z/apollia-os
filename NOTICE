@@ -1,0 +1,164 @@
+Apollia OS
+Copyright 2026 Apollia
+
+Apollia OS is dual-licensed under the Apache License, Version 2.0
+(LICENSE-APACHE) or the MIT License (LICENSE-MIT), at your option.
+
+The release packages redistribute the third-party components listed below
+beside the project's own code. Each one stays under its own license. The
+versions are the ones pinned in the files named in each section; those files
+are the authority when this list and they disagree.
+
+
+Inference and speech engines
+----------------------------
+
+llama.cpp (the `llama-server` binary and its shared libraries)
+  License: MIT
+  Source:  https://github.com/ggml-org/llama.cpp
+  Pinned by packaging/fetch-llama-server.sh. Shipped in every desktop
+  installer and CLI archive for which the pinned upstream release publishes a
+  build.
+
+whisper.cpp (compiled into the speech-to-text runners through the
+`whisper-rs` and `whisper-rs-sys` crates)
+  License: MIT (whisper.cpp), Unlicense (whisper-rs, whisper-rs-sys)
+  Source:  https://github.com/ggml-org/whisper.cpp
+  Pinned by Cargo.lock.
+
+vllm-mlx (the MLX inference engine, macOS Apple Silicon packages only)
+  License: Apache-2.0
+  Source:  https://github.com/waybarrios/vllm-mlx
+  Pinned by packaging/requirements-mlx-engine.txt, together with the part of
+  its dependency closure listed under "MLX engine environment" below.
+
+
+Python runtime
+--------------
+
+CPython (the embedded interpreter and its standard library)
+  License: Python Software Foundation License Version 2 (PSF-2.0)
+  Source:  https://github.com/python/cpython
+  Shipped as a python-build-standalone distribution, pinned by
+  packaging/fetch-python-standalone.sh.
+
+python-build-standalone (the build of CPython that is redistributed)
+  License: MPL-2.0
+  Source:  https://github.com/astral-sh/python-build-standalone
+
+
+Python packages available to agents
+-----------------------------------
+
+Pinned by packaging/requirements-bundled.txt and installed into the bundled
+interpreter.
+
+  anyio             MIT
+  beautifulsoup4    MIT
+  certifi           MPL-2.0
+  et-xmlfile        MIT
+  h11               MIT
+  httpcore          BSD-3-Clause
+  httpx             BSD-3-Clause
+  idna              BSD-3-Clause
+  markdownify       MIT
+  numpy             BSD-3-Clause
+  openpyxl          MIT
+  pandas            BSD-3-Clause
+  pypdf             BSD-3-Clause
+  python-dateutil   Apache-2.0 and BSD-3-Clause (dual license)
+  pytz              MIT
+  six               MIT
+  sniffio           MIT OR Apache-2.0
+  soupsieve         MIT
+  tzdata            Apache-2.0
+
+
+MLX engine environment
+----------------------
+
+Pinned by packaging/requirements-mlx-engine.txt and installed into a
+directory of its own, in the macOS Apple Silicon packages only.
+
+  annotated-doc               MIT
+  annotated-types             MIT
+  anyio                       MIT
+  attrs                       MIT
+  brotli                      MIT
+  certifi                     MPL-2.0
+  charset-normalizer          MIT
+  click                       BSD-3-Clause
+  fastapi                     MIT
+  filelock                    MIT
+  h11                         MIT
+  httpcore                    BSD-3-Clause
+  httpx                       BSD-3-Clause
+  huggingface-hub             Apache-2.0
+  idna                        BSD-3-Clause
+  interegular                 MIT
+  jinja2                      BSD-3-Clause
+  jsonschema                  MIT
+  jsonschema-specifications   MIT
+  llguidance                  MIT
+  lm-format-enforcer          MIT
+  markupsafe                  BSD-3-Clause
+  mlx                         MIT
+  mlx-lm                      MIT
+  mlx-metal                   MIT
+  mlx-vlm                     MIT
+  numpy                       BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+  opentelemetry-api           Apache-2.0
+  orjson                      MPL-2.0 AND (Apache-2.0 OR MIT)
+  packaging                   Apache-2.0 OR BSD-2-Clause
+  pillow                      MIT-CMU
+  psutil                      BSD-3-Clause
+  pydantic                    MIT
+  pydantic-core               MIT
+  pygments                    BSD-2-Clause
+  python-multipart            Apache-2.0
+  pyyaml                      MIT
+  referencing                 MIT
+  regex                       Apache-2.0 AND CNRI-Python
+  requests                    Apache-2.0
+  rich                        MIT
+  rpds-py                     MIT
+  safetensors                 Apache-2.0
+  sentencepiece               Apache-2.0
+  starlette                   BSD-3-Clause
+  tokenizers                  Apache-2.0
+  tqdm                        MPL-2.0 AND MIT
+  transformers                Apache-2.0
+  typing-extensions           PSF-2.0
+  typing-inspection           MIT
+  urllib3                     MIT
+  uvicorn                     BSD-3-Clause
+  websockets                  BSD-3-Clause
+
+
+Installed on demand
+-------------------
+
+Node.js
+  License: MIT, with the licenses of its bundled dependencies stated in the
+           LICENSE file of its distribution
+  Source:  https://github.com/nodejs/node
+  Not part of any installer. The application downloads a pinned release when
+  a tool server needs it, and keeps it in its own data directory.
+
+
+Fonts
+-----
+
+Inter, Inter Tight and JetBrains Mono
+  License: SIL Open Font License 1.1 (OFL-1.1)
+  Shipped in the desktop application and the documentation site through the
+  @fontsource packages pinned in crates/apollia-desktop/ui/package.json and
+  docs/site/package.json.
+
+
+Rust crates
+-----------
+
+The binaries are statically linked against the crates resolved in Cargo.lock.
+The licenses accepted for them are the allowlist of deny.toml, which
+`cargo deny check licenses` enforces on every change.

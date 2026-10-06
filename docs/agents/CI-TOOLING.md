@@ -138,7 +138,7 @@ Actual structure :
 .github/workflows/
 ├── ci.yml            # PR gate (see jobs below)
 ├── codeql.yml        # CodeQL: rust + python + javascript-typescript
-├── nightly.yml       # heavy / advisory: e2e, feature-matrix, coverage HTML,
+├── weekly.yml        # heavy / advisory: e2e, feature-matrix, coverage HTML,
 │                     #   deep-audit, geiger (unsafe surface), loom, miri, kani, fuzz-deep
 ├── release.yml       # tag-triggered: build binaries, attach to release
 └── auto-close-prs.yml
@@ -176,12 +176,12 @@ blocking.
   against `origin/main`. Informative while the crates are unpublished / pre-1.0.
 - `fuzz` : `cargo +nightly fuzz run` over each seed corpus for ~60s (nightly,
   libFuzzer). A short regression smoke on the untrusted-input parsers; the long
-  session is `fuzz-deep` in `nightly.yml`. See `docs/agents/TESTING.md` 8b.
+  session is `fuzz-deep` in `weekly.yml`. See `docs/agents/TESTING.md` 8b.
 
 `python-tests` is **blocking**. It was advisory while three SDK tests failed;
 they are fixed, so it gates.
 
-Nightly-only advisory jobs (in `nightly.yml`) :
+Weekly-only advisory jobs (in `weekly.yml`) :
 
 - `loom` : exhaustive interleaving check of the runtime actor algorithms on the
   pinned `1.95.0`, via `RUSTFLAGS="--cfg loom" cargo test --manifest-path
@@ -258,7 +258,7 @@ cargo llvm-cov --workspace --lcov --output-path lcov.info \
 
 `COVERAGE_FLOOR` is a workflow-level env var set just below the measured
 baseline so the gate is green from day one, then ratcheted up over time and
-never lowered. The full HTML report is produced by the nightly `coverage` job.
+never lowered. The full HTML report is produced by the weekly `coverage` job.
 
 Target : > 80% lines / > 70% branches on core crates. Aspirational
 workspace-wide.

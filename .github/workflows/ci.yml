@@ -7,7 +7,7 @@
 #
 # What is NOT here:
 #   - Build and release artifacts -> release.yml (on a v* tag)
-#   - E2E desktop, compile-cuda sanity, deep coverage -> nightly.yml
+#   - E2E desktop, compile-cuda sanity, deep coverage -> weekly.yml
 
 name: CI
 
@@ -87,7 +87,7 @@ jobs:
       # --all-targets adds tests/examples/benches to the lint surface, matching
       # the pre-commit pre-push hook. --all-features is intentionally omitted:
       # it pulls the GPU backends (cuda/rocm/vulkan) whose toolkits are absent
-      # on this runner; feature-gated clippy stays in nightly.yml.
+      # on this runner; feature-gated clippy stays in weekly.yml.
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
   # Advisory only: runs the same clippy gate on rolling stable to surface lints
@@ -179,7 +179,7 @@ jobs:
       # The PyO3-gated `python-tests` suite of apollia-e2e-tests does not run
       # here: it needs the Apollia SDK importable through PYO3_PYTHON, and this
       # job installs no SDK, so the step failed before reaching a single test.
-      # Its one frontier is the python-tests job of nightly.yml, which installs
+      # Its one frontier is the python-tests job of weekly.yml, which installs
       # the editable SDK first.
 
   # ── MSRV : the 1.89 floor the manifests publish is compiled, never assumed ─
@@ -357,7 +357,7 @@ jobs:
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       # Explicit full check (advisories, bans, licenses, sources) on the PR
-      # gate, not just a subset. The redundant heavy pass stays in nightly.yml.
+      # gate, not just a subset. The redundant heavy pass stays in weekly.yml.
       - uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe # v2
         with:
           command: check advisories bans licenses sources
@@ -401,7 +401,7 @@ jobs:
         run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       # Default members exclude the heavy Tauri desktop crate; full desktop
-      # E2E stays in nightly.yml.
+      # E2E stays in weekly.yml.
       - run: cargo test
 
   # ── Prose guard : locks in the sanitize invariants (no regressions) ────────
@@ -808,7 +808,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
-          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md CHANGELOG.md SPONSORS.md .github/CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/SUPPORT.md .github/FUNDING.yml .github/ISSUE_TEMPLATE"
+          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md CHANGELOG.md ROADMAP.md .github/CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/SUPPORT.md .github/FUNDING.yml .github/ISSUE_TEMPLATE"
           fail: true
 
   # ── Link check, online : the half `--offline` cannot see ──────────────────
@@ -830,7 +830,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: "--no-progress --max-retries 2 --exclude '^https?://(www\\.)?patreon\\.com' README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md CHANGELOG.md SPONSORS.md .github/CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/SUPPORT.md .github/FUNDING.yml .github/ISSUE_TEMPLATE"
+          args: "--no-progress --max-retries 2 --exclude '^https?://(www\\.)?patreon\\.com' README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md CHANGELOG.md ROADMAP.md .github/CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/SUPPORT.md .github/FUNDING.yml .github/ISSUE_TEMPLATE"
           fail: true
 
   # ── Docs build : Docusaurus build on every PR (onBrokenLinks: throw) ───────
@@ -886,7 +886,7 @@ jobs:
   # The untrusted-input parsers (LLM output, web content, automation text, tool
   # specs) are fuzzed with libFuzzer. Advisory for now (continue-on-error) so a
   # freshly surfaced crash reports without blocking the PR; the deep run lives
-  # in nightly.yml. This cargo-fuzz integration is what the OpenSSF Scorecard
+  # in weekly.yml. This cargo-fuzz integration is what the OpenSSF Scorecard
   # Fuzzing check detects.
   fuzz:
     name: Fuzz (smoke, advisory)
@@ -1028,7 +1028,7 @@ jobs:
         with:
           tool: cargo-llvm-cov
       # The floor is set just below the measured baseline so the gate is green
-      # from day one, then ratcheted up. Full HTML report stays in nightly.yml.
+      # from day one, then ratcheted up. Full HTML report stays in weekly.yml.
       # apollia-desktop and apollia-e2e-tests are excluded because neither builds
       # under the coverage harness; tests/ and benches/ are ignored so the number
       # reflects source coverage, not test code exercising itself.
