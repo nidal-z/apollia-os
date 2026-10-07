@@ -1,12 +1,11 @@
 //! `apollia-os permissions`: local management of permission rules.
 //!
 //! This subcommand operates directly on `governance.db` (the
-//! `permission_rules` and `permission_audit` tables) without going through the
-//! runtime. It exposes three operations to the operator:
+//! `permission_rules` table) without going through the runtime. It exposes
+//! three operations to the operator:
 //!
 //! - `list`:   show the persisted rules with their scope.
 //! - `revoke`: delete a persisted rule by identifier, or in bulk by scope.
-//! - `audit`:  inspect the immutable history of permission decisions.
 //! - `add`:    persist a rule.
 //!
 //! A rule targets one agent (`agent`, with its identifier) or every agent
@@ -15,9 +14,7 @@
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
-use apollia_permissions::{
-    PermissionAuditLog, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
-};
+use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction};
 use apollia_tools::GovernanceDb;
 use clap::Subcommand;
 
@@ -49,15 +46,6 @@ pub enum PermissionsCommand {
         /// Skip the interactive confirmation (useful for scripts).
         #[arg(long)]
         yes: bool,
-    },
-    /// Show the permission decision history.
-    Audit {
-        /// Filter by tool name.
-        #[arg(long)]
-        tool: Option<String>,
-        /// Maximum number of entries to display.
-        #[arg(long, default_value = "50")]
-        limit: u32,
     },
     /// Add a persisted permission rule for a tool + optional argument prefix.
     ///
@@ -105,7 +93,6 @@ pub async fn run(cmd: &PermissionsCommand, _socket: Option<PathBuf>, json: bool)
             scope,
             yes,
         } => run_revoke(id.as_deref(), *all, scope.as_deref(), *yes, json),
-        PermissionsCommand::Audit { tool, limit } => run_audit(tool.as_deref(), *limit, json),
         PermissionsCommand::Add {
             tool,
             prefix,
@@ -360,64 +347,6 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-// ─── Audit ───────────────────────────────────────────────────────────
-
-fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
-    let db_path = match ensure_governance_db_path() {
-        Ok(p) => p,
-        Err(msg) => return emit_error(msg, json),
-    };
-    let log = match PermissionAuditLog::new(&db_path) {
-        Ok(l) => l,
-        Err(e) => return emit_error(format!("failed to open audit log: {e}"), json),
-    };
-    let entries = match log.query(tool_filter, limit, 0) {
-        Ok(e) => e,
-        Err(e) => return emit_error(format!("failed to read audit log: {e}"), json),
-    };
-
-    if json {
-        let arr: Vec<serde_json::Value> = entries
-            .iter()
-            .map(|e| {
-                serde_json::json!({
-                    "id": e.id,
-                    "decided_at": e.decided_at,
-                    "tool_name": e.tool_name,
-                    "first_arg": e.first_arg,
-                    "decision": e.decision,
-                    "scope": e.scope,
-                    "rule_id": e.rule_id,
-                    "agent": e.agent,
-                })
-            })
-            .collect();
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({"events": arr}))
-                .unwrap_or_else(|_| "{}".to_string())
-        );
-    } else {
-        println!(
-            "  {:<19} {:<18} {:<28} AGENT",
-            "TIMESTAMP", "TOOL", "DECISION"
-        );
-        if entries.is_empty() {
-            println!("  (no decision recorded)");
-        } else {
-            for e in &entries {
-                let ts = format_unix_datetime(e.decided_at);
-                let agent = e.agent.as_deref().unwrap_or("-");
-                println!(
-                    "  {:<19} {:<18} {:<28} {}",
-                    ts, e.tool_name, e.decision, agent
-                );
-            }
-        }
-    }
-    exit_codes::SUCCESS
-}
-
 // ─── Add ─────────────────────────────────────────────────────────────
 
 /// Raw CLI input for `permissions add` (string action and scope).
@@ -640,12 +569,6 @@ fn format_unix_date(ts: i64) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
-fn format_unix_datetime(ts: i64) -> String {
-    chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0)
-        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
-        .unwrap_or_else(|| ts.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -759,37 +682,6 @@ mod tests {
         let remaining = engine.list_rules().expect("list");
         assert_eq!(remaining.len(), 1);
         assert!(matches!(remaining[0].scope, PermissionScope::Agent));
-    }
-
-    #[test]
-    fn test_audit_filtered_by_tool() {
-        // GIVEN two audit rows for two different tools
-        let dir = TempDir::new().expect("tempdir");
-        let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
-        let governance = GovernanceDb::open(dir.path()).expect("init governance");
-        let log = PermissionAuditLog::new(&db_path).expect("audit log");
-        for (tool, arg, decision) in [
-            ("web_search", "apollia", "AutoAllowedSafeList"),
-            ("file_write", "/tmp/x", "NeedsApproval"),
-        ] {
-            governance
-                .connection()
-                .execute(
-                    "INSERT INTO permission_audit (tool_name, first_arg, decision, decided_at) \
-                     VALUES (?, ?, ?, ?)",
-                    rusqlite::params![tool, arg, decision, now()],
-                )
-                .expect("insert audit row");
-        }
-
-        // WHEN one tool is queried, then all tools
-        let only_web = log.query(Some("web_search"), 10, 0).expect("query");
-        let all = log.query(None, 10, 0).expect("query all");
-
-        // THEN the filter selects one row and the unfiltered query both
-        assert_eq!(only_web.len(), 1);
-        assert_eq!(only_web[0].tool_name, "web_search");
-        assert_eq!(all.len(), 2);
     }
 
     #[test]

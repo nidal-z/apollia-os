@@ -161,7 +161,6 @@ async fn build_webhook_state(
         pending_approvals: None,
         notification_config: None,
         tool_registry_handle: None,
-        audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
         config_reload: None,
         llm_call_repository: None,

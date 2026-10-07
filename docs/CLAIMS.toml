@@ -168,41 +168,24 @@ promise more.
 """
 
 [[claim]]
-id = "permission-decision-is-not-recorded"
+id = "permission-decision-is-journaled"
 scope = "public"
-symbol = "PermissionAuditLog::record"
-status = "absent"
-proof = "crates/apollia-permissions/src/audit_log.rs"
-evidence = "CREATE TABLE IF NOT EXISTS permission_audit"
+symbol = "ConsentAnswered"
+status = "wired"
+proof = "crates/apollia-runtime/src/chat/builtin_agent/governed.rs"
+evidence = ""
 note = """
-The decisions chapter said the permission decision "is logged whichever way it
-goes". Nothing in a shipped binary writes to `permission_audit`.
+The decisions chapter said for a long time that the permission decision "is
+logged whichever way it goes" while nothing wrote to the `permission_audit`
+table, then said, correctly, that the decision was written nowhere. It is now
+written: the governed path of the chat loop journals the answer to a consent
+prompt, and the refusals by the policy and by a rule, as entries of the signed
+journal. The table that never had a writer is gone, dropped by a migration of
+`governance.db`.
 
-Re-anchored on 2026-08-21, once the unwired governance types were removed from
-the tree. The claim used to rest on
-`PermissionEngine::decide`, the only writer, reached through
-`ToolDispatcher::with_permission_engine`, which no production caller populated.
-That engine has been removed, so the fact is now stronger and its old anchor is
-gone: there is no writer at all, wired or otherwise.
-
-What remains is what the claim now rests on, and it is durable rather than
-transitional. `audit_log.rs` still creates the table and its index, still exposes
-`query`, and `apollia permissions audit` still reads it. A table with readers and
-no writer is the shape of this defect, and it survives any future removal of the
-code that once might have filled it.
-
-The two production callers of the table are readers. The only `INSERT INTO
-permission_audit` in the tree sits under `#[cfg(test)]` in
-`apollia-cli/src/commands/permissions.rs`, inside a fixture that seeds rows to
-test the reader.
-
-The evidence deliberately pins the same string as `permission-engine-not-wired`,
-because that is the exact fact this claim rests on: the day someone wires the
-engine, the decision starts being recorded and the corrected paragraph has to be
-corrected back. What *is* recorded is the invocation, and
-`tool-invocations-is-the-execution-record` guards that distinction. Do not merge
-the two: one says what ran, the other says who allowed it, and only the first
-exists.
+If the governed path stops journaling the answer, the paragraph promises a
+record that does not exist, which is the defect this claim was first written
+against.
 """
 
 [[claim]]
@@ -1077,17 +1060,17 @@ stored nothing.
 """
 
 [[claim]]
-id = "tool-invocations-is-the-execution-record"
+id = "journal-is-the-execution-record"
 scope = "public"
-symbol = "tool_invocations"
+symbol = "journal_call_started"
 status = "wired"
-proof = "crates/apollia-tools/src/audit.rs"
+proof = "crates/apollia-runtime/src/chat/builtin_agent/call_journal.rs"
 evidence = ""
 note = """
-The documented table and database both did not exist, and the page sent the
-reader to a settings screen that does not exist either. This is the record that
-does: it says what ran, not who approved it, and that distinction is the reason
-the page was misleading rather than merely stale.
+The page first named a table and a database that did not exist, then a flat
+table of tool invocations that only one path wrote. The record is now the signed
+journal: the chat loop announces each tool call with its run, and the journal
+subscriber chains it. The page says where an operator reads it.
 """
 
 [[claim]]
@@ -1479,29 +1462,22 @@ i18n/fr. The exception lives in the desktop rewrite command, not in the
 assistant's prompt builder, which is what the surrounding prose says.
 """
 
-# ── The two audit registers, and what a name promises ────────────────────────
+# ── The audit register, and what a name promises ─────────────────────────────
 
 [[claim]]
-id = "audit-list-reads-the-tool-invocation-trail"
+id = "journal-records-the-tool-calls-of-a-run"
 scope = "public"
-symbol = "query_page"
+symbol = "ToolOutputCaptured"
 status = "wired"
-proof = "crates/apollia-runtime/src/api/routes_audit.rs"
+proof = "crates/apollia-runtime/src/audit_journal/subscriber.rs"
 evidence = ""
 note = """
-The corpus called one thing "the audit trail" and described the other. There are
-two registers: the flat `tool_invocations` table, which has no `prev_hash` and no
-signature, and the hash-chained journal. `audit list` and `audit stats` reach
-the flat one through this reader; `audit verify`, `audit export`,
-`audit show` and `audit anchor` reach the journal. If `query_page` ever loses its
-caller in `list_audit`, the pages that now say which command reads which register
-are describing a path that stopped existing.
-
-The same paragraphs carry a second fact the replay cannot check: a tool call made
-in a chat session reaches neither register, because `ToolInvocationRecord` is
-written only from the agent-side `ctx.tools` proxy and `map_event` has no arm for
-the `ChatToolCall*` variants. That gap is tracked as a defect, not documented as
-a feature.
+The corpus called one thing "the audit trail" and described the other, while two
+registers existed: a flat table of tool invocations and the hash-chained
+journal. There is one register now, the journal, and every `audit` command reads
+it. The paragraph says a tool call of a conversation is recorded there with its
+output; if the chat loop stops emitting the capture, or the subscriber stops
+mapping it, the paragraph describes a record that is no longer made.
 """
 
 [[claim]]

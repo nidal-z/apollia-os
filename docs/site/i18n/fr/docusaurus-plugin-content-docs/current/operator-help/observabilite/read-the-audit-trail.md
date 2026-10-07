@@ -1,92 +1,78 @@
 ---
-title: Consulter l'audit trail
+title: Consulter la piste d'audit
 slug: /operator-help/observability/read-the-audit-trail
 sidebar_position: 2
 ---
 
-# Consulter l'audit trail
+# Consulter la piste d'audit
 
-> Pour les operators qui veulent retrouver précisément qui a fait quoi, quand - typiquement pour un contrôle interne ou une enquête après incident.
+> Pour les opérateurs qui veulent retrouver précisément qui a fait quoi, et quand - typiquement pour un contrôle interne ou une investigation post-incident.
+
+La piste d'audit, c'est le **Journal** : un seul registre, signé et chaîné, qui contient chaque action des agents et chaque changement d'accès. L'écran Observabilité ne porte plus d'onglet Piste d'audit à part.
 
 ## Prérequis
 
-- Au moins une action sensible (écriture de fichier, commande, appel d'outil) a été exécutée par un agent installé.
-- Vous savez approximativement la période ou l'agent à investiguer.
+- Au moins une action (un appel d'outil, un consentement donné, un accès accordé) a eu lieu.
+- Vous connaissez à peu près la période ou l'agent à investiguer.
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Piste d'audit**.
+1. Dans la barre latérale, cliquez sur **Journal**. Les entrées sont regroupées par jour, les plus récentes d'abord, chacune écrite comme une phrase : quand, quel agent, ce qui s'est passé, sur quelle cible, avec quel résultat.
 
-2. En haut de l'onglet, un **encart violet** rappelle l'utilité de la piste d'audit : contrôle interne, enquête après incident, conformité. L'onglet enregistre les **invocations d'outils d'un agent installé**. Un outil appelé depuis une conversation n'y est pas écrit : le chemin conversationnel n'écrit pas dans la piste, et ses appels s'affichent dans la conversation elle-même.
+2. Resserrez la liste avec les filtres placés au-dessus :
+   - **Agent** - le travail d'un seul agent.
+   - **Famille** - une famille d'action (lire, lire des données personnelles, écrire ou supprimer, envoyer à l'extérieur, exécuter du code).
+   - **Nature** - **Actions**, **Changements d'accès** ou **Politique**.
+   - **Résultat** - ce qui a réussi, ce qui a échoué, ce qui a été refusé.
+   - **Période** - **Aujourd'hui**, **7 derniers jours**, **30 derniers jours** ou **Tout le journal**.
 
-3. Sous l'encart, une carte **Journal complet** donne trois totaux comptés sur tout le journal : **Invocations enregistrées**, **Outils distincts**, **Agents distincts**. Ils ne bougent pas avec les filtres, et ils ne s'arrêtent pas aux lignes chargées plus bas : ils répondent à « que contient le journal », là où les indicateurs de l'étape suivante répondent à « qu'est-ce que je regarde en ce moment ». Si ces totaux ne peuvent pas être lus, la carte affiche une ligne qui le dit et le tableau en dessous n'est pas affecté.
+   **Effacer les filtres** ramène le journal entier. La ligne au-dessus de la liste dit combien d'entrées sont affichées et combien de filtres sont actifs.
 
-4. Juste en dessous, **quatre indicateurs clés** (KPI) se mettent à jour selon les filtres : **Entrées affichées**, **Outils distincts**, **Échecs** (en rouge si > 0), **Durée moyenne**.
-   ![onglet Piste d'audit - bannière de purpose en haut, 4 KPI, filtres, puis tableau](/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
+3. Cliquez sur une entrée pour ouvrir son détail dans le panneau de détail. Pour un appel d'outil, le détail contient les arguments et la sortie quand l'exécution les a capturés.
 
-5. Le tableau présente toutes les invocations d'outils tracées, du plus récent au plus ancien. **Cinq colonnes** :
-   - **Horodatage** (date + heure locale)
-   - **Outil** (nom technique en monospace : `bash`, `file_write`, `mcp:notion.search`, etc.)
-   - **Agent** (nom lisible ; à défaut l'identifiant brut si l'agent n'est plus enregistré)
-   - **Durée** (`850ms`, `2.1s`, ou `1m 30s` au-delà de la minute, ou `-` si non mesuré)
-   - **Statut** - badge **Succès** (vert, ✓) ou **Échec** (rouge, ✕). Le statut est déduit du code de sortie *et* de la présence de stderr ; un outil MCP sans code de sortie est considéré OK s'il s'est terminé sans erreur.
+4. En bas de la liste, **Afficher les entrées plus anciennes** la prolonge.
 
-6. Affinez la recherche avec les deux sélecteurs au-dessus du tableau :
-   - **Outil** - isole les invocations d'un outil précis (la liste se construit à partir des entrées chargées).
-   - **Agent** - isole le travail d'un seul agent.
+5. **Vérifier l'intégrité** recalcule la chaîne et les signatures, et dit si le journal est intact ou à quel endroit il a été altéré.
 
-7. Cliquez sur une ligne pour déplier son détail. Selon ce qui a été capturé, trois sections peuvent apparaître :
-   - **Arguments** - JSON envoyé à l'outil, formaté.
-   - **stdout** - sortie standard.
-   - **stderr** - sortie d'erreur, affichée en rouge.
-
-   Si l'invocation n'a rien produit de capturable (outils MCP en lecture seule, outils sans I/O standard…), un message *« Aucun détail disponible »* s'affiche.
-   ![ligne dépliée affichant les sections Arguments / stdout / stderr](/img/operator-help/observabilite-consulter-l-audit-trail-2.png)
-
-8. En bas du tableau, le bouton **Charger plus** étend la liste de 50 entrées supplémentaires.
-
-   > **L'export et la vérification se font en ligne de commande**, pas depuis
-   > l'interface. Voir la section suivante.
+6. **Exporter** écrit les entrées qui correspondent aux filtres en vigueur, en **CSV** ou en **PDF**. Inclure le détail ajoute les paramètres de chaque action, qui peuvent contenir des données personnelles.
 
 ## Exporter et vérifier en ligne de commande
 
-L'interface montre le journal ; la ligne de commande permet de le sortir et de
-prouver qu'il n'a pas été modifié.
+Le même journal se lit en ligne de commande :
 
 ```sh
-apollia-os audit list --limit 200        # consulter
-apollia-os audit stats                   # compter
+apollia-os audit journal --limit 200     # consulter
 apollia-os audit export --format csv --output journal.csv
 apollia-os audit verify                  # vérifier toute la chaîne
 apollia-os audit verify <RUN_ID>         # vérifier une exécution
-apollia-os audit anchor                  # imprimer l'ancre de tête
+apollia-os audit anchor                  # afficher l'ancre de tête
 ```
 
 **`verify`** recalcule la chaîne de hachage et contrôle les signatures. Sans
-argument, il parcourt le journal entier ; avec un identifiant d'exécution, il se
-limite à celle-ci. C'est ce qui distingue un journal d'une simple liste : une
-entrée modifiée après coup casse la chaîne et se voit.
+argument, la commande parcourt le journal entier ; avec un identifiant
+d'exécution, elle se limite à cette exécution. Une entrée modifiée après coup
+casse la chaîne et se voit.
 
-**`anchor`** imprime l'ancre de tête de la chaîne globale. La conserver hors de
+**`anchor`** affiche l'ancre de tête de la chaîne globale. La conserver hors de
 la machine est la seule défense contre une troncature de la fin du journal par
 quelqu'un qui aurait obtenu la clé de signature. Cette clé est un fichier local,
-lisible par le compte qui exécute Apollia : l'ancre exportée est donc la
-protection réelle, pas une précaution avancée.
+lisible par le compte qui fait tourner Apollia : l'ancre exportée est donc la
+vraie protection, pas une précaution avancée.
 
-**`export`** écrit le journal en JSON. Il s'arrête à `--limit`, 10000 par défaut,
-et prévient sur la sortie d'erreur quand il atteint ce plafond.
+**`export`** écrit les entrées qui passent les filtres, les plus récentes
+d'abord, en CSV ou en JSON.
 
-Détail de ces commandes dans
-[Audit and verify a run](/how-to/audit-and-verify).
+Le détail de ces commandes est dans
+[Auditer et vérifier une exécution](/how-to/audit-and-verify).
 
 ## Vérification
 
-Vous retrouvez dans le tableau les actions que vous savez avoir validées récemment, avec leur statut correct (Succès en vert, Échec en rouge). Les KPI en haut reflètent la sélection courante : si vous filtrez par agent, le compteur d'**Entrées affichées** baisse en conséquence.
+Vous retrouvez dans la liste les actions que vous savez avoir eu lieu récemment, avec le bon résultat. Si vous filtrez par agent, le compte au-dessus de la liste baisse en conséquence.
 
 ## Si ça ne marche pas
 
-- **Une action attendue ne figure pas** : vérifiez les filtres **Outil** et **Agent** - un filtre actif peut masquer la ligne. Cliquez sur **Charger plus** si la fenêtre par défaut (50 entrées) ne remonte pas assez loin.
-- **Le détail d'une ligne ne montre rien** : l'invocation provient probablement d'un outil sans capture stdout/stderr (outil MCP, appel API interne). La ligne reste tracée mais ses entrées-sorties ne le sont pas.
-- **Le tableau est vide** : aucun agent installé n'a encore exécuté d'outil. Une conversation n'alimente pas ce tableau, quel que soit le nombre d'outils qu'elle appelle. Lancez un agent sur une tâche utilisant des outils (bash, file_write, etc.).
+- **Une action attendue manque** : vérifiez les filtres - un filtre actif peut masquer l'entrée. Élargissez la **Période**, ou cliquez sur **Afficher les entrées plus anciennes**.
+- **Le détail d'un appel d'outil ne montre aucun argument** : aucune réponse du modèle de l'exécution ne porte cet appel, comme pour un outil appelé par le code d'un workflow.
+- **La liste est vide** : rien n'a encore été journalisé. Demandez à un agent une tâche qui utilise un outil.
 
 > **Référence technique :** [Référence Apollia](/reference)

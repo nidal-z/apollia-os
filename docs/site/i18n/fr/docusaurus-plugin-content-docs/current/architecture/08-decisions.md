@@ -237,12 +237,14 @@ substitution ni exécution en arrière-plan. Cette garde décide d'une dispense
 d'approbation ; ce n'est pas un filtre placé devant l'exécution, et un exécuteur
 de code sans règle correspondante demande une personne à chaque invocation.
 
-<!-- claim:permission-decision-is-not-recorded -->
-La décision de permission elle-même n'est écrite nulle part. Rien, dans un
-binaire livré, n'écrit dans la table `permission_audit` : elle est lue par
-`apollia-os permissions audit` et par la vue d'audit du bureau, et par rien
-d'autre. Ce qui est enregistré, c'est l'invocation : `tool_invocations` retient
-ce qui a tourné, pas qui l'a autorisé.
+<!-- claim:permission-decision-is-journaled -->
+La décision de permission est écrite dans le journal signé. Une réponse à une
+demande de consentement (une fois, toujours pour cet agent, ou refuser), un
+refus par la politique de l'organisation et un refus par une règle deviennent
+chacun une entrée, qui nomme l'agent, l'outil et sa famille d'action et ne porte
+jamais l'argument de l'appel. La table `permission_audit` que porte un
+`governance.db` plus ancien n'a jamais été écrite : le fichier la perd à sa
+première ouverture.
 
 ## Humain dans la boucle {#human-in-the-loop}
 
@@ -706,23 +708,21 @@ dès que deux travailleurs ont exposé des skills aux noms voisins.
 
 ## Audit et preuve {#audit-and-evidence}
 
-Il y a deux registres, et la garantie n'est pas la même sur chacun.
+Il y a un seul registre : le journal chaîné par hachage.
 
-La piste d'invocations d'outils porte ce qui a tourné, une empreinte de ses
-entrées, s'il a réussi, et combien de temps il a pris. Un appel qui a échoué est
-persisté comme ayant échoué. Elle est écrite en pose-et-oublie, si bien que
-l'enregistrement ne bloque jamais l'exécution, et un enregistrement est jeté
-quand le canal est saturé : la piste est un enregistrement au mieux, pas un
-enregistrement complet. Ses lignes sont plates : l'empreinte des entrées que
-chaque ligne porte n'est chaînée à aucune autre, et aucune ligne n'est signée.
+Ses entrées sont chaînées et signées, et la chaîne est ancrée globalement pour
+que la troncature soit détectable : retirer la fin du journal casse une
+vérification qu'un lecteur peut lancer lui-même. Un appel d'outil fait deux
+entrées, une à son départ et une à sa fin, et un appel qui a échoué est
+enregistré comme ayant échoué. Une entrée est ajoutée sans bloquer l'exécution,
+et elle est jetée, avec un avertissement dans les logs, quand le canal est
+saturé : le journal prouve que ce qu'il contient n'a pas été altéré, pas qu'il
+contient tout.
 
-Le journal chaîné par hachage est le registre qui porte la preuve. Ses entrées
-sont chaînées et signées, et la chaîne est ancrée globalement pour que la
-troncature soit détectable : retirer la fin du journal casse une vérification
-qu'un lecteur peut lancer lui-même.
-
-Les deux registres couvrent le chemin agent. Un appel d'outil effectué dans une
-session de chat n'atteint ni l'un ni l'autre.
+Le journal enregistre une exécution par les événements qu'elle émet. Un appel
+d'outil fait dans une conversation est annoncé avec son exécution, il est donc
+enregistré ; un appel qu'aucun événement n'annonce avec une exécution ne l'est
+pas.
 
 Rejouer une exécution puis la comparer à son enregistrement n'est délibérément
 pas construit. Une réexécution prouve qu'une seconde exécution s'est comportée

@@ -189,20 +189,6 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
-    // ─── Audit ────────────────────────────────────────────────────────────────
-
-    /// Get audit statistics via `GET /api/v1/audit/stats`.
-    pub async fn get_audit_stats(&self) -> Result<serde_json::Value, ClientError> {
-        let resp = self.get("/api/v1/audit/stats").await?;
-        if resp.status >= 400 {
-            return Err(ClientError::ServerError {
-                status: resp.status,
-                body: extract_error(&resp.body, resp.status),
-            });
-        }
-        Ok(serde_json::from_str(&resp.body)?)
-    }
-
     // ─── Agent Logs ───────────────────────────────────────────────────────────
 
     /// Fetch recent log lines for an agent via `GET /api/v1/agents/{id}/logs?last={n}`.

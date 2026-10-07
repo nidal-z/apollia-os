@@ -20,5 +20,5 @@ Le Journal liste ce que les agents ont fait et ce qui a changé dans leurs accè
 
 ## Pour aller plus loin
 
-- [Lire la piste d'audit](/operator-help/observability/read-the-audit-trail)
+- [Consulter la piste d'audit](/operator-help/observability/read-the-audit-trail)
 - [Lire la chronologie d'activité](/operator-help/observability/read-the-activity-timeline)

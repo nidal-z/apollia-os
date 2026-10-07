@@ -176,10 +176,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "observability.hooks_col_timeout", // Timeout
   "observability.plan_cache.cache_hits", // Hits
   "observability.plan_cache.cache_misses", // Misses
-  "observability.plan_mutation.field.description", // Description
   "observability.tab_hooks", // Hooks
-  "observability.table.agent", // Agent
-  "observability.table.arguments", // Arguments
   "observability.task_timeline_fact_backend", // Backend
   "onboarding.ai_setup.backends_count", // {count, plural, one {# backend} other {# backends}}
   "onboarding.ai_setup.gated", // gated

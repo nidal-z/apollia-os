@@ -67,7 +67,7 @@ def sync_detailed(
 ) -> Response[ApiErrorBody | TimelineResponse]:
     """`GET /api/v1/tasks/{id}/timeline`: full timeline for a task.
 
-     Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)
+     Aggregates data from 4 SQLite sources (hitl.db, plans.db, llm.db, audit_journal.db)
     into a unified timeline sorted by timestamp ascending. Returns 404 when the
     task is unknown to all sources.
 
@@ -100,7 +100,7 @@ def sync(
 ) -> ApiErrorBody | TimelineResponse | None:
     """`GET /api/v1/tasks/{id}/timeline`: full timeline for a task.
 
-     Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)
+     Aggregates data from 4 SQLite sources (hitl.db, plans.db, llm.db, audit_journal.db)
     into a unified timeline sorted by timestamp ascending. Returns 404 when the
     task is unknown to all sources.
 
@@ -128,7 +128,7 @@ async def asyncio_detailed(
 ) -> Response[ApiErrorBody | TimelineResponse]:
     """`GET /api/v1/tasks/{id}/timeline`: full timeline for a task.
 
-     Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)
+     Aggregates data from 4 SQLite sources (hitl.db, plans.db, llm.db, audit_journal.db)
     into a unified timeline sorted by timestamp ascending. Returns 404 when the
     task is unknown to all sources.
 
@@ -159,7 +159,7 @@ async def asyncio(
 ) -> ApiErrorBody | TimelineResponse | None:
     """`GET /api/v1/tasks/{id}/timeline`: full timeline for a task.
 
-     Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)
+     Aggregates data from 4 SQLite sources (hitl.db, plans.db, llm.db, audit_journal.db)
     into a unified timeline sorted by timestamp ascending. Returns 404 when the
     task is unknown to all sources.
 

@@ -1,13 +1,16 @@
-//! REST routes for the audit trail.
+//! REST routes of the audit journal.
 //!
-//! - `GET /api/v1/audit?limit=N`, last N tool invocations (default 20)
-//! - `GET /api/v1/audit/stats`  , aggregate counts (total, unique tools, agents)
 //! - `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal,
 //!   each entry with its summary, narrowed by agent, family, nature, result and period
+//! - `GET /api/v1/audit/journal/:run_id`, the full journal of a run
 //! - `GET /api/v1/audit/journal/:run_id/entries/:seq`, one entry with its detail
+//! - `GET /api/v1/audit/verify` and `/verify/:run_id`, the verification of the
+//!   chains and signatures
+//! - `GET /api/v1/audit/anchor`, the exportable head anchor
+//! - `POST /api/v1/audit/replay/:run_id`, the replay of a captured run
 //!
-//! Both routes return 503 when no `AuditTrailHandle` is configured in `AppState`
-//! (e.g. unit tests or a runtime started without a data directory).
+//! Every route returns 503 when no journal is configured in `AppState` (unit
+//! tests, or a runtime started without a data directory).
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -15,7 +18,6 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use apollia_core::events::RunId;
-use apollia_tools::ToolInvocationRecord;
 
 use crate::api::server::AppState;
 use crate::audit_journal::entry::{JournalEntry, JournalEntryKind};
@@ -31,23 +33,6 @@ use crate::replay::{
 // ---------------------------------------------------------------------------
 // Query parameters
 // ---------------------------------------------------------------------------
-
-/// Query parameters for the two paged reads, `GET /api/v1/audit` over the
-/// tool-invocation trail and `GET /api/v1/audit/journal` over the chained
-/// journal. Both page the same way, so they share one shape.
-#[derive(Debug, Deserialize)]
-pub struct AuditListQuery {
-    /// Maximum number of events to return (default 20, capped at 500).
-    #[serde(default = "default_limit")]
-    pub limit: u32,
-    /// How many events to skip, most recent first. Defaults to 0.
-    ///
-    /// The cap on `limit` bounds one query; this is what lets a caller walk past
-    /// it. Without it the endpoint could only ever return the newest 500 rows,
-    /// so a trail longer than that was not exportable at all.
-    #[serde(default)]
-    pub offset: u32,
-}
 
 fn default_limit() -> u32 {
     20
@@ -82,72 +67,6 @@ pub struct JournalPageQuery {
 // Response types
 // ---------------------------------------------------------------------------
 
-/// A single audit event as returned by the API.
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct AuditEventResponse {
-    pub id: String,
-    pub agent_id: String,
-    pub task_id: String,
-    /// Stable run identifier this invocation belongs to (the key `audit verify`
-    /// uses). `null` for invocations recorded before run_id tracking (kept in the
-    /// payload unconditionally so the schema is stable for automation).
-    pub run_id: Option<String>,
-    pub tool_name: String,
-    pub input_hash: String,
-    pub sandbox_profile: String,
-    pub started_at: String,
-    pub duration_ms: Option<u64>,
-    pub exit_code: Option<i32>,
-    pub success: bool,
-    pub error_code: Option<String>,
-    /// Arguments JSON complets de l'invocation.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub args_json: Option<String>,
-    /// Standard output of the tool, possibly truncated.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stdout: Option<String>,
-    /// Error output of the tool, possibly truncated.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stderr: Option<String>,
-}
-
-impl From<ToolInvocationRecord> for AuditEventResponse {
-    fn from(r: ToolInvocationRecord) -> Self {
-        Self {
-            id: r.id,
-            agent_id: r.agent_id,
-            task_id: r.task_id,
-            run_id: r.run_id,
-            tool_name: r.tool_name,
-            input_hash: r.input_hash,
-            sandbox_profile: r.sandbox_profile,
-            started_at: r.started_at,
-            duration_ms: r.duration_ms,
-            exit_code: r.exit_code,
-            success: r.success,
-            error_code: r.error_code,
-            args_json: r.args_json,
-            stdout: r.stdout,
-            stderr: r.stderr,
-        }
-    }
-}
-
-/// Response body for `GET /api/v1/audit`.
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct AuditListResponse {
-    pub events: Vec<AuditEventResponse>,
-    pub count: usize,
-}
-
-/// Response body for `GET /api/v1/audit/stats`.
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct AuditStatsResponse {
-    pub total_events: u64,
-    pub unique_tools: u64,
-    pub unique_agents: u64,
-}
-
 /// Response body for error cases.
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
@@ -157,75 +76,6 @@ pub struct ErrorResponse {
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
-
-/// `GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first.
-#[utoipa::path(
-    get,
-    path = "/api/v1/audit",
-    tag = "audit",
-    params(
-        ("limit" = Option<u32>, Query, description = "Maximum number of events to return (default 20, capped at 500)"),
-        ("offset" = Option<u32>, Query, description = "Number of events to skip, most recent first (default 0). Page through the trail by advancing it."),
-    ),
-    responses(
-        (status = 200, description = "Recent tool invocations", body = AuditListResponse),
-        (status = 503, description = "Audit trail not configured", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn list_audit<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    Query(params): Query<AuditListQuery>,
-) -> Result<Json<AuditListResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let handle = state.audit_trail.as_ref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ErrorResponse {
-                error: "audit trail not available".to_string(),
-            }),
-        )
-    })?;
-
-    // Cap limit to prevent unbounded queries. The cap bounds one page, not the
-    // reachable history: `offset` walks past it.
-    let limit = params.limit.min(500) as usize;
-    let records = handle.query_page(limit, params.offset as usize).await;
-
-    let events: Vec<AuditEventResponse> = records.into_iter().map(Into::into).collect();
-    let count = events.len();
-
-    Ok(Json(AuditListResponse { events, count }))
-}
-
-/// `GET /api/v1/audit/stats`, aggregate counts for the audit trail.
-#[utoipa::path(
-    get,
-    path = "/api/v1/audit/stats",
-    tag = "audit",
-    responses(
-        (status = 200, description = "Aggregate audit counts", body = AuditStatsResponse),
-        (status = 503, description = "Audit trail not configured", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn get_audit_stats<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-) -> Result<Json<AuditStatsResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let handle = state.audit_trail.as_ref().ok_or_else(|| {
-        (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ErrorResponse {
-                error: "audit trail not available".to_string(),
-            }),
-        )
-    })?;
-
-    let stats = handle.stats().await;
-
-    Ok(Json(AuditStatsResponse {
-        total_events: stats.total_events,
-        unique_tools: stats.unique_tools,
-        unique_agents: stats.unique_agents,
-    }))
-}
 
 /// `GET /api/v1/audit/verify/:run_id`, verify a run's hash chain and signatures.
 ///
@@ -403,10 +253,9 @@ pub struct AuditJournalPageResponse {
 /// across every run, each entry with its summary.
 ///
 /// This is the only read of the journal that does not need a run id up front:
-/// `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-/// and `GET /api/v1/audit` answers the separate tool-invocation trail. The
-/// filters are applied before paging, so `limit` and `offset` count matching
-/// entries. 400 on a filter value that cannot be read, 503 when the journal is
+/// `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows.
+/// The filters are applied before paging, so `limit` and `offset` count
+/// matching entries. 400 on a filter value that cannot be read, 503 when the journal is
 /// not configured.
 #[utoipa::path(
     get,
@@ -546,9 +395,8 @@ pub async fn show_audit_entry<B: ExecutionBackend + Clone>(
 
 /// `GET /api/v1/audit/journal/:run_id`, the full journal for a run.
 ///
-/// Unlike `GET /api/v1/audit` (the tool-only audit trail), this returns the
-/// hash-chained journal entries including `llm_completion` (the model's
-/// prompts/responses). 404 when the run has no entries, 503 when the journal is
+/// Returns the hash-chained journal entries, including `llm_completion` (the
+/// model's prompts/responses). 404 when the run has no entries, 503 when the journal is
 /// not configured.
 #[utoipa::path(
     get,
@@ -763,7 +611,6 @@ mod tests {
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
     use apollia_core::events::RunId;
-    use apollia_tools::{AuditTrailHandle, ToolInvocationRecord};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use std::future::Future;
@@ -800,15 +647,7 @@ mod tests {
         }
     }
 
-    async fn open_temp_audit() -> AuditTrailHandle {
-        let db_path =
-            std::env::temp_dir().join(format!("apollia_audit_routes_{}.db", uuid::Uuid::new_v4()));
-        AuditTrailHandle::open(&db_path)
-            .await
-            .expect("failed to open audit trail for test")
-    }
-
-    fn test_app_state_with_audit(audit: Option<AuditTrailHandle>) -> AppState<MockBackend> {
+    fn test_app_state() -> AppState<MockBackend> {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -826,7 +665,6 @@ mod tests {
             plan_gates: None,
             notification_config: None,
             tool_registry_handle: None,
-            audit_trail: audit,
             audit_journal: None,
             connection_governance: Default::default(),
             governance: None,
@@ -861,124 +699,6 @@ mod tests {
         }
     }
 
-    fn make_record(tool_name: &str, success: bool) -> ToolInvocationRecord {
-        ToolInvocationRecord {
-            id: uuid::Uuid::new_v4().to_string(),
-            agent_id: "agent-test".to_string(),
-            task_id: "task-001".to_string(),
-            run_id: None,
-            tool_name: tool_name.to_string(),
-            input_hash: "abc".to_string(),
-            sandbox_profile: "none".to_string(),
-            started_at: "2026-01-01T00:00:00Z".to_string(),
-            duration_ms: Some(10),
-            exit_code: Some(if success { 0 } else { 1 }),
-            success,
-            error_code: None,
-            resources_used: None,
-            args_json: None,
-            stdout: None,
-            stderr: None,
-        }
-    }
-
-    // GET /api/v1/audit returns events list
-    #[tokio::test]
-    async fn test_list_audit_returns_events() {
-        // GIVEN an audit trail with 2 records
-        let audit = open_temp_audit().await;
-        audit.record(make_record("bash_executor", true));
-        audit.record(make_record("file_io", false));
-
-        let state = test_app_state_with_audit(Some(audit));
-        let router = APIServer::build_router_for_test(state);
-
-        // WHEN GET /api/v1/audit
-        let req = Request::builder()
-            .uri("/api/v1/audit?limit=10")
-            .body(Body::empty())
-            .unwrap();
-        let resp = router.oneshot(req).await.unwrap();
-
-        // THEN 200 with events array
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 65536).await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["count"].as_u64().unwrap(), 2);
-        assert!(json["events"].as_array().unwrap().len() == 2);
-    }
-
-    // GET /api/v1/audit/stats returns aggregate counts
-    #[tokio::test]
-    async fn test_audit_stats_returns_counts() {
-        // GIVEN an audit trail with records from 2 different agents and 2 tools
-        let audit = open_temp_audit().await;
-        let mut r1 = make_record("bash_executor", true);
-        r1.agent_id = "agent-alpha".to_string();
-        let mut r2 = make_record("file_io", true);
-        r2.agent_id = "agent-beta".to_string();
-        audit.record(r1);
-        audit.record(r2);
-
-        let state = test_app_state_with_audit(Some(audit));
-        let router = APIServer::build_router_for_test(state);
-
-        // WHEN GET /api/v1/audit/stats
-        let req = Request::builder()
-            .uri("/api/v1/audit/stats")
-            .body(Body::empty())
-            .unwrap();
-        let resp = router.oneshot(req).await.unwrap();
-
-        // THEN 200 with correct counts
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["total_events"].as_u64().unwrap(), 2);
-        assert_eq!(json["unique_tools"].as_u64().unwrap(), 2);
-        assert_eq!(json["unique_agents"].as_u64().unwrap(), 2);
-    }
-
-    // GET /api/v1/audit returns 503 when audit trail is not configured
-    #[tokio::test]
-    async fn test_list_audit_returns_503_when_not_configured() {
-        // GIVEN no audit trail in AppState
-        let state = test_app_state_with_audit(None);
-        let router = APIServer::build_router_for_test(state);
-
-        // WHEN GET /api/v1/audit
-        let req = Request::builder()
-            .uri("/api/v1/audit")
-            .body(Body::empty())
-            .unwrap();
-        let resp = router.oneshot(req).await.unwrap();
-
-        // THEN 503 Service Unavailable
-        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
-    }
-
-    // limit is capped at 500
-    #[tokio::test]
-    async fn test_list_audit_limit_is_capped() {
-        // GIVEN an empty audit trail
-        let audit = open_temp_audit().await;
-        let state = test_app_state_with_audit(Some(audit));
-        let router = APIServer::build_router_for_test(state);
-
-        // WHEN GET /api/v1/audit?limit=9999
-        let req = Request::builder()
-            .uri("/api/v1/audit?limit=9999")
-            .body(Body::empty())
-            .unwrap();
-        let resp = router.oneshot(req).await.unwrap();
-
-        // THEN 200 (capped, no panic, no error)
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["count"].as_u64().unwrap(), 0);
-    }
-
     async fn open_temp_journal() -> crate::audit_journal::AuditJournalHandle {
         let db_path = std::env::temp_dir().join(format!(
             "apollia_journal_routes_{}.db",
@@ -1003,7 +723,7 @@ mod tests {
                 payload: serde_json::json!({ "i": i }),
             });
         }
-        let mut state = test_app_state_with_audit(None);
+        let mut state = test_app_state();
         state.audit_journal = Some(journal);
         let router = APIServer::build_router_for_test(state);
 
@@ -1037,7 +757,7 @@ mod tests {
                 payload: serde_json::json!({ "tool_name": "bash" }),
             });
         }
-        let mut state = test_app_state_with_audit(None);
+        let mut state = test_app_state();
         state.audit_journal = Some(journal);
         let router = APIServer::build_router_for_test(state);
 
@@ -1079,7 +799,7 @@ mod tests {
                 payload: serde_json::json!({ "tool_name": "bash" }),
             });
         }
-        let mut state = test_app_state_with_audit(None);
+        let mut state = test_app_state();
         state.audit_journal = Some(journal);
         state.task_repository = Some(Arc::new(repo));
         let router = APIServer::build_router_for_test(state);
@@ -1104,7 +824,7 @@ mod tests {
     #[tokio::test]
     async fn test_list_audit_journal_returns_503_when_not_configured() {
         // GIVEN no audit journal in AppState
-        let state = test_app_state_with_audit(None);
+        let state = test_app_state();
         let router = APIServer::build_router_for_test(state);
 
         // WHEN GET /api/v1/audit/journal
@@ -1123,7 +843,7 @@ mod tests {
     async fn test_verify_unknown_run_returns_404() {
         // GIVEN a journal with no entries for the requested run
         let journal = open_temp_journal().await;
-        let mut state = test_app_state_with_audit(None);
+        let mut state = test_app_state();
         state.audit_journal = Some(journal);
         let router = APIServer::build_router_for_test(state);
 
@@ -1145,7 +865,7 @@ mod tests {
     #[tokio::test]
     async fn test_verify_returns_503_when_not_configured() {
         // GIVEN no journal in AppState
-        let state = test_app_state_with_audit(None);
+        let state = test_app_state();
         let router = APIServer::build_router_for_test(state);
 
         // WHEN GET /api/v1/audit/verify/run-1
@@ -1259,7 +979,7 @@ mod tests {
                 payload,
             });
         }
-        let mut state = test_app_state_with_audit(None);
+        let mut state = test_app_state();
         state.audit_journal = Some(journal);
         let router = APIServer::build_router_for_test(state);
 
@@ -1284,7 +1004,7 @@ mod tests {
     async fn test_replay_unknown_run_returns_404() {
         // GIVEN an empty journal
         let journal = open_temp_journal().await;
-        let mut state = test_app_state_with_audit(None);
+        let mut state = test_app_state();
         state.audit_journal = Some(journal);
         let router = APIServer::build_router_for_test(state);
 
@@ -1403,7 +1123,7 @@ mod tests {
     ) -> (StatusCode, serde_json::Value) {
         let db = std::env::temp_dir().join(format!("apollia_jq_{}.db", uuid::Uuid::new_v4()));
         let repo = apollia_tools::TaskRepository::open(&db).await.unwrap();
-        let mut state = test_app_state_with_audit(None);
+        let mut state = test_app_state();
         state.audit_journal = Some(journal);
         state.task_repository = Some(Arc::new(repo));
         let router = APIServer::build_router_for_test(state);

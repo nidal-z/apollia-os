@@ -60,7 +60,7 @@ const ROUTE_PROBES: &[RouteProbe] = &[
     },
     RouteProbe {
         name: "/observability",
-        api_path: "/api/v1/audit",
+        api_path: "/api/v1/observability/timeline?window_minutes=30",
     },
     RouteProbe {
         name: "/config",

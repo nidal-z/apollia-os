@@ -232,7 +232,6 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "clear_plan_cache",
     "describe_tool",
     "get_active_hooks",
-    "get_audit_stats",
     "get_llm_daily_costs",
     "get_plan_cache_stats",
     "get_task_trace",
@@ -444,9 +443,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "update_artifact",
     // The Observability view: the global timeline and the mailbox, read by
     // the runtime over `/api/v1/observability/timeline` and
-    // `/api/v1/mailbox/messages`, and the tool audit over `/api/v1/audit`.
+    // `/api/v1/mailbox/messages`.
     "get_global_timeline",
-    "get_tool_audit_trail",
     "list_mailbox_messages",
     // The assists around the chat, over `/api/v1/assists`: the rewrite of a
     // prompt, the next steps cards, an automation described in words, and

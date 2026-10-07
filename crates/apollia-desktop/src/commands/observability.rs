@@ -8,7 +8,7 @@ use crate::attached::RuntimeLink;
 use serde::Deserialize;
 use tauri::State;
 
-/// The tool audit and the daily costs live in `audit`, the plan cache in
+/// The daily costs and the hooks live in `audit`, the plan cache in
 /// `plan_cache`, the mailbox in `mailbox`.
 pub mod audit;
 pub mod mailbox;

@@ -31,8 +31,8 @@
 #   APOLLIA_SEED_PROJECT_ROOT  what the seeded project rows point at. Defaults to
 #                              this checkout. Override it before a public
 #                              screenshot run: that path is displayed on the
-#                              project pages, the permission cards and the audit
-#                              trail, and it is your machine's path.
+#                              project pages and the permission cards, and it is
+#                              your machine's path.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -104,8 +104,8 @@ fi
 echo ""
 echo "Two things to know before you shoot:"
 echo "  - Timestamps are relative to the moment of this build, so the timeline"
-echo "    and the audit trail have entries inside their default windows. Reload"
-echo "    the seed if you come back to it days later."
+echo "    has entries inside its default window. Reload the seed if you come"
+echo "    back to it days later."
 echo "  - The inbox pending list cannot be seeded: it lives in the runtime's"
 echo "    memory, not in a database. To photograph it, provoke an approval."
 echo ""

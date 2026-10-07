@@ -16,20 +16,17 @@ préfixe d'argument sont évaluées à chaque invocation, et les exécuteurs de
 code ne sont jamais autorisés en bloc), et le budget de pas du palier
 d'autonomie.
 
-<!-- claim:audit-list-reads-the-tool-invocation-trail -->
-Les deux registres d'audit ne voient pas les mêmes appels. La piste
-d'invocations d'outils, la table plate que `audit list` lit, n'est écrite que
-depuis `ctx.tools` sur le chemin agent : un appel d'outil du chat n'y figure
-donc jamais. Le journal chaîné par hachage, lui, enregistre bien le chat : la
-boucle ReAct de conversation émet `ToolOutputCaptured` pour chaque résultat
-d'outil et `LlmResponseCaptured` pour chaque complétion, et le souscripteur du
-journal transforme les deux en entrées signées et chaînées. Les sorties d'outils
-et les complétions du modèle d'une session de chat sont donc persistées
-verbatim dans un registre en ajout seul, lisible avec `audit show <run>` et
-vérifiable avec `audit verify`. Une session de chat conserve en outre
-l'enregistrement d'appel d'outil porté par son message d'assistant, sérialisé
-dans la colonne `tool_calls_json` de `chat_messages`, qui n'est pas un
-enregistrement audité.
+<!-- claim:journal-records-the-tool-calls-of-a-run -->
+Le journal d'audit enregistre les appels d'outils d'une conversation : la boucle
+de conversation annonce chaque appel avec son exécution, émet
+`ToolOutputCaptured` pour chaque résultat d'outil et `LlmResponseCaptured` pour
+chaque complétion, et le souscripteur du journal en fait des entrées signées et
+chaînées. Les sorties d'outils et les complétions du modèle d'une session de
+chat sont donc persistées verbatim dans un registre en ajout seul, lisible avec
+`audit show <run>` et vérifiable avec `audit verify`. Une session de chat
+conserve en outre l'enregistrement d'appel d'outil porté par son message
+d'assistant, sérialisé dans la colonne `tool_calls_json` de `chat_messages`, qui
+n'est pas un enregistrement audité.
 
 Un agent accède à ces outils via `ctx.tools`, ou se les voit transmis dans
 une boucle ReAct via `ctx.tools.describe(<name>)`. Chaque appel est distribué

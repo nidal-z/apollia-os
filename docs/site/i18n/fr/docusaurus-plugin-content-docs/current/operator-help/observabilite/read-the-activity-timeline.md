@@ -19,7 +19,7 @@ sidebar_position: 1
 | Un **coup d'œil sur l'instant** : ce qui attend votre décision, ce qui vient d'être livré, ce qui tourne | L'**Accueil**, l'écran sur lequel Apollia s'ouvre (section ci-dessous). |
 | L'historique d'**un agent précis** (statuts, durées, input/output des tâches) | **Mes assistants → Logs** - voir [Consulter les logs d'un agent](../agents/view-an-agent-logs.md). |
 | Un **événement précis** (un appel LLM, un outil exécuté, une approbation) sur une fenêtre temporelle | **Observabilité → Chronologie** (cette page). |
-| Une **invocation d'outil** avec ses entrées-sorties | **Observabilité → Piste d'audit** - voir [Consulter l'audit trail](read-the-audit-trail.md). |
+| Une **invocation d'outil** avec ses entrées-sorties | **Journal** - voir [Consulter la piste d'audit](read-the-audit-trail.md). |
 
 ## L'Accueil, pour l'instant présent
 

@@ -59,9 +59,9 @@ mod tests {
     // GIVEN a query WHEN ranked THEN the best matches come first.
     #[test]
     fn test_rank_orders_best_first() {
-        let cands = ["audit list", "audit verify", "agent list", "task list"];
+        let cands = ["audit show", "audit verify", "agent list", "task list"];
         let ranked = rank("aud", &cands);
-        assert_eq!(ranked[0], "audit list");
+        assert_eq!(ranked[0], "audit show");
         assert!(ranked.contains(&"audit verify"));
         assert!(!ranked.contains(&"task list")); // 'aud' is not a subsequence
     }

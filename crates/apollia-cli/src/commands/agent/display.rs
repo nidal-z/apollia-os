@@ -420,35 +420,3 @@ pub(in crate::commands::agent) fn handle_error(err: ClientError, json: bool) -> 
         other => crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &other.to_string()),
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Logs
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Print a single audit event as an aligned text row for `agent logs`.
-pub(in crate::commands::agent) fn print_audit_event_row(e: &serde_json::Value) {
-    println!("{}", format_audit_event_row(e));
-}
-
-/// Format a single audit event as an aligned text row for `agent logs`.
-///
-/// Reads the audit-event JSON shape returned by `GET /api/v1/agents/:id/logs`
-/// (`started_at`, `tool_name`, `success`, `error_code`, `duration_ms`,
-/// `task_id`), matching what `agent logs --json` emits.
-pub(in crate::commands::agent) fn format_audit_event_row(e: &serde_json::Value) -> String {
-    let ts = e.get("started_at").and_then(|v| v.as_str()).unwrap_or("?");
-    let tool = e.get("tool_name").and_then(|v| v.as_str()).unwrap_or("?");
-    let outcome = match e.get("success").and_then(|v| v.as_bool()) {
-        Some(true) => "ok",
-        Some(false) => e
-            .get("error_code")
-            .and_then(|v| v.as_str())
-            .unwrap_or("FAILED"),
-        None => "?",
-    };
-    let task = e.get("task_id").and_then(|v| v.as_str()).unwrap_or("-");
-    match e.get("duration_ms").and_then(|v| v.as_u64()) {
-        Some(ms) => format!("  {ts}  {tool:<32} {outcome:<8} {ms:>5}ms  task={task}"),
-        None => format!("  {ts}  {tool:<32} {outcome:<8}          task={task}"),
-    }
-}

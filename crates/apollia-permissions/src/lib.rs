@@ -31,13 +31,8 @@
 //! in a [`JournalOutbox`], which the runtime empties into the signed journal.
 //! [`read_legacy_chat_config`] reads, once, the settings of the built-in chat
 //! that the runtime carries over to the Apollia agent.
-//!
-//! [`PermissionAuditLog`] reads the `permission_audit` table of `governance.db`
-//! for the `apollia permissions audit` command and for the desktop audit view.
-//! Nothing in this crate writes to that table.
 
 pub mod access_upgrade;
-pub mod audit_log;
 pub mod chat_config_upgrade;
 pub mod error;
 pub mod executor_guard;
@@ -50,7 +45,6 @@ pub mod prefix_rule_engine;
 pub use access_upgrade::{
     run_access_upgrade, AccessUpgradeReport, UpgradeChange, UpgradeEntry, ALL_AGENTS,
 };
-pub use audit_log::{PermissionAuditEntry, PermissionAuditLog};
 pub use chat_config_upgrade::{
     drop_legacy_chat_config, read_legacy_chat_config, LegacyChatConfig, LegacyChatConfigState,
 };

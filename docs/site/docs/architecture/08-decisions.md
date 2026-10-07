@@ -215,12 +215,13 @@ backgrounding. That guard decides whether a call may skip approval; it is not a
 filter placed in front of execution, and a code executor with no matching rule
 asks a person on every invocation.
 
-<!-- claim:permission-decision-is-not-recorded -->
-The permission decision itself is not written anywhere. Nothing in a shipped
-binary writes to the `permission_audit` table; it is read by
-`apollia-os permissions audit` and by the desktop audit view, and by nothing else.
-What is recorded is the invocation: `tool_invocations` holds what ran, not who
-allowed it.
+<!-- claim:permission-decision-is-journaled -->
+The permission decision is written to the signed journal. An answer to a consent
+prompt (once, always for this agent, or refuse), a refusal by the organisation
+policy and a refusal by a rule each become an entry, which names the agent, the
+tool and its family of action and never carries the argument of the call. The
+`permission_audit` table an older `governance.db` carries was never written to:
+the file loses it the first time it is opened.
 
 ## Human in the loop {#human-in-the-loop}
 
@@ -649,22 +650,19 @@ skills.
 
 ## Audit and evidence {#audit-and-evidence}
 
-There are two registers, and the guarantee is not the same on each.
+There is one register: the hash-chained journal.
 
-The tool-invocation trail holds what ran, a hash of its inputs, whether it
-succeeded, and how long it took. A call that failed is persisted as failed. It is
-written fire-and-forget, so recording never blocks execution, and a record is
-dropped when the channel is saturated: the trail is a best-effort record, not a
-complete one. Its rows are flat: the input hash each row carries is not chained
-to the row before it, and no row is signed.
+Its entries are chained and signed, and the chain is anchored globally so that
+truncation is detectable: removing the tail of the journal breaks a verification
+a reader can run themselves. A tool call is two entries, one when it starts and
+one when it ends, and a call that failed is recorded as failed. An entry is
+appended without blocking execution, and it is dropped, with a warning in the
+logs, when the channel is saturated: the journal proves that what it holds was
+not altered, not that it holds everything.
 
-The hash-chained journal is the register that carries the evidence. Its entries
-are chained and signed, and the chain is anchored globally so that truncation is
-detectable: removing the tail of the journal breaks a verification a reader can
-run themselves.
-
-Both registers cover the agent path. A tool call made in a chat session reaches
-neither.
+The journal records a run through the events the run emits. A tool call made in
+a conversation is announced with its run and is therefore recorded; a call no
+event announces with a run is not.
 
 Replaying a run and comparing it against its record is deliberately not built.
 Re-execution proves that a second run behaved a certain way, not that the first

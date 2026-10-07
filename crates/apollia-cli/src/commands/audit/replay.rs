@@ -5,7 +5,6 @@ use crate::exit_codes;
 use crate::note;
 
 use super::journal::resolve_task_to_run;
-use super::report::short_uuid_prefix;
 use super::{handle_error, handle_server_error};
 
 /// `apollia-os audit anchor`: print the exportable head anchor.
@@ -228,4 +227,9 @@ pub(super) fn print_replay_error(report: &serde_json::Value, run: &str) {
         }
         other => eprintln!("error: replay failed ({})", other.unwrap_or("unknown")),
     }
+}
+
+/// Shorten a UUID to its first hyphen-separated segment for display.
+fn short_uuid_prefix(uuid: &str) -> String {
+    uuid.split('-').next().unwrap_or(uuid).to_string()
 }

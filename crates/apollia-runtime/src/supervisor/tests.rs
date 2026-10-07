@@ -531,7 +531,6 @@ async fn test_app_state_clone_with_llm_router_none() {
         plan_gates: None,
         notification_config: None,
         tool_registry_handle: None,
-        audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
         governance: None,

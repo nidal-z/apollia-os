@@ -29,7 +29,7 @@ use apollia_notifications::{
     build_channels, NotificationConfig, NotificationConfigRepository, NotificationEngine,
     NotificationEngineHandle,
 };
-use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
+use apollia_tools::{AgentRepository, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle, TriggerPersistence};
 
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
@@ -184,11 +184,6 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Always `Some` after successful startup, even when `config.triggers` is empty.
     /// Injected into `AppState` so webhook routes and CLI commands can reach it.
     pub trigger_engine: TriggerEngineHandle,
-    /// Handle to the AuditTrail actor.
-    ///
-    /// `None` when the data directory is unavailable or the SQLite open fails
-    /// (warning logged, runtime continues without audit). `Some` in production.
-    pub audit_trail: Option<AuditTrailHandle>,
     /// Admission policy and journal of connection events, shared with
     /// `AppState` so the desktop journals what it changes outside the HTTP
     /// routes (a native account connected or disconnected).

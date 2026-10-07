@@ -8,7 +8,7 @@
 //! - `tasks.transitions_json` (hitl.db) → [`TimelineEvent::TaskTransition`]
 //! - `plan_steps` (plans.db) → [`TimelineEvent::StepStarted`] + [`TimelineEvent::StepCompleted`]
 //! - `llm_calls` (llm.db) → [`TimelineEvent::LlmCall`]
-//! - `tool_invocations` (audit.db) → [`TimelineEvent::ToolCall`]
+//! - the tool calls of the audit journal (audit_journal.db) → [`TimelineEvent::ToolCall`]
 //! - `task_approvals` (hitl.db) → [`TimelineEvent::HitlSuspended`] + [`TimelineEvent::HitlResolved`]
 
 use axum::extract::{Path, State};
@@ -92,8 +92,12 @@ pub enum TimelineEvent {
         tool_name: String,
         /// Duration in milliseconds.
         duration_ms: Option<i64>,
-        /// Process exit code (bash, python).
+        /// Process exit code (bash, python). The journal keeps none, so a
+        /// call read from it carries `success` instead.
         exit_code: Option<i64>,
+        /// Whether the call succeeded. Absent while the call has not ended.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        success: Option<bool>,
         /// `true` if the data was truncated.
         truncated: bool,
         /// Input preview (args_json), truncated to 300 chars.
@@ -156,7 +160,7 @@ pub struct TimelineErrorResponse {
 
 /// `GET /api/v1/tasks/{id}/timeline`: full timeline for a task.
 ///
-/// Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)
+/// Aggregates data from 4 SQLite sources (hitl.db, plans.db, llm.db, audit_journal.db)
 /// into a unified timeline sorted by timestamp ascending. Returns 404 when the
 /// task is unknown to all sources.
 #[utoipa::path(
@@ -179,7 +183,7 @@ pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
     let hitl_db = data_dir.join(apollia_core::paths::DataFile::Hitl.file_name());
     let plans_db = data_dir.join(apollia_core::paths::DataFile::Plans.file_name());
     let llm_db = data_dir.join(apollia_core::paths::DataFile::LlmCalls.file_name());
-    let audit_db = data_dir.join(apollia_core::paths::DataFile::Audit.file_name());
+    let journal_db = data_dir.join(apollia_core::paths::DataFile::AuditJournal.file_name());
 
     let tid = task_id.clone();
 
@@ -190,7 +194,7 @@ pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
                 hitl_db,
                 plans_db,
                 llm_db,
-                audit_db,
+                journal_db,
             },
             &tid,
         )
@@ -223,7 +227,7 @@ struct TimelineDbPaths {
     hitl_db: std::path::PathBuf,
     plans_db: std::path::PathBuf,
     llm_db: std::path::PathBuf,
-    audit_db: std::path::PathBuf,
+    journal_db: std::path::PathBuf,
 }
 
 /// Raw events gathered from every source before sorting and finalization.
@@ -302,10 +306,8 @@ fn gather_timeline_events(dbs: &TimelineDbPaths, tid: &str) -> GatheredEvents {
         read_llm_calls(&conn, tid, &mut events);
     }
 
-    // Source 4: tool_invocations from audit.db
-    if let Ok(conn) = rusqlite::Connection::open(&dbs.audit_db) {
-        read_tool_calls(&conn, tid, &mut events);
-    }
+    // Source 4: the tool calls of the audit journal
+    read_tool_calls(&dbs.journal_db, tid, &mut events);
 
     GatheredEvents {
         events,
@@ -570,80 +572,46 @@ fn read_llm_calls(
     }
 }
 
-/// Read tool invocations for a task from `tool_invocations`.
+/// Read the tool calls of a task from the audit journal.
 fn read_tool_calls(
-    conn: &rusqlite::Connection,
+    journal_db: &std::path::Path,
     task_id: &str,
     events: &mut Vec<(String, TimelineEvent)>,
 ) {
-    let Ok(mut stmt) = conn.prepare(
-        "SELECT tool_name, duration_ms, exit_code, started_at, args_json, stdout, stderr \
-         FROM tool_invocations WHERE task_id = ?1 \
-         ORDER BY started_at",
-    ) else {
-        return;
-    };
-
-    let Ok(rows) = stmt.query_map(params![task_id], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, Option<i64>>(1)?,
-            row.get::<_, Option<i64>>(2)?,
-            row.get::<_, String>(3)?,
-            row.get::<_, Option<String>>(4)?,
-            row.get::<_, Option<String>>(5)?,
-            row.get::<_, Option<String>>(6)?,
-        ))
-    }) else {
-        return;
-    };
-
-    for row_result in rows {
-        let Ok((tool_name, duration_ms, exit_code, started_at, args_json, stdout, stderr)) =
-            row_result
-        else {
-            continue;
-        };
-
-        let raw_input = args_json.as_deref().unwrap_or("");
-        let (input_preview, input_truncated): (Option<String>, bool) = if raw_input.is_empty() {
-            (None, false)
-        } else {
-            let (p, t) = truncate_preview(raw_input, MAX_TOOL_INPUT_PREVIEW);
-            (Some(p), t)
-        };
-
-        let combined_output = match (stdout.as_deref(), stderr.as_deref()) {
-            (Some(out), Some(err)) if !out.is_empty() && !err.is_empty() => {
-                format!("{out}\n--- stderr ---\n{err}")
-            }
-            (Some(out), _) if !out.is_empty() => out.to_string(),
-            (_, Some(err)) if !err.is_empty() => err.to_string(),
-            _ => String::new(),
-        };
-        let (output_preview, output_truncated): (Option<String>, bool) =
-            if combined_output.is_empty() {
-                (None, false)
-            } else {
-                let (p, t) = truncate_preview(&combined_output, MAX_TOOL_OUTPUT_PREVIEW);
-                (Some(p), t)
-            };
-
-        let truncated = input_truncated || output_truncated;
-
+    for call in crate::audit_journal::tool_calls::calls_of_task(journal_db, task_id) {
+        let (input_preview, input_truncated) =
+            preview_of(call.arguments.as_ref(), MAX_TOOL_INPUT_PREVIEW);
+        let (output_preview, output_truncated) =
+            preview_of(call.output.as_ref(), MAX_TOOL_OUTPUT_PREVIEW);
         events.push((
-            started_at.clone(),
+            call.started_at.clone(),
             TimelineEvent::ToolCall {
-                tool_name,
-                duration_ms,
-                exit_code,
-                truncated,
+                tool_name: call.tool_name,
+                duration_ms: call.duration_ms,
+                exit_code: None,
+                success: call.success,
+                truncated: input_truncated || output_truncated,
                 input_preview,
                 output_preview,
-                timestamp: started_at,
+                timestamp: call.started_at,
             },
         ));
     }
+}
+
+/// The preview of a journaled value: a text as it is, anything else as JSON.
+/// `None` when the journal holds no value or an empty one.
+fn preview_of(value: Option<&serde_json::Value>, max_chars: usize) -> (Option<String>, bool) {
+    let raw = match value {
+        None | Some(serde_json::Value::Null) => String::new(),
+        Some(serde_json::Value::String(text)) => text.clone(),
+        Some(other) => other.to_string(),
+    };
+    if raw.is_empty() {
+        return (None, false);
+    }
+    let (preview, truncated) = truncate_preview(&raw, max_chars);
+    (Some(preview), truncated)
 }
 
 /// Truncate a string to `max_chars` characters (UTF-8 safe), appending `"..."`
@@ -669,6 +637,7 @@ fn truncate_preview(text: &str, max_chars: usize) -> (String, bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audit_journal::tool_calls::test_support::{seed_calls, SeededCall};
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -739,31 +708,35 @@ mod tests {
             );",
         )
         .expect("llm migration");
+    }
 
-        // audit.db
-        let conn =
-            rusqlite::Connection::open(dir.join(apollia_core::paths::DataFile::Audit.file_name()))
-                .expect("open audit.db");
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS tool_invocations (
-                id TEXT PRIMARY KEY,
-                agent_id TEXT NOT NULL,
-                task_id TEXT NOT NULL,
-                tool_name TEXT NOT NULL,
-                input_hash TEXT NOT NULL,
-                sandbox_profile TEXT NOT NULL,
-                started_at TEXT NOT NULL,
-                duration_ms INTEGER,
-                exit_code INTEGER,
-                success INTEGER NOT NULL,
-                error_code TEXT,
-                resources_used TEXT,
-                args_json TEXT,
-                stdout TEXT,
-                stderr TEXT
-            );",
-        )
-        .expect("audit migration");
+    /// The journal file of a test data directory.
+    fn journal_db(dir: &std::path::Path) -> std::path::PathBuf {
+        dir.join(apollia_core::paths::DataFile::AuditJournal.file_name())
+    }
+
+    /// One call of `task_id` by `tool_name`, started at `started_at`, which
+    /// also names the call: no arguments, and a success of 100 ms with no output.
+    fn seeded<'a>(task_id: &'a str, tool_name: &'a str, started_at: &'a str) -> SeededCall<'a> {
+        SeededCall {
+            run_id: "run-1",
+            task_id,
+            agent_id: "agent-1",
+            tool_name,
+            tool_call_id: started_at,
+            started_at,
+            arguments: serde_json::json!({}),
+            end: Some((true, 100, "")),
+        }
+    }
+
+    /// Writes `calls` to the journal of `dir`, as a run does.
+    fn seed_journal(dir: &std::path::Path, calls: &[SeededCall<'_>]) {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(seed_calls(&journal_db(dir), calls));
     }
 
     // ── Direct-mode timeline, chronological order ─────────────────────────
@@ -790,25 +763,13 @@ mod tests {
         )
         .expect("insert task");
 
-        let audit = rusqlite::Connection::open(
-            dir.path()
-                .join(apollia_core::paths::DataFile::Audit.file_name()),
-        )
-        .expect("open");
-        for (i, ts) in ["2026-03-13T10:00:02Z", "2026-03-13T10:00:03Z"]
-            .iter()
-            .enumerate()
-        {
-            audit
-                .execute(
-                    "INSERT INTO tool_invocations \
-                     (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
-                      started_at, success, duration_ms) \
-                     VALUES (?1, 'agent-1', ?2, 'file_io', 'hash', 'default', ?3, 1, 100)",
-                    params![format!("inv-{i}"), task_id, ts],
-                )
-                .expect("insert invocation");
-        }
+        seed_journal(
+            dir.path(),
+            &[
+                seeded(task_id, "file_io", "2026-03-13T10:00:02Z"),
+                seeded(task_id, "file_io", "2026-03-13T10:00:03Z"),
+            ],
+        );
 
         // WHEN we read the timeline (same logic as handler: defer TaskCompleted)
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
@@ -826,12 +787,7 @@ mod tests {
                 completion_data = Some((output_text, duration_ms));
             }
         }
-        let audit_conn = rusqlite::Connection::open(
-            dir.path()
-                .join(apollia_core::paths::DataFile::Audit.file_name()),
-        )
-        .expect("open");
-        read_tool_calls(&audit_conn, task_id, &mut events);
+        read_tool_calls(&journal_db(dir.path()), task_id, &mut events);
 
         events.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -1138,30 +1094,21 @@ mod tests {
 
     #[test]
     fn test_ac_tool_call_enrichment_basic() {
-        // GIVEN a tool_invocation with args_json + stdout
+        // GIVEN a journaled call with its arguments and its output
         let dir = tempfile::tempdir().expect("tempdir");
-        setup_test_dbs(dir.path());
-
         let task_id = "t-enrich-1";
-        let audit = rusqlite::Connection::open(
-            dir.path()
-                .join(apollia_core::paths::DataFile::Audit.file_name()),
-        )
-        .expect("open");
-        audit
-            .execute(
-                "INSERT INTO tool_invocations \
-                 (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
-                  started_at, success, duration_ms, args_json, stdout, stderr) \
-                 VALUES ('inv-1', 'agent-1', ?1, 'bash_executor', 'hash', 'default', \
-                         '2026-03-13T10:00:02Z', 1, 150, '{\"command\":\"ls -la\"}', 'file1\nfile2', NULL)",
-                params![task_id],
-            )
-            .expect("insert invocation");
+        seed_journal(
+            dir.path(),
+            &[SeededCall {
+                arguments: serde_json::json!({ "command": "ls -la" }),
+                end: Some((true, 150, "file1\nfile2")),
+                ..seeded(task_id, "bash_executor", "2026-03-13T10:00:02Z")
+            }],
+        );
 
         // WHEN we read the tool calls
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
-        read_tool_calls(&audit, task_id, &mut events);
+        read_tool_calls(&journal_db(dir.path()), task_id, &mut events);
 
         // THEN the event contains input_preview and output_preview
         assert_eq!(events.len(), 1);
@@ -1171,11 +1118,15 @@ mod tests {
                 input_preview,
                 output_preview,
                 truncated,
+                duration_ms,
+                success,
                 ..
             } => {
                 assert_eq!(input_preview.as_deref(), Some("{\"command\":\"ls -la\"}"));
                 assert_eq!(output_preview.as_deref(), Some("file1\nfile2"));
                 assert!(!truncated, "should not be truncated");
+                assert_eq!(*duration_ms, Some(150));
+                assert_eq!(*success, Some(true));
             }
             _ => panic!("expected ToolCall event"),
         }
@@ -1183,91 +1134,84 @@ mod tests {
 
     #[test]
     fn test_ac_tool_call_enrichment_truncation() {
-        // GIVEN an args_json of 400 chars (> MAX_TOOL_INPUT_PREVIEW=300)
+        // GIVEN a journaled call whose arguments exceed MAX_TOOL_INPUT_PREVIEW=300
         let dir = tempfile::tempdir().expect("tempdir");
-        setup_test_dbs(dir.path());
-
         let task_id = "t-enrich-2";
-        let long_args = "a".repeat(400);
-        let audit = rusqlite::Connection::open(
-            dir.path()
-                .join(apollia_core::paths::DataFile::Audit.file_name()),
-        )
-        .expect("open");
-        audit
-            .execute(
-                "INSERT INTO tool_invocations \
-                 (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
-                  started_at, success, duration_ms, args_json, stdout, stderr) \
-                 VALUES ('inv-2', 'agent-1', ?1, 'file_read', 'hash', 'default', \
-                         '2026-03-13T10:00:03Z', 1, 50, ?2, NULL, NULL)",
-                params![task_id, long_args],
-            )
-            .expect("insert invocation");
+        seed_journal(
+            dir.path(),
+            &[SeededCall {
+                arguments: serde_json::json!({ "path": "a".repeat(400) }),
+                end: Some((true, 50, "")),
+                ..seeded(task_id, "file_read", "2026-03-13T10:00:03Z")
+            }],
+        );
 
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
         // WHEN the timeline reads the tool calls of the task
-        read_tool_calls(&audit, task_id, &mut events);
+        read_tool_calls(&journal_db(dir.path()), task_id, &mut events);
 
         // THEN the preview is cut and flagged as truncated
         assert_eq!(events.len(), 1);
         match &events[0].1 {
             TimelineEvent::ToolCall {
                 input_preview,
+                output_preview,
                 truncated,
                 ..
             } => {
                 let preview = input_preview.as_deref().expect("should have preview");
                 assert!(preview.ends_with("..."), "should end with ...");
                 assert!(*truncated, "should be marked as truncated");
+                assert!(output_preview.is_none(), "an empty output has no preview");
             }
             _ => panic!("expected ToolCall event"),
         }
     }
 
     #[test]
-    fn test_ac_tool_call_enrichment_stderr_combined() {
-        // GIVEN non-empty stdout + stderr
+    fn test_ac_tool_call_failure_and_unfinished_call_are_told_apart() {
+        // GIVEN a call that failed, and a call the journal holds no end for
         let dir = tempfile::tempdir().expect("tempdir");
-        setup_test_dbs(dir.path());
-
         let task_id = "t-enrich-3";
-        let audit = rusqlite::Connection::open(
-            dir.path()
-                .join(apollia_core::paths::DataFile::Audit.file_name()),
-        )
-        .expect("open");
-        audit
-            .execute(
-                "INSERT INTO tool_invocations \
-                 (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
-                  started_at, success, duration_ms, args_json, stdout, stderr) \
-                 VALUES ('inv-3', 'agent-1', ?1, 'bash_executor', 'hash', 'default', \
-                         '2026-03-13T10:00:04Z', 0, 200, NULL, 'out', 'err')",
-                params![task_id],
-            )
-            .expect("insert invocation");
+        seed_journal(
+            dir.path(),
+            &[
+                SeededCall {
+                    arguments: serde_json::json!({ "command": "false" }),
+                    end: Some((false, 200, "exit status 1")),
+                    ..seeded(task_id, "bash_executor", "2026-03-13T10:00:04Z")
+                },
+                SeededCall {
+                    arguments: serde_json::json!({ "command": "sleep 60" }),
+                    end: None,
+                    ..seeded(task_id, "bash_executor", "2026-03-13T10:00:05Z")
+                },
+            ],
+        );
 
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
         // WHEN the timeline reads the tool calls of the task
-        read_tool_calls(&audit, task_id, &mut events);
+        read_tool_calls(&journal_db(dir.path()), task_id, &mut events);
 
-        // THEN the output preview carries both streams, separated, and no input preview
-        match &events[0].1 {
-            TimelineEvent::ToolCall {
-                output_preview,
-                input_preview,
-                ..
-            } => {
-                assert!(input_preview.is_none(), "no args_json → no input_preview");
-                let out = output_preview
-                    .as_deref()
-                    .expect("should have output_preview");
-                assert!(out.contains("out"), "should contain stdout");
-                assert!(out.contains("--- stderr ---"), "should contain separator");
-                assert!(out.contains("err"), "should contain stderr");
-            }
-            _ => panic!("expected ToolCall event"),
-        }
+        // THEN the first is a failure with its output, the second has no end yet
+        let facts: Vec<(Option<bool>, Option<i64>, Option<&str>)> = events
+            .iter()
+            .map(|(_, event)| match event {
+                TimelineEvent::ToolCall {
+                    success,
+                    duration_ms,
+                    output_preview,
+                    ..
+                } => (*success, *duration_ms, output_preview.as_deref()),
+                _ => panic!("expected ToolCall event"),
+            })
+            .collect();
+        assert_eq!(
+            facts,
+            vec![
+                (Some(false), Some(200), Some("exit status 1")),
+                (None, None, None),
+            ]
+        );
     }
 }

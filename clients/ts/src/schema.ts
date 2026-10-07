@@ -526,23 +526,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** `GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first. */
-        get: operations["list_audit"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/audit/anchor": {
         parameters: {
             query?: never;
@@ -606,10 +589,9 @@ export interface paths {
          * `GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
          *     across every run, each entry with its summary.
          * @description This is the only read of the journal that does not need a run id up front:
-         *     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-         *     and `GET /api/v1/audit` answers the separate tool-invocation trail. The
-         *     filters are applied before paging, so `limit` and `offset` count matching
-         *     entries. 400 on a filter value that cannot be read, 503 when the journal is
+         *     `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows.
+         *     The filters are applied before paging, so `limit` and `offset` count
+         *     matching entries. 400 on a filter value that cannot be read, 503 when the journal is
          *     not configured.
          */
         get: operations["list_audit_journal"];
@@ -630,9 +612,8 @@ export interface paths {
         };
         /**
          * `GET /api/v1/audit/journal/:run_id`, the full journal for a run.
-         * @description Unlike `GET /api/v1/audit` (the tool-only audit trail), this returns the
-         *     hash-chained journal entries including `llm_completion` (the model's
-         *     prompts/responses). 404 when the run has no entries, 503 when the journal is
+         * @description Returns the hash-chained journal entries, including `llm_completion` (the
+         *     model's prompts/responses). 404 when the run has no entries, 503 when the journal is
          *     not configured.
          */
         get: operations["show_audit_run"];
@@ -688,23 +669,6 @@ export interface paths {
          *     journal is not configured.
          */
         post: operations["post_replay_run"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/audit/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** `GET /api/v1/audit/stats`, aggregate counts for the audit trail. */
-        get: operations["get_audit_stats"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1466,23 +1430,6 @@ export interface paths {
         put?: never;
         /** `POST /api/v1/factory-reset`: removes the daemon's whole data directory. */
         post: operations["factory_reset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/governance/audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** `GET /api/v1/governance/audit`: the permission decisions, most recent first. */
-        get: operations["list_governance_audit"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5749,7 +5696,7 @@ export interface paths {
         };
         /**
          * `GET /api/v1/tasks/{id}/timeline`: full timeline for a task.
-         * @description Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)
+         * @description Aggregates data from 4 SQLite sources (hitl.db, plans.db, llm.db, audit_journal.db)
          *     into a unified timeline sorted by timestamp ascending. Returns 404 when the
          *     task is unknown to all sources.
          */
@@ -6685,59 +6632,6 @@ export interface components {
             /** @description ISO 8601 last-update timestamp. */
             updated_at: string;
         };
-        /** @description Entry in the immutable audit log of permission decisions. */
-        AuditEntryDto: {
-            /** @description Name of the agent behind the invocation, if provided. */
-            agent?: string | null;
-            /** @description Decision date in ISO 8601 format. */
-            decided_at: string;
-            /** @description Serialized decision (e.g. `"AutoAllowedSafeList"`). */
-            decision: string;
-            /** @description First argument extracted from the invocation, when available. */
-            first_arg?: string | null;
-            /**
-             * Format: int64
-             * @description Auto-incremented identifier.
-             */
-            id: number;
-            /**
-             * Format: int64
-             * @description Identifier of the rule that triggered the decision, when applicable.
-             */
-            rule_id?: number | null;
-            /** @description Scope of the rule that decided, when relevant. */
-            scope?: string | null;
-            /** @description Name of the invoked tool. */
-            tool_name: string;
-        };
-        /** @description A single audit event as returned by the API. */
-        AuditEventResponse: {
-            agent_id: string;
-            /** @description Arguments JSON complets de l'invocation. */
-            args_json?: string | null;
-            /** Format: int64 */
-            duration_ms?: number | null;
-            error_code?: string | null;
-            /** Format: int32 */
-            exit_code?: number | null;
-            id: string;
-            input_hash: string;
-            /**
-             * @description Stable run identifier this invocation belongs to (the key `audit verify`
-             *     uses). `null` for invocations recorded before run_id tracking (kept in the
-             *     payload unconditionally so the schema is stable for automation).
-             */
-            run_id?: string | null;
-            sandbox_profile: string;
-            started_at: string;
-            /** @description Error output of the tool, possibly truncated. */
-            stderr?: string | null;
-            /** @description Standard output of the tool, possibly truncated. */
-            stdout?: string | null;
-            success: boolean;
-            task_id: string;
-            tool_name: string;
-        };
         /** @description Response body for `GET /api/v1/audit/journal/:run_id/entries/:seq`. */
         AuditJournalEntryDetailResponse: {
             /**
@@ -6766,20 +6660,6 @@ export interface components {
             entries: Record<string, never>[];
             /** @description The run whose journal entries these are. */
             run_id: string;
-        };
-        /** @description Response body for `GET /api/v1/audit`. */
-        AuditListResponse: {
-            count: number;
-            events: components["schemas"]["AuditEventResponse"][];
-        };
-        /** @description Response body for `GET /api/v1/audit/stats`. */
-        AuditStatsResponse: {
-            /** Format: int64 */
-            total_events: number;
-            /** Format: int64 */
-            unique_agents: number;
-            /** Format: int64 */
-            unique_tools: number;
         };
         /** @description Request body for `POST /api/v1/sessions/:id/authorize`. */
         AuthorizeToolRequest: {
@@ -11370,13 +11250,16 @@ export interface components {
             duration_ms?: number | null;
             /**
              * Format: int64
-             * @description Process exit code (bash, python).
+             * @description Process exit code (bash, python). The journal keeps none, so a
+             *     call read from it carries `success` instead.
              */
             exit_code?: number | null;
             /** @description Input preview (args_json), truncated to 300 chars. */
             input_preview?: string | null;
             /** @description Output preview (stdout + stderr), truncated to 500 chars. */
             output_preview?: string | null;
+            /** @description Whether the call succeeded. Absent while the call has not ended. */
+            success?: boolean | null;
             /** @description ISO 8601 timestamp. */
             timestamp: string;
             /** @description Tool name. */
@@ -13386,40 +13269,6 @@ export interface operations {
             };
         };
     };
-    list_audit: {
-        parameters: {
-            query?: {
-                /** @description Maximum number of events to return (default 20, capped at 500) */
-                limit?: number;
-                /** @description Number of events to skip, most recent first (default 0). Page through the trail by advancing it. */
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Recent tool invocations */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditListResponse"];
-                };
-            };
-            /** @description Audit trail not configured */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     get_audit_anchor: {
         parameters: {
             query?: never;
@@ -13727,35 +13576,6 @@ export interface operations {
                 };
             };
             /** @description Audit journal not configured */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    get_audit_stats: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Aggregate audit counts */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditStatsResponse"];
-                };
-            };
-            /** @description Audit trail not configured */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -15769,51 +15589,6 @@ export interface operations {
             };
             /** @description The directory cannot be removed */
             500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    list_governance_audit: {
-        parameters: {
-            query?: {
-                /** @description Tool name to filter on. */
-                tool_name?: string;
-                /** @description Page size, 100 when absent. */
-                limit?: number;
-                /** @description Entries to skip. */
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The audit entries */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditEntryDto"][];
-                };
-            };
-            /** @description The governance database refused the read */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The runtime has no data directory */
-            503: {
                 headers: {
                     [name: string]: unknown;
                 };

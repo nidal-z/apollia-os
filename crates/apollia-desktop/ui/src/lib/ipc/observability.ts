@@ -51,57 +51,6 @@ export async function setObservabilityConfig(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Audit trail aggregates
-// ───────────────────────────────────────────────────────────────────────────
-
-/**
- * Journal-wide counters served by `GET /api/v1/audit/stats`.
- *
- * These three fields are the whole response body: the route answers with
- * `AuditStatsResponse { total_events, unique_tools, unique_agents }`. They cover
- * the entire trail, unlike the per-page counters the audit table computes from
- * the rows it happens to have loaded.
- */
-export interface AuditStatsSummary {
-  /** Tool invocations recorded in the trail, all time. */
-  total_events: number;
-  /** Distinct tool names that appear in the trail. */
-  unique_tools: number;
-  /** Distinct agents that appear in the trail. */
-  unique_agents: number;
-}
-
-/** Reads one non-negative counter from a raw JSON object, `0` when absent. */
-function counter(source: Record<string, unknown>, key: string): number {
-  const value = source[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-/**
- * Narrows the raw `get_audit_stats` payload.
- *
- * The command relays `serde_json::Value` untouched, so nothing guarantees the
- * shape at the type level. A missing counter reads as `0` rather than `NaN`.
- * Exported for unit tests.
- */
-export function normalizeAuditStats(raw: unknown): AuditStatsSummary {
-  if (typeof raw !== "object" || raw === null) {
-    return { total_events: 0, unique_tools: 0, unique_agents: 0 };
-  }
-  const source = raw as Record<string, unknown>;
-  return {
-    total_events: counter(source, "total_events"),
-    unique_tools: counter(source, "unique_tools"),
-    unique_agents: counter(source, "unique_agents"),
-  };
-}
-
-/** Reads the journal-wide audit counters. */
-export async function getAuditStats(): Promise<AuditStatsSummary> {
-  return normalizeAuditStats(await invoke<unknown>("get_audit_stats"));
-}
-
-// ───────────────────────────────────────────────────────────────────────────
 // Lifecycle hooks
 // ───────────────────────────────────────────────────────────────────────────
 

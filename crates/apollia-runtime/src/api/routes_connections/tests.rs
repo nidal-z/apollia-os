@@ -87,7 +87,6 @@ async fn router(dir: &TempDir) -> Router {
         plan_gates: None,
         notification_config: None,
         tool_registry_handle: Some(tool_registry),
-        audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
         governance: None,

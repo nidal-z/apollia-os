@@ -40,7 +40,6 @@
   import { RouteTransition } from "$lib/components/ui/route-transition";
   import TimelinePanel from "../components/observability/TimelinePanel.svelte";
   import LlmCostChart from "../components/observability/LlmCostChart.svelte";
-  import AuditTrailTable from "../components/observability/AuditTrailTable.svelte";
   import PlanCacheStats from "../components/observability/PlanCacheStats.svelte";
   import DelegationTree from "../components/observability/DelegationTree.svelte";
   import MailboxTable from "../components/observability/MailboxTable.svelte";
@@ -50,7 +49,6 @@
   type ObsTab =
     | "timeline"
     | "llm-costs"
-    | "audit-trail"
     | "mailbox"
     | "delegation"
     | "plan-cache"
@@ -60,7 +58,6 @@
   let activeTab = $state<ObsTab>("timeline");
   let timelineLoaded = $state(false);
   let costsLoaded = $state(false);
-  let auditLoaded = $state(false);
   let mailboxLoaded = $state(false);
   let delegationLoaded = $state(false);
   let planCacheLoaded = $state(false);
@@ -89,14 +86,13 @@
     "capture",
   ]);
 
-  // Operator: 4 tabs - Timeline, Costs, Audit, Mailbox (non-technical reading).
-  // Builder: 8 tabs - adds Delegation, Plan-Cache, Hooks (full inspection) and
+  // Three tabs for everyone: Timeline, Costs, Mailbox (non-technical reading).
+  // The developer mode adds Delegation, Plan-Cache, Hooks (full inspection) and
   // the capture policy, which decides what the other tabs get to show.
   let tabItems = $derived.by(() => {
     const base = [
       { key: "timeline", label: $t("observability.tab_timeline") },
       { key: "llm-costs", label: $t("observability.tab_llm_costs") },
-      { key: "audit-trail", label: $t("observability.tab_audit_trail") },
       { key: "mailbox", label: $t("observability.tab_mailbox") },
     ];
     if ($developerMode) {
@@ -115,7 +111,6 @@
     activeTab = tab;
     if (tab === "timeline") timelineLoaded = true;
     if (tab === "llm-costs") costsLoaded = true;
-    if (tab === "audit-trail") auditLoaded = true;
     if (tab === "mailbox") mailboxLoaded = true;
     if (tab === "delegation") delegationLoaded = true;
     if (tab === "plan-cache") planCacheLoaded = true;
@@ -166,10 +161,6 @@
         {:else if activeTab === "llm-costs"}
           {#if costsLoaded}
             <LlmCostChart />
-          {/if}
-        {:else if activeTab === "audit-trail"}
-          {#if auditLoaded}
-            <AuditTrailTable />
           {/if}
         {:else if activeTab === "mailbox"}
           {#if mailboxLoaded}

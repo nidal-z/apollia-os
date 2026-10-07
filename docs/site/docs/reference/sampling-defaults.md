@@ -60,8 +60,6 @@ reads it: there is no occurrence of `seed` in any backend implementation. Passin
 one is accepted and has no effect.
 
 Two runs of the same prompt on the same model can therefore differ. What is
-recorded is not the generation itself. On an agent run, the tool-invocation trail
-holds each tool call with a hash of its inputs and its outcome, and the
-hash-chained journal holds the run's tool-call and LLM-call entries. Neither
-register receives a tool call made in a chat session. See
+recorded is not the generation itself. The hash-chained journal holds the
+tool-call and LLM-call entries of a run, a conversation included. See
 [Audit and verify a run](/how-to/audit-and-verify).

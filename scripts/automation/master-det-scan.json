@@ -162,7 +162,6 @@
     "oauth-add-account-google",
     "oauth-add-account-microsoft",
     "oauth-configure-google",
-    "observability-tab-audit-trail",
     "observability-tab-capture",
     "observability-tab-delegation",
     "observability-tab-hooks",
@@ -12545,10 +12544,6 @@
       "testid": "observability-tab-llm-costs"
     },
     {
-      "kind": "expect",
-      "testid": "observability-tab-audit-trail"
-    },
-    {
       "kind": "screenshot",
       "label": "02-developer-tabs-gated-3"
     },
@@ -12708,106 +12703,6 @@
       "label": "06-developer-llm-costs-data"
     },
     {
-      "kind": "click",
-      "testid": "observability-tab-audit-trail",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-purpose",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-developer-audit-purpose"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-stats",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-trail-table",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "audit-row-",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-developer-audit-trail-seeded"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "audit-filter-tool",
-      "value": "file_write",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "audit-filter-agent",
-      "value": "seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-trail-empty",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08a-developer-audit-filter-empty (tool+agent combination the seed leaves empty)"
-    },
-    {
-      "kind": "selectOption",
-      "testid": "audit-filter-tool",
-      "value": "all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "selectOption",
-      "testid": "audit-filter-agent",
-      "value": "all",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-trail-table",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-global-stats",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-global-events",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-global-tools",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-global-agents",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08b-developer-audit-global-stats (journal-wide totals, not the loaded page)"
-    },
-    {
       "kind": "goto",
       "route": "observability"
     },
@@ -12823,10 +12718,6 @@
     {
       "kind": "expect",
       "testid": "observability-tab-llm-costs"
-    },
-    {
-      "kind": "expect",
-      "testid": "observability-tab-audit-trail"
     },
     {
       "kind": "expect",
@@ -12957,34 +12848,6 @@
     {
       "kind": "screenshot",
       "label": "13-builder-costs-7d-data"
-    },
-    {
-      "kind": "click",
-      "testid": "observability-tab-audit-trail",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-purpose",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-stats",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-trail-table",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "14-builder-audit-trail-seeded"
     },
     {
       "kind": "click",

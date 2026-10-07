@@ -22,11 +22,6 @@ The best model alone does not make a reliable agent. What decides the result is 
 - **Cost-bounded** - a step budget enforced by the runtime, never bypassable.
 - **As powerful as you want** - a local model by default, or any model served by an inference server you designate.
 
-![The audit trail of the desktop application: every tool call an agent made, with its agent, duration and status](docs/site/static/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
-
-*The audit trail. Every tool an agent invoked, immutable, with the agent that
-invoked it and what it cost.*
-
 Learn more at [apollia.fr](https://apollia.fr).
 
 ---

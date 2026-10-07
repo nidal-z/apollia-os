@@ -65,9 +65,8 @@ the how-to is [Integrate via the driving contract](/how-to/integrate-via-driving
 
 The step budget is enforced by the runtime around every agent, not implemented
 by each agent, and it bounds every tool call whichever path it runs on. Recording
-is narrower: a tool call an agent makes through `ctx.tools` is written to the
-tool-invocation trail and, through its run-scoped events, to the hash-chained
-journal, while a tool call made in a chat session reaches neither. The autonomy
+goes to one register: a tool call a run announces is written, through its
+run-scoped events, to the hash-chained journal. The autonomy
 tier reaches an orchestrated run the same way as the budget, through the engine
 that plans and executes it.
 

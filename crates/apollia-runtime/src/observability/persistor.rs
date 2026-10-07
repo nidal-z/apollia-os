@@ -136,8 +136,8 @@ impl EventPersistor {
     /// Delete every row strictly older than `cutoff_unix`.
     ///
     /// Scoped to `runtime_events` by construction: this actor owns the only
-    /// connection to `runtime_events.db` and opens nothing else. The audit trail
-    /// and the signed audit journal live in separate databases and are never
+    /// connection to `runtime_events.db` and opens nothing else. The signed
+    /// audit journal lives in a separate database and is never
     /// reachable from here, which matters because the journal is a hash chain
     /// that `audit verify` walks: deleting a link would break verification for
     /// every entry after it.
@@ -258,10 +258,9 @@ impl EventPersistorHandle {
     /// at `INFO`: a deletion the operator did not watch happen should still be
     /// findable afterwards.
     ///
-    /// Only `runtime_events.db` is affected. The audit trail and the signed
-    /// audit journal are separate databases with their own lifecycle, and the
-    /// journal in particular is a hash chain that `audit verify` walks end to
-    /// end, so it is never purged on a timer.
+    /// Only `runtime_events.db` is affected. The signed audit journal is a
+    /// separate database with its own lifecycle: it is a hash chain that
+    /// `audit verify` walks end to end, so it is never purged on a timer.
     ///
     /// # Errors
     ///

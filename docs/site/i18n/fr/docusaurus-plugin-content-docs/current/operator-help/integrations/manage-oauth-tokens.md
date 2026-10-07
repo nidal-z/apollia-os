@@ -90,8 +90,8 @@ Les options sur une machine headless sont de faire tourner une implémentation S
 
 ### Audit des actions
 
-<!-- claim:tool-invocations-is-the-execution-record -->
-Toutes les exécutions d'outils sont loggées dans `~/.apollia/audit.db`, table `tool_invocations` : agent, tâche, exécution, nom de l'outil, empreinte de l'entrée, profil de bac à sable, durée et code de sortie. Elle enregistre ce qui a tourné, pas qui l'a approuvé. Consultable depuis la page **Observabilité** de la barre latérale, onglet **Piste d'audit**.
+<!-- claim:journal-is-the-execution-record -->
+Chaque appel d'outil d'une exécution est enregistré dans le journal signé, `~/.apollia/audit_journal.db` : l'agent, l'outil, sa famille d'action, sa cible, sa durée et son succès. Il se lit depuis **Journal** dans la barre latérale.
 
 ### Erreurs courantes mode fichier
 

@@ -4,7 +4,6 @@
 //! runtime governance table under `~/.apollia/governance.db`:
 //!
 //! - `permission_rules`: scope-aware prefix rules (session/project/global);
-//! - `permission_audit`: immutable decision log, append-only via triggers;
 //! - `tools`: enabled/disabled state and per-tool JSON configuration;
 //! - `tool_credentials`: the index of the per-tool secrets, whose values live
 //!   in the secret store.
@@ -15,8 +14,10 @@
 //! `governance.db` then renamed `permissions.db.bak`. The backup is kept but no
 //! longer used by the runtime. The schema itself lives in
 //! `apollia_permissions::governance_schema`: the file is also opened by
-//! `PrefixRuleEngine` and `PermissionAuditLog`, so the three openers share
-//! one versioned migration list.
+//! `PrefixRuleEngine`, so the openers share one versioned migration list.
+//!
+//! The decisions themselves are not kept here: they are recorded in the signed
+//! audit journal, which is the one register.
 
 use std::path::{Path, PathBuf};
 
@@ -151,10 +152,11 @@ mod tests {
         let dir = TempDir::new().expect("tempdir");
         // WHEN a GovernanceDb is opened for the first time.
         let db = GovernanceDb::open(dir.path()).expect("open governance.db");
-        // THEN governance.db is created with the four target tables.
+        // THEN governance.db is created with the three target tables, and
+        // without the decision table the schema no longer carries.
         let conn = db.connection();
         assert_eq!(count_tables(conn, "permission_rules"), 1);
-        assert_eq!(count_tables(conn, "permission_audit"), 1);
+        assert_eq!(count_tables(conn, "permission_audit"), 0);
         assert_eq!(count_tables(conn, "tools"), 1);
         assert_eq!(count_tables(conn, "tool_credentials"), 1);
         assert!(db.path().ends_with(GOVERNANCE_DB_FILENAME));
@@ -223,38 +225,8 @@ mod tests {
         let second = GovernanceDb::open(dir.path()).expect("second open");
         // THEN no error, identical schema, no duplicated tables.
         let conn = second.connection();
-        for table in [
-            "permission_rules",
-            "permission_audit",
-            "tools",
-            "tool_credentials",
-        ] {
+        for table in ["permission_rules", "tools", "tool_credentials"] {
             assert_eq!(count_tables(conn, table), 1, "table {table} must be unique");
         }
-    }
-
-    #[test]
-    fn test_audit_trigger_blocks_update() {
-        // GIVEN a fresh GovernanceDb with one audit entry inserted.
-        let dir = TempDir::new().expect("tempdir");
-        let db = GovernanceDb::open(dir.path()).expect("open");
-        db.connection()
-            .execute(
-                "INSERT INTO permission_audit (tool_name, first_arg, decision, decided_at) \
-                 VALUES ('bash_executor', 'git status', 'AutoAllowedSafeList', 1700000000)",
-                [],
-            )
-            .expect("insert audit row");
-
-        // WHEN attempting to modify the decision...
-        let update_result = db
-            .connection()
-            .execute("UPDATE permission_audit SET decision = 'NeedsApproval'", []);
-        // ...or to delete it.
-        let delete_result = db.connection().execute("DELETE FROM permission_audit", []);
-
-        // THEN both operations are blocked by the append-only triggers.
-        assert!(update_result.is_err(), "UPDATE must be blocked");
-        assert!(delete_result.is_err(), "DELETE must be blocked");
     }
 }

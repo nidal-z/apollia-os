@@ -60,6 +60,8 @@ export type TaskTimelineEvent =
       tool_name: string;
       duration_ms: number | null;
       exit_code: number | null;
+      /** Whether the call succeeded, absent while it has not ended. */
+      success?: boolean;
       truncated: boolean;
       input_preview?: string;
       output_preview?: string;

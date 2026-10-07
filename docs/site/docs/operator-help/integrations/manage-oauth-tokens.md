@@ -90,8 +90,8 @@ The options on a headless machine are to run a Secret Service implementation (`g
 
 ### Action audit
 
-<!-- claim:tool-invocations-is-the-execution-record -->
-Every tool execution is logged in `~/.apollia/audit.db`, table `tool_invocations`: agent, task, run, tool name, a hash of the input, the sandbox profile, duration and exit code. It records what ran, not who approved it. Read it from the **Observability** page in the sidebar, **Audit Trail** tab.
+<!-- claim:journal-is-the-execution-record -->
+Every tool call of a run is recorded in the signed journal, `~/.apollia/audit_journal.db`: the agent, the tool, its family of action, its target, its duration and whether it succeeded. Read it from **Activity log** in the sidebar.
 
 ### Common errors in file mode
 

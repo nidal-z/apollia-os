@@ -61,9 +61,7 @@ mais aucun backend ne la lit : il n'existe aucune occurrence de `seed` dans une
 implémentation de backend. En passer un est accepté et n'a aucun effet.
 
 Deux exécutions du même prompt sur le même modèle peuvent donc diverger. Ce qui
-est enregistré n'est pas la génération elle-même. Sur une exécution d'agent, la
-piste d'invocations d'outils porte chaque appel d'outil avec une empreinte de ses
-entrées et son issue, et le journal chaîné par hachage porte les entrées d'appel
-d'outil et d'appel LLM de l'exécution. Aucun des deux registres ne reçoit un
-appel d'outil effectué dans une session de chat. Voir
+est enregistré n'est pas la génération elle-même. Le journal chaîné par hachage
+porte les entrées d'appel d'outil et d'appel LLM d'une exécution, conversation
+comprise. Voir
 [Auditer et vérifier une exécution](/how-to/audit-and-verify).

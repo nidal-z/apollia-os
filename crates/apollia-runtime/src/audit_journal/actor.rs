@@ -189,7 +189,7 @@ pub(crate) enum JournalMessage {
 ///
 /// The column order is fixed by the callers: `seq, run_id, ts, kind, payload,
 /// prev_hash, hash, signature, signing_key_id`.
-fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<JournalEntry> {
+pub(crate) fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<JournalEntry> {
     let payload_str: String = row.get(4)?;
     let payload: Value = serde_json::from_str(&payload_str).unwrap_or(Value::Null);
     let kind_tag: String = row.get(3)?;

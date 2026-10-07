@@ -16,8 +16,8 @@ sovereignty decision before it is a technical one.
 | Channel | What | Producer | Consumer |
 |---|---|---|---|
 | `tracing` | structured logs and spans | every crate | `tracing-subscriber` console, log files |
-| `EventBus` | runtime events | `apollia-runtime` actors | `AuditTrail`, CLI subscribers, desktop UI |
-| `AuditTrail` | append-only event ledger | `apollia-runtime` | SQLite, exported via `apollia audit list` |
+| `EventBus` | runtime events | `apollia-runtime` actors | the audit journal, CLI subscribers, desktop UI |
+| Audit journal | append-only, hash-chained event ledger | `apollia-runtime` | SQLite, read via `apollia-os audit journal`, exported via `apollia-os audit export` |
 | CLI human stdout | user-facing prose or table | `apollia-cli` only | terminal |
 | CLI machine stdout | `--json` payloads | `apollia-cli` only | scripts |
 
@@ -25,7 +25,7 @@ Rules :
 - `tracing` is the only acceptable log producer outside `apollia-cli`.
 - `println!`, `eprintln!`, `dbg!` are forbidden outside `apollia-cli`.
 - EventBus events are past-tense (they record what happened).
-- AuditTrail entries are immutable. No update, no delete.
+- Audit journal entries are immutable. No update, no delete.
 
 ---
 
@@ -334,7 +334,7 @@ category no listener reads reaches the interface and is dropped in silence.
 
 ---
 
-## 9. AuditTrail
+## 9. Audit journal
 
 The audit journal persists events to SQLite as a hash-chained,
 append-only ledger. Module : `crates/apollia-runtime/src/audit_journal/`.
@@ -342,8 +342,8 @@ Retention is `retention_days` under `[observability]` in the config
 (`crates/apollia-core/src/observability.rs`), default 90 days. There is no
 `[audit]` table.
 
-CLI surface (`apollia audit ...`) : `list`, `journal`, `stats`, `export`,
-`verify`, `anchor`, `replay`, `show`.
+CLI surface (`apollia-os audit ...`) : `journal`, `export`, `verify`,
+`anchor`, `replay`, `show`.
 
 Add a new audit-worthy event by extending the `JournalEntryKind` enum,
 not by emitting a free-form string. Inter-agent mailbox events are

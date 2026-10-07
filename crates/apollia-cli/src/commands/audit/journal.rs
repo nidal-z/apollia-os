@@ -107,7 +107,7 @@ fn journal_page_uri(page: &JournalPage<'_>) -> String {
 /// The line `audit journal` prints for one entry, from its summary: when, who,
 /// what, the tool, the target and the result. A part the summary does not have
 /// is left out, so the line never shows a placeholder for it.
-fn summary_line(entry: &serde_json::Value) -> String {
+pub(in crate::commands) fn summary_line(entry: &serde_json::Value) -> String {
     let summary = entry.get("summary");
     let part = |key: &str| {
         summary

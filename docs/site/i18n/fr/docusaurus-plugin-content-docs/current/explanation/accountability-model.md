@@ -88,12 +88,12 @@ agent, ou refuser avec une raison facultative que l'agent lit. Un « toujours »
 est accordé à un agent pour une famille d'actions, jamais à un nom d'outil, à
 un projet ni à une session.
 
-La décision elle-même n'est pas consignée. Le journal des décisions de
-permission existe comme table, en ajout seul et tenu par des déclencheurs, mais
-rien dans le runtime livré n'y insère de ligne : `apollia-os permissions audit`
-et le panneau **Recent audit** du bureau lisent une table vide. Ce que la trace
-garde, c'est l'appel que la décision a laissé passer, la boucle de chat
-capturant l'appel d'outil et sa sortie dans le journal signé.
+La décision elle-même est consignée : la réponse à une demande de consentement,
+un refus par la politique de l'organisation et un refus par une règle deviennent
+chacun une entrée du journal signé, qui nomme l'agent, l'outil et sa famille
+d'action, jamais l'argument de l'appel. Le journal garde aussi l'appel que la
+décision a laissé passer, la boucle de chat capturant l'appel d'outil et sa
+sortie.
 
 La surface qui peut répondre à une demande dépend de sa nature. Une approbation
 portant sur un nom d'outil se répond par l'API HTTP, avec

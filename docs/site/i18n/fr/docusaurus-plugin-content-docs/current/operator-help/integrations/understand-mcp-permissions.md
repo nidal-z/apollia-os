@@ -36,7 +36,7 @@ Ouvrez **Paramètres, Permissions**. Quatre sections :
 - **Règles** : les règles persistantes, créées via les demandes d'approbation, par l'agent d'onboarding, ou à la main. Filtrables par portée (Toutes, Ce projet, Agent de chat, Partout) et par outil. L'auteur de la règle est affiché sur chaque ligne mais n'est pas un filtre.
 - **Sessions actives** : autorisations valables uniquement pour la session de chat en cours.
 - **Apollia Chat** : les règles qui s'appliquent spécifiquement au chat libre.
-- **Audit récent** : une lecture seule de la table `permission_audit`. Rien dans le runtime n'écrit dans cette table en `v0.1.0-preview`, donc la section reste vide quel que soit le nombre d'approbations auxquelles vous répondez. Ce qui a réellement tourné se lit sur l'onglet **Audit Trail** de la page **Observabilité**.
+- Les décisions elles-mêmes ne sont pas listées sur cet écran : chaque consentement donné et chaque refus est une entrée du **Journal**.
 
 Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'une portée d'un coup, le bouton **Révoquer tout** vous fait choisir la portée et affiche combien de règles seraient retirées, puis Annuler ou Révoquer. Il ne demande aucune confirmation à taper.
 

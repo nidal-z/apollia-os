@@ -65,7 +65,7 @@ fn call_id_of(entry: &JournalEntry) -> Option<&str> {
 /// A model may reuse an identifier later in the same run, so the join stays
 /// within one call: from the last model response at or before `position` that
 /// asks for `id`, up to the next response that asks for it again.
-fn tool_call_detail(run: &[JournalEntry], position: usize, id: &str) -> ToolCallDetail {
+pub(crate) fn tool_call_detail(run: &[JournalEntry], position: usize, id: &str) -> ToolCallDetail {
     let asked = run[..=position]
         .iter()
         .rposition(|entry| requested_arguments(entry, id).is_some());

@@ -98,7 +98,6 @@ pub(crate) fn app_state(data_dir: PathBuf) -> AppState<MockBackend> {
         plan_gates: None,
         notification_config: None,
         tool_registry_handle: None,
-        audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
         governance: None,

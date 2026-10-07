@@ -15,13 +15,11 @@ pre-authorize a tool, argument-prefix rules are evaluated per invocation, and
 code executors are never blanket-authorized), and the autonomy tier's step
 budget.
 
-<!-- claim:audit-list-reads-the-tool-invocation-trail -->
-The two audit registers do not see the same calls. The tool-invocation trail,
-the flat table `audit list` reads, is written from `ctx.tools` on the agent path
-only, so a chat tool call never appears there. The hash-chained journal does
-record the chat: the chat ReAct loop emits `ToolOutputCaptured` for every tool
+<!-- claim:journal-records-the-tool-calls-of-a-run -->
+The audit journal records the tool calls of a conversation: the chat loop
+announces each call with its run, emits `ToolOutputCaptured` for every tool
 result and `LlmResponseCaptured` for every completion, and the journal
-subscriber turns both into signed, chained entries. Tool outputs and model
+subscriber turns them into signed, chained entries. Tool outputs and model
 completions from a chat session are therefore persisted verbatim in an
 append-only register, readable with `audit show <run>` and checkable with
 `audit verify`. A chat session additionally keeps the tool-call record its

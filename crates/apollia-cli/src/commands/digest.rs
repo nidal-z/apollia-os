@@ -1,6 +1,6 @@
 //! `apollia-os digest`: aggregate activity overview.
 //!
-//! Combines the runtime's tasks list, LLM cost summary, and audit stats into
+//! Combines the runtime's tasks list and LLM cost summary into
 //! a compact "what happened recently" snapshot. It is a lightweight aggregator
 //! over the existing HTTP routes so the runtime does not need any new endpoint.
 
@@ -66,10 +66,6 @@ pub async fn run(window: DigestWindow, socket: Option<PathBuf>, json: bool) -> i
         .get_llm_costs()
         .await
         .unwrap_or(serde_json::Value::Null);
-    let audit_stats = client
-        .get_audit_stats()
-        .await
-        .unwrap_or(serde_json::Value::Null);
 
     let (task_total, task_failed, task_running) = task_counts(&tasks);
 
@@ -82,7 +78,6 @@ pub async fn run(window: DigestWindow, socket: Option<PathBuf>, json: bool) -> i
                 "failed": task_failed,
             },
             "llm_costs": costs,
-            "audit": audit_stats,
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
     } else {
@@ -105,13 +100,6 @@ pub async fn run(window: DigestWindow, socket: Option<PathBuf>, json: bool) -> i
         }
         if let Some(calls) = costs.get("total_calls").and_then(|v| v.as_u64()) {
             println!("    calls    {calls}");
-        }
-        note!();
-        println!("  Audit");
-        if let Some(total) = audit_stats.get("total").and_then(|v| v.as_u64()) {
-            println!("    events   {total}");
-        } else {
-            println!("    events   n/a");
         }
     }
     exit_codes::SUCCESS

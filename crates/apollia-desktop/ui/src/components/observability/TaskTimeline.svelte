@@ -154,7 +154,8 @@
             value: String(event.exit_code),
           });
         }
-        const failed = event.exit_code !== null && event.exit_code !== 0;
+        const failed =
+          event.success === false || (event.exit_code !== null && event.exit_code !== 0);
         return {
           tone: "tool",
           titleKey: failed

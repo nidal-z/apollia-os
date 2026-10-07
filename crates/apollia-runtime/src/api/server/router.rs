@@ -85,8 +85,8 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_approvals::list_pending_approvals;
     use crate::api::routes_artifacts::artifacts_router;
     use crate::api::routes_audit::{
-        get_audit_anchor, get_audit_stats, list_audit, list_audit_journal, post_replay_run,
-        show_audit_entry, show_audit_run, verify_audit_journal, verify_audit_run,
+        get_audit_anchor, list_audit_journal, post_replay_run, show_audit_entry, show_audit_run,
+        verify_audit_journal, verify_audit_run,
     };
     use crate::api::routes_audit_export::export_audit_journal;
     use crate::api::routes_chat::conversations::{conversations_router, update_session};
@@ -194,8 +194,6 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route("/api/v1/tools", get(list_tools::<B>))
         .route("/api/v1/tools/:name", get(describe_tool::<B>))
         // Audit trail routes
-        .route("/api/v1/audit", get(list_audit::<B>))
-        .route("/api/v1/audit/stats", get(get_audit_stats::<B>))
         .route("/api/v1/audit/verify", get(verify_audit_journal::<B>))
         .route("/api/v1/audit/verify/:run_id", get(verify_audit_run::<B>))
         .route("/api/v1/audit/anchor", get(get_audit_anchor::<B>))

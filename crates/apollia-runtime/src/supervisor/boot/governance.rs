@@ -1,13 +1,12 @@
-//! Governance at boot: the organisation policy, the audit trail and journal,
+//! Governance at boot: the organisation policy, the audit journal,
 //! the one-shot upgrades they record, and the connection governance.
 
 use crate::supervisor::*;
 
-use crate::supervisor::persistence::{open_audit_journal, open_audit_trail};
+use crate::supervisor::persistence::open_audit_journal;
 
 /// What the governance phases open, shared with `AppState` and the handles.
 pub(super) struct Governance {
-    pub(super) audit_trail: Option<AuditTrailHandle>,
     pub(super) audit_journal: Option<AuditJournalHandle>,
     pub(super) connection: crate::governance::ConnectionGovernance,
     /// The governance actor every tool call is decided by.
@@ -22,7 +21,7 @@ pub(super) struct Connections {
 }
 
 impl Supervisor {
-    /// Phases 8 to 8d: the audit trail, the hash-chained journal and its
+    /// Phases 8 to 8d: the hash-chained journal and its
     /// subscriber, the governance actor, the access upgrade, the chat settings carry-over, then the
     /// connection governance.
     pub(super) async fn open_governance(
@@ -32,11 +31,8 @@ impl Supervisor {
         org_policy: &Arc<apollia_permissions::PolicyVerdict>,
         connections: Connections,
     ) -> Governance {
-        // Phase 8 (pos 9): AuditTrail, opened before APIServer so it's injectable into AppState.
-        info!("supervisor.audit_trail.opening");
-        let audit_trail_handle = open_audit_trail(&self.config.data_dir).await;
-
-        // Phase 8b: hash-chained, signed AuditJournal + its EventBus subscriber.
+        // Phase 8 (pos 9): hash-chained, signed AuditJournal + its EventBus
+        // subscriber, opened before APIServer so it's injectable into AppState.
         info!("supervisor.audit_journal.opening");
         let audit_journal_handle = open_audit_journal(&self.config.data_dir).await;
         if let Some(journal) = &audit_journal_handle {
@@ -110,7 +106,6 @@ impl Supervisor {
         .with_forbidden(connections.forbidden);
 
         Governance {
-            audit_trail: audit_trail_handle,
             audit_journal: audit_journal_handle,
             connection: connection_governance,
             handle: governance,

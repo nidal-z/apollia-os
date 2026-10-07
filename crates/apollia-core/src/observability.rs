@@ -55,7 +55,7 @@ pub struct ObservabilityConfig {
     #[serde(default = "default_capture_on")]
     pub capture_agent_logs: bool,
     /// Retention period in days for `runtime_events` before automatic purge
-    /// (default 90, consistent with audit.db).
+    /// (default 90).
     #[serde(default = "default_retention_days")]
     pub retention_days: u32,
 }

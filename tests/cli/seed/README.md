@@ -181,7 +181,7 @@ else through, which is how the switch reaches the builder.
 |---|---|---|
 | projects.db | 2 projects + 3 providers + 1 doc | the former projects, migrated into sources at the first boot of the runtime, which then removes the file |
 | triggers_def.db + triggers.db | 4 triggers (active x2, paused x2) + history; + `seed-trigger-planner` under `APOLLIA_SEED_PLANNER=1` | automation rows, filters, delete/history; the run-now of the planner |
-| governance.db | 4 permission rules (all scopes) + 5 audit + 1 credential | permissions count/list/audit/revoke-all, brave credential |
+| governance.db | 4 permission rules (all scopes) + 5 rows in the decision table of an older file + 1 credential | permissions count/list/revoke-all, brave credential, and the migration that drops the decision table |
 | chat.db | 4 sessions + messages + 3 tool auths + 1 plan | session list, session-auths, plan tab |
 | agents.db + agents/ | 4 agents (incl apollia-chat) + 1 package; + `seed-planner` under `APOLLIA_SEED_PLANNER=1` | agent rows, detail, package rows; an agent that plans always |
 | user_memory + memory/*.db | 5 namespaces, 3 types each | namespace items, category chips, type tabs, entries |
@@ -212,7 +212,7 @@ fully-green `report.json`. Supporting changes:
 - `setChecked` is role-aware (native input OR `<button role=checkbox/switch>`).
 
 Each script asserts populated data where seeded and the correct EMPTY state where a
-subsystem is intentionally not seeded (e.g. observability timeline/audit). The plan
+subsystem is intentionally not seeded (e.g. the tool calls of the observability timeline). The plan
 cache has been seeded since: its tab asserts the populated cards, then the purge.
 True external boundaries (mic, native file/OAuth dialogs, live network test buttons,
 HuggingFace search) are reduced to `waitFor(button)+screenshot`, never a failing

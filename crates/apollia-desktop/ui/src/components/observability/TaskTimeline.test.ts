@@ -51,6 +51,30 @@ describe("TaskTimeline - toTimelineRow", () => {
     ]);
   });
 
+  test("a tool call the journal records as failed is a failure without an exit code", () => {
+    // GIVEN a tool call read from the journal, which keeps no exit code
+    const event: TaskTimelineEvent = {
+      type: "tool_call",
+      tool_name: "file_write",
+      duration_ms: 200,
+      exit_code: null,
+      success: false,
+      truncated: false,
+      output_preview: "permission denied",
+      timestamp: "2026-08-05T10:00:01Z",
+    };
+
+    // WHEN projecting it
+    const row = toTimelineRow(event);
+
+    // THEN it reads as a failure, with its duration as the only fact
+    expect(row.failed).toBe(true);
+    expect(row.titleKey).toBe("observability.task_timeline_row_tool_call_failed");
+    expect(row.facts).toEqual([
+      { labelKey: "observability.task_timeline_fact_duration", value: "200ms" },
+    ]);
+  });
+
   test("an MCP tool call with no exit code is not a failure", () => {
     // GIVEN a tool invocation the runtime recorded without an exit code
     const event: TaskTimelineEvent = {

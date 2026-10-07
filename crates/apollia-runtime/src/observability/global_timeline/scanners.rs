@@ -6,60 +6,39 @@
 
 use super::{label_for, trim_for_summary, GlobalTimelineEvent};
 
-pub(super) fn scan_audit_db(
+pub(super) fn scan_journal_tool_calls(
     data_dir: &std::path::Path,
     cutoff_str: &str,
     labels: &std::collections::HashMap<String, String>,
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
-    let path = data_dir.join(apollia_core::paths::DataFile::Audit.file_name());
-    let Ok(conn) = rusqlite::Connection::open(&path) else {
-        return;
-    };
-    let mut stmt = match conn.prepare(
-        "SELECT id, agent_id, task_id, tool_name, started_at, duration_ms, exit_code, success, error_code
-         FROM tool_invocations
-         WHERE started_at >= ?1
-         ORDER BY started_at DESC",
-    ) {
-        Ok(s) => s,
-        Err(_) => return,
-    };
-    let rows = stmt.query_map([cutoff_str], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, String>(2)?,
-            row.get::<_, String>(3)?,
-            row.get::<_, String>(4)?,
-            row.get::<_, Option<i64>>(5)?,
-            row.get::<_, Option<i64>>(6)?,
-            row.get::<_, i64>(7)?,
-            row.get::<_, Option<String>>(8)?,
-        ))
-    });
-    let Ok(iter) = rows else { return };
-    for r in iter.flatten() {
-        let (id, agent_id, task_id, tool_name, ts, dur, exit_code, success, error_code) = r;
-        let agent_label = label_for(&agent_id, labels);
-        let dur_label = dur.map(|ms| format!(" ({ms}ms)")).unwrap_or_default();
-        let success_marker = if success == 0 { " ⚠" } else { "" };
-        let summary = format!("[{agent_label}] Tool: {tool_name}{dur_label}{success_marker}");
-        let event_type = if success == 0 { "error" } else { "tool" };
+    let source = apollia_core::paths::DataFile::AuditJournal.file_name();
+    let calls = crate::audit_journal::tool_calls::calls_since(&data_dir.join(source), cutoff_str);
+    for call in calls {
+        let agent_label = label_for(&call.agent_id, labels);
+        let dur_label = call
+            .duration_ms
+            .map(|ms| format!(" ({ms}ms)"))
+            .unwrap_or_default();
+        let failed = call.success == Some(false);
+        let failure_marker = if failed { " ⚠" } else { "" };
+        let summary = format!(
+            "[{agent_label}] Tool: {}{dur_label}{failure_marker}",
+            call.tool_name
+        );
         events.push(GlobalTimelineEvent {
-            event_type: event_type.to_string(),
-            timestamp: ts,
+            event_type: if failed { "error" } else { "tool" }.to_string(),
+            timestamp: call.started_at,
             summary,
             detail: serde_json::json!({
-                "source": apollia_core::paths::DataFile::Audit.file_name(),
-                "id": id,
-                "task_id": task_id,
-                "agent_id": agent_id,
-                "tool_name": tool_name,
-                "duration_ms": dur,
-                "exit_code": exit_code,
-                "success": success != 0,
-                "error_code": error_code,
+                "source": source,
+                "id": format!("{}:{}", call.run_id, call.seq),
+                "run_id": call.run_id,
+                "task_id": call.task_id,
+                "agent_id": call.agent_id,
+                "tool_name": call.tool_name,
+                "duration_ms": call.duration_ms,
+                "success": call.success,
             }),
         });
     }

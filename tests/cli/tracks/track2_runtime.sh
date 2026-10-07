@@ -43,8 +43,8 @@ skip          "a2a invoke agent:seed-classifier" "an agent answers through a mod
 
 # Empty-but-valid runtime reads (seeded elsewhere, not surfaced by these paths).
 check         "task list (empty ok)"               "${Q[@]}" task list
-check         "audit list (empty ok)"              "${Q[@]}" audit list --limit 5
-check_json    "audit stats --json"                 "${Q[@]}" audit stats --json
+check         "audit journal (empty ok)"           "${Q[@]}" audit journal --limit 5
+check_json    "audit journal --json"               "${Q[@]}" audit journal --limit 5 --json
 check_exit    "audit show (unknown id) → 1"  1     "${Q[@]}" audit show nonexistent-run
 check         "resilience list"                    "${Q[@]}" resilience list
 check         "model hardware (daemon on)"         "${Q[@]}" model hardware
