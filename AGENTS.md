@@ -59,8 +59,8 @@ bash tests/cli/cli-e2e.sh
 
 The CLI end-to-end suite runs against a deterministically seeded, throwaway
 `HOME` built by `tests/cli/seed/build-seed.sh`, so a run never writes to
-the real `~/.apollia`; when `APOLLIA_TEST_MODEL_GGUF` is unset, Track 3 reads
-one file from it (the default model GGUF), read-only. Track 1 is offline and
+the real `~/.apollia`; Track 3 reads one file, the model GGUF that
+`APOLLIA_TEST_MODEL_GGUF` names, read-only. Track 1 is offline and
 always runs; Tracks 2 and 3 are
 gated by `APOLLIA_REQUIRE_RUNTIME` and `APOLLIA_TEST_MODEL_GGUF`. Read
 `tests/cli/README.md` before changing a track or the fixture: the suite asserts

@@ -25,9 +25,9 @@
 #   APOLLIA_BIN              binary path. Default: ./target/release/apollia-os
 #                            (fallback ./target/debug/apollia-os). On Windows
 #                            the `.exe` suffix is added where it is missing.
-#   APOLLIA_TEST_MODEL_GGUF  GGUF for the local LLM backend (Track 3). Default:
-#                            ~/.apollia/models/Qwen3-30B-A3B-Q4_K_M.gguf. Absent
-#                            → Track 3 is SKIPped, never failed.
+#   APOLLIA_TEST_MODEL_GGUF  GGUF for the local LLM backend (Track 3). No
+#                            default: unset, or naming a file that does not
+#                            exist → Track 3 is SKIPped, never failed.
 #   APOLLIA_REQUIRE_RUNTIME  0|1 (default 0). Set to 1 to run Tracks 2 and 3.
 #   APOLLIA_TEST_REVIEW      0|1 (default 0). Set to 1 to run `review .` (slow).
 #   APOLLIA_TEST_VERBOSE     0|1 (default 0). Dump stdout/stderr on FAIL.
@@ -174,8 +174,7 @@ restore_profile() {
         export USERPROFILE="$REAL_USERPROFILE"
     fi
 }
-DEFAULT_GGUF="${REAL_HOME}/.apollia/models/Qwen3-30B-A3B-Q4_K_M.gguf"
-TEST_GGUF="${APOLLIA_TEST_MODEL_GGUF:-$DEFAULT_GGUF}"
+TEST_GGUF="${APOLLIA_TEST_MODEL_GGUF:-}"
 REQUIRE_RUNTIME="${APOLLIA_REQUIRE_RUNTIME:-0}"
 TEST_REVIEW="${APOLLIA_TEST_REVIEW:-0}"
 VERBOSE="${APOLLIA_TEST_VERBOSE:-0}"

@@ -197,20 +197,36 @@ def check_bundle_python(pair: Pair) -> None:
             f"False.\n{run.stdout}{run.stderr}",
         )
 
-    # The callers read standard output under `set -euo pipefail`, so the exit
-    # code has to reach them through the command substitution rather than
-    # through a string they test afterwards.
+    # The recipes that compile against the bundle do not run this recipe: they
+    # call `python_bundle_activate`, which reads the same resolution inside
+    # scripts/lib/python-bundle.sh. The exit code has to end the recipe, so
+    # each call is a statement of its own under `set -e`, never the left side
+    # of `||` or `&&`, and never inside a substitution or a condition.
     callers = [
         line.strip()
         for line in (REPO_ROOT / "justfile").read_text(encoding="utf-8").splitlines()
-        if "just _bundle-python" in line
+        if "python_bundle_activate" in line
     ]
+    library = (REPO_ROOT / "scripts/lib/python-bundle.sh").read_text(encoding="utf-8")
     pair.case(
         "control",
-        "every caller reads the recipe through a command substitution",
-        bool(callers) and all('$(just _bundle-python' in line for line in callers),
+        "every recipe that links the bundle lets the activation end it",
+        bool(callers)
+        and all(_ends_the_recipe(line) for line in callers)
+        and 'root="$(python_bundle_resolve)" || return 1' in library,
         f"call sites found: {callers}",
     )
+
+
+_ACTIVATION = re.compile(r"(?:^|; )python_bundle_activate(?:;|$)")
+
+
+def _ends_the_recipe(line: str) -> bool:
+    """True when a failed activation stops the line it is written on."""
+    if _ACTIVATION.search(line) is None:
+        return False
+    before = line.split("python_bundle_activate", 1)[0]
+    return not any(token in before for token in ("||", "&&", "$(", "if ", "! "))
 
 
 # ── Site 2, the comparator ───────────────────────────────────────────────────
@@ -418,6 +434,10 @@ def overlong_blocks(justfile: Path) -> list[tuple[str, str, str]] | None:
             continue
         block: list[str] = []
         cursor = index - 1
+        # Attributes (`[group('x')]`, `[confirm(...)]`) sit between the
+        # comment block and the recipe line without detaching the block.
+        while cursor >= 0 and lines[cursor].startswith("["):
+            cursor -= 1
         while cursor >= 0 and lines[cursor].lstrip().startswith("#"):
             block.insert(0, lines[cursor].lstrip().lstrip("#").strip())
             cursor -= 1
@@ -429,6 +449,7 @@ def overlong_blocks(justfile: Path) -> list[tuple[str, str, str]] | None:
 FAULTY_JUSTFILE = """\
 # Run alpha against the tree.
 # Usage: just alpha /path/to/thing
+[group('fixture')]
 alpha:
     @echo alpha
 

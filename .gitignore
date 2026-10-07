@@ -16,6 +16,10 @@
 AGENTS.local.md
 AGENTS.override.md
 
+# Personal recipes, imported by the justfile when present (see
+# justfile.local.example).
+justfile.local
+
 # Environnement
 .env
 .env.local

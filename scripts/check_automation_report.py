@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read the machine verdict of the last seeded desktop automation run.
 
-`just desktop-dev-automation-seeded scripts/automation/master-det.json` drives
+`just automation-seeded scripts/automation/master-det.json` drives
 the real Tauri app through the 2400-step gestural corpus and writes its verdict
 to `.apollia-automation/report.json` (`ok`, one entry per step). That file was
 read by nobody: the runtime half of the corpus lens sat at ok=False for weeks,
@@ -21,7 +21,7 @@ missing measurement must never read as a pass:
 
 There is no CI frontier for this guard: no hosted runner drives WKWebView, so
 the run stays a local act. The frontiers that launch this reader are the
-`desktop-automation-verdict` recipe of the justfile and the heavy-guards table
+`automation-verdict` recipe of the justfile and the heavy-guards table
 of `scripts/worktree_verdicts.py`.
 
 Usage:
@@ -94,7 +94,7 @@ def main() -> int:
         print(
             f"NOTHING MEASURED: {report_path} does not exist. The gestural "
             "corpus only renders a runtime verdict after a run of the real "
-            "app: just desktop-dev-automation-seeded "
+            "app: just automation-seeded "
             "scripts/automation/master-det.json"
         )
         return 2
@@ -114,7 +114,7 @@ def main() -> int:
             f"NOTHING MEASURED: the report finished at {report['finishedAt']}, "
             f"before the HEAD commit ({head_at.isoformat()}). It measured an "
             "older tree and states nothing about this one. Rerun: just "
-            "desktop-dev-automation-seeded scripts/automation/master-det.json"
+            "automation-seeded scripts/automation/master-det.json"
         )
         return 2
 
