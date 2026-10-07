@@ -96,10 +96,10 @@ run elsewhere, `clippy` on push and the commit-message convention at
 1. **Local-first** : zero user data leaves the machine without an explicit action.
 2. **Zero external dependency** : the binary runs on any clean Linux without
    prior install.
-3. **Minimal contract** : a class decorated with `@agent`, one `@skill` or one
-   `@on_message` async method, and nothing else. The legacy `manifest()` plus
-   `run()` escape hatch is gone: the bridge refuses an object without
-   `__apollia_dispatch__`.
+3. **Minimal contract** : an agent is a record (mission, model, tools, sources,
+   rights) declared in the `apollia.toml` of a package. Code is optional: a
+   package brings `@tool` and `@workflow` functions, and nothing else. The
+   runtime refuses a package whose manifest does not validate.
 4. **Fail fast** : any startup-detectable error is detected at startup.
 5. **One actor, one responsibility** : Tokio actor pattern, no shared state
    between actors.
