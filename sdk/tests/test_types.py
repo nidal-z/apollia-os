@@ -128,12 +128,12 @@ def test_version():
 
 
 def test_new_public_api_exports():
-    """New decorator-first API is exported from apollia root."""
-    # GIVEN the decorator-first public API
+    """The two decorators and the error types are exported from apollia root."""
+    # GIVEN the public API of a package's Python
     # WHEN its symbols are imported from the package root
-    from apollia import DomainError, NeedHumanInput, agent, on_message, orchestrated, skill
+    from apollia import DomainError, NeedHumanInput, tool, workflow
 
     # THEN the decorators are callable and the error types are exported
-    assert all(callable(x) for x in (agent, skill, on_message, orchestrated))
+    assert all(callable(x) for x in (tool, workflow))
     assert DomainError is not None
     assert NeedHumanInput is not None

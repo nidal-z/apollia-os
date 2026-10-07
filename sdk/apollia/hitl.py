@@ -1,19 +1,18 @@
 """Typed pauses: what an agent asks a human, and what it gets back.
 
-An agent pauses by raising :class:`~apollia.errors.NeedHumanInput`. With a
+A run pauses on :class:`~apollia.errors.NeedHumanInput`. With a
 ``payload`` the pause is typed: a question with named propositions, or an
 approval of a named gesture with its risk. The runtime checks the payload when
 the agent pauses (an invalid one fails the task with ``INVALID_INPUT_PAYLOAD``)
 and checks the operator's answer against it when the task is resumed.
 
-When the task resumes, the agent runs again from the top and reads
+When the task resumes, the code runs again from the top and reads
 :attr:`Ctx.input_response`::
 
-    from apollia import NeedHumanInput, skill
+    from apollia import NeedHumanInput
     from apollia.hitl import QuestionPayload
 
-    @skill("pick.list")
-    async def pick(self, ctx):
+    async def pick(ctx):
         response = ctx.input_response
         if response is None:
             question: QuestionPayload = {

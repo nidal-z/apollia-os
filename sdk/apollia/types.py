@@ -4,10 +4,8 @@ This module exposes the ``Ctx`` Protocol - the unique surface an agent
 sees at runtime - plus the multi-modal content types and the
 small set of helpers used to build vision messages.
 
-Legacy ``AIPResult`` is kept here for backward compatibility with the
-agents under :mod:`apollia.agents`.  New
-agents should not depend on it directly: handlers return plain values
-and the dispatch boundary builds the canonical AIPResult dict.
+Legacy ``AIPResult`` is kept here. A tool or a workflow returns a plain
+value and never builds one.
 """
 
 import base64
@@ -15,7 +13,6 @@ import mimetypes
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Final, Literal, Protocol, TypedDict, runtime_checkable
 
-from apollia.context.a2a import A2AInterface
 from apollia.context.agents import AgentsInterface
 from apollia.context.budget import BudgetView
 from apollia.context.datasources import DatasourcesInterface
@@ -215,16 +212,16 @@ FileInput = Annotated[str, InputFormat(FILE_PATH_FORMAT)]
 
 @runtime_checkable
 class Ctx(Protocol):
-    """Runtime context passed to every agent handler.
+    """Runtime context passed to every tool and every workflow.
 
-    The attributes below are the whole surface an agent sees, and their reach
+    The attributes below are the whole surface the code sees, and their reach
     is not uniform: ``ctx.workspace``, ``ctx.notify`` and ``ctx.stt`` are
     ``None`` on every binary this project ships, and ``ctx.mail`` raises
     outside the desktop application. Each service page states its own reach.
     Use type hints to get IDE autocomplete::
 
-        @skill("foo.bar")
-        async def bar(self, name: str, ctx: Ctx) -> dict:
+        @tool("greet", "Greet a known user.", action="read_personal")
+        async def greet(ctx: Ctx, name: str) -> dict:
             user = await ctx.memory.recall(f"user.{name}")
             ...
     """
@@ -232,7 +229,6 @@ class Ctx(Protocol):
     llm: LlmProxy
     memory: MemoryInterface
     tools: ToolProxy
-    a2a: A2AInterface
     #: Run an installed agent with a message. Bound in a workflow run.
     agents: AgentsInterface
     #: Run an installed workflow with typed inputs. Bound in a workflow run.
@@ -262,11 +258,6 @@ class Ctx(Protocol):
     #: The operator's response to the pause being resumed, ``None`` on a first
     #: run. See :mod:`apollia.hitl`.
     input_response: InputResponse | None
-
-    # NOTE: ReAct lives as a free function `apollia.react(ctx, ...)`,
-    # not on the Ctx protocol. Keeping it off the Ctx surface avoids a
-    # PyO3 injection layer and lets users compose alternative reasoning
-    # loops without subclassing the runtime context.
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -355,7 +346,6 @@ __all__ = [
     "DATE_FORMAT",
     "FILE_PATH_FORMAT",
     "LONG_TEXT_FORMAT",
-    "A2AInterface",
     # Legacy
     "AIPResult",
     "AgentsInterface",

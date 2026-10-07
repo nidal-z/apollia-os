@@ -161,14 +161,14 @@ def _typeddict_schema(tp: type) -> dict[str, Any]:
     # annotations (plain strings or ``ForwardRef`` wrappers, depending on the
     # Python version). That silently corrupts ``__required_keys__`` (Python
     # cannot see through ``NotRequired[...]`` when it is a string) and therefore
-    # the generated skill schema. Surface it loudly rather than mis-deriving.
+    # the generated schema. Surface it loudly rather than mis-deriving.
     raw_annotations = getattr(tp, "__annotations__", {})
     if any(isinstance(ann, (str, typing.ForwardRef)) for ann in raw_annotations.values()):
         warnings.warn(
             f"TypedDict {getattr(tp, '__name__', tp)!r} exposes stringified "
             "annotations, most likely from 'from __future__ import annotations'. "
             "Remove that import from the defining module: it breaks "
-            "required/optional field derivation for agent skill schemas.",
+            "required/optional field derivation for the schema of a tool or a workflow.",
             stacklevel=2,
         )
 

@@ -9,15 +9,14 @@ from typing import Protocol, runtime_checkable
 class TemplatesInterface(Protocol):
     """Runtime Jinja2 template rendering.
 
-    Templates are declared via ``@agent(templates=(...))`` and resolved
-    from the agent package's ``templates/`` directory at task startup.
+    A template is one the context was given, addressed by its name.
     """
 
     def render(self, name: str, **context: object) -> str:
         """Render a declared template.
 
         Args:
-            name: Template name as declared in ``@agent(templates=(...))``.
+            name: Name of a template the context was given.
             **context: Variables exposed to the template.
 
         Returns:

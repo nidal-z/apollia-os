@@ -2,7 +2,7 @@
 
 A tool is an ``async def`` function any agent can be granted. The decorator
 validates the declaration at import time, infers the input schema from the
-signature exactly as ``@skill`` does (``TypedDict``, ``Annotated``, scalars),
+signature (``TypedDict``, ``Annotated``, scalars),
 and stamps a :class:`ToolSpec` on the function. ``python -m apollia describe``
 reads that stamp to write the ``[[tools]]`` descriptor of ``apollia.toml``, so
 nothing has to import the code to know what the tool is.
@@ -137,7 +137,7 @@ def tool(
     """Declare an ``async def`` function as a tool the package ships.
 
     The input schema is inferred from the signature, the ``ctx`` parameter
-    excluded, the same way ``@skill`` infers it::
+    excluded::
 
         @tool(
             "extract_totals",

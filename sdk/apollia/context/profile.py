@@ -36,8 +36,8 @@ class ProfileInterface(Protocol):
     of the historical ``remember_user("user.X")`` keys is accepted and
     stripped.
 
-    Read-only by default; write methods require the agent manifest to
-    declare ``@agent(user_memory_write=True)``.  Calling :meth:`set` or
+    Read-only by default; write methods require a context granted the write
+    to user memory.  Calling :meth:`set` or
     :meth:`update` from a non-writable context raises a runtime error. A
     field written goes to the resolved profile.
     """

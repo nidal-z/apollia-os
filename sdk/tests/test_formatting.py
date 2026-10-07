@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 from apollia.utils.formatting import (
-    a2a_result_data,
     aip_result_text,
     format_as_json,
     format_as_markdown,
@@ -286,48 +285,3 @@ def test_parts_to_text_non_dict_items() -> None:
 
     # THEN the malformed entries are skipped rather than raising
     assert result == "ok\nalso ok"
-
-
-# ---------------------------------------------------------------------------
-# a2a_result_data
-# ---------------------------------------------------------------------------
-
-
-def test_a2a_result_data_unwraps_envelope() -> None:
-    """Digs the skill payload out of the full a2a invoke envelope."""
-    # GIVEN the full envelope an a2a invoke returns
-    envelope = {
-        "result": {
-            "task_id": "t1",
-            "status": "completed",
-            "output": [{"type": "data", "data": {"score": 42}}],
-        },
-        "agent_name": "worker",
-        "skill_id": "classify",
-        "duration_ms": 12,
-    }
-
-    # WHEN the data is extracted
-    # THEN the skill payload comes back, stripped of both wrappers
-    assert a2a_result_data(envelope) == {"score": 42}
-
-
-def test_a2a_result_data_accepts_bare_result() -> None:
-    """Accepts a bare AIPResult dict (no `result` wrapper)."""
-    # GIVEN a bare result with no envelope around it
-    bare = {"output": [{"type": "data", "data": {"ok": True}}]}
-
-    # WHEN the data is extracted
-    # THEN the payload still comes back, so both shapes are accepted
-    assert a2a_result_data(bare) == {"ok": True}
-
-
-def test_a2a_result_data_returns_none_on_failure() -> None:
-    """Returns None when there is no data part or the call failed."""
-    # GIVEN envelopes with no data part, and inputs that are not envelopes
-    # WHEN the data is extracted from each
-    # THEN None comes back every time, rather than a partial payload
-    assert a2a_result_data({"result": {"status": "failed", "output": []}}) is None
-    assert a2a_result_data({"result": {"output": [{"type": "text", "text": "hi"}]}}) is None
-    assert a2a_result_data({}) is None
-    assert a2a_result_data("not a dict") is None  # type: ignore[arg-type]

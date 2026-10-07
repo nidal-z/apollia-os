@@ -168,6 +168,9 @@ impl ToolCallHelper {
     /// - [`LlmError::MaxIterationsReached`] if the loop exceeds `max_iters` iterations
     /// - [`LlmError::MaxTokensReached`] if the LLM returns [`FinishReason::Length`]
     /// - [`LlmError::InferenceError`] if the LLM returns [`FinishReason::Error`]
+    // TEST-ONLY: the bridge no longer hands this loop to package code, so no
+    // production path calls it; the loop of an agent is the agent executor's,
+    // in `apollia-runtime`.
     pub async fn run_tools(
         &self,
         mut messages: Vec<ChatMessage>,

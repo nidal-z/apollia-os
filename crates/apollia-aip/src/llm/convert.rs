@@ -1,13 +1,13 @@
 //! Conversion between the Python payloads and the LLM crate's types.
 //!
 //! Split out of `llm.rs`: the proxy stays in the parent, the readers that turn
-//! a Python dict into a `ChatMessage` or a `ToolSpec`, and the context blocks
+//! a Python dict into a `ChatMessage`, and the context blocks
 //! prepended to a system prompt, live here.
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
-use apollia_llm::types::{ChatMessage, LlmError, MessageContent, Role, ToolSpec};
+use apollia_llm::types::{ChatMessage, LlmError, MessageContent, Role};
 
 /// Render the host-environment block for the bridge layer.
 ///
@@ -218,60 +218,6 @@ pub(super) fn truncate(s: &str, max_chars: usize) -> String {
     out.push('…');
     out
 }
-/// Converts a Python dict `{"name": "...", "description": "...", "parameters": {...}}`
-/// into a `ToolSpec`.
-///
-/// The argument schema is read under both spellings, `parameters` first, then
-/// `input_schema`. Both are optional; the schema defaults to `{}` when neither
-/// key is present.
-/// Returns `PyValueError` if `name` or `description` is missing.
-pub(super) fn py_dict_to_tool_spec(py: Python<'_>, obj: &PyObject) -> PyResult<ToolSpec> {
-    let bound = obj.bind(py);
-
-    let name: String = bound
-        .get_item("name")
-        .map_err(|_| PyValueError::new_err("tool spec dict missing 'name' key"))?
-        .extract()
-        .map_err(|e| PyValueError::new_err(format!("'name' must be a str: {e}")))?;
-
-    let description: String = bound
-        .get_item("description")
-        .map_err(|_| PyValueError::new_err("tool spec dict missing 'description' key"))?
-        .extract()
-        .map_err(|e| PyValueError::new_err(format!("'description' must be a str: {e}")))?;
-
-    // The argument schema travels under two names. `parameters` is the OpenAI
-    // spelling the SDK writes by hand; `input_schema` is the Anthropic spelling
-    // that `ctx.a2a.skill_as_tool` emits. Reading only the first handed the
-    // model a tool name with an empty schema, so the agent could name the skill
-    // and never pass it an argument, and a local backend built its GBNF grammar
-    // from that empty object. Serialization goes through json.dumps to accept
-    // any Python type (dict, list, etc.)
-    let schema_obj = bound
-        .get_item("parameters")
-        .or_else(|_| bound.get_item("input_schema"));
-    let parameters: serde_json::Value = match schema_obj {
-        Ok(params_obj) => {
-            let json_mod = py
-                .import("json")
-                .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
-            let json_str: String = json_mod
-                .call_method1("dumps", (params_obj,))
-                .map_err(|e| PyRuntimeError::new_err(format!("json.dumps failed: {e}")))?
-                .extract()
-                .map_err(|e| PyRuntimeError::new_err(format!("extract failed: {e}")))?;
-            serde_json::from_str(&json_str)
-                .map_err(|e| PyValueError::new_err(format!("parameters JSON parse: {e}")))?
-        }
-        Err(_) => serde_json::json!({}),
-    };
-
-    Ok(ToolSpec {
-        name,
-        description,
-        parameters,
-    })
-}
 /// Maps an [`LlmError`] to the Python exception an agent catches.
 ///
 /// The structured-output failures get a typed exception carrying its fields;
@@ -333,8 +279,7 @@ fn structured_output_error(kind: &str, path: &str, reason: &str, message: &str) 
 
 /// Read a Python object as a JSON value, through `json.dumps`.
 ///
-/// The same crossing `py_dict_to_tool_spec` uses for a tool's `parameters`: it
-/// accepts any JSON-serializable Python object rather than dictionaries alone,
+/// It accepts any JSON-serializable Python object rather than dictionaries alone,
 /// and it fails with the interpreter's own message, which names the member that
 /// could not be serialized.
 pub(super) fn py_object_to_json(py: Python<'_>, obj: &PyObject) -> PyResult<serde_json::Value> {
