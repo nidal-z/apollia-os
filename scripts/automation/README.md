@@ -508,7 +508,7 @@ a run, and nothing reads them back.
   type (open, single, multi) and `ask-user-submit` stays disabled until every
   question is answered. Use `ask-user-skip`, which is type-independent. Leaving the
   card pending keeps the session `processing`, which silently hides every
-  read-only-gated control downstream (`config-save` and friends).
+  control a busy conversation disables downstream.
 - **Sizing `awaitTurn`.** `maxApprovals` defaults to 25. The plan-review steps use 6
   on purpose, but the turn that FOLLOWS an approval executes the whole plan and needs
   the full budget, otherwise it aborts as a runaway turn.

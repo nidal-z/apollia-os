@@ -1474,36 +1474,86 @@
     },
     {
       "kind": "expect",
-      "testid": "toggle-user-memory"
+      "testid": "session-profile"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-profile-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "toggle-profile-access"
     },
     {
       "kind": "click",
-      "testid": "toggle-user-memory"
+      "testid": "toggle-profile-access"
     },
     {
       "kind": "screenshot",
-      "label": "19-config-memory-toggle"
+      "label": "19-session-profile-switch (an installed agent may read the profile)"
     },
     {
       "kind": "click",
-      "testid": "toggle-user-memory"
+      "testid": "toggle-profile-access"
     },
     {
       "kind": "waitFor",
-      "testid": "toggle-user-memory",
+      "testid": "toggle-profile-access",
       "timeoutMs": 2500
     },
     {
       "kind": "expect",
-      "testid": "config-save"
+      "testid": "config-profile-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-accesses"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-access-filter"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-row",
+      "timeoutMs": 10000
     },
     {
       "kind": "click",
-      "testid": "config-save"
+      "testid": "session-access-switch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-badge",
+      "timeoutMs": 5000
     },
     {
       "kind": "screenshot",
-      "label": "20-config-saved"
+      "label": "20-session-access-switched"
+    },
+    {
+      "kind": "click",
+      "testid": "session-access-switch"
+    },
+    {
+      "kind": "fill",
+      "testid": "session-access-filter",
+      "text": "no-access-carries-this-name"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-empty",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-access-filter",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-row",
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
@@ -2171,6 +2221,55 @@
     {
       "kind": "screenshot",
       "label": "35-inspector-config-builder (plan-review / error / cross-session / next-steps families render only on their live state: screenshot best-effort, never hard-asserted)"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-integrations-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-session-integrations",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "click",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35b-integrations-builder (free conversation: the profile is known, identifiers shown)"
+    },
+    {
+      "kind": "click",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "toggle-user-memory",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-group",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-access-id"
     },
     {
       "kind": "goto",

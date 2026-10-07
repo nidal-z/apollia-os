@@ -658,11 +658,7 @@
       <div class="min-h-0 flex-1 overflow-hidden" data-testid="chat-inspector-session">
         {#if $currentSession && $currentSession.id === selectedSessionId}
           {#if railTab === "integrations"}
-            <ChatIntegrationsTab
-              session={$currentSession}
-              showHeader={false}
-              onupdated={() => {}}
-            />
+            <ChatIntegrationsTab session={$currentSession} onupdated={() => {}} />
           {:else}
             <SessionSettingsTab session={$currentSession} />
           {/if}

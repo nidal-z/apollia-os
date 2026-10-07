@@ -40,8 +40,12 @@ import ChatIntegrationsTab, {
 import { chatConversationStats } from "$lib/stores/chat";
 import type { ProfileSummaryView } from "$lib/ipc/profile";
 import { developerMode } from "$lib/stores/developerMode";
-import { isSensitiveFamily } from "$lib/tools/action-family";
 import type { ChatSessionDetail } from "$lib/types";
+import type { SessionSettings } from "$lib/chat/sessionSettings";
+import {
+  createSessionAccesses,
+  type SessionAccessesController,
+} from "./integrations/useSessionAccesses.svelte";
 
 function libreSession(): ChatSessionDetail {
   return {
@@ -62,15 +66,50 @@ function libreSession(): ChatSessionDetail {
   };
 }
 
+function agentSession(): ChatSessionDetail {
+  return { ...libreSession(), mode: "agent", agent_name: "accountant" };
+}
+
+/** A controller read against a runtime that holds `settings` for the conversation. */
+async function loaded(
+  settings: SessionSettings = {},
+  sources: string[] = [],
+): Promise<SessionAccessesController> {
+  const controller = createSessionAccesses(
+    {
+      getSettings: async () => settings,
+      setSettings: async (_id, next) => next,
+      getAgent: async () => ({ access: ["web_search", "mcp:gmail/draft_message"], sources }),
+      listTools: async () => [
+        { name: "web_search", description: "Search the web", kind: "native" },
+        { name: "bash_executor", description: "Run a command", kind: "native" },
+        { name: "mcp:gmail/draft_message", description: "Prepare a message", kind: "mcp" },
+      ],
+      listTargets: async () => [
+        { kind: "agent", item_id: "market-watch", name: "Market watch", description: "" },
+        { kind: "workflow", item_id: "sales/follow_up", name: "Quote follow-up", description: "" },
+      ],
+    },
+    new Map([
+      ["web_search", { nameKey: "tools.catalog.web_search.label_operator", detailKey: "tools.catalog.web_search.desc_operator" }],
+    ]),
+  );
+  await controller.load("s-1", "accountant");
+  return controller;
+}
+
 /**
  * Renders the panel through Svelte's server renderer. Vitest runs this suite
  * in its node environment, where `svelte` resolves to the server build and
  * `mount` is unavailable; the markup is what this suite asserts on, and the
  * server render walks the same template branches.
  */
-function render(): string {
+function render(
+  session: ChatSessionDetail | null = libreSession(),
+  controller?: SessionAccessesController,
+): string {
   return renderToString(ChatIntegrationsTab, {
-    props: { session: libreSession(), onupdated: () => {} },
+    props: { session, onupdated: () => {}, ...(controller ? { controller } : {}) },
   }).body;
 }
 
@@ -80,73 +119,137 @@ function tagOf(html: string, testid: string): string | null {
   return match ? match[0] : null;
 }
 
-/** The `data-sensitive` value of a tool's icon, or `null` when absent. */
-function sensitivityOf(html: string, toolId: string): string | null {
-  const tag = tagOf(html, `config-tool-icon-${toolId}`);
-  const match = tag?.match(/data-sensitive="([^"]*)"/);
-  return match ? match[1] : null;
+/** The opening tag of the line of the access `id`, or `null`. */
+function lineOf(html: string, id: string): string | null {
+  const match = html.match(new RegExp(`<li[^>]*data-access="${id}"[^>]*>`));
+  return match ? match[0] : null;
+}
+
+/** The markup of the line of the access `id`, up to its closing tag. */
+function lineBody(html: string, id: string): string {
+  const start = html.indexOf(`data-access="${id}"`);
+  return start < 0 ? "" : html.slice(start, html.indexOf("</li>", start));
 }
 
 beforeAll(async () => {
   await waitLocale();
 });
 
-describe("isSensitiveFamily", () => {
-  test("only reading and the exempt family are not sensitive", () => {
-    // GIVEN every family, plus a value no build knows
-    // WHEN each is classified
-    // THEN reading and exempt are the only non-sensitive values
-    expect(isSensitiveFamily("read")).toBe(false);
-    expect(isSensitiveFamily("exempt")).toBe(false);
-    for (const family of [
-      "read_personal",
-      "write_or_delete",
-      "send_external",
-      "execute_code",
-      "unclassified",
-      "teleport",
-    ]) {
-      expect(isSensitiveFamily(family)).toBe(true);
-    }
+describe("ChatIntegrationsTab - the accesses of the agent, group by group", () => {
+  test("the four groups are listed, with a filter by name", async () => {
+    // GIVEN a conversation whose agent holds a tool and a tool of a connection
+    developerMode.set(false);
+    const controller = await loaded();
+
+    // WHEN the tab renders
+    const html = render(agentSession(), controller);
+    const kinds = [...html.matchAll(/data-testid="session-access-group" data-kind="([a-z]+)"/g)].map((m) => m[1]);
+
+    // THEN tools, connections, workflows and other agents come in order, under a filter
+    expect(kinds).toEqual(["tools", "connections", "workflows", "agents"]);
+    expect(tagOf(html, "session-access-filter")).not.toBeNull();
+    expect(html.indexOf('data-testid="session-access-filter"')).toBeLessThan(
+      html.indexOf('data-testid="session-access-group"'),
+    );
+  });
+
+  test("the raw identifiers show in developer mode only", async () => {
+    // GIVEN the same conversation
+    const controller = await loaded();
+
+    // WHEN the tab renders with the developer mode off, then on
+    developerMode.set(false);
+    const plain = render(agentSession(), controller);
+    developerMode.set(true);
+    const developer = render(agentSession(), controller);
+    developerMode.set(false);
+
+    // THEN no identifier is read by a business user, and each line names its own in developer mode
+    expect(plain).not.toContain('data-testid="session-access-id"');
+    expect(plain).not.toContain("bash_executor</code>");
+    expect(lineBody(developer, "bash_executor")).toContain("bash_executor");
+    expect(lineBody(developer, "mcp:gmail/draft_message")).toContain('data-testid="session-access-id"');
+  });
+
+  test("an access cut for the conversation says so, its switch off", async () => {
+    // GIVEN a conversation that switched the web search off
+    developerMode.set(false);
+    const controller = await loaded({ disabled_accesses: ["web_search"] });
+
+    // WHEN the tab renders
+    const html = render(agentSession(), controller);
+
+    // THEN the line is marked off here, and the access the agent keeps is not marked
+    expect(lineOf(html, "web_search")).toContain('data-state="off"');
+    expect(lineBody(html, "web_search")).toContain('data-testid="session-access-badge"');
+    expect(lineBody(html, "web_search")).toContain('aria-checked="false"');
+    expect(lineOf(html, "mcp:gmail/draft_message")).toContain('data-state="on"');
+    expect(lineBody(html, "mcp:gmail/draft_message")).not.toContain('data-testid="session-access-badge"');
+  });
+
+  test("an access the agent does not hold is listed, and reads proposed once switched on", async () => {
+    // GIVEN a conversation that proposes another agent, and not the command tool
+    developerMode.set(false);
+    const controller = await loaded({ proposed_accesses: ["agent:market-watch"] });
+
+    // WHEN the tab renders
+    const html = render(agentSession(), controller);
+
+    // THEN both are listed with their state, only the proposed one switched on
+    expect(lineOf(html, "bash_executor")).toContain('data-state="not_granted"');
+    expect(lineBody(html, "bash_executor")).toContain('aria-checked="false"');
+    expect(lineOf(html, "agent:market-watch")).toContain('data-state="proposed"');
+    expect(lineBody(html, "agent:market-watch")).toContain('aria-checked="true"');
+  });
+
+  test("the former tool selector and its Save button are gone", async () => {
+    // GIVEN a free conversation, where the selector used to be
+    developerMode.set(true);
+    const controller = await loaded();
+
+    // WHEN the tab renders
+    const html = render(libreSession(), controller);
+    developerMode.set(false);
+
+    // THEN no control of the selector is left, and nothing waits for a save
+    expect(html).not.toContain("config-tool-");
+    expect(html).not.toContain("config-group-");
+    expect(html).not.toContain("config-save");
   });
 });
 
-describe("ChatIntegrationsTab - tool sensitivity follows the action family", () => {
-  test("a reading tool is plain, every other family is marked", () => {
-    // GIVEN the builder view of a libre session's configuration
-    developerMode.set(true);
+describe("ChatIntegrationsTab - the profile switch names its case", () => {
+  test("with the built-in assistant the profile is known, with an agent it may be read", async () => {
+    // GIVEN a free conversation and a conversation with an installed agent
+    developerMode.set(false);
+    const controller = await loaded({}, ["profile"]);
 
-    // WHEN the panel renders its tool list
-    const html = render();
-    const marker = (id: string) => tagOf(html, `config-tool-sensitive-${id}`);
+    // WHEN each renders its tab
+    const assistant = render(libreSession(), controller);
+    const agent = render(agentSession(), controller);
 
-    // THEN tools of the read family carry no warning
-    for (const id of ["file_read", "file_list", "web_search"]) {
-      expect(sensitivityOf(html, id), id).toBe("false");
-      expect(marker(id), id).toBeNull();
-    }
-    // AND a tool of every other family is marked sensitive
-    for (const id of [
-      "memory_search",
-      "file_write",
-      "http_fetch",
-      "bash_executor",
-    ]) {
-      expect(sensitivityOf(html, id), id).toBe("true");
-      expect(marker(id), id).not.toBeNull();
-    }
+    // THEN each carries the switch of its case, and never the other
+    expect(tagOf(assistant, "session-profile-switch")).toContain('data-case="assistant"');
+    expect(tagOf(assistant, "toggle-user-memory")).not.toBeNull();
+    expect(tagOf(assistant, "toggle-profile-access")).toBeNull();
+    expect(tagOf(agent, "session-profile-switch")).toContain('data-case="agent"');
+    expect(tagOf(agent, "toggle-profile-access")).toContain('aria-checked="true"');
+    expect(tagOf(agent, "toggle-user-memory")).toBeNull();
+    // AND the two labels differ
+    const label = (html: string) => html.slice(html.indexOf('data-testid="session-profile-switch"')).match(/<span[^>]*>([^<]+)<\/span>/)?.[1];
+    expect(label(assistant)).toBeTruthy();
+    expect(label(assistant)).not.toBe(label(agent));
   });
 
-  test("the operator view keeps the colour but drops the warning glyph", () => {
-    // GIVEN the operator view
-    developerMode.set(false);
+  test("a conversation that closed the profile shows the agent switch off", async () => {
+    // GIVEN an agent that reads the profile, in a conversation that closed it
+    const controller = await loaded({ profile_access: false }, ["profile"]);
 
-    // WHEN the panel renders
-    const html = render();
+    // WHEN the tab renders
+    const html = render(agentSession(), controller);
 
-    // THEN a sensitive tool is still flagged on its icon, without the glyph
-    expect(sensitivityOf(html, "file_write")).toBe("true");
-    expect(tagOf(html, "config-tool-sensitive-file_write")).toBeNull();
+    // THEN the switch is off for this conversation
+    expect(tagOf(html, "toggle-profile-access")).toContain('aria-checked="false"');
   });
 });
 
@@ -171,11 +274,12 @@ describe("ChatIntegrationsTab - the conversation designates its profile", () => 
     const select = html.indexOf('data-testid="config-profile-select"');
     const toggle = html.indexOf('data-testid="toggle-user-memory"');
 
-    // THEN a profile select is offered, in the same card as the toggle
+    // THEN a profile select is offered, in the same section as the toggle
     expect(select).toBeGreaterThan(-1);
     expect(toggle).toBeGreaterThan(-1);
     const between = html.slice(Math.min(select, toggle), Math.max(select, toggle));
-    expect(between).not.toContain("p-3.5");
+    expect(between).not.toContain("<section");
+    expect(html.indexOf('data-testid="session-profile"')).toBeLessThan(select);
     // AND its first choice is the default profile, stored as an empty value
     expect(tagOf(html, "config-profile-option-default")).toContain('value=""');
   });

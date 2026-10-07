@@ -41,8 +41,8 @@ check between steps, and `assisted` does not run it at all.
 > The "Memory injection" column is `No` for every level **on an agent run**, and
 > that is the guarantee that matters: nothing injects memory into an agent's
 > prompt. The built-in conversational assistant is a different path: at every
-> level it receives the profile of the conversation, while the "Use my
-> preferences" switch of that conversation is on. An agent cannot reach that
+> level it receives the profile of the conversation, while the "Apollia knows
+> my profile" switch of that conversation is on. An agent cannot reach that
 > code.
 
 ## Steps - Apply a level to one run

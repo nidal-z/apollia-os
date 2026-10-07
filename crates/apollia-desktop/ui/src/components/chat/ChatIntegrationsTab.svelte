@@ -58,95 +58,97 @@
 </script>
 
 <script lang="ts">
+  /**
+   * The Integrations tab of the right panel of the chat: what holds for this
+   * conversation alone. Its profile and whether the agent knows it, then what
+   * the agent reaches here, each access a switch. Every control writes at
+   * once; neither the agent nor the permissions are changed.
+   */
+  import { untrack } from "svelte";
   import { t } from "svelte-i18n";
-  import { Save, Plug, TriangleAlert, Brain, ChevronDown } from "lucide-svelte";
-  import { Separator } from "$lib/components/ui/separator";
-  import { Button } from "$lib/components/ui/button";
+  import { User } from "lucide-svelte";
   import { Toggle } from "$lib/components/ui/toggle";
-  import type { ChatSessionDetail, UpdateSessionRequest } from "$lib/types";
+  import { Select } from "$lib/components/ui/select";
+  import type { ChatSessionDetail } from "$lib/types";
   import { getConversationStats, updateChatSession } from "$lib/ipc/chat";
-  import { TOOL_GROUPS, TOOL_CATALOG, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
-  import { isSensitiveFamily } from "$lib/tools/action-family";
+  import { getChatSessionSettings, setChatSessionSettings } from "$lib/ipc/chatSettings";
+  import { getAgentDefinition } from "$lib/ipc/agentSheet";
+  import { listTools } from "$lib/ipc/tools";
+  import { listMcpExposable } from "$lib/ipc/mcpServer";
+  import { listProfiles } from "$lib/ipc/profile";
   import { useUserMemory, chatConversationStats, currentSession } from "$lib/stores/chat";
   import { shareProfileDefault, hydrateShareProfileDefault } from "$lib/stores/shareProfileDefault";
-  import { developerMode } from "$lib/stores/developerMode";
-  import { Card } from "$lib/components/ui/card";
-  import { Select } from "$lib/components/ui/select";
-  import { listProfiles } from "$lib/ipc/profile";
+  import { TOOL_CATALOG } from "$lib/tools/tool-catalog";
+  import { APOLLIA_AGENT_ID } from "$lib/chat/chatTargets";
+  import { agentIdOf } from "$lib/chat/sessionSettings";
+  import { PROFILE_SWITCH_KEYS, profileSwitchCase } from "$lib/chat/sessionAccesses";
+  import {
+    createSessionAccesses,
+    type SessionAccessesController,
+  } from "./integrations/useSessionAccesses.svelte";
+  import SessionAccessList from "./integrations/SessionAccessList.svelte";
 
   interface Props {
     session: ChatSessionDetail | null;
     onupdated: () => void;
-    /** Optional close hook - only invoked when the parent wants the panel dismissed after save. */
-    onclose?: () => void;
-    /** Show the header bar. Drawers embedded in tabs set this to false. */
-    showHeader?: boolean;
-    /** When true, the parent controls scroll; the body becomes non-scrollable. */
-    embedded?: boolean;
+    /** The accesses shown; the tab creates its own when left out. */
+    controller?: SessionAccessesController;
   }
 
   let {
     session,
     onupdated,
-    onclose,
-    showHeader = true,
-    embedded = false,
+    controller = createSessionAccesses(
+      {
+        getSettings: getChatSessionSettings,
+        setSettings: setChatSessionSettings,
+        getAgent: getAgentDefinition,
+        listTools,
+        listTargets: listMcpExposable,
+      },
+      new Map(
+        TOOL_CATALOG.map((tool) => [
+          tool.id,
+          { nameKey: tool.labelOperatorKey, detailKey: tool.descOperatorKey },
+        ]),
+      ),
+    ),
   }: Props = $props();
 
-  let enabledTools = $state(new Set<string>());
-  let collapsedGroups = $state(new Set<string>());
-  let saving = $state(false);
   let saveError = $state<string | null>(null);
   let profiles = $state<ProfileSummaryView[]>([]);
-  let profilesLoaded = $state(false);
   let selectedProfile = $state("");
 
   const defaultProfileName = $derived(profiles.find((p) => p.is_default)?.name ?? null);
-
   const isClosed = $derived(session?.status === "closed");
-  const isProcessing = $derived(session?.status === "processing");
-  const isReadOnly = $derived(isClosed || isProcessing);
+  const switchCase = $derived(profileSwitchCase(session));
+  const error = $derived(saveError ?? controller.error);
 
-  const selectedTools = $derived(Array.from(enabledTools));
-
-  const memoryToggleLabel = $derived(
-    $developerMode
-      ? $t("chat.inject_user_memory")
-      : $t("chat.use_preferences"),
-  );
-
-  function syncFromSession(): void {
-    if (!session) return;
-    enabledTools = new Set(session.available_tools ?? []);
-    selectedProfile = session.profile_id ?? "";
-    useUserMemory.set(profileSwitchOf(session));
+  /**
+   * The profile of the conversation is stored as it is chosen: the runtime
+   * reads it at the next message. A refused write puts the select back and
+   * says why.
+   */
+  async function handleProfileChoice(value: string): Promise<void> {
+    if (!session || isClosed) return;
+    const sessionId = session.id;
+    const previous = selectedProfile;
+    selectedProfile = value;
     saveError = null;
-  }
-
-  async function handleSave(): Promise<void> {
-    if (!session || isReadOnly) return;
-    saving = true;
-    saveError = null;
+    const profileId = profileIdOf(profileSelection(value, profiles));
     try {
-      const update: UpdateSessionRequest = {
-        tools: selectedTools,
-      };
-      if (profilesLoaded) {
-        update.profile_id = profileIdOf(profileSelection(selectedProfile, profiles));
-      }
-      await updateChatSession(session.id, update);
+      await updateChatSession(sessionId, { profile_id: profileId });
+      currentSession.update((s) => (s && s.id === sessionId ? { ...s, profile_id: profileId } : s));
       onupdated();
-      onclose?.();
     } catch (err: unknown) {
+      selectedProfile = previous;
       saveError = err instanceof Error ? err.message : String(err);
-    } finally {
-      saving = false;
     }
   }
 
   /**
-   * The switch acts at once, without the Save button: the runtime reads it at
-   * the next message. A refused write puts the switch back and says why.
+   * The switch acts at once: the runtime reads it at the next message. A
+   * refused write puts the switch back and says why.
    */
   async function handleProfileSwitch(on: boolean): Promise<void> {
     if (!session || isClosed) return;
@@ -167,32 +169,32 @@
     }
   }
 
-  const isOperator = $derived(!$developerMode);
-
   $effect(() => {
     let cancelled = false;
     listProfiles()
       .then((list) => {
-        if (cancelled) return;
-        profiles = list;
-        profilesLoaded = true;
+        if (!cancelled) profiles = list;
       })
       .catch(() => {
-        // Without the list the select offers the default alone and a save
-        // leaves the designation untouched.
+        // Without the list the select offers the default alone.
       });
     return () => {
       cancelled = true;
     };
   });
 
-  // Re-sync whenever the session identity changes (drawer stays mounted across sessions).
-  let lastSessionId = $state<string | null>(null);
+  // The tab stays mounted across conversations: each one is read as it opens.
+  let loadedFor: string | null = null;
   $effect(() => {
-    if (session && session.id !== lastSessionId) {
-      lastSessionId = session.id;
-      syncFromSession();
-    }
+    const id = session?.id ?? null;
+    const agentId = session ? agentIdOf(session, APOLLIA_AGENT_ID) : APOLLIA_AGENT_ID;
+    const key = id ? `${id}|${agentId}` : null;
+    if (!session || !id || key === loadedFor) return;
+    loadedFor = key;
+    selectedProfile = session.profile_id ?? "";
+    useUserMemory.set(profileSwitchOf(session));
+    saveError = null;
+    untrack(() => void controller.load(id, agentId));
   });
 
   // Before a conversation exists, the switch shows the position a new
@@ -205,132 +207,23 @@
   });
 </script>
 
-<div class="flex h-full flex-col" data-testid="chat-session-integrations">
-  {#if showHeader}
-    <div class="px-5 py-4 border-b glass-border-subtle">
-      <div class="flex items-center gap-2.5">
-        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-          <Plug class="h-4 w-4 text-primary" />
-        </div>
-        <h3 class="text-body-sm font-medium">{$t("chat.session_panel.integrations")}</h3>
+<div class="flex h-full min-h-0 flex-col" data-testid="chat-session-integrations">
+  <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+    <section class="space-y-2" data-testid="session-profile">
+      <div class="flex items-center gap-2">
+        <User class="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        <h3 class="m-0 text-xs font-medium text-foreground">{$t("chat.integrations.profile_title")}</h3>
       </div>
-    </div>
-  {/if}
-
-  <div class="flex-1 {embedded ? '' : 'overflow-y-auto'} px-5 py-5 space-y-4">
-    <!-- Tools section (libre mode only) -->
-    {#if session?.mode === "libre"}
-      <Card class="p-3.5 space-y-3">
-        <p class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">
-          {isOperator ? $t("tools.select.title_operator") : $t("tools.select.title_builder")}
-        </p>
-
-        {#each TOOL_GROUPS as group (group.id)}
-          {@const groupTools = TOOL_CATALOG.filter(t => t.group === group.id)}
-          {@const state = getGroupState(group, enabledTools)}
-          {@const GroupIcon = group.icon}
-          {@const isCollapsed = collapsedGroups.has(group.id)}
-          {@const enabledCount = groupTools.filter(t => enabledTools.has(t.id)).length}
-          <div class="space-y-0.5">
-            <div class="flex items-center justify-between px-1 py-1 rounded hover:bg-muted/20 transition-colors">
-              <Button variant="ghost" size="sm"
-                class="flex items-center gap-1.5 flex-1 text-left"
-                onclick={() => {
-                  const next = new Set(collapsedGroups);
-                  if (next.has(group.id)) next.delete(group.id); else next.add(group.id);
-                  collapsedGroups = next;
-                }}
-                data-testid="config-group-header-{group.id}"
-              >
-                <GroupIcon class="h-3 w-3 text-muted-foreground/60" />
-                <span class="text-micro font-semibold uppercase tracking-wider text-muted-foreground/60">
-                  {isOperator ? $t(group.labelOperatorKey) : $t(group.labelBuilderKey)}
-                </span>
-                {#if isCollapsed}
-                  <span class="text-micro text-muted-foreground/40 font-normal normal-case tracking-normal">
-                    {state === "all" ? "· all" : state === "some" ? `· ${enabledCount}/${groupTools.length}` : "· none"}
-                  </span>
-                {/if}
-                <ChevronDown
-                  class="h-3 w-3 text-muted-foreground/30 transition-transform duration-fast ml-auto {isCollapsed ? '' : 'rotate-180'}"
-                />
-              </Button>
-              {#if !isCollapsed && !isReadOnly}
-                <button
-                  class="text-micro-xs text-muted-foreground/30 hover:text-primary transition-colors px-1.5 ml-1"
-                  onclick={() => { enabledTools = toggleGroup(group, enabledTools); }}
-                  data-testid="config-group-toggle-{group.id}"
-                >
-                  {state === "all" ? "− none" : "+ all"}
-                </button>
-              {/if}
-            </div>
-
-            {#if !isCollapsed}
-              {#each groupTools as tool (tool.id)}
-                {@const checked = enabledTools.has(tool.id)}
-                {@const ToolIcon = tool.icon}
-                {@const sensitive = isSensitiveFamily(tool.family)}
-                <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface {isReadOnly ? 'opacity-50' : ''}">
-                  <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                    <ToolIcon
-                      class="h-3.5 w-3.5 shrink-0 {sensitive ? 'text-warning/70' : 'text-muted-foreground'}"
-                      data-testid="config-tool-icon-{tool.id}"
-                      data-sensitive={sensitive}
-                    />
-                    <div class="min-w-0">
-                      <div class="flex items-center gap-1.5">
-                        <span class="text-xs font-medium truncate">
-                          {isOperator ? $t(tool.labelOperatorKey) : tool.id}
-                        </span>
-                        {#if sensitive && !isOperator}
-                          <TriangleAlert
-                            class="h-2.5 w-2.5 text-warning/60 shrink-0"
-                            data-testid="config-tool-sensitive-{tool.id}"
-                          />
-                        {/if}
-                      </div>
-                      <p class="text-micro text-muted-foreground/50 leading-tight mt-0.5">
-                        {isOperator ? $t(tool.descOperatorKey) : $t(tool.descBuilderKey)}
-                      </p>
-                    </div>
-                  </div>
-                  <Toggle
-                    size="sm"
-                    {checked}
-                    onchange={(v) => {
-                      const next = new Set(enabledTools);
-                      if (v) next.add(tool.id); else next.delete(tool.id);
-                      enabledTools = next;
-                    }}
-                    disabled={isReadOnly}
-                    data-testid="config-tool-{tool.id}"
-                  />
-                </div>
-              {/each}
-            {/if}
-          </div>
-        {/each}
-      </Card>
-    {/if}
-
-    <!-- User memory toggle -->
-    <Card class="p-3.5 space-y-2.5">
-      <p class="text-micro font-medium uppercase tracking-wider text-muted-foreground/50">
-        {$t("chat.memory_section")}
-      </p>
       <div class="space-y-1.5">
-        <label for="config-profile-select" class="text-xs font-medium">
+        <label for="config-profile-select" class="text-xs text-foreground">
           {$t("chat.config.profile_label")}
         </label>
         <Select
           id="config-profile-select"
           size="sm"
           value={profileSelection(selectedProfile, profiles)}
-          onchange={(e: Event) => {
-            selectedProfile = (e.currentTarget as HTMLSelectElement).value;
-          }}
-          disabled={isReadOnly}
+          onchange={(e: Event) => void handleProfileChoice((e.currentTarget as HTMLSelectElement).value)}
+          disabled={isClosed || !session}
           data-testid="config-profile-select"
         >
           <option value="" data-testid="config-profile-option-default">
@@ -344,37 +237,56 @@
             </option>
           {/each}
         </Select>
-        <p class="text-micro-xs text-muted-foreground/60">{$t("chat.config.profile_hint")}</p>
+        <p class="m-0 text-micro text-muted-foreground">{$t("chat.config.profile_hint")}</p>
       </div>
-      <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface">
-        <div class="flex items-center gap-2.5">
-          <Brain class="h-3.5 w-3.5 text-secondary" />
-          <span class="text-xs font-medium">{memoryToggleLabel}</span>
+      <div data-testid="session-profile-switch" data-case={switchCase}>
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-xs text-foreground">{$t(PROFILE_SWITCH_KEYS[switchCase].label)}</span>
+          {#if switchCase === "agent"}
+            <Toggle
+              size="sm"
+              checked={controller.agentReadsProfile}
+              disabled={isClosed || controller.loading}
+              onchange={(on) => void controller.setProfileAccess(on)}
+              aria-label={$t(PROFILE_SWITCH_KEYS.agent.label)}
+              data-testid="toggle-profile-access"
+            />
+          {:else}
+            <Toggle
+              size="sm"
+              checked={$useUserMemory}
+              disabled={isClosed}
+              onchange={handleProfileSwitch}
+              aria-label={$t(PROFILE_SWITCH_KEYS.assistant.label)}
+              data-testid="toggle-user-memory"
+            />
+          {/if}
         </div>
-        <Toggle
-          size="sm"
-          checked={$useUserMemory}
-          disabled={isClosed}
-          onchange={handleProfileSwitch}
-          data-testid="toggle-user-memory"
-        />
+        <p class="m-0 mt-1 text-micro leading-tight text-muted-foreground">
+          {$t(PROFILE_SWITCH_KEYS[switchCase].help)}
+        </p>
       </div>
-    </Card>
+    </section>
 
-    {#if saveError}
+    <div class="border-t border-border pt-4">
+      {#if session}
+        <SessionAccessList
+          rows={controller.rows}
+          loading={controller.loading}
+          disabled={isClosed}
+          onswitch={(row, on) => void controller.switchAccess(row, on)}
+        />
+      {:else}
+        <p class="m-0 text-caption text-muted-foreground">
+          {$t("chat.integrations.no_conversation")}
+        </p>
+      {/if}
+    </div>
+
+    {#if error}
       <div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 animate-fade-in">
-        <p class="text-xs text-destructive" data-testid="config-error">{saveError}</p>
+        <p class="m-0 text-xs text-destructive" data-testid="config-error">{error}</p>
       </div>
     {/if}
   </div>
-
-  {#if !isReadOnly}
-    <div class="px-5 py-4">
-      <Separator />
-      <Button class="w-full bg-primary" onclick={handleSave} disabled={saving} data-testid="config-save">
-        <Save class="mr-2 h-4 w-4" />
-        {saving ? $t("common.submitting") : $t("chat.config_save")}
-      </Button>
-    </div>
-  {/if}
 </div>

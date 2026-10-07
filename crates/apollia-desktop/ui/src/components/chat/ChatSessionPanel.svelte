@@ -38,7 +38,7 @@
   </div>
   <div class="min-h-0 flex-1">
     {#if tab === "integrations"}
-      <ChatIntegrationsTab {session} {onupdated} showHeader={false} />
+      <ChatIntegrationsTab {session} {onupdated} />
     {:else}
       <SessionSettingsTab {session} />
     {/if}
