@@ -7,7 +7,6 @@ export interface McpServerStatusView {
   name: string;
   server_info: string;
   tools_count: number;
-  requires_approval: boolean;
   connected: boolean;
   pid: number | null;
   uptime_secs: number | null;
@@ -62,7 +61,6 @@ export interface McpServerConfigView {
   args: string[];
   env_keys: string[];
   transport: string;
-  requires_approval: boolean;
   tags: string[];
 }
 
@@ -164,7 +162,6 @@ export interface ConnectorEnrichmentView {
    *  takes precedence over `auth_help_text` and lets us ship long localised
    *  explanations in the bundled FR/EN catalogs instead of inline strings. */
   auth_help_i18n_key: string | null;
-  default_requires_approval: boolean;
   /** Env var name carrying a pre-registered OAuth client id for AS that
    *  don't support CIMD or anonymous DCR (Figma). The wizard resolves the
    *  env var via `mcp_oauth_resolve_client_id` and passes the value to
@@ -235,7 +232,6 @@ export interface McpServerConfigInput {
   url?: string;
   env: Record<string, string>;
   transport: string;
-  requires_approval: boolean;
   tags: string[];
   /** Where the connection was found. The desktop records the selection itself. */
   origin?: ConnectionOrigin;

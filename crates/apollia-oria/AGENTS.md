@@ -135,19 +135,17 @@ Rules :
 
 ## 5. HITL (human in the loop)
 
-Two distinct pauses live in this crate, and they are not the same mechanism.
-
-**Step approval.** Before a step whose tool needs it, `suspend_for_approval`
-(`src/actor/steps.rs`) registers a oneshot in `PendingApprovals` under
-`<task_id>::<step_id>`, emits `RuntimeEvent::TaskInputRequired { task_id,
-prompt, step_id: Some(..) }` and awaits the decision. Approval lets the step
-run; refusal returns `StepError::RejectedByUser { reason }`; a closed channel
-returns `StepError::ApprovalChannelClosed`. The wait is a pure `await`, so no
-counter advances during it.
+One pause lives in this crate. A step of a plan holds no approval of its own:
+whether a tool call runs, asks or is refused is decided where the call is made,
+behind `ToolProxyTrait::invoke`, by the caller that built the proxy. A refused
+call comes back as an error and fails its step; the wait for an answer is a
+pure `await` inside `invoke`, so no counter advances during it. Do not add a
+list of tools to approve to the manifest or to the actor: it would be a second
+decision beside the one governance makes.
 
 **Agent-raised input.** A skill that raises the SDK's `NeedHumanInput` returns
 an `AIPResult` with `TaskStatus::InputRequired`, carrying `prompt` and
-`context`; the same `TaskInputRequired` event is emitted with `step_id: None`.
+`context`; `RuntimeEvent::TaskInputRequired` is emitted with `step_id: None`.
 
 Rules :
 - Resumption is `apollia-os task resume <task_id> --approve` or `--reject

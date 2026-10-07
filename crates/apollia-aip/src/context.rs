@@ -90,8 +90,8 @@ pub struct RuntimeContext {
     /// Optional recipient allowlist for `ctx.mail.send`. `None` means any
     /// registered agent (once `supports_mailbox` is true).
     mailbox_allowlist: Option<Vec<String>>,
-    /// Whether `ctx.mail.send` is gated behind human approval (opt-in via the
-    /// manifest `tools_requiring_approval` containing `mailbox:send`).
+    /// Whether `ctx.mail.send` is gated behind human approval, as the host
+    /// sets it for the run.
     mailbox_send_requires_approval: bool,
     /// Name of the agent owning this context.
     agent_name: String,
@@ -1057,7 +1057,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 10,
             call_timeout_secs: 10,
             max_response_bytes: 8 * 1024 * 1024,
@@ -1066,15 +1065,10 @@ mod tests {
             tool_families: Default::default(),
             origin: None,
         };
-        let manager = McpClientManagerHandle::start(
-            vec![mcp_config],
-            &registry,
-            None,
-            None,
-            LoadingMode::Eager,
-        )
-        .await
-        .expect("mcp manager start failed");
+        let manager =
+            McpClientManagerHandle::start(vec![mcp_config], &registry, None, LoadingMode::Eager)
+                .await
+                .expect("mcp manager start failed");
 
         // AND a ToolProxy backed by the runtime's own MCP executor assembly
         let execs = build_agent_tool_executors(&manager).await;
@@ -1638,7 +1632,6 @@ mod tool_proxy_a2a_tests {
             supports_mailbox: false,
             mailbox_allowlist: None,
             system_prompt: None,
-            tools_requiring_approval: vec![],
             model: None,
             packages: vec![],
             memory_config: None,

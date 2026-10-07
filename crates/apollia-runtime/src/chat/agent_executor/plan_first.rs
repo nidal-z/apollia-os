@@ -107,6 +107,10 @@ pub(super) struct PlanFirstDeps {
     pub workspace_path: Option<PathBuf>,
     pub tool_output_dir: Option<PathBuf>,
     pub runtime_ceiling: StepBudgetConfig,
+    /// The governance every tool call of a step is decided by.
+    pub governance: crate::governance::GovernanceHandle,
+    /// Nobody watches the run: a call that would ask waits instead.
+    pub unattended: bool,
 }
 
 /// The run of one task in plan-first mode.

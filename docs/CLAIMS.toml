@@ -911,17 +911,17 @@ nothing consults and the documented thresholds become fiction.
 # ── Tool-call governance, the real path ──────────────────────────────────────
 
 [[claim]]
-id = "orchestrated-approval-from-manifest"
+id = "plan-step-decided-by-governance"
 scope = "public"
-symbol = "tools_requiring_approval"
+symbol = "GrantedToolProxy::step_call_consent"
 status = "wired"
-proof = "crates/apollia-oria/src/actor.rs"
+proof = "crates/apollia-runtime/src/chat/agent_executor/plan_first/proxy.rs"
 evidence = ""
 note = """
-On the orchestrated path the manifest field is the whole gate. Documenting a
-policy layer here would repeat the drift this pass removed: the corpus described
-a policy aggregate in front of tool calls that no shipped binary ran. If this
-lookup disappears, every step executes unattended and nothing else in the build
+A step of a plan holds no approval of its own: the tool proxy of the run asks
+governance about each call before it reaches the tool, and that one call is the
+whole gate. If the proxy stops making it, every step of a plan runs its tool
+with no policy, no rule and no consent consulted, and nothing else in the build
 notices.
 """
 
@@ -1547,25 +1547,22 @@ caller would satisfy a symbol-only check and leave the sentence false.
 [[claim]]
 id = "mcp-requires-approval-gates-task-path"
 scope = "public"
-symbol = "build_task_tool_executors"
-status = "not-wired"
-proof = "crates/apollia-runtime/src/chat/manager/dispatcher.rs"
-evidence = "apollia_mcp::executor::build_agent_tool_executors("
+symbol = "classify_mcp_tool"
+status = "wired"
+proof = "crates/apollia-mcp/src/manager/views.rs"
+evidence = "ServerHints::Read => classify_mcp_tool("
 note = """
-The gate of a server declared `requires_approval` lived on the task path of a
-Python agent: its runners built their MCP executors through
-`build_task_tool_executors`, which pauses the task on an approval. Those
-runners are gone with the contract they served, and that builder has no
-production caller left.
+An MCP server used to carry an approval flag, and the task path of a Python
+agent paused on it. Both are gone: the flag, its store, its routes and its
+commands were removed, and the runners of that path went with the contract
+they served.
 
-An agent now runs through the agent executor, whose dispatcher builds the MCP
-executors through `build_agent_tool_executors`, the evidence above. What asks
-before a call there is the governance of the run: a tool whose family is
-sensitive is asked for unless the user authorised it. The `requires_approval`
-flag of a server adds no pause of its own on that path.
+What decides a call now is the action family of the tool, given once when the
+tool is registered, the evidence above, from the curated selection, then from
+the annotations of the server, and left unclassified otherwise. Governance
+asks on that family before the call runs, with the three answers of a consent
+prompt.
 
-The paragraph this identifier anchors says exactly that: the flag adds no pause
-of its own, and the question before a call comes from the governance of the
-run. If the evidence stops matching, the dispatcher changed how it builds its
-MCP executors and the sentence has to be read again against it.
+The identifier keeps its historical name so the anchor of the page stays
+stable; the paragraph it anchors says what the code does.
 """

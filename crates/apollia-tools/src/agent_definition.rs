@@ -454,7 +454,6 @@ pub fn manifest_of(agent: &StoredAgent) -> AgentManifest {
         skills: Vec::new(),
         execution_mode: "auto".to_owned(),
         system_prompt: None,
-        tools_requiring_approval: Vec::new(),
         model: None,
         autonomy_level: agent
             .definition

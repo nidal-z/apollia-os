@@ -2901,30 +2901,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/mcp/servers/{name}/approval": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * `PATCH /api/v1/mcp/servers/:name/approval`, Update the approval flag without restarting.
-         * @description Updates the `requires_approval` flag in-memory and persists the change to `mcp.db`.
-         *     The running session is **not** restarted; the new flag takes effect for the next
-         *     tool call. Returns `200 OK` with the updated [`McpServerStatus`] on success.
-         *     Returns `404 Not Found` when no server with `name` is managed.
-         *     Returns `503 Service Unavailable` when MCP is not configured.
-         */
-        patch: operations["set_server_approval"];
-        trace?: never;
-    };
     "/api/v1/mcp/servers/{name}/config": {
         parameters: {
             query?: never;
@@ -10776,10 +10752,6 @@ export interface components {
              * @description A preset of that same model, or `null` for the model's default.
              */
             preset_id?: number | null;
-        };
-        /** @description Request body for `PATCH /api/v1/mcp/servers/:name/approval`. */
-        SetApprovalBody: {
-            requires_approval: boolean;
         };
         /** @description Request body of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`. */
         SetCredentialBody: {
@@ -19300,58 +19272,6 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Server removed */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Server not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description Repository error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description MCP not configured */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    set_server_approval: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Server name */
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetApprovalBody"];
-            };
-        };
-        responses: {
-            /** @description Approval flag updated */
             200: {
                 headers: {
                     [name: string]: unknown;

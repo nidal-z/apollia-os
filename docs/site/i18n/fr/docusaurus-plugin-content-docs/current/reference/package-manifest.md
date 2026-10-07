@@ -149,7 +149,6 @@ Les clés, leurs défauts et leur sens sont ceux d'un serveur de `mcp.toml`.
 | `env` | table | vide | Environnement du processus du serveur ; les emplacements `${VAR}` sont admis. |
 | `transport` | chaîne | `stdio` | `stdio`, `streamable-http` ou `sse`. |
 | `url` | chaîne | aucune | URL du serveur pour un transport réseau. |
-| `requires_approval` | booléen | `false` | Marque le serveur comme exigeant une approbation de ses appels. |
 | `init_timeout_secs` | entier | `30` | Délai de la poignée de main `initialize`. |
 | `call_timeout_secs` | entier | `60` | Délai d'un `tools/call`. |
 | `max_response_bytes` | entier | `8388608` | Plafond d'une réponse du serveur. |
@@ -266,7 +265,6 @@ reason = "Reminders are sent from the user's mailbox."
 name = "ledger"
 command = "uvx"
 args = ["ledger-mcp"]
-requires_approval = true
 
 [pip]
 packages = ["pypdf==4.3.1"]

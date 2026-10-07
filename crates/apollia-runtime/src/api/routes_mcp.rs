@@ -13,7 +13,7 @@ use std::time::Instant;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::{delete, get, patch, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 
@@ -63,10 +63,6 @@ pub fn mcp_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/mcp/servers/:name/config",
             put(update_server_config::<B>),
-        )
-        .route(
-            "/api/v1/mcp/servers/:name/approval",
-            patch(set_server_approval::<B>),
         )
 }
 
@@ -682,7 +678,7 @@ fn refuse_forbidden<B: ExecutionBackend + Clone>(
 }
 
 /// Merge a partial JSON patch into an existing [`McpServerConfig`]. Every key the
-/// patch carries (`command`, `url`, `requires_approval`, ...) overrides the base;
+/// patch carries (`command`, `url`, `tags`, ...) overrides the base;
 /// the server `name` is taken from the path and is never patchable. Returns an
 /// error when the patch is not a JSON object or the merged result is not a valid
 /// config.
@@ -705,81 +701,6 @@ fn merge_server_config_patch(
         base_map.insert(key.clone(), value.clone());
     }
     serde_json::from_value(base).map_err(|e| format!("invalid merged config: {e}"))
-}
-
-/// Request body for `PATCH /api/v1/mcp/servers/:name/approval`.
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub(crate) struct SetApprovalBody {
-    requires_approval: bool,
-}
-
-/// `PATCH /api/v1/mcp/servers/:name/approval`, Update the approval flag without restarting.
-///
-/// Updates the `requires_approval` flag in-memory and persists the change to `mcp.db`.
-/// The running session is **not** restarted; the new flag takes effect for the next
-/// tool call. Returns `200 OK` with the updated [`McpServerStatus`] on success.
-/// Returns `404 Not Found` when no server with `name` is managed.
-/// Returns `503 Service Unavailable` when MCP is not configured.
-#[utoipa::path(
-    patch,
-    path = "/api/v1/mcp/servers/{name}/approval",
-    tag = "mcp",
-    params(("name" = String, Path, description = "Server name")),
-    request_body = SetApprovalBody,
-    responses(
-        (status = 200, description = "Approval flag updated"),
-        (status = 404, description = "Server not found", body = crate::api::openapi::ApiErrorBody),
-        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub(crate) async fn set_server_approval<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    Path(name): Path<String>,
-    Json(body): Json<SetApprovalBody>,
-) -> Result<Json<McpServerStatus>, JsonError> {
-    let handle = require_mcp_handle(&state)?;
-    let repo = require_mcp_repo(&state)?;
-
-    // Apply in-memory change before locking the sync Mutex.
-    handle
-        .set_server_approval(&name, body.requires_approval)
-        .await
-        .map_err(|e| json_err(StatusCode::NOT_FOUND, e))?;
-
-    // Persist: read-modify-write (Mutex guard dropped before next await).
-    {
-        let guard = repo.lock().map_err(|_| {
-            json_err(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "repository lock poisoned",
-            )
-        })?;
-        let mut current = guard
-            .find_by_name(&name)
-            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?
-            .ok_or_else(|| {
-                json_err(
-                    StatusCode::NOT_FOUND,
-                    format!("server '{}' not found", name),
-                )
-            })?;
-        current.requires_approval = body.requires_approval;
-        guard
-            .save(&current)
-            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    }
-
-    handle
-        .server_detail(&name)
-        .await
-        .map(|d| Json(d.status))
-        .ok_or_else(|| {
-            json_err(
-                StatusCode::NOT_FOUND,
-                format!("server '{}' not found", name),
-            )
-        })
 }
 
 #[cfg(test)]
@@ -828,16 +749,16 @@ mod tests {
         let existing: McpServerConfig = serde_json::from_value(serde_json::json!({
             "name": "srv",
             "command": "/old/cmd",
-            "requires_approval": false,
+            "call_timeout_secs": 60,
         }))
         .expect("valid base config");
-        // WHEN a partial patch (no `name`) changes command + requires_approval
-        let patch = serde_json::json!({ "command": "/new/cmd", "requires_approval": true });
+        // WHEN a partial patch (no `name`) changes the command and a timeout
+        let patch = serde_json::json!({ "command": "/new/cmd", "call_timeout_secs": 90 });
         let merged = merge_server_config_patch(existing, &patch).expect("merge ok");
         // THEN the path-scoped name is preserved and the patched fields apply
         assert_eq!(merged.name, "srv");
         assert_eq!(merged.command, "/new/cmd");
-        assert!(merged.requires_approval);
+        assert_eq!(merged.call_timeout_secs, 90);
     }
 
     #[test]
@@ -891,7 +812,6 @@ mod tests {
                 name: "notion".to_string(),
                 server_info: "notion-mcp".to_string(),
                 tools_count: 2,
-                requires_approval: false,
                 connected: true,
                 pid: Some(1234),
                 uptime_secs: Some(60),
@@ -908,7 +828,6 @@ mod tests {
                 args: vec![],
                 env_keys: vec!["NOTION_TOKEN".to_string()],
                 transport: "stdio".to_string(),
-                requires_approval: false,
                 tags: vec![],
             },
         };
@@ -927,7 +846,6 @@ mod tests {
                 name: "notion".to_string(),
                 server_info: "notion-mcp".to_string(),
                 tools_count: 2,
-                requires_approval: false,
                 connected: true,
                 pid: None,
                 uptime_secs: Some(120),
@@ -957,7 +875,6 @@ mod tests {
                 args: vec![],
                 env_keys: vec![],
                 transport: "stdio".to_string(),
-                requires_approval: false,
                 tags: vec![],
             },
         };
@@ -977,7 +894,6 @@ mod tests {
                 name: "notion".to_string(),
                 server_info: "notion-mcp-server".to_string(),
                 tools_count: 5,
-                requires_approval: true,
                 connected: true,
                 pid: None,
                 uptime_secs: Some(120),
@@ -991,7 +907,6 @@ mod tests {
                 name: "sqlite".to_string(),
                 server_info: "mcp-server-sqlite".to_string(),
                 tools_count: 3,
-                requires_approval: false,
                 connected: true,
                 pid: None,
                 uptime_secs: Some(90),

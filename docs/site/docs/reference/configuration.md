@@ -238,7 +238,6 @@ MCP client: approvals, tool loading, and the bridge that serves exposed agents a
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `mcp.approval_ttl_hours` | integer | `24` | Hours an MCP tool approval stays valid; 0 never expires (0 to 8760). The organization policy can fix it. |
 | `mcp.tool_loading` | one of eager, deferred | `"deferred"` | Load every MCP tool schema up front, or on first use. The organization policy can fix it. |
 | `mcp.tool_search_limit` | integer | `20` | Results returned by the tool_search tool (1 to 500). The organization policy can fix it. |
 | `mcp.server_enabled` | boolean | `false` | Let an MCP client reach the agents and workflows marked exposed, through apollia-os mcp server. The organization policy can fix it. |
@@ -370,6 +369,7 @@ Accepted in a file written for an earlier version, with a `config.key.retired` w
 | `llm.cost_alert_threshold_usd` | Nothing reads it; remove the key. |
 | `llm.runner` | The engine is chosen from the detected hardware; remove the section. |
 | `llm.vertex` | The Google Vertex AI client was removed; declare an OpenAI-compatible server instead. |
+| `mcp.approval_ttl_hours` | An MCP tool is decided on its action family, and a standing consent lasts until it is withdrawn; remove the key. |
 | `memory` | Nothing reads it; remove the section. |
 | `budget` | Nothing reads it; remove the section. |
 | `a2a` | Nothing reads it; remove the section. |

@@ -489,9 +489,10 @@ pub enum RuntimeEvent {
     /// Emitted by ORIA once the suspension is detected.
     /// - **Direct mode**: emitted by `ORIAEngine::execute_direct()` when the
     ///   agent returns `AIPResult::input_required()`. `step_id` is `None`.
-    /// - **Orchestrated mode**: emitted by `ActorLoop::suspend_for_approval()`
-    ///   before executing a step whose tool is in `tools_requiring_approval`.
-    ///   `step_id` is `Some(step.step_id)`.
+    ///
+    /// A step of a plan raises no such event: its tool calls are decided by
+    /// governance where they are made, and one that asks raises
+    /// `ChatApprovalRequired`.
     TaskInputRequired {
         /// Identifier of the suspended task.
         task_id: TaskId,

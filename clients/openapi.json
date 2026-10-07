@@ -8902,72 +8902,6 @@
         }
       }
     },
-    "/api/v1/mcp/servers/{name}/approval": {
-      "patch": {
-        "tags": [
-          "mcp"
-        ],
-        "summary": "`PATCH /api/v1/mcp/servers/:name/approval`, Update the approval flag without restarting.",
-        "description": "Updates the `requires_approval` flag in-memory and persists the change to `mcp.db`.\nThe running session is **not** restarted; the new flag takes effect for the next\ntool call. Returns `200 OK` with the updated [`McpServerStatus`] on success.\nReturns `404 Not Found` when no server with `name` is managed.\nReturns `503 Service Unavailable` when MCP is not configured.",
-        "operationId": "set_server_approval",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "description": "Server name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetApprovalBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Approval flag updated"
-          },
-          "404": {
-            "description": "Server not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Repository error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "MCP not configured",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/mcp/servers/{name}/config": {
       "put": {
         "tags": [
@@ -29004,18 +28938,6 @@
             ],
             "format": "int64",
             "description": "A preset of that same model, or `null` for the model's default."
-          }
-        }
-      },
-      "SetApprovalBody": {
-        "type": "object",
-        "description": "Request body for `PATCH /api/v1/mcp/servers/:name/approval`.",
-        "required": [
-          "requires_approval"
-        ],
-        "properties": {
-          "requires_approval": {
-            "type": "boolean"
           }
         }
       },

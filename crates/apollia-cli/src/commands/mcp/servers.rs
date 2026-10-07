@@ -15,7 +15,6 @@ pub(super) struct ServerSpec<'a> {
     pub(super) args: &'a [String],
     pub(super) url: Option<&'a str>,
     pub(super) transport: Option<&'a str>,
-    pub(super) require_approval: bool,
 }
 
 /// `apollia-os mcp add <name>`: add an MCP server to the runtime.
@@ -44,10 +43,7 @@ pub(super) async fn run_add(client: &RuntimeClient, spec: ServerSpec<'_>, json: 
 /// Without `--transport`, a URL means `streamable-http`: the runtime otherwise
 /// reads the entry as `stdio` and refuses it for its empty command.
 pub(super) fn add_body(spec: &ServerSpec<'_>) -> serde_json::Value {
-    let mut body = serde_json::json!({
-        "name": spec.name,
-        "requires_approval": spec.require_approval,
-    });
+    let mut body = serde_json::json!({ "name": spec.name });
     if let Some(cmd) = spec.command {
         body["command"] = serde_json::Value::String(cmd.to_string());
     }
@@ -247,7 +243,6 @@ pub(super) struct ServerPatch<'a> {
     pub(super) command: Option<&'a str>,
     pub(super) args: &'a [String],
     pub(super) url: Option<&'a str>,
-    pub(super) require_approval: Option<bool>,
 }
 
 /// `apollia-os mcp update <name>`: patch a server configuration.
@@ -265,13 +260,12 @@ pub(super) async fn run_update_server(
         command,
         args,
         url,
-        require_approval,
     } = patch;
-    if command.is_none() && args.is_empty() && url.is_none() && require_approval.is_none() {
+    if command.is_none() && args.is_empty() && url.is_none() {
         return crate::output::emit_error(
             json,
             exit_codes::GENERAL_ERROR,
-            "provide at least one of --command, --arg, --url, --require-approval",
+            "provide at least one of --command, --arg, --url",
         );
     }
 
@@ -287,12 +281,6 @@ pub(super) async fn run_update_server(
     }
     if let Some(u) = url {
         body.insert("url".to_string(), serde_json::Value::String(u.to_string()));
-    }
-    if let Some(req) = require_approval {
-        body.insert(
-            "requires_approval".to_string(),
-            serde_json::Value::Bool(req),
-        );
     }
 
     match client

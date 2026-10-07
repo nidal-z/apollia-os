@@ -94,7 +94,6 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         skills: skill_ids.iter().map(|id| make_skill(id)).collect(),
         execution_mode: "direct".to_string(),
         system_prompt: None,
-        tools_requiring_approval: vec![],
         model: None,
         packages: vec![],
         memory_config: None,

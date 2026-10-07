@@ -83,7 +83,7 @@ enum Signal {
     Unavailable {
         reason: String,
     },
-    /// Outcome carries no health information (e.g. pending approval).
+    /// Outcome carries no health information (e.g. a server being reloaded).
     Unchanged,
 }
 
@@ -190,9 +190,9 @@ fn classify_session_error(err: &McpSessionError) -> Signal {
             last_error: truncate(&err.to_string()),
         },
         // No health signal: the operation never reached the server.
-        McpSessionError::PendingApproval { .. }
-        | McpSessionError::ServerReloading { .. }
-        | McpSessionError::ConfigReload { .. } => Signal::Unchanged,
+        McpSessionError::ServerReloading { .. } | McpSessionError::ConfigReload { .. } => {
+            Signal::Unchanged
+        }
     }
 }
 
@@ -351,21 +351,6 @@ mod tests {
             McpHealth::Degraded { category, .. } => assert_eq!(category, ErrorCategory::Timeout),
             other => panic!("expected Degraded, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn pending_approval_leaves_health_unchanged() {
-        // GIVEN a healthy server and a call waiting on a human approval
-        let prev = McpHealth::Healthy { verified: true };
-        let err = McpSessionError::PendingApproval {
-            server: "notion".into(),
-            tool: "search".into(),
-            approval_id: "id".into(),
-        };
-        // WHEN the health state is advanced with that outcome
-        let next = next_health(&prev, OpOutcome::SessionError(&err), NOW);
-        // THEN the state is untouched: waiting on a human is not a server fault
-        assert_eq!(next, prev);
     }
 
     #[test]

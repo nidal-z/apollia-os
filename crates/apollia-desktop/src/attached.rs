@@ -142,7 +142,6 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_mcp_servers",
     "remove_mcp_server",
     "restart_mcp_server",
-    "set_mcp_server_approval",
     "test_mcp_connection",
     "test_mcp_live_server",
     "node_runtime_state",

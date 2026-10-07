@@ -98,8 +98,6 @@ impl ActorLoop {
     ///
     /// Variants handled:
     /// - retryable error with replans exhausted → `MAX_REPLAN_EXCEEDED`
-    /// - [`StepError::RejectedByUser`] → `REJECTED`
-    /// - [`StepError::ApprovalChannelClosed`] → `APPROVAL_CHANNEL_CLOSED`
     /// - any other permanent error → `STEP_FAILED`
     ///
     /// `prefix_step_in_message` selects the `STEP_FAILED` detail wording: the
@@ -121,19 +119,6 @@ impl ActorLoop {
                 AIPResult::failed(
                     "MAX_REPLAN_EXCEEDED",
                     &format!("{} replans exceeded", self.max_replans),
-                )
-            }
-            StepError::RejectedByUser { reason } => {
-                self.persist_step_failure(step_id, reason);
-                self.fail_plan("REJECTED");
-                AIPResult::failed("REJECTED", reason)
-            }
-            StepError::ApprovalChannelClosed => {
-                self.persist_step_failure(step_id, "approval_channel_closed");
-                self.fail_plan("APPROVAL_CHANNEL_CLOSED");
-                AIPResult::failed(
-                    "APPROVAL_CHANNEL_CLOSED",
-                    "Approval channel closed - runtime shutting down",
                 )
             }
             e => {

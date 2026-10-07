@@ -106,20 +106,6 @@ pub enum McpSessionError {
     #[error("cannot reload server '{server}': not found in managed sessions")]
     ConfigReload { server: String },
 
-    /// The tool call was suspended because HITL approval is required.
-    ///
-    /// The caller should surface `approval_id` to the operator so they can
-    /// run `apollia-os mcp set-approval` to unblock future calls.
-    #[error("tool call to '{server}/{tool}' requires human approval (id={approval_id})")]
-    PendingApproval {
-        /// MCP server name.
-        server: String,
-        /// Tool name within the server.
-        tool: String,
-        /// UUID of the pending approval request created in the approval store.
-        approval_id: String,
-    },
-
     /// A tool call arrived while the server is being hot-reloaded.
     ///
     /// The server has been disconnected but the new session is not yet established.
@@ -471,19 +457,6 @@ impl McpSession {
         self.instructions.as_deref()
     }
 
-    /// Returns whether every tool call to this server requires HITL approval.
-    pub fn requires_approval(&self) -> bool {
-        self.config.requires_approval
-    }
-
-    /// Update whether tool calls to this server require HITL approval.
-    ///
-    /// The change takes effect immediately for future calls; no process restart
-    /// is required. Callers are responsible for persisting the change to `mcp.toml`.
-    pub fn set_requires_approval(&mut self, requires_approval: bool) {
-        self.config.requires_approval = requires_approval;
-    }
-
     /// Returns the OS process ID of the server process, if applicable.
     ///
     /// Delegates to the transport; subprocess-based transports return the child PID.
@@ -641,7 +614,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs,
             call_timeout_secs,
             max_response_bytes: 8 * 1024 * 1024,

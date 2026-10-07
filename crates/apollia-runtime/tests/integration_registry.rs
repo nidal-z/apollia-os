@@ -22,7 +22,6 @@ fn make_manifest(name: &str) -> AgentManifest {
         supports_mailbox: false,
         mailbox_allowlist: None,
         system_prompt: None,
-        tools_requiring_approval: vec![],
         model: None,
         packages: vec![],
         memory_config: None,

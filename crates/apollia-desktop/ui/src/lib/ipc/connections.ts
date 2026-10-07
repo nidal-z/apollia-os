@@ -83,13 +83,6 @@ export function getMcpServerDetail(name: string): Promise<McpServerDetailView> {
   return invoke<McpServerDetailView>("get_mcp_server_detail", { name });
 }
 
-export function setMcpServerApproval(
-  name: string,
-  requiresApproval: boolean,
-): Promise<void> {
-  return invoke<void>("set_mcp_server_approval", { name, requiresApproval });
-}
-
 export function testMcpLiveServer(name: string): Promise<McpConnectionTestResponse> {
   return invoke<McpConnectionTestResponse>("test_mcp_live_server", { name });
 }
@@ -176,7 +169,6 @@ export interface McpServerRawConfig {
   env: Record<string, string>;
   transport: string;
   url?: string | null;
-  requires_approval: boolean;
   init_timeout_secs: number;
   call_timeout_secs: number;
   tags: string[];

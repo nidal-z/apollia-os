@@ -193,7 +193,6 @@ mod tests {
             env: HashMap::new(),
             transport: transport.to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 5,
             call_timeout_secs: 5,
             max_response_bytes: 8 * 1024 * 1024,

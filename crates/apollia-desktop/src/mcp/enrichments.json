@@ -15,7 +15,6 @@
       "en": "Create a new integration and copy the Internal Integration Secret.",
       "fr": "Créez une nouvelle intégration et copiez le Secret d'intégration interne."
     },
-    "default_requires_approval": true,
     "remote_url": "https://mcp.notion.com/mcp",
     "remote_transport": "streamable-http",
     "remote_headers": [
@@ -101,7 +100,6 @@
       "en": "Sign up for a Brave Search API key.",
       "fr": "Inscrivez-vous pour obtenir une clé API Brave Search."
     },
-    "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
     "package_version": "0.6.2",
@@ -160,7 +158,6 @@
       "en": "List one or more absolute directory paths the server is allowed to access. Separate multiple paths with spaces or new lines.",
       "fr": "Indiquez un ou plusieurs chemins absolus de dossiers auxquels le serveur a accès. Séparez les chemins par des espaces ou des sauts de ligne."
     },
-    "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
     "package_version": "2026.8.31",
@@ -207,7 +204,6 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
     "package_version": "2026.8.31",
@@ -248,7 +244,6 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": true,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
     "cost_model": { "kind": "free" },
@@ -279,7 +274,6 @@
       "en": "Create a fine-grained personal access token with the scopes you want to grant.",
       "fr": "Créez un personal access token fine-grained avec les permissions souhaitées."
     },
-    "default_requires_approval": true,
     "remote_url": "https://api.githubcopilot.com/mcp/",
     "remote_transport": "streamable-http",
     "remote_headers": [
@@ -309,7 +303,6 @@
       "en": "Create a Slack app and install it to your workspace to obtain an OAuth token.",
       "fr": "Créez une app Slack et installez-la dans votre espace pour obtenir un token OAuth."
     },
-    "default_requires_approval": true,
     "remote_url": "https://mcp.slack.com",
     "remote_transport": "streamable-http",
     "remote_headers": [
@@ -338,7 +331,6 @@
       "en": "Linear MCP officially uses OAuth. Until Apollia's automatic OAuth handshake lands (v0.1.1), paste an OAuth access token manually with the `Bearer ` prefix, or your Linear API key.",
       "fr": "Le MCP Linear utilise officiellement OAuth. En attendant le handshake automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `, ou votre clé API Linear."
     },
-    "default_requires_approval": true,
     "remote_url": "https://mcp.linear.app/mcp",
     "remote_transport": "streamable-http",
     "remote_headers": [
@@ -409,7 +401,6 @@
       "en": "Atlassian Rovo MCP officially uses OAuth. Until Apollia's automatic OAuth handshake lands (v0.1.1), paste an OAuth access token manually with the `Bearer ` prefix. Rovo availability depends on your Atlassian plan.",
       "fr": "Le MCP Atlassian Rovo utilise officiellement OAuth. En attendant le handshake automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `. La disponibilité de Rovo dépend de votre plan."
     },
-    "default_requires_approval": true,
     "remote_url": "https://mcp.atlassian.com/v1/mcp",
     "remote_transport": "streamable-http",
     "remote_headers": [
@@ -687,7 +678,6 @@
       "en": "Copy your Stripe restricted key from the dashboard.",
       "fr": "Copiez votre clé restreinte Stripe depuis le tableau de bord."
     },
-    "default_requires_approval": true,
     "remote_url": "https://mcp.stripe.com",
     "remote_transport": "streamable-http",
     "remote_headers": [
@@ -743,7 +733,6 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Figma-MCP-server",
     "auth_help_i18n_key": "integrations.connectors.figma.auth_help",
-    "default_requires_approval": false,
     "remote_url": "http://127.0.0.1:3845/sse",
     "remote_transport": "sse",
     "cost_model": { "kind": "free" },
@@ -789,7 +778,6 @@
       "en": "Create a Sentry user auth token with the read-only scopes you need.",
       "fr": "Créez un token utilisateur Sentry avec les permissions en lecture seule nécessaires."
     },
-    "default_requires_approval": false,
     "remote_url": "https://mcp.sentry.dev/mcp",
     "remote_transport": "streamable-http",
     "remote_headers": [
@@ -892,7 +880,6 @@
       "en": "Create a Cloudflare API token with the permissions you want to grant.",
       "fr": "Créez un token API Cloudflare avec les permissions souhaitées."
     },
-    "default_requires_approval": true,
     "remote_url": "https://mcp.cloudflare.com/mcp",
     "remote_transport": "streamable-http",
     "remote_headers": [
@@ -935,7 +922,6 @@
       "en": "Provide the connection string of the database to query.",
       "fr": "Fournissez la chaîne de connexion de la base à interroger."
     },
-    "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
     "package_version": "0.6.2",
@@ -976,7 +962,6 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
     "cost_model": { "kind": "free" },
@@ -1003,7 +988,6 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "npx",
     "cost_model": { "kind": "free" },
@@ -1035,7 +1019,6 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": false,
     "package_registry_type": "pypi",
     "package_runtime_hint": "uvx",
     "package_version": "2026.8.18",
@@ -1388,7 +1371,6 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": false,
     "package_registry_type": "pypi",
     "package_runtime_hint": "uvx",
     "package_version": "2026.8.18",
