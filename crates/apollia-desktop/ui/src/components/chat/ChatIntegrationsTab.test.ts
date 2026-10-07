@@ -31,12 +31,12 @@ vi.mock("@tauri-apps/plugin-notification", () => ({
   sendNotification: vi.fn(),
 }));
 
-import ChatConfigPanelBody, {
+import ChatIntegrationsTab, {
   profileIdOf,
   profileSelection,
   profileSwitchOf,
   writeProfileSwitch,
-} from "./ChatConfigPanelBody.svelte";
+} from "./ChatIntegrationsTab.svelte";
 import { chatConversationStats } from "$lib/stores/chat";
 import type { ProfileSummaryView } from "$lib/ipc/profile";
 import { developerMode } from "$lib/stores/developerMode";
@@ -69,7 +69,7 @@ function libreSession(): ChatSessionDetail {
  * server render walks the same template branches.
  */
 function render(): string {
-  return renderToString(ChatConfigPanelBody, {
+  return renderToString(ChatIntegrationsTab, {
     props: { session: libreSession(), onupdated: () => {} },
   }).body;
 }
@@ -111,7 +111,7 @@ describe("isSensitiveFamily", () => {
   });
 });
 
-describe("ChatConfigPanelBody - tool sensitivity follows the action family", () => {
+describe("ChatIntegrationsTab - tool sensitivity follows the action family", () => {
   test("a reading tool is plain, every other family is marked", () => {
     // GIVEN the builder view of a libre session's configuration
     developerMode.set(true);
@@ -161,7 +161,7 @@ function profile(id: string, name: string, isDefault: boolean): ProfileSummaryVi
   };
 }
 
-describe("ChatConfigPanelBody - the conversation designates its profile", () => {
+describe("ChatIntegrationsTab - the conversation designates its profile", () => {
   test("the profile select sits beside the preferences toggle", () => {
     // GIVEN the configuration panel of a libre session
     developerMode.set(false);
@@ -207,7 +207,7 @@ describe("ChatConfigPanelBody - the conversation designates its profile", () => 
   });
 });
 
-describe("ChatConfigPanelBody - the profile switch is stored with the conversation", () => {
+describe("ChatIntegrationsTab - the profile switch is stored with the conversation", () => {
   const stats = (injected: boolean) => ({
     message_count: 2,
     summarized_count: 0,
@@ -246,7 +246,7 @@ describe("ChatConfigPanelBody - the profile switch is stored with the conversati
   test("the panel seeds the switch from the default while no conversation is open", () => {
     // GIVEN the source of the panel
     const panel = readFileSync(
-      resolve(__dirname, "ChatConfigPanelBody.svelte"),
+      resolve(__dirname, "ChatIntegrationsTab.svelte"),
       "utf8",
     );
 

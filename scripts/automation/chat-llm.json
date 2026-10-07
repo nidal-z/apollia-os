@@ -411,7 +411,16 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-integrations-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-session-integrations",
       "timeoutMs": 10000
     },
     {
@@ -1037,32 +1046,6 @@
     {
       "kind": "awaitTurn",
       "label": "18-budget-ready"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-config-button"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "config-step-budget",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "fill",
-      "testid": "config-step-budget",
-      "text": "1"
-    },
-    {
-      "kind": "click",
-      "testid": "config-save"
-    },
-    {
-      "kind": "screenshot",
-      "label": "18-step-budget-set"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-config-button"
     },
     {
       "kind": "sendChat",

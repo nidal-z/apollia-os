@@ -57,7 +57,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # 695 -> 707: the twelve anchors of the accelerated engine card of the AI
 # screen. The card is shown only on a machine with an NVIDIA card, and the
 # deterministic suite runs on a seed without one, so no script can reach it.
-NEVER_REACHED_MAX = 707
+# 707 -> 713: the settings tab of the chat panel leaves six anchors without a
+# script (its error banners, the no-model notices, the reasoning controls of a
+# model with a profile); the story measured below the ceiling on its own base.
+NEVER_REACHED_MAX = 713
 
 LITERAL = re.compile(r'data-testid="([A-Za-z0-9_\-./:]+)"')
 

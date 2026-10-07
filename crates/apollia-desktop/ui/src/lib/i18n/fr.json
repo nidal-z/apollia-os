@@ -3594,8 +3594,6 @@
     "status_active": "Active",
     "status_closed": "Fermée",
     "message_count": "{n, plural, =0 {aucun message} one {# message} other {# messages}}",
-    "system_prompt": "Instructions",
-    "system_prompt_placeholder": "Instructions pour le LLM...",
     "input_placeholder": "Tapez votre message...",
     "placeholder_suggestions": {
       "s1": "Demande à l'agent de résumer la dernière exécution...",
@@ -3610,21 +3608,11 @@
     },
     "config_title": "Configuration",
     "config_save": "Appliquer",
-    "step_budget_label": "Budget d'étapes",
-    "step_budget_placeholder": "Valeur par défaut du runtime",
-    "step_budget_hint": "Nombre maximum d'étapes de raisonnement par tour (1–200). Laisser vide pour utiliser la valeur par défaut du runtime.",
     "config": {
       "profile_label": "Profil de la conversation",
       "profile_default": "Profil par défaut ({name})",
       "profile_default_unnamed": "Profil par défaut",
-      "profile_hint": "Vide, la conversation suit votre profil par défaut, même s'il change.",
-      "errors": {
-        "llm_required": "Sélectionnez un fournisseur LLM avant d'enregistrer.",
-        "system_prompt_too_long": "Le prompt système est trop long (max 4000 caractères).",
-        "step_budget_invalid": "Le budget doit être un nombre entier.",
-        "step_budget_positive": "Le budget doit être strictement supérieur à zéro.",
-        "step_budget_too_large": "Le budget ne peut pas dépasser 200."
-      }
+      "profile_hint": "Vide, la conversation suit votre profil par défaut, même s'il change."
     },
     "tool_collapse": "réduire",
     "authorize_tool": "Autoriser l'exécution de",
@@ -3637,8 +3625,6 @@
     "ask_user_pending": "En attente…",
     "you": "Vous",
     "assistant": "Assistant",
-    "config_provider": "Modèle IA",
-    "config_no_providers": "Aucun modèle chargé",
     "delete_session": "Supprimer",
     "chips": {
       "thinking": "Réfléchir",
@@ -4118,6 +4104,95 @@
       "refusal_title": "{name} n'a pas été chargé dans ce volet",
       "refusal_body": "Mémoire insuffisante avec les modèles déjà chargés : estimation {estimated} Go pour {budget} Go (garde-fous « {level} »). Choisissez un modèle déjà chargé, fermez un volet, ou chargez quand même après confirmation.",
       "refusal_choose": "Choisir un autre modèle"
+    },
+    "session_panel": {
+      "integrations": "Intégrations",
+      "settings": "Paramètres"
+    },
+    "session_settings": {
+      "revert_to_preset": "Revenir au preset",
+      "revert_to_default": "Revenir au défaut",
+      "preset": {
+        "title": "Preset",
+        "none": "Aucun preset (réglages de l'agent)",
+        "hint": "Un preset garde la température et la longueur de réponse pour ce modèle.",
+        "modified": "Modifié",
+        "differs": "Diffère du preset : {fields}",
+        "field_temperature": "température",
+        "field_max_tokens": "longueur de réponse",
+        "discard": "Abandonner les modifications",
+        "menu": "Actions sur les presets",
+        "new": "Nouveau preset",
+        "import": "Importer un preset",
+        "save_as": "Enregistrer comme preset",
+        "saved": "Preset « {name} » enregistré",
+        "name_label": "Nom du preset",
+        "create": "Créer",
+        "error_not_json": "Ce fichier n'est pas un fichier JSON lisible.",
+        "error_not_a_preset": "Ce fichier ne décrit pas un preset : il lui faut un nom, et des réglages sous forme d'objets.",
+        "error_no_model": "Aucun modèle n'est choisi pour cette conversation : choisissez-en un pour utiliser un preset.",
+        "error_refused": "Le preset n'a pas été créé : {reason}"
+      },
+      "instructions": {
+        "title": "Instructions de la conversation",
+        "placeholder": "Par exemple : réponds en une phrase.",
+        "count": "{count} / {max} caractères.",
+        "help": "Elles s'ajoutent à la mission de l'agent, sans la remplacer, pour cette conversation seulement.",
+        "too_long": "Les instructions sont trop longues : elles ne sont pas enregistrées."
+      },
+      "reasoning": {
+        "title": "Raisonnement",
+        "thinking": "Réfléchir avant de répondre",
+        "effort": "Niveau de raisonnement",
+        "effort_default": "Par défaut",
+        "effort_low": "Faible",
+        "effort_medium": "Moyen",
+        "effort_high": "Élevé",
+        "scope": "Vaut pour cette conversation seulement."
+      },
+      "response": {
+        "title": "Réponse",
+        "summary": "Température {temperature} · longueur {length} · {overflow}",
+        "by_default": "par défaut",
+        "length_free": "libre",
+        "temperature": "Température",
+        "temperature_hint": "Basse, les réponses sont plus régulières ; haute, elles sont plus variées.",
+        "limit_length": "Limiter la longueur de réponse",
+        "length_unit": "jetons au plus",
+        "overflow": "Quand la conversation atteint la limite du modèle",
+        "overflow_summarize_middle": "Résumer le milieu",
+        "overflow_sliding_window": "Fenêtre glissante",
+        "overflow_stop_at_limit": "S'arrêter à la limite",
+        "overflow_summarize_middle_help": "Les échanges les plus anciens sont résumés ; le début et la fin de la conversation restent tels quels. C'est le réglage par défaut.",
+        "overflow_sliding_window_help": "Les messages les plus anciens sortent de la conversation envoyée au modèle, sans résumé.",
+        "overflow_stop_at_limit_help": "Le message est refusé une fois la limite atteinte : bifurquez depuis un message antérieur, ou ouvrez une nouvelle conversation."
+      },
+      "notes": {
+        "title": "Notes de conversation",
+        "empty": "Vide",
+        "placeholder": "Vos notes sur cette conversation.",
+        "saved": "Enregistrées.",
+        "saving": "Enregistrement…"
+      },
+      "apply": {
+        "action": "Appliquer à l'agent",
+        "no_model": "Aucun modèle n'est choisi pour cette conversation : il n'y a rien à appliquer à l'agent.",
+        "title": "Appliquer à l'agent {agent}",
+        "receives": "L'agent recevra :",
+        "model": "le modèle de cette conversation : {model}",
+        "preset_created": "un nouveau preset, avec les réglages de cette conversation",
+        "preset_existing": "le preset « {preset} »",
+        "preset_none": "aucun preset : les réglages par défaut du modèle",
+        "temperature": "température : {value}",
+        "max_tokens": "longueur de réponse : {value} jetons au plus",
+        "not_applied": "Le raisonnement, la limite de contexte et les notes restent propres à cette conversation.",
+        "preset_name": "Preset de {agent}",
+        "add_instructions": "Ajouter aussi les instructions de la conversation à la fin de la mission de l'agent",
+        "mission_after": "Mission obtenue",
+        "mission_unchanged": "Mission de l'agent, inchangée",
+        "confirm": "Appliquer",
+        "done": "Réglages appliqués à l'agent {agent}"
+      }
     }
   },
   "transcriptions": {

@@ -2364,7 +2364,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 3000
     },
     {
@@ -2389,17 +2389,17 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
       "timeoutMs": 3000
     },
     {
       "kind": "expect",
-      "testid": "chat-inspector-config"
+      "testid": "chat-inspector-session"
     },
     {
       "kind": "screenshot",
@@ -2407,29 +2407,172 @@
     },
     {
       "kind": "expect",
-      "testid": "config-system-prompt"
+      "testid": "session-instructions-field"
     },
     {
       "kind": "fill",
-      "testid": "config-system-prompt",
+      "testid": "session-instructions-field",
       "text": "You are a deterministic test assistant.",
       "timeoutMs": 3000
     },
     {
+      "kind": "sleep",
+      "ms": 900
+    },
+    {
       "kind": "expect",
-      "testid": "config-step-budget"
+      "testid": "session-preset-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-option-none"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-menu"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-file"
     },
     {
       "kind": "fill",
-      "testid": "config-step-budget",
-      "text": "5",
+      "testid": "session-preset-file",
+      "text": "this file is not a preset",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "config-backend-",
-      "nth": 0,
-      "timeoutMs": 2500
+      "testid": "session-preset-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-instructions-count"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-response-summary"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-notes-summary"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-save-as-preset"
+    },
+    {
+      "kind": "click",
+      "testid": "session-response-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-context-overflow",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-temperature"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-temperature-slider"
+    },
+    {
+      "kind": "click",
+      "testid": "session-limit-length",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-max-tokens",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-modified"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-differs"
+    },
+    {
+      "kind": "click",
+      "testid": "session-apply-to-agent",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-apply-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-apply-preset-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-apply-instructions"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-apply-mission-preview"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-apply-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "session-apply-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-apply-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "session-preset-discard",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-max-tokens",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "session-notes-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-notes-field",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-notes-field",
+      "text": "Deterministic note.",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-notes-status"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-integrations-tab",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-session-integrations",
+      "timeoutMs": 3000
     },
     {
       "kind": "expect",
@@ -2721,7 +2864,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 3000
     },
     {
@@ -3028,12 +3171,12 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
       "timeoutMs": 3000
     },
     {
@@ -3126,7 +3269,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 3000
     },
     {
@@ -3147,7 +3290,7 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 3000
     },
     {
@@ -4421,12 +4564,12 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
       "timeoutMs": 3000
     },
     {
