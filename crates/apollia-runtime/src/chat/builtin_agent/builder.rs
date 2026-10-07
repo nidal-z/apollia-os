@@ -189,6 +189,7 @@ impl BuiltInChatAgent {
             .or_else(|| self.turn_temperature(!request.tools.is_empty()));
         request.thinking = self.session.thinking;
         request.reasoning_effort = self.session.reasoning_effort;
+        request.preserve_thinking = self.session.preserve_thinking;
         settings.resolved.apply_to(request);
     }
 

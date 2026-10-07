@@ -29423,6 +29423,13 @@
             },
             "description": "Accesses the conversation is limited to. When the list is not empty,\nof the accesses of the agent only those it names are kept, and those\nit names that the agent does not hold are proposed: each of their\ncalls asks for consent."
           },
+          "preserve_thinking": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the reasoning of the earlier answers goes back to the model\nat each turn, for a model that reads it. It takes room in the\ncontext; left out, it is not sent."
+          },
           "preset": {
             "type": [
               "integer",

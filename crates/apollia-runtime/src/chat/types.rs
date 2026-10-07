@@ -311,6 +311,9 @@ pub struct ChatMessage {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Key of the metadata of an answer under which its reasoning is stored.
+pub(crate) const THINKING_TRACE_KEY: &str = "thinking_trace";
+
 /// Role of a chat message sender.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ChatRole {

@@ -124,6 +124,8 @@ pub struct SessionOverrides {
     pub thinking: Option<bool>,
     /// Level of reasoning, for a model that reads it.
     pub reasoning_effort: Option<apollia_llm::ReasoningEffort>,
+    /// Whether the reasoning of the earlier answers goes back to the model.
+    pub preserve_thinking: Option<bool>,
     /// What happens when the messages reach the context limit.
     pub overflow: apollia_oria::context_manager::ContextOverflow,
     /// Accesses the agent does not hold, proposed for the conversation: each

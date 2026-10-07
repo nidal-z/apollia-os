@@ -36,6 +36,10 @@ pub const THINKING_VARIABLE: &str = "enable_thinking";
 /// The template variable a [`ReasoningProfile::Levels`] model reads.
 pub const REASONING_EFFORT_VARIABLE: &str = "reasoning_effort";
 
+/// Template variable that keeps the reasoning of the earlier answers in the
+/// prompt. A template that does not read it ignores it.
+pub const PRESERVE_THINKING_VARIABLE: &str = "preserve_thinking";
+
 /// Families whose profile the template alone does not settle, keyed by the
 /// architecture a GGUF header names (`general.architecture`) or the
 /// `model_type` of an MLX `config.json`, compared without case, `_` read as

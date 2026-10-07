@@ -128,6 +128,7 @@ pub(super) fn py_dict_to_chat_message(py: Python<'_>, obj: &PyObject) -> PyResul
         role,
         content: MessageContent::Text(content_str),
         cache_control: None,
+        reasoning: None,
     })
 }
 /// Flattens a list of multimodal content blocks (TextContent / ImageContent)

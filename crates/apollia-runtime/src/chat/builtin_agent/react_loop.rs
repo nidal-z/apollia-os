@@ -99,6 +99,7 @@ impl BuiltInChatAgent {
             summary,
             context_window_size,
             &self.turn_images,
+            self.session.preserve_thinking == Some(true),
         );
 
         // A resume turn carrying an operator instruction prepends it as a user

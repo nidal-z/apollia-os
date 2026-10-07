@@ -93,6 +93,8 @@ export interface SessionSettings {
   /** Reasoning on or off, for a model that reads it. */
   thinking?: boolean;
   reasoning_effort?: ReasoningEffort;
+  /** The reasoning of the earlier answers goes back to the model; left out, it does not. */
+  preserve_thinking?: boolean;
   temperature?: number;
   max_tokens?: number;
   context_overflow?: "summarize_middle" | "sliding_window" | "stop_at_limit";

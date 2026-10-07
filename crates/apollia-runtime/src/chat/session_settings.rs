@@ -70,6 +70,11 @@ pub struct SessionSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<String>)]
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// Whether the reasoning of the earlier answers goes back to the model
+    /// at each turn, for a model that reads it. It takes room in the
+    /// context; left out, it is not sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preserve_thinking: Option<bool>,
     /// Sampling temperature, between 0 and 2.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -353,6 +358,7 @@ mod tests {
             preset: Some(7),
             thinking: Some(true),
             reasoning_effort: Some(ReasoningEffort::High),
+            preserve_thinking: Some(true),
             temperature: Some(0.3),
             max_tokens: Some(1024),
             context_overflow: Some(ContextOverflowSetting::StopAtLimit),
@@ -372,6 +378,7 @@ mod tests {
         // and the second inherits everything
         assert_eq!(back, full);
         assert!(column.contains(r#""reasoning_effort":"high""#), "{column}");
+        assert!(column.contains(r#""preserve_thinking":true"#), "{column}");
         assert!(
             column.contains(r#""context_overflow":"stop_at_limit""#),
             "{column}"

@@ -307,6 +307,60 @@ async fn test_a_session_prompt_is_added_to_the_mission_and_never_replaces_it() {
 }
 
 #[tokio::test]
+async fn test_the_reasoning_of_an_earlier_answer_goes_back_only_when_the_conversation_keeps_it() {
+    // GIVEN two free chats whose first answer was reasoned, one of them
+    // keeping the reasoning of its earlier answers
+    let dir = tempfile::tempdir().unwrap();
+    let reasoned = || StreamChunk::Text("<think>17 times 3 is 30 plus 21.</think>51".into());
+    let chat = Chat::over(&dir, vec![reasoned(), reasoned()], false).await;
+    let keeping = chat.session(None, &["notes_read"]).await;
+    let plain = chat.session(None, &["notes_read"]).await;
+    chat.handle
+        .set_session_settings(
+            keeping.clone(),
+            SessionSettings {
+                preserve_thinking: Some(true),
+                ..SessionSettings::default()
+            },
+        )
+        .await
+        .expect("settings");
+    chat.turn(&keeping, "What is 17 times 3?").await;
+    chat.turn(&plain, "What is 17 times 3?").await;
+
+    // WHEN a second message is sent in each
+    chat.turn(&keeping, "And times 2?").await;
+    chat.turn(&plain, "And times 2?").await;
+
+    // THEN the second call of the first carries the setting, and its earlier
+    // answer travels with the reasoning stored beside it; the second call of
+    // the other carries neither, and both answers travel without their tags
+    let requests = chat.requests();
+    assert_eq!(requests.len(), 4);
+    let earlier_answer = |request: &CompletionRequest| {
+        request
+            .messages
+            .iter()
+            .find(|message| message.role == Role::Assistant)
+            .cloned()
+            .expect("the earlier answer")
+    };
+    let kept = earlier_answer(&requests[2]);
+    let dropped = earlier_answer(&requests[3]);
+    assert_eq!(requests[2].preserve_thinking, Some(true));
+    assert_eq!(kept.reasoning.as_deref(), Some("17 times 3 is 30 plus 21."));
+    assert_eq!(requests[3].preserve_thinking, None);
+    assert_eq!(dropped.reasoning, None);
+    for answer in [&kept, &dropped] {
+        assert!(
+            matches!(&answer.content, MessageContent::Text(text) if text == "51"),
+            "{answer:?}"
+        );
+    }
+    chat.handle.shutdown().await;
+}
+
+#[tokio::test]
 async fn test_the_request_settings_of_a_conversation_are_sent_with_its_calls() {
     // GIVEN two free chats, one of them tuned: a temperature, an answer
     // length, reasoning switched off

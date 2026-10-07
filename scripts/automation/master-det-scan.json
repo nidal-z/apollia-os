@@ -3467,6 +3467,17 @@
       }
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_chat_model_capabilities",
+      "resolve": {
+        "model": "seed-reasoning-model",
+        "local": true,
+        "reasoning_profile": "toggle",
+        "vision": false,
+        "image_formats": []
+      }
+    },
+    {
       "kind": "goto",
       "route": "chat",
       "sessionId": "seed-session-1"
@@ -3500,6 +3511,37 @@
     {
       "kind": "screenshot",
       "label": "35c-inspector-prompt-template-engine"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-preserve-thinking",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preserve-thinking-help"
+    },
+    {
+      "kind": "click",
+      "testid": "session-preserve-thinking",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "35d-inspector-keep-earlier-reasoning (ChatModelCapabilities stubbed: no engine runs, the reasoning block needs a model that reasons)"
+    },
+    {
+      "kind": "click",
+      "testid": "session-preserve-thinking",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
     },
     {
       "kind": "clearStubs"

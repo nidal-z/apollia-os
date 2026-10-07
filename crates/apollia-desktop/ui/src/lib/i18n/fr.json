@@ -4157,6 +4157,8 @@
         "effort_low": "Faible",
         "effort_medium": "Moyen",
         "effort_high": "Élevé",
+        "preserve_thinking": "Garder le raisonnement des réponses précédentes",
+        "preserve_thinking_help": "Le raisonnement des réponses précédentes est renvoyé au modèle à chaque message : il garde le fil de sa réflexion, et le contexte se remplit plus vite.",
         "scope": "Vaut pour cette conversation seulement."
       },
       "response": {
