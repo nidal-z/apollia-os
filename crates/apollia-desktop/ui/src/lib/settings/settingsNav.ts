@@ -7,9 +7,9 @@
  * section. Notifications comes just before Developer, and Developer
  * closes the use-ranked part of its group: it is the switch a business user
  * never has to touch. Configuration, the editor of `apollia.toml`, follows it
- * and is listed only with the developer mode on. The sections that leave the
- * settings for their own screens (LLM backends, Model Hub) follow it until
- * they move. Three already left: the OAuth integrations live on the
+ * and is listed only with the developer mode on. Five sections left the
+ * settings for their own screens: the inference servers and the model
+ * catalogue live on the AI screen; the OAuth integrations live on the
  * Connections screen, on the page of each connection; the built-in tools are
  * a source of tools on that same screen; the permission rules live on the
  * Authorizations screen.

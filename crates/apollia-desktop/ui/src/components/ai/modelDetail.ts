@@ -35,6 +35,20 @@ export function tabLabelKey(tab: PanelTab): string {
 }
 
 /**
+ * The tabs the panel offers: Infos for everyone, Loading and Inference with
+ * the developer mode on. Everything they hold is automatic by default, so
+ * nobody has to reach them for a model to work.
+ */
+export function panelTabs(developerMode: boolean): PanelTab[] {
+  return developerMode ? [...PANEL_TABS] : ["info"];
+}
+
+/** The tab on screen: the one asked for when the mode offers it, Infos otherwise. */
+export function shownPanelTab(tab: PanelTab, developerMode: boolean): PanelTab {
+  return panelTabs(developerMode).includes(tab) ? tab : "info";
+}
+
+/**
  * What the panel shows: the model named `openId` as the list has it now, and
  * whether it is in memory. `null` when no panel is open or the model left
  * the list.

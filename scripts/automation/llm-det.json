@@ -1,5 +1,5 @@
 {
-  "name": "llm-det (the AI screen: loaded models, models of this computer, the panel of a model with its three tabs folded and unfolded, and the servers: list, models, default, short window, test and retry, switch, menu, delete by name cancelled, edit and add under stubs, empty state, list error; developer mode off then on then off)",
+  "name": "llm-det (the AI screen: loaded models, models of this computer, the panel of a model, Infos alone with the developer mode off, its three tabs folded and unfolded with it on, and the servers: list, models, default, short window, test and retry, switch, menu, delete by name cancelled, edit and add under stubs, empty state, list error; developer mode off then on then off)",
   "stopOnError": false,
   "notes": [
     "The Loaded section is shown through a stubbed IPC: no engine holds a model in the deterministic run, so the visit in developer mode stubs list_loaded_models with one resident chat model shaped like the runtime answer (routes_llm/loaded.rs, camelCase, footprintGb 2.5) before the route mounts, asserts the card, its name, memory, load time, summary and unload button, then clears the stub. Nothing is loaded or unloaded: the unload button is only asserted. The pin is shown the same way: list_model_pins is stubbed with PinsResponse (routes_llm/residency.rs) naming the path of that model, so the card carries its 'kept in memory' mark and its pin button, both only asserted.",
@@ -9,7 +9,7 @@
     "ai-server-save is never played against the real runtime: save_llm_server and update_llm_server are answered by a stub, and the delete dialog is cancelled, so the seeded servers are left untouched and the book is re-runnable. destructive.json deletes a server for real.",
     "The developer fields of the form (ai-server-timeout, ai-server-extra) are asserted present with the developer mode on and gone with it off; llm-advanced-det plays their refusals one by one.",
     "ai-server-error-banner-retry and ai-servers-error-banner-retry are composed by ErrorBanner.svelte off the id it is given; ai-server-delete-dialog-typed-name, -confirm and -cancel by ConfirmDialog.svelte.",
-    "The panel of a model is opened three ways: by the gear of a row and by a click on the row (developer mode off, the seeded Phi-3-mini-Q4, a GGUF), and by the name of a loaded card (developer mode on, under the list_loaded_models stub). Its Loading and Inference sections are asserted folded (their fields gone), unfolded, then folded again. The seeded GGUF files are placeholders, so the quantisation and the architecture of the real detail read 'Not stated'; they are asserted on the MLX model below.",
+    "The panel of a model is opened three ways: by the gear of a row and by a click on the row (developer mode off, the seeded Phi-3-mini-Q4, a GGUF), and by the name of a loaded card (developer mode on, under the list_loaded_models stub). With the developer mode off the panel offers Infos alone: the Loading and Inference tabs and the preset bar are asserted gone. With it on, before any stub, the gear of the same row opens the three tabs, whose Loading and Inference sections are asserted folded (their fields gone), unfolded, then folded again; the book then leaves the route so the stubbed visit mounts the screen anew. The seeded GGUF files are placeholders, so the quantisation and the architecture of the real detail read 'Not stated'; they are asserted on the MLX model below.",
     "The MLX model is shown under stubs, the seed holding none: list_installed_models (InstalledModelView of installed_models.rs, type InstalledModel of lib/ipc/modelHub.ts), get_installed_model_detail (ModelDetailView of commands/ai_model_detail.rs, type ModelDetail of lib/ipc/modelDetail.ts, with one author field shaped like LocalizedAuthorField) and list_model_presets (an empty list). The developer sections are walked on the seeded model: the type choice is answered by a once stub of set_installed_model_category_override so the seeded index is left untouched, and the source switch is asserted unavailable, the seed holding no other weights file of that model."
   ],
   "dynamicTestids": [
@@ -45,6 +45,7 @@
     "ai-panel-load-section-context",
     "ai-panel-load-section-context-toggle",
     "ai-panel-tab-inference",
+    "ai-panel-tab-info",
     "ai-panel-tab-load",
     "settings-nav-developer"
   ],
@@ -348,6 +349,125 @@
       "label": "03b-model-panel-info (developer mode off)"
     },
     {
+      "kind": "expect",
+      "testid": "ai-panel-tab-info"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-tab-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-tab-inference",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-presets",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-row",
+      "timeoutMs": 4000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-settings-btn",
+      "timeoutMs": 4000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-tab-info"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-tab-load",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-tab-inference"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b2-model-panel-three-tabs (developer mode on)"
+    },
+    {
       "kind": "click",
       "testid": "ai-panel-tab-load",
       "timeoutMs": 4000
@@ -610,54 +730,16 @@
     {
       "kind": "waitGone",
       "testid": "ai-model-panel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "ai-model-row",
-      "timeoutMs": 4000,
-      "nth": 0
-    },
-    {
-      "kind": "waitFor",
-      "testid": "ai-model-panel",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "detail-sidebar-collapse",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "ai-model-panel",
-      "timeoutMs": 3000
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
+      "testid": "app-main",
+      "timeoutMs": 8000
     },
     {
       "kind": "stubInvoke",
