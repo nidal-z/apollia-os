@@ -28,13 +28,13 @@
   let { servers, models, selected, adding, none, onselect, onadd, onnone }: Props = $props();
 
   const ENTRY =
-    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
-  const ACTIVE = "bg-muted font-medium text-foreground";
-  const IDLE = "text-muted-foreground hover:bg-muted/60 hover:text-foreground";
+    "flex items-center gap-2 rounded-full border px-3 py-1 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+  const ACTIVE = "border-primary/40 bg-primary/5 font-medium text-foreground";
+  const IDLE = "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground";
 </script>
 
-<div class="mt-4 flex flex-col gap-0.5" data-testid="ai-servers-nav">
-  <p class="px-2 pb-2 text-xs text-muted-foreground">{$t("ai.servers.title")}</p>
+<div class="flex flex-wrap items-center gap-1" data-testid="ai-servers-nav">
+  <p class="pr-1 text-overline uppercase text-muted-foreground">{$t("ai.servers.title")}</p>
   {#each servers as server (server.name)}
     {@const state = models[server.name]}
     <button
@@ -46,7 +46,7 @@
       data-server={server.name}
     >
       <Server size={14} strokeWidth={1.75} aria-hidden="true" />
-      <span class="min-w-0 flex-1 truncate">{server.name}</span>
+      <span class="max-w-40 truncate">{server.name}</span>
       {#if server.enabled && state?.phase === "listed"}
         <span class="text-xs tabular-nums text-muted-foreground" data-testid="ai-server-entry-count">
           {state.models.length}
@@ -63,7 +63,7 @@
       data-testid="ai-servers-none"
     >
       <Server size={14} strokeWidth={1.75} aria-hidden="true" />
-      <span class="min-w-0 flex-1 truncate">{$t("ai.servers.empty_title")}</span>
+      <span class="truncate">{$t("ai.servers.empty_title")}</span>
     </button>
   {/if}
   <button
