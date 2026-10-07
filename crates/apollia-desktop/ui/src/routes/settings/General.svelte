@@ -1,3 +1,55 @@
+<script module lang="ts">
+  import {
+    GENERAL_BEHAVIOUR_KEYS,
+    type GeneralBehaviourKey,
+  } from "$lib/stores/generalBehaviours";
+
+  /** A switch of the Behaviours block, by its `data-testid` and its texts. */
+  export type GeneralBehaviourRow = {
+    testId: string;
+    labelKey: string;
+    hintKey: string;
+  } & (
+    | { kind: "downloads" | "full_file_name" }
+    /** Written to `apollia.toml`, lockable by the organization policy. */
+    | { kind: "file"; key: GeneralBehaviourKey }
+  );
+
+  /**
+   * The switches of the Behaviours block, in the order of the page: the
+   * downloads panel, the full loading window, the full file name, the
+   * confirmation before a preset is saved.
+   */
+  export const GENERAL_BEHAVIOUR_ROWS: readonly GeneralBehaviourRow[] = [
+    {
+      kind: "downloads",
+      testId: "general-downloads-open",
+      labelKey: "settings.general.downloads_open_label",
+      hintKey: "settings.general.downloads_open_hint",
+    },
+    {
+      kind: "file",
+      key: GENERAL_BEHAVIOUR_KEYS.modelLoadWindow,
+      testId: "general-model-load-window",
+      labelKey: "settings.general.model_load_window_label",
+      hintKey: "settings.general.model_load_window_hint",
+    },
+    {
+      kind: "full_file_name",
+      testId: "general-model-full-file-name",
+      labelKey: "settings.general.model_full_file_name_label",
+      hintKey: "settings.general.model_full_file_name_hint",
+    },
+    {
+      kind: "file",
+      key: GENERAL_BEHAVIOUR_KEYS.presetSaveConfirm,
+      testId: "general-preset-save-confirm",
+      labelKey: "settings.general.preset_save_confirm_label",
+      hintKey: "settings.general.preset_save_confirm_hint",
+    },
+  ];
+</script>
+
 <script lang="ts">
   import { onMount } from "svelte";
   import { t, locale } from "svelte-i18n";
@@ -8,8 +60,14 @@
   import { reportError } from "$lib/errors/reportError";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
-  import { Toggle } from "$lib/components/ui/toggle";
   import { openDownloadsOnStart, setOpenDownloadsOnStart } from "$lib/stores/downloads";
+  import { modelFullFileName } from "$lib/stores/modelFullFileName";
+  import {
+    generalBehaviours,
+    hydrateGeneralBehaviours,
+    setGeneralBehaviour,
+  } from "$lib/stores/generalBehaviours";
+  import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
@@ -80,9 +138,15 @@
     }
   }
 
+  async function writeBehaviour(key: GeneralBehaviourKey, next: boolean): Promise<void> {
+    const written = await setGeneralBehaviour(key, next);
+    if (!written) addToast($t("settings.general.behaviour_write_failed"), "error");
+  }
+
   onMount(() => {
     void settingsLoaders.systemInfo();
     void hydrateUpdateChannel();
+    void hydrateGeneralBehaviours();
   });
 </script>
 
@@ -185,22 +249,32 @@
     data-testid="general-behaviours"
   >
     {#snippet icon()}<SlidersHorizontal size={15} strokeWidth={1.75} />{/snippet}
-    <SettingsFieldRow
-      label={$t("settings.general.downloads_open_label")}
-      hint={$t("settings.general.downloads_open_hint")}
-      for="general-downloads-open"
-      border={false}
-    >
-      {#snippet control()}
-        <Toggle
-          id="general-downloads-open"
-          checked={$openDownloadsOnStart}
-          onchange={(next) => setOpenDownloadsOnStart(next)}
-          aria-label={$t("settings.general.downloads_open_label")}
-          data-testid="general-downloads-open-toggle"
+    {#each GENERAL_BEHAVIOUR_ROWS as row, index (row.testId)}
+      {@const held = row.kind === "file" ? $generalBehaviours[row.key] : null}
+      <div
+        class={index === GENERAL_BEHAVIOUR_ROWS.length - 1
+          ? "py-1.5"
+          : "border-b border-border/60 py-1.5"}
+      >
+        <SettingsToggle
+          id={`${row.testId}-switch`}
+          label={$t(row.labelKey)}
+          description={$t(row.hintKey)}
+          checked={row.kind === "file"
+            ? (held?.value ?? false)
+            : row.kind === "downloads"
+              ? $openDownloadsOnStart
+              : $modelFullFileName}
+          source={held?.source}
+          onChange={(next) => {
+            if (row.kind === "file") void writeBehaviour(row.key, next);
+            else if (row.kind === "downloads") setOpenDownloadsOnStart(next);
+            else modelFullFileName.set(next);
+          }}
+          data-testid={row.testId}
         />
-      {/snippet}
-    </SettingsFieldRow>
+      </div>
+    {/each}
   </SettingsSection>
   <!-- Models: folder and Hugging Face token -->
   <ModelsBlock />

@@ -259,6 +259,34 @@ export async function attemptLoad(
   return { kind: "loaded", outcome };
 }
 
+/** What became of choosing a model that is not in memory. */
+export type ChosenLoad =
+  /** The loading window opens; `refusal` is why a direct load did not go through. */
+  | { kind: "window"; refusal: string | null }
+  | { kind: "loaded"; outcome: ModelLoadOutcome };
+
+/**
+ * What choosing `modelId`, a model that is not in memory, does. With the
+ * full loading window asked for (Settings > General, on by default), nothing
+ * is loaded: the window opens. Without it, the model loads at once under its
+ * default preset: the request names the model alone and carries no consent,
+ * so the load guardrail still decides. A load the runtime refuses, the
+ * guardrail among the reasons, opens the window, where the estimate and the
+ * refusal show.
+ */
+export async function loadChosen(
+  fullWindow: boolean,
+  load: LoadCalls["load"],
+  modelId: string,
+): Promise<ChosenLoad> {
+  if (fullWindow) return { kind: "window", refusal: null };
+  try {
+    return { kind: "loaded", outcome: await load({ modelId }) };
+  } catch (err: unknown) {
+    return { kind: "window", refusal: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /** What became of "Reload the last model". */
 export type ReloadAttempt =
   | { kind: "loaded"; outcome: ModelLoadOutcome }

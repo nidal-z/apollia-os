@@ -103,7 +103,7 @@ avertissement `config.key.retired`.
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), la présence de réglages de chargement dans un preset (`preset_load_settings`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
-| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), `chat_debug_blocks`, `resource_widget`, les comportements du chat `chat_single_empty`, `chat_double_click_edit`, `chat_double_click_rename` et `chat_regenerate_shortcut`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
+| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), `chat_debug_blocks`, `resource_widget`, les comportements du chat `chat_single_empty`, `chat_double_click_edit`, `chat_double_click_rename` et `chat_regenerate_shortcut`, les comportements généraux `model_load_window` et `preset_save_confirm`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
 | `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, et `separate_reasoning_content`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`, `gguf`, `mlx`, `auto_update`, `auto_purge`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
@@ -307,6 +307,8 @@ Réglages de l'application de bureau que le moteur lit.
 | `desktop.chat_double_click_edit` | booléen | `false` | Ouvrir la modification d'un message d'une conversation par un double-clic. La politique de l'organisation peut l'imposer. |
 | `desktop.chat_double_click_rename` | booléen | `true` | Renommer une conversation ou un dossier de la liste par un double-clic. La politique de l'organisation peut l'imposer. |
 | `desktop.chat_regenerate_shortcut` | booléen | `true` | Régénérer la dernière réponse de la conversation affichée avec Cmd + R sur un Mac, Ctrl + R ailleurs. La politique de l'organisation peut l'imposer. |
+| `desktop.model_load_window` | booléen | `true` | Ouvrir la fenêtre de chargement quand une conversation choisit un modèle de cette machine qui n'est pas en mémoire ; désactivé, le modèle se charge aussitôt avec son preset par défaut, et le garde-fou de chargement s'applique toujours. La politique de l'organisation peut l'imposer. |
+| `desktop.preset_save_confirm` | booléen | `false` | Demander une confirmation qui liste les réglages modifiés avant de les enregistrer dans un preset. La politique de l'organisation peut l'imposer. |
 
 ### `[server]`
 

@@ -3042,6 +3042,13 @@
       "behaviours_title": "Behaviour",
       "downloads_open_label": "Open the downloads panel when a download starts",
       "downloads_open_hint": "The panel opens under the downloads icon of the top bar.",
+      "model_load_window_label": "Always open the full loading window",
+      "model_load_window_hint": "On, choosing in a conversation a model that is not in memory opens the loading window, with the estimated memory and the settings. Off, the model loads at once with its default preset; the window opens only when the load is refused.",
+      "model_full_file_name_label": "Always show the full file name",
+      "model_full_file_name_hint": "On, the list of the models of this computer, in the AI screen, shows the file name of each model in place of its name.",
+      "preset_save_confirm_label": "Confirm before saving to a preset",
+      "preset_save_confirm_hint": "On, saving settings to a preset, new or existing, first shows the settings changed and asks you to confirm.",
+      "behaviour_write_failed": "This setting could not be saved.",
       "models_title": "Models",
       "models_dir_label": "Models folder",
       "models_dir_hint": "Where models are downloaded and looked up. Changing the folder does not move the models already downloaded.",
@@ -4072,6 +4079,8 @@
       "confirm_body": "{name} needs about {estimated} GB of memory, and the load guardrails allow {budget} GB. This computer may slow down sharply or run out of memory.",
       "confirm_action": "Load anyway",
       "loaded_toast": "{name} is loaded.",
+      "direct_loading": "Loading {name}…",
+      "direct_refused": "The model could not be loaded directly: {error}",
       "advanced": {
         "title": "Advanced settings",
         "batch": "Evaluation batch size",
@@ -6839,5 +6848,14 @@
     "remove_message": "“{name}” is removed for every agent that consults it, and what Apollia had read of it is erased. Your files and messages are not touched.",
     "remove_confirm": "Remove the source",
     "remove_failed": "This source could not be removed."
+  },
+  "presets": {
+    "save_confirm": {
+      "title": "Save to a preset?",
+      "message": "These changed settings will be saved to the preset:",
+      "message_named": "These changed settings will be saved to the preset \"{name}\":",
+      "no_fields": "No setting was changed: the preset will take the settings shown.",
+      "confirm": "Save"
+    }
   }
 }

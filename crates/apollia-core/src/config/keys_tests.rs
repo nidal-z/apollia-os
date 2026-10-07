@@ -266,6 +266,8 @@ fn the_named_settings_are_lockable() {
             "desktop.chat_double_click_edit",
             "desktop.chat_double_click_rename",
             "desktop.chat_regenerate_shortcut",
+            "desktop.model_load_window",
+            "desktop.preset_save_confirm",
             "server.enabled",
             "server.port",
             "server.require_auth",

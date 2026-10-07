@@ -15,6 +15,7 @@
   import CapabilityIcon from "./CapabilityIcon.svelte";
   import ExplainedBadge from "./ExplainedBadge.svelte";
   import ModelActionsMenu from "./ModelActionsMenu.svelte";
+  import { modelFullFileName } from "$lib/stores/modelFullFileName";
   import { capabilitiesOf } from "./explanations";
   import {
     categoryLabelKey,
@@ -24,6 +25,7 @@
     groupModels,
     parameterCount,
     revealLabelKey,
+    shownModelName,
     totalBytes,
     type CategoryFilter,
     type HostPlatform,
@@ -200,7 +202,7 @@
                         </span>
                       </Tooltip>
                     {/if}
-                    <span class="font-medium text-foreground" data-testid="ai-model-name">{model.id}</span>
+                    <span class="font-medium text-foreground" data-testid="ai-model-name">{shownModelName(model, $modelFullFileName)}</span>
                     {#each capabilitiesOf(model.capabilities) as capability (capability)}
                       <CapabilityIcon {capability} />
                     {/each}

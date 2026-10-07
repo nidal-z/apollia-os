@@ -3042,6 +3042,13 @@
       "behaviours_title": "Comportements",
       "downloads_open_label": "Ouvrir le panneau des téléchargements au démarrage d'un téléchargement",
       "downloads_open_hint": "Le panneau s'ouvre sous l'icône des téléchargements de la barre du haut.",
+      "model_load_window_label": "Toujours ouvrir la fenêtre de chargement complète",
+      "model_load_window_hint": "Allumé, choisir dans une conversation un modèle qui n'est pas en mémoire ouvre la fenêtre de chargement, avec la mémoire estimée et les réglages. Éteint, le modèle se charge aussitôt avec son preset par défaut ; la fenêtre ne s'ouvre que si le chargement est refusé.",
+      "model_full_file_name_label": "Toujours montrer le nom de fichier complet",
+      "model_full_file_name_hint": "Allumé, la liste des modèles de ce poste, dans l'écran IA, montre le nom du fichier de chaque modèle au lieu de son nom.",
+      "preset_save_confirm_label": "Confirmer avant d'enregistrer dans un preset",
+      "preset_save_confirm_hint": "Allumé, enregistrer des réglages dans un preset, nouveau ou existant, affiche d'abord les réglages modifiés et demande de confirmer.",
+      "behaviour_write_failed": "Ce réglage n'a pas pu être enregistré.",
       "models_title": "Modèles",
       "models_dir_label": "Dossier des modèles",
       "models_dir_hint": "Où les modèles sont téléchargés et cherchés. Changer de dossier ne déplace pas les modèles déjà téléchargés.",
@@ -4072,6 +4079,8 @@
       "confirm_body": "{name} demande environ {estimated} Go de mémoire, et les garde-fous de chargement en autorisent {budget} Go. Cet ordinateur peut ralentir fortement ou manquer de mémoire.",
       "confirm_action": "Charger quand même",
       "loaded_toast": "{name} est chargé.",
+      "direct_loading": "Chargement de {name}…",
+      "direct_refused": "Le modèle n'a pas pu être chargé directement : {error}",
       "advanced": {
         "title": "Réglages avancés",
         "batch": "Taille du lot d'évaluation",
@@ -6839,5 +6848,14 @@
     "remove_message": "« {name} » est retirée pour tous les agents qui la consultent, et ce qu'Apollia en avait lu est effacé. Vos fichiers et vos messages ne sont pas touchés.",
     "remove_confirm": "Retirer la source",
     "remove_failed": "Cette source n'a pas pu être retirée."
+  },
+  "presets": {
+    "save_confirm": {
+      "title": "Enregistrer dans un preset ?",
+      "message": "Ces réglages modifiés seront enregistrés dans le preset :",
+      "message_named": "Ces réglages modifiés seront enregistrés dans le preset « {name} » :",
+      "no_fields": "Aucun réglage n'a été modifié : le preset reprendra les réglages affichés.",
+      "confirm": "Enregistrer"
+    }
   }
 }
