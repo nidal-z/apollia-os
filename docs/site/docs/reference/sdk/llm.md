@@ -16,10 +16,12 @@ _Bases: Protocol_
 
 ``ctx.llm`` - LLM backend access.
 
-Five methods: `complete` for single-shot, `chat` for the
+Four methods: `complete` for single-shot, `chat` for the
 system-plus-user case, `map` for a batch sharing one prefix,
-`stream` for token iteration, `run_tools` for the built-in
-tool loop.  Stream cleanup propagates cancellation to the Rust backend.
+`stream` for token iteration.  Stream cleanup propagates
+cancellation to the Rust backend. The loop that alternates model calls and
+tool calls belongs to an agent: a workflow step that needs one hands the
+message to an agent with ``ctx.agents.run``.
 
 `complete` and `chat` take an optional ``schema``: a JSON
 Schema the answer must satisfy. The call then returns the validated value
@@ -156,30 +158,6 @@ deltas. Typical usage::
         ctx.events.emit_token(token)
 
 Cancellation propagates to the Rust backend on iterator close.
-
-#### `run_tools`
-
-```python
-async def run_tools(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], max_iterations: int=5) -> str
-```
-
-Run the built-in tool loop and return the final answer.
-
-The loop alternates model call and tool call until the model answers
-without asking for a tool.
-
-Args:
-    messages: Chat messages, ``{"role", "content"}`` each.
-    tools: Tool descriptors, ``{"name", "description", "parameters"}``
-        each. `A2AInterface.skill_as_tool` builds one.
-    max_iterations: Guard rail on the number of model calls.
-
-Returns:
-    The model's final answer, after every tool call has run.
-
-Raises:
-    RuntimeError: The step budget is exhausted, or ``max_iterations``
-        was reached.
 
 ### `TokenUsage`
 

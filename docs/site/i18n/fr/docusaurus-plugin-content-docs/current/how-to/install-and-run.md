@@ -275,20 +275,20 @@ du socket.
 
 ## Étape 5 : exécuter un agent
 
-Le dépôt fournit un agent `echo` sans LLM qui fonctionne sur n'importe quelle
-machine. Installez-le, activez-le pour que le runtime le charge, puis
-envoyez-lui une tâche :
+Un agent se livre dans un paquet. Écrivez le paquet de départ, construisez-le,
+installez-le, puis envoyez une tâche à son agent :
 
 ```sh
-apollia-os agent install clients/examples/echo_agent.py --skip-tests
-apollia-os agent enable echo
-apollia-os run echo "hello from Apollia"
+apollia-os package new hello
+apollia-os package build hello
+apollia-os package install hello-0.1.0.apo
+apollia-os run hello "hello from Apollia"
 ```
 
-Sans l'étape `enable`, `run` échoue avec `agent not found: echo` et une
-indication listant la séquence installation, activation et chargement.
+L'agent répond avec le backend de modèle configuré à l'étape 3 : un agent est
+une mission que le modèle accomplit, donc `run` en a besoin d'un.
 
-Vous devriez voir le résultat renvoyé en écho. Pour écrire votre propre agent
+Vous devriez voir sa réponse. Pour écrire votre propre agent
 depuis zéro, suivez [Votre premier
 agent](/tutorials/your-first-agent).
 

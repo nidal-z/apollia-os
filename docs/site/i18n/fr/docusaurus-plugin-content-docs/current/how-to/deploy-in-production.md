@@ -168,9 +168,11 @@ curl -s http://127.0.0.1:7771/api/v1/health
 # État du runtime et des agents
 apollia-os status
 
-# De bout en bout : installer un agent trivial et l'exécuter
-apollia-os agent install clients/examples/echo_agent.py --skip-tests
-apollia-os run echo "post-deploy check"
+# De bout en bout : construire le paquet de départ, l'installer et exécuter son agent
+apollia-os package new postcheck
+apollia-os package build postcheck
+apollia-os package install postcheck-0.1.0.apo
+apollia-os run postcheck "post-deploy check"
 ```
 
 Les mêmes informations que lit la CLI sont disponibles via HTTP pour une

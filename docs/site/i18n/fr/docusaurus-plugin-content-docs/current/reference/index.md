@@ -24,6 +24,9 @@ qu'une page ne peut pas s'en écarter. On modifie la source, jamais la page.
 
 - **[Configuration (apollia.toml)](/reference/configuration)** les sections du
   fichier de configuration et leurs champs.
+- **[Manifeste de paquet (apollia.toml)](/reference/package-manifest)** chaque
+  table et chaque clé du manifeste placé à la racine d'un paquet, et les règles
+  qu'il doit tenir.
 - **[Catalogue d'outils natifs](/reference/native-tools)** les outils que le
   runtime expose nativement aux agents.
 - **[Variables d'environnement](/reference/environment-variables)** ce que le

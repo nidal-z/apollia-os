@@ -1,106 +1,122 @@
 ---
 sidebar_position: 9.5
-title: Test your agents
+title: Test your tools and workflows
 ---
 
-# Test your agents
+# Test your tools and workflows
 
-Apollia gives you two levels of testing. Unit tests exercise a single skill or
-message in-process with a mocked context, so they run in milliseconds with no
-daemon and no model. Suite evals run whole tasks against a live daemon and score
-the outcomes, including with an LLM judge. Use unit tests for logic and contracts,
-evals for end-to-end behavior and regressions.
+Apollia gives you two levels of testing. Unit tests exercise a tool or a
+workflow in-process with a mocked context, so they run in milliseconds with no
+runtime and no model. Suite evals run whole tasks against a live runtime and
+score the outcomes. Use unit tests for logic and contracts, evals for
+end-to-end behavior and regressions.
 
-This is a how-to. It assumes you have written an agent; if not, see
-[Write a worker](/how-to/write-a-worker).
+This is a how-to. It assumes you have written a tool or a workflow; if not, see
+[Write a tool](/how-to/write-a-worker) and
+[Write a workflow](/how-to/write-a-director).
 
 ## Unit tests with `apollia.testing`
 
-The `apollia.testing` harness runs a skill or a message through the same dispatch
-path the runtime uses, but in-process and against a mock `ctx`. `mock(YourAgent)`
-returns the agent instance plus a `MockContext` whose 14 service surfaces are all
-mocked. You queue what the services return, invoke a skill, and assert on the
-result and on the calls the agent made.
+A tool and a workflow are plain `async def` functions, and a test awaits them as
+written. `MockContext` is the `ctx` they receive: it mocks every service of the
+contract except `ctx.mail`. You configure what the services return, await the
+function, and assert on the result and on the calls it made.
 
-The full `Ctx` contract has 15 services: the mail surface (`ctx.mail`) is not
-mocked. An agent that uses `ctx.mail` needs an integration test against a live
-runtime rather than a unit test with `MockContext`.
+## Test a tool
 
-Take a skill that summarizes text with the LLM and writes the summary to a file:
-
-```python
-from apollia import agent, skill
-from apollia.types import Ctx
-
-
-@agent(name="summarizer", version="0.1.0", description="Summarize and save text.")
-class Summarizer:
-    @skill("doc.summarize", description="Summarize text and write it to a file.")
-    async def summarize(self, text: str, out_path: str, ctx: Ctx) -> dict:
-        response = await ctx.llm.complete(
-            messages=[{"role": "user", "content": f"Summarize:\n{text}"}],
-        )
-        await ctx.tools.call("file_write", {"path": out_path, "content": response.content})
-        return {"summary": response.content, "path": out_path}
-```
-
-A unit test for it, in GIVEN / WHEN / THEN form:
+Take the tool of [Write a tool](/how-to/write-a-worker), which counts the pages
+of a PDF and raises a typed error when the file is missing:
 
 ```python
 import pytest
 
-from apollia.testing import (
-    mock,
-    assert_result_completed,
-    assert_llm_called,
-    assert_tool_called,
-)
-from summarizer import Summarizer
+from apollia import DomainError
+from apollia.testing import MockContext
+from tools.pdf_reader import count_pages
 
 
 @pytest.mark.asyncio
-async def test_summarize_writes_file():
-    # GIVEN a mocked agent with a canned LLM answer and a stubbed file tool
-    agent, ctx = mock(Summarizer)
-    ctx.llm.responses = [{"content": "A short summary."}]
-    ctx.tools.responses = {"file_write": {"ok": True}}
+async def test_count_pages_refuses_a_missing_file():
+    # GIVEN a mocked context and a path that does not exist
+    ctx = MockContext()
 
-    # WHEN the skill runs
-    result = await agent.invoke_skill(
-        "doc.summarize", text="a long document", out_path="/tmp/out.txt"
-    )
+    # WHEN the tool runs
+    with pytest.raises(DomainError) as raised:
+        await count_pages(ctx, path="/nowhere/report.pdf")
 
-    # THEN it completes, and it used the LLM then the file tool
-    assert_result_completed(result)
-    assert result["output"][0]["data"]["summary"] == "A short summary."
-    assert_llm_called(ctx, times=1)
-    assert_tool_called(ctx, "file_write", times=1)
+    # THEN it fails with the code a caller can branch on
+    assert raised.value.code == "FILE_NOT_FOUND"
 ```
 
-The `contains=` argument of `assert_result_completed` reads text parts only. A
-skill that returns a `dict` is coerced into a single `data` part, so its text is
-empty and `contains=` would always fail. Assert on `result["output"]` for a skill
-that returns a dict, and keep `contains=` for a skill that returns a string.
+`@tool` returns the function it decorates, so the test calls it with `ctx` and
+the inputs as keyword arguments, the way the runtime does.
 
-Key points of the harness:
+## Test a workflow
 
-- `agent, ctx = mock(YourAgent)` builds the instance and a `MockContext`.
-- Drive a skill with `await agent.invoke_skill(skill_id, **kwargs)`, or a
-  conversational handler with `await agent.invoke_message(message, history=...)`.
-  Both return the same AIPResult dict the runtime produces.
-- Queue LLM answers on `ctx.llm.responses` (a FIFO list); each `complete` or
-  `chat` pops the next. Stub tools with `ctx.tools.responses` keyed by tool name.
-  `ctx.memory` records and recalls in memory.
-- Assert on the result with `assert_result_completed(result, contains=...)`,
-  `assert_result_failed(result, code=...)`, and
-  `assert_result_input_required(result)`. Assert on what the agent did with
-  `assert_llm_called`, `assert_tool_called`, `assert_skill_called`,
-  `assert_memory_recorded`, `assert_template_rendered`, `assert_emitted_token`,
-  and `assert_emitted_thought`.
+A workflow hands its steps to agents, to other workflows and to the user. Under
+`MockContext` each of those is a mock you configure, and the steps report
+nothing. Take the workflow of [Write a workflow](/how-to/write-a-director):
 
-Because the harness reuses the production dispatch functions, payload validation,
-`ctx` injection, return coercion, and typed-error handling behave exactly as they
-do under the daemon. Run these with `pytest` like any Python tests.
+```python
+import pytest
+
+from apollia.testing import MockContext
+from workflows.reminders import monthly_reminders
+
+INPUTS = {"month": "2026-09", "tone": "Polite and short."}
+LATE = "ACME, invoice 42, due 2026-09-10"
+
+
+@pytest.mark.asyncio
+async def test_reminders_are_drafted_once_confirmed():
+    # GIVEN an agent that lists one late invoice and a user who says yes
+    ctx = MockContext()
+    ctx.agents.answers = {"invoice-clerk": LATE}
+    ctx.user.answers = {f"Draft reminders for these invoices?\n{LATE}": "Yes"}
+
+    # WHEN the workflow runs
+    result = await monthly_reminders(ctx, INPUTS)
+
+    # THEN the agent ran twice, to collect and to draft, and the user was asked
+    assert [agent for agent, _ in ctx.agents.run_calls] == ["invoice-clerk"] * 2
+    assert len(ctx.user.ask_calls) == 1
+    assert result["late"] == LATE
+
+
+@pytest.mark.asyncio
+async def test_nothing_is_drafted_when_the_user_declines():
+    # GIVEN a user who declines the question
+    ctx = MockContext()
+    ctx.agents.answers = {"invoice-clerk": LATE}
+    ctx.user.declined = {f"Draft reminders for these invoices?\n{LATE}": None}
+
+    # WHEN the workflow runs
+    result = await monthly_reminders(ctx, INPUTS)
+
+    # THEN the run stops after the question, with no reminder
+    assert len(ctx.agents.run_calls) == 1
+    assert result["reminders"] == ""
+```
+
+What each mock takes and records:
+
+| Service | Configure | Read back |
+| --- | --- | --- |
+| `ctx.agents` | `answers`, a dict of agent id to answer. An agent with no answer returns an empty string. | `run_calls`, a list of `(agent_id, message)`. |
+| `ctx.workflows` | `results`, a dict of workflow id to result. A workflow with no result returns `None`. | `run_calls`, a list of `(workflow_id, inputs)`. |
+| `ctx.user` | `answers`, a dict of question to answer; `declined`, a dict of question to reason, which makes `ask` raise `QuestionDeclined`. | `ask_calls`, a list of `(question, options, hint)`. |
+| `ctx.llm` | `responses`, a FIFO list of `{"content": ...}`; each call pops the next. | `assert_llm_called(ctx, times=...)`. |
+| `ctx.tools` | `responses`, a dict of tool name to result. | `assert_tool_called(ctx, name, times=...)`. |
+| `ctx.memory` | Records and recalls in memory. | `assert_memory_recorded(ctx, ...)`. |
+
+The decorators behave under a test as they do under the runtime: a step the
+decorator did not declare is refused, and a date input given as `YYYY-MM-DD` is
+read as a `date`. Run these with `pytest` like any Python tests.
+
+`MockContext` mocks more services than the runtime attaches to a tool or to a
+workflow today: `ctx.llm` and `ctx.tools` are `None` there. A test that passes
+through them proves the logic of your function, not that the service is
+reachable where the function runs.
 
 ## Suite evals with `apollia-os eval run`
 
@@ -148,14 +164,14 @@ p50 and p95 wall-clock, and total cost. Step and tool-call counts are reported b
 are not reliably surfaced yet, so do not gate on them.
 
 The suite shape above is illustrative; the repository does not ship a ready-made
-suite for you to copy. Every flag is in the [CLI reference](/reference/cli), and
-the service shapes your agent asserts against are in the
-[SDK / ctx contract](/reference/sdk).
+suite for you to copy. Every flag is in the [CLI reference](/reference/cli), every
+field of a suite in the [evaluation suite schema](/reference/eval-suites), and
+the service shapes are in the [SDK / ctx contract](/reference/sdk).
 
 ## Which to use
 
 - Contract and logic (right payload, right tool, right typed error): unit tests.
 - End-to-end behavior, quality, and regression tracking across runs: evals.
 
-Most agents want both: fast unit tests in CI on every change, and an eval suite
-run against a daemon before a release.
+Most packages want both: fast unit tests in CI on every change, and an eval
+suite run against a runtime before a release.

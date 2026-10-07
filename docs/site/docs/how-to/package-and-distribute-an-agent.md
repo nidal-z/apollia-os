@@ -1,147 +1,167 @@
 ---
 sidebar_position: 11
-title: Package and distribute an agent
+title: Package and distribute
 ---
 
-# Package and distribute an agent
+# Package and distribute
 
-An agent can ship as a single Python file or as a multi-agent bundle described by
-an `agent.toml`, and it is distributed by installing from a local path or a Git
-URL. This guide covers scaffolding, the bundle format, install-time validation, and
-distribution over Git.
+A package is what you hand to someone else: one `.apo` file holding agents,
+tools and workflows. This guide follows a package from an empty folder to an
+installed, signed archive, with the four `package` commands that carry it: `new`,
+`build`, `inspect` and `install`.
 
-It assumes you have written an agent; if not, see
-[Write a worker](/how-to/write-a-worker).
+It assumes Apollia is installed. Writing the content of the package is covered
+by [Write a tool](/how-to/write-a-worker) and
+[Write a workflow](/how-to/write-a-director).
 
-## Scaffold a starter
+## What a package is
 
-`agent create` generates a starter agent and a matching test file from a template:
+A package is a folder with an `apollia.toml` manifest at its root. The manifest
+declares the agents, which are data, and describes the Python tools and
+workflows the folder ships. Built, the folder becomes a `.apo` file: a zip
+archive with the manifest at its root, the Python modules and resources at their
+relative paths and, when you sign it, a signature that covers every other entry.
 
-```sh
-apollia-os agent create my-agent --type react
+Every table and key of the manifest is in the
+[package manifest reference](/reference/package-manifest).
+
+## Create the folder
+
+```bash
+apollia-os package new invoice-sorter
 ```
 
-`--type` is `react` (default), `conversational`, or `orchestrated`. This writes a
-single agent module plus its test; it does not create a bundle. Author the
-`agent.toml` yourself when you need more than one agent in a package.
+The command writes `invoice-sorter/` under the current folder, or under
+`--output-dir`, with an `apollia.toml` that declares one agent and one tool, and
+the Python module of that tool. The folder builds as written. Nothing is
+overwritten: an existing folder is refused. A package name takes lowercase
+letters, digits, `-` and `_`.
 
-## Single file versus bundle
+## Describe the code
 
-Apollia recognizes two shapes at install time:
+After writing or changing a tool or a workflow, write its description into the
+manifest:
 
-- **Single file.** A `.py` module that ends with a module-level `agent = ...`. It
-  installs as one agent.
-- **Bundle.** A directory containing an `agent.toml` at its root, describing one or
-  more agents (plus optional shared configuration). It installs as a package.
-
-A directory without an `agent.toml` is not a valid package and is rejected.
-
-## The `agent.toml` bundle format
-
-```toml
-[package]
-name = "sales-suite"
-version = "0.1.0"
-description = "A worker and a director for sales prep."
-author = "you"
-
-[[agents]]
-name = "crm-lookup"
-entry = "crm_lookup.py"
-role = "worker"
-packages = ["httpx>=0.27"]
-
-[[agents]]
-name = "sales-director"
-entry = "director.py"
-role = "director"
-packages = []
-
-[tools.web]
-enabled = true
-ssrf_guard = true
-
-[pip]
-packages = ["python-dateutil"]
+```bash
+python -m apollia describe invoice-sorter
 ```
 
-- `[package]` carries `name`, `version`, `description`, and `author`.
-- Each `[[agents]]` entry has a `name`, an `entry` module, a `role` (`worker`,
-  `director`, or `assistant`), and its own `packages`.
-- `[tools.web]` toggles the web tool surface and its SSRF guard.
-- `[pip]` lists package-wide Python dependencies. Triggers may also be declared in
-  the bundle.
+The command rewrites the `[[tools]]` and `[[workflows]]` tables from the
+decorators and keeps the rest of the manifest as written. This is the only step
+that imports your code, and it runs on your machine: building, inspecting and
+previewing a package never run Python.
 
-## Install and its validation
+## Build the archive
 
-Install from a local path:
-
-```sh
-# A single file
-apollia-os agent install ./my_agent.py
-
-# A bundle directory
-apollia-os agent install ./sales-suite/
+```bash
+apollia-os package build invoice-sorter
 ```
 
-Install runs these checks, in order:
+The archive is written as `<name>-<version>.apo` in the current folder, or where
+`--output` says. Building validates the manifest, and refuses a folder whose
+Python modules define tools or workflows that the manifest does not describe. A
+refusal names what is wrong: an unknown key with its full path, an identifier
+outside `[a-z0-9_-]+`, a version that is not semver.
 
-1. The source exists.
-2. The agent loads and satisfies the contract, validated through the Python
-   bridge: the `@agent` decorator must have installed `__apollia_manifest__` and
-   an async `__apollia_dispatch__`. An object without them is refused with
-   `agent is missing __apollia_dispatch__ - apply the @agent decorator`. The
-   legacy pair of a `manifest()` method and an async `run()` is not accepted, and
-   no dynamic `manifest()` is ever called.
-3. If the agent ships a `tests/` directory, its tests run under `pytest`. A
-   failure blocks the install. Skip this step with `--skip-tests` (not
-   recommended).
-4. If a manifest declares `dangerous_tools_allowed`, the installer emits a
-   warning and continues; it does not block or prompt for confirmation.
-5. The files are copied into `~/.apollia/agents/<name>/` and the declared Python
-   packages are provisioned into a per-agent virtual environment.
+## Sign it
 
-The tests run at step 3, before the provisioning at step 5. A test that imports a
-package the agent declares therefore fails the install with an `ImportError`, on
-the first install. Keep the shipped tests on the standard library and the SDK, or
-install once with `--skip-tests` and run the full suite afterwards.
-
-## Distribute over Git
-
-Any Git repository whose root holds the agent file (or an `agent.toml` bundle) can
-be installed directly. Point `agent install` at the clone URL, optionally pinning a
-tag or branch with a `#` suffix:
-
-```sh
-apollia-os agent install https://github.com/you/my-agent.git
-apollia-os agent install https://github.com/you/my-agent.git#v1.2.0
+```bash
+apollia-os package build invoice-sorter --sign
 ```
 
-The runtime shells out to `git` to clone the repository (a shallow clone, on the
-pinned ref when given), then validates and installs it exactly as a local source.
-`git` must be present on the machine; there is no fallback when it is absent. There
-is no built-in discovery index or search: you distribute the URL, the installer
-takes it from there.
+`--sign` signs the archive with your author key. The key is read from the secret
+store under the label `--key` gives, `default` when omitted; it is generated and
+stored there the first time. The archive then carries the signature and the
+public key that made it.
 
-## Manage installed agents and packages
+An unsigned package installs, with a notice. A signature that does not match the
+content is refused.
 
-```sh
-# Single agents
-apollia-os agent list
-apollia-os agent uninstall my-agent --confirm
-apollia-os agent update my-agent ./my_agent.py      # replace with a new local module
+## Inspect before sharing
 
-# Packages (bundles)
+```bash
+apollia-os package inspect invoice-sorter-0.1.0.apo
+```
+
+`inspect` shows the manifest, the entries of the archive and the signature
+state: `unsigned`, or `signed` with the declared publisher and the fingerprint
+of the key. It needs no runtime, so it also serves on a machine where you only
+want to read what a file holds.
+
+## Install
+
+```bash
+apollia-os package preview invoice-sorter-0.1.0.apo
+apollia-os package install invoice-sorter-0.1.0.apo --confirm-deps
+```
+
+Both need the runtime. `preview` writes nothing: it reports the agents,
+workflows and tools, the accesses each agent asks for, the publisher and the
+signature, the connections the package requires and whether they are present,
+and the MCP servers it brings. `install` installs the package; `--confirm-deps`
+accepts the Python dependencies its `[pip]` table lists, which go into an
+environment of the package.
+
+In the desktop application, opening a `.apo` file shows the same preview, and the
+package is installed only from there.
+
+## Update
+
+Installing a newer version of an installed package updates it. The overrides a
+user set on its agents are kept.
+
+```bash
+apollia-os package install invoice-sorter-0.2.0.apo --confirm-changes
+```
+
+`--confirm-changes` accepts what the update adds: accesses, required
+connections, MCP servers. Read `package preview` first, which lists them. A
+version older than the installed one is refused unless `--allow-downgrade` is
+given.
+
+## Trust a publisher
+
+A recipient who trusts your key sees your packages under the name they chose
+for you:
+
+```bash
+apollia-os package trust import --label "Example Accounting" <key>
+apollia-os package trust list
+```
+
+`<key>` is the public key, as 64 hexadecimal characters or as a file holding
+them. `package trust remove <fingerprint>` stops trusting it.
+
+## Manage installed packages
+
+```bash
 apollia-os agent package list
-apollia-os agent package show sales-suite
-apollia-os agent package uninstall sales-suite --confirm   # removes its agents and triggers
+apollia-os agent package show invoice-sorter
+apollia-os agent package uninstall invoice-sorter --confirm
 ```
 
-`agent update` replaces an installed agent with a new local module path; it does
-not re-clone a Git source. To update from Git, install again from the URL.
+Uninstalling removes the agents of the package with their overrides, its
+workflows and tools, its environment, its files and the MCP servers it brought.
+The connections it required stay, and the memory and history of its agents are
+kept unless `--clear-memory` or `--clear-history` is given.
+
+## Share an agent made in the interface
+
+An agent created in the application, with no code, exports as a package too:
+
+```bash
+apollia-os agent export my-agent --sign
+```
+
+Its current values become the defaults of the package. No secret, no memory and
+no history is exported.
+
+## Distribute
+
+There is no index and no registry: a `.apo` is a file, and you distribute it the
+way you distribute any file. The recipient previews it, then installs it.
 
 ## Related
 
-- [Write a worker](/how-to/write-a-worker) for the skill contract a distributed
-  worker exposes.
-- Every `agent` subcommand and flag is in the [CLI reference](/reference/cli).
+- The [package manifest reference](/reference/package-manifest).
+- Every `package` subcommand and flag is in the [CLI reference](/reference/cli).

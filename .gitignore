@@ -69,6 +69,10 @@ crates/apollia-desktop/apollia-os.exe
 # Dev-only automation harness output (screenshots + report.json)
 /.apollia-automation/
 
+# Package archives built at the repository root (`apollia-os package build`
+# writes `<name>-<version>.apo` in the current folder)
+/*.apo
+
 # Playwright run output (browser suites of the desktop UI)
 crates/apollia-desktop/ui/test-results/
 crates/apollia-desktop/ui/playwright-report/

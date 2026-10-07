@@ -1,0 +1,20 @@
+# word-count: a package with no agent, only a Python tool.
+#
+# A package is any combination of agents, tools and workflows. This one
+# brings a single tool (tools/count_words.py); once installed, the tool is
+# granted to any agent, one created in the application included.
+
+[package]
+name = "word-count"
+version = "0.1.0"
+publisher = "Apollia"
+description = "A tool that counts the words, the lines and the characters of a text. No agent: grant the tool to one of yours."
+sdk = ">=0.2.0-preview"
+
+# Written by `python -m apollia describe` from the code; edits here are replaced.
+[[tools]]
+name = "count_words"
+module = "tools/count_words.py"
+description = "Count the words, the lines and the characters of a text."
+action = "read"
+inputs = { type = "object", properties = { text = { type = "string", description = "The text to measure." } }, additionalProperties = false, required = ["text"] }

@@ -1,172 +1,170 @@
 ---
 sidebar_position: 5
-title: Write a director (A2A)
+title: Write a workflow
 ---
 
-# Write a director (A2A)
+# Write a workflow
 
-A director is an agent that answers by orchestrating workers. It exposes a
-conversational entry point, hands the workers' skills to the model as tools, and
-lets a ReAct loop decide which to call. This guide builds a document assistant
-that drives the PDF worker from [Write a worker](/how-to/write-a-worker).
+A workflow is a sequence of steps you write in Python and whose order you
+decide. Each step hands a message to an agent, runs another workflow, asks the
+user a question, or runs plain Python. The steps are declared ahead of the code,
+so the workflow can be read, started from a form and followed step by step
+without anyone opening the module.
 
-## Prerequisites
+Use a workflow when you know the steps. When the steps depend on what the model
+finds along the way, give the task to an agent and let it plan:
+[Make an agent plan first](/how-to/run-an-orchestrated-agent).
 
-- The `pdf-quickstart` worker installed and active, exposing `pdf.read_text` and
-  `pdf.count_pages`. Verify with `apollia-os a2a skills`.
-- An LLM backend configured (`apollia-os llm status`).
+This guide adds a workflow to a package that already declares an agent named
+`invoice-clerk`. To create such a package, see
+[Write a tool](/how-to/write-a-worker).
 
-## Expose workers as tools, then react
+## Declare the inputs and the steps
 
-The director is an `@on_message` agent. Inside the handler, call the free
-function `apollia.react(...)`: give it a system prompt, the user message, and a
-list of tools. Turn each worker skill into a tool with
-`await ctx.a2a.skill_as_tool(skill_id)`, which is asynchronous and resolves the
-skill's schema at call time.
-
-Create `document_director.py`:
+Create `workflows/reminders.py` in the package folder:
 
 ```python
-"""Document assistant: drives the PDF worker through apollia.react."""
+"""Workflow of the package invoices: one reminder per late supplier."""
 
-from apollia import agent, on_message, react
-from apollia.types import Ctx, Message
+from typing import Annotated, TypedDict
 
-
-SYSTEM_PROMPT = """\
-You are a document assistant. Answer the user's question about a local PDF
-by using the available tools:
-
-- `a2a__pdf__read_text`: extract the text of a PDF, page by page.
-- `a2a__pdf__count_pages`: count the pages of a PDF.
-
-Reason step by step. When you have enough information, write a concise answer
-and mention the file you inspected.
-"""
+from apollia import LongText, WorkflowCtx, workflow
+from apollia.errors import QuestionDeclined
 
 
-@agent(
-    name="document-director",
-    version="0.1.0",
-    description="Answers questions about local PDF files by orchestrating a worker.",
+class Reminders(TypedDict):
+    month: Annotated[str, "Month to check, for example 2026-09."]
+    tone: Annotated[LongText, "How the reminders should sound."]
+
+
+@workflow(
+    "monthly-reminders",
+    "Find the late invoices of a month and draft one reminder per supplier.",
+    inputs=Reminders,
+    steps=["collect", "confirm", "draft"],
+    action="read_personal",
 )
-class DocumentDirector:
-    @on_message
-    async def chat(
-        self,
-        message: str,
-        history: list[Message],
-        ctx: Ctx,
-    ) -> str:
-        return await react(
-            ctx,
-            system=SYSTEM_PROMPT,
-            user=message,
-            tools=[
-                await ctx.a2a.skill_as_tool("pdf.read_text"),
-                await ctx.a2a.skill_as_tool("pdf.count_pages"),
-            ],
-            max_steps=8,
+async def monthly_reminders(ctx: WorkflowCtx, inputs: Reminders) -> dict[str, str]:
+    async with ctx.step("collect"):
+        late = await ctx.agents.run(
+            "invoice-clerk",
+            f"List the invoices of {inputs['month']} that are late, one per line.",
         )
+
+    async with ctx.step("confirm"):
+        try:
+            answer = await ctx.user.ask(
+                f"Draft reminders for these invoices?\n{late}",
+                options=["Yes", "No"],
+            )
+        except QuestionDeclined:
+            answer = "No"
+        if answer != "Yes":
+            return {"late": late, "reminders": ""}
+
+    async with ctx.step("draft"):
+        reminders = await ctx.agents.run(
+            "invoice-clerk",
+            f"Draft one reminder per supplier.\nTone: {inputs['tone']}\n{late}",
+        )
+
+    return {"late": late, "reminders": reminders}
 ```
 
-`react` is a free function, not a `ctx` method: you pass `ctx` as its first
-argument. It runs the observe, reason, act loop and returns the model's final
-answer as a string. Its full signature is:
+What the decorator takes:
 
-```python
-async def react(
-    ctx: Ctx,
-    system: str,
-    user: str,
-    *,
-    tools: list[dict[str, Any]] | None = None,
-    max_steps: int = 15,
-    temperature: float = 0.3,
-    stream: bool = True,
-) -> str
-```
+| Argument | Meaning |
+| --- | --- |
+| `name` | Identifier of the workflow, `[a-z0-9_-]+`, unique in the package. The workflow is addressed as `<package>/<name>`. |
+| `description` | What the workflow does, shown on its sheet. |
+| `inputs` | A `TypedDict`. Its schema is the launch form of the workflow. |
+| `steps` | The step names, in order, with no duplicate. |
+| `action` | The most sensitive action family the workflow performs. |
 
-`temperature` is carried but currently informational: `LlmProxy.run_tools` uses
-the backend default. The [SDK / ctx contract](/reference/sdk) indexes the `ctx`
-services; the `skill_as_tool` and other A2A methods are on
-[`ctx.a2a`](/reference/sdk/a2a).
+Notes on the contract:
 
-<!-- claim:a2a-tool-name-is-prefixed-and-encoded -->
-Name the tools in the prompt the way the model sees them. `skill_as_tool` does
-not hand the model the `skill_id`: it prefixes `a2a__` and replaces each dot with
-a double underscore, because OpenAI-compatible tool names reject `.` and `:`. So
-`pdf.read_text` is offered as `a2a__pdf__read_text`, and the bridge decodes the
-name back to the `skill_id` before dispatch. A prompt that spells the raw
-`skill_id` asks for a tool the model was never given.
+- The function is `async def` and takes exactly two parameters, `(ctx, inputs)`.
+- Each step of the body is written `async with ctx.step("name"):`. A name the
+  decorator did not declare is refused with an `AgentConfigError`, so the list
+  the sheet shows and the code cannot drift apart.
+- The runtime records each step as it opens, closes or raises, with its run.
+- Return a value that serialises to JSON.
+- A declaration that does not hold (a name outside the alphabet, an unknown
+  family, an empty step list, an input of an unsupported type) is refused when
+  the module is imported.
 
-If the director references a skill that no active worker exposes, it fails fast
-at run time with an unknown-skill error. Install and enable the worker first.
+## Input types
 
-## Install and run
+Each input is one of the fields the launch form knows. Any other type is
+refused.
+
+| Field | Python type | What the workflow receives |
+| --- | --- | --- |
+| Text | `str` | A string. |
+| Long text | `apollia.LongText` | A string. |
+| File | `apollia.FileInput` | The absolute path of the file. |
+| Date | `datetime.date` | A `date`. |
+| Number | `int`, `float` | A number. |
+| Yes or no | `bool` | A boolean. |
+| Choice | `Literal[...]` | One of the listed values. |
+| List | `list[str]`, `list[int]`, `list[float]` | A list. |
+
+The form follows the order in which the `TypedDict` declares its inputs.
+
+## What a step can do
+
+The `ctx` of a workflow carries four things beyond the logger:
+
+| Call | Does |
+| --- | --- |
+| `await ctx.agents.run(agent_id, message)` | Hands `message` to an installed agent as the first turn of a fresh conversation, under the grants of that agent, and returns its final answer. |
+| `await ctx.workflows.run(workflow_id, inputs)` | Runs another workflow and returns what it returned. `workflow_id` is `<package>/<workflow>`, or the bare name of a workflow of the same package. Three levels deep at most. |
+| `await ctx.user.ask(question, options=..., hint=...)` | Stops the run on a question until the user answers. See [Pause a workflow for human input](/how-to/human-in-the-loop). |
+| `ctx.step(name)` | Opens a declared step. |
+
+An agent or a workflow started from a step runs nested in the run: it is stopped
+with it and spends from its budget.
+
+`ctx.llm` and `ctx.tools` are `None` in a workflow: the model and the tools are
+reached through an agent. A step that needs reasoning, or a tool, hands the
+message to an agent with `ctx.agents.run`, and that agent works with the tools
+it was granted.
+
+## Describe, build and run
 
 ```bash
-apollia-os inspect document_director.py
-apollia-os agent install ./document_director.py
-apollia-os agent enable document-director
-apollia-os run document-director "How many pages are in /tmp/report.pdf, and what is it about?"
+python -m apollia describe invoices
+apollia-os package build invoices
+apollia-os package install invoices-1.2.0.apo
 ```
 
-The model decides to call `a2a__pdf__count_pages`, then `a2a__pdf__read_text`,
-then writes its answer. The runtime decodes each name back to its `skill_id`
-before dispatching to the worker.
+`describe` writes the `[[workflows]]` entry of `apollia.toml` from the
+decorator: name, module, description, action family, input schema and steps.
 
-## Variation: build the tool list dynamically
+Then read the workflow as Apollia sees it, and run it:
 
-Instead of naming skills one by one, discover them and filter by namespace:
-
-```python
-all_skills = await ctx.a2a.list_skills()
-tools = [
-    await ctx.a2a.skill_as_tool(s["skill_id"])
-    for s in all_skills
-    if s["skill_id"].startswith("pdf.")
-]
+```bash
+apollia-os workflow show invoices/monthly-reminders
+apollia-os workflow run invoices/monthly-reminders \
+  --input month=2026-09 --input tone="Polite and short." --wait
 ```
 
-Keep the tool list small. Exposing more than about ten tools at once makes the
-model's choices less reliable.
+`--input` is repeatable, and each value is read as the type the workflow
+declares for it. Without `--wait` the command prints a run id and returns:
 
-## Variation: call a worker directly
-
-When you already know which skill to call and do not need the model to decide,
-invoke it directly with `ctx.a2a.invoke`. It returns the full A2A envelope, so
-unwrap the skill's dict with `a2a_result_data`:
-
-```python
-from apollia.utils import a2a_result_data
-
-envelope = await ctx.a2a.invoke("pdf.count_pages", {"path": "/tmp/report.pdf"})
-data = a2a_result_data(envelope)
-page_count = data["page_count"]
+```bash
+apollia-os workflow status <run-id>
+apollia-os workflow logs invoices/monthly-reminders
+apollia-os workflow cancel <run-id>
 ```
 
-Use `react` when the sequence of calls depends on intermediate results; use
-`invoke` for a fixed, known step.
-
-## Variation: handle a stalled loop
-
-If the loop exhausts `max_steps` without converging, `react` lets the underlying
-error bubble up as a `RuntimeError`. Catch it to degrade gracefully:
-
-```python
-try:
-    return await react(ctx, system=SYSTEM_PROMPT, user=message, tools=tools, max_steps=5)
-except RuntimeError:
-    return "I could not finish the analysis in time. Could you narrow the question?"
-```
-
-`react` only raises `DomainError("REACT_MAX_STEPS")` for a misconfigured call
-(`max_steps <= 0`), which is a programming error, not a runtime outcome to catch.
+`workflow status` shows the run, its result and each of its steps. `workflow
+cancel` interrupts the step in progress, and the next ones never start.
 
 ## Next steps
 
-- Let the runtime plan and execute multi-step work for you, with no ReAct loop
-  of your own: [Run an orchestrated agent](/how-to/run-an-orchestrated-agent).
-- Put it all together across several workers:
-  [Build a multi-agent assistant](/tutorials/build-a-multi-agent-assistant).
+- Unit-test the workflow with a mocked context:
+  [Test your tools and workflows](/how-to/test-your-agents).
+- Start the workflow on a schedule: propose a trigger in the
+  [package manifest](/reference/package-manifest#triggers).
+- Every `workflow` subcommand is in the [CLI reference](/reference/cli).

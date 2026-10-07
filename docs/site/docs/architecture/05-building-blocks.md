@@ -84,12 +84,14 @@ makes concrete.
 | **apollia-core** | Shared types: the unified plan model, configuration, lifecycle hooks, and the hybrid routing configuration that lets a run escalate to a frontier model on a user key. |
 | **apollia-aip** | The PyO3 bridge and the A2A path that lets agents call one another by skill. |
 | **apollia-prompts** | The English prompt corpus with a language footer, shared across the engine. |
-| **apollia (Python SDK)** | AgentKit: the `@agent` and `@skill` decorators, `TypedDict` payloads, the test harness and mocks, datasources, templates, and gated secrets. The runtime context is the fifteen-service `ctx`. |
+| **apollia (Python SDK)** | AgentKit: the two decorators a package's Python is written with (`@tool` and `@workflow`), `TypedDict` schemas, the `describe` command that writes the tool and workflow descriptors of a package into its `apollia.toml`, and the test doubles (`MockContext`). It declares no agent: an agent is data in `apollia.toml`. The runtime context is the seventeen-service `ctx`. |
 
 The `ctx` contract is `sdk/apollia/types.py` and is documented service by
-service in the [SDK reference](/reference/sdk). The fifteen services are `llm`,
-`memory`, `tools`, `a2a`, `mail`, `datasources`, `templates`, `secrets`,
-`events`, `logger`, `profile`, `workspace`, `stt`, `notify`, and `budget`.
+service in the [SDK reference](/reference/sdk). The seventeen services are
+`llm`, `memory`, `tools`, `agents`, `workflows`, `user`, `mail`, `datasources`,
+`templates`, `secrets`, `events`, `logger`, `profile`, `workspace`, `stt`,
+`notify`, and `budget`. Three of them, `agents`, `workflows` and `user`, are
+bound in a workflow run only.
 
 ## Agentic engine
 
