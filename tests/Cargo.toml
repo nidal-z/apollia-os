@@ -142,6 +142,11 @@ name = "test_a2a_guards"
 path = "integration/test_a2a_guards.rs"
 
 [[test]]
+name = "test_hello_agent"
+path = "integration/test_hello_agent.rs"
+required-features = ["python-tests"]
+
+[[test]]
 name = "test_package_tools"
 path = "integration/test_package_tools.rs"
 required-features = ["python-tests"]

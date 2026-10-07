@@ -1,29 +1,33 @@
 ---
 sidebar_position: 2
 title: Your first agent
-description: "Build, install and run your first Apollia agent: a small conversational coach, from an empty folder to a working answer."
+description: "Build, install and run your first Apollia package: a small product coach declared in apollia.toml, with one Python tool, from an empty folder to a working answer."
 ---
 
 # Your first agent
 
-In this tutorial you build a small conversational agent, a product coach that
-answers questions about Apollia from an embedded knowledge base. You will write
-about seventy lines of Python, install the agent into a running Apollia daemon,
-and talk to it from the command line. Plan for around fifteen minutes.
+In this tutorial you build a small package: a product coach that answers
+questions about Apollia from a glossary. The agent is a few lines of
+`apollia.toml`; the glossary is one Python tool of about thirty lines. You
+install the package into a running Apollia runtime and talk to the agent from
+the command line. Plan for around fifteen minutes.
 
-By the end you will have seen the whole loop that every agent goes through:
-write a class, declare an entry point, install, enable, run.
+By the end you will have seen the whole loop that every package goes through:
+declare the agent, write a tool, describe, build, install, run.
 
 ## Before you start
 
 - Apollia installed, with the `apollia-os` command on your `PATH`.
-- **The daemon running**, in a second terminal:
+- The SDK importable by the Python you work with (`pip install -e ./sdk` from a
+  clone of the repository, in a virtual environment). It is needed to describe
+  and to test the package, not to build or install it.
+- **The runtime running**, in a second terminal:
 
   ```sh
   apollia-os start --port 7771
   ```
 
-  `agent enable`, `run` and `llm status` all talk to it; without it they exit
+  `package install`, `run` and `llm status` all talk to it; without it they exit
   with `runtime not started (connection refused)`. Leave it running for the whole
   tutorial and stop it with `apollia-os stop` at the end.
 - An LLM backend configured. Check it with `apollia-os llm status`. If nothing
@@ -34,150 +38,225 @@ write a class, declare an entry point, install, enable, run.
   [Install and run the runtime](/how-to/install-and-run#step-3-configure-a-model-backend)
   and the [CLI reference](/reference/cli) for every `llm` subcommand.
 
-You do not need to know the SDK yet. This tutorial introduces one decorator and
-one service; the rest is ordinary Python.
+You do not need to know the SDK yet. This tutorial introduces one decorator;
+the rest is ordinary Python and a TOML file.
 
-## Step 1: write the agent
+## Step 1: declare the agent
 
-Create a file called `coach.py`:
+A package is a folder with an `apollia.toml` at its root. Create a folder
+called `coach`, and in it the file `apollia.toml`:
 
-```python
-"""A friendly conversational product coach for Apollia OS."""
+```toml
+[package]
+name = "coach"
+version = "0.1.0"
+publisher = "You"
+description = "A product coach that answers questions about Apollia from a small glossary."
+sdk = ">=0.2.0-preview"
 
-from apollia import agent, on_message
-from apollia.types import Ctx, Message
+[[agents]]
+id = "coach"
+name = "Coach"
+mission = """
+You are a product coach for Apollia. Answer in the language of the person, in
+two to four sentences.
 
-
-KNOWLEDGE_BASE = """
-Apollia OS is a local runtime for autonomous AI agents.
-
-Three agent patterns:
-- Worker: exposes A2A skills (a pdf worker, a chart worker, and so on).
-- Conversational: replies to a human through @on_message.
-- Director: orchestrates workers through apollia.react.
-
-Three essential Ctx services:
-- ctx.llm: generation.
-- ctx.memory: episodic and semantic persistence.
-- ctx.a2a: calling other agents.
+When the person asks what a term means, call the tool `define` with that term
+and build your answer on the definition it returns. When the tool knows no
+such term, say so plainly, list the terms it knows, and point the person to
+the documentation. Never invent a definition.
 """
+examples = [
+    "What is a package?",
+    "What is the difference between a tool and a workflow?",
+]
 
-SYSTEM_PROMPT = f"""\
-You are a helpful product coach for Apollia OS. Answer in the user's
-language. Stay concise, two to four sentences. When the user asks for a
-capability that is not in the knowledge base below, say so honestly and
-point them to the documentation.
-
-KNOWLEDGE BASE
-==============
-{KNOWLEDGE_BASE}
-"""
-
-
-@agent(
-    name="coach",
-    version="0.1.0",
-    description="Friendly product coach for Apollia OS users.",
-    agent_type="assistant",
-)
-class Coach:
-    @on_message
-    async def chat(
-        self,
-        message: str,
-        history: list[Message],
-        ctx: Ctx,
-    ) -> str:
-        response = await ctx.llm.complete(
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                *history,
-                {"role": "user", "content": message},
-            ],
-        )
-        return response.content
+[agents.defaults]
+access = ["pkg:coach/define"]
+autonomy = "assisted"
 ```
 
-Three things make this an agent:
+That is the whole agent:
 
-- **`@agent(...)`** declares the manifest. `name`, `version`, and `description`
-  are required. `agent_type` is an optional label.
-- **`@on_message`** marks the single conversational entry point. Its signature is
-  fixed: `(self, message, history, ctx)` returning the reply as a string.
+- **`[[agents]]`** declares it. `mission` is its instructions, written as you
+  would brief a colleague. `examples` are the requests its card shows.
+- **`[agents.defaults]`** says what the package recommends. `access` lists the
+  tools the agent may call, one by one: `pkg:coach/define` is the tool `define`
+  of the package `coach`, which the next step writes. The person who installs
+  the package can grant or revoke each access afterwards; a default is never a
+  constraint.
+
 <!-- claim:module-level-agent-attribute-is-the-entry-point -->
 
-- **A module-level `agent` symbol** is what the runtime loads. You do not write
-  it: `@agent` instantiates the class and binds the instance to the module for
-  you. Use absolute imports (`from apollia import ...`), never relative ones.
+An agent is data. No Python class or object stands for it, and the runtime
+loads no agent from a Python module: the engine built into the runtime runs
+the agent from this entry, with its mission, the tools it was granted and the
+model you configured.
 
-Inside the handler, `ctx.llm.complete(...)` sends the conversation to the
-configured backend and returns a response whose `.content` is the generated
-text. The exact shape of every `ctx` service lives in the
-[SDK / ctx contract](/reference/sdk); this tutorial only needs
-[`ctx.llm`](/reference/sdk/llm).
+## Step 2: write the tool
 
-## Step 2: inspect it
+The Python of a package brings tools. A tool is an `async` function under
+`@tool`. Create `coach/tools/glossary.py`:
 
-Before installing anything, check the file statically. `inspect` reads the
-manifest and reports what the agent declares, without starting a runtime:
+```python
+"""The glossary tool of the package coach."""
 
-```bash
-apollia-os inspect coach.py
+from typing import Annotated
+
+from apollia import tool
+from apollia.types import Ctx
+
+GLOSSARY = {
+    "agent": "A mission, examples and granted tools, written as data in apollia.toml.",
+    "package": "A folder with an apollia.toml: any mix of agents, tools and workflows.",
+    "tool": "An async Python function under @tool, which an agent may be granted.",
+    "workflow": "An async Python function under @workflow, whose steps are declared ahead.",
+}
+
+
+@tool(
+    "define",
+    "Look a term up in the Apollia glossary.",
+    action="read",
+    examples=[{"term": "package"}],
+)
+async def define(
+    ctx: Ctx,
+    term: Annotated[str, "The term to define, one or two words."],
+) -> dict[str, object]:
+    key = term.strip().lower()
+    ctx.logger.info("define called for %s", key)
+    if key not in GLOSSARY:
+        return {"found": False, "known_terms": sorted(GLOSSARY)}
+    return {"found": True, "term": key, "definition": GLOSSARY[key]}
 ```
 
-If you mistyped a decorator argument, or left `@agent` off the class entirely so
-no module-level `agent` symbol was ever bound, this is where you find out.
+Four things to read here:
 
-## Step 3: install and enable
+- **The name and the description** are what the model sees. The name is the
+  last part of `pkg:coach/define`.
+- **`action="read"`** is the family of the tool: what calling it does to the
+  world. There are five (`read`, `read_personal`, `write_or_delete`,
+  `send_external`, `execute_code`), and every family except `read` is
+  sensitive: the runtime asks the person before such a tool runs.
+- **The signature is the schema.** `ctx` comes first and is left out; every
+  other parameter is an input, and `Annotated` carries the description the
+  model reads. `examples` are sample inputs shown beside the schema.
+- **`ctx`** is the context the runtime hands the function. This tool only uses
+  `ctx.logger`, a standard `logging.Logger`. The full contract is the
+  [SDK / ctx reference](/reference/sdk).
 
-Install copies the file into Apollia's agent store, then enable makes it
-loadable:
+Use absolute imports (`from apollia import ...`), never relative ones.
 
-```bash
-apollia-os agent install ./coach.py
-apollia-os agent enable coach
+## Step 3: test the tool
+
+A tool is a plain `async def` function: a test awaits it as written, with a
+`MockContext` in place of the runtime. Create `coach/tests/test_glossary.py`:
+
+```python
+import asyncio
+
+from apollia.testing import MockContext
+
+from tools.glossary import define
+
+
+def test_define_returns_the_definition_of_a_known_term():
+    # GIVEN a context and a term of the glossary, in another case
+    ctx = MockContext()
+
+    # WHEN the tool is awaited as written
+    result = asyncio.run(define(ctx, " Package "))
+
+    # THEN the definition comes back under the normalised term
+    assert result["found"] is True
+    assert result["term"] == "package"
 ```
 
-Confirm it is active:
+Run it from the package folder:
 
-```bash
-apollia-os agent list
+```sh
+cd coach
+python -m pytest -p no:cacheprovider tests
+cd ..
 ```
 
-## Step 4: talk to it
+`-p no:cacheprovider` keeps pytest from leaving a `.pytest_cache` folder
+behind: the build of the next step takes every file of the package folder.
+
+## Step 4: describe and build
+
+`apollia.toml` must say which tools the Python defines, so that reading the
+manifest never runs the code. You do not write those entries by hand:
+
+```sh
+python -m apollia describe coach
+```
+
+The command imports the modules of the folder and writes a `[[tools]]` entry
+for `define` at the end of `apollia.toml`: its module, its description, its
+family and its input schema. Run it again after every change to a decorated
+function.
+
+Then build the archive and read it back:
+
+```sh
+apollia-os package build coach
+apollia-os package inspect coach-0.1.0.apo
+```
+
+`build` validates the manifest and writes `coach-0.1.0.apo` in the current
+folder. No Python runs. If the manifest names a tool the package does not
+define, or the Python defines one the manifest does not describe, this is
+where you find out. `inspect` prints the manifest, the entries of the archive
+and its signature state, `unsigned` here.
+
+## Step 5: install
+
+`preview` shows what the package contains and asks for, before anything is
+written. `install` copies it into the package store of the runtime:
+
+```sh
+apollia-os package preview coach-0.1.0.apo
+apollia-os package install coach-0.1.0.apo
+```
+
+An unsigned package installs with a notice. Confirm the agent is there:
+
+```sh
+apollia-os agent list --definitions
+```
+
+## Step 6: talk to it
 
 `run` sends one message to the agent and prints the reply:
 
-```bash
-apollia-os run coach "How does the Director pattern work?"
+```sh
+apollia-os run coach "What is a package?"
 ```
 
-You should get a two to four sentence answer drawn from the knowledge base. Ask
-it something outside the knowledge base and it will tell you it does not know,
-because the system prompt instructed it to.
+You should get a two to four sentence answer built on the glossary. Ask it
+about a term the glossary does not hold and it tells you so, because the
+mission instructed it to.
 
 `apollia-os run` is a single call. For an ongoing back and forth, use
-`apollia-os chat` or the desktop app; both keep the `history` that your handler
-already accepts.
+`apollia-os chat` or the desktop app, where the agent appears on the Agents
+screen with its mission, its examples and its accesses.
 
 ## What you built
 
-A conversational agent is a class with one `@on_message` method that turns an
-incoming message into a reply, using `ctx.llm` for generation. That is the
-smallest complete agent Apollia runs.
+A package with one agent and one tool. The agent is data in `apollia.toml`: a
+mission, examples, and the list of what it may reach. The tool is a Python
+function the agent was granted. That is the smallest complete package that
+carries code; a package with only `[[agents]]` and no Python is valid too.
 
 ## Next steps
 
-- Stream the answer token by token with
-  [`ctx.llm`](/reference/sdk/llm) `stream` and
-  [`ctx.events`](/reference/sdk/events) `emit_token`, so the user sees text as
-  it is produced. `emit_token` only reaches a screen inside the desktop
-  application, the one caller that tags a run with a chat session and message
-  id; everywhere else, `apollia-os chat` included, it returns without emitting.
-- Give the agent memory by adding `memory_namespace="coach"` to `@agent` and
-  recording turns with [`ctx.memory`](/reference/sdk/memory). Memory is opt in
-  per agent: without a namespace, `ctx.memory` is unavailable by design.
-- Expose reusable capabilities instead of a chat loop:
-  [Write a worker](/how-to/write-a-worker).
-- Let an agent orchestrate several workers:
-  [Write a director](/how-to/write-a-director).
+- Change the mission, build and install again: an update keeps the changes the
+  person made to the agent on their side.
+- Start the next package from the folder `apollia-os package new <name>`
+  writes, which builds as written.
+- Sign the archive with `apollia-os package build coach --sign`, so that the
+  person who installs it sees who published it.
+- Chain several agents and a question to the user in a workflow:
+  [Build a multi-agent assistant](/tutorials/build-a-multi-agent-assistant).
