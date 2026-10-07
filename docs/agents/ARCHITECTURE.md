@@ -37,12 +37,15 @@ namespaces replace Docker. `cargo install apollia-os` is the install.
 
 ### 3. Minimal contract, zero friction
 
-**Rule.** An existing Python agent runs in Apollia with under 10 lines of
-adaptation.
+**Rule.** An agent is a record: a mission, a model, tools, sources, rights.
+Code is optional: a package brings `@tool` and `@workflow` functions, and
+nothing else. The runtime refuses a package whose manifest does not validate.
 
-**Why.** Frameworks that impose a paradigm have a steep adoption curve.
-Apollia solves infrastructure, not modeling. If the solution requires
-rewriting the agent, it generates as much work as it saves.
+**Why.** An agent that fixes in code the tools it requires is a workflow
+written in code: its user cannot add a tool or change a right without a new
+version. What a package declares is a set of defaults, and the user changes
+them from the interface. The line between the two is who decides the next
+step: the model for an agent, the author for a workflow.
 
 **How.** One manifest. An agent is an `[[agents]]` entry of the `apollia.toml`
 of its package: a mission, examples, what it may reach. The Python a package
@@ -145,8 +148,8 @@ shell-out around. A CLI that only emits JSON is a CLI that humans hate.
                      (PyO3 bridge)
                            │
                            ▼
-                  Python agents + SDK
-                  (@agent, @skill, @orchestrated)
+                  Package Python + SDK
+                  (@tool, @workflow)
 ```
 
 The desktop UI (`crates/apollia-desktop/ui/`) consumes the same HTTP API

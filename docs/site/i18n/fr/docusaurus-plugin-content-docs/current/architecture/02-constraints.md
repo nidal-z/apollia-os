@@ -11,7 +11,7 @@ L'architecture est bornée par un petit ensemble de règles non négociables. Ce
 
 1. **Local-first.** Aucune donnée utilisateur ne quitte la machine sans une action explicite. Cela interdit toute télémétrie silencieuse et oriente chaque comportement par défaut vers le chemin local.
 2. **Zéro dépendance externe au runtime.** Le binaire s'exécute sur une machine Linux propre, sans rien de préinstallé. L'inférence, le stockage et l'API sont tous intégrés au processus ou exécutés en sidecar, jamais un service externe requis.
-3. **Contrat minimal.** Il suffit qu'un agent expose, par typage structurel, une méthode `manifest()` et une méthode asynchrone `run()`. Le runtime n'impose aucun framework à l'agent.
+3. **Contrat minimal.** Un agent est une fiche : une mission, un modèle, des outils, des sources et des droits, déclarés dans le manifeste d'un paquet. Le code est optionnel : un paquet apporte des outils et des workflows, et rien d'autre.
 4. **Fail fast.** Toute erreur détectable au démarrage est détectée au démarrage, pas en cours d'exécution.
 5. **Un acteur, une responsabilité.** Le cœur du runtime est un ensemble d'acteurs Tokio sans état mutable partagé entre eux. Ils communiquent uniquement par message.
 6. **Mémoire à l'initiative de l'agent.** Le runtime n'injecte jamais automatiquement de contexte mémoire dans le prompt d'un agent. Un agent se souvient quand il choisit de le faire. L'assistant conversationnel intégré est le seul endroit où cette injection a lieu, de deux façons, et [les huit principes](/explanation/the-8-principles) précisent lesquelles.
