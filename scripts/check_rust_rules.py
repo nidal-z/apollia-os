@@ -309,7 +309,7 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-notifications/src/channels/webhook.rs": 8,
     "crates/apollia-notifications/src/engine.rs": 1,
     "crates/apollia-notifications/src/inactivity_watcher.rs": 5,
-    "crates/apollia-oria/src/actor.rs": 4,
+    "crates/apollia-oria/src/actor.rs": 2,
     "crates/apollia-oria/src/budget.rs": 5,
     "crates/apollia-oria/src/engine.rs": 10,
     "crates/apollia-oria/src/resilience.rs": 3,
