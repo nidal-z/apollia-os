@@ -3897,7 +3897,6 @@
       "gigabytes": "{size} GB",
       "memory_unknown": "The memory of this model could not be estimated.",
       "estimate_failed": "The estimate did not go through: {error}",
-      "file": "Model file",
       "quantization_help": "How much the model is compressed. The stronger it is, the less memory the model takes, and the less refined its answers are.",
       "no_settings": "No configurable setting for this model: it loads with its original settings.",
       "context": "Context length",
@@ -3929,7 +3928,13 @@
         "seed": "Seed",
         "kv_offload": "Keep the context cache on the graphics card",
         "automatic": "automatic"
-      }
+      },
+      "fit": {
+        "fits": "Fits this computer",
+        "might_fit": "Barely fits this computer",
+        "too_large": "Too heavy for this computer"
+      },
+      "of_capacity": "out of {size} GB this computer can give a model"
     },
     "model_eject": {
       "label": "Eject the model",

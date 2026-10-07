@@ -3897,7 +3897,6 @@
       "gigabytes": "{size} Go",
       "memory_unknown": "La mémoire de ce modèle n'a pas pu être estimée.",
       "estimate_failed": "L'estimation n'a pas abouti : {error}",
-      "file": "Fichier du modèle",
       "quantization_help": "Niveau de compression du modèle. Plus il est fort, moins le modèle prend de mémoire, et moins ses réponses sont fines.",
       "no_settings": "Aucun réglage configurable pour ce modèle : il se charge avec ses réglages d'origine.",
       "context": "Longueur de contexte",
@@ -3929,7 +3928,13 @@
         "seed": "Graine",
         "kv_offload": "Garder le cache de contexte sur la carte graphique",
         "automatic": "automatique"
-      }
+      },
+      "fit": {
+        "fits": "Tient sur ce poste",
+        "might_fit": "Tient de justesse sur ce poste",
+        "too_large": "Trop lourd pour ce poste"
+      },
+      "of_capacity": "sur {size} Go que ce poste peut donner à un modèle"
     },
     "model_eject": {
       "label": "Éjecter le modèle",

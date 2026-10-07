@@ -58,6 +58,13 @@
   const format = $derived(
     estimate ? (estimate.engine === "vllm-mlx" ? "mlx" : "gguf") : (ask?.format ?? null),
   );
+  /** The sentence of each fit verdict, named in full so the catalogue checks see them. */
+  const FIT_KEYS = {
+    fits: "chat.model_load.fit.fits",
+    might_fit: "chat.model_load.fit.might_fit",
+    too_large: "chat.model_load.fit.too_large",
+  } as const;
+
   const refusal = $derived(refusalOf(estimate));
   const bounds = $derived(estimate ? contextBounds(estimate) : null);
   const context = $derived(form.nCtx ?? estimate?.nCtx ?? 0);
@@ -201,9 +208,26 @@
       >
         <ArrowLeft size={15} strokeWidth={1.75} />
       </button>
-      <h2 class="min-w-0 flex-1 truncate text-base font-semibold text-foreground" data-testid="model-load-title">
-        {ask.modelId}
-      </h2>
+      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2" data-testid="model-load-file">
+        <h2 class="min-w-0 truncate text-base font-semibold text-foreground" data-testid="model-load-title">
+          {ask.modelId}
+        </h2>
+        {#if format}
+          <ExplainedBadge
+            label={format.toUpperCase()}
+            explanation={$t("chat.target_selector.formats_help")}
+            help
+            testid="model-load-format-badge"
+          />
+        {/if}
+        {#if estimate?.quantization}
+          <ExplainedBadge
+            label={estimate.quantization}
+            explanation={$t("chat.model_load.quantization_help")}
+            testid="model-load-quantization"
+          />
+        {/if}
+      </div>
       <button
         type="button"
         class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
@@ -216,31 +240,67 @@
     </div>
 
     <div class="mt-4 space-y-4">
+      <!-- What the load takes out of what this computer can give, said in a
+           sentence and drawn as a gauge. -->
       <div
-        class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted px-3 py-2 text-body-xs"
+        class="space-y-2 rounded-xl border px-4 py-3 text-body-xs {refusal
+          ? 'border-destructive/40 bg-destructive/5'
+          : estimate?.memory?.fit === 'might_fit'
+            ? 'border-warning/40 bg-warning/5'
+            : 'border-border bg-surface-1'}"
         aria-live="polite"
         data-testid="model-load-memory"
       >
-        <span class="font-medium text-foreground">{$t("chat.model_load.memory")}</span>
-        <span class="flex-1 text-caption text-muted-foreground">
-          {estimating ? $t("chat.model_load.estimating") : $t("chat.model_load.estimate_mark")}
-        </span>
-        {#if estimate?.memory}
-          <span class="text-caption text-muted-foreground">{$t("chat.model_load.memory_gpu")}</span>
-          <span class="font-medium text-foreground" data-testid="model-load-memory-gpu">
-            {$t("chat.model_load.gigabytes", { values: { size: gb(estimate.memory.gpuGb, lang) } })}
+        <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span class="font-medium text-foreground">
+            {#if estimate?.memory}
+              {$t(FIT_KEYS[estimate.memory.fit])}
+            {:else}
+              {$t("chat.model_load.memory")}
+            {/if}
           </span>
-          <span class="text-caption text-muted-foreground">{$t("chat.model_load.memory_total")}</span>
-          <span
-            class="font-medium {refusal ? 'text-destructive' : 'text-foreground'}"
-            data-testid="model-load-memory-total"
+          <span class="flex-1 text-caption text-muted-foreground">
+            {estimating ? $t("chat.model_load.estimating") : $t("chat.model_load.estimate_mark")}
+          </span>
+          {#if estimate?.memory}
+            <span class="text-caption text-muted-foreground">{$t("chat.model_load.memory_gpu")}</span>
+            <span class="font-medium text-foreground" data-testid="model-load-memory-gpu">
+              {$t("chat.model_load.gigabytes", { values: { size: gb(estimate.memory.gpuGb, lang) } })}
+            </span>
+            <span class="text-caption text-muted-foreground">{$t("chat.model_load.memory_total")}</span>
+            <span
+              class="font-medium {refusal ? 'text-destructive' : 'text-foreground'}"
+              data-testid="model-load-memory-total"
+            >
+              {$t("chat.model_load.gigabytes", { values: { size: gb(estimate.memory.totalGb, lang) } })}
+            </span>
+          {:else if estimate}
+            <span class="text-caption text-muted-foreground" data-testid="model-load-memory-unknown">
+              {$t("chat.model_load.memory_unknown")}
+            </span>
+          {/if}
+        </div>
+        {#if estimate?.memory && estimate.memory.capacityGb > 0}
+          <div
+            class="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+            role="img"
+            aria-label={$t("chat.model_load.of_capacity", {
+              values: { size: gb(estimate.memory.capacityGb, lang) },
+            })}
+            data-testid="model-load-memory-gauge"
           >
-            {$t("chat.model_load.gigabytes", { values: { size: gb(estimate.memory.totalGb, lang) } })}
-          </span>
-        {:else if estimate}
-          <span class="text-caption text-muted-foreground" data-testid="model-load-memory-unknown">
-            {$t("chat.model_load.memory_unknown")}
-          </span>
+            <div
+              class="h-full rounded-full {refusal
+                ? 'bg-destructive'
+                : estimate.memory.fit === 'might_fit'
+                  ? 'bg-warning'
+                  : 'bg-primary'}"
+              style:width="{Math.min(100, Math.round((estimate.memory.totalGb / estimate.memory.capacityGb) * 100))}%"
+            ></div>
+          </div>
+          <p class="text-caption text-muted-foreground" data-testid="model-load-memory-capacity">
+            {$t("chat.model_load.of_capacity", { values: { size: gb(estimate.memory.capacityGb, lang) } })}
+          </p>
         {/if}
       </div>
 
@@ -249,31 +309,6 @@
           {$t("chat.model_load.estimate_failed", { values: { error: estimateError } })}
         </p>
       {/if}
-
-      <div class="space-y-1.5">
-        <p class="text-body-xs font-medium text-foreground">{$t("chat.model_load.file")}</p>
-        <div
-          class="v4-hair flex flex-wrap items-center gap-2 rounded-md border bg-surface-1 px-3 py-2"
-          data-testid="model-load-file"
-        >
-          <span class="min-w-0 truncate text-body-xs font-medium text-foreground">{ask.modelId}</span>
-          {#if format}
-            <ExplainedBadge
-              label={format.toUpperCase()}
-              explanation={$t("chat.target_selector.formats_help")}
-              help
-              testid="model-load-format-badge"
-            />
-          {/if}
-          {#if estimate?.quantization}
-            <ExplainedBadge
-              label={estimate.quantization}
-              explanation={$t("chat.model_load.quantization_help")}
-              testid="model-load-quantization"
-            />
-          {/if}
-        </div>
-      </div>
 
       {#if estimate && !configurable}
         <p class="text-body-xs text-muted-foreground" data-testid="model-load-no-settings">
