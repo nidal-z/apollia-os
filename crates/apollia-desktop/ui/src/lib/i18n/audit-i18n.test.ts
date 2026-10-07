@@ -254,7 +254,7 @@ describe("audit-i18n scanner - .ts modules", () => {
       'if (e.key === "Enter") { console.warn("not copy here"); }',
       'throw new Error("machine diagnostic message");',
       'const cls = "flex items-center gap-3 rounded-md border";',
-      'const ipc = invoke("update_agent", { name, path });',
+      'const ipc = invoke("uninstall_agent", { name });',
     ].join("\n");
 
     // WHEN the scanner reads it

@@ -50,14 +50,17 @@ Apollia définit quatre paliers, du plus supervisé au plus autonome :
   plus large, adapté uniquement quand la tâche est bien comprise et que le
   budget et les permissions bornent déjà le rayon d'impact possible.
 
-Les deux effets vivent sur un seul chemin d'exécution, ce qui restreint qui les
-voit un jour. La porte de plan et la passe de vérification ne sont atteintes que
-si le manifeste de l'agent déclare `execution_mode = "orchestrated"`, ce que le
-SDK pose pour une classe portant `@orchestrated`. Un agent bâti sur `@skill` ou
-`@on_message` emprunte le chemin de dispatch direct, où ni la porte ni la passe
-de vérification n'existent, quel que soit le palier de l'exécution. Aucun des
-trois agents livrés avec le produit n'est orchestré : deux déclarent `auto` et
-un déclare `direct`.
+Les deux effets s'appliquent à l'exécution d'un agent, et un agent est une
+donnée : une entrée `[[agents]]` du `apollia.toml` de son paquet, ou un agent
+créé dans l'application, exécuté par le moteur intégré au runtime. Aucun Python
+d'un paquet ne choisit un chemin d'exécution. Le palier auquel un agent
+s'exécute est celui que son paquet recommande (`autonomy`, sous
+`[agents.defaults]`), puis le remplacement posé par la personne, puis la valeur
+globale par défaut, et la passe de vérification est attachée à l'exécution à
+partir de Supervisé. Qu'un agent écrive un plan avant d'agir relève d'un autre
+réglage, son mode de planification (`planning` : `never`, `auto` ou `always`),
+et un plan écrit ainsi n'a pas d'approbation propre : approuver un plan avant
+son exécution appartient au mode plan d'une conversation.
 
 La porte est active en Assisté et Supervisé, et contournée en Autonome borné et
 Autonome long, mais seulement pour une exécution qui ne porte aucune décision
@@ -85,13 +88,12 @@ Les quatre paliers déclarent 100, 200, 300 et 500 pas de raisonnement, et cette
 table est réelle. Ce qui la lit, c'est le chemin du chat, et le chat libre
 s'exécute au palier par défaut sans jamais en changer.
 
-<!-- claim:tier-budget-capped-at-thirty-on-agent-paths -->
-Une exécution d'agent ne lit pas cette table du tout. Les deux chemins
-d'exécution prennent le budget déclaré par le manifeste de l'agent et le
-plafonnent contre un plafond runtime fixe de 30 pas de raisonnement, 60 appels
-d'outils et 600 secondes de temps réel. Élargir le palier élargit donc ce qu'un
-agent peut tenter bien avant de changer ce que l'agent obtient réellement, et
-cela ne supprime jamais la limite dure. La mécanique de la boucle de vérification
+<!-- claim:agent-run-budget-is-its-tier-capped-by-the-ceiling -->
+Une exécution d'agent lit cette table elle aussi. Elle prend le budget du palier
+auquel l'agent s'exécute et le plafonne contre un plafond runtime fixe de 100 pas
+de raisonnement, 200 appels d'outils et 1200 secondes de temps réel. Élargir le
+palier élargit donc ce qu'un agent peut tenter bien avant de changer ce que
+l'agent obtient réellement, et cela ne supprime jamais la limite dure. La mécanique de la boucle de vérification
 relève du
 [modèle de plan et d'exécution orchestrée](/explanation/the-plan-model), et les
 garde-fous sous lesquels elle s'exécute relèvent du

@@ -1,12 +1,12 @@
-"""Mock implementations of all ``ctx.*`` services for unit testing agents.
+"""Mock implementations of the ``ctx.*`` services for unit tests.
 
 Each ``Mock<X>`` mirrors the corresponding Protocol from
 :mod:`apollia.context` and adds tracking attributes (``*_calls`` lists,
 queues, ``values`` dicts) so tests can drive scenarios and assert what
 happened.
 
-These mocks intentionally implement only the surface methods agents use
-at runtime.  They are *not* full duck-types - calling a method that has
+These mocks intentionally implement only the surface methods a tool or a
+workflow uses at runtime.  They are *not* full duck-types - calling a method that has
 not been implemented will raise :class:`AttributeError`, which keeps the
 test surface small and intentional.
 """
@@ -24,59 +24,6 @@ from apollia.errors import QuestionDeclined
 # Likewise, parameters such as `timeout_secs` are part of the Protocol
 # signature (callers pass them by keyword) and cannot be renamed or
 # removed.
-
-
-# ctx.a2a
-class MockA2A:
-    """In-memory mock of the ``A2AProxy`` Protocol.
-
-    Pre-configure via attributes:
-        ``invoke_responses``: ``{skill_id: response_dict}`` returned by
-            :meth:`invoke`.  Default response is
-            ``{"status": "completed"}``.
-        ``skill_cards``: ``{skill_id: card_dict}`` returned by
-            :meth:`discover` / used by :meth:`skill_as_tool`.
-        ``skills_list``: list returned by :meth:`list_skills`.
-
-    Track via attributes:
-        ``invoke_calls``: ordered list of ``(skill_id, merged_input)``.
-    """
-
-    def __init__(self) -> None:
-        """Start with no configured response and an empty call log."""
-        self.invoke_calls: list[tuple[str, dict[str, Any]]] = []
-        self.invoke_responses: dict[str, dict[str, Any]] = {}
-        self.skill_cards: dict[str, dict[str, Any]] = {}
-        self.skills_list: list[dict[str, Any]] = []
-
-    async def invoke(  # NOSONAR S7503 S1172: Protocol contract
-        self,
-        skill_id: str,
-        input: dict[str, Any] | None,
-        *,
-        timeout_secs: int | None = None,  # NOSONAR S1172: Protocol kwarg
-    ) -> dict[str, Any]:
-        """Record the call and return the configured response."""
-        merged: dict[str, Any] = dict(input) if input else {}
-        self.invoke_calls.append((skill_id, merged))
-        return self.invoke_responses.get(skill_id, {"status": "completed"})
-
-    async def discover(self, skill_id: str) -> dict[str, Any] | None:  # NOSONAR S7503
-        """Return the configured skill card, or None if none was set."""
-        return self.skill_cards.get(skill_id)
-
-    async def list_skills(self) -> list[dict[str, Any]]:  # NOSONAR S7503
-        """Return a copy of the configured ``skills_list``."""
-        return list(self.skills_list)
-
-    async def skill_as_tool(self, skill_id: str) -> dict[str, Any]:  # NOSONAR S7503
-        """Build a tool descriptor from the configured skill card."""
-        card = self.skill_cards.get(skill_id, {})
-        return {
-            "name": f"a2a__{skill_id.replace('.', '__')}",
-            "description": card.get("description", ""),
-            "input_schema": card.get("input_schema", {}),
-        }
 
 
 # ctx.agents
@@ -486,7 +433,6 @@ class MockBudget:
 
 
 __all__ = [
-    "MockA2A",
     "MockBudget",
     "MockDatasources",
     "MockEvents",

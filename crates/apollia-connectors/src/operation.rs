@@ -2,20 +2,20 @@
 
 use serde::Serialize;
 
-/// Approval policy for an operation.
+/// How an operation is classed by what it does to the connected account.
 ///
-/// Surfaced to `apollia-tools::governance`: operations marked
-/// [`AlwaysRequireApproval`](ApprovalPolicy::AlwaysRequireApproval) trigger
-/// a HITL prompt before execution, even when the agent is otherwise trusted.
+/// A classification and nothing else: the tool descriptor of the operation
+/// derives its action family and its risk from it. Whether a call runs, asks
+/// or is refused is decided by governance from that family, never from this
+/// value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ApprovalPolicy {
-    /// Auto-approve. Suitable for read-only operations with no side effects.
+    /// A read-only operation with no side effect.
     AutoApprove,
-    /// Require HITL approval before each invocation. Default for writes.
+    /// An operation that writes. The class of a write by default.
     AlwaysRequireApproval,
-    /// Require HITL approval AND a confirmation phrase typed by the user.
-    /// Used for destructive irreversible operations (delete, drop).
+    /// A destructive, irreversible operation (delete, drop).
     ConfirmPhrase,
 }
 
@@ -44,7 +44,7 @@ pub struct OperationSpec {
     /// OAuth scope groups (catalog identifiers in `apollia-auth`) the active
     /// account must hold. Empty if the operation is purely local.
     pub scopes_required: &'static [&'static str],
-    /// Default HITL approval policy.
+    /// Class of the operation, from which its tool descriptor is derived.
     pub approval: ApprovalPolicy,
     /// JSON Schema describing the input arguments (`2020-12` dialect).
     pub input_schema: serde_json::Value,
@@ -57,17 +57,9 @@ pub struct OperationSpec {
 }
 
 impl OperationSpec {
-    /// True when this operation is read-only based on its approval policy.
+    /// True when this operation is classed as read-only.
     pub fn is_read_only(&self) -> bool {
         self.approval == ApprovalPolicy::AutoApprove
-    }
-
-    /// True when this operation requires HITL approval before execution.
-    pub fn requires_approval(&self) -> bool {
-        matches!(
-            self.approval,
-            ApprovalPolicy::AlwaysRequireApproval | ApprovalPolicy::ConfirmPhrase
-        )
     }
 }
 
@@ -174,31 +166,28 @@ mod tests {
 
     #[test]
     fn test_auto_approve_is_read_only() {
-        // GIVEN an operation under the auto-approve policy
-        // WHEN its read-only and approval flags are read
-        // THEN it counts as read-only, and asks for no approval
+        // GIVEN an operation classed as auto-approved
+        // WHEN its read-only flag is read
+        // THEN it counts as read-only
         assert!(fixture(ApprovalPolicy::AutoApprove).is_read_only());
-        assert!(!fixture(ApprovalPolicy::AutoApprove).requires_approval());
     }
 
     #[test]
     fn test_always_require_approval_is_not_read_only() {
-        // GIVEN an operation that always requires an approval
+        // GIVEN an operation classed as a write
         let op = fixture(ApprovalPolicy::AlwaysRequireApproval);
-        // WHEN its read-only and approval flags are read
-        // THEN it is not read-only, and an approval is asked for
+        // WHEN its read-only flag is read
+        // THEN it is not read-only
         assert!(!op.is_read_only());
-        assert!(op.requires_approval());
     }
 
     #[test]
-    fn test_confirm_phrase_requires_approval() {
-        // GIVEN an operation gated behind a typed confirmation
+    fn test_confirm_phrase_is_not_read_only() {
+        // GIVEN an operation classed as destructive
         let op = fixture(ApprovalPolicy::ConfirmPhrase);
-        // WHEN its read-only and approval flags are read
-        // THEN it is not read-only, and an approval is asked for
+        // WHEN its read-only flag is read
+        // THEN it is not read-only
         assert!(!op.is_read_only());
-        assert!(op.requires_approval());
     }
 
     #[test]

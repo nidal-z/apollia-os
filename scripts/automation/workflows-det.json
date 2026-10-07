@@ -1870,6 +1870,6 @@
     "A stub is static, so each state of a run is a new stub: the run going (launch_workflow, then get_workflow_run with its second step in progress), then the same run stopped (cancel_workflow_run, list_workflow_runs and get_workflow_run restubbed once the confirmation of the stop is open). The sheet reads a run going again every second, so the stopped state may show before the confirmation is clicked; the confirmation stays open through it.",
     "The list is read when the screen shows it, so a new list stub is followed by a round trip through the chat or by the way back from a sheet.",
     "workflow-sheet-loading is not played: it shows for the time of one stubbed call. The file field (a native chooser) is not played either: the stubbed workflow declares none; its control is held by the Vitest suite components/workflows/workflowForm.test.ts.",
-    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just desktop-dev-automation-seeded scripts/automation/workflows-det.json"
+    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just automation-seeded scripts/automation/workflows-det.json"
   ]
 }

@@ -40,8 +40,8 @@ use crate::resilience::ResilienceLayer;
 
 /// Trait abstracting agent execution for testability.
 ///
-/// Concrete implementation dispatches to `AIPBridge::call_run()`.
-/// Tests use a mock runner.
+/// No implementation ships: the runner of a Python agent is gone, and an agent
+/// is run by the agent executor. Tests use a mock runner.
 pub trait AgentRunner: Send + Sync {
     /// Executes the agent's `run(task)` method and returns the result.
     fn call_run(
@@ -61,6 +61,19 @@ pub trait AIPAgent: Send + Sync {
     /// Returns the agent's manifest declaring capabilities and execution mode.
     fn manifest(&self) -> AgentManifest;
 
+    /// The tools the agent may call in this run: the access of the agent as
+    /// resolved (its definition, then the user's overrides). This is the only
+    /// list the engine reads; none by default.
+    fn granted_tools(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// The backend every model call of this run goes to, when the agent was
+    /// given a model of its own. `None` leaves the default of the router.
+    fn model_backend(&self) -> Option<String> {
+        None
+    }
+
     /// Returns `true` if the agent exposes an `on_plan_complete()` method.
     ///
     /// Detected via `hasattr` Python. Returns `false` by default, in which case
@@ -72,8 +85,7 @@ pub trait AIPAgent: Send + Sync {
     /// Calls `on_plan_complete(step_results)` on the agent.
     ///
     /// Invoked by `ORIAEngine::execute_orchestrated_plan()` when [`has_on_plan_complete`]
-    /// returns `true`. The concrete Python implementation delegates to
-    /// `AIPBridge::call_on_plan_complete()`.
+    /// returns `true`.
     ///
     /// Default: concatenates step outputs automatically (same as the fallback path).
     ///
@@ -300,6 +312,7 @@ impl ORIAEngine {
         let mode = classify(
             &task,
             &manifest,
+            agent.granted_tools().len(),
             None,
             self.oria_config.orchestrated_threshold as f32,
         );
@@ -1078,8 +1091,6 @@ mod orchestrated_tests {
             name: "test-agent".into(),
             version: "1.0.0".into(),
             description: "Test orchestrated agent".into(),
-            tools_required: vec!["file_io".into(), "bash_executor".into()],
-            tools_optional: vec![],
             supports_streaming: false,
             supports_a2a: false,
             memory_namespace: None,
@@ -1090,16 +1101,12 @@ mod orchestrated_tests {
                 max_tool_calls: 50,
                 wall_clock_secs: 600,
             }),
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
             execution_mode: "orchestrated".into(),
             supports_mailbox: false,
             mailbox_allowlist: None,
             system_prompt: Some("Plan the necessary steps.".into()),
-            tools_requiring_approval: vec![],
-            llm_backend: None,
             model: None,
             packages: vec![],
             memory_config: None,
@@ -1240,24 +1247,18 @@ mod orchestrated_tests {
                 name: "no-prompt-agent".into(),
                 version: "1.0.0".into(),
                 description: "Agent without system_prompt".into(),
-                tools_required: vec![],
-                tools_optional: vec![],
                 supports_streaming: false,
                 supports_a2a: false,
                 memory_namespace: None,
                 shared_memory_namespaces: vec![],
                 max_concurrent_tasks: 1,
                 step_budget: None,
-                network_allowlist: None,
-                dangerous_tools_allowed: false,
                 tags: vec![],
                 skills: vec![],
                 execution_mode: "orchestrated".into(),
                 supports_mailbox: false,
                 mailbox_allowlist: None,
                 system_prompt: None, // ← absent
-                tools_requiring_approval: vec![],
-                llm_backend: None,
                 model: None,
                 packages: vec![],
                 memory_config: None,

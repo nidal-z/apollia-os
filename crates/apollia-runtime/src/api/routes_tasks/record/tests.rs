@@ -3,7 +3,6 @@ use std::sync::Arc;
 use apollia_tools::{PauseRecord, TaskRepository};
 use axum::http::StatusCode;
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::test_support::{app_state, call};
 
 async fn store_with(dir: &std::path::Path, task_id: &str) -> Arc<TaskRepository> {
@@ -29,7 +28,7 @@ async fn test_a_stored_task_is_deleted_once_then_reported_gone() {
     // GIVEN a daemon whose task store holds the task t-1
     let dir = tempfile::tempdir().unwrap();
     let repo = store_with(dir.path(), "t-1").await;
-    let mut state = app_state(Arc::new(StubAgentLoader), dir.path().to_path_buf());
+    let mut state = app_state(dir.path().to_path_buf());
     state.task_repository = Some(repo.clone());
 
     // WHEN its record is deleted twice
@@ -50,7 +49,7 @@ async fn test_a_stored_task_is_deleted_once_then_reported_gone() {
 async fn test_a_daemon_without_a_task_store_refuses_with_503() {
     // GIVEN a daemon with no task store
     let dir = tempfile::tempdir().unwrap();
-    let state = app_state(Arc::new(StubAgentLoader), dir.path().to_path_buf());
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a record is deleted
     let (status, answer) = call(state, "DELETE", "/api/v1/tasks/t-1/record", None).await;

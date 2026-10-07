@@ -16,7 +16,6 @@ use apollia_mcp::session::LoadingMode;
 use apollia_tools::descriptor::{ToolDescriptor, ToolKind};
 use apollia_tools::{ActionFamily, ToolRegistryHandle};
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::chat::manager::{ChatSessionManagerHandle, ChatToolsConfig, CreateSessionParams};
 use crate::chat::types::{ChatError, ChatMode, SessionConfigUpdate};
 use crate::chat::{ContextOverflowSetting, SessionSettings};
@@ -143,7 +142,6 @@ impl Chat {
             &dir.path().join("chat.db"),
             Some(Arc::new(LlmRouter::with_backends(backends, "default"))),
             registry,
-            Arc::new(StubAgentLoader),
             None,
             bus.clone(),
             StepBudgetConfig::default(),

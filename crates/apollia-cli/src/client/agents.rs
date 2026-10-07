@@ -52,9 +52,9 @@ impl RuntimeClient {
         Ok(json)
     }
 
-    /// Start (register) a new agent via `POST /api/v1/agents`.
-    pub async fn start_agent(&self, agent_path: &str) -> Result<serde_json::Value, ClientError> {
-        let body = serde_json::json!({ "agent_path": agent_path });
+    /// Make the stored agent `agent` available via `POST /api/v1/agents`.
+    pub async fn start_agent(&self, agent: &str) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({ "agent": agent });
         let resp = self.post("/api/v1/agents", Some(&body)).await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {

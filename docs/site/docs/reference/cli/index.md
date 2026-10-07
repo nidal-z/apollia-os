@@ -23,19 +23,14 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os agent export`↴](#apollia-os-agent-export)
 * [`apollia-os agent status`↴](#apollia-os-agent-status)
 * [`apollia-os agent messages`↴](#apollia-os-agent-messages)
-* [`apollia-os agent install`↴](#apollia-os-agent-install)
 * [`apollia-os agent uninstall`↴](#apollia-os-agent-uninstall)
 * [`apollia-os agent enable`↴](#apollia-os-agent-enable)
 * [`apollia-os agent disable`↴](#apollia-os-agent-disable)
-* [`apollia-os agent update`↴](#apollia-os-agent-update)
-* [`apollia-os agent create`↴](#apollia-os-agent-create)
 * [`apollia-os agent package`↴](#apollia-os-agent-package)
 * [`apollia-os agent package list`↴](#apollia-os-agent-package-list)
 * [`apollia-os agent package show`↴](#apollia-os-agent-package-show)
 * [`apollia-os agent package uninstall`↴](#apollia-os-agent-package-uninstall)
 * [`apollia-os agent logs`↴](#apollia-os-agent-logs)
-* [`apollia-os agent validate`↴](#apollia-os-agent-validate)
-* [`apollia-os agent repair`↴](#apollia-os-agent-repair)
 * [`apollia-os a2a`↴](#apollia-os-a2a)
 * [`apollia-os a2a skills`↴](#apollia-os-a2a-skills)
 * [`apollia-os a2a invoke`↴](#apollia-os-a2a-invoke)
@@ -180,9 +175,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os chat config authorizations revoke`↴](#apollia-os-chat-config-authorizations-revoke)
 * [`apollia-os mcp`↴](#apollia-os-mcp)
 * [`apollia-os mcp list`↴](#apollia-os-mcp-list)
-* [`apollia-os mcp set-approval`↴](#apollia-os-mcp-set-approval)
-* [`apollia-os mcp list-pending`↴](#apollia-os-mcp-list-pending)
-* [`apollia-os mcp revoke-approval`↴](#apollia-os-mcp-revoke-approval)
 * [`apollia-os mcp add`↴](#apollia-os-mcp-add)
 * [`apollia-os mcp remove`↴](#apollia-os-mcp-remove)
 * [`apollia-os mcp show`↴](#apollia-os-mcp-show)
@@ -204,6 +196,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os mcp server`↴](#apollia-os-mcp-server)
 * [`apollia-os update`↴](#apollia-os-update)
 * [`apollia-os package`↴](#apollia-os-package)
+* [`apollia-os package new`↴](#apollia-os-package-new)
 * [`apollia-os package build`↴](#apollia-os-package-build)
 * [`apollia-os package inspect`↴](#apollia-os-package-inspect)
 * [`apollia-os package preview`↴](#apollia-os-package-preview)
@@ -255,7 +248,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os service uninstall`↴](#apollia-os-service-uninstall)
 * [`apollia-os service status`↴](#apollia-os-service-status)
 * [`apollia-os doctor`↴](#apollia-os-doctor)
-* [`apollia-os inspect`↴](#apollia-os-inspect)
 * [`apollia-os logs`↴](#apollia-os-logs)
 * [`apollia-os version`↴](#apollia-os-version)
 * [`apollia-os connector`↴](#apollia-os-connector)
@@ -339,7 +331,7 @@ Apollia OS CLI binary (apollia-os)
 * `onboard` - Launch onboarding or re-onboarding on a specific topic
 * `permissions` - Permission rule management (list, revoke, audit)
 * `chat` - Interactive chat REPL + persisted session hygiene (list, delete, rename, export)
-* `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
+* `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, server)
 * `update` - Check for and install updates from GitHub Releases
 * `package` - Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
 * `policy` - Organisation policy: create the key, write, sign, verify, show
@@ -352,7 +344,6 @@ Apollia OS CLI binary (apollia-os)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
 * `doctor` - Diagnose the local Apollia environment (no runtime required)
-* `inspect` - Statically inspect a Python agent file (no runtime required)
 * `logs` - Tail or follow the runtime log file
 * `version` - Print the binary version (use `--json` for machine-readable output)
 * `connector` - Native SaaS connector management (list, accounts, test, revoke)
@@ -453,7 +444,7 @@ Agent management (list, start, stop, show, install, uninstall, enable, disable, 
 ###### **Subcommands:**
 
 * `list` - List all agents (installed and/or runtime)
-* `start` - Start (register) a new agent from a Python module path
+* `start` - Make a stored agent available again, after `agent stop`
 * `stop` - Stop (shutdown) a running agent
 * `show` - Display detailed information about an agent, with its definition as resolved (package defaults, then your overrides)
 * `set` - Override one field of an agent's definition; a package update keeps it
@@ -461,16 +452,11 @@ Agent management (list, start, stop, show, install, uninstall, enable, disable, 
 * `export` - Export an agent created in the interface as a `.apo` package
 * `status` - Show a compact runtime-status snapshot for `<agent_id>`
 * `messages` - List in-memory A2A messages for `<agent_id>` (oldest-first within window)
-* `install` - Install an agent permanently from a local path or a Git URL
 * `uninstall` - Uninstall an agent installed on its own, through the runtime
 * `enable` - Enable an installed agent (will auto-start on boot)
 * `disable` - Disable an installed agent (will not auto-start on boot)
-* `update` - Update an installed agent with a new Python module
-* `create` - Create a new agent from an SDK template
-* `package` - Manage agent packages (multi-agent bundles described by agent.toml)
+* `package` - List, show and uninstall the installed packages
 * `logs` - Display recent log lines from a running agent
-* `validate` - Validate an agent manifest without installing or starting the agent
-* `repair` - Re-provision an installed agent's per-agent Python venv from its manifest
 
 
 
@@ -489,13 +475,15 @@ List all agents (installed and/or runtime)
 
 ## `apollia-os agent start`
 
-Start (register) a new agent from a Python module path
+Make a stored agent available again, after `agent stop`.
 
-**Usage:** `apollia-os agent start <PATH>`
+An agent is available as soon as it is installed and enabled; this is only needed for one that was stopped.
+
+**Usage:** `apollia-os agent start <AGENT_ID>`
 
 ###### **Arguments:**
 
-* `<PATH>` - Path to the agent Python module
+* `<AGENT_ID>` - Agent identifier
 
 
 
@@ -608,24 +596,6 @@ List in-memory A2A messages for `<agent_id>` (oldest-first within window)
 
 
 
-## `apollia-os agent install`
-
-Install an agent permanently from a local path or a Git URL.
-
-Accepts a local filesystem path (e.g. `./agents/my-agent.py`) or a Git remote URL (e.g. `https://github.com/user/my-agent.git`).  An optional `#<tag>` suffix pins the clone to a specific tag or branch (e.g. `https://github.com/user/my-agent.git#v1.2.0`).
-
-**Usage:** `apollia-os agent install [OPTIONS] <SOURCE>`
-
-###### **Arguments:**
-
-* `<SOURCE>` - Local path to a Python module or a Git URL (with optional #tag)
-
-###### **Options:**
-
-* `--skip-tests` - Skip the agent test suite (not recommended, reduces validation coverage)
-
-
-
 ## `apollia-os agent uninstall`
 
 Uninstall an agent installed on its own, through the runtime.
@@ -670,40 +640,9 @@ Disable an installed agent (will not auto-start on boot)
 
 
 
-## `apollia-os agent update`
-
-Update an installed agent with a new Python module
-
-**Usage:** `apollia-os agent update <NAME> <PATH>`
-
-###### **Arguments:**
-
-* `<NAME>` - Agent name
-* `<PATH>` - Path to the new Python module
-
-
-
-## `apollia-os agent create`
-
-Create a new agent from an SDK template
-
-**Usage:** `apollia-os agent create [OPTIONS] <NAME>`
-
-###### **Arguments:**
-
-* `<NAME>` - Agent name in kebab-case (e.g. my-agent)
-
-###### **Options:**
-
-* `--type <TYPE>` - Template type: react, conversational, or orchestrated
-
-  Default value: `react`
-
-
-
 ## `apollia-os agent package`
 
-Manage agent packages (multi-agent bundles described by agent.toml)
+List, show and uninstall the installed packages
 
 **Usage:** `apollia-os agent package <COMMAND>`
 
@@ -771,32 +710,6 @@ Display recent log lines from a running agent
 
   Default value: `50`
 * `--follow` - Not implemented: refuses with an error naming `--last` instead
-
-
-
-## `apollia-os agent validate`
-
-Validate an agent manifest without installing or starting the agent
-
-**Usage:** `apollia-os agent validate <PATH>`
-
-###### **Arguments:**
-
-* `<PATH>` - Path to the Python agent module
-
-
-
-## `apollia-os agent repair`
-
-Re-provision an installed agent's per-agent Python venv from its manifest.
-
-Reads `~/.apollia/agents/packages/<name>/agent.toml` (or the single-file agent's manifest), then re-runs `setup_venv` with the declared `packages` list. Useful when an agent was installed before per-agent venv provisioning landed, or when a venv was deleted by hand.
-
-**Usage:** `apollia-os agent repair <NAME>`
-
-###### **Arguments:**
-
-* `<NAME>` - Installed agent name (as declared in the manifest)
 
 
 
@@ -2913,16 +2826,13 @@ Revoke a single in-memory session authorization (requires runtime route)
 
 ## `apollia-os mcp`
 
-MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
+MCP server management (list, add, remove, show, test, restart, update, raw-config, server)
 
 **Usage:** `apollia-os mcp <COMMAND>`
 
 ###### **Subcommands:**
 
 * `list` - List configured and, optionally, discovered MCP servers
-* `set-approval` - Approve all calls to a tool on a server, persisted with the configured TTL
-* `list-pending` - List all pending HITL approval requests awaiting human decision
-* `revoke-approval` - Revoke a previously granted tool approval
 * `add` - Register a new MCP server with the runtime (persisted in the config)
 * `remove` - Remove an MCP server from the runtime
 * `show` - Show the details of an MCP server
@@ -2952,62 +2862,6 @@ List configured and, optionally, discovered MCP servers
 
 
 
-## `apollia-os mcp set-approval`
-
-Approve all calls to a tool on a server, persisted with the configured TTL.
-
-After approval, calls to `<tool>` on `<server>` bypass the HITL suspension gate until the approval expires (default TTL: 24 h, configurable in apollia.toml).
-
-**Usage:** `apollia-os mcp set-approval [OPTIONS] <SERVER> <TOOL>`
-
-###### **Arguments:**
-
-* `<SERVER>` - MCP server name (as declared in mcp.toml)
-* `<TOOL>` - Tool name to approve
-
-###### **Options:**
-
-* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--ttl-hours <HOURS>` - Override the TTL for this approval, in hours (0 = never expires)
-
-  Default value: `24`
-* `--json` - Output machine-readable JSON
-
-
-
-## `apollia-os mcp list-pending`
-
-List all pending HITL approval requests awaiting human decision
-
-**Usage:** `apollia-os mcp list-pending [OPTIONS]`
-
-###### **Options:**
-
-* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--json` - Output machine-readable JSON
-
-
-
-## `apollia-os mcp revoke-approval`
-
-Revoke a previously granted tool approval.
-
-After revocation, calls to `<tool>` on `<server>` will be suspended again until a new approval is granted with `set-approval`.
-
-**Usage:** `apollia-os mcp revoke-approval [OPTIONS] <SERVER> <TOOL>`
-
-###### **Arguments:**
-
-* `<SERVER>` - MCP server name (as declared in mcp.toml)
-* `<TOOL>` - Tool name to revoke
-
-###### **Options:**
-
-* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--json` - Output machine-readable JSON
-
-
-
 ## `apollia-os mcp add`
 
 Register a new MCP server with the runtime (persisted in the config)
@@ -3027,7 +2881,6 @@ Register a new MCP server with the runtime (persisted in the config)
 
   Possible values: `stdio`, `streamable-http`, `sse`
 
-* `--require-approval` - Require HITL approval for every tool call an agent task makes
 
 
 
@@ -3087,7 +2940,7 @@ Restart an MCP server
 
 Update the raw configuration of an existing MCP server.
 
-At least one of `--command`, `--arg`, `--url`, or `--require-approval` must be supplied. Fields that are omitted keep their previous value.
+At least one of `--command`, `--arg` or `--url` must be supplied. Fields that are omitted keep their previous value.
 
 **Usage:** `apollia-os mcp update [OPTIONS] <NAME>`
 
@@ -3100,10 +2953,6 @@ At least one of `--command`, `--arg`, `--url`, or `--require-approval` must be s
 * `--command <COMMAND>` - New stdio command (stdio transport)
 * `--arg <ARG>` - New argument list for the command, one `--arg` per argument. Given once or more, it replaces the stored list whole
 * `--url <URL>` - New HTTP/SSE URL
-* `--require-approval <BOOL>` - Enable / disable the HITL approval lock
-
-  Possible values: `true`, `false`
-
 
 
 
@@ -3338,11 +3187,30 @@ Agent package archives: build, inspect, preview and install a `.apo`, and trust 
 
 ###### **Subcommands:**
 
+* `new` - Write the starting folder of a package: an agent declared in `apollia.toml` and one Python tool
 * `build` - Build a `.apo` archive from a package folder
 * `inspect` - Show the manifest, the entries and the signature state of a `.apo` archive
 * `preview` - Show what a `.apo` package contains and asks for, before installing it
 * `install` - Install a `.apo` package, or update it
 * `trust` - Trusted publisher keys: a package signed by one is shown under its label
+
+
+
+## `apollia-os package new`
+
+Write the starting folder of a package: an agent declared in `apollia.toml` and one Python tool.
+
+The folder is `<name>` under the current folder, or under `--output-dir`. It builds as written with `package build`. Nothing is overwritten: an existing folder is refused.
+
+**Usage:** `apollia-os package new [OPTIONS] <NAME>`
+
+###### **Arguments:**
+
+* `<NAME>` - Package name: lowercase letters, digits, `-` and `_`
+
+###### **Options:**
+
+* `--output-dir <DIR>` - Folder to create the package folder in. Default: the current one
 
 
 
@@ -4068,20 +3936,6 @@ Diagnose the local Apollia environment (no runtime required).
 Verifies the Apollia home directory, the config file, local SQLite databases, the Python bridge, and the runtime socket. Prints a status table and exits 0 when healthy, 1 when at least one check errors.
 
 **Usage:** `apollia-os doctor`
-
-
-
-## `apollia-os inspect`
-
-Statically inspect a Python agent file (no runtime required).
-
-Loads the agent module in isolation, introspects its manifest, and checks declared datasources, templates, secrets, and permissions without starting the runtime. Exits 0 when the inspection succeeds (warnings allowed), 1 when it fails.
-
-**Usage:** `apollia-os inspect <PATH>`
-
-###### **Arguments:**
-
-* `<PATH>` - Path to the agent `.py` file
 
 
 

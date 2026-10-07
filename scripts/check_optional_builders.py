@@ -90,7 +90,7 @@ BASELINE: dict[str, str] = {
     "with_force_plan_gate@apollia-oria": "superseded: production calls "
     "`with_plan_gate_override`, which carries the same decision with a tri-state. "
     "Delete rather than wire.",
-    "with_llm_router_and_reasoner@apollia-oria": "superseded: `wire_engine_with_llm` "
+    "with_llm_router_and_reasoner@apollia-oria": "superseded: the plan-first path "
     "calls `with_llm_router` then `with_reasoner` separately. Delete rather than wire.",
     "with_session_filter@apollia-tools": "dead, open: the run flags that fed it and "
     "the runtime conversion are gone, and the tools a run may call are the access "
@@ -107,13 +107,29 @@ BASELINE: dict[str, str] = {
     "`thinking` field of a HITL request, so the approval surfaces render the reason "
     "without it. Filling it means deciding what of a model's reasoning may be shown to "
     "a user, which is a product question rather than a repair.",
-    "with_wall_clock_secs@apollia-aip:bridge": "unwired, and the default is the whole "
-    "policy: `call_run` falls back to `DEFAULT_WALL_CLOCK_SECS` (300 s) on every "
-    "binary, so the per-agent budget this builder exists for is not configurable. "
-    "Wiring it means adding a manifest field, not calling a setter.",
-    "with_wall_clock_secs@apollia-aip:runtime_ops": "the context mirror of the bridge "
-    "budget above: `ctx.budget.wall_clock_remaining` stays `None` because nothing sets "
-    "it, and it stays so until the bridge one is wired. One decision, two call sites.",
+    "with_wall_clock_secs@apollia-aip": "unwired: `ctx.budget.wall_clock_remaining` "
+    "stays `None` because nothing sets it. The run that set a wall clock was the "
+    "Python agent's, which is gone; a tool or a workflow of a package runs under the "
+    "budget of the agent that calls it.",
+    # The seven below lost their caller with the Python agent path. Each
+    # verdict was reached by reading the call path, on 2026-10-06.
+    "with_a2a@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
+    "with_budget@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
+    "with_chat_target@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
+    "with_datasources@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
+    "with_secrets@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
+    "with_task_id@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
+    "with_templates@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
+    "with_pending_approvals@apollia-oria": "unwired: it feeds the pause of the "
+    "direct path, where an agent raises a request for input. The engine is built "
+    "by the plan-first path of the agent executor alone, which never takes the "
+    "direct path and whose tool calls are decided by governance in its tool "
+    "proxy. The step gate of the actor shared the name and hid this until it "
+    "was removed. It goes with the direct path.",
+    "with_pending_plan_gates@apollia-oria": "unwired: the engine is built by the "
+    "plan-first path of the agent executor, which runs with the plan gate off "
+    "(`with_plan_gate_override(Some(false))`); the registry of pending gates was "
+    "handed over by the runners of the Python agent path, which are gone.",
     # The four below became visible when SETS_SOME learned the `.ok()` form.
     # Each verdict was reached by reading the call path, on 2026-08-22.
     "with_notify@apollia-aip": "defect, open: nothing calls it, so the getter "
@@ -124,11 +140,9 @@ BASELINE: dict[str, str] = {
     "calls it, so `ctx.stt` is always `None`. The STT backend itself is alive "
     "and reachable through the HTTP routes; only the agent-facing surface is "
     "unattached.",
-    "with_workspace_snapshot@apollia-aip": "defect, open, and the second fill "
-    "path is dead too: `bridge.rs` can populate `ctx.workspace` from a snapshot, "
-    "but only behind `if let Some(ref cwd) = self.cwd`, and `AIPBridge::with_cwd` "
-    "has no caller either. The four production `AIPBridge::new` sites do not "
-    "chain it, so `ctx.workspace` is `None` on both binaries, always.",
+    "with_workspace_snapshot@apollia-aip": "defect, open: nothing calls it, and "
+    "the bridge that could fill `ctx.workspace` from a snapshot is gone with the "
+    "Python agent path, so `ctx.workspace` is `None` on both binaries, always.",
     "with_empty_workspace@apollia-aip": "defect, open: the empty counterpart of "
     "with_workspace_snapshot, called from one unit test only. Wiring it would "
     "give an agent an empty snapshot rather than `None`, which is a contract "

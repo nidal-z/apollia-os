@@ -7,7 +7,7 @@
 //! await ctx.profile.set("name", "Ada")
 //! ctx.profile.get("role")
 //! ctx.profile.all()
-//! ctx.profile.has("agents.hitl")
+//! ctx.profile.has("role")
 //! ```
 //!
 //! The profile served is resolved at each call: the profile the user
@@ -278,6 +278,8 @@ impl ProfileInterface {
         }
     }
 
+    // TEST-ONLY: the chat runner of the Python agent path named the
+    // conversation; the context of a package tool is built without one.
     /// Names the conversation the execution answers. Its settings may open
     /// the reading of the profile for it, or close it, whatever the profile
     /// source of the agent says.

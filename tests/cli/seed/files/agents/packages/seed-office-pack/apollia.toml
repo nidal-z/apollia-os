@@ -1,0 +1,27 @@
+# Apollia OS - seed package (automation verification only).
+#
+# The package the seed records as installed. Its agent is data, declared here;
+# its Python brings one deterministic tool.
+
+[package]
+name = "seed-office-pack"
+version = "0.1.0"
+publisher = "Apollia"
+description = "Seed office toolkit: bundled workers for classification tasks."
+sdk = ">=0.2.0-preview"
+
+[[agents]]
+id = "seed-classifier"
+name = "seed-classifier"
+mission = "Deterministic text classifier worker: routes text into labeled categories."
+examples = ["Classify this ticket as bug or feature"]
+
+[agents.defaults]
+access = ["pkg:seed-office-pack/classify_text"]
+
+[[tools]]
+name = "classify_text"
+module = "tools/classify.py"
+description = "Classify a text into one of the provided labels."
+action = "read"
+inputs = { type = "object", properties = { text = { type = "string", description = "Text to classify." }, labels = { type = "array", items = { type = "string" }, description = "Candidate labels." } }, required = ["text", "labels"], additionalProperties = false }

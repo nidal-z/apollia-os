@@ -324,9 +324,12 @@ pub struct McpServerDecl {
     /// Server URL for network transports.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// Every call requires approval.
-    #[serde(default)]
-    pub requires_approval: bool,
+    /// Retired key, read so that a package written with it still loads and
+    /// never applied: whether a call may run is decided on the action family
+    /// of the tool. [`parse`] warns when a server carries it; it is never
+    /// written back.
+    #[serde(default, rename = "requires_approval", skip_serializing)]
+    pub retired_requires_approval: Option<bool>,
     /// `initialize` handshake timeout, in seconds.
     #[serde(default = "default_init_timeout")]
     pub init_timeout_secs: u64,
@@ -416,10 +419,23 @@ pub enum TriggerSource {
 /// with its full path; [`ApolliaManifestError::Schema`] for any other
 /// mismatch; one of the validation variants when a rule of
 /// [`ApolliaManifest::validate`] fails.
+///
+/// A server that still carries the retired `requires_approval` key is read,
+/// and a `package.manifest.retired_key` warning names it.
 pub fn parse(text: &str) -> Result<ApolliaManifest, ApolliaManifestError> {
     let manifest: ApolliaManifest =
         toml::from_str(text).map_err(|e| key_path::schema_error(text, &e))?;
     manifest.validate()?;
+    for server in &manifest.mcp_servers {
+        if server.retired_requires_approval.is_some() {
+            tracing::warn!(
+                package = %manifest.package.name,
+                server = %server.name,
+                key = "mcp_servers.requires_approval",
+                "package.manifest.retired_key"
+            );
+        }
+    }
     Ok(manifest)
 }
 

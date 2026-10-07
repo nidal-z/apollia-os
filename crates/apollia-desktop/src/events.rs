@@ -262,7 +262,6 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::AgentDegraded { .. }
         | RuntimeEvent::AgentStopping(_)
         | RuntimeEvent::AgentStopped(_)
-        | RuntimeEvent::AgentLoadFailed { .. }
         | RuntimeEvent::AgentInstalled { .. }
         | RuntimeEvent::AgentUninstalled { .. } => "agent-changed",
 
@@ -684,10 +683,6 @@ mod tests {
             },
             RuntimeEvent::AgentStopping("a".into()),
             RuntimeEvent::AgentStopped("a".into()),
-            RuntimeEvent::AgentLoadFailed {
-                name: "broken".into(),
-                error: "invalid".into(),
-            },
             RuntimeEvent::AgentInstalled {
                 name: "a".into(),
                 version: "1.0.0".into(),

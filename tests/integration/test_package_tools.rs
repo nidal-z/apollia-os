@@ -20,14 +20,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use apollia_aip::package_tools::PackageTools;
-use apollia_core::{AgentManifest, AutonomyLevel, RunId, RuntimeEvent, StepBudgetConfig};
+use apollia_core::{AutonomyLevel, RunId, RuntimeEvent, StepBudgetConfig};
 use apollia_llm::types::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, StreamChunk,
     TokenUsage, ToolCall,
 };
 use apollia_llm::LlmRouter;
 use apollia_mcp::session::LoadingMode;
-use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_runtime::chat::{
     AgentRunSpec, AgentTaskRun, ChatSessionManagerHandle, ToolCallStatus, ToolDecision,
 };
@@ -37,14 +36,16 @@ use apollia_runtime::package_tools::PackageToolHost;
 use apollia_runtime::registry::AgentRegistry;
 use apollia_tools::executor::{ToolDispatcher, ToolExecutionError};
 use apollia_tools::{
-    AgentOrigin, AgentRepository, InstalledPackage, PackageItemKind, PackageRepository,
-    StoredAgent, ToolRegistryHandle,
+    AgentAccess, AgentOrigin, AgentRepository, InstalledPackage, PackageItemKind,
+    PackageRepository, StoredAgent, ToolRegistryHandle,
 };
 use pyo3::prelude::*;
 use serde_json::json;
 use tokio::sync::{broadcast, oneshot};
 
-/// The package `calc`: three tools, one module. The module imports
+/// The package `calc`: three tools, one module. `add` declares a personal
+/// read, a family that asks before it runs: a plain read runs unasked, and the
+/// agent test below waits on that question. The module imports
 /// `calc_vendor`, which only the package environment holds, and counts its own
 /// imports in `IMPORTS`; `wait` sleeps an hour and writes how it ended;
 /// `forbidden` leaves a file behind if it ever runs.
@@ -63,7 +64,7 @@ RAN = pathlib.Path(__RAN__)
 IMPORTS.write_text(str(int(IMPORTS.read_text()) + 1) if IMPORTS.exists() else "1")
 
 
-@tool("add", "Add two numbers.", action="read")
+@tool("add", "Add two numbers.", action="read_personal")
 async def add(ctx, a: Annotated[int, "first"], b: Annotated[int, "second"]) -> dict:
     return {"sum": a + b, "caller": ctx.agent_name, "vendor": calc_vendor.ORIGIN}
 
@@ -98,7 +99,7 @@ sdk = ">=0.3, <0.4"
 name = "add"
 module = "tools/calc.py"
 description = "Add two numbers."
-action = "read"
+action = "read_personal"
 inputs = { type = "object", properties = { a = { type = "integer" }, b = { type = "integer" } }, required = ["a", "b"] }
 
 [[tools]]
@@ -307,17 +308,9 @@ impl CompletionModel for Scripted {
     }
 }
 
-struct NoPythonAgents;
-
-impl AgentLoader for NoPythonAgents {
-    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        Err(format!("no Python agent in this test: {}", path.display()))
-    }
-}
-
 /// An agent created in the interface, without code, granted `pkg:calc/add`
-/// alone, as the store resolves it.
-fn interface_agent(dir: &Path) -> AgentRunSpec {
+/// alone, as the store resolves it, with the access a run of it is given.
+fn interface_agent(dir: &Path) -> (AgentRunSpec, AgentAccess) {
     let agents = AgentRepository::open(&dir.join("agents.db")).expect("open the agent store");
     agents
         .save_definition(&StoredAgent {
@@ -340,7 +333,10 @@ fn interface_agent(dir: &Path) -> AgentRunSpec {
         .resolved(AGENT, None, AutonomyLevel::Assisted)
         .expect("read the agent")
         .expect("the agent is stored");
-    AgentRunSpec::from_resolved(&resolved)
+    (
+        AgentRunSpec::from_resolved(&resolved),
+        AgentAccess::of(&resolved),
+    )
 }
 
 // GIVEN a package without an agent, one of whose tools is granted to an agent
@@ -354,7 +350,7 @@ fn interface_agent(dir: &Path) -> AgentRunSpec {
 async fn interface_agent_runs_the_package_tool_it_is_granted() {
     // GIVEN
     let fx = stored_package();
-    let spec = interface_agent(fx.dir.path());
+    let (spec, access) = interface_agent(fx.dir.path());
     assert_eq!(spec.granted_tools, vec!["pkg:calc/add"]);
     let (event_sender, _rx) = EventBus::new();
     let mut events: broadcast::Receiver<RuntimeEvent> = event_sender.subscribe();
@@ -371,14 +367,11 @@ async fn interface_agent_runs_the_package_tool_it_is_granted() {
         &fx.path("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "scripted"))),
         registry.clone(),
-        Arc::new(NoPythonAgents),
         None,
         event_sender.clone(),
         StepBudgetConfig::default(),
         None,
         AgentRegistry::spawn(event_sender.clone()),
-        None,
-        None,
         None,
         None,
         None,
@@ -396,10 +389,15 @@ async fn interface_agent_runs_the_package_tool_it_is_granted() {
         task_id: "task-calc".into(),
         run_id: RunId::new(),
         spec,
+        access,
         message: "What is 2 + 3?".into(),
+        authorized_tools: Vec::new(),
         cancel: CancellationToken::new(),
+        plan_cache: None,
         done: done_tx,
         budget: None,
+        depth: 1,
+        unattended: false,
     })
     .await
     .expect("the run starts");

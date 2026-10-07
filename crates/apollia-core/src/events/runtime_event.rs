@@ -51,18 +51,6 @@ pub enum RuntimeEvent {
     /// Shutdown requested (SIGTERM or CLI command).
     ShutdownRequested,
 
-    /// Loading an installed agent failed.
-    ///
-    /// An agent is loaded by its first task, not at boot: this is emitted by
-    /// the backend factory when the module of the agent cannot be loaded.
-    /// The task fails, the runtime continues (graceful degradation).
-    AgentLoadFailed {
-        /// Name of the agent that failed to load.
-        name: String,
-        /// Error message detailing the cause of the failure.
-        error: String,
-    },
-
     /// An agent was installed permanently.
     AgentInstalled {
         /// Unique name of the installed agent.
@@ -501,9 +489,10 @@ pub enum RuntimeEvent {
     /// Emitted by ORIA once the suspension is detected.
     /// - **Direct mode**: emitted by `ORIAEngine::execute_direct()` when the
     ///   agent returns `AIPResult::input_required()`. `step_id` is `None`.
-    /// - **Orchestrated mode**: emitted by `ActorLoop::suspend_for_approval()`
-    ///   before executing a step whose tool is in `tools_requiring_approval`.
-    ///   `step_id` is `Some(step.step_id)`.
+    ///
+    /// A step of a plan raises no such event: its tool calls are decided by
+    /// governance where they are made, and one that asks raises
+    /// `ChatApprovalRequired`.
     TaskInputRequired {
         /// Identifier of the suspended task.
         task_id: TaskId,

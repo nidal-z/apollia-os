@@ -86,9 +86,9 @@ back out.
 2. **Load the seed**, per the section below. Read the line it prints naming the
    overlay it used.
 3. **Run the deterministic script**, 61 captures:
-   `just desktop-screenshots scripts/automation/screenshots-en.json`
+   `just automation-screenshots scripts/automation/screenshots-en.json`
 4. **Run the model script**, 11 captures, needs `llama-server` on the `PATH`:
-   `just desktop-dev-automation-seeded-llama scripts/automation/screenshots-en-llm.json <model.gguf>`
+   `just automation-seeded-llama scripts/automation/screenshots-en-llm.json <model.gguf>`
 5. **Publish**, which copies what the run produced into the documentation and
    names what it did not:
    `python3 scripts/automation/tools/publish_screenshots.py --apply`
@@ -211,7 +211,7 @@ testid and capture under the right label:
 
 ```sh
 lsof -ti :5173 :8899 | xargs kill -9 2>/dev/null
-just desktop-screenshots scripts/automation/screenshots-en.json
+just automation-screenshots scripts/automation/screenshots-en.json
 ```
 
 Those runs frame the whole window, which is looser than the crops described
@@ -368,7 +368,7 @@ marked `hand` only because the automaton frames the whole window.
 |---|---|---|---|---|---|---|
 | 26 | `agents-consulter-les-logs-d-un-agent-1.png` | My Assistants → select `apollia-guide` → **Logs**. | The Agent Logs panel: task counter, search, status filters, sorting. 7 tasks, every status | none | panel | auto |
 | 27 | `agents-demarrer-un-agent-1.png` | My Assistants. | The left column with both sections, My assistants and My packages | none | page | auto |
-| 28 | `agents-demarrer-un-agent-2.png` | Click the `seed-office-pack` row. | Package detail: Information, Agents with director/worker roles, Triggers | none | panel | auto |
+| 28 | `agents-demarrer-un-agent-2.png` | Click the `seed-office-pack` row. | Package detail: Information, its agents, workflows and tools | none | panel | auto |
 | 29 | `agents-demarrer-un-agent-2bis.png` | Same panel, scrolled down. | The rest of the same panel | none | panel | auto |
 | 30 | `agents-installer-un-agent-1.png` | My Assistants, one agent selected. | List left, detail right, **New assistant** top right | select `apollia-guide` | page | auto |
 | 31 | `agents-installer-un-agent-2.png` | New assistant → pick a package folder. | Preview step: Agents and Triggers sections, green Valid badge | see N5 | dialog | hand, see N5 |

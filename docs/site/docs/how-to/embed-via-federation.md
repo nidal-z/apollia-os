@@ -57,24 +57,19 @@ and [wiring your own MCP server](/operator-help/integrations/wire-your-own-mcp-s
 Federation usually means the agent can trigger changes in your product. Keep a
 human in the loop on those.
 
-For an MCP server you register, approval is per server or per tool:
+An MCP server you register carries no approval setting of its own. Each tool
+it publishes is decided on its action family: a tool your server declares as
+writing or destructive, or one it does not describe at all, is treated as
+sensitive, and an agent that calls it asks first.
 
 ```sh
-apollia-os mcp add my-product --url https://example.internal/mcp --require-approval
-apollia-os mcp set-approval my-product write_record
-apollia-os mcp list-pending
+apollia-os mcp add my-product --url https://example.internal/mcp
 ```
 
-An operator then confirms before anything is written back. The grant itself is
-persisted, so the operator is not asked again while it stands; the decision is
-not written to any audit register, and neither is the call it authorized. Treat
-the approval as a gate, not as evidence.
-
-One limit to design around rather than discover. This approval flow covers the
-**chat** path; the tool calls an installed Python agent makes are not gated, so
-do not rely on approvals to contain an agent you did not write. What runs is the
-per-server MCP approval above, the persisted prefix rules, and the guard that
-refuses a chained shell command.
+The person in front of the run answers once, always for this agent, or refuses.
+"Always" is a standing consent of that agent for that family of actions; it
+holds until it is withdrawn. Declare `readOnlyHint` and `destructiveHint`
+honestly on your tools: they are what sorts a read from a write here.
 
 For how approvals and autonomy levels shape this, see
 [Autonomy tiers](/explanation/autonomy-tiers) and the explanation of

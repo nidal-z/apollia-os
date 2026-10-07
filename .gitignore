@@ -16,6 +16,10 @@
 AGENTS.local.md
 AGENTS.override.md
 
+# Personal recipes, imported by the justfile when present (see
+# justfile.local.example).
+justfile.local
+
 # Environnement
 .env
 .env.local
@@ -68,6 +72,10 @@ crates/apollia-desktop/apollia-os.exe
 
 # Dev-only automation harness output (screenshots + report.json)
 /.apollia-automation/
+
+# Package archives built at the repository root (`apollia-os package build`
+# writes `<name>-<version>.apo` in the current folder)
+/*.apo
 
 # Playwright run output (browser suites of the desktop UI)
 crates/apollia-desktop/ui/test-results/

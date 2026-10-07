@@ -16,7 +16,6 @@ use apollia_tools::tools::{file_read, file_write};
 use apollia_tools::ToolRegistryHandle;
 use serde_json::json;
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::chat::agent_draft_tool::{AgentDraft, AGENT_DRAFT_TOOL_NAME};
 use crate::chat::manager::{ChatSessionManagerHandle, CreateSessionParams};
 use crate::chat::types::{ChatMode, ToolCallStatus};
@@ -117,7 +116,6 @@ async fn spawn(dir: &tempfile::TempDir) -> (ChatSessionManagerHandle, Arc<Mutex<
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "drafting"))),
         registry,
-        Arc::new(StubAgentLoader),
         None,
         event_tx.clone(),
         StepBudgetConfig::default(),

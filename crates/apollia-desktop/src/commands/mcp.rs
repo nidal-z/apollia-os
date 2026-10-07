@@ -383,23 +383,6 @@ pub async fn store_mcp_secret(
     put_mcp_secret(&state, &server_name, &env_var, &value).await
 }
 
-/// Update the `requires_approval` flag for a running MCP server.
-///
-/// Applies the change in-memory immediately and persists it to `mcp.toml`.
-/// The server session is not restarted; the flag takes effect on the next tool call.
-/// Returns the updated server status.
-#[tauri::command]
-pub async fn set_mcp_server_approval(
-    state: State<'_, RuntimeLink>,
-    name: String,
-    requires_approval: bool,
-) -> Result<McpServerStatus, String> {
-    let body = serde_json::json!({ "requires_approval": requires_approval });
-    let path = format!("/api/v1/mcp/servers/{name}/approval");
-    let json = state.patch_json(&path, &body).await?;
-    serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
-}
-
 /// Delete the secret of an MCP server environment variable. Idempotent.
 ///
 /// Delegates to `DELETE /api/v1/mcp/servers/{name}/secrets/{key}`.

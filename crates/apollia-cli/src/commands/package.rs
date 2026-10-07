@@ -1,7 +1,9 @@
-//! `apollia-os package` subcommands: build, inspect, preview and install
-//! `.apo` archives, and keep the keyring of trusted publisher keys.
+//! `apollia-os package` subcommands: start a package folder, build, inspect,
+//! preview and install `.apo` archives, and keep the keyring of trusted
+//! publisher keys.
 //!
-//! `build` and `inspect` work on files alone and never reach the runtime.
+//! `new`, `build` and `inspect` work on files alone and never reach the
+//! runtime. `new` writes the starting folder of a package (see [`new`]).
 //! `build` reads a package folder, validates its `apollia.toml`, and writes one
 //! `.apo` archive, signed on request with the author key kept in the secret
 //! store. `inspect` reads an archive and reports its manifest, its entries and
@@ -13,6 +15,7 @@
 //! the governance of the runtime, and the installation adds MCP servers and
 //! writes the audit journal.
 
+mod new;
 mod remote;
 
 use std::path::{Path, PathBuf};
@@ -32,6 +35,19 @@ pub const DEFAULT_KEY_LABEL: &str = apollia_signing::AUTHOR_KEY_LABEL;
 /// Package subcommands: `apollia-os package <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum PackageCommand {
+    /// Write the starting folder of a package: an agent declared in
+    /// `apollia.toml` and one Python tool.
+    ///
+    /// The folder is `<name>` under the current folder, or under
+    /// `--output-dir`. It builds as written with `package build`. Nothing is
+    /// overwritten: an existing folder is refused.
+    New {
+        /// Package name: lowercase letters, digits, `-` and `_`.
+        name: String,
+        /// Folder to create the package folder in. Default: the current one.
+        #[arg(long, value_name = "DIR")]
+        output_dir: Option<PathBuf>,
+    },
     /// Build a `.apo` archive from a package folder.
     ///
     /// Validates `apollia.toml`, refuses a folder whose Python modules define
@@ -129,6 +145,7 @@ pub enum TrustCommand {
 /// Execute a `package` subcommand and return the process exit code.
 pub async fn run(cmd: &PackageCommand, socket: Option<PathBuf>, json: bool) -> i32 {
     match cmd {
+        PackageCommand::New { name, output_dir } => new::run_new(name, output_dir.as_deref(), json),
         PackageCommand::Build {
             dir,
             sign,

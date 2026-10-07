@@ -16,7 +16,6 @@ use tokio::sync::{mpsc, oneshot};
 use apollia_core::{EventBusSender, McpHealth};
 use apollia_tools::registry::ToolRegistryHandle;
 
-use crate::approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
 use crate::config::McpServerConfig;
 use crate::protocol::ToolCallResult;
 use crate::session::{LoadingMode, McpSession, McpSessionError};
@@ -75,37 +74,10 @@ enum McpCommand {
         probe: Option<ProbeSpec>,
         reply: oneshot::Sender<Result<McpConnectionTestResult, McpSessionError>>,
     },
-    /// Check whether a named server requires HITL approval for all its tools.
-    ServerRequiresApproval {
-        server_name: String,
-        reply: oneshot::Sender<bool>,
-    },
-    /// Update the `requires_approval` flag for a server in-memory.
-    SetApproval {
-        server_name: String,
-        requires_approval: bool,
-        reply: oneshot::Sender<Result<(), McpSessionError>>,
-    },
     /// Hot-reload a server: disconnect, re-read config, reconnect, emit McpServerReloaded.
     ReloadServer {
         server_name: String,
         reply: oneshot::Sender<Result<(), McpSessionError>>,
-    },
-    /// Approve a tool for future calls without HITL suspension.
-    ApproveToolAccess {
-        server_name: String,
-        tool_name: String,
-        reply: oneshot::Sender<Result<(), McpApprovalError>>,
-    },
-    /// Revoke a previously granted tool approval.
-    RevokeToolAccess {
-        server_name: String,
-        tool_name: String,
-        reply: oneshot::Sender<Result<(), McpApprovalError>>,
-    },
-    /// Return all pending approval requests awaiting human decision.
-    ListPendingApprovals {
-        reply: oneshot::Sender<Result<Vec<PendingApprovalEntry>, McpApprovalError>>,
     },
     /// Aggregate `resources/list` across every connected session.
     ListResources {
@@ -142,8 +114,6 @@ pub struct McpServerStatus {
     pub server_info: String,
     /// Number of tools discovered on this server.
     pub tools_count: usize,
-    /// Whether every tool call to this server requires HITL approval.
-    pub requires_approval: bool,
     /// `true` when the session is alive; always `true` for sessions tracked by the manager.
     pub connected: bool,
     /// OS process ID of the server subprocess, if still running.
@@ -202,8 +172,6 @@ pub struct McpServerConfigView {
     pub env_keys: Vec<String>,
     /// Transport protocol (e.g. `"stdio"`).
     pub transport: String,
-    /// Whether tool calls require HITL approval.
-    pub requires_approval: bool,
     /// Tags attached to this server.
     pub tags: Vec<String>,
 }
@@ -309,12 +277,6 @@ struct McpClientManager {
     /// ISO 8601 timestamp of the last tool call per server. Feeds
     /// [`McpServerStatus::last_call_at`]; updated on every call outcome.
     last_call_at: HashMap<String, String>,
-    /// Optional SQLite-backed HITL approval store.
-    ///
-    /// When `Some`, every `CallTool` directed to a server with
-    /// `requires_approval = true` is checked against this store before
-    /// forwarding to the session. When `None`, the approval gate is disabled.
-    approvals: Option<McpApprovalStore>,
     /// Schema loading strategy applied to every session this manager starts.
     ///
     /// In [`LoadingMode::Eager`] sessions fetch all tool schemas at boot and
@@ -343,12 +305,10 @@ impl McpClientManager {
                     arguments,
                     reply,
                 } => {
-                    if let Some(result) = self
+                    let result = self
                         .handle_call_tool(server_name, tool_name, arguments)
-                        .await
-                    {
-                        let _ = reply.send(result);
-                    }
+                        .await;
+                    let _ = reply.send(result);
                 }
 
                 McpCommand::GetStatus { reply } => {
@@ -397,41 +357,9 @@ impl McpClientManager {
                     let _ = reply.send(result);
                 }
 
-                McpCommand::ServerRequiresApproval { server_name, reply } => {
-                    let _ = reply.send(self.server_requires_approval(&server_name));
-                }
-
-                McpCommand::SetApproval {
-                    server_name,
-                    requires_approval,
-                    reply,
-                } => {
-                    let _ = reply.send(self.handle_set_approval(server_name, requires_approval));
-                }
-
                 McpCommand::ReloadServer { server_name, reply } => {
                     let result = self.handle_reload_server(&server_name).await;
                     let _ = reply.send(result);
-                }
-
-                McpCommand::ApproveToolAccess {
-                    server_name,
-                    tool_name,
-                    reply,
-                } => {
-                    let _ = reply.send(self.handle_approve_tool_access(&server_name, &tool_name));
-                }
-
-                McpCommand::RevokeToolAccess {
-                    server_name,
-                    tool_name,
-                    reply,
-                } => {
-                    let _ = reply.send(self.handle_revoke_tool_access(&server_name, &tool_name));
-                }
-
-                McpCommand::ListPendingApprovals { reply } => {
-                    let _ = reply.send(self.handle_list_pending_approvals());
                 }
 
                 McpCommand::ListResources { reply } => {
@@ -497,7 +425,6 @@ mod tests {
             name: "notion".to_string(),
             server_info: "notion-mcp-server".to_string(),
             tools_count: 5,
-            requires_approval: true,
             connected: true,
             pid: Some(1234),
             uptime_secs: Some(60),
@@ -512,59 +439,7 @@ mod tests {
         // THEN all fields are present and correct
         assert_eq!(json["name"], "notion");
         assert_eq!(json["tools_count"], 5);
-        assert_eq!(json["requires_approval"], true);
         assert_eq!(json["transport"], "stdio");
-    }
-
-    #[test]
-    fn test_server_requires_approval_flag_in_config() {
-        // GIVEN a server config with requires_approval=true
-        use crate::config::McpServerConfig;
-        let config = McpServerConfig {
-            format_version: 1,
-            name: "notion".to_string(),
-            command: "npx".to_string(),
-            args: vec![],
-            env: std::collections::HashMap::new(),
-            transport: "stdio".to_string(),
-            url: None,
-            requires_approval: true,
-            init_timeout_secs: 30,
-            call_timeout_secs: 60,
-            max_response_bytes: 8 * 1024 * 1024,
-            max_tools: 256,
-            tags: vec![],
-            tool_families: Default::default(),
-            origin: None,
-        };
-        // WHEN / THEN the flag is readable
-        assert!(config.requires_approval);
-    }
-
-    #[test]
-    fn test_server_requires_approval_false_by_default() {
-        // GIVEN a server config with requires_approval=false
-        use crate::config::McpServerConfig;
-        let config = McpServerConfig {
-            format_version: 1,
-            name: "sqlite".to_string(),
-            command: "npx".to_string(),
-            args: vec![],
-            env: std::collections::HashMap::new(),
-            transport: "stdio".to_string(),
-            url: None,
-            requires_approval: false,
-            init_timeout_secs: 30,
-            call_timeout_secs: 60,
-            max_response_bytes: 8 * 1024 * 1024,
-            max_tools: 256,
-            tags: vec![],
-            tool_families: Default::default(),
-            origin: None,
-        };
-        // WHEN the approval flag is read
-        // THEN the server is not gated behind an approval
-        assert!(!config.requires_approval);
     }
 
     #[test]
@@ -584,7 +459,6 @@ mod tests {
             name: "github".to_string(),
             server_info: String::new(),
             tools_count: 0,
-            requires_approval: false,
             connected: false,
             pid: None,
             uptime_secs: None,
@@ -622,7 +496,6 @@ mod tests {
                 name: "notion".to_string(),
                 server_info: "notion-mcp-server".to_string(),
                 tools_count: 5,
-                requires_approval: true,
                 connected: true,
                 pid: None,
                 uptime_secs: Some(30),
@@ -636,7 +509,6 @@ mod tests {
                 name: "sqlite".to_string(),
                 server_info: "mcp-server-sqlite".to_string(),
                 tools_count: 3,
-                requires_approval: false,
                 connected: true,
                 pid: None,
                 uptime_secs: Some(30),
@@ -663,7 +535,6 @@ mod tests {
                 name: "notion".to_string(),
                 server_info: "notion-mcp-server".to_string(),
                 tools_count: 1,
-                requires_approval: false,
                 connected: true,
                 pid: Some(42),
                 uptime_secs: Some(10),
@@ -685,7 +556,6 @@ mod tests {
                 args: vec!["@notionhq/notion-mcp-server".to_string()],
                 env_keys: vec!["NOTION_TOKEN".to_string()],
                 transport: "stdio".to_string(),
-                requires_approval: false,
                 tags: vec![],
             },
         };
@@ -707,7 +577,6 @@ mod tests {
             args: vec![],
             env_keys: vec!["NOTION_TOKEN".to_string(), "API_KEY".to_string()],
             transport: "stdio".to_string(),
-            requires_approval: false,
             tags: vec![],
         };
         // WHEN the view is inspected
@@ -773,7 +642,6 @@ mod tests {
                 name: "notion".to_string(),
                 server_info: "notion-mcp".to_string(),
                 tools_count: 2,
-                requires_approval: false,
                 connected: true,
                 pid: Some(1234),
                 uptime_secs: Some(60),
@@ -803,7 +671,6 @@ mod tests {
                 args: vec!["@notionhq/notion-mcp-server".to_string()],
                 env_keys: vec!["NOTION_TOKEN".to_string()],
                 transport: "stdio".to_string(),
-                requires_approval: false,
                 tags: vec![],
             },
         };
@@ -840,10 +707,9 @@ mod tests {
         // GIVEN a McpClientManager with no connected sessions
         use apollia_tools::registry::ToolRegistryHandle;
         let registry = ToolRegistryHandle::start();
-        let handle =
-            McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
-                .await
-                .expect("manager start failed");
+        let handle = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
+            .await
+            .expect("manager start failed");
 
         // WHEN reload is requested for an unknown server
         let result = handle.reload_server("inexistant").await;

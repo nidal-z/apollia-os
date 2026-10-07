@@ -17,8 +17,9 @@ from the eight principles that govern the project.
 2. **Zero external runtime dependency.** The binary runs on a clean Linux
    machine with nothing pre-installed. Inference, storage, and the API are all
    in-process or sidecar, never a required external service.
-3. **Minimal contract.** An agent is enough if it duck-types a `manifest()` and
-   an async `run()`. The runtime does not impose a framework on the agent.
+3. **Minimal contract.** An agent is a record: a mission, a model, tools,
+   sources and rights, declared in the manifest of a package. Code is optional:
+   a package brings tools and workflows, and nothing else.
 4. **Fail fast.** Any error detectable at startup is detected at startup, not
    mid-run.
 5. **One actor, one responsibility.** The runtime core is a set of Tokio actors

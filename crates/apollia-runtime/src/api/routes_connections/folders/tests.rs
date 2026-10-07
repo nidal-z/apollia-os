@@ -196,10 +196,7 @@ async fn folder_with_source(
     String,
     std::path::PathBuf,
 ) {
-    let mut state = crate::api::test_support::app_state(
-        Arc::new(crate::api::test_support::StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = crate::api::test_support::app_state(dir.path().to_path_buf());
     let registry = SourceRegistryHandle::open(&dir.path().join("system.db")).unwrap();
     let stored = store(dir.path())
         .unwrap()

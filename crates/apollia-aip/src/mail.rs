@@ -1,7 +1,7 @@
 //! ctx.mail: asynchronous inter-agent messaging surface.
 //!
 //! Nested facade over the durable [`AgentMailboxHandle`]. Distinct from
-//! `ctx.a2a` (synchronous skill RPC): `ctx.mail.send` posts a message into
+//! `ctx.agents.run` (a synchronous run): `ctx.mail.send` posts a message into
 //! another agent's durable inbox and returns immediately, while the recipient
 //! pulls it at its own initiative. Delivery is at-least-once: `receive` leases a
 //! message rather than deleting it; the consuming context acknowledges it on
@@ -41,8 +41,7 @@ pub struct MailInterface {
     supports_mailbox: bool,
     /// Optional recipient allowlist for `send`. `None` means any recipient.
     allowlist: Option<Vec<String>>,
-    /// Whether `send` is gated behind human approval (opt-in via the manifest
-    /// `tools_requiring_approval` containing `mailbox:send`, or a host policy).
+    /// Whether `send` is gated behind human approval, as the host sets it.
     /// When set, a send emits `PermissionRequired` and is denied, mirroring the
     /// deny-and-notify HITL semantics of the tool executor.
     send_requires_approval: bool,

@@ -21,6 +21,7 @@ source of truth at runtime.
 | `Cargo.toml` (root) | `[workspace.dependencies]`, `[workspace.lints]`, `[workspace.package]` |
 | `package.json` (desktop UI) | Node tooling, scripts |
 | `.github/workflows/*.yml` | CI pipelines |
+| `justfile` + `scripts/lib/*.sh` | the task recipes, grouped, and the shell functions they share; `.env.example` lists their settings, `justfile.local.example` shows a personal recipe file |
 | `scripts/linux-check.sh` + `scripts/linux-check.Dockerfile` | ask the two Linux questions locally, in a container, before pushing: does it compile, do the suites pass |
 
 ---
@@ -263,7 +264,7 @@ repackaged as one zip, and the manifest is signed in the minisign format by
   at repository level, so the workflow runs on `workflow_dispatch` only;
   `check_ci_workflows.py` (rule `dist-secrets`) refuses a pull-request trigger
   on any job that names them.
-- **Proved before signed.** `just engine-manifest-test` runs the script on
+- **Proved before signed.** `just test-engine-manifest` runs the script on
   stand-in archives with a throwaway key and hands the output to the engine
   store; the workflow runs it first, then verifies the real manifest against
   the public key compiled into the tree before anything is uploaded.
@@ -313,6 +314,9 @@ pre-commit install --hook-type commit-msg
 # First build
 cargo build --workspace
 cargo test --workspace --no-fail-fast
+
+# Which tools the recipes need, present and absent (exit 2 when one is missing)
+just doctor
 ```
 
 ### Ask the Linux question before you push
@@ -398,7 +402,7 @@ the word `not measured` where a count could not be extracted, never `0`.
 What it does not cover, beyond what `linux-check` already does not cover:
 `cargo test -p apollia-e2e-tests --features python-tests`, the second step of the
 same job. That suite declares it needs the SDK installed in the interpreter
-(`tests/integration/test_hello_agent.rs:4-5`), the image is built without a
+(the header of `tests/integration/test_package_tools.rs`), the image is built without a
 context so it cannot install it, and the tree is mounted read-only. And no run of
 this channel confronts the image's system packages with the runner's, so a green
 here is not a promise of a green there. Both facts are printed by the run itself.
@@ -449,6 +453,125 @@ A guard whose precondition is missing is recorded as `not prepared` and never
 counts as agreeing. Read `scripts/worktree-prep.sh` for what each group lays
 down; it is the one place to update when a gate starts reading a new untracked
 path.
+
+### The task recipes, and why they do what they do
+
+`just` with no argument lists the recipes by group: `build`, `test`,
+`quality`, `docs`, `desktop`, `llm`, `automation`, `release`, `linux`,
+`maintainer`. The names are regular (`build-*`, `test-*`, `automation-*`,
+`release-*`), and the justfile itself stays a table of contents: one line of
+documentation per recipe, the shared shell in `scripts/lib/`, and the reasons
+here.
+
+**Settings.** Every setting is an environment variable declared once at the
+head of the justfile with its default, and listed in `.env.example`. `just`
+loads a `.env` file at the repository root, and a variable exported in the
+shell wins over it. No recipe names a model or a path of one machine:
+a recipe that needs a model reads `APOLLIA_LLAMA_MODEL` (or its argument) and
+answers one message when there is none. Recipes of your own go in
+`justfile.local`, which is untracked and imported when present.
+
+**The Python bundle** (`scripts/lib/python-bundle.sh`). The application sets
+`PYTHONHOME` to the interpreter bundle under `target/`. A build that links
+whatever `libpython` the host resolves therefore runs two different CPython
+builds, the interpreter cannot find its own standard library, and every agent
+fails at boot with `ModuleNotFoundError: No module named '_opcode'`, while the
+application itself starts. `python_bundle_activate` points `PYO3_PYTHON` and
+`RUSTFLAGS` at the bundle before any recipe compiles the desktop or the CLI.
+Three details ride along:
+
+- the bundle is relocatable but its `sysconfig` still names its build path, so
+  the library directory is passed with `-L`, as the release workflow does;
+- on Linux an RPATH is added, because `-L` informs the linker and not the
+  loader: without it a locally built binary starts only through a launcher
+  that exports `LD_LIBRARY_PATH`, and the CLI suite reports every assertion
+  red on a binary that could not load;
+- on macOS `target/Resources/python` is linked to the bundle, because the
+  install name is `@executable_path/../Resources/python/lib`, the packaged
+  layout, and dyld resolves it before the process can correct anything.
+
+A tree with no bundle is refused with exit 1 and the command that builds one.
+A warning was not enough: it scrolls past during compilation, and the run that
+follows spends its time on agents that cannot load. `build-cli` goes through
+the same function because PyO3 refuses an interpreter newer than 3.13, which
+is what a current distribution ships, while the bundle carries 3.13.
+
+**The STT runners.** `build-runner` and `build-runner-release` source
+`host_runner_cmake_env`: on MSVC the `cmake` crate strips the optimisation
+flags of whisper.cpp unless the caller sets them, and a runner built without
+them transcribes about fifty times slower than real time. It is a no-op on
+every other host. `build-runner` also leaves a copy named after its backend,
+which is how the daemon detects it, and signs that copy ad hoc on macOS, where
+a copied binary loses the linker's signature and is killed at launch.
+`build-runners` builds `cpu` everywhere and `metal` on macOS alone, the Metal
+backend existing on no other system.
+
+**The desktop bundle.** `build-desktop` with no argument builds for the host,
+into `target/release`; with a triple it builds into `target/<triple>/release`.
+The runner set and the engine default to what the host can run, so a clone on
+Windows or Linux never fetches a macOS interpreter or a Metal engine. The
+release presets take the runner set as their one argument.
+
+**llama-server** (`scripts/lib/llama.sh`). The server is started with
+`--jinja`, so tool calling is driven by the model's template; without it the
+server falls back on a tool grammar it may fail to parse. `-c` is the total
+context, split across the `-np` slots, so one slot gives a single conversation
+the whole window at no extra memory. The automation recipes default to a
+131072-token context, greedy sampling and a fixed seed: a model book asserts
+what the model does next, and eight slots over 16384 tokens left 2048 tokens
+per slot, which the server answers with a 400. A model file under a megabyte
+is refused by name: it is one of the placeholders the automation seed
+installs, and llama-server would otherwise die on `unknown model
+architecture`, which reads as a corrupt model.
+
+**The desktop automaton** (`scripts/lib/automation.sh`). `automation-seeded`
+rebuilds a throwaway `HOME` from `tests/cli/seed` and swaps `HOME` and
+`USERPROFILE` for the application alone; `CARGO_HOME` and `RUSTUP_HOME` are
+pinned first, since their defaults derive from the real home. The narrative
+overlay is stripped for the assertion recipes, because it changes the row
+counts they assert on, and kept by `automation-screenshots`, where an empty
+timeline is the defect. A seeded run points the MCP registry at a closed port,
+so the catalogue answers from the seeded cache: that cache goes stale after
+fifteen minutes, and a long book would otherwise meet the public registry
+mid-run. `automation-first-run` builds a blank home holding only the two model
+files, cloned rather than linked, so the run measures a first launch and not a
+download. `automation-real` and `automation-real-llama` drive your real
+profile and ask for confirmation first. `scripts/lib/selftest.sh` holds these
+choices with every external command stubbed, and `guards` launches it.
+
+**The guards.** `guards` rebuilds `target/debug/apollia-os` before judging:
+five guards interrogate the binary rather than the source, and on a stale
+binary one turns red while the others have nothing to measure, which reads as
+a broken tree. Guards are named one by one, never globbed, because
+`scripts/check_selftest.py` looks each name up in the files that launch it.
+The recipe answers the three codes its guards do: 0 when everything measured
+and everything is green, 1 as soon as one guard is red, 2 when nothing is red
+but at least one guard measured nothing. Reds accumulate instead of stopping
+the run, and skips are named at the end. An external gate whose tool is not
+installed answers the shell's 127 and counts as a skip; a missing cargo
+subcommand answers 101 and still reads red, cargo giving no way to tell it
+from a subcommand that found something. clippy runs first among the external
+gates because it is the one that can hide the others: it stops at the first
+crate that fails to compile.
+
+`ci` is `guards`, the format check, then `test`. clippy runs once, inside
+`guards`; `lint` remains the quick pair of format check and clippy.
+`check-features` builds the three configurations the default features hide,
+which no other command compiles. `audit-deps` audits the bundled Python
+packages, the desktop UI runtime dependencies and the Rust crates against
+their upstream advisory databases, and answers 2 offline.
+
+**The test recipes.** `test` wraps the workspace suite in a sentinel `HOME`
+and fails if the run wrote to `~/.apollia`. `test-cli-runtime` points the
+model variable at a file that does not exist, so Track 3 records a justified
+skip whatever the environment holds. `test-engine-manifest` runs the engine
+manifest script on stand-in archives, signs them with a key pair generated on
+the spot and hands the result to the engine store: accepted intact, refused
+after one altered byte. `test-cli-sweep` plays one real invocation of every
+CLI leaf on a throwaway `HOME` and names the leaves it refuses to play.
+`test-evals-load` loads the two agent evaluation suites and holds their
+invariants; running them needs a loaded model and an outfitted agent, which no
+recipe provides.
 
 ---
 

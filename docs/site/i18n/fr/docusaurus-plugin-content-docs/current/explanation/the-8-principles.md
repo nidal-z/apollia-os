@@ -41,20 +41,28 @@ surface d'attaque à raisonner et une seule chose à maintenir en fonctionnement
 
 ## 3. Contrat minimal
 
-<!-- claim:agent-contract-is-decorators-not-manifest-run -->
-Un agent est une classe décorée par `@agent`, comportant au moins une méthode
-asynchrone décorée par `@skill` ou `@on_message`. Il n'y a aucune classe de
-base à hériter ni aucun framework à adopter. L'objectif est de garder minimale
-la surface qu'un auteur doit apprendre, pour que le runtime porte les parties
-difficiles (gouvernance, budgets, outils) plutôt que de les reporter sur chaque
-agent. Pour le contrat exact que voit un agent, lisez la
-[référence SDK](/reference/sdk).
+<!-- claim:agent-contract-is-a-manifest-read-strictly -->
+Un agent est une fiche : une mission, un modèle, des outils, des sources et des
+droits. Un paquet l'écrit comme une entrée `[[agents]]` de son manifeste
+`apollia.toml`, et aucun objet Python ne le représente. Le code est optionnel :
+un paquet apporte des outils (`@tool`) et des workflows (`@workflow`), deux
+décorateurs posés sur des fonctions asynchrones, et rien d'autre. L'objectif est
+de garder minimale la surface qu'un auteur doit apprendre, pour que le runtime
+porte les parties difficiles (gouvernance, budgets, outils) plutôt que de les
+reporter sur chaque agent. Il laisse aussi l'agent entre les mains de la
+personne qui s'en sert : ce qu'un paquet déclare est un ensemble de valeurs par
+défaut, et un outil, un droit ou un modèle se change depuis l'interface, sans
+nouvelle version du code. Pour le contrat exact que voit le Python d'un paquet,
+lisez la [référence SDK](/reference/sdk).
 
-L'ancien contrat, une méthode `manifest()` suivie d'un `run()` asynchrone, a
-disparu (voir [le contrat d'agent](/architecture/decisions#agent-contract)). Le pont refuse tout objet dépourvu de
-`__apollia_dispatch__`, l'attribut que les décorateurs installent, si bien
-qu'un agent écrit à l'ancienne manière ne se charge pas du tout plutôt que de
-fonctionner à moitié.
+Le runtime refuse un paquet dont le manifeste ne valide pas. Une clé que le
+schéma ne connaît pas est refusée avec son chemin complet, de même que ce que le
+schéma ne sait pas exprimer, par exemple un agent auquel est accordé un outil de
+paquet que le paquet ne livre pas. Une clé mal orthographiée arrête le paquet
+plutôt que de laisser tourner un agent privé de ce que son auteur a déclaré.
+L'ancien contrat, une classe décorée par `@agent` portant des méthodes `@skill`
+ou `@on_message`, a disparu (voir
+[le contrat d'agent](/architecture/decisions#agent-contract)).
 
 ## 4. Échec rapide
 

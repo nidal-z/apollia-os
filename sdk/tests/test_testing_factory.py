@@ -1,16 +1,12 @@
-"""Tests for apollia.testing.mock factory + new assertion helpers."""
+"""Tests for ``MockContext`` and the assertion helpers, on a tool and a workflow."""
 
 from __future__ import annotations
 
-import sys
-import types
 from typing import Any
 
 import pytest
-from apollia.agent import agent
+from apollia import tool, workflow
 from apollia.errors import DomainError
-from apollia.messages import on_message
-from apollia.skills import skill
 from apollia.testing import (
     MockContext,
     assert_emitted_thought,
@@ -19,119 +15,100 @@ from apollia.testing import (
     assert_result_completed,
     assert_result_failed,
     assert_result_input_required,
-    assert_skill_called,
     assert_template_rendered,
     assert_tool_called,
-    mock,
 )
 
-# ──────────────────────────────────────────────────────────────────────
-# Module-fixture machinery
-#
-# ``@agent`` refuses to register two different classes inside
-# the same Python module - the test_*.py file itself would have an
-# ``agent`` symbol clash with the imported decorator.  We therefore
-# build fresh, unique fake modules for every fixture class.
-# ──────────────────────────────────────────────────────────────────────
+from tests._typeddict_fixtures import PlainTD
 
 
-_MODULE_COUNTER = 0
+@tool("echo", "Echo a number through several context services.", action="read")
+async def echo(ctx: Any, x: int) -> dict[str, Any]:
+    ctx.events.emit_token(f"x={x}")
+    ctx.events.emit_thought("computing", step=1)
+    await ctx.memory.record("ran echo")
+    await ctx.memory.remember("last_x", str(x))
+    await ctx.tools.call("noop", {})
+    ctx.templates.render("prompt.j2", x=x)
+    return {"echoed": x}
 
 
-def _make_module() -> str:
-    global _MODULE_COUNTER
-    _MODULE_COUNTER += 1
-    name = f"test_testing_factory_mod_{_MODULE_COUNTER}"
-    sys.modules[name] = types.ModuleType(name)
-    return name
+@tool("fail", "Always raise a domain error.", action="read")
+async def fail(ctx: Any) -> dict[str, Any]:
+    raise DomainError("bad_input", "missing thing", details={"k": "v"})
 
 
-def _make_simple_agent() -> type:
-    """Return a ``@agent``-decorated class exercising several ctx surfaces."""
-    mod_name = _make_module()
-
-    class SimpleAgent:
-        @skill("foo.echo", description="echo input")
-        async def echo(self, x: int, *, ctx: Any) -> dict[str, Any]:
-            ctx.events.emit_token(f"x={x}")
-            ctx.events.emit_thought("computing", step=1)
-            await ctx.memory.record("ran foo.echo")
-            await ctx.memory.remember("last_x", str(x))
-            await ctx.tools.call("noop", {})
-            ctx.templates.render("prompt.j2", x=x)
-            await ctx.a2a.invoke("child.worker", {"value": x})
-            return {"echoed": x}
-
-        @skill("foo.fail", description="always raises")
-        async def fail(self, *, ctx: Any) -> dict[str, Any]:
-            raise DomainError("bad_input", "missing thing", details={"k": "v"})
-
-        @on_message
-        async def reply(self, message: str, history: list, ctx: Any) -> str:
-            ctx.events.emit_token("hi")
-            return f"echo:{message}"
-
-    SimpleAgent.__module__ = mod_name
-    decorated = agent(name="simple", version="0.1.0", description="trivial test agent")(SimpleAgent)
-    return decorated
+@workflow(
+    "relay",
+    "Hand the inputs to an agent, then to another workflow.",
+    inputs=PlainTD,
+    steps=["ask", "file"],
+    action="read",
+)
+async def relay(ctx: Any, inputs: PlainTD) -> dict[str, Any]:
+    async with ctx.step("ask"):
+        answer = await ctx.agents.run("triage", "Sort this message.")
+    async with ctx.step("file"):
+        filed = await ctx.workflows.run("file-ledger", {"text": answer})
+    return {"answer": answer, "filed": filed}
 
 
-def _prepare_ctx(ctx: MockContext) -> MockContext:
-    """Wire the bare-minimum responses needed by ``SimpleAgent.echo``."""
+def _prepared_ctx() -> MockContext:
+    """A context carrying the bare-minimum responses ``echo`` needs."""
+    ctx = MockContext()
     ctx.tools.responses["noop"] = {}
     ctx.templates.templates["prompt.j2"] = "x={{ x }}"
     return ctx
 
 
-class NotAnAgent:
-    """Plain class - not decorated with @agent."""
-
-
 # ──────────────────────────────────────────────────────────────────────
-# mock() factory
+# A tool and a workflow under MockContext
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_mock_raises_on_undecorated_class() -> None:
-    # GIVEN a class without @agent
-    # WHEN mock() is called
-    # THEN ValueError mentions the missing decorator
-    with pytest.raises(ValueError, match="not decorated with @agent"):
-        mock(NotAnAgent)
-
-
-def test_mock_returns_instance_and_ctx() -> None:
-    # GIVEN a decorated agent class
-    AgentCls = _make_simple_agent()
-    # WHEN mock() is called
-    # THEN we get back (instance, MockContext) with invoke helpers attached
-    agent_instance, ctx = mock(AgentCls)
-    assert isinstance(agent_instance, AgentCls)
-    assert isinstance(ctx, MockContext)
-    assert callable(agent_instance.invoke_skill)
-    assert callable(agent_instance.invoke_message)
+@pytest.mark.asyncio
+async def test_a_tool_is_awaited_as_written_with_a_mock_context() -> None:
+    # GIVEN a context carrying the responses the tool needs
+    ctx = _prepared_ctx()
+    # WHEN the decorated function is awaited directly
+    result = await echo(ctx, x=42)
+    # THEN it returns its plain value: nothing wraps it
+    assert result == {"echoed": 42}
 
 
 @pytest.mark.asyncio
-async def test_invoke_skill_happy_path() -> None:
-    # GIVEN a mocked agent whose ctx carries the responses its skill needs
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    # WHEN the skill is invoked through the mock helper
-    result = await agent_instance.invoke_skill("foo.echo", x=42)
-    # THEN the task completes and the handler's return value is the data part
-    assert_result_completed(result)
-    assert result["output"][0]["data"] == {"echoed": 42}
+async def test_a_tool_that_raises_reaches_the_test_as_its_own_exception() -> None:
+    # GIVEN a tool that always raises a domain error
+    ctx = MockContext()
+    # WHEN it is awaited
+    with pytest.raises(DomainError) as raised:
+        await fail(ctx)
+    # THEN the test reads the code and the details the tool gave
+    assert raised.value.code == "bad_input"
+    assert raised.value.details == {"k": "v"}
 
 
 @pytest.mark.asyncio
-async def test_invoke_skill_domain_error_to_failed() -> None:
-    # GIVEN a mocked agent whose skill always raises a DomainError
-    agent_instance, _ctx = mock(_make_simple_agent())
-    # WHEN that skill is invoked
-    result = await agent_instance.invoke_skill("foo.fail")
-    # THEN the task fails under the agent's own error code
-    assert_result_failed(result, code="bad_input")
+async def test_a_workflow_reaches_agents_and_workflows_through_the_mock() -> None:
+    # GIVEN canned answers for the agent and the workflow the steps call
+    ctx = MockContext()
+    ctx.agents.answers = {"triage": "urgent"}
+    ctx.workflows.results = {"file-ledger": {"rows": 1}}
+    # WHEN the workflow runs
+    result = await relay(ctx, {"a": 1, "b": "x"})
+    # THEN each call is recorded with its target and what it was handed
+    assert result == {"answer": "urgent", "filed": {"rows": 1}}
+    assert ctx.agents.run_calls == [("triage", "Sort this message.")]
+    assert ctx.workflows.run_calls == [("file-ledger", {"text": "urgent"})]
+
+
+def test_the_mock_context_offers_no_synchronous_call_between_agents() -> None:
+    # GIVEN a fresh mock context
+    ctx = MockContext()
+    # WHEN the services of the former contract are looked up
+    # THEN neither ``ctx.a2a`` nor the tool loop of ``ctx.llm`` is there
+    assert not hasattr(ctx, "a2a")
+    assert not hasattr(ctx.llm, "run" + "_tools")
 
 
 @pytest.mark.asyncio
@@ -149,28 +126,12 @@ async def test_ctx_llm_responses_queue_consumed() -> None:
 
 @pytest.mark.asyncio
 async def test_ctx_events_emit_token_tracked() -> None:
-    # GIVEN a mocked agent whose skill emits one token
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    # WHEN the skill is invoked
-    await agent_instance.invoke_skill("foo.echo", x=7)
+    # GIVEN a tool that emits one token
+    ctx = _prepared_ctx()
+    # WHEN it runs
+    await echo(ctx, x=7)
     # THEN the mock recorded that token and nothing else
     assert ctx.events.tokens == ["x=7"]
-
-
-@pytest.mark.asyncio
-async def test_ctx_a2a_invoke_tracked() -> None:
-    # GIVEN a mocked agent and a canned answer for the child agent
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    ctx.a2a.invoke_responses["child.worker"] = {
-        "status": "completed",
-        "output": [],
-    }
-    # WHEN the skill is invoked and delegates to that child
-    await agent_instance.invoke_skill("foo.echo", x=3)
-    # THEN the delegation is recorded with its target and payload
-    assert ctx.a2a.invoke_calls == [("child.worker", {"value": 3})]
 
 
 @pytest.mark.asyncio
@@ -187,42 +148,16 @@ async def test_ctx_datasources_preconfigured() -> None:
         ctx.datasources.get("missing")
 
 
-@pytest.mark.asyncio
-async def test_invoke_message_dispatches_to_on_message() -> None:
-    # GIVEN a mocked agent exposing an @on_message handler
-    agent_instance, ctx = mock(_make_simple_agent())
-    # WHEN a message is sent through the mock helper
-    result = await agent_instance.invoke_message("ping")
-    # THEN the message route answers and its emitted token is recorded
-    assert_result_completed(result, contains="echo:ping")
-    assert ctx.events.tokens == ["hi"]
-
-
 # ──────────────────────────────────────────────────────────────────────
 # Assertion helpers
 # ──────────────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_assert_skill_called_passes_and_fails() -> None:
-    # GIVEN a mocked agent that delegated once to a child skill
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    await agent_instance.invoke_skill("foo.echo", x=1)
-    # WHEN the delegation is asserted, then one that never happened
-    assert_skill_called(ctx, "child.worker")
-    assert_skill_called(ctx, "child.worker", times=1)
-    # THEN the first two pass and the absent one raises
-    with pytest.raises(AssertionError, match="was not invoked"):
-        assert_skill_called(ctx, "never.invoked")
-
-
-@pytest.mark.asyncio
 async def test_assert_emitted_token_passes_and_fails() -> None:
-    # GIVEN a mocked agent that emitted one token
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    await agent_instance.invoke_skill("foo.echo", x=9)
+    # GIVEN a tool run that emitted one token
+    ctx = _prepared_ctx()
+    await echo(ctx, x=9)
     # WHEN the token is asserted, with and without a substring
     assert_emitted_token(ctx)
     assert_emitted_token(ctx, contains="x=9")
@@ -233,10 +168,9 @@ async def test_assert_emitted_token_passes_and_fails() -> None:
 
 @pytest.mark.asyncio
 async def test_assert_emitted_thought_passes_and_fails() -> None:
-    # GIVEN a mocked agent that emitted one thought
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    await agent_instance.invoke_skill("foo.echo", x=1)
+    # GIVEN a tool run that emitted one thought
+    ctx = _prepared_ctx()
+    await echo(ctx, x=1)
     # WHEN the thought is asserted, then asserted on a fresh context
     assert_emitted_thought(ctx, contains="computing")
     fresh_ctx = MockContext()
@@ -247,14 +181,11 @@ async def test_assert_emitted_thought_passes_and_fails() -> None:
 
 @pytest.mark.asyncio
 async def test_assert_memory_recorded_passes_and_fails() -> None:
-    # GIVEN a mocked agent that recorded an episode and remembered a key
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    await agent_instance.invoke_skill("foo.echo", x=1)
+    # GIVEN a tool run that recorded an episode and remembered a key
+    ctx = _prepared_ctx()
+    await echo(ctx, x=1)
     # WHEN each memory write is asserted, then one that never happened
-    # Episodic check
     assert_memory_recorded(ctx)
-    # Semantic key check (via .remember)
     assert_memory_recorded(ctx, key="last_x")
     # THEN the two writes pass and the absent key raises
     with pytest.raises(AssertionError, match="not remembered"):
@@ -263,10 +194,9 @@ async def test_assert_memory_recorded_passes_and_fails() -> None:
 
 @pytest.mark.asyncio
 async def test_assert_tool_called_passes_and_fails() -> None:
-    # GIVEN a mocked agent that called one tool once
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    await agent_instance.invoke_skill("foo.echo", x=1)
+    # GIVEN a tool run that called one native tool once
+    ctx = _prepared_ctx()
+    await echo(ctx, x=1)
     # WHEN the call is asserted, with and without a count
     assert_tool_called(ctx, "noop")
     assert_tool_called(ctx, "noop", times=1)
@@ -277,10 +207,9 @@ async def test_assert_tool_called_passes_and_fails() -> None:
 
 @pytest.mark.asyncio
 async def test_assert_template_rendered_passes_and_fails() -> None:
-    # GIVEN a mocked agent that rendered one template
-    agent_instance, ctx = mock(_make_simple_agent())
-    _prepare_ctx(ctx)
-    await agent_instance.invoke_skill("foo.echo", x=1)
+    # GIVEN a tool run that rendered one template
+    ctx = _prepared_ctx()
+    await echo(ctx, x=1)
     # WHEN that template is asserted, then one that was never rendered
     assert_template_rendered(ctx, "prompt.j2")
     # THEN the first passes and the absent template raises

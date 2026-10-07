@@ -47,7 +47,6 @@ function inputs(pkg: RegistryPackageView): ConnectorConfigInputs {
     oauthResolved: false,
     envValues: {},
     argValues: {},
-    approvalLevel: "auto",
   };
 }
 
@@ -115,7 +114,6 @@ describe("a registry entry is added with the badge it was shown under", () => {
       oauthResolved: false,
       envValues: {},
       argValues: {},
-      approvalLevel: "auto",
     };
   }
 

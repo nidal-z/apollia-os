@@ -44,13 +44,16 @@ Apollia defines four tiers, from most supervised to most autonomous:
   This is the widest tier, appropriate only when the task is well understood and
   the budget and permissions already constrain the blast radius.
 
-Both effects live on one execution path, and that narrows who ever sees them. The
-plan gate and the verification pass are reached only when the agent's manifest
-declares `execution_mode = "orchestrated"`, which the SDK sets for a class carrying
-`@orchestrated`. An agent built from `@skill` or `@on_message` runs the direct
-dispatch path, where neither the gate nor the verification pass exists, whatever
-tier the run is in. None of the three agents shipped with the product is
-orchestrated: two declare `auto` and one declares `direct`.
+Both effects apply to the run of an agent, and an agent is data: an `[[agents]]`
+entry in the `apollia.toml` of its package, or an agent created in the
+application, run by the engine built into the runtime. No Python of a package
+chooses an execution path. The tier an agent runs at is the one its package
+recommends (`autonomy`, under `[agents.defaults]`), then the override of the
+person, then the global default, and the verification pass is attached to the run
+from Supervised upward. Whether the agent writes a plan before acting is a
+separate setting, its planning mode (`planning`: `never`, `auto` or `always`), and
+a plan written that way has no approval of its own: approving a plan before it
+executes belongs to the plan mode of a conversation.
 
 The gate is active in Assisted and Supervised, and bypassed in Bounded autonomous
 and Long autonomous, but only for a run that carries no decision of its own.
@@ -76,12 +79,12 @@ The four tiers declare 100, 200, 300 and 500 reasoning steps, and that table is
 real. What reads it is the chat path, and free chat runs at the default tier and
 never varies.
 
-<!-- claim:tier-budget-capped-at-thirty-on-agent-paths -->
-An agent run does not read that table at all. Both execution paths take the
-budget the agent's manifest declares and cap it against a fixed runtime ceiling
-of 30 reasoning steps, 60 tool calls and 600 seconds of wall clock. So raising
-the tier widens what an agent may attempt well before it changes what the agent
-actually gets, and it never removes the hard edge. The mechanics of the
+<!-- claim:agent-run-budget-is-its-tier-capped-by-the-ceiling -->
+An agent run reads that table too. It takes the budget of the tier the agent
+runs at and caps it against a fixed runtime ceiling of 100 reasoning steps, 200
+tool calls and 1200 seconds of wall clock. So raising the tier widens what an
+agent may attempt well before it changes what the agent actually gets, and it
+never removes the hard edge. The mechanics of the
 verification loop belong to the
 [plan and orchestrated execution model](/explanation/the-plan-model), and the
 safeguards it runs under belong to the

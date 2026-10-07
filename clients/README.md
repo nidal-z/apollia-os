@@ -38,6 +38,15 @@ The committed spec lives at `clients/openapi.json`.
 
 ## Demo
 
-`clients/examples/demo_python.sh` starts a real daemon, installs the no-LLM
-`echo_agent.py`, and drives it end-to-end through the generated Python client
-over TCP + token. See that script for the exact commands.
+`clients/examples/demo_python.sh` starts a real daemon, installs the package
+`clients/examples/echo` (an `apollia.toml` and one workflow that returns its
+input, so no model is needed), and launches that workflow end-to-end through
+the generated Python client over TCP + token. See that script for the exact
+commands. It starts and stops its own daemon, and refuses to run while another
+runtime is up.
+
+The package carries its own test, run from its folder with the SDK installed:
+
+```sh
+cd clients/examples/echo && python -m pytest tests
+```

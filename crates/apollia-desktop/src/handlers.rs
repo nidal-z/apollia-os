@@ -10,8 +10,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
 {
     use crate::commands;
     tauri::generate_handler![
-        commands::agent_packages::preview_agent_package,
-        commands::agent_packages::install_agent_package,
         commands::agent_packages::list_agent_packages,
         commands::agent_packages::get_agent_package_detail,
         commands::agent_packages::uninstall_agent_package,
@@ -19,7 +17,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::agents::agent_status_snapshot,
         commands::agents::messages::list_agent_messages,
         commands::agent_packages::uninstall::uninstall_agent,
-        commands::agents::lifecycle::update_agent,
         commands::tasks::list_tasks,
         commands::tasks::get_task_timeline,
         commands::tasks::get_delegation_tree,
@@ -165,7 +162,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::engine_installation::import_engine_folder,
         commands::engine_installation::dismiss_engine_installation,
         commands::config::system::get_resource_usage,
-        commands::config::system::get_api_port,
         commands::config::system::get_python_interpreter,
         commands::config::system::set_python_interpreter,
         commands::config::system::setup_local_llm,
@@ -341,7 +337,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::mcp::discovery::fetch_mcp_curated,
         commands::mcp::store_mcp_secret,
         commands::mcp::delete_mcp_secret,
-        commands::mcp::set_mcp_server_approval,
         commands::plan_mode::submit_plan_decision,
         commands::plan_mode::get_plan_mode_default,
         commands::plan_mode::set_plan_mode,

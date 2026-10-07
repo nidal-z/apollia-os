@@ -14,17 +14,17 @@ use super::helpers::truncate_preview;
 
 /// The content of one consent request, as the approval event carries it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ApprovalRequest {
+pub(in crate::chat) struct ApprovalRequest {
     /// What the request says: the short preview, or the whole code.
-    pub(super) prompt: String,
+    pub(in crate::chat) prompt: String,
     /// The answers offered, as their wire names.
-    pub(super) answers: Vec<String>,
+    pub(in crate::chat) answers: Vec<String>,
     /// The full arguments of the call, as indented JSON.
-    pub(super) detail: String,
+    pub(in crate::chat) detail: String,
     /// The whole command or source, for a tool that runs code.
-    pub(super) code: Option<String>,
+    pub(in crate::chat) code: Option<String>,
     /// The folder the code runs in, for a tool that runs code.
-    pub(super) working_dir: Option<String>,
+    pub(in crate::chat) working_dir: Option<String>,
 }
 
 /// The key of the argument holding the code of each code executor.
@@ -60,7 +60,10 @@ fn working_dir_of(arguments: &serde_json::Value) -> Option<String> {
 }
 
 /// The request for `call`, offering `answers`.
-pub(super) fn approval_request(call: &ToolCall, answers: &[ConsentAnswer]) -> ApprovalRequest {
+pub(in crate::chat) fn approval_request(
+    call: &ToolCall,
+    answers: &[ConsentAnswer],
+) -> ApprovalRequest {
     let answers = answers.iter().map(|a| answer_name(*a).to_owned()).collect();
     let detail = serde_json::to_string_pretty(&call.arguments).unwrap_or_default();
     if is_code_executor(&call.name) {

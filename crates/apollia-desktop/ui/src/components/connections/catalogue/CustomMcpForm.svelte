@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
-   * CustomMcpForm - the "custom connection" builder: an address, headers and
-   * approval; in developer mode also the transport and the command line.
+   * CustomMcpForm - the "custom connection" builder: an address and headers;
+   * in developer mode also the transport and the command line.
    *
    * Self-contained: owns its form state and the test / install IPC calls, and
    * emits `oninstalled` once a server is added so the parent can refresh + close.
@@ -13,7 +13,6 @@
   import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
   import { Textarea } from "$lib/components/ui/textarea";
-  import { Checkbox } from "$lib/components/ui/checkbox";
   import { Button } from "$lib/components/ui/button";
   import { addMcpServer, testMcpConnection } from "$lib/ipc/connections";
   import { formatTauriError } from "$lib/connections/errors";
@@ -32,7 +31,6 @@
     args: "",
     url: "",
     headers: "",
-    requires_approval: true,
   });
   /**
    * The transport the form builds. Outside the developer mode a custom
@@ -66,7 +64,6 @@
       name: sanitizeServerName(form.name || "custom-mcp"),
       env,
       transport,
-      requires_approval: form.requires_approval,
       tags: [],
     };
     if (transport === "stdio") {
@@ -210,11 +207,6 @@
         disabled={busy}
         data-testid="custom-mcp-env-input"
       />
-    </label>
-
-    <label class="flex items-center gap-2 pt-1 text-label-sm font-medium text-foreground">
-      <Checkbox bind:checked={form.requires_approval} disabled={busy} data-testid="custom-mcp-approval-toggle" />
-      {$t("connections.custom_require_approval")}
     </label>
   </div>
 

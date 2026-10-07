@@ -11,7 +11,6 @@
 
 pub mod client;
 pub mod commands;
-pub mod community;
 pub mod config;
 pub mod config_location;
 pub mod exit_codes;
@@ -292,7 +291,7 @@ enum Commands {
         command: Option<commands::chat::ChatHygieneCommand>,
     },
 
-    /// MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server).
+    /// MCP server management (list, add, remove, show, test, restart, update, raw-config, server).
     Mcp {
         /// MCP subcommand.
         #[command(subcommand)]
@@ -371,17 +370,6 @@ enum Commands {
     /// databases, the Python bridge, and the runtime socket. Prints a status
     /// table and exits 0 when healthy, 1 when at least one check errors.
     Doctor,
-
-    /// Statically inspect a Python agent file (no runtime required).
-    ///
-    /// Loads the agent module in isolation, introspects its manifest, and
-    /// checks declared datasources, templates, secrets, and permissions
-    /// without starting the runtime. Exits 0 when the inspection succeeds
-    /// (warnings allowed), 1 when it fails.
-    Inspect {
-        /// Path to the agent `.py` file.
-        path: PathBuf,
-    },
 
     /// Tail or follow the runtime log file.
     ///
@@ -515,7 +503,7 @@ fn init_tracing(cli: &Cli) {
     };
 
     // Route diagnostics to stderr so they never corrupt stdout payloads
-    // (notably `--json`): in-process commands (e.g. `mcp set-approval`) emit
+    // (notably `--json`): in-process commands (e.g. `mcp secret set`) emit
     // runtime `tracing` events that would otherwise interleave with the JSON.
     // ANSI styling follows the terminal, not just `--no-color`: a piped stderr
     // receives plain text, so `--json` runs stay free of escape sequences.
@@ -722,7 +710,6 @@ fn main() {
             Commands::Plan { command } => commands::plan_cache::run_plan(&command, json),
             Commands::Service { command } => commands::service::run(&command, json),
             Commands::Doctor => commands::doctor::run(cli.socket, json).await,
-            Commands::Inspect { path } => commands::inspect::run(&path, json, no_color),
             Commands::Logs(args) => commands::logs::run(&args, json).await,
             Commands::Version => commands::version::run(json),
             Commands::Connector { command } => commands::connector::run(&command, json).await,
@@ -1259,14 +1246,14 @@ mod tests {
 
     #[test]
     fn test_cli_parses_agent_start() {
-        // GIVEN "apollia-os agent start /path/to/agent.py"
+        // GIVEN "apollia-os agent start invoice-reader"
         // WHEN parse
-        let cli = parse(&["apollia-os", "agent", "start", "/path/to/agent.py"]);
-        // THEN Commands::Agent { command: AgentCommand::Start { path } }
+        let cli = parse(&["apollia-os", "agent", "start", "invoice-reader"]);
+        // THEN Commands::Agent { command: AgentCommand::Start { agent_id } }
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Start { path } => {
-                    assert_eq!(path, "/path/to/agent.py");
+                AgentCommand::Start { agent_id } => {
+                    assert_eq!(agent_id, "invoice-reader");
                 }
                 other => panic!("expected AgentCommand::Start, got {other:?}"),
             },
@@ -1360,23 +1347,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_agent_install() {
-        // GIVEN "apollia-os agent install ./agents/mon-agent.py"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "agent", "install", "./agents/mon-agent.py"]);
-        // THEN Commands::Agent { command: AgentCommand::Install { path } }
-        match &cli.command {
-            Commands::Agent { command } => match command {
-                AgentCommand::Install { source, .. } => {
-                    assert_eq!(source, "./agents/mon-agent.py");
-                }
-                other => panic!("expected AgentCommand::Install, got {other:?}"),
-            },
-            other => panic!("expected Commands::Agent, got {other:?}"),
-        }
-    }
-
-    #[test]
     fn test_cli_parses_agent_uninstall() {
         // GIVEN "apollia-os agent uninstall mon-agent"
         // WHEN parse
@@ -1438,30 +1408,6 @@ mod tests {
             Commands::Agent { command } => match command {
                 AgentCommand::Disable { name } => assert_eq!(name, "mon-agent"),
                 other => panic!("expected AgentCommand::Disable, got {other:?}"),
-            },
-            other => panic!("expected Commands::Agent, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_agent_update() {
-        // GIVEN "apollia-os agent update mon-agent ./agents/v2.py"
-        let cli = parse(&[
-            "apollia-os",
-            "agent",
-            "update",
-            "mon-agent",
-            "./agents/v2.py",
-        ]);
-        // WHEN clap parses the argument line
-        // THEN the update subcommand carries both the agent name and the new source path
-        match &cli.command {
-            Commands::Agent { command } => match command {
-                AgentCommand::Update { name, path } => {
-                    assert_eq!(name, "mon-agent");
-                    assert_eq!(path, &PathBuf::from("./agents/v2.py"));
-                }
-                other => panic!("expected AgentCommand::Update, got {other:?}"),
             },
             other => panic!("expected Commands::Agent, got {other:?}"),
         }
@@ -1939,61 +1885,6 @@ mod tests {
         assert!(cli.json);
     }
 
-    // ── agent create command parsing ──────────────────────────────
-
-    #[test]
-    fn test_cli_parses_agent_create_default_type() {
-        // GIVEN "apollia-os agent create my-agent"
-        let cli = parse(&["apollia-os", "agent", "create", "my-agent"]);
-        // WHEN clap parses the argument line
-        // THEN AgentCommand::Create with default type "react"
-        match &cli.command {
-            Commands::Agent { command } => match command {
-                AgentCommand::Create { name, r#type } => {
-                    assert_eq!(name, "my-agent");
-                    assert_eq!(r#type, "react");
-                }
-                other => panic!("expected AgentCommand::Create, got {other:?}"),
-            },
-            other => panic!("expected Commands::Agent, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_agent_create_with_type() {
-        // GIVEN "apollia-os agent create my-bot --type conversational"
-        let cli = parse(&[
-            "apollia-os",
-            "agent",
-            "create",
-            "my-bot",
-            "--type",
-            "conversational",
-        ]);
-        // WHEN clap parses the argument line
-        // THEN AgentCommand::Create with specified type
-        match &cli.command {
-            Commands::Agent { command } => match command {
-                AgentCommand::Create { name, r#type } => {
-                    assert_eq!(name, "my-bot");
-                    assert_eq!(r#type, "conversational");
-                }
-                other => panic!("expected AgentCommand::Create, got {other:?}"),
-            },
-            other => panic!("expected Commands::Agent, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_agent_create_json_flag() {
-        // GIVEN "apollia-os agent create my-agent --json"
-        let cli = parse(&["apollia-os", "agent", "create", "my-agent", "--json"]);
-        // WHEN clap parses the argument line
-        // THEN global json = true
-        assert!(matches!(cli.command, Commands::Agent { .. }));
-        assert!(cli.json);
-    }
-
     // ── onboard command parsing ───────────────────────────────────
 
     #[test]
@@ -2274,54 +2165,4 @@ mod tests {
     }
 
     // ── inspect command parsing ───────────────────────────────────
-
-    #[test]
-    fn test_cli_parses_inspect_with_path() {
-        // GIVEN "apollia-os inspect agent.py"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "inspect", "agent.py"]);
-        // THEN Commands::Inspect with the path captured, no global flags
-        match &cli.command {
-            Commands::Inspect { path } => assert_eq!(path, &PathBuf::from("agent.py")),
-            other => panic!("expected Commands::Inspect, got {other:?}"),
-        }
-        assert!(!cli.json);
-        assert!(!cli.quiet);
-    }
-
-    #[test]
-    fn test_cli_parses_inspect_json() {
-        // GIVEN "apollia-os inspect agent.py --json"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "inspect", "agent.py", "--json"]);
-        // THEN global json=true and the path is captured
-        match &cli.command {
-            Commands::Inspect { path } => assert_eq!(path, &PathBuf::from("agent.py")),
-            other => panic!("expected Commands::Inspect, got {other:?}"),
-        }
-        assert!(cli.json);
-    }
-
-    #[test]
-    fn test_cli_parses_inspect_quiet() {
-        // GIVEN "apollia-os inspect agent.py --quiet"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "inspect", "agent.py", "--quiet"]);
-        // THEN global quiet=true and the path is captured
-        match &cli.command {
-            Commands::Inspect { path } => assert_eq!(path, &PathBuf::from("agent.py")),
-            other => panic!("expected Commands::Inspect, got {other:?}"),
-        }
-        assert!(cli.quiet);
-    }
-
-    #[test]
-    fn test_cli_parses_inspect_no_color() {
-        // GIVEN "apollia-os inspect agent.py --no-color"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "inspect", "agent.py", "--no-color"]);
-        // THEN global no_color=true
-        assert!(matches!(cli.command, Commands::Inspect { .. }));
-        assert!(cli.no_color);
-    }
 }

@@ -430,6 +430,25 @@ fn test_complete_fixture_round_trips_identically() {
 }
 
 #[test]
+fn test_a_package_written_with_the_retired_approval_key_still_loads() {
+    // GIVEN the complete fixture, whose MCP server also carries the key a
+    //       server used to declare its approval with
+    let text = COMPLETE.replace(
+        "init_timeout_secs = 20",
+        "requires_approval = true\ninit_timeout_secs = 20",
+    );
+    assert!(text.contains("requires_approval = true"));
+
+    // WHEN it is read, then written back
+    let manifest = parse(&text).expect("the retired key is read past");
+    let written = manifest.to_toml().expect("serialises");
+
+    // THEN the server is there, and the key is written nowhere
+    assert_eq!(manifest.mcp_servers[0].name, "ledger");
+    assert!(!written.contains("requires_approval"), "{written}");
+}
+
+#[test]
 fn test_complete_fixture_reads_every_section() {
     // GIVEN the complete fixture
 

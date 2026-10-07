@@ -38,10 +38,20 @@ def _parse_response(
 
         return response_201
 
-    if response.status_code == 400:
-        response_400 = ApiErrorBody.from_dict(response.json())
+    if response.status_code == 404:
+        response_404 = ApiErrorBody.from_dict(response.json())
 
-        return response_400
+        return response_404
+
+    if response.status_code == 409:
+        response_409 = ApiErrorBody.from_dict(response.json())
+
+        return response_409
+
+    if response.status_code == 500:
+        response_500 = ApiErrorBody.from_dict(response.json())
+
+        return response_500
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -67,18 +77,18 @@ def sync_detailed(
 ) -> Response[AgentResponse | ApiErrorBody]:
     """Handler for `POST /api/v1/agents`.
 
-     Loads the Python agent module via [`AgentLoader`], validates
-    AIP duck typing, registers the agent with its real manifest, transitions
-    to Active (or Degraded if optional tools are missing), and creates an
-    [`ExecutionCoordinator`] registered with the [`TaskRouter`].
-
-    Tool resolution is delegated to [`apollia_tools::resolve`] which handles
-    the `a2a:` prefix correctly (A2A dependencies live in the ToolProxy
-    allowed_tools list, not in the ToolRegistry, and must not trigger
-    DEGRADED). A missing `tools_required` entry returns 400 Bad Request.
+     Makes a stored agent available: it is registered from the definition
+    `agents.db` holds, moved to Active, and given an [`ExecutionCoordinator`]
+    in the [`TaskRouter`]. An agent is data: nothing is imported, and what it
+    may reach is read from its resolved access when a run starts.
 
     Returns 201 Created with the agent_id and state.
-    Returns 400 Bad Request if the Python module is invalid.
+    Returns 404 Not Found when no stored agent carries the identifier.
+    Returns 409 Conflict for a disabled agent, an agent already available,
+    and the Apollia agent, which is always there.
+
+    [`ExecutionCoordinator`]: crate::coordinator::ExecutionCoordinator
+    [`TaskRouter`]: crate::router::TaskRouter
 
     Args:
         body (StartAgentRequest): Request body for `POST /api/v1/agents`.
@@ -109,18 +119,18 @@ def sync(
 ) -> AgentResponse | ApiErrorBody | None:
     """Handler for `POST /api/v1/agents`.
 
-     Loads the Python agent module via [`AgentLoader`], validates
-    AIP duck typing, registers the agent with its real manifest, transitions
-    to Active (or Degraded if optional tools are missing), and creates an
-    [`ExecutionCoordinator`] registered with the [`TaskRouter`].
-
-    Tool resolution is delegated to [`apollia_tools::resolve`] which handles
-    the `a2a:` prefix correctly (A2A dependencies live in the ToolProxy
-    allowed_tools list, not in the ToolRegistry, and must not trigger
-    DEGRADED). A missing `tools_required` entry returns 400 Bad Request.
+     Makes a stored agent available: it is registered from the definition
+    `agents.db` holds, moved to Active, and given an [`ExecutionCoordinator`]
+    in the [`TaskRouter`]. An agent is data: nothing is imported, and what it
+    may reach is read from its resolved access when a run starts.
 
     Returns 201 Created with the agent_id and state.
-    Returns 400 Bad Request if the Python module is invalid.
+    Returns 404 Not Found when no stored agent carries the identifier.
+    Returns 409 Conflict for a disabled agent, an agent already available,
+    and the Apollia agent, which is always there.
+
+    [`ExecutionCoordinator`]: crate::coordinator::ExecutionCoordinator
+    [`TaskRouter`]: crate::router::TaskRouter
 
     Args:
         body (StartAgentRequest): Request body for `POST /api/v1/agents`.
@@ -146,18 +156,18 @@ async def asyncio_detailed(
 ) -> Response[AgentResponse | ApiErrorBody]:
     """Handler for `POST /api/v1/agents`.
 
-     Loads the Python agent module via [`AgentLoader`], validates
-    AIP duck typing, registers the agent with its real manifest, transitions
-    to Active (or Degraded if optional tools are missing), and creates an
-    [`ExecutionCoordinator`] registered with the [`TaskRouter`].
-
-    Tool resolution is delegated to [`apollia_tools::resolve`] which handles
-    the `a2a:` prefix correctly (A2A dependencies live in the ToolProxy
-    allowed_tools list, not in the ToolRegistry, and must not trigger
-    DEGRADED). A missing `tools_required` entry returns 400 Bad Request.
+     Makes a stored agent available: it is registered from the definition
+    `agents.db` holds, moved to Active, and given an [`ExecutionCoordinator`]
+    in the [`TaskRouter`]. An agent is data: nothing is imported, and what it
+    may reach is read from its resolved access when a run starts.
 
     Returns 201 Created with the agent_id and state.
-    Returns 400 Bad Request if the Python module is invalid.
+    Returns 404 Not Found when no stored agent carries the identifier.
+    Returns 409 Conflict for a disabled agent, an agent already available,
+    and the Apollia agent, which is always there.
+
+    [`ExecutionCoordinator`]: crate::coordinator::ExecutionCoordinator
+    [`TaskRouter`]: crate::router::TaskRouter
 
     Args:
         body (StartAgentRequest): Request body for `POST /api/v1/agents`.
@@ -186,18 +196,18 @@ async def asyncio(
 ) -> AgentResponse | ApiErrorBody | None:
     """Handler for `POST /api/v1/agents`.
 
-     Loads the Python agent module via [`AgentLoader`], validates
-    AIP duck typing, registers the agent with its real manifest, transitions
-    to Active (or Degraded if optional tools are missing), and creates an
-    [`ExecutionCoordinator`] registered with the [`TaskRouter`].
-
-    Tool resolution is delegated to [`apollia_tools::resolve`] which handles
-    the `a2a:` prefix correctly (A2A dependencies live in the ToolProxy
-    allowed_tools list, not in the ToolRegistry, and must not trigger
-    DEGRADED). A missing `tools_required` entry returns 400 Bad Request.
+     Makes a stored agent available: it is registered from the definition
+    `agents.db` holds, moved to Active, and given an [`ExecutionCoordinator`]
+    in the [`TaskRouter`]. An agent is data: nothing is imported, and what it
+    may reach is read from its resolved access when a run starts.
 
     Returns 201 Created with the agent_id and state.
-    Returns 400 Bad Request if the Python module is invalid.
+    Returns 404 Not Found when no stored agent carries the identifier.
+    Returns 409 Conflict for a disabled agent, an agent already available,
+    and the Apollia agent, which is always there.
+
+    [`ExecutionCoordinator`]: crate::coordinator::ExecutionCoordinator
+    [`TaskRouter`]: crate::router::TaskRouter
 
     Args:
         body (StartAgentRequest): Request body for `POST /api/v1/agents`.

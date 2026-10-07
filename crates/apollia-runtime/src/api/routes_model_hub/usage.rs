@@ -71,20 +71,16 @@ pub async fn get_resource_usage<B: ExecutionBackend + Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
 
     use axum::http::StatusCode;
 
-    use crate::api::test_support::{app_state, call, StemLoader};
+    use crate::api::test_support::{app_state, call};
 
     #[tokio::test]
     async fn test_the_usage_route_states_memory_processor_and_video_memory() {
         // GIVEN a runtime
         let tmp = tempfile::tempdir().expect("tempdir");
-        let state = app_state(
-            Arc::new(StemLoader { refusal: None }),
-            tmp.path().to_path_buf(),
-        );
+        let state = app_state(tmp.path().to_path_buf());
 
         // WHEN the usage is asked
         let (status, body) = call(state, "GET", "/api/v1/llm/hardware/usage", None).await;

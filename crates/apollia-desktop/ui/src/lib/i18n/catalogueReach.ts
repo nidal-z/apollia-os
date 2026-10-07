@@ -82,10 +82,6 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/library/*.svelte",
   },
   {
-    pattern: new RegExp(`^agents\\.update_restart_(stop|start)_failed_action$`),
-    builtBy: "components/agents/useAgentActions.svelte.ts",
-  },
-  {
     pattern: new RegExp(`^connections\\.oauth_client\\.(title|intro|origin)\\.${SEG}$`),
     builtBy:
       "components/connections/detail/NativeClientSection.svelte, lib/connections/oauthClient.ts",

@@ -1,10 +1,11 @@
-//! Community agent management, remote and local installation infrastructure.
+//! The agents of the machine: their availability, their overrides, their
+//! sources, their tasks, and the registry of community packages.
 
 use apollia_core::{AutonomyConfig, AutonomyLevel};
 
 pub mod apollia;
+pub mod available;
 pub mod overrides;
-pub mod registry_remote;
 pub mod sources;
 pub mod task;
 

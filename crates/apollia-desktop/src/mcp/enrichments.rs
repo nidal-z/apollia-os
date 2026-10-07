@@ -30,7 +30,6 @@ use apollia_tools::ActionFamily;
 //   "trust_level": "verified_official",
 //   "auth_help_url": "https://www.figma.com/developers/apps",
 //   "auth_help_i18n_key": "integrations.connectors.figma.auth_help_remote",
-//   "default_requires_approval": false,
 //   "remote_url": "https://mcp.figma.com/mcp",
 //   "remote_transport": "streamable-http",
 //   "oauth_pre_registered_client_id_env": "APOLLIA_FIGMA_CLIENT_ID",
@@ -68,8 +67,6 @@ pub struct ConnectorEnrichment {
     /// generic default when both are absent.
     #[serde(default)]
     pub auth_help_i18n_key: Option<String>,
-    /// Default value for the `requires_approval` flag on the created server.
-    pub default_requires_approval: bool,
     /// Short description shown in the catalogue for synthetic entries.
     #[serde(default)]
     pub description: Option<HashMap<String, String>>,
@@ -810,7 +807,6 @@ mod tests {
             "trust_level": "custom",
             "auth_help_url": null,
             "auth_help_text": null,
-            "default_requires_approval": false,
             "tool_families": {"lookup": "teleport"}
         }]"#;
         // WHEN it is parsed

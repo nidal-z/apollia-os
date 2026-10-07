@@ -233,10 +233,8 @@ fn make_bus() -> tokio::sync::broadcast::Sender<RuntimeEvent> {
 
 /// Builds a minimal `AgentManifest` for integration tests.
 fn make_manifest() -> AgentManifest {
-    serde_json::from_str(
-        r#"{"name":"test","version":"0.1.0","description":"test","tools_required":[]}"#,
-    )
-    .expect("minimal manifest must deserialize")
+    serde_json::from_str(r#"{"name":"test","version":"0.1.0","description":"test"}"#)
+        .expect("minimal manifest must deserialize")
 }
 
 // ── Sequential plan ──────────────────────────────────────────────────────────
@@ -622,8 +620,6 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 description: "Test agent without hook".to_string(),
                 execution_mode: "orchestrated".to_string(),
                 system_prompt: Some("You are a test assistant.".to_string()),
-                tools_required: vec!["mock_tool".to_string()],
-                tools_optional: vec![],
                 step_budget: Some(StepBudgetConfig {
                     max_steps: 20,
                     max_tool_calls: 50,
@@ -636,12 +632,8 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 memory_namespace: None,
                 shared_memory_namespaces: vec![],
                 max_concurrent_tasks: 1,
-                network_allowlist: None,
-                dangerous_tools_allowed: false,
                 tags: vec![],
                 skills: vec![],
-                tools_requiring_approval: vec![],
-                llm_backend: None,
                 model: None,
                 packages: vec![],
                 memory_config: None,

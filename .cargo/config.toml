@@ -15,7 +15,7 @@ MACOSX_DEPLOYMENT_TARGET = { value = "15.0", force = false }
 # CI workflow alone, and by two packaging recipes: a build driven from the
 # justfile, which is what the runbook asks for, therefore could not link at
 # all on Windows. Measured on 2026-09-08: 24 unresolved `__imp_*` symbols on
-# `just desktop-dev-automation-seeded`, on a machine with the toolchain in
+# `just automation-seeded`, on a machine with the toolchain in
 # place. Harmless anywhere else, where nothing reads it.
 CMAKE_MSVC_RUNTIME_LIBRARY = { value = "MultiThreaded", force = false }
 

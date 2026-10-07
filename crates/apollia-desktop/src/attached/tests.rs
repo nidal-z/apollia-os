@@ -368,8 +368,8 @@ async fn test_the_daemon_agent_view_reads_as_the_list_the_window_draws() {
     let row = serde_json::json!([{
         "id": null, "name": "veille", "version": "1.0.0", "enabled": true,
         "runtime_status": null, "installed_at": "2026-10-02T00:00:00Z",
-        "description": null, "tags": [], "tools_required": [], "tools_optional": [],
-        "execution_mode": "auto", "install_path": "/a/agent.py", "supports_a2a": false,
+        "description": null, "tags": [],
+        "execution_mode": "auto", "supports_a2a": false,
         "skills": [], "agent_type": null, "examples": [], "limitations": [],
         "setup_notes": null, "agent_class": null, "memory_namespace": null,
         "shared_memory_namespaces": []
@@ -482,7 +482,7 @@ async fn test_a_route_command_reaches_the_daemon_with_each_verb_and_the_token() 
         ("GET", "/api/v1/mcp/servers"),
         ("POST", "/api/v1/triggers"),
         ("PUT", "/api/v1/notifications/channels/c-1"),
-        ("PATCH", "/api/v1/mcp/servers/fs/approval"),
+        ("PATCH", "/api/v1/llm/servers/local"),
         ("DELETE", "/api/v1/llm/backends/local"),
     ] {
         Mock::given(method(verb))
@@ -505,7 +505,7 @@ async fn test_a_route_command_reaches_the_daemon_with_each_verb_and_the_token() 
         link.put_json("/api/v1/notifications/channels/c-1", &body)
             .await
             .unwrap(),
-        link.patch_json("/api/v1/mcp/servers/fs/approval", &body)
+        link.patch_json("/api/v1/llm/servers/local", &body)
             .await
             .unwrap(),
         link.delete_json("/api/v1/llm/backends/local")

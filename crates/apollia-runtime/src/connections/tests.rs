@@ -36,7 +36,6 @@ fn healthy(name: &str) -> McpServerStatus {
         "name": name,
         "server_info": name,
         "tools_count": 1,
-        "requires_approval": false,
         "connected": true,
         "pid": null,
         "uptime_secs": null,

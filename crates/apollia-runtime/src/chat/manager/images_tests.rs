@@ -19,7 +19,6 @@ use apollia_llm::{Capabilities, LlmRouter, VisionEngine};
 use apollia_mcp::session::LoadingMode;
 use apollia_tools::ToolRegistryHandle;
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::chat::images::stored_images;
 use crate::chat::manager::{ChatSessionManagerHandle, CreateSessionParams};
 use crate::chat::repository::ChatSessionRepository;
@@ -86,7 +85,6 @@ pub(super) fn spawn(dir: &tempfile::TempDir) -> (ChatSessionManagerHandle, Reque
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "recording"))),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         event_tx.clone(),
         StepBudgetConfig::default(),

@@ -330,11 +330,6 @@ FRENCH_DATA: dict[str, int] = {
     # the first place a French line could hide.
     "scripts/check_file_language.py": 44,
     "scripts/check_i18n_catalogue.py": 20,
-    # parser: the French vocabulary of the method reference it reads, the
-    # bracketed location tokens and the column header, plus the fixture table
-    # its self-test parses. The table is French; a guard that read it in
-    # English would match nothing.
-    "scripts/check_method_references.py": 18,
     "scripts/check_python_rules.py": 4,
     "tests/cli/seed/files/agents/onboarding-agent/agent.py": 28,
     # prompt: French text sent to a model, because the operator writes French

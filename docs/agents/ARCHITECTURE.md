@@ -37,18 +37,23 @@ namespaces replace Docker. `cargo install apollia-os` is the install.
 
 ### 3. Minimal contract, zero friction
 
-**Rule.** An existing Python agent runs in Apollia with under 10 lines of
-adaptation.
+**Rule.** An agent is a record: a mission, a model, tools, sources, rights.
+Code is optional: a package brings `@tool` and `@workflow` functions, and
+nothing else. The runtime refuses a package whose manifest does not validate.
 
-**Why.** Frameworks that impose a paradigm have a steep adoption curve.
-Apollia solves infrastructure, not modeling. If the solution requires
-rewriting the agent, it generates as much work as it saves.
+**Why.** An agent that fixes in code the tools it requires is a workflow
+written in code: its user cannot add a tool or change a right without a new
+version. What a package declares is a set of defaults, and the user changes
+them from the interface. The line between the two is who decides the next
+step: the model for an agent, the author for a workflow.
 
-**How.** One decorator. `@agent` on the class, one `@skill` or one
-`@on_message` async method, and the adaptation is done. The decorators are the
-contract, not sugar over one: `crates/apollia-aip/src/bridge.rs` refuses any
-object without `__apollia_dispatch__`, and the `manifest()` plus `run()` duck
-typing this section used to describe was removed with it. See
+**How.** One manifest. An agent is an `[[agents]]` entry of the `apollia.toml`
+of its package: a mission, examples, what it may reach. The Python a package
+brings is a tool or a workflow, an async function under a decorator. The
+runtime reads the manifest with a strict schema
+(`crates/apollia-tools/src/apollia_manifest/mod.rs`) and no Python object
+stands for an agent: the bridge that looked for a dispatch hook on a class is
+gone, with the `manifest()` plus `run()` duck typing before it. See
 `sdk/AGENTS.md`.
 
 ### 4. Fail fast
@@ -143,8 +148,8 @@ shell-out around. A CLI that only emits JSON is a CLI that humans hate.
                      (PyO3 bridge)
                            │
                            ▼
-                  Python agents + SDK
-                  (@agent, @skill, @orchestrated)
+                  Package Python + SDK
+                  (@tool, @workflow)
 ```
 
 The desktop UI (`crates/apollia-desktop/ui/`) consumes the same HTTP API
@@ -323,5 +328,5 @@ either locale resolves.
 | LLM router | `crates/apollia-llm/src/router.rs` |
 | PyO3 bridge | `crates/apollia-aip/src/` |
 | CLI commands | `crates/apollia-cli/src/commands/` |
-| SDK decorators | `sdk/apollia/agent.py`, `sdk/apollia/skills.py` |
+| SDK decorators | `sdk/apollia/tool_decorator.py`, `sdk/apollia/workflow_decorator.py` |
 | Desktop UI | `crates/apollia-desktop/ui/src/` |

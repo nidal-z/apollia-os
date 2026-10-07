@@ -71,6 +71,8 @@ mod stream;
 mod tool_guide;
 mod tools;
 
+pub(in crate::chat) use approval_request::approval_request;
+pub(in crate::chat) use governed::refusal_text;
 #[cfg(test)]
 pub(in crate::chat::builtin_agent) use helpers::build_tool_specs;
 pub(in crate::chat::builtin_agent) use helpers::{

@@ -14,20 +14,19 @@ use std::sync::Arc;
 use apollia_llm::request_defaults::RequestDefaults;
 use convert::{
     inject_temporal_context_into_messages, json_to_py, llm_err_to_py, prepend_context_blocks,
-    py_dict_to_chat_message, py_dict_to_tool_spec, py_object_to_json,
+    py_dict_to_chat_message, py_object_to_json,
 };
 use sampling::{complete_request, RequestSampling};
 use stream::{emit_llm_capture, forward_stream, resolved_model_id, PyTokenStream, StreamForward};
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::IntoPyObjectExt;
 use tokio::sync::{mpsc, Mutex as AsyncMutex};
 
 use apollia_core::events::EventBusSender;
 use apollia_llm::{
     AgentModelBinding, ChatMessage, CompletionRequest, LlmError, LlmRouter, ObservabilityConfig,
-    StepBudgetView, ToolCallHelper,
+    StepBudgetView,
 };
 
 /// Default bound on how many `map` items call the model at once when the caller
@@ -111,13 +110,6 @@ pub struct PyLlmResponse {
 /// async for chunk in await ctx.llm.stream([{"role": "user", "content": "..."}]):
 ///     print(chunk)
 ///
-/// # Case 4: automatic ReAct loop
-/// result = await ctx.llm.run_tools(
-///     messages=[{"role": "user", "content": "Read the file."}],
-///     tools=[{"name": "file_io", "description": "...", "parameters": {}}],
-///     max_iterations=5,
-/// )
-///
 /// # One-off backend override
 /// response = await ctx.llm.chat(
 ///     system="...", user="...", backend="anthropic"
@@ -127,7 +119,6 @@ pub struct PyLlmResponse {
 #[derive(Clone)]
 pub struct LlmProxy {
     router: Arc<LlmRouter>,
-    tool_helper: Arc<ToolCallHelper>,
     budget_view: Arc<StepBudgetView>,
     obs_config: Arc<ObservabilityConfig>,
     event_bus: Option<EventBusSender>,
@@ -151,14 +142,12 @@ impl LlmProxy {
     /// `event_bus` is `None` when no Supervisor is active (unit tests).
     pub fn new(
         router: Arc<LlmRouter>,
-        tool_helper: Arc<ToolCallHelper>,
         budget_view: Arc<StepBudgetView>,
         obs_config: Arc<ObservabilityConfig>,
         event_bus: Option<EventBusSender>,
     ) -> Self {
         Self {
             router,
-            tool_helper,
             budget_view,
             obs_config,
             event_bus,
@@ -669,48 +658,6 @@ impl LlmProxy {
         })
     }
 
-    /// Automatic ReAct loop: LLM, tool(s), LLM, ..., final answer.
-    ///
-    /// `messages`: list of dicts `{"role": "...", "content": "..."}`.
-    /// `tools`: list of dicts `{"name": "...", "description": "...", "parameters": {...}}`.
-    /// `max_iterations`: guard rail, the maximum number of LLM calls (default: 5).
-    ///
-    /// Returns a Python awaitable resolving to `str` (the LLM's final answer
-    /// after all tool calls have run).
-    ///
-    /// Raises `PyRuntimeError` if the agent budget is exhausted or
-    /// `max_iterations` is reached.
-    #[pyo3(signature = (messages, tools, max_iterations = 5))]
-    fn run_tools<'py>(
-        &self,
-        py: Python<'py>,
-        messages: Vec<PyObject>,
-        tools: Vec<PyObject>,
-        max_iterations: u32,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let chat_messages = messages
-            .iter()
-            .map(|obj| py_dict_to_chat_message(py, obj))
-            .collect::<PyResult<Vec<_>>>()?;
-
-        let tool_specs = tools
-            .iter()
-            .map(|obj| py_dict_to_tool_spec(py, obj))
-            .collect::<PyResult<Vec<_>>>()?;
-
-        let helper = Arc::clone(&self.tool_helper);
-        let budget = Arc::clone(&self.budget_view);
-
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = helper
-                .run_tools(chat_messages, tool_specs, max_iterations, &budget)
-                .await
-                .map_err(llm_err_to_py)?;
-
-            Python::with_gil(|py| result.into_py_any(py))
-        })
-    }
-
     /// Streaming LLM call: returns an async iterator yielding text chunks.
     ///
     /// Canonical streaming surface. Returns a [`PyTokenStream`]
@@ -904,25 +851,6 @@ mod tests {
         });
     }
 
-    /// `py_dict_to_tool_spec`: fields extracted correctly.
-    #[test]
-    fn test_py_dict_to_tool_spec() {
-        // GIVEN
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new(py);
-            dict.set_item("name", "file_io").unwrap();
-            dict.set_item("description", "reads a file").unwrap();
-            dict.set_item("parameters", pyo3::types::PyDict::new(py))
-                .unwrap();
-            // WHEN
-            let spec = py_dict_to_tool_spec(py, &dict.into()).unwrap();
-            // THEN
-            assert_eq!(spec.name, "file_io");
-            assert_eq!(spec.description, "reads a file");
-        });
-    }
-
     /// Missing "role" key yields `PyValueError`.
     #[test]
     fn test_py_dict_to_chat_message_missing_role() {
@@ -951,21 +879,6 @@ mod tests {
             let msg = py_dict_to_chat_message(py, &dict.into()).unwrap();
             // THEN
             assert_eq!(msg.role, Role::System);
-        });
-    }
-
-    /// Missing "name" key in tool spec yields `PyValueError`.
-    #[test]
-    fn test_py_dict_to_tool_spec_missing_name() {
-        // GIVEN
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new(py);
-            dict.set_item("description", "test").unwrap();
-            // WHEN: no "name" key
-            let result = py_dict_to_tool_spec(py, &dict.into());
-            // THEN
-            assert!(result.is_err());
         });
     }
 
@@ -1054,82 +967,6 @@ mod tests {
         });
     }
 
-    /// `parameters` absent yields default `{}`.
-    #[test]
-    fn test_py_dict_to_tool_spec_parameters_optional() {
-        // GIVEN
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new(py);
-            dict.set_item("name", "echo").unwrap();
-            dict.set_item("description", "echo input").unwrap();
-            // WHEN: no "parameters" key
-            let spec = py_dict_to_tool_spec(py, &dict.into()).unwrap();
-            // THEN
-            assert_eq!(spec.parameters, serde_json::json!({}));
-        });
-    }
-
-    /// A descriptor spelled the Anthropic way, which is what
-    /// `ctx.a2a.skill_as_tool` returns, carries its schema to the model.
-    #[test]
-    fn test_py_dict_to_tool_spec_reads_input_schema() {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
-            // GIVEN the descriptor `ctx.a2a.skill_as_tool` emits, whose schema
-            // key is `input_schema` and not `parameters`
-            let props = pyo3::types::PyDict::new(py);
-            let path = pyo3::types::PyDict::new(py);
-            path.set_item("type", "string").unwrap();
-            props.set_item("path", path).unwrap();
-            let schema = pyo3::types::PyDict::new(py);
-            schema.set_item("type", "object").unwrap();
-            schema.set_item("properties", props).unwrap();
-            schema
-                .set_item("required", pyo3::types::PyList::new(py, ["path"]).unwrap())
-                .unwrap();
-            let dict = pyo3::types::PyDict::new(py);
-            dict.set_item("name", "a2a__pdf__read_text").unwrap();
-            dict.set_item("description", "reads a PDF").unwrap();
-            dict.set_item("input_schema", schema).unwrap();
-
-            // WHEN it is converted to a tool spec
-            let spec = py_dict_to_tool_spec(py, &dict.into()).unwrap();
-
-            // THEN the model is told about the argument instead of receiving an
-            // empty schema
-            assert_eq!(spec.parameters["type"], "object");
-            assert_eq!(spec.parameters["properties"]["path"]["type"], "string");
-            assert_eq!(spec.parameters["required"][0], "path");
-        });
-    }
-
-    /// When both spellings are present, `parameters` wins.
-    #[test]
-    fn test_py_dict_to_tool_spec_parameters_wins_over_input_schema() {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
-            // GIVEN a descriptor carrying both keys with different schemas
-            let params = pyo3::types::PyDict::new(py);
-            params.set_item("type", "object").unwrap();
-            params.set_item("title", "from-parameters").unwrap();
-            let schema = pyo3::types::PyDict::new(py);
-            schema.set_item("type", "object").unwrap();
-            schema.set_item("title", "from-input-schema").unwrap();
-            let dict = pyo3::types::PyDict::new(py);
-            dict.set_item("name", "echo").unwrap();
-            dict.set_item("description", "echo input").unwrap();
-            dict.set_item("parameters", params).unwrap();
-            dict.set_item("input_schema", schema).unwrap();
-
-            // WHEN it is converted to a tool spec
-            let spec = py_dict_to_tool_spec(py, &dict.into()).unwrap();
-
-            // THEN the OpenAI spelling is the one that reaches the model
-            assert_eq!(spec.parameters["title"], "from-parameters");
-        });
-    }
-
     struct NamedModel(&'static str);
 
     #[async_trait::async_trait]
@@ -1191,19 +1028,6 @@ mod tests {
         assert_eq!(unknown, "");
     }
 
-    struct NoTools;
-
-    #[async_trait::async_trait]
-    impl apollia_llm::ToolInvoker for NoTools {
-        async fn invoke(
-            &self,
-            _tool_name: &str,
-            _arguments: &serde_json::Value,
-        ) -> Result<String, String> {
-            Ok(String::new())
-        }
-    }
-
     fn named_router(names: &[&'static str], default: &str) -> Arc<LlmRouter> {
         let backends: std::collections::HashMap<String, Arc<dyn apollia_llm::CompletionModel>> =
             names
@@ -1221,10 +1045,6 @@ mod tests {
     fn proxy_on(router: Arc<LlmRouter>, bus: Option<EventBusSender>) -> LlmProxy {
         LlmProxy::new(
             router,
-            Arc::new(ToolCallHelper::new(
-                Arc::new(NamedModel("helper")),
-                Arc::new(NoTools),
-            )),
             Arc::new(StepBudgetView::unlimited()),
             Arc::new(ObservabilityConfig::default()),
             bus,

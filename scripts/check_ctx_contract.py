@@ -129,9 +129,8 @@ BRIDGE_CLASSES_OUTSIDE_THE_CROSSING = {
 }
 
 PROTOCOL_CLASSES_OUTSIDE_THE_CROSSING = {
-    "SkillCard": "no bridge counterpart: the bridge hands back plain Python "
+    "MailMessage": "no bridge counterpart: the bridge hands back plain Python "
     "dicts, so there is nothing to cross",
-    "MailMessage": "no bridge counterpart, same reason",
     "ToolDescriptor": "no bridge counterpart, same reason",
     "TokenUsage": "a bridge counterpart exists but exposes its fields through "
     "#[pyo3(get)] rather than #[pymethods]",

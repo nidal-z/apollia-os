@@ -311,18 +311,48 @@ fn test_cli_parses_agent_uninstall_erasing_memory_only() {
 }
 
 #[test]
-fn test_cli_parses_agent_repair() {
-    // GIVEN "apollia-os agent repair invoice-reader"
+fn test_cli_parses_package_new() {
+    // GIVEN "apollia-os package new invoice-sorter --output-dir /tmp/work"
     // WHEN the top-level parser reads it
-    let cli = parse(&["apollia-os", "agent", "repair", "invoice-reader"]);
-    // THEN AgentCommand::Repair carries the agent name
-    let Commands::Agent {
-        command: AgentCommand::Repair { name },
+    let cli = parse(&[
+        "apollia-os",
+        "package",
+        "new",
+        "invoice-sorter",
+        "--output-dir",
+        "/tmp/work",
+    ]);
+    // THEN PackageCommand::New carries the name and the folder
+    let Commands::Package {
+        command: ApoPackageCommand::New { name, output_dir },
     } = cli.command
     else {
-        panic!("expected agent repair");
+        panic!("expected package new");
     };
-    assert_eq!(name, "invoice-reader");
+    assert_eq!(name, "invoice-sorter");
+    assert_eq!(output_dir, Some(std::path::PathBuf::from("/tmp/work")));
+}
+
+#[test]
+fn test_cli_no_longer_parses_the_verbs_of_the_former_agent_contract() {
+    // GIVEN the verbs that installed, checked, scaffolded or repaired an
+    // agent written as a Python class, and the command that inspected one
+    let retired: [&[&str]; 6] = [
+        &["apollia-os", "agent", "install", "./agent.py"],
+        &["apollia-os", "agent", "update", "notes", "./agent.py"],
+        &["apollia-os", "agent", "create", "notes"],
+        &["apollia-os", "agent", "validate", "./agent.py"],
+        &["apollia-os", "agent", "repair", "notes"],
+        &["apollia-os", "inspect", "./agent.py"],
+    ];
+
+    for args in retired {
+        // WHEN the top-level parser reads one
+        let parsed = Cli::try_parse_from(args);
+
+        // THEN it is refused: there is one way to write an agent, a package
+        assert!(parsed.is_err(), "{args:?} still parses");
+    }
 }
 
 // ─── a2a ─────────────────────────────────────────────────────────────────────
@@ -1217,80 +1247,6 @@ fn test_cli_parses_mcp_list_with_discovery() {
     };
     assert!(discover);
     assert!(config.is_none());
-    assert!(!json);
-}
-
-#[test]
-fn test_cli_parses_mcp_set_approval_with_ttl() {
-    // GIVEN "apollia-os mcp set-approval files read_file --ttl-hours 1"
-    // WHEN the top-level parser reads it
-    let cli = parse(&[
-        "apollia-os",
-        "mcp",
-        "set-approval",
-        "files",
-        "read_file",
-        "--ttl-hours",
-        "1",
-    ]);
-    // THEN the server and tool are positional and the TTL overrides its default
-    let Commands::Mcp {
-        command:
-            McpCommand::SetApproval {
-                server,
-                tool,
-                db,
-                ttl_hours,
-                json,
-            },
-    } = cli.command
-    else {
-        panic!("expected mcp set-approval");
-    };
-    assert_eq!(server, "files");
-    assert_eq!(tool, "read_file");
-    assert!(db.is_none());
-    assert_eq!(ttl_hours, 1);
-    assert!(!json);
-}
-
-#[test]
-fn test_cli_parses_mcp_list_pending() {
-    // GIVEN "apollia-os mcp list-pending --json"
-    // WHEN the top-level parser reads it
-    let cli = parse(&["apollia-os", "mcp", "list-pending", "--json"]);
-    // THEN the leaf-level json flag is set and the database stays default
-    let Commands::Mcp {
-        command: McpCommand::ListPending { db, json },
-    } = cli.command
-    else {
-        panic!("expected mcp list-pending");
-    };
-    assert!(db.is_none());
-    assert!(json);
-}
-
-#[test]
-fn test_cli_parses_mcp_revoke_approval() {
-    // GIVEN "apollia-os mcp revoke-approval files read_file"
-    // WHEN the top-level parser reads it
-    let cli = parse(&["apollia-os", "mcp", "revoke-approval", "files", "read_file"]);
-    // THEN the server and tool are carried
-    let Commands::Mcp {
-        command:
-            McpCommand::RevokeApproval {
-                server,
-                tool,
-                db,
-                json,
-            },
-    } = cli.command
-    else {
-        panic!("expected mcp revoke-approval");
-    };
-    assert_eq!(server, "files");
-    assert_eq!(tool, "read_file");
-    assert!(db.is_none());
     assert!(!json);
 }
 

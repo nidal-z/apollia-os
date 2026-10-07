@@ -1,16 +1,11 @@
-use std::sync::Arc;
-
 use axum::http::StatusCode;
 use serde_json::json;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 fn state(dir: &tempfile::TempDir) -> AppState<MockBackend> {
-    app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    )
+    app_state(dir.path().to_path_buf())
 }
 
 /// A workbook whose first sheet is an empty cover and whose second holds a

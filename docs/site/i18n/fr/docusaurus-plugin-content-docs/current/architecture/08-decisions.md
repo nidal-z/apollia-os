@@ -12,10 +12,10 @@ nommé.
 
 ## Socle technique et runtime {#stack-and-runtime}
 
-Le runtime est en Rust sur Tokio. Les agents sont en Python, chargés dans le
-processus via un pont PyO3 plutôt que lancés en sous-processus : le pont traduit
-directement les futures Rust en coroutines Python, donc un appel d'agent ne coûte
-ni frontière de processus ni aller-retour de sérialisation.
+Le runtime est en Rust sur Tokio. Le code qu'un paquet apporte est en Python,
+chargé dans le processus via un pont PyO3 plutôt que lancé en sous-processus :
+le pont traduit directement les futures Rust en coroutines Python, donc un appel
+à ce code ne coûte ni frontière de processus ni aller-retour de sérialisation.
 
 Tout sous-système qui détient un état mutable est un acteur Tokio, avec un canal
 borné et une poignée clonable. Aucun état n'est partagé entre acteurs derrière un
@@ -28,30 +28,79 @@ chemin par défaut, n'exige un serveur, un démon ou un réseau.
 
 ## Le contrat d'agent {#agent-contract}
 
-Un agent est une classe Python portant `@agent`, avec au moins une méthode
-asynchrone `@skill` ou `@on_message`. C'est tout le contrat. Le pont refuse un
-objet qui n'expose pas le point d'entrée de dispatch que les décorateurs
-installent ; il n'existe aucune échappatoire acceptant un appelable quelconque.
+Un agent est une fiche, pas un programme : une mission, un modèle, les outils
+qui lui sont accordés, les sources qu'il peut lire, et ses droits. Un paquet le
+déclare comme une entrée `[[agents]]` de son manifeste `apollia.toml`, et aucun
+objet Python ne le représente. Ce que le paquet déclare est un ensemble de
+valeurs par défaut, jamais une contrainte : l'utilisateur change un outil, une
+source, le modèle ou le palier d'autonomie depuis l'interface, et son réglage
+local l'emporte sans nouvelle version du paquet.
 
-Le runtime remet à chaque appel un objet `ctx` qui expose les services qu'un
-agent peut utiliser : le routeur LLM, la mémoire, les outils, la messagerie
-entre agents, les notifications et un logger. `ctx` est toute la surface du
-runtime. Un agent qui passe à côté utilise quelque chose que le runtime ne
-garantit pas.
+Le code est optionnel. Le Python d'un paquet apporte des outils et des
+workflows, des fonctions asynchrones sous `@tool` et `@workflow`, et le SDK ne
+publie aucun autre décorateur. `python -m apollia describe` écrit leurs
+descripteurs dans le manifeste, si bien que lire un manifeste n'exécute jamais
+le code qu'il décrit.
 
-Les schémas de charge utile sont des `TypedDict`, lus à l'enregistrement pour
-construire les schémas de skills. C'est pourquoi l'évaluation différée des
-annotations est refusée dans ces modules : elle transforme les annotations en
-chaînes, et le schéma ressort vide sans la moindre erreur.
+Le runtime lit le manifeste par un seul analyseur, sous un schéma strict. Une
+clé que le schéma ne connaît pas est refusée avec son chemin complet, de même
+que ce que le schéma ne sait pas exprimer : un identifiant déclaré deux fois, un
+accès qui nomme un outil de paquet que le paquet ne livre pas, un paquet qui ne
+déclare rien. Un paquet dont le manifeste ne valide pas n'est ni construit ni
+installé.
+
+Le runtime remet à chaque outil et à chaque workflow un objet `ctx` qui expose
+les services dont il peut se servir : le routeur LLM, la mémoire, les outils,
+les autres agents et workflows, les notifications et un logger. `ctx` est toute
+la surface du runtime. Un code qui passe à côté utilise quelque chose que le
+runtime ne garantit pas.
+
+Les schémas de charge utile sont des `TypedDict`, lus au moment où une fonction
+est décorée pour construire le schéma de ses entrées. C'est pourquoi
+l'évaluation différée des annotations est refusée dans ces modules : elle
+transforme les annotations en chaînes, et le schéma ressort vide sans la moindre
+erreur.
 
 Le SDK Python n'a aucune dépendance tierce. Chacune deviendrait une dépendance
-de chaque agent, sur chaque machine, pour toujours.
+de chaque paquet, sur chaque machine, pour toujours.
+
+Ce contrat en a remplacé un autre le 30 septembre 2026, quand le principe 3 a
+été réécrit. Jusque-là, un agent était une classe Python sous `@agent`, avec des
+méthodes `@skill` ou `@on_message`, et le pont refusait tout objet dépourvu du
+point d'entrée de dispatch que ces décorateurs installaient. Deux constats ont
+conduit au changement. Un agent qui fixe dans le code les outils qu'il exige est
+un workflow écrit en code : la personne qui s'en sert ne peut ni ajouter un
+outil ni changer un droit sans nouvelle version. Et un seul nom recouvrait des
+objets dont le contrôle n'était pas tenu par la même partie, le modèle dans un
+cas et le code de l'auteur dans l'autre, si bien que personne ne pouvait savoir
+lequel il avait devant lui. Le coût est une rupture : un agent écrit comme une
+classe ne se charge plus, et se réécrit comme une entrée de manifeste dont le
+Python passe dans des outils ou dans un workflow.
 
 ## Modèle d'exécution {#execution-model}
 
-Le moteur autonome observe, raisonne et agit en boucle. Il fonctionne selon deux
-modes : direct, où un skill répond, et orchestré, où un plan est construit puis
-ses étapes exécutées.
+Deux choses s'exécutent, et une seule question les distingue : qui décide de
+l'étape suivante. Pour un agent, c'est le modèle. Pour un workflow, c'est
+l'auteur.
+
+Un agent tourne sur le moteur autonome, qui observe, raisonne et agit en boucle.
+Sa mission est le prompt système, les accès qui lui sont accordés sont les
+outils proposés au modèle, et son modèle comme son palier d'autonomie sont
+résolus à l'envoi de chaque message, si bien qu'un changement sur sa fiche
+s'applique à une conversation déjà ouverte. Le moteur fonctionne selon deux
+modes : direct, où le modèle répond et appelle des outils au fil de l'eau, et
+orchestré, où un plan est construit puis ses étapes exécutées. Le réglage de
+planification de l'agent choisit : `never`, `always`, ou `auto`, qui planifie
+quand la tâche se lit comme une tâche à plusieurs étapes.
+
+Un workflow est du Python dont les étapes sont déclarées d'avance. Son corps
+ouvre chaque étape par son nom, et un nom absent de la déclaration est refusé.
+Une étape peut lancer un agent ou un autre workflow : l'exécution imbriquée
+s'arrête avec celle qui l'a lancée, dépense le même budget, et l'imbrication est
+bornée à trois niveaux, la première exécution comptant pour un. Le coût de ce
+partage est qu'une suite fixe ne peut plus passer pour un agent. Elle s'écrit
+comme un workflow, sa structure est visible, et son utilisateur change ses
+entrées, pas ses étapes.
 
 Sur le chemin orchestré, les arguments d'étape sont remplis au moment de la
 planification, sous grammaire, avec une extraction à la volée en repli au moment
@@ -639,16 +688,21 @@ Aucune crate n'entre pour cela dans le fichier de verrouillage,
 
 ## Messagerie entre agents {#agent-messaging}
 
-Un agent directeur délègue à des agents travailleurs par identifiant de skill,
-au travers d'une boîte aux lettres durable adossée à SQLite. La livraison se
+Un agent en joint un autre de deux façons. Une étape de workflow lance un agent
+installé sur un message et attend sa réponse : l'agent tourne avec ses propres
+accès, imbriqué dans l'exécution qui l'a appelé. Ou bien un message est déposé
+dans la boîte aux lettres durable d'un agent, adossée à SQLite, et le
+destinataire le retire à son initiative. La livraison par boîte aux lettres se
 fait par bail : un consommateur prend un bail, et l'acquittement est verrouillé
 sur l'exécution qui le détient, si bien qu'un consommateur périmé dont le bail a
 été réattribué ne peut ni supprimer ni remettre en file le message que le nouveau
 détenteur est en train de traiter.
 
-Le dispatch propage l'identifiant de skill complet. Une clé de dispatch plus
-courte a été utilisée une fois, et elle a produit de l'ambiguïté dès que deux
-travailleurs ont exposé des skills aux noms voisins.
+L'API liste ce qui peut être appelé sous un identifiant complet, `agent:<id>`
+pour un agent et `workflow:<package>/<name>` pour un workflow, et lance l'un
+comme l'autre par cet identifiant. Le dispatch le propage en entier. Une clé de
+dispatch plus courte a été utilisée une fois, et elle a produit de l'ambiguïté
+dès que deux travailleurs ont exposé des skills aux noms voisins.
 
 ## Audit et preuve {#audit-and-evidence}
 
@@ -928,14 +982,27 @@ paquet incapable de s'ouvrir comme un document.
 
 ## Distribution des agents {#agent-distribution}
 
-Un agent s'installe depuis un chemin local ou une URL Git. Publier les agents sur
-un index de paquets a été envisagé puis écarté : cela ferait de l'index une
-dépendance de disponibilité pour un produit dont la première promesse est de
-fonctionner sans aucune.
+Un agent voyage dans un paquet, un seul fichier `.apo` (voir
+[Archive de paquet](#package-archive)), et s'installe depuis ce fichier et rien
+d'autre : ouvert depuis le système, déposé sur la fenêtre, choisi avec le bouton
+Installer, ou passé à `apollia-os package install`. Quel que soit le geste, le
+paquet est d'abord prévisualisé, avec ce qu'il contient, qui l'a signé et ce que
+chacun de ses agents demande, et rien n'est écrit avant que l'utilisateur
+accepte. Un agent créé dans l'application en sort de la même façon : il est
+exporté en `.apo`, dont le manifeste est écrit depuis l'agent tel qu'il est,
+sans secret, sans mémoire et sans historique.
 
-Les dépendances Python tierces déclarées par un agent sont installées dans
-l'environnement virtuel propre à cet agent, après consentement explicite, et
-l'opérateur voit la liste avant que cela n'arrive.
+Publier les agents sur un index de paquets a été envisagé puis écarté : cela
+ferait de l'index une dépendance de disponibilité pour un produit dont la
+première promesse est de fonctionner sans aucune.
+
+Les dépendances Python tierces déclarées par un paquet sont installées dans
+l'environnement virtuel propre à ce paquet, après consentement explicite, et
+l'utilisateur voit la liste avant que cela n'arrive.
+
+Le coût est une étape pour un auteur : un dossier ou un dépôt ne s'installe pas
+tel quel. L'archive est d'abord construite (`apollia-os package build`), et
+c'est là que le manifeste est validé et que le paquet est signé.
 
 ## Archive de paquet {#package-archive}
 

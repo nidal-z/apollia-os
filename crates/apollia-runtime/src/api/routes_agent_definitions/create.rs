@@ -231,5 +231,7 @@ pub async fn create_agent_definition<B: ExecutionBackend + Clone>(
         });
     let agent = resolved(&state, &repo, &id)?;
     drop(repo);
+    // The agent takes requests at once: nobody starts it.
+    crate::api::routes_agents::register_missing_agents(&state).await;
     Ok((StatusCode::CREATED, Json(shown(&state, agent).await)))
 }

@@ -129,22 +129,16 @@ pub async fn reject_user_input<B: ExecutionBackend + Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
 
     use axum::http::StatusCode;
 
-    use crate::api::test_support::{app_state, call, StemLoader};
+    use crate::api::test_support::{app_state, call};
 
     #[tokio::test]
     async fn test_without_a_chat_manager_the_three_routes_answer_503() {
         // GIVEN a daemon whose chat subsystem did not start
         let data = tempfile::tempdir().unwrap();
-        let state = || {
-            app_state(
-                Arc::new(StemLoader { refusal: None }),
-                data.path().to_path_buf(),
-            )
-        };
+        let state = || app_state(data.path().to_path_buf());
 
         // WHEN each route is called through the router
         let (list, _) = call(state(), "GET", "/api/v1/user-inputs", None).await;

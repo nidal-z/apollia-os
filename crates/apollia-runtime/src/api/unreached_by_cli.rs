@@ -15,13 +15,12 @@
 //! mounted, and it costs nothing, so every operation takes it.
 //!
 //! The live probes send the declared method and assert what the handler
-//! answers. All but three take one. `get_task_timeline` is measured and
+//! answers. All but two take one. `get_task_timeline` is measured and
 //! reported instead of run: `routes_timeline::resolve_data_dir` ignores
 //! `state.data_dir` and resolves the process home, so invoking it here would
 //! read the developer's own `~/.apollia` ([`LIVE_PROBE_EXCLUSION`]).
 //! `list_connector_accounts` reads the OS keychain
-//! ([`KEYCHAIN_PROBE_EXCLUSION`]). `set_server_approval` is named as debt in
-//! the test that counts them.
+//! ([`KEYCHAIN_PROBE_EXCLUSION`]).
 
 use std::future::Future;
 use std::pin::Pin;
@@ -95,13 +94,6 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             path: "/api/v1/tools",
             absent_method: Method::DELETE,
             live_probed: true,
-        },
-        UnreachedOp {
-            id: "set_server_approval",
-            method: Method::PATCH,
-            path: "/api/v1/mcp/servers/probe/approval",
-            absent_method: Method::GET,
-            live_probed: false,
         },
         UnreachedOp {
             id: "stream_mailbox",
@@ -336,7 +328,6 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         router_handle,
         registry_handle,
         event_sender: event_tx,
-        agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
         backend: MockBackend,
         llm_router: crate::api::server::empty_shared_llm_router(),
         trigger_engine: None,
@@ -345,7 +336,6 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         pending_approvals: None,
         plan_gates: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         audit_journal: None,
@@ -437,8 +427,8 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        29,
-        "the census must carry the twenty-nine operations the coverage table lists"
+        28,
+        "the census must carry the twenty-eight operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -513,21 +503,13 @@ async fn test_twenty_six_of_the_twenty_nine_operations_carry_a_live_probe() {
         live, 26,
         "live probe count changed without the table saying so"
     );
-    // Three exclusions, and they are not the same kind. `get_task_timeline`
-    // and `list_connector_accounts` cannot be live-probed here at all, for the
-    // reasons their constants state. `set_server_approval` mutates a server the
-    // census does not create, so it carries a routing probe only until a probe
-    // builds that server: debt, and named as such rather than counted as
-    // coverage.
+    // Two exclusions: `get_task_timeline` and `list_connector_accounts` cannot
+    // be live-probed here at all, for the reasons their constants state.
     let mut excluded = excluded;
     excluded.sort_unstable();
     assert_eq!(
         excluded,
-        vec![
-            "get_task_timeline",
-            "list_connector_accounts",
-            "set_server_approval"
-        ]
+        vec!["get_task_timeline", "list_connector_accounts"]
     );
     assert!(LIVE_PROBE_EXCLUSION.contains("state.data_dir"));
     assert!(KEYCHAIN_PROBE_EXCLUSION.contains("keychain"));

@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
-use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
+use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView};
 use apollia_runtime::a2a::A2AInvoker;
 use apollia_runtime::mailbox::AgentMailboxHandle;
 
@@ -30,12 +30,14 @@ impl RuntimeContext {
     ///
     /// The context never panics at construction: degradation is signaled, but
     /// the agent decides whether the absence of a capability is fatal.
-    // REASON: test constructor mirroring the production bridge wiring, handle by handle.
+    // TEST-ONLY: production builds the context of a tool or a workflow through
+    // `package_tools`; this constructor builds one handle by handle for the
+    // tests of the context services.
+    // REASON: one argument per handle of the context it builds.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_llm(
         llm_router: Option<Arc<LlmRouter>>,
         budget_view: Arc<StepBudgetView>,
-        tool_helper: Arc<ToolCallHelper>,
         obs_config: Arc<ObservabilityConfig>,
         event_bus: EventBusSender,
         agent_id: AgentId,
@@ -60,7 +62,6 @@ impl RuntimeContext {
             } else {
                 Some(LlmProxy::new(
                     router,
-                    tool_helper,
                     budget_view,
                     obs_config,
                     Some(event_bus),
@@ -78,23 +79,15 @@ impl RuntimeContext {
 
         // Build the nested surfaces.
         // All are built systematically (at worst in no-op mode) so that
-        // `ctx.a2a`, `ctx.events`, etc. are always accessible without
+        // `ctx.events`, `ctx.secrets`, etc. are always accessible without
         // branching on the Python side. The gating values (datasources,
         // templates, secrets) default to empty; the bridge overrides them
         // after reading the manifest via the dedicated builders.
         let bus_for_iface = bus_for_token.clone();
         let agent_id_for_iface = agent_id_stored.clone();
-        let agent_name_for_iface = agent_name.clone();
-        let a2a_invoker_for_iface = a2a_invoker.clone();
 
-        let (a2a_iface, events_iface, datasources_iface, templates_iface, secrets_iface) =
+        let (events_iface, datasources_iface, templates_iface, secrets_iface) =
             pyo3::Python::with_gil(|py| {
-                let a2a = crate::a2a::A2AInterface::new(
-                    a2a_invoker_for_iface,
-                    agent_name_for_iface,
-                    0,
-                    None,
-                );
                 let events = crate::events::EventsInterface::new(
                     Some(bus_for_iface),
                     None,
@@ -106,7 +99,6 @@ impl RuntimeContext {
                 let tp = crate::templates::TemplatesInterface::new(Vec::new());
                 let sc = crate::secrets::SecretsInterface::new(None, Vec::new());
                 (
-                    pyo3::Py::new(py, a2a).ok(),
                     pyo3::Py::new(py, events).ok(),
                     pyo3::Py::new(py, ds).ok(),
                     pyo3::Py::new(py, tp).ok(),
@@ -136,7 +128,6 @@ impl RuntimeContext {
             profile: None,
             agent_id: agent_id_stored,
             task_id: None,
-            a2a_iface,
             events_iface,
             datasources_iface,
             templates_iface,
@@ -166,16 +157,14 @@ impl RuntimeContext {
     /// built in no-op mode.
     fn bare(agent_name: String) -> Self {
         let agent_id = AgentId::new_v4();
-        let (a2a_iface, events_iface, datasources_iface, templates_iface, secrets_iface) =
+        let (events_iface, datasources_iface, templates_iface, secrets_iface) =
             pyo3::Python::with_gil(|py| {
-                let a2a = crate::a2a::A2AInterface::new(None, agent_name.clone(), 0, None);
                 let events =
                     crate::events::EventsInterface::new(None, None, agent_id.clone(), None, None);
                 let ds = crate::datasources::DatasourcesInterface::new(Vec::new());
                 let tp = crate::templates::TemplatesInterface::new(Vec::new());
                 let sc = crate::secrets::SecretsInterface::new(None, Vec::new());
                 (
-                    pyo3::Py::new(py, a2a).ok(),
                     pyo3::Py::new(py, events).ok(),
                     pyo3::Py::new(py, ds).ok(),
                     pyo3::Py::new(py, tp).ok(),
@@ -204,7 +193,6 @@ impl RuntimeContext {
             profile: None,
             agent_id,
             task_id: None,
-            a2a_iface,
             events_iface,
             datasources_iface,
             templates_iface,

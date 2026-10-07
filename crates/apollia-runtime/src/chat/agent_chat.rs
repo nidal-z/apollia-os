@@ -1,11 +1,12 @@
-//! AgentChatExecutor, executes Python agents in Chat Agent mode.
+//! AgentChatExecutor, the chat mode of an agent run by a [`ChatAgentRunner`].
 //!
 //! Orchestrates the flow: validate agent → convert session to [`AIPTask`] →
 //! run agent via [`ChatAgentRunner`] → process [`AIPResult`] → emit events.
 //!
-//! The [`ChatAgentRunner`] trait decouples
-//! `apollia-runtime` from PyO3 so that the concrete implementation using
-//! `AIPBridge` + `RuntimeContext` lives in `apollia-cli`.
+//! No runner ships: the one that ran the Python of an agent is gone, and a
+//! conversation with an agent goes through the agent executor
+//! (`crate::chat::manager::declarative`). A session that reaches this path is
+//! answered that the mode is unavailable.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -38,18 +39,13 @@ const CHAT_AGENT_RUN_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Trait abstracting Python agent execution for chat sessions.
 ///
-/// Decouples `apollia-runtime` from PyO3
-/// by defining the execution contract as a trait. The concrete implementation
-/// using `AIPBridge` + `RuntimeContext` lives in `apollia-cli`.
+/// Defines the execution contract as a trait. No implementation ships; the
+/// tests of the executor use their own.
 #[async_trait::async_trait]
 pub trait ChatAgentRunner: Send + Sync {
     /// Execute an agent's `run()` with the given task and return the result.
     ///
-    /// The implementation is responsible for:
-    /// - Loading the agent module via PyO3 (if not cached)
-    /// - Creating the `RuntimeContext` (tools, memory, LLM, budget)
-    /// - Calling `AIPBridge.call_run(task, ctx)`
-    /// - Returning the `AIPResult`
+    /// The implementation runs the agent on the task and returns its result.
     async fn run_agent(&self, agent_name: &str, task: AIPTask) -> Result<AIPResult, String>;
 }
 
@@ -1021,32 +1017,37 @@ mod tests {
         assert!(response.newly_authorized.is_empty());
     }
 
-    /// Runner whose one tool call goes through the MCP task approval gate, the
-    /// way a gated executor answers inside a real agent run.
+    /// Runner that pauses on an approval payload, and runs its call only when
+    /// the response it is resumed with carries that very payload, approved.
     struct GatedCallRunner;
 
     #[async_trait::async_trait]
     impl ChatAgentRunner for GatedCallRunner {
         async fn run_agent(&self, _name: &str, task: AIPTask) -> Result<AIPResult, String> {
-            let input = serde_json::json!({"page": "notes", "text": "hello"});
-            let approval = apollia_mcp::task_approval::TaskApproval::new(task.input_response);
-            match apollia_mcp::task_approval::decide("espace-write/write_page", &input, &approval) {
-                apollia_mcp::task_approval::GateDecision::Run => {
-                    Ok(AIPResult::completed("page written"))
+            let payload = serde_json::json!({
+                "genre": "approbation",
+                "geste": "espace-write/write_page",
+                "risque": "medium",
+                "detail": ["page: notes", "text: hello"],
+            });
+            match task.input_response {
+                None => Ok(AIPResult::input_required_with_payload(
+                    "Approve the call to espace-write/write_page",
+                    serde_json::json!({}),
+                    payload,
+                )),
+                Some(response) if response.payload.as_ref() != Some(&payload) => {
+                    Ok(AIPResult::failed("MISMATCH", "the payload was not carried"))
                 }
-                apollia_mcp::task_approval::GateDecision::Require { prompt, payload } => Ok(
-                    AIPResult::input_required_with_payload(&prompt, serde_json::json!({}), payload),
-                ),
-                apollia_mcp::task_approval::GateDecision::Deny { .. } => {
-                    Ok(AIPResult::failed("DENIED", "call denied"))
-                }
+                Some(response) if response.approved => Ok(AIPResult::completed("page written")),
+                Some(_) => Ok(AIPResult::failed("DENIED", "call denied")),
             }
         }
     }
 
     #[tokio::test]
     async fn test_chat_approval_runs_the_gated_call_it_approved() {
-        // GIVEN an agent whose call to a server requiring approval pauses on the gate
+        // GIVEN an agent whose call pauses on an approval payload
         let runner = Arc::new(GatedCallRunner);
         let (event_tx, _event_rx) = tokio::sync::broadcast::channel(128);
         let executor = AgentChatExecutor::new(runner, event_tx);
@@ -1074,7 +1075,7 @@ mod tests {
             .await
             .expect("should succeed after approval");
 
-        // THEN the resumed run carries the pause's payload, so the gate runs the call
+        // THEN the resumed run carries the pause's payload, so the call runs
         assert_eq!(response.content, "page written");
     }
 

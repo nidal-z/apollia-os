@@ -4,14 +4,14 @@ This module holds the *individual* mocks (``MockToolProxy``,
 ``MockLlmProxy``, ``MockMemory``, ``MockLlmResponse``) used by the
 top-level :class:`~apollia.testing.MockContext` factory.
 
-For most agent tests you don't need to import from here directly - use
-:func:`apollia.testing.mock` instead::
+For most tests you don't need to import from here directly - build a
+:class:`~apollia.testing.MockContext` instead::
 
-    from apollia.testing import mock
+    from apollia.testing import MockContext
 
-    agent, ctx = mock(MyAgent)
+    ctx = MockContext()
     ctx.llm.responses = [{"content": "answer"}]
-    result = await agent.invoke_skill("my.skill", x=1)
+    result = await my_tool(ctx, text="hello")
 """
 
 from __future__ import annotations
@@ -238,11 +238,6 @@ class MockLlmProxy:
         # One entry per `complete` / `chat` call, the sampling settings it fixed
         # (those left to None are absent), as the real proxy would send them.
         self.sampling: list[dict[str, Any]] = []
-        # Tracking for ReAct loop unit tests. Each call to
-        # ``run_tools`` appends an entry capturing the messages, tools
-        # list and ``max_iterations`` the agent passed in.
-        self.run_tools_calls: list[dict[str, Any]] = []
-        self.run_tools_responses: list[str] = []
         # Each call to ``map`` records its prefix and items for assertions.
         self.map_calls: list[dict[str, Any]] = []
         # One entry per ``stream`` call, the message list it was given.
@@ -432,39 +427,6 @@ class MockLlmProxy:
                 yield word if index == 0 else f" {word}"
 
         return chunks()
-
-    async def run_tools(  # NOSONAR S7503 - Protocol contract
-        self,
-        messages: list[dict[str, object]],
-        tools: list[dict[str, object]],
-        max_iterations: int = 5,
-    ) -> str:
-        """Simulate ``LlmProxy.run_tools``: returns the next queued string.
-
-        Mirrors the real PyO3 ``LlmProxy.run_tools`` which performs the
-        ReAct loop server-side and returns the final assistant answer as
-        a plain string.
-
-        Calls are recorded in ``self.run_tools_calls`` for assertion.
-
-        Raises:
-            IndexError: If no more responses are queued in
-                ``self.run_tools_responses``.
-        """
-        self.run_tools_calls.append(
-            {
-                "messages": messages,
-                "tools": tools,
-                "max_iterations": max_iterations,
-            }
-        )
-        self.call_count += 1
-        if not self.run_tools_responses:
-            raise IndexError(
-                f"MockLlmProxy.run_tools exhausted after {self.call_count} calls - "
-                "no more responses configured in `run_tools_responses`"
-            )
-        return self.run_tools_responses.pop(0)
 
     async def map(  # NOSONAR S7503 - Protocol contract
         self,

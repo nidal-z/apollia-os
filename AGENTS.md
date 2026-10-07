@@ -59,8 +59,8 @@ bash tests/cli/cli-e2e.sh
 
 The CLI end-to-end suite runs against a deterministically seeded, throwaway
 `HOME` built by `tests/cli/seed/build-seed.sh`, so a run never writes to
-the real `~/.apollia`; when `APOLLIA_TEST_MODEL_GGUF` is unset, Track 3 reads
-one file from it (the default model GGUF), read-only. Track 1 is offline and
+the real `~/.apollia`; Track 3 reads one file, the model GGUF that
+`APOLLIA_TEST_MODEL_GGUF` names, read-only. Track 1 is offline and
 always runs; Tracks 2 and 3 are
 gated by `APOLLIA_REQUIRE_RUNTIME` and `APOLLIA_TEST_MODEL_GGUF`. Read
 `tests/cli/README.md` before changing a track or the fixture: the suite asserts
@@ -96,10 +96,10 @@ run elsewhere, `clippy` on push and the commit-message convention at
 1. **Local-first** : zero user data leaves the machine without an explicit action.
 2. **Zero external dependency** : the binary runs on any clean Linux without
    prior install.
-3. **Minimal contract** : a class decorated with `@agent`, one `@skill` or one
-   `@on_message` async method, and nothing else. The legacy `manifest()` plus
-   `run()` escape hatch is gone: the bridge refuses an object without
-   `__apollia_dispatch__`.
+3. **Minimal contract** : an agent is a record (mission, model, tools, sources,
+   rights) declared in the `apollia.toml` of a package. Code is optional: a
+   package brings `@tool` and `@workflow` functions, and nothing else. The
+   runtime refuses a package whose manifest does not validate.
 4. **Fail fast** : any startup-detectable error is detected at startup.
 5. **One actor, one responsibility** : Tokio actor pattern, no shared state
    between actors.

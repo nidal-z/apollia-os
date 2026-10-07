@@ -14,11 +14,11 @@ worker is a sovereignty surface and a maintenance liability. State each one in
 
 **Never `from __future__ import annotations` in any module that defines
 `TypedDict`.** PEP 563 turns annotations into strings, which breaks
-`TypedDict.__required_keys__` consumed by AgentKit to build skill schemas at
-registration time. The agent will be silently malformed.
+`TypedDict.__required_keys__` consumed by AgentKit to build the schema of a
+tool or of a workflow. The schema will be silently malformed.
 
-**TypedDict for agent payload contracts.** Canonical schemas live in
-`<agent>/schemas.py` per agent. Use `total=False` or `NotRequired[T]` for
+**TypedDict for payload contracts.** Canonical schemas live in
+`<package>/schemas.py` per package. Use `total=False` or `NotRequired[T]` for
 optional fields. Do not subclass `TypedDict` from another `TypedDict` unless
 you genuinely want field union semantics.
 
@@ -41,7 +41,7 @@ are enumerated or whose structure is non-obvious. Skip for trivial scalars
 from typing import Annotated, Literal
 
 async def send_email(
-    self,
+    ctx: Ctx,
     to: Annotated[str, "RFC 5322 email address of the recipient"],
     priority: Annotated[Literal["low", "normal", "high"], "delivery priority"],
     body: str,
@@ -67,46 +67,45 @@ the only type checker the tree configures or invokes.
 
 ## 2. The Apollia AgentKit decorators
 
-`@agent` is class-level. `@skill`, `@on_message`, `@orchestrated` are
-method-level. Mutual exclusion is validated fail-fast at registration with
-`AgentConfigError`. Order matters : `@agent` must wrap the class before any
-method decorator is read.
+An agent is data, declared in the `apollia.toml` of a package. The Python of a
+package brings tools and workflows, and the SDK has one decorator for each:
+`@tool` and `@workflow`. Both wrap a module-level `async def` function, and
+both validate fail-fast at import time with `AgentConfigError`.
 
 ```python
-from apollia import agent, skill
+from typing import Annotated
+
+from apollia import tool
 from apollia.types import Ctx
 
-from my_agent.schemas import EmailPayload, EmailResult
+from my_package.schemas import EmailPayload, EmailResult
 
-@agent(
-    name="email-triage",
-    version="0.1.0",
-    description="Triages incoming emails into priority buckets.",
+@tool(
+    "triage",
+    "Score an email by priority.",
+    action="read",
+    examples=[{"email": {"to": "ops@apollia.fr", "subject": "down", "body": "..."}}],
 )
-class EmailTriage:
-    @skill(
-        skill_id="triage",
-        description="Score an email by priority.",
-        examples=[{"to": "ops@apollia.fr", "subject": "down", "body": "..."}],
-    )
-    async def triage(self, ctx: Ctx, payload: EmailPayload) -> EmailResult: ...
+async def triage(
+    ctx: Ctx, email: Annotated[EmailPayload, "the email to score"]
+) -> EmailResult: ...
 ```
 
 Rules :
 
-- The runtime imports a module-level `agent` symbol (`loader.rs` does
-  `getattr("agent")`), but **do not write it by hand**. `@agent` instantiates
-  the class and binds the instance to the defining module
-  (`sdk/apollia/_internal/module_registry.py`). Adding `agent = MyClass()`
-  builds a second instance that overwrites the registered one. It is harmless
-  today, and it is still one line that teaches the wrong contract.
-- Every `@skill` carries at least one realistic `examples=[{...}]` payload.
+- **No Python stands for an agent.** There is no class to decorate and no
+  module-level `agent` symbol to write. The agent that uses a tool is an
+  `[[agents]]` entry of `apollia.toml`.
+- Every `@tool` carries at least one realistic `examples=[{...}]` payload.
   AgentKit propagates them into the LLM tool descriptor.
-- `@orchestrated` requires `[llm.routing]` precise in the agent TOML
-  (sovereign config, see `sdk/AGENTS.md` §7).
-- Never decorate a non-async method. Skills are always `async def`.
-- Never share mutable state across skill invocations on `self`. Treat the
-  agent as request-scoped.
+- `action` is the family that says what the code really does (`read`,
+  `read_personal`, `write_or_delete`, `send_external`, `execute_code`).
+  Sensitivity follows from it; there is no flag to set beside it.
+- A `@workflow` lists its `steps` on the decorator and opens each one with
+  `async with ctx.step("name")` (see `sdk/AGENTS.md` §7).
+- Never decorate a non-async function, and never a method.
+- Never keep mutable state at module level across invocations. Treat each
+  call as request-scoped.
 
 See `sdk/AGENTS.md` for the full validation rules and the runtime contract.
 
@@ -142,10 +141,10 @@ Hierarchy rooted at `AgentError` :
 AgentError            # carries `code`, `message`, `details`
 ├── DomainError       # business-level failure, retry is meaningless
 ├── PayloadError      # malformed input, fail-fast to the caller
-├── NeedHumanInput    # captured by the dispatcher, returns AIPResult.input_required
-├── SchemaError       # a skill signature the registry cannot turn into a schema
-├── SkillNotFound     # dispatch to a skill the agent does not declare
-└── AgentConfigError  # the agent module itself is malformed
+├── NeedHumanInput    # a pause awaiting a human
+├── QuestionDeclined  # the user declined a question `ctx.user.ask` asked
+├── SchemaError       # a tool signature that cannot be turned into a schema
+└── AgentConfigError  # a `@tool` or `@workflow` declaration is malformed
 ```
 
 `sdk/apollia/errors.py` is the source. There is no timeout subclass: a timeout
@@ -155,12 +154,10 @@ maps it. Do not write `AgentTimeoutError`, nothing defines it.
 Rules :
 
 - Never subclass `Exception` directly for new error types. Subclass
-  `AgentError` so the dispatcher can map to `AIPResult`.
+  `AgentError`.
 - Stable error codes (`TIMEOUT`, `FILE_NOT_FOUND`, `RATE_LIMITED`). Document
-  the codes that the calling director may want to match on.
+  the codes that the calling code may want to match on.
 - Never raise inside cleanup code. Wrap in `try/except` and log.
-- The dispatcher translates each `AgentError` subclass into a specific
-  `AIPResult` shape. See `sdk/apollia/_internal/dispatch.py`.
 
 ---
 

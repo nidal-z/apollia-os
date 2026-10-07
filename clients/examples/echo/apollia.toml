@@ -1,0 +1,20 @@
+# echo: a package with no agent, only a workflow that returns its input.
+#
+# A workflow runs its steps as written, so it needs no model: this package is
+# what the host-driving demo installs to prove the contract on any machine.
+
+[package]
+name = "echo"
+version = "0.1.0"
+publisher = "Apollia"
+description = "A one-step workflow that returns the message it receives. Used by the host-driving demo."
+sdk = ">=0.3.0"
+
+# Written by `python -m apollia describe` from the code; edits here are replaced.
+[[workflows]]
+name = "echo"
+module = "workflows/echo.py"
+description = "Return the message it receives."
+action = "read"
+inputs = { type = "object", properties = { message = { type = "string", description = "The message to return." } }, additionalProperties = false, required = ["message"], x-order = ["message"] }
+steps = ["echo"]

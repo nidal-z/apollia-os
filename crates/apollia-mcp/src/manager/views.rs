@@ -66,13 +66,6 @@ impl McpClientManager {
             )
         })
     }
-    /// Whether the named server requires per-tool approval (false if unknown).
-    pub(super) fn server_requires_approval(&self, server_name: &str) -> bool {
-        self.sessions
-            .get(server_name)
-            .map(|s| s.requires_approval())
-            .unwrap_or(false)
-    }
 }
 /// Whether the annotations a server declares on its tools classify them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,10 +94,8 @@ pub(super) fn registry_names(server_name: &str, session: &McpSession) -> Vec<Str
 ///
 /// Each descriptor carries the action family [`classify_mcp_tool`] decides
 /// for the tool, and its source; see [`descriptor_risk`] for the two fields
-/// derived from it. The server's `requires_approval` flag stays out of the
-/// descriptor, because every call to such a server is held by the approval
-/// gate of the executor at run time and the flag can be toggled on a running
-/// server, which a descriptor registered once would not follow.
+/// derived from it. Whether a call may run is decided on that family, by
+/// governance, when an agent makes it.
 ///
 /// `hints` says whether the server's own annotations may classify its tools.
 /// A server nobody added as a connection, such as one a request brings, is
@@ -259,7 +250,6 @@ pub(super) fn build_status(
         name: name.to_string(),
         server_info: session.server_info().name.clone(),
         tools_count: session_tool_count(session),
-        requires_approval: session.requires_approval(),
         connected: true,
         pid: session.pid(),
         uptime_secs: Some(session.uptime_secs()),
@@ -337,7 +327,6 @@ pub(super) fn build_detail(
         args: config.args.clone(),
         env_keys: config.env.keys().cloned().collect(),
         transport: config.transport.clone(),
-        requires_approval: config.requires_approval,
         tags: config.tags.clone(),
     };
 
@@ -363,7 +352,6 @@ mod tests {
             env: std::collections::HashMap::new(),
             transport: transport.to_string(),
             url: url.map(str::to_string),
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: 8 * 1024 * 1024,

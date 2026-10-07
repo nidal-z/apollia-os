@@ -154,7 +154,7 @@ jobs:
       # No secret is in scope here. The script and the store are exercised
       # end to end on stand-in archives with a key pair generated on the
       # spot: accepted when intact, refused after one altered byte. This is
-      # the command of `just engine-manifest-test`.
+      # the command of `just test-engine-manifest`.
       - name: Prove the script and the store agree (throwaway key)
         run: |
           cargo test -p apollia-runtime --test engine_manifest_publication -- \

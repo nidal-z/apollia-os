@@ -26,7 +26,6 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `AgentMailboxHandle` | durable inter-agent inbox | mpsc | 256 | `src/mailbox.rs` |
 | `SttEngine` | whisper audio pipeline | mpsc | 32 | `src/stt/engine.rs` |
 | `TimeoutWatcher` | expiry of `input_required` tasks | no channel; a `tokio::time::interval` scan loop | n/a | `src/timeout_watcher.rs` |
-| `OnDemandBackend` | one per installed agent: builds its backend on the first task, drops it after `[runtime] agent_idle_unload_secs` without a call or when the agent is parked | mpsc | 64 | `src/on_demand.rs` |
 | `BatchActor` | progress of every running batch: starts items up to their concurrency, counts their ends, interrupts past the failure threshold, pauses, resumes, stops and retries a batch, records and withdraws its grants, publishes waiting items and the end of a batch, resumes running batches at start | two mpsc | 64 commands, 256 item ends | `src/batch/actor.rs` |
 | `CompatServerHandle` | the compatible server's listener: opens it at start when `[server] enabled` says so, starts, stops and restarts it on request (binding the loopback interface, or every interface when `[server] serve_on_lan` says so) and writes the switch, keeps the last start error, closes it on `ShutdownRequested` without touching the switch; its routes run an exposed agent as a batch of one item through `BatchActor`, and an exposed workflow through `WorkflowActor`, and stop the run when the client goes away; each request it receives leaves a `ServerCall` entry in the audit journal, through the journal's own handle (`src/compat_server/journal.rs`) | mpsc | 64 | `src/compat_server/actor.rs` |
 | `GovernanceActor` | what every tool call is decided from: the organisation policy read at boot, the fine rules and standing consents of `governance.db`, the developer mode; publishes it as one state on a `watch` channel that a decision reads without waiting, writes an "always" answered at a prompt as a standing consent, rereads the files when another process changed them | mpsc | 64 | `src/governance/actor.rs` |
@@ -217,7 +216,7 @@ Databases : one file per subsystem under `~/.apollia/`, catalogued by
 `apollia_core::paths::DataFile`, whose `file_name()` is the single source for
 the names. There is no `runtime.db`. The catalogue holds `agents.db`,
 `artifacts.db`, `audit.db`, `audit_journal.db`, `chat.db`, `governance.db`,
-`hitl.db`, `llm_calls.db`, `mailbox.db`, `mcp.db`, `mcp_approvals.db`,
+`hitl.db`, `llm_calls.db`, `mailbox.db`, `mcp.db`,
 `notifications.db`, `plan_cache.db`, `plans.db`, `projects.db`,
 `runtime_events.db`, `sidechains.db`, `stt_transcriptions.db`, `system.db`,
 `triggers.db`, `triggers_def.db` and `user_memory.db`. Per-agent memory lives

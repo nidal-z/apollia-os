@@ -65,28 +65,20 @@ et [le câblage de votre propre serveur MCP](/operator-help/integrations/wire-yo
 La fédération signifie en général que l'agent peut déclencher des changements
 dans votre produit. Gardez un humain dans la boucle sur ces changements.
 
-Pour un serveur MCP que vous enregistrez, l'approbation se règle par serveur
-ou par outil :
+Un serveur MCP que vous enregistrez ne porte aucun réglage d'approbation qui lui
+soit propre. Chaque outil qu'il publie se décide sur sa famille d'action : un
+outil que votre serveur déclare comme écrivant ou destructeur, ou qu'il ne décrit
+pas du tout, est traité comme sensible, et l'agent qui l'appelle demande d'abord.
 
 ```sh
-apollia-os mcp add my-product --url https://example.internal/mcp --require-approval
-apollia-os mcp set-approval my-product write_record
-apollia-os mcp list-pending
+apollia-os mcp add my-product --url https://example.internal/mcp
 ```
 
-Un opérateur confirme alors avant que quoi que ce soit ne soit écrit en
-retour. L'autorisation elle-même est persistée, de sorte que l'opérateur n'est
-pas resollicité tant qu'elle tient ; la décision n'est écrite dans aucun
-registre d'audit, et l'appel qu'elle autorise non plus. Traitez l'approbation
-comme une porte, pas comme une preuve.
-
-Une limite à anticiper plutôt qu'à découvrir. Ce flux d'approbation couvre
-le chemin du **chat** ; les appels d'outils qu'effectue un agent Python
-installé ne sont pas soumis à cette porte, donc ne comptez pas sur les
-approbations pour contenir un agent que vous n'avez pas écrit vous-même.
-Ce qui fonctionne réellement, c'est l'approbation MCP par serveur décrite
-ci-dessus, les règles de préfixe persistées, et le garde-fou qui refuse une
-commande shell chaînée.
+La personne qui suit l'exécution répond une fois, toujours pour cet agent, ou
+refuse. « Toujours » est un consentement permanent de cet agent pour cette
+famille d'actions ; il tient jusqu'à son retrait. Déclarez honnêtement
+`readOnlyHint` et `destructiveHint` sur vos outils : ce sont eux qui distinguent
+ici une lecture d'une écriture.
 
 Pour comprendre comment les approbations et les paliers d'autonomie
 s'articulent ici, voir [Paliers d'autonomie](/explanation/autonomy-tiers) et

@@ -83,7 +83,6 @@ name = "ledger"
 command = "uvx"
 args = ["ledger-mcp"]
 transport = "stdio"
-requires_approval = true
 init_timeout_secs = 20
 call_timeout_secs = 45
 max_response_bytes = 1048576

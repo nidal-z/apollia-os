@@ -1,311 +1,182 @@
-//! Integration tests - full chain with the decorator-built hello agent.
+//! Integration test: the example packages of `agents/examples/` build as they
+//! are written, and their Python tools run in the embedded interpreter.
 //!
-//! Tests the complete path: AIPLoader -> AIPBridge -> TaskRouter -> Coordinator.
-//! Requires the Apollia SDK installed in the interpreter pointed to by
-//! PYO3_PYTHON. Gated behind the `python-tests` feature.
+//! `hello` declares an agent and one tool; `word-count` declares a tool and no
+//! agent. Each folder is copied out of the tree, built into a `.apo` archive
+//! with no Python run, stored the way the package store records a package,
+//! and its tool is called through the dispatcher that runs the native tools.
 //!
-//! Run with:
-//!   PYO3_PYTHON=/opt/homebrew/bin/python3.13 \
-//!   cargo test -p apollia-e2e-tests --features python-tests -- --nocapture
+//! The SDK of this repository is put first on `sys.path`, so the test reads the
+//! `@tool` decorator of the tree it builds. Gated behind `python-tests`:
+//!
+//!   PYO3_PYTHON="$(command -v python3)" \
+//!   cargo test -p apollia-e2e-tests --features python-tests --test test_hello_agent
 
-use std::io::Write as _;
-use std::path::Path;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
 
-use apollia_aip::{bridge::AIPBridge, loader::load_agent_module, validator::validate_agent};
-use apollia_core::{AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent};
-use apollia_runtime::{
-    coordinator::{ExecutionBackend, ExecutionCoordinator},
-    eventbus::EventBus,
-    registry::AgentRegistry,
-    router::TaskRouterHandle,
-};
+use apollia_aip::package_tools::PackageTools;
+use apollia_runtime::coordinator::CancellationToken;
+use apollia_runtime::package_tools::PackageToolHost;
+use apollia_tools::apo_archive::{build_from_dir, ApoArchive, BuildOptions, BuildReport};
+use apollia_tools::executor::ToolDispatcher;
+use apollia_tools::{InstalledPackage, PackageItemKind, PackageRepository};
 use pyo3::prelude::*;
+use serde_json::json;
 
-// --- Mock ctx ---
+/// The agent that calls the tools: one created without code.
+const CALLER: &str = "notes";
 
-/// A minimal Python `ctx` exposing the surface the hello agent touches.
-///
-/// The decorator-built hello agent calls `ctx.logger.info(msg, length=...)`.
-/// A plain dict would raise `AttributeError` on `ctx.logger`, so we build a
-/// small stand-in whose logger swallows structured keyword arguments (as the
-/// runtime's `KwargTolerantLogger` does) and whose `log()` method is a no-op.
-const MOCK_CTX_CODE: &str = concat!(
-    "class _MockLogger:\n",
-    "    def info(self, *a, **k): pass\n",
-    "    def debug(self, *a, **k): pass\n",
-    "    def warning(self, *a, **k): pass\n",
-    "    def error(self, *a, **k): pass\n",
-    "\n",
-    "class MockCtx:\n",
-    "    def __init__(self):\n",
-    "        self.logger = _MockLogger()\n",
-    "    def log(self, level, message):\n",
-    "        pass\n",
-    "\n",
-    "ctx_instance = MockCtx()\n"
-);
-
-/// Builds the mock `ctx` object from [`MOCK_CTX_CODE`].
-fn build_mock_ctx(py: Python<'_>) -> PyObject {
-    let ns = pyo3::types::PyDict::new(py);
-    let code = std::ffi::CString::new(MOCK_CTX_CODE).expect("mock ctx code contains NUL byte");
-    py.run(code.as_c_str(), Some(&ns), Some(&ns))
-        .expect("mock ctx code should execute without error");
-    ns.get_item("ctx_instance")
-        .expect("get_item should not raise")
-        .expect("ctx_instance must be defined")
-        .unbind()
-}
-
-// --- AIPBridge backend ---
-
-/// Wraps an `AIPBridge` as an `ExecutionBackend` so it can be used
-/// with `ExecutionCoordinator` and `TaskRouter` in integration tests.
-struct AIPBridgeBackend {
-    bridge: Arc<AIPBridge>,
-}
-
-impl ExecutionBackend for AIPBridgeBackend {
-    fn execute(
-        &self,
-        task: AIPTask,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
-        let bridge = Arc::clone(&self.bridge);
-        Box::pin(async move {
-            // The hello agent only reads ctx.logger; a mock ctx is enough.
-            let ctx: PyObject = Python::with_gil(build_mock_ctx);
-            bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
-        })
-    }
-}
-
-// --- Test helpers ---
-
-fn test_manifest_for(name: &str) -> AgentManifest {
-    AgentManifest {
-        // The manifest format's own version, not the agent's; it gained the
-        // field and this literal, built behind a feature no default build
-        // compiles, kept the old shape.
-        format_version: 1,
-        name: name.to_string(),
-        version: "1.0.0".to_string(),
-        description: String::new(),
-        tools_required: vec![],
-        tools_optional: vec![],
-        supports_streaming: false,
-        supports_a2a: false,
-        supports_mailbox: false,
-        mailbox_allowlist: None,
-        memory_namespace: None,
-        shared_memory_namespaces: vec![],
-        max_concurrent_tasks: 1,
-        step_budget: None,
-        network_allowlist: None,
-        dangerous_tools_allowed: false,
-        tags: vec![],
-        skills: vec![],
-        execution_mode: "auto".to_string(),
-        system_prompt: None,
-        tools_requiring_approval: vec![],
-        llm_backend: None,
-        packages: vec![],
-        memory_config: None,
-        agent_type: None,
-        examples: vec![],
-        limitations: vec![],
-        setup_notes: None,
-        agent_class: None,
-        user_memory_write: false,
-        datasources: vec![],
-        templates: vec![],
-        secrets: vec![],
-        check_commands: vec![],
-    }
-}
-
-/// Returns the absolute path to agents/examples/hello/agent.py.
-/// CARGO_MANIFEST_DIR is the `tests/` directory; agents/ is one level up.
-fn hello_agent_path() -> std::path::PathBuf {
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = manifest_dir
-        .parent()
-        .expect("tests/ must be inside workspace root");
-    workspace_root
-        .join("agents")
-        .join("examples")
-        .join("hello")
-        .join("agent.py")
-}
-
-// full chain: AIPLoader -> AIPBridge -> TaskRouter -> Coordinator -> TaskCompleted
-#[tokio::test]
-async fn test_hello_agent_full_chain() {
-    let agent_path = hello_agent_path();
-    assert!(
-        agent_path.exists(),
-        "hello agent must exist at: {}",
-        agent_path.display()
-    );
-
-    // GIVEN the decorator-built hello agent loaded and validated
-    let agent_obj = load_agent_module(&agent_path).expect("load_agent_module should succeed");
-    let validated =
-        validate_agent(&agent_obj).expect("hello agent should pass decorator validation");
-    let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
-
-    // AND a full runtime stack (EventBus, AgentRegistry, TaskRouter)
-    let (event_sender, _rx) = EventBus::new();
-    let registry = AgentRegistry::spawn(event_sender.clone());
-    let router: TaskRouterHandle<AIPBridgeBackend> =
-        TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
-
-    // AND the agent registered and marked Active
-    let agent_id = registry
-        .register(test_manifest_for("hello-agent"))
-        .await
-        .expect("register should succeed");
-    registry
-        .update_state(agent_id.as_str(), ProcessState::Active)
-        .await
-        .expect("update_state should succeed");
-
-    // AND a coordinator with the AIPBridge backend
-    let backend = AIPBridgeBackend { bridge };
-    let coordinator = ExecutionCoordinator::new(agent_id.clone(), 1, event_sender.clone(), backend);
-    router
-        .register_coordinator(agent_id.clone(), coordinator)
-        .await
-        .expect("register_coordinator should succeed");
-
-    // AND a subscriber on the EventBus
-    let mut event_rx = event_sender.subscribe();
-
-    // WHEN a task is submitted via TaskRouterHandle
-    let task_id = router
-        .submit(agent_id.as_str(), AIPInput::default())
-        .await
-        .expect("submit should succeed");
-
-    // THEN TaskCompleted event is received with success=true
-    let completed = tokio::time::timeout(Duration::from_secs(15), async {
-        loop {
-            match event_rx.recv().await {
-                Ok(RuntimeEvent::TaskCompleted {
-                    task_id: received_id,
-                    success,
-                    ..
-                }) if received_id == task_id => {
-                    return success;
-                }
-                Ok(_) => continue,
-                Err(e) => panic!("EventBus recv error: {e}"),
-            }
-        }
+/// Puts the SDK of this tree first on `sys.path`.
+fn use_tree_sdk() {
+    let sdk = Path::new(env!("CARGO_MANIFEST_DIR")).join("../sdk");
+    Python::with_gil(|py| -> PyResult<()> {
+        py.import("sys")?
+            .getattr("path")?
+            .call_method1("insert", (0, sdk.to_string_lossy().as_ref()))?;
+        Ok(())
     })
-    .await
-    .expect("TaskCompleted should be received within 15s");
-
-    assert!(
-        completed,
-        "Task should have completed successfully via the hello agent"
-    );
-
-    // Cleanup
-    router.shutdown();
-    registry.shutdown();
+    .expect("sys.path accepts the SDK");
 }
 
-// agent without manifest() fails validation before registration
-#[tokio::test]
-async fn test_invalid_agent_fails_at_load() {
-    // GIVEN a Python file with run() but no manifest()
-    let invalid_code = concat!(
-        "class BadAgent:\n",
-        "    async def run(self, task, ctx):\n",
-        "        return {'status': 'completed', 'output': []}\n",
-        "agent = BadAgent()\n"
+/// An example package, copied out of the tree and built.
+struct Example {
+    dir: tempfile::TempDir,
+    root: PathBuf,
+    report: BuildReport,
+}
+
+/// Copies `agents/examples/<name>` under a temporary folder, so that nothing
+/// is written in the tree, and builds its archive beside the copy.
+fn built_example(name: &str) -> Example {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../agents/examples")
+        .join(name);
+    let dir = tempfile::tempdir().expect("temp dir");
+    let root = dir.path().join("packages").join(name);
+    copy_folder(&source, &root);
+    let archive = dir.path().join(format!("{name}.apo"));
+    let report =
+        build_from_dir(&root, &archive, &BuildOptions::default()).expect("the example builds");
+    Example { dir, root, report }
+}
+
+fn copy_folder(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).expect("create the folder");
+    for entry in std::fs::read_dir(from).expect("read the folder") {
+        let entry = entry.expect("folder entry");
+        let name = entry.file_name();
+        if name == "__pycache__" {
+            continue;
+        }
+        let target = to.join(&name);
+        if entry.file_type().expect("entry type").is_dir() {
+            copy_folder(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), &target).expect("copy the file");
+        }
+    }
+}
+
+/// Stores the example the way an install records it, and reads its tools.
+fn stored_tools(example: &Example) -> PackageTools {
+    use_tree_sdk();
+    let manifest = &example.report.manifest;
+    let repo =
+        PackageRepository::open(&example.dir.path().join("agents.db")).expect("open the store");
+    repo.save(&InstalledPackage {
+        name: manifest.package.name.clone(),
+        version: manifest.package.version.clone(),
+        root_path: example.root.clone(),
+        manifest_json: serde_json::to_string(manifest).expect("manifest as JSON"),
+        installed_at: "2026-10-07T00:00:00Z".into(),
+        updated_at: "2026-10-07T00:00:00Z".into(),
+    })
+    .expect("save the package");
+    for tool in &manifest.tools {
+        repo.link_item(&manifest.package.name, PackageItemKind::Tool, &tool.name)
+            .expect("link the tool");
+    }
+    PackageTools::read(&repo, example.dir.path().join("venvs")).expect("read the tools")
+}
+
+// GIVEN the folder of the example `hello`, as the tree holds it
+// WHEN its archive is built and read back
+// THEN the archive carries the agent `hello`, granted the tool of its own
+//      package, and that tool with the schema the code declares
+#[test]
+fn hello_example_builds_into_an_archive_that_declares_its_agent_and_its_tool() {
+    // GIVEN
+    let example = built_example("hello");
+
+    // WHEN
+    let archive =
+        ApoArchive::open(&example.dir.path().join("hello.apo")).expect("the archive opens");
+    let manifest = archive.manifest();
+
+    // THEN
+    assert_eq!(manifest.package.name, "hello");
+    let agents: Vec<&str> = manifest.agents.iter().map(|a| a.id.as_str()).collect();
+    assert_eq!(agents, ["hello"]);
+    assert_eq!(manifest.agents[0].defaults.access, ["pkg:hello/greet"]);
+    let tools: Vec<&str> = manifest.tools.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(tools, ["greet"]);
+    assert_eq!(manifest.tools[0].module, "tools/greet.py");
+    assert_eq!(
+        manifest.tools[0]
+            .inputs
+            .as_ref()
+            .and_then(|schema| schema.get("required")),
+        Some(&json!(["name"]))
     );
+    let entries: Vec<&str> = archive.entries().iter().map(|e| e.path.as_str()).collect();
+    assert_eq!(entries, ["apollia.toml", "tools/greet.py"]);
+}
 
-    let mut tmp = tempfile::Builder::new()
-        .suffix(".py")
-        .tempfile()
-        .expect("failed to create temp file");
-    tmp.write_all(invalid_code.as_bytes())
-        .expect("failed to write temp file");
+// GIVEN the example `hello` stored as an installed package
+// WHEN its tool is called through the dispatcher of the native tools
+// THEN the tool answers with the greeting for the name it was given
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn hello_example_tool_runs_in_the_embedded_interpreter() {
+    // GIVEN
+    let example = built_example("hello");
+    let tools = stored_tools(&example);
+    let dispatcher = ToolDispatcher::new(tools.executors("hello", &CancellationToken::new()));
 
-    // WHEN the agent is loaded and validated
-    let agent_obj =
-        load_agent_module(tmp.path()).expect("load should succeed (file is syntactically valid)");
-    let result = validate_agent(&agent_obj);
+    // WHEN
+    let answer = dispatcher
+        .dispatch("pkg:hello/greet", json!({"name": " Ada "}))
+        .await;
 
-    // THEN AIPValidationError is returned (manifest() missing)
-    assert!(
-        result.is_err(),
-        "validate_agent should fail for an agent without manifest()"
-    );
-    let err_msg = result.unwrap_err().to_string();
-    assert!(
-        err_msg.contains("manifest") || err_msg.contains("method"),
-        "error should mention missing manifest: {err_msg}"
+    // THEN
+    assert_eq!(
+        answer.expect("the tool answers"),
+        json!({"greeting": "Hello, Ada!"})
     );
 }
 
-// complementary - agent with manifest() but non-async run() fails validation
-#[tokio::test]
-async fn test_sync_run_fails_validation() {
-    // GIVEN a Python file where run() is not async
-    let invalid_code = concat!(
-        "class SyncAgent:\n",
-        "    def manifest(self):\n",
-        "        return {'name': 'sync-agent', 'version': '1.0.0', 'description': '', 'tools_required': []}\n",
-        "    def run(self, task, ctx):  # sync, not async\n",
-        "        return {'status': 'completed', 'output': []}\n",
-        "agent = SyncAgent()\n"
-    );
+// GIVEN the example `word-count`, a package that declares no agent
+// WHEN it is built, stored, and its tool is called for an agent that belongs
+//      to no package
+// THEN the build accepts it and the tool answers that agent
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn package_without_an_agent_builds_and_its_tool_serves_another_agent() {
+    // GIVEN
+    let example = built_example("word-count");
+    assert!(example.report.manifest.agents.is_empty());
+    let tools = stored_tools(&example);
+    let dispatcher = ToolDispatcher::new(tools.executors(CALLER, &CancellationToken::new()));
 
-    let mut tmp = tempfile::Builder::new()
-        .suffix(".py")
-        .tempfile()
-        .expect("failed to create temp file");
-    tmp.write_all(invalid_code.as_bytes())
-        .expect("failed to write temp file");
+    // WHEN
+    let answer = dispatcher
+        .dispatch(
+            "pkg:word-count/count_words",
+            json!({"text": "A short note.\nOn two lines."}),
+        )
+        .await;
 
-    // WHEN the module is loaded and validated
-    let agent_obj = load_agent_module(tmp.path()).expect("load should succeed");
-    let result = validate_agent(&agent_obj);
-
-    // THEN validation fails (run() is not a coroutine function)
-    assert!(
-        result.is_err(),
-        "validate_agent should fail for non-async run(): {result:?}"
-    );
-}
-
-// complementary - loading a Python file with no 'agent' variable fails
-#[tokio::test]
-async fn test_missing_agent_variable_fails_load() {
-    // GIVEN a valid Python file without a top-level `agent` variable
-    let code = "class Unregistered:\n    pass\n";
-
-    let mut tmp = tempfile::Builder::new()
-        .suffix(".py")
-        .tempfile()
-        .expect("failed to create temp file");
-    tmp.write_all(code.as_bytes())
-        .expect("failed to write temp file");
-
-    // WHEN load_agent_module is called
-    let result = load_agent_module(tmp.path());
-
-    // THEN AIPLoaderError::NoAgentFound is returned
-    assert!(
-        matches!(
-            result,
-            Err(apollia_aip::loader::AIPLoaderError::NoAgentFound(_))
-        ),
-        "expected NoAgentFound, got: {result:?}"
+    // THEN
+    assert_eq!(
+        answer.expect("the tool answers"),
+        json!({"words": 6, "lines": 2, "characters": 27})
     );
 }

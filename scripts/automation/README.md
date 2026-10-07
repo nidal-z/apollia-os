@@ -17,16 +17,16 @@ testids). Always free the ports first, an editor or a stale run holds them:
 lsof -ti :5173 -ti :7771 -ti :8899 | xargs kill -9 2>/dev/null   # vite, runtime API, llama-server
 
 # Deterministic (no model), seeded ecosystem:
-just desktop-dev-automation-seeded scripts/automation/master-det.json
+just automation-seeded scripts/automation/master-det.json
 
 # With local inference (llama-server, --jinja), pass a real model:
-just desktop-dev-automation-seeded-llama scripts/automation/chat-llm.json ~/.apollia/models/<model>.gguf
+just automation-seeded-llama scripts/automation/chat-llm.json ~/.apollia/models/<model>.gguf
 
 # Destructive suite (disposable seed HOME) needs the opt-in flag:
-APOLLIA_AUTOMATION_ALLOW_DESTRUCTIVE=1 just desktop-dev-automation-seeded scripts/automation/destructive.json
+APOLLIA_AUTOMATION_ALLOW_DESTRUCTIVE=1 just automation-seeded scripts/automation/destructive.json
 
 # The first launch, timed, on a blank home (see "The first launch, timed"):
-just desktop-dev-automation-first-run scripts/automation/first-run-llm.json ~/.apollia/models/<model>.gguf
+just automation-first-run scripts/automation/first-run-llm.json ~/.apollia/models/<model>.gguf
 ```
 
 The recipes swap `HOME` to a throwaway `.apollia-seed-home` (the real `~/.apollia`
@@ -42,12 +42,15 @@ public registry. Without it a run longer than fifteen minutes (the cache TTL)
 swaps the two seeded servers for the twenty thousand public ones mid-book, and
 the connections section fails on network timing rather than on the product.
 
-Model: `-seeded-llama` defaults `CTX=131072 NP=1 --jinja`, and samples
-greedily on a fixed seed (`--temp 0 --seed 42`, `TEMP` and `SEED` override):
+Model: `-seeded-llama` starts llama-server with `--jinja`, a 131072-token
+context and one slot, and samples greedily on a fixed seed (`--temp 0 --seed
+42`). Each is a setting of the justfile (`APOLLIA_LLAMA_CTX`,
+`APOLLIA_LLAMA_SLOTS`, `APOLLIA_LLAMA_TEMP`, `APOLLIA_LLAMA_SEED`, see
+`.env.example`):
 a model book asserts what the model does next, so its answer has to be the
 same from one run to the next; the seed's `apollia.toml` pins
 `tool_turn_temperature = 0.0` for the same reason. For a dense model a
-full 131072 KV cache can be heavy; override with `CTX=32768`. The free-chat
+full 131072 KV cache can be heavy; override with `APOLLIA_LLAMA_CTX=32768`. The free-chat
 prompt is ~13.5k tokens (the loaded tool surface), so keep a comfortable margin.
 
 ## The first launch, timed
@@ -65,7 +68,7 @@ measured there. Its own recipe builds a home with nothing in it but the two
 model files, and removes that home at the start of every run:
 
 ```sh
-just desktop-dev-automation-first-run scripts/automation/first-run-llm.json \
+just automation-first-run scripts/automation/first-run-llm.json \
   ~/.apollia/models/<model>.gguf [~/.apollia/models/multilingual-e5-small-q8_0.gguf]
 ```
 
@@ -112,7 +115,7 @@ the window capture, and a `screenshot` step says so and carries on rather than
 failing a book whose gestures all passed. What a clone on another machine
 needs, measured rather than assumed:
 
-- **A binary built against that bundle**: `just cli-build`. A plain
+- **A binary built against that bundle**: `just build-cli`. A plain
   `cargo build` picks the machine's interpreter, which PyO3 refuses above 3.13,
   and on Linux the recipe also bakes the path to the bundle's libpython into
   the binary so it starts outside the shipped launcher.
@@ -135,8 +138,8 @@ needs, measured rather than assumed:
 Then the same commands as on macOS:
 
 ```
-just desktop-dev-automation-seeded scripts/automation/nav-det.json      # boots in a minute
-just desktop-dev-automation-seeded scripts/automation/master-det.json   # the whole deterministic suite
+just automation-seeded scripts/automation/nav-det.json      # boots in a minute
+just automation-seeded scripts/automation/master-det.json   # the whole deterministic suite
 ```
 
 The deterministic books never reach a model: the seed's GGUF and whisper files
@@ -147,10 +150,10 @@ is inference and dictation, which is where a platform usually breaks. One
 model book covers the first:
 
 ```
-just desktop-dev-automation-seeded-llama scripts/automation/chat-llm.json /path/to/model.gguf
+just automation-seeded-llama scripts/automation/chat-llm.json /path/to/model.gguf
 ```
 
-It needs `llama-server` on PATH (or `LLAMA_BIN=/path/to/llama-server`) built
+It needs `llama-server` on PATH (or `APOLLIA_LLAMA_BIN=/path/to/llama-server`) built
 for that machine. Dictation has no automated path with a real engine on any
 system: loading a whisper model and recording once is a manual check.
 
@@ -212,7 +215,7 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
   (operator + builder walk, empty/error states, dialogs opened then cancelled,
   mutating controls driven to the boundary). `master-det.json` runs all 20 in one
-  boot and is the release gate (3989 steps); `just desktop-automation-verdict` reads its report.
+  boot and is the release gate (3989 steps); `just automation-verdict` reads its report.
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
   and four books written against the coverage report below, none of them in
   `regen_master.py`'s `ORDER` yet because none has been through a runtime round:
@@ -231,14 +234,14 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   config, plan mode, ask_user), `hitl-critical`, `coach-llm`,
   `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, and `master-llm` (an
   aggregate of chat/hitl/coach, 192 steps).
-- **First launch** (needs `desktop-dev-automation-first-run`, a blank home and
+- **First launch** (needs `automation-first-run`, a blank home and
   two model files): `first-run-llm`, the timed first launch described above.
   Written against the source and statically validated; its first runtime
   round is still to come.
 
 The whole corpus was last run green on 2026-07-28 against the redesigned UI:
 14 suites, 3056 steps, 0 failures. The LLM ones ran on
-`Qwen3.6-35B-A3B-MXFP4_MOE.gguf` with `CTX=32768 NP=1`.
+`Qwen3.6-35B-A3B-MXFP4_MOE.gguf` with a 32768-token context and one slot.
 
 The deterministic books went through a runtime round on 2026-09-06, page by
 page and then as `master-det`, after a pass that turned observed anchors into
@@ -399,7 +402,7 @@ than expanding it to nothing.
   minutes instead of hours. Data only, no runner change:
   ```sh
   python3 scripts/automation/tools/make_scan.py            # master-det -> master-det-scan, cap 3000ms
-  just desktop-dev-automation-seeded scripts/automation/master-det-scan.json
+  just automation-seeded scripts/automation/master-det-scan.json
   ```
 
 ## The language a run speaks
@@ -433,7 +436,7 @@ a run, and nothing reads them back.
   or launcher on top no longer pollutes them. If a capture is ever wrong, check
   the window is a normal (non-minimized) window.
 - **A native file dialog is answered by a stub, or not at all.**
-  `memory-export-button`, `memory-import-pick` and `agent-update-btn` open an OS picker the runner cannot drive: an unstubbed
+  `memory-export-button`, `memory-import-pick` and `agents-install-apo-button` open an OS picker the runner cannot drive: an unstubbed
   click never returns and every later step of the boot fails. Arm
   `stubInvoke { command: "plugin:dialog|open", resolve: "${HOME}/...", once: true }`
   (`plugin:dialog|save` for the export) right before the click, or `resolve:

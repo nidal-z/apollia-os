@@ -39,16 +39,16 @@
   },
   "sourceRoot": "crates/apollia-desktop/ui/src/",
   "totals": {
-    "components": 500,
-    "variants": 2135,
-    "withSource": 366,
+    "components": 499,
+    "variants": 2131,
+    "withSource": 365,
     "withoutSource": 134,
     "byPage": {
       "Primitives": 78,
-      "Composants": 288,
+      "Composants": 287,
       "Icones": 134
     },
-    "$note": "Mesure dans le fichier le 2026-08-08 apres la reprise structurelle et le dedoublonnage des icones : Composants 288 composants et 1223 variantes, Primitives 78 et 802, Icones 134 sans variante."
+    "$note": "Mesure dans le fichier le 2026-08-08 apres la reprise structurelle et le dedoublonnage des icones : Composants 288 composants et 1223 variantes, Primitives 78 et 802, Icones 134 sans variante. Le 2026-10-07, un composant de la page Composants et ses 4 variantes quittent ce manifeste, sa source ayant ete retiree du produit : 499 composants, 2131 variantes, Composants 287 et 1219."
   },
   "substitutions": [
     {
@@ -5148,38 +5148,6 @@
       "coverage": "components/settings/profile/ProfilePreferencesCard.svelte\nProjection sur le cartesien : la fiche denombre 16 combinaisons (Source 4 x Valeur 2, appliquees aux deux champs independamment). 4 variantes sont posees, les deux champs partageant la meme source et le meme etat de valeur, ce qui couvre les 4 sources et les 2 etats de valeur.\nLargeur de reference : 560 px, la carte occupe la colonne de la sous-page Reglages. Le corps interne mesure 528 px, la grille md:grid-cols-2 est posee dans son etat deux colonnes.\nDefauts reproduits : aucun. La fiche n'en releve aucun sur cette carte.\nSubstitutions : Inter remplace Inter Tight ; les fonds a opacite (pastille de source) passent par un calque tint car une peinture liee a une variable ne porte pas d'opacite ; l'intitule de la pastille onboarding est recopie de fr.json (onboarding) alors que la primitive ProfileSourceBadge porte accueil.\nNon reproductible : l'infobulle native de la pastille de source (title HTML), le menu deroulant natif du select, les etats focus et hover."
     },
     {
-      "nodeId": "503:17416",
-      "name": "ProfileSupervisionCard",
-      "page": "Composants",
-      "source": "components/settings/profile/ProfileSupervisionCard.svelte",
-      "variants": 4,
-      "axes": {
-        "HITL": [
-          "always",
-          "critical-only",
-          "never",
-          "aucun"
-        ],
-        "Declencheur": [
-          "manuel",
-          "planifie",
-          "evenementiel",
-          "aucun"
-        ],
-        "Source": [
-          "onboarding",
-          "user",
-          "agent",
-          "absente"
-        ],
-        "Domaines": [
-          "renseigne",
-          "vide"
-        ]
-      },
-      "coverage": "components/settings/profile/ProfileSupervisionCard.svelte\nProjection sur le cartesien : la fiche denombre 64 combinaisons (HITL 4 x Declencheur 4 x Source 4 x Domaines 2, ramenees a 64 par la fiche). 4 variantes sont posees, chacune parcourant une valeur nouvelle de chaque axe, dont l'etat d'un profil neuf ou aucun radio n'est coche dans aucun des deux groupes.\nLargeur de reference : 560 px, corps interne 528 px.\nDefauts reproduits : l'avertissement settings.profile.sensitive_notice est rendu en legende sous le titre de section, dans le style le plus discret de la carte, parce que le composant le passe en prop description (nouvelle categorie, pas de numero de CAP). Le registre melange vouvoiement et tutoiement sur le meme champ, intitule Domaines ou vos agents travaillent en autonomie et indice ou tu laisses tes agents agir, recopie sans harmonisation (nouvelle categorie). Deux defauts sans trace visuelle sont consignes sans etre dessinables : RadioGroup ignore value et onchange, seul chaque choix porte son etat (CAP-013, CAP-053) ; la semantique radiogroup est declaree sans navigation au clavier ni rattachement a l'intitule (CAP-042).\nSubstitutions : Inter remplace Inter Tight ; les fonds a opacite passent par un calque tint ; l'intitule de la pastille onboarding est recopie de fr.json alors que la primitive ProfileSourceBadge porte accueil.\nNon reproductible : le survol hover:border-primary/40 des choix, le focus, l'infobulle native de la pastille de source. La valeur saisie du champ Domaines reprend le texte du placeholder, seule la couleur du texte distingue l'etat vide de l'etat renseigne, comme dans le produit."
-    },
-    {
       "nodeId": "504:10294",
       "name": "ProfileToolsCard",
       "page": "Composants",
@@ -7245,7 +7213,8 @@
     "$note": "Une icone lucide par composant sur la page Icones, nommee « Icon / <nom> », 24 par 24, contour 2. Chaque composant porte une description qui cite sa source lucide. Le 2026-08-08, deux doublons crees par deux agents differents (Pencil et Monitor) ont ete dedoublonnes : les instances du double ont ete rebranchees par swapComponent avant suppression, 3 pour Pencil et 1 pour Monitor."
   },
   "knownGaps": [
-    "Le degrade primary-gradient du Button construit n'a pas ses arrets lies a --primary-gradient-from et --primary-gradient-to : il ne suit pas les modes Light et Dark. Constate le 2026-08-08 en construisant PlanApprovalBar."
+    "Le degrade primary-gradient du Button construit n'a pas ses arrets lies a --primary-gradient-from et --primary-gradient-to : il ne suit pas les modes Light et Dark. Constate le 2026-08-08 en construisant PlanApprovalBar.",
+    "Le noeud 503:17416 de la page Composants reste dans le fichier Figma sans source dans le produit : la carte de supervision des agents du profil est retiree, et le noeud est a retirer du jumeau. Constate le 2026-10-07."
   ],
   "compositionCheck": {
     "rule": "un composant metier ne contient que des instances, jamais une forme libre portant le nom d'un composant",

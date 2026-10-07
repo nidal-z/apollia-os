@@ -93,8 +93,6 @@ Les options sur une machine headless sont de faire tourner une implémentation S
 <!-- claim:tool-invocations-is-the-execution-record -->
 Toutes les exécutions d'outils sont loggées dans `~/.apollia/audit.db`, table `tool_invocations` : agent, tâche, exécution, nom de l'outil, empreinte de l'entrée, profil de bac à sable, durée et code de sortie. Elle enregistre ce qui a tourné, pas qui l'a approuvé. Consultable depuis la page **Observabilité** de la barre latérale, onglet **Piste d'audit**.
 
-Les approbations MCP (acceptations HITL durables) sont stockées séparément dans `~/.apollia/mcp_approvals.db`.
-
 ### Erreurs courantes mode fichier
 
 - **Le compte ne peut pas être enregistré sous Linux** : le daemon Secret Service n'est pas disponible. Voir la section Linux headless ci-dessus : il n'y a pas de contournement en `v0.1.0-preview`.

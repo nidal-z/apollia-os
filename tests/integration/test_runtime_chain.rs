@@ -14,12 +14,10 @@ use apollia_e2e_tests::reserve_port;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::time::Duration;
 
 use apollia_core::{AIPResult, AIPTask, TaskStatus};
 use apollia_runtime::{
-    api::routes_agents::StubAgentLoader,
     api::server::empty_shared_llm_router,
     api::{APIServer, APIServerConfig, APIServerHandle, AppState},
     coordinator::ExecutionBackend,
@@ -66,6 +64,28 @@ fn temp_socket_path() -> PathBuf {
     PathBuf::from(format!("/tmp/ap-chain-{id}.sock"))
 }
 
+/// A data directory whose store holds the agent `mock-agent`, enabled.
+fn data_dir_with_mock_agent() -> PathBuf {
+    let dir = tempfile::tempdir().expect("tempdir").keep();
+    let repo =
+        apollia_tools::AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(&dir))
+            .expect("open agents.db");
+    repo.save_definition(&apollia_tools::StoredAgent {
+        name: "mock-agent".to_string(),
+        origin: apollia_tools::AgentOrigin::Package,
+        package: None,
+        version: "1.0.0".to_string(),
+        definition: serde_json::json!({
+            "id": "mock-agent", "name": "mock-agent", "mission": "Answers.", "defaults": {},
+        }),
+        enabled: true,
+        installed_at: "2026-10-01T00:00:00Z".to_string(),
+        updated_at: "2026-10-01T00:00:00Z".to_string(),
+    })
+    .expect("store the agent");
+    dir
+}
+
 /// Build a self-contained AppState with real actors and MockBackend.
 fn build_app_state() -> AppState<MockBackend> {
     let (event_sender, _rx) = EventBus::new();
@@ -76,7 +96,6 @@ fn build_app_state() -> AppState<MockBackend> {
         router_handle,
         registry_handle,
         event_sender,
-        agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
@@ -89,7 +108,6 @@ fn build_app_state() -> AppState<MockBackend> {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
@@ -104,7 +122,7 @@ fn build_app_state() -> AppState<MockBackend> {
         user_memory: None,
         stt_engine: apollia_runtime::api::server::empty_shared_stt_engine(),
         stt_repository: apollia_runtime::api::server::empty_shared_stt_repository(),
-        data_dir: std::path::PathBuf::new(),
+        data_dir: data_dir_with_mock_agent(),
         mcp_handle: None,
         mcp_server_repo: None,
         llm_backend_repo: None,
@@ -232,14 +250,14 @@ async fn poll_until_terminal(port: u16, task_id: &str) -> String {
 // POST /api/v1/agents returns 201 Created with state "active"
 #[tokio::test]
 async fn test_start_agent_via_api_returns_active() {
-    // GIVEN a runtime with MockBackend + StubAgentLoader
+    // GIVEN a runtime with MockBackend whose store holds `mock-agent`
     let (handle, port, socket_path) = start_test_server().await;
 
-    // WHEN POST /api/v1/agents with a path that StubAgentLoader can resolve
+    // WHEN POST /api/v1/agents names the stored agent
     let (status, resp) = http_post(
         port,
         "/api/v1/agents",
-        serde_json::json!({ "agent_path": "agents/mock-agent.py" }),
+        serde_json::json!({ "agent": "mock-agent" }),
     )
     .await;
 
@@ -268,7 +286,7 @@ async fn test_submit_task_via_api_accepted() {
     let (_, agent_resp) = http_post(
         port,
         "/api/v1/agents",
-        serde_json::json!({ "agent_path": "agents/mock-agent.py" }),
+        serde_json::json!({ "agent": "mock-agent" }),
     )
     .await;
     let agent_id = agent_resp["agent_id"].as_str().expect("agent_id missing");
@@ -302,7 +320,7 @@ async fn test_task_completes_end_to_end_mock_backend() {
     http_post(
         port,
         "/api/v1/agents",
-        serde_json::json!({ "agent_path": "agents/mock-agent.py" }),
+        serde_json::json!({ "agent": "mock-agent" }),
     )
     .await;
 

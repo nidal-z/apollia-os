@@ -142,7 +142,7 @@ happened.
 ```rust
 enum RuntimeEvent {
     AgentRegistered { id: AgentId, at: SystemTime },
-    AgentLoadFailed { id: AgentId, error: String },
+    AgentDegraded { id: AgentId, reason: String },
     TaskCompleted { id: TaskId, duration_ms: u64 },
     ContextCompacted { agent: AgentId, dropped: usize },
 }
@@ -239,7 +239,7 @@ Two deliberate exceptions:
 | Where | Value | Why |
 |---|---|---|
 | `crates/apollia-desktop/tauri.conf.json` | `X.Y.Z-N` on a pre-release | WiX rejects a non-numeric pre-release identifier, and `msi` is a shipped bundle target. `tauri-bundler` maps `X.Y.Z-N` to the MSI product version `X.Y.Z.N`; the About screen still reads the pre-release suffix and shows the Preview channel. |
-| `sdk/apollia/cli/scaffold.py`, README examples | `0.1.0` | Templates for agents the user writes. A freshly scaffolded agent starts its own life at `0.1.0`; it is not an Apollia component. |
+| `crates/apollia-cli/src/commands/package/new.rs`, README examples | `0.1.0` | Templates for packages the user writes. A freshly written package starts its own life at `0.1.0`; it is not an Apollia component. |
 
 The rule covers what ships in this tree. An agent that is not an Apollia
 component carries its own version, and nothing here governs it.

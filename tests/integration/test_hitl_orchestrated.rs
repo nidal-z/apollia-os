@@ -1,17 +1,20 @@
-//! Integration tests for HITL Orchestrated mode.
+//! Integration tests for a human decision in the middle of a plan.
 //!
-//! Tests `ActorLoop` with `tools_requiring_approval`:
-//! - step with sensitive tool → suspend mid-plan → approve → step executed
-//! - step rejected → plan stopped, subsequent steps NOT executed
+//! A step holds no approval of its own: the tool proxy the plan runs on
+//! decides each call where it is made. These tests hold what `ActorLoop` owes
+//! that decision:
+//! - a call the proxy holds does not reach the tool before the answer, and
+//!   the step runs once the answer is yes;
+//! - a call the proxy refuses never reaches the tool, the plan stops, and the
+//!   steps after it do not run.
 //!
-//! All tests use mock `ToolProxyTrait` and `Reasoner` with a stub LLM.
+//! All tests use a mock `ToolProxyTrait` and a `Reasoner` with a stub LLM.
 //! No Python or real LLM required.
 
-use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use apollia_core::{AgentManifest, InputResponseData, PendingApprovals, RuntimeEvent, TaskStatus};
+use apollia_core::{AgentManifest, RuntimeEvent, TaskStatus};
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmRouter,
     StreamChunk, TokenUsage,
@@ -29,8 +32,8 @@ use async_trait::async_trait;
 // ── Stub LLM (required by ActorLoop::execute signature) ─────────────────────
 
 /// Minimal `CompletionModel` that always returns an empty plan.
-/// Used to satisfy the `reasoner` parameter - replanification is never triggered
-/// in these tests because we pre-insert the plan and steps succeed or reject.
+/// Used to satisfy the `reasoner` parameter: no replan is triggered in these
+/// tests, the plan is inserted beforehand and the actor is given no replan.
 struct StubLlm;
 
 #[async_trait]
@@ -78,50 +81,75 @@ impl CompletionModel for StubLlm {
 
 // ── Mock ToolProxy ───────────────────────────────────────────────────────────
 
-/// Records every `invoke()` call (by tool name) and returns a configurable response.
-struct RecordingToolProxy {
-    /// Tool-name → response string.
-    responses: HashMap<String, String>,
-    /// All tool names invoked, in order.
-    invocations: Mutex<Vec<String>>,
+/// The answer a human gives to a call the proxy asked about.
+enum Answer {
+    Yes,
+    No(&'static str),
 }
 
-impl RecordingToolProxy {
-    fn new(responses: &[(&str, &str)]) -> Arc<Self> {
-        Arc::new(Self {
-            responses: responses
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
-            invocations: Mutex::new(vec![]),
-        })
-    }
+/// A proxy that decides each call where it is made, as the caller of ORIA
+/// does: a call of `sensitive` signals that it asks, then waits for the
+/// answer; any other tool runs. Records the tools that actually ran.
+struct DecidingProxy {
+    sensitive: &'static str,
+    asked: tokio::sync::mpsc::Sender<()>,
+    answer: tokio::sync::Mutex<tokio::sync::mpsc::Receiver<Answer>>,
+    ran: Arc<Mutex<Vec<String>>>,
+}
 
-    /// Returns how many times any tool was invoked.
-    fn invocation_count(&self) -> usize {
-        self.invocations.lock().unwrap().len()
-    }
+/// What a test keeps of a [`DecidingProxy`]: the signal that a call asks,
+/// the way to answer it, and the tools that ran.
+struct Human {
+    asked: tokio::sync::mpsc::Receiver<()>,
+    answer: tokio::sync::mpsc::Sender<Answer>,
+    ran: Arc<Mutex<Vec<String>>>,
+}
 
-    /// Returns how many times `tool_name` was invoked.
-    fn count_for(&self, tool_name: &str) -> usize {
-        self.invocations
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|t| t.as_str() == tool_name)
-            .count()
-    }
+fn deciding_proxy(sensitive: &'static str) -> (DecidingProxy, Human) {
+    let (asked_tx, asked_rx) = tokio::sync::mpsc::channel(4);
+    let (answer_tx, answer_rx) = tokio::sync::mpsc::channel(4);
+    let ran = Arc::new(Mutex::new(Vec::new()));
+    (
+        DecidingProxy {
+            sensitive,
+            asked: asked_tx,
+            answer: tokio::sync::Mutex::new(answer_rx),
+            ran: Arc::clone(&ran),
+        },
+        Human {
+            asked: asked_rx,
+            answer: answer_tx,
+            ran,
+        },
+    )
+}
+
+/// How many times `tool_name` ran.
+fn count_for(ran: &Arc<Mutex<Vec<String>>>, tool_name: &str) -> usize {
+    ran.lock()
+        .unwrap()
+        .iter()
+        .filter(|t| t.as_str() == tool_name)
+        .count()
 }
 
 #[async_trait]
-impl ToolProxyTrait for RecordingToolProxy {
+impl ToolProxyTrait for DecidingProxy {
     async fn invoke(&self, tool_name: &str, _input: &serde_json::Value) -> Result<String, String> {
-        self.invocations.lock().unwrap().push(tool_name.to_string());
-        Ok(self
-            .responses
-            .get(tool_name)
-            .cloned()
-            .unwrap_or_else(|| format!("{tool_name}: ok")))
+        if tool_name == self.sensitive {
+            let _ = self.asked.send(()).await;
+            match self.answer.lock().await.recv().await {
+                Some(Answer::Yes) => {}
+                Some(Answer::No(reason)) => {
+                    return Err(format!(
+                        "unauthorized: the operator refused '{tool_name}'. Reason: {reason}"
+                    ));
+                }
+                None => return Err(format!("unauthorized: nobody answered for '{tool_name}'")),
+            }
+        }
+        self.ran.lock().unwrap().push(tool_name.to_string());
+        Ok(format!("{tool_name}: ok"))
     }
 }
 
@@ -132,66 +160,50 @@ fn make_db() -> PlanRepository {
     PlanRepository::new(":memory:").expect("in-memory SQLite must always succeed")
 }
 
-/// Builds an `AgentManifest` with `tools_requiring_approval`.
-fn make_manifest_with_approval(tools: &[&str]) -> AgentManifest {
-    let tools_json: serde_json::Value = tools
-        .iter()
-        .map(|t| serde_json::Value::String(t.to_string()))
-        .collect::<Vec<_>>()
-        .into();
+/// Builds the manifest of the agent the plans belong to. It names no tool to
+/// approve: a manifest has no key for that.
+fn make_manifest() -> AgentManifest {
     serde_json::from_value(serde_json::json!({
         "name": "hitl-test-agent",
         "version": "0.1.0",
-        "description": "HITL integration test agent",
-        "tools_required": [],
-        "tools_requiring_approval": tools_json
+        "description": "HITL integration test agent"
     }))
     .expect("manifest must deserialize")
 }
 
-// ── tools_requiring_approval -> suspend mid-plan -> approve -> step runs
+fn step(step_id: &str, description: &str, tool: &str, depends_on: &[&str]) -> PlanStep {
+    PlanStep {
+        step_id: step_id.into(),
+        description: description.into(),
+        tool_hint: Some(tool.into()),
+        depends_on: depends_on.iter().map(|d| d.to_string()).collect(),
+        model_hint: None,
+        title: String::new(),
+        status: Default::default(),
+        rationale: None,
+        provenance: Default::default(),
+        args: None,
+    }
+}
 
-/// GIVEN a plan [s1:file_io, s2:smtp] plus manifest.tools_requiring_approval=["smtp"]
-///       and a mock "smtp" tool returning "sent"
-/// WHEN execute() runs, s1 executes normally,
-///      s2 suspends (smtp is in tools_requiring_approval),
-///      then PendingApprovals.resolve(approved=true)
-/// THEN s2 runs after the approval,
+// ── a call the proxy asks about -> the step waits -> yes -> the step runs ────
+
+/// GIVEN a plan [s1:file_io, s2:smtp] on a proxy that asks about `smtp`
+/// WHEN execute() runs, s1 executes normally, s2 waits for the answer,
+///      then the answer is yes
+/// THEN `smtp` did not run before the answer and ran once after it,
 ///      the plan finishes with the Completed status,
-///      TaskInputRequired{step_id:Some("s2")} is emitted on the EventBus,
-///      tool_proxy is called twice (s1 and s2)
+///      the actor itself raised no `TaskInputRequired`,
+///      and both tools ran once
 #[tokio::test]
 async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
     // GIVEN
-    let task_id = "t-orch-001";
     let plan = ExecutionPlan {
         plan_id: "plan-ac3".into(),
-        task_id: task_id.into(),
+        task_id: "t-orch-001".into(),
         steps: vec![
-            PlanStep {
-                step_id: "s1".into(),
-                description: "Read the file".into(),
-                tool_hint: Some("file_io".into()),
-                depends_on: vec![],
-                model_hint: None,
-                title: String::new(),
-                status: Default::default(),
-                rationale: None,
-                provenance: Default::default(),
-                args: None,
-            },
-            PlanStep {
-                step_id: "s2".into(),
-                description: "Envoyer l'email".into(),
-                tool_hint: Some("smtp".into()),
-                depends_on: vec!["s1".into()],
-                model_hint: None,
-                title: String::new(),
-                status: Default::default(),
-                rationale: None,
-                provenance: Default::default(),
-                args: None,
-            },
+            step("s1", "Read the file", "file_io", &[]),
+            step("s2", "Send the email", "smtp", &["s1"]),
         ],
     };
 
@@ -201,57 +213,33 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
     db.insert_steps(&plan.plan_id, &plan.steps)
         .expect("insert_steps");
 
-    let pending = Arc::new(PendingApprovals::new());
     let (bus_tx, mut bus_rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
-    let manifest = make_manifest_with_approval(&["smtp"]);
-
-    let tool_proxy = RecordingToolProxy::new(&[("file_io", "file read"), ("smtp", "email sent")]);
+    let (tool_proxy, mut human) = deciding_proxy("smtp");
+    let ran = Arc::clone(&human.ran);
 
     let budget = StepBudget::unlimited();
     let resilience = ResilienceLayer::default();
     let reasoner = Reasoner::new(Arc::new(StubLlm), 10);
     let llm = LlmRouter::empty();
 
-    let mut actor = ActorLoop::new(plan, 0, db, bus_tx, manifest)
-        .with_pending_approvals(Some(Arc::clone(&pending)));
+    let mut actor = ActorLoop::new(plan, 0, db, bus_tx, make_manifest());
 
-    // WHEN - spawn resolver that approves once TaskInputRequired{step_id=Some("s2")} seen
-    let pending_clone = Arc::clone(&pending);
-    let task_id_clone = task_id.to_string();
+    // WHEN - the human answers yes once the call of s2 asks
     let resolver = tokio::spawn(async move {
-        // Poll the bus until TaskInputRequired for step s2 is emitted (max ~4 s)
-        for _ in 0..200_u32 {
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-            match bus_rx.try_recv() {
-                Ok(RuntimeEvent::TaskInputRequired {
-                    step_id: Some(ref id),
-                    ..
-                }) if id == "s2" => {
-                    break;
-                }
-                _ => {}
-            }
-        }
-        // Approval key for orchestrated mode = "{task_id}::{step_id}"
-        pending_clone
-            .resolve(
-                &format!("{task_id_clone}::s2"),
-                InputResponseData {
-                    approved: true,
-                    reason: None,
-                    context: serde_json::Value::Null,
-                    responded_at: "2026-01-01T00:00:00Z".into(),
-                    answer: None,
-                    payload: None,
-                },
-            )
-            .expect("resolve s2 must succeed");
+        human.asked.recv().await.expect("smtp must ask");
+        let ran_before_the_answer = human.ran.lock().unwrap().clone();
+        human
+            .answer
+            .send(Answer::Yes)
+            .await
+            .expect("the answer must be received");
+        ran_before_the_answer
     });
 
     let result = actor
         .execute(
             ActorStepDeps {
-                tool_proxy: tool_proxy.as_ref(),
+                tool_proxy: &tool_proxy,
                 llm_router: &llm,
                 budget: &budget,
                 reasoner: &reasoner,
@@ -259,82 +247,61 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
             &resilience,
         )
         .await;
-    resolver.await.expect("resolver must not panic");
+    let ran_before_the_answer = resolver.await.expect("resolver must not panic");
+
+    // THEN - when the call asked, s1 had run and smtp had not
+    assert_eq!(
+        ran_before_the_answer,
+        vec!["file_io".to_string()],
+        "smtp must not run before its answer"
+    );
 
     // THEN - plan completed successfully
     assert_eq!(
         result.status,
         TaskStatus::Completed,
-        "plan must complete after approval; error: {:?}",
+        "plan must complete after the answer; error: {:?}",
         result.error
     );
 
-    // THEN - both tools invoked (s1 file_io + s2 smtp)
+    // THEN - both tools ran (s1 file_io + s2 smtp), once each
     assert_eq!(
-        tool_proxy.invocation_count(),
+        ran.lock().unwrap().len(),
         2,
-        "both file_io and smtp must be invoked"
+        "both file_io and smtp must run"
     );
-    assert_eq!(tool_proxy.count_for("smtp"), 1, "smtp invoked exactly once");
-    assert_eq!(
-        tool_proxy.count_for("file_io"),
-        1,
-        "file_io invoked exactly once"
-    );
+    assert_eq!(count_for(&ran, "smtp"), 1, "smtp ran exactly once");
+    assert_eq!(count_for(&ran, "file_io"), 1, "file_io ran exactly once");
+
+    // THEN - the actor raised no approval of its own
+    let mut raised = false;
+    while let Ok(event) = bus_rx.try_recv() {
+        if matches!(event, RuntimeEvent::TaskInputRequired { .. }) {
+            raised = true;
+        }
+    }
+    assert!(!raised, "a step holds no approval of its own");
 }
 
-// ── step rejected -> plan stopped, the following steps do not run ──────
+// ── a call the proxy refuses -> plan stopped, the following steps do not run ─
 
-/// GIVEN a plan [s1:file_io, s2:smtp, s3:file_io]
-///             + manifest.tools_requiring_approval=["smtp"]
-/// WHEN s2 is rejected (approved=false)
+/// GIVEN a plan [s1:file_io, s2:smtp, s3:file_io] on a proxy that asks about
+///       `smtp`, and an actor given no replan
+/// WHEN the answer to s2 is no
 /// THEN s3 never runs,
-///      the plan returns AIPResult::failed("REJECTED"),
-///      file_io is called once only (for s1, not s3)
+///      the plan fails,
+///      file_io ran once only (for s1, not s3),
+///      and smtp never ran
 #[tokio::test]
 async fn test_ac4_orchestrated_tool_reject_stops_plan() {
     // GIVEN
-    let task_id = "t-orch-002";
     let plan = ExecutionPlan {
         plan_id: "plan-ac4".into(),
-        task_id: task_id.into(),
+        task_id: "t-orch-002".into(),
         steps: vec![
-            PlanStep {
-                step_id: "s1".into(),
-                description: "Read the file".into(),
-                tool_hint: Some("file_io".into()),
-                depends_on: vec![],
-                model_hint: None,
-                title: String::new(),
-                status: Default::default(),
-                rationale: None,
-                provenance: Default::default(),
-                args: None,
-            },
-            PlanStep {
-                step_id: "s2".into(),
-                description: "Envoyer l'email".into(),
-                tool_hint: Some("smtp".into()),
-                depends_on: vec!["s1".into()],
-                model_hint: None,
-                title: String::new(),
-                status: Default::default(),
-                rationale: None,
-                provenance: Default::default(),
-                args: None,
-            },
-            PlanStep {
-                step_id: "s3".into(),
-                description: "Archive the result".into(),
-                tool_hint: Some("file_io".into()),
-                depends_on: vec!["s2".into()],
-                model_hint: None,
-                title: String::new(),
-                status: Default::default(),
-                rationale: None,
-                provenance: Default::default(),
-                args: None,
-            },
+            step("s1", "Read the file", "file_io", &[]),
+            step("s2", "Send the email", "smtp", &["s1"]),
+            step("s3", "Archive the result", "file_io", &["s2"]),
         ],
     };
 
@@ -344,70 +311,25 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
     db.insert_steps(&plan.plan_id, &plan.steps)
         .expect("insert_steps");
 
-    let pending = Arc::new(PendingApprovals::new());
-    let (bus_tx, mut bus_rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
-    let manifest = make_manifest_with_approval(&["smtp"]);
-
-    // Track invocations - s3 must NOT be called
-    let invocation_log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
-    let invocation_log_clone = Arc::clone(&invocation_log);
-
-    struct TrackingProxy {
-        log: Arc<Mutex<Vec<String>>>,
-    }
-    #[async_trait]
-    impl ToolProxyTrait for TrackingProxy {
-        async fn invoke(
-            &self,
-            tool_name: &str,
-            _input: &serde_json::Value,
-        ) -> Result<String, String> {
-            self.log.lock().unwrap().push(tool_name.to_string());
-            Ok(format!("{tool_name}: ok"))
-        }
-    }
-
-    let tool_proxy = TrackingProxy {
-        log: invocation_log_clone,
-    };
+    let (bus_tx, _bus_rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+    let (tool_proxy, mut human) = deciding_proxy("smtp");
+    let ran = Arc::clone(&human.ran);
 
     let budget = StepBudget::unlimited();
     let resilience = ResilienceLayer::default();
     let reasoner = Reasoner::new(Arc::new(StubLlm), 10);
     let llm = LlmRouter::empty();
 
-    let mut actor = ActorLoop::new(plan, 0, db, bus_tx, manifest)
-        .with_pending_approvals(Some(Arc::clone(&pending)));
+    let mut actor = ActorLoop::new(plan, 0, db, bus_tx, make_manifest());
 
-    // WHEN - spawn resolver that rejects s2
-    let pending_clone = Arc::clone(&pending);
-    let task_id_clone = task_id.to_string();
+    // WHEN - the human answers no once the call of s2 asks
     let resolver = tokio::spawn(async move {
-        for _ in 0..200_u32 {
-            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
-            match bus_rx.try_recv() {
-                Ok(RuntimeEvent::TaskInputRequired {
-                    step_id: Some(ref id),
-                    ..
-                }) if id == "s2" => {
-                    break;
-                }
-                _ => {}
-            }
-        }
-        pending_clone
-            .resolve(
-                &format!("{task_id_clone}::s2"),
-                InputResponseData {
-                    approved: false,
-                    reason: Some("invalid recipient".into()),
-                    context: serde_json::Value::Null,
-                    responded_at: "2026-01-01T00:00:00Z".into(),
-                    answer: None,
-                    payload: None,
-                },
-            )
-            .expect("resolve s2 (reject) must succeed");
+        human.asked.recv().await.expect("smtp must ask");
+        human
+            .answer
+            .send(Answer::No("invalid recipient"))
+            .await
+            .expect("the answer must be received");
     });
 
     let result = actor
@@ -423,22 +345,23 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
         .await;
     resolver.await.expect("resolver must not panic");
 
-    // THEN - plan failed with REJECTED code
+    // THEN - plan failed
     assert_eq!(
         result.status,
         TaskStatus::Failed,
-        "plan must fail after rejection"
+        "plan must fail after the refusal"
     );
-    let code = result.error.as_ref().map(|e| e.code.as_str()).unwrap_or("");
-    assert_eq!(code, "REJECTED", "error code must be REJECTED");
 
-    // THEN - file_io called exactly once (s1 only, NOT s3)
-    let log = invocation_log.lock().unwrap();
-    let file_io_count = log.iter().filter(|t| t.as_str() == "file_io").count();
+    // THEN - file_io ran exactly once (s1 only, NOT s3)
     assert_eq!(
-        file_io_count, 1,
-        "file_io must only be called once (s1) - s3 must not execute; invocations: {log:?}"
+        count_for(&ran, "file_io"),
+        1,
+        "file_io must only run once (s1) - s3 must not execute; ran: {:?}",
+        ran.lock().unwrap()
     );
-    let smtp_count = log.iter().filter(|t| t.as_str() == "smtp").count();
-    assert_eq!(smtp_count, 0, "smtp must never be invoked after rejection");
+    assert_eq!(
+        count_for(&ran, "smtp"),
+        0,
+        "smtp must never run after a refusal"
+    );
 }

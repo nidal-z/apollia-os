@@ -29,7 +29,7 @@ def test_tool_infers_its_schema_from_typeddict_and_annotated() -> None:
     # WHEN the stamped spec is read
     spec = getattr(extract_totals, TOOL_ATTR)
 
-    # THEN the schema is the one @skill would infer, ctx left out
+    # THEN the schema is inferred from the signature, ctx left out
     assert isinstance(spec, ToolSpec)
     assert spec.input_schema == {
         "type": "object",

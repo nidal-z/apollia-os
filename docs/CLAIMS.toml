@@ -392,21 +392,23 @@ statement becomes false while everything still compiles.
 """
 
 [[claim]]
-id = "agent-contract-is-decorators-not-manifest-run"
+id = "agent-contract-is-a-manifest-read-strictly"
 scope = "public"
-symbol = "__apollia_dispatch__"
+symbol = "apollia_manifest::parse"
 status = "wired"
-proof = "crates/apollia-aip/src/bridge.rs"
+proof = "crates/apollia-tools/src/apollia_manifest/mod.rs"
 evidence = ""
 note = """
-The bridge accepts an agent only when it carries `__apollia_dispatch__`, the
-attribute the `@agent` / `@skill` / `@on_message` decorators install. The
-`manifest()` plus `run()` contract was removed and the runtime no longer calls
-any dynamic `manifest()`.
+An agent is data: an `[[agents]]` entry of the `apollia.toml` its package
+carries. The runtime reads that manifest through one parser, which refuses a
+key the schema does not know, with its full path, and then checks the rules
+the schema cannot express. No Python object stands for an agent any more: the
+bridge that looked for `__apollia_dispatch__` on a class is gone, and so is the
+dict the `@agent` decorator built.
 
-Both the root briefing and the principles page still described the removed
-contract, which is worse than a stale sentence: an author following it writes an
-agent the bridge refuses outright.
+Guarded on the callers of the parser rather than on its definition: a manifest
+read anywhere else, by a lenient reader, is how a misspelt key gets dropped in
+silence and an agent runs without what its author declared.
 """
 
 [[claim]]
@@ -496,27 +498,23 @@ tiers are stated together, and which the code below it must keep matching.
 """
 
 [[claim]]
-id = "tier-budget-capped-at-thirty-on-agent-paths"
+id = "agent-run-budget-is-its-tier-capped-by-the-ceiling"
 scope = "public"
-symbol = "direct_path_budget"
+symbol = "StepBudget::from_capped"
 status = "wired"
-proof = "crates/apollia-cli/src/commands/start.rs"
+proof = "crates/apollia-runtime/src/chat/agent_executor.rs"
 evidence = ""
 note = """
-The tier table of 100 to 500 reasoning steps is real and it is read by the chat
-path, which runs at the default tier and never varies. An agent run reads none
-of it: both execution paths take the budget the manifest declares and cap it
-with `StepBudget::from_capped` against `StepBudgetConfig::default()`, 30 steps,
-60 tool calls, 600 seconds. On the direct path that is `direct_path_budget`, in
-`apollia-cli` and again in `apollia-desktop`; on the orchestrated path the
-engine caps against its own `runtime_config`, whose only setter has no
-production caller, so it stays at the same default.
+An agent run has one path, the agent executor, and it reads the tier table: it
+takes the budget of the tier the agent runs at and caps it with
+`StepBudget::from_capped` against the runtime ceiling the chat is started with,
+100 reasoning steps, 200 tool calls, 1200 seconds. The two paths that ran the
+Python of an agent, and capped the budget its manifest declared at 30 steps,
+are gone with that contract.
 
-An explanation page told an operator that raising the tier raises the budget
-from 100 to 500. It raises what the run may attempt, not what it gets. If
-`direct_path_budget` loses its caller, the direct path is unbounded again and
-principle #7 fails silently, which is the reason this is guarded as `wired`
-rather than stated in prose.
+If `StepBudget::from_capped` loses its caller in the executor, an agent runs on
+the budget of its tier alone, up to 500 steps, and principle #7 fails silently,
+which is the reason this is guarded as `wired` rather than stated in prose.
 """
 
 [[claim]]
@@ -913,17 +911,17 @@ nothing consults and the documented thresholds become fiction.
 # ── Tool-call governance, the real path ──────────────────────────────────────
 
 [[claim]]
-id = "orchestrated-approval-from-manifest"
+id = "plan-step-decided-by-governance"
 scope = "public"
-symbol = "tools_requiring_approval"
+symbol = "GrantedToolProxy::step_call_consent"
 status = "wired"
-proof = "crates/apollia-oria/src/actor.rs"
+proof = "crates/apollia-runtime/src/chat/agent_executor/plan_first/proxy.rs"
 evidence = ""
 note = """
-On the orchestrated path the manifest field is the whole gate. Documenting a
-policy layer here would repeat the drift this pass removed: the corpus described
-a policy aggregate in front of tool calls that no shipped binary ran. If this
-lookup disappears, every step executes unattended and nothing else in the build
+A step of a plan holds no approval of its own: the tool proxy of the run asks
+governance about each call before it reaches the tool, and that one call is the
+whole gate. If the proxy stops making it, every step of a plan runs its tool
+with no policy, no rule and no consent consulted, and nothing else in the build
 notices.
 """
 
@@ -982,21 +980,19 @@ not just this gate, when touching eviction.
 [[claim]]
 id = "module-level-agent-attribute-is-the-entry-point"
 scope = "public"
-symbol = "getattr"
-status = "wired"
-proof = "crates/apollia-aip/src/loader.rs"
+symbol = "load_agent_module_with_sys_paths"
+status = "absent"
+proof = "crates/apollia-aip/src/lib.rs"
 evidence = ""
 note = """
-The loader finds the agent by the name `agent` on the module. Rename what it
-looks for and nothing fails to compile: agents simply stop loading, with an
-error that points at the agent rather than at the loader.
+The loader that imported a Python module and looked for the name `agent` on it
+is gone: an agent is data, an `[[agents]]` entry of the `apollia.toml` of its
+package, and no Python object stands for one. The absence of the loader is the
+delivery, and nothing else in the build would notice its return.
 
-The symbol is bound by `@agent` itself, through `expose_to_module`, not by the
-agent author. The corpus used to teach a hand-written `agent = X()` at the
-bottom of every module, which built a second instance over the registered one.
-That line is gone from the examples and the tutorials; the ones that remain are
-Rust test fixtures that build the manifest by hand, without the decorator, and
-genuinely need it.
+The paragraph this identifier anchors still teaches the module-level `agent`
+symbol of the former contract. It states what the runtime no longer does, and
+it is to be rewritten with the tutorial that carries it.
 """
 
 [[claim]]
@@ -1509,22 +1505,6 @@ a feature.
 """
 
 [[claim]]
-id = "a2a-tool-name-is-prefixed-and-encoded"
-scope = "public"
-symbol = "extract_a2a_skill_id"
-status = "wired"
-proof = "crates/apollia-aip/src/context.rs"
-evidence = ""
-note = """
-`skill_as_tool` does not hand the model a `skill_id`. It emits
-`a2a__{skill_id with . replaced by __}`, because OpenAI-compatible tool names
-reject `.` and `:`, and this function reverses the encoding before dispatch. Two
-pages published director prompts that named the raw `skill_id`, which asks the
-model for a tool it was never given. If the decoder loses its caller, the naming
-convention the prompts now follow is no longer the one the bridge accepts.
-"""
-
-[[claim]]
 id = "daemon-binds-tcp-by-default"
 scope = "public"
 symbol = "resolve_tcp_port"
@@ -1567,37 +1547,22 @@ caller would satisfy a symbol-only check and leave the sentence false.
 [[claim]]
 id = "mcp-requires-approval-gates-task-path"
 scope = "public"
-symbol = "build_task_tool_executors"
-status = "wired"
-proof = "crates/apollia-cli/src/commands/start/chat_runner.rs"
-evidence = "apollia_mcp::executor::build_task_tool_executors("
-note = """
-The flag was documented as gating every call to a server and gated none: the
-only gate sat behind `McpToolExecutor::with_hitl`, which no production path
-called, and it waited on a key no route could resolve. The page now says a
-server declared `requires_approval` pauses the task on an approval, which holds
-only while the task-path runners build their MCP executors through
-`build_task_tool_executors` rather than the ungated `build_agent_tool_executors`.
-The proof is that call, in the helper both CLI task runners use; the desktop
-runner makes the same call in its own `build_mcp_executors`. If either runner
-goes back to the ungated builder, this claim is false and the page with it.
-The CLI chat-agent runner builds its set through the same helper since the page
-said an agent run from an agent chat session is gated too.
-"""
-
-[[claim]]
-id = "mcp-gated-tool-does-not-block-install"
-scope = "public"
-symbol = "register_session_tools_in_registry"
+symbol = "classify_mcp_tool"
 status = "wired"
 proof = "crates/apollia-mcp/src/manager/views.rs"
-evidence = "dangerous: false,"
+evidence = "ServerHints::Read => classify_mcp_tool("
 note = """
-An MCP tool descriptor used to carry its server's `requires_approval` as
-`dangerous`, and install-time resolution refuses a `dangerous` tool unless the
-manifest sets `dangerous_tools_allowed`, which the SDK decorator does not
-expose. Under eager loading an agent requiring a tool of a gated server was
-refused with a 400, while one requiring a tool of an ungated server installed.
-The page says such an agent installs and the approval is held per call; that
-holds while the registered descriptor is not `dangerous`.
+An MCP server used to carry an approval flag, and the task path of a Python
+agent paused on it. Both are gone: the flag, its store, its routes and its
+commands were removed, and the runners of that path went with the contract
+they served.
+
+What decides a call now is the action family of the tool, given once when the
+tool is registered, the evidence above, from the curated selection, then from
+the annotations of the server, and left unclassified otherwise. Governance
+asks on that family before the call runs, with the three answers of a consent
+prompt.
+
+The identifier keeps its historical name so the anchor of the page stays
+stable; the paragraph it anchors says what the code does.
 """

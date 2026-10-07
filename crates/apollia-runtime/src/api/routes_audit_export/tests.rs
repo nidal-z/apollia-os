@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use tower::ServiceExt;
 
 use crate::api::server::APIServer;
-use crate::api::test_support::{app_state, StemLoader};
+use crate::api::test_support::app_state;
 use crate::audit_journal::{AuditJournalHandle, JournalEntryDraft, JournalEntryKind as K};
 use crate::governance::JOURNAL_EXPORT_RUN_ID;
 
@@ -98,10 +98,7 @@ async fn get(dir: &tempfile::TempDir, journal: Option<AuditJournalHandle>, uri: 
     let repo = apollia_tools::TaskRepository::open(&dir.path().join("tasks.db"))
         .await
         .expect("open task repository for test");
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.audit_journal = journal;
     state.task_repository = Some(Arc::new(repo));
     let router = APIServer::build_router_for_test(state);
@@ -349,10 +346,7 @@ async fn get_under_policy(
             policy_digest: "00".into(),
             publisher: "it".into(),
         }));
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.audit_journal = Some(journal);
     state.inference_governance = crate::governance::InferenceGovernance::new(Arc::new(verdict));
     crate::api::test_support::call(state, "GET", uri, None).await

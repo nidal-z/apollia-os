@@ -280,7 +280,7 @@ impl ToolProxy {
         // A2A path: intercept before registry lookup.
         // Accept both `a2a:{skill_id}` (legacy, Anthropic-compatible) and
         // `a2a__{skill_id_with_dots_replaced_by_double_underscore}` (new,
-        // OpenAI-compatible; see `A2AInterface::skill_as_tool`).
+        // OpenAI-compatible).
         if let Some(skill_id) = extract_a2a_skill_id(&tool_name) {
             if let Some(bus) = self.event_bus.as_ref() {
                 let _ = bus.send(started(None, None));
@@ -620,6 +620,9 @@ impl ToolProxy {
         self
     }
 
+    // TEST-ONLY: the orchestrated loop of a Python agent called it; the
+    // plan-first path of the agent executor carries its own proxy over the
+    // granted tools. Kept for the tests of the access check it runs.
     /// Invoke a tool by name from Rust, without PyO3, returning its JSON output.
     ///
     /// Runs the exact same governance as the Python-facing `call`: permission
@@ -634,6 +637,8 @@ impl ToolProxy {
         self.call_inner(tool_name, input).await
     }
 
+    // TEST-ONLY: same caller as `invoke_native`, gone with the Python agent
+    // path; the plan-first proxy reads the schema from the registry itself.
     /// Return the JSON input schema of `tool_name`, when the registry knows it.
     ///
     /// Reads the tool descriptor from the registry and returns its

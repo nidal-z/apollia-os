@@ -27,7 +27,6 @@ pub fn config_from_package(decl: &McpServerDecl) -> McpServerConfig {
             .collect(),
         transport: decl.transport.clone(),
         url: decl.url.clone(),
-        requires_approval: decl.requires_approval,
         init_timeout_secs: decl.init_timeout_secs,
         call_timeout_secs: decl.call_timeout_secs,
         max_response_bytes: decl.max_response_bytes,
@@ -81,7 +80,7 @@ mod tests {
         let decl: McpServerDecl = toml::from_str(
             "name = \"crm\"\ncommand = \"uvx\"\nargs = [\"crm-mcp\"]\n\
              env = { TOKEN = \"${CRM_TOKEN}\" }\ntransport = \"stdio\"\n\
-             requires_approval = true\ninit_timeout_secs = 5\ncall_timeout_secs = 7\n\
+             init_timeout_secs = 5\ncall_timeout_secs = 7\n\
              max_response_bytes = 4096\nmax_tools = 3\ntags = [\"crm\"]\n",
         )
         .expect("decl parses");
@@ -96,7 +95,6 @@ mod tests {
             config.env.get("TOKEN").map(String::as_str),
             Some("${CRM_TOKEN}")
         );
-        assert!(config.requires_approval);
         assert_eq!(config.init_timeout_secs, 5);
         assert_eq!(config.call_timeout_secs, 7);
         assert_eq!(config.max_response_bytes, 4096);

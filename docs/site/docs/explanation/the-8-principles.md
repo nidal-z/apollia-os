@@ -36,18 +36,25 @@ reason about and one thing to keep running.
 
 ## 3. Minimal contract
 
-<!-- claim:agent-contract-is-decorators-not-manifest-run -->
-An agent is a class decorated with `@agent`, holding at least one async method
-decorated with `@skill` or `@on_message`. There is no base class to inherit and
-no framework to adopt. The point is to keep the surface an author must learn
-small, so the runtime can carry the hard parts (governance, budgets, tools)
-rather than pushing them into every agent. For the exact contract an agent sees,
-read the [SDK reference](/reference/sdk).
+<!-- claim:agent-contract-is-a-manifest-read-strictly -->
+An agent is a record: a mission, a model, tools, sources and rights. A package
+writes it as an `[[agents]]` entry of its `apollia.toml` manifest, and no Python
+object stands for it. Code is optional: a package brings tools (`@tool`) and
+workflows (`@workflow`), two decorators over async functions, and nothing else.
+The point is to keep the surface an author must learn small, so the runtime can
+carry the hard parts (governance, budgets, tools) rather than pushing them into
+every agent. It also keeps an agent in the hands of the person who uses it: what
+a package declares is a set of defaults, and a tool, a right or a model is
+changed from the interface without a new version of the code. For the exact
+contract the Python of a package sees, read the [SDK reference](/reference/sdk).
 
-The earlier contract, a `manifest()` method plus an async `run()`, is gone
-(see [the agent contract](/architecture/decisions#agent-contract)). The bridge refuses any object without `__apollia_dispatch__`, the
-attribute the decorators install, so an agent written the old way does not load
-at all rather than half-working.
+The runtime refuses a package whose manifest does not validate. A key the schema
+does not know is refused with its full path, and so is what the schema cannot
+express, such as an agent granted a package tool that the package does not
+deliver. A misspelt key stops the package rather than leaving an agent running
+without what its author declared. The earlier contract, a class decorated with
+`@agent` holding `@skill` or `@on_message` methods, is gone (see
+[the agent contract](/architecture/decisions#agent-contract)).
 
 ## 4. Fail fast
 

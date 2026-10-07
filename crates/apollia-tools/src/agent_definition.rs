@@ -413,53 +413,78 @@ pub fn resolve(
     }
 }
 
-/// The definition of an agent that runs Python code, read from the manifest
-/// its decorator declares.
-///
-/// The mission is the declared system prompt, or the description when there
-/// is none; the access is the required then optional tools; the autonomy is
-/// the declared tier. The declared data sources are files the package carries,
-/// not sources of the registry, so they check no source.
-pub fn definition_from_manifest(manifest: &AgentManifest) -> Value {
-    let mission = manifest
-        .system_prompt
-        .as_deref()
-        .filter(|prompt| !prompt.trim().is_empty())
-        .unwrap_or(&manifest.description);
-    let mut access: Vec<&str> = Vec::new();
-    for tool in manifest
-        .tools_required
-        .iter()
-        .chain(manifest.tools_optional.iter())
-    {
-        if !access.contains(&tool.as_str()) {
-            access.push(tool);
-        }
+/// What the registry holds for the stored agent `agent`: its identifier, its
+/// version, its mission as description, its examples and the autonomy tier
+/// its definition declares. Everything else is the default: what the agent
+/// may reach is its resolved access, read when a run starts, never this.
+pub fn manifest_of(agent: &StoredAgent) -> AgentManifest {
+    let text = |pointer: &str| {
+        agent
+            .definition
+            .pointer(pointer)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let examples = agent
+        .definition
+        .pointer(OverrideField::Examples.pointer())
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    AgentManifest {
+        format_version: 1,
+        name: agent.name.clone(),
+        version: agent.version.clone(),
+        description: text(OverrideField::Mission.pointer()),
+        supports_streaming: false,
+        supports_a2a: false,
+        supports_mailbox: false,
+        mailbox_allowlist: None,
+        memory_namespace: None,
+        shared_memory_namespaces: Vec::new(),
+        max_concurrent_tasks: 1,
+        step_budget: None,
+        tags: Vec::new(),
+        skills: Vec::new(),
+        execution_mode: "auto".to_owned(),
+        system_prompt: None,
+        model: None,
+        autonomy_level: agent
+            .definition
+            .pointer(OverrideField::Autonomy.pointer())
+            .and_then(autonomy_of),
+        packages: Vec::new(),
+        memory_config: None,
+        agent_type: None,
+        examples,
+        limitations: Vec::new(),
+        setup_notes: None,
+        agent_class: None,
+        user_memory_write: false,
+        datasources: Vec::new(),
+        templates: Vec::new(),
+        secrets: Vec::new(),
+        check_commands: Vec::new(),
     }
-    let mut defaults = Map::new();
-    if !access.is_empty() {
-        defaults.insert("access".into(), json!(access));
-    }
-    if let Some(level) = manifest.autonomy_level {
-        defaults.insert("autonomy".into(), json!(level.as_str()));
-    }
-    let mut definition = Map::new();
-    definition.insert("id".into(), json!(manifest.name));
-    definition.insert("name".into(), json!(manifest.name));
-    definition.insert("mission".into(), json!(mission));
-    if !manifest.examples.is_empty() {
-        definition.insert("examples".into(), json!(manifest.examples));
-    }
-    definition.insert("defaults".into(), Value::Object(defaults));
-    Value::Object(definition)
 }
 
-/// The definition of a stored agent whose manifest JSON may be unreadable:
-/// read through [`definition_from_manifest`] when it parses, otherwise the
-/// identifier alone, so a damaged row still migrates.
-pub(crate) fn definition_from_manifest_json(name: &str, manifest_json: &str) -> Value {
-    match serde_json::from_str::<AgentManifest>(manifest_json) {
-        Ok(manifest) => definition_from_manifest(&manifest),
+/// The definition of an agent stored before definitions existed, read from
+/// the manifest JSON its row carried.
+///
+/// This is the shape the manifest had when the `agents` table was created,
+/// read key by key and frozen here: the mission is the system prompt, or the
+/// description when there is none; the access is the required then the
+/// optional tools; the autonomy is the declared tier. A JSON that does not
+/// parse leaves the identifier alone, so a damaged row still migrates.
+pub(crate) fn definition_from_legacy_manifest_json(name: &str, manifest_json: &str) -> Value {
+    let manifest: Value = match serde_json::from_str(manifest_json) {
+        Ok(manifest) => manifest,
         Err(e) => {
             tracing::event!(
                 tracing::Level::WARN,
@@ -467,9 +492,48 @@ pub(crate) fn definition_from_manifest_json(name: &str, manifest_json: &str) -> 
                 error = %e,
                 "agents_db.definition.manifest_unreadable"
             );
-            json!({ "id": name, "name": name, "mission": "", "defaults": {} })
+            return json!({ "id": name, "name": name, "mission": "", "defaults": {} });
+        }
+    };
+    let text = |key: &str| manifest.get(key).and_then(Value::as_str);
+    let mission = text("system_prompt")
+        .filter(|prompt| !prompt.trim().is_empty())
+        .or_else(|| text("description"))
+        .unwrap_or_default();
+    let strings = |key: &str| -> Vec<&str> {
+        manifest
+            .get(key)
+            .and_then(Value::as_array)
+            .map(|items| items.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default()
+    };
+    let mut access: Vec<&str> = Vec::new();
+    for tool in strings("tools_required")
+        .into_iter()
+        .chain(strings("tools_optional"))
+    {
+        if !access.contains(&tool) {
+            access.push(tool);
         }
     }
+    let mut defaults = Map::new();
+    if !access.is_empty() {
+        defaults.insert("access".into(), json!(access));
+    }
+    if let Some(level) = manifest.get("autonomy_level").and_then(autonomy_of) {
+        defaults.insert("autonomy".into(), json!(level.as_str()));
+    }
+    let agent_name = text("name").unwrap_or(name);
+    let mut definition = Map::new();
+    definition.insert("id".into(), json!(agent_name));
+    definition.insert("name".into(), json!(agent_name));
+    definition.insert("mission".into(), json!(mission));
+    let examples = strings("examples");
+    if !examples.is_empty() {
+        definition.insert("examples".into(), json!(examples));
+    }
+    definition.insert("defaults".into(), Value::Object(defaults));
+    Value::Object(definition)
 }
 
 #[cfg(test)]

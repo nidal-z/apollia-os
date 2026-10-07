@@ -23,6 +23,8 @@ from it. Edit the source, never the page.
 
 - **[Configuration (apollia.toml)](/reference/configuration)** the configuration
   file sections and their fields.
+- **[Package manifest (apollia.toml)](/reference/package-manifest)** every table
+  and key of the manifest at the root of a package, and the rules it must hold.
 - **[Native tool catalog](/reference/native-tools)** the tools the runtime exposes
   to agents out of the box.
 - **[Environment variables](/reference/environment-variables)** what the runtime

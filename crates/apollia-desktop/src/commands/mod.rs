@@ -229,8 +229,7 @@ pub(crate) async fn http_put_json(
 
 /// Sends a PATCH request with a JSON body to the internal REST API.
 ///
-/// Used for partial updates (e.g. an MCP server's `requires_approval` without
-/// restarting it).
+/// Used for partial updates.
 pub(crate) async fn http_patch_json(
     port: u16,
     path: &str,

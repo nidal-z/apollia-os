@@ -81,11 +81,6 @@ EXCLUSIONS: dict[str, tuple[str, str]] = {
         "network",
         "downloads a GGML whisper model from the network",
     ),
-    "agent install": (
-        "network",
-        "the documented sources are a git URL and a registry name; the local "
-        "path variant is covered by `agent validate` and `agent create`",
-    ),
     "eval run": (
         "blocking",
         "runs an evaluation suite through the model, minutes per suite and "
@@ -156,10 +151,8 @@ ARGV: dict[str, list[str]] = {
     "mcp raw-config": ["filesystem"],
     "mcp test": ["filesystem"],
     "mcp restart": ["filesystem"],
-    "mcp update": ["filesystem", "--require-approval", "true"],
+    "mcp update": ["filesystem", "--command", "python3"],
     "mcp remove": ["notes", "--confirm"],
-    "mcp set-approval": ["filesystem", "read_file"],
-    "mcp revoke-approval": ["filesystem", "read_file"],
     "mcp secret set": ["filesystem", "SMOKE_TOKEN", "smoke-value"],
     "mcp secret delete": ["filesystem", "SMOKE_TOKEN"],
     "mcp oauth status": ["filesystem"],
@@ -204,11 +197,9 @@ ARGV: dict[str, list[str]] = {
     "profile forget": ["display_name"],
     "completions": ["bash"],
     "guide": ["chat"],
-    # Paths: the seed's own agent directory, never a path in the repository.
-    "agent validate": ["@SEED_AGENT_DIR@"],
-    "inspect": ["@SEED_AGENT_DIR@"],
-    "agent update": ["seed-classifier", "@SEED_AGENT_DIR@"],
-    "agent start": ["@SEED_AGENT_DIR@"],
+    "agent start": ["seed-classifier"],
+    # A package folder written inside the throwaway HOME, never the caller's cwd.
+    "package new": ["smoke-package", "--output-dir", "@RUN_DIR@"],
     # Writes that must land inside the throwaway HOME, never the caller's cwd.
     "audit export": ["--format", "json", "--output", "@RUN_DIR@/audit-export.json"],
     "profile export": ["--output", "@RUN_DIR@/profile.json"],
@@ -239,7 +230,6 @@ ARGV: dict[str, list[str]] = {
     "explain": ["what a sovereign runtime is"],
     "llm chat": ["say ok"],
     "run": ["seed-classifier", "ping"],
-    "agent create": ["smoke-agent"],
     "project create": ["Smoke Project"],
     "mcp add": ["smoke-server", "--command", "/bin/echo"],
     "trigger create": [
@@ -252,7 +242,6 @@ ARGV: dict[str, list[str]] = {
         "0 6 * * 1",
     ],
     "agent uninstall": ["seed-classifier", "--confirm"],
-    "agent repair": ["seed-classifier"],
     "agent package uninstall": ["seed-office-pack", "--confirm"],
     "agent stop": ["seed-classifier"],
     "notify events set": ["task.completed"],

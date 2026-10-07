@@ -66,7 +66,6 @@ fn spawned(dir: &tempfile::TempDir) -> ChatSessionManagerHandle {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::empty())),
         ToolRegistryHandle::start(),
-        Arc::new(crate::api::test_support::StemLoader { refusal: None }),
         None,
         event_tx,
         StepBudgetConfig::default(),

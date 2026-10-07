@@ -49,7 +49,7 @@ pub(super) fn is_code_call(call: &ToolCall, family: ActionFamily) -> bool {
 }
 
 /// What the model is told when governance refuses a call.
-pub(super) fn refusal_text(reason: &DecisionReason) -> String {
+pub(in crate::chat) fn refusal_text(reason: &DecisionReason) -> String {
     match reason {
         DecisionReason::Policy { detail } => format!("Tool {detail}"),
         DecisionReason::Rule { .. } => "Tool refused by a permission rule".to_string(),

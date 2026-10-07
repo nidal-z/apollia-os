@@ -244,7 +244,6 @@ fn the_named_settings_are_lockable() {
             "llm.devices.disabled",
             "tools.new_agent.families",
             "tools.new_agent.access",
-            "mcp.approval_ttl_hours",
             "mcp.tool_loading",
             "mcp.tool_search_limit",
             "mcp.server_enabled",

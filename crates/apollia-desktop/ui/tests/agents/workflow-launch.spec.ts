@@ -31,7 +31,7 @@ async function installTauriStub(page: Page): Promise<void> {
     const agent = {
       id: "rt-invoices", name: "invoices", version: "1.2.0", enabled: true, runtime_status: "active",
       installed_at: "2026-10-01T09:00:00Z", description: "Sorts the invoices of the week", tags: [],
-      tools_required: [], tools_optional: [], execution_mode: "direct", install_path: "/agents/invoices",
+      execution_mode: "direct",
       supports_a2a: false, skills: [], agent_type: "assistant", examples: [], limitations: [],
       setup_notes: null, class_name: "Invoices", memory_namespace: "invoices", shared_memory_namespaces: [],
     };

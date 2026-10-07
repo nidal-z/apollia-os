@@ -71,8 +71,11 @@ clone to a running agent. Beyond that:
 
 - [AGENTS.md](AGENTS.md) lists the build, lint and test commands, scoped and
   workspace-wide, and the rules the code follows.
-- The `justfile` at the root holds the project recipes; `just --list` prints
-  them.
+- The `justfile` at the root holds the project recipes. `just` alone lists
+  them by group, and `just doctor` lists the tools they need, present and
+  absent, before the first build. Its settings are environment variables:
+  `.env.example` names each one with its default, and personal recipes go in
+  an untracked `justfile.local` (see `justfile.local.example`).
 
 ## Supporting the project
 

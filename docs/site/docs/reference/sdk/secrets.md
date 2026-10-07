@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 7
 title: ctx.secrets
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->
@@ -12,7 +12,7 @@ Service type: `SecretsInterface` (from `apollia.context.secrets`).
 
 _Bases: Protocol_
 
-Read-only access to credentials declared in ``@agent(secrets=(...))``.
+Read-only access to the credentials the context was granted.
 
 Every ``get`` reads the encrypted credential store at call time; there is
 no snapshot taken at task startup. The store is the ``governance.db``

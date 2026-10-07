@@ -404,7 +404,7 @@ organization policy can impose it and Rust readers see the same value.
   app and a real backend. It is gated behind `debug_assertions` /
   `import.meta.env.DEV` and tree-shaken out of release builds, so it is not a
   packaged end-to-end suite; it is the only thing in the tree that drives the
-  shell. Run it with `just desktop-dev-automation-seeded
+  shell. Run it with `just automation-seeded
   scripts/automation/master-det.json` (deterministic, no model) and read the
   verdict from `.apollia-automation/report.json`. Read
   `scripts/automation/README.md` before touching a script or a `data-testid`

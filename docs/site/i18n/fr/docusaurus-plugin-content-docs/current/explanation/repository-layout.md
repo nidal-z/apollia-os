@@ -23,8 +23,8 @@ rôle.
 | Chemin | Ce que c'est |
 |---|---|
 | `crates/` | L'espace de travail Rust. Chaque sous-répertoire est une crate avec une responsabilité unique. Les membres et leurs versions de dépendances partagées sont déclarés dans le `Cargo.toml` racine. |
-| `sdk/` | Le SDK Python (paquet `apollia`, « AgentKit ») : les décorateurs `@agent` / `@skill`, le contrat de type `Ctx`, et l'interface minimale à duck-typing qu'un agent implémente. Empaqueté avec `pyproject.toml`. C'est le kit pour *écrire* des agents qui s'exécutent *à l'intérieur* du runtime. |
-| `agents/` | Agents fournis avec le projet. `agents/system/` contient les agents livrés avec Apollia (l'agent d'onboarding, le guide intégré à l'application) ; `agents/examples/` contient un exemple minimal `hello`. À considérer comme des illustrations, pas des modèles canoniques. |
+| `sdk/` | Le SDK Python (paquet `apollia`, « AgentKit ») : les décorateurs `@tool` et `@workflow`, le contrat de type `Ctx`, et la commande `describe` qui écrit les descripteurs d'outils et de workflows d'un paquet dans son `apollia.toml`. Empaqueté avec `pyproject.toml`. C'est le kit pour *écrire* le Python des paquets qui s'exécutent *à l'intérieur* du runtime. |
+| `agents/` | Paquets fournis avec le projet. `agents/system/` contient les paquets livrés avec Apollia (l'agent d'onboarding, le guide intégré à l'application) ; `agents/starters/` contient les agents déclaratifs que l'application propose, chacun un `apollia.toml` sans code ; `agents/examples/` contient deux petits exemples, `hello` (un agent avec un outil Python) et `word-count` (un outil Python sans agent). À considérer comme des illustrations, pas des modèles canoniques. |
 | `clients/` | Des clients d'API typés qu'une *application hôte* utilise pour *piloter* un runtime Apollia en cours d'exécution via son API HTTP (soumettre des tâches, streamer des résultats, lire le journal d'audit). Les clients TypeScript (`clients/ts`) et Python (`clients/python`) sont générés à partir de `clients/openapi.json` via `clients/regen.sh`, de sorte qu'ils ne peuvent pas diverger du contrat de communication. C'est la direction opposée de `sdk/`. |
 | `tests/` | La crate de tests d'intégration et de bout en bout au niveau de l'espace de travail (`apollia-e2e-tests`), ainsi que la suite CLI (`tests/cli/`) qui exerce le runtime à travers les frontières des crates. Les tests unitaires par crate vivent quant à eux à l'intérieur de chaque crate. |
 | `fuzz/` | La crate `cargo-fuzz` : les cibles libFuzzer (`fuzz/fuzz_targets/`) et leurs corpus (`fuzz/seeds/`). Compilée à part avec une chaîne d'outils nightly et exclue de l'espace de travail stable, de sorte que les contrôles habituels n'essaient jamais de la compiler. |
@@ -113,7 +113,7 @@ décrivent ce qu'il configure réellement dans ce dépôt.
 | `rustfmt.toml` | Formatage : édition 2021, `max_width = 100`, imports réordonnés, raccourcis field-init et try, fins de ligne Unix. |
 | `deny.toml` | Politique `cargo-deny` : une liste blanche de licences acceptables, le refus des registres inconnus, un avertissement sur les versions de dépendances dupliquées, et une liste documentée, par release, des avis de sécurité ignorés (chacun avec sa condition de levée). |
 | `Cross.toml` | Cross-compilation `cross-rs` : les étapes `pre-build` qui installent les bibliothèques système Linux (ALSA, PulseAudio, JACK, CMake, clang) dans le conteneur de build pour les cibles GNU/Linux x86_64 et aarch64. |
-| `justfile` | Recettes de tâches `just` : les commandes canoniques pour construire, tester, linter, et exécuter l'automate desktop. |
+| `justfile` | Recettes de tâches `just` : les commandes canoniques pour construire, tester, linter, et exécuter l'automate desktop. `just` seul les liste par groupe et `just doctor` vérifie la chaîne d'outils. Ses réglages sont des variables d'environnement, listées avec leurs valeurs par défaut dans `.env.example` ; les recettes personnelles vont dans un `justfile.local` non suivi, sur le modèle de `justfile.local.example`. |
 | `.pre-commit-config.yaml` | La liste des hooks, et le fichier à lire pour la connaître plutôt qu'une copie de celle-ci : hygiène des fichiers et détection de secrets, `ruff` sur `sdk/`, `rustfmt` et `cargo check` sur l'espace de travail, neuf des gardes du dépôt sous `scripts/` (dont les règles de prose), et le build du site de documentation. Deux entrées tournent en dehors du commit lui-même : `clippy` au push, et la convention de message de commit à `commit-msg`. À ne jamais contourner. |
 | `.editorconfig` | Règles d'espacement indépendantes de l'éditeur : fins de ligne LF, ligne finale vide, et tailles d'indentation par langage (4 pour Rust/Python/TOML, 2 pour le web et Markdown). |
 | `.python-version` | Fige l'interpréteur Python local (`3.13.7`) pour des outils comme `pyenv`. |
@@ -141,7 +141,7 @@ convention (surcharges de contributeur par machine et par session) ; ils
 peuvent ne pas exister dans une copie de travail donnée.
 
 **Ce que le `HOME` ensemencé couvre.** Les deux recettes qui le construisent,
-`desktop-dev-automation-seeded` et `desktop-dev-automation-seeded-llama`,
+`automation-seeded` et `automation-seeded-llama`,
 remplacent `HOME` par la copie jetable avant de lancer l'application, de sorte
 que l'application testée ne lit et n'écrit que cette copie, jamais le profil
 `~/.apollia` réel. Les recettes atteignent quand même le répertoire personnel
@@ -149,7 +149,7 @@ réel en deux endroits. Toutes deux y résolvent `CARGO_HOME` et `RUSTUP_HOME`
 (`~/.cargo`, `~/.rustup`) avant le remplacement, pour que la compilation
 utilise la chaîne d'outils et le cache de crates déjà présents plutôt qu'un
 cache vide sous la graine. Et la recette `-llama`, celle qui pilote un vrai
-modèle, lit un fichier du profil réel, le GGUF du modèle sous
-`~/.apollia/models/`, parce que la graine porte des GGUF de remplacement et non
-un modèle exécutable. Ces deux points sont écrits dans les recettes elles-mêmes,
-dans le `justfile`.
+modèle, lit un fichier hors de la graine, le GGUF du modèle que vous nommez en
+argument ou dans `APOLLIA_LLAMA_MODEL`, parce que la graine porte des GGUF de
+remplacement et non un modèle exécutable. Ces deux points sont écrits là où les
+recettes sont implémentées, dans `scripts/lib/automation.sh`.

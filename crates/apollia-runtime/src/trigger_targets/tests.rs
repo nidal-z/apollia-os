@@ -23,7 +23,6 @@ use serde_json::{json, Value};
 use tokio::sync::broadcast;
 
 use super::*;
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::routes_llm::tests::{test_app_state_no_llm, MockBackend};
 use crate::chat::ChatSessionManagerHandle;
 use crate::workflows::{BoxFuture, WorkflowCall, WorkflowDescriptor, WorkflowHost};
@@ -141,7 +140,6 @@ async fn fixture(definitions: Vec<TriggerDefinition>) -> Fixture {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "answers"))),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

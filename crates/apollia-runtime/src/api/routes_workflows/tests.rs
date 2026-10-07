@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::*;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::workflows::{BoxFuture, WorkflowCall, WorkflowDescriptor, WorkflowHost};
 
 /// One workflow, `invoices/close-month`: it opens `extract`, then waits for
@@ -77,10 +77,7 @@ async fn fixture() -> Fixture {
     let (bus, _) = tokio::sync::broadcast::channel(64);
     let engine = WorkflowHandle::spawn(repository, bus, StepBudgetConfig::default(), None);
     engine.set_host(Arc::new(Host)).await.unwrap();
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.workflows = Some(engine);
     Fixture { _dir: dir, state }
 }
@@ -366,10 +363,7 @@ async fn stopping_a_run_answers_once_it_ended_and_a_second_stop_conflicts() {
 async fn without_an_engine_the_routes_answer_503() {
     // GIVEN a state with no workflow engine
     let dir = tempfile::tempdir().unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a workflow is launched
     let (status, _) = call(

@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
 use crate::api::routes_chat::tests::test_router_with_chat_plan_default;
-use crate::api::test_support::{app_state, call, StemLoader};
+use crate::api::test_support::{app_state, call};
 
 /// Sends one request through `router` and reads the JSON answer.
 async fn send(
@@ -84,7 +82,6 @@ async fn test_the_plan_mode_default_is_the_one_the_manager_was_spawned_with() {
 async fn test_the_plan_routes_answer_503_without_the_chat_subsystem() {
     // GIVEN a runtime started without the chat session manager
     let dir = tempfile::tempdir().unwrap();
-    let loader = Arc::new(StemLoader { refusal: None });
 
     // WHEN each plan route is called
     for (method, uri, body) in [
@@ -99,7 +96,7 @@ async fn test_the_plan_routes_answer_503_without_the_chat_subsystem() {
         ("POST", "/api/v1/sessions/s-1/plan/approve", None),
         ("POST", "/api/v1/sessions/s-1/plan/reject", Some(json!({}))),
     ] {
-        let state = app_state(loader.clone(), dir.path().to_path_buf());
+        let state = app_state(dir.path().to_path_buf());
         let (status, answer) = call(state, method, uri, body).await;
 
         // THEN each says the subsystem is unavailable, in the embedded words

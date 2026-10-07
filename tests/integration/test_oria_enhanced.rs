@@ -91,7 +91,6 @@ impl CompletionModel for TrackableBackend {
 
 fn make_manifest(
     name: &str,
-    tools_required: Vec<String>,
     max_steps: u32,
     tags: Vec<String>,
     execution_mode: &str,
@@ -102,8 +101,6 @@ fn make_manifest(
         name: name.to_owned(),
         version: "1.0.0".to_owned(),
         description: format!("Test agent {name}"),
-        tools_required,
-        tools_optional: vec![],
         supports_streaming: false,
         supports_a2a: false,
         supports_mailbox: false,
@@ -116,14 +113,10 @@ fn make_manifest(
             max_tool_calls: 20,
             wall_clock_secs: 300,
         }),
-        network_allowlist: None,
-        dangerous_tools_allowed: false,
         tags,
         skills: vec![],
         execution_mode: execution_mode.to_owned(),
         system_prompt: None,
-        tools_requiring_approval: vec![],
-        llm_backend: None,
         model: None,
         packages: vec![],
         memory_config: None,
@@ -449,17 +442,11 @@ async fn test_plan_cache_hit() {
 #[tokio::test]
 async fn test_weighted_classifier() {
     // GIVEN a simple agent (2 tools, 10 steps, no tags) - score < 0.40
-    let simple_manifest = make_manifest(
-        "simple-agent",
-        vec!["tool_a".to_owned(), "tool_b".to_owned()],
-        10,
-        vec![],
-        "auto",
-    );
+    let simple_manifest = make_manifest("simple-agent", 10, vec![], "auto");
     let simple_task = make_task("Hello world");
 
     // WHEN classified
-    let mode = classify(&simple_task, &simple_manifest, None, 0.40);
+    let mode = classify(&simple_task, &simple_manifest, 2, None, 0.40);
 
     // THEN Direct (score = 0.0, well below 0.40)
     assert_eq!(
@@ -469,23 +456,12 @@ async fn test_weighted_classifier() {
     );
 
     // GIVEN a complex agent (5+ tools, 20 steps, "multi-step" tag) - score >= 0.40
-    let complex_manifest = make_manifest(
-        "complex-agent",
-        vec![
-            "t1".to_owned(),
-            "t2".to_owned(),
-            "t3".to_owned(),
-            "t4".to_owned(),
-            "t5".to_owned(),
-        ],
-        20,
-        vec!["multi-step".to_owned()],
-        "auto",
-    );
+    let complex_manifest =
+        make_manifest("complex-agent", 20, vec!["multi-step".to_owned()], "auto");
     let complex_task = make_task("Build a comprehensive analysis pipeline");
 
     // WHEN classified
-    let mode = classify(&complex_task, &complex_manifest, None, 0.40);
+    let mode = classify(&complex_task, &complex_manifest, 5, None, 0.40);
 
     // THEN Orchestrated (tag=0.40 + tools=0.20 + steps=0.30 = 0.90)
     assert_eq!(
@@ -495,17 +471,11 @@ async fn test_weighted_classifier() {
     );
 
     // GIVEN an agent with only the "multi-step" tag - score = 0.40 (boundary)
-    let tag_only_manifest = make_manifest(
-        "tag-agent",
-        vec!["tool_a".to_owned()],
-        10,
-        vec!["multi-step".to_owned()],
-        "auto",
-    );
+    let tag_only_manifest = make_manifest("tag-agent", 10, vec!["multi-step".to_owned()], "auto");
     let tag_task = make_task("Simple task with multi-step tag");
 
     // WHEN classified
-    let mode = classify(&tag_task, &tag_only_manifest, None, 0.40);
+    let mode = classify(&tag_task, &tag_only_manifest, 1, None, 0.40);
 
     // THEN Orchestrated (score = 0.40 >= threshold 0.40)
     assert_eq!(

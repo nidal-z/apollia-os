@@ -5,8 +5,6 @@
 
 use std::sync::Arc;
 
-use apollia_core::events::RuntimeEvent;
-use apollia_core::PendingApprovals;
 use apollia_llm::{
     router::ObservabilityConfig as LlmObsConfig, ChatMessage, CompletionRequest, LlmRouter,
 };
@@ -96,9 +94,8 @@ impl ActorLoop {
     }
     /// Execute a single step, tool or LLM depending on `tool_hint`.
     ///
-    /// Before the actual execution, checks whether the step's tool is in
-    /// `manifest.tools_requiring_approval`. If so and `pending_approvals` is
-    /// configured, calls [`suspend_for_approval`] and waits for the human decision.
+    /// A step asks nobody before it runs: the tool proxy decides each call
+    /// where it is made, and a call it refuses comes back as a failed step.
     ///
     /// - `tool_hint = Some("llm")` or `None`: LLM call on the agent's model
     ///   (see [`ActorLoop::agent_backend`]). Previous outputs are injected into
@@ -107,8 +104,6 @@ impl ActorLoop {
     ///
     /// Previous step outputs are interpolated into the step description via
     /// [`interpolate_outputs`] before being passed to the tool or the LLM.
-    ///
-    /// [`suspend_for_approval`]: ActorLoop::suspend_for_approval
     // REASON: cohesive execution dependencies (proxy, router, resilience) plus
     // the step context. A future consolidation may move the resilience layer
     // into the StepDeps bundle once the batch path needs it too.
@@ -122,32 +117,6 @@ impl ActorLoop {
         llm_router: &LlmRouter,
         resilience: &ResilienceLayer,
     ) -> Result<String, StepError> {
-        // Check whether the step's tool requires human approval.
-        let tool_needs_approval = step
-            .tool_hint
-            .as_deref()
-            .map(|t| {
-                self.manifest
-                    .tools_requiring_approval
-                    .iter()
-                    .any(|a| a == t)
-            })
-            .unwrap_or(false);
-
-        if tool_needs_approval {
-            if let Some(pending) = self.pending_approvals.as_ref() {
-                self.suspend_for_approval(step, pending).await?;
-            } else {
-                tracing::warn!(
-                    step_id = %step.step_id,
-                    tool = ?step.tool_hint,
-                    detail = "the sensitive step runs without approval",
-                    "step.approval.unconfigured"
-                );
-            }
-        }
-
-        // Normal step execution after approval (or for a non-sensitive tool).
         let input = interpolate_outputs(&step.description, &step_ctx.previous_outputs);
 
         match step.tool_hint.as_deref() {
@@ -208,14 +177,14 @@ impl ActorLoop {
         }
     }
     /// The backend every model call of a step goes to: the model of the agent
-    /// (`llm_backend` of its manifest) when the router holds it, the router's
+    /// (the one its run was given) when the router holds it, the router's
     /// default otherwise.
     ///
     /// A step never picks its own model. A plan may still carry a
     /// `model_hint`, written by an earlier planner or by the model on its own;
     /// it is not read, so a run stays on the one model its agent was given.
     pub(super) fn agent_backend<'a>(&'a self, llm_router: &LlmRouter) -> Option<&'a str> {
-        let backend = self.manifest.llm_backend.as_deref()?;
+        let backend = self.model_backend.as_deref()?;
         if llm_router.get(Some(backend)).is_some() {
             Some(backend)
         } else {
@@ -294,71 +263,6 @@ impl ActorLoop {
             .map_err(|e| StepError::LlmCallFailed(e.to_string()))?;
 
         Ok(response.content)
-    }
-    /// Suspend step execution and wait for the human decision (HITL Orchestrated mode).
-    ///
-    /// ## Sequence
-    ///
-    /// 1. Register a oneshot channel in `pending_approvals`, receiver `rx`.
-    /// 2. Emit [`RuntimeEvent::TaskInputRequired`] with `step_id: Some(step.step_id)`
-    ///    on the `EventBus` to notify the user.
-    /// 3. Await `rx.await`: the `ResumeHandler` sends on the sender.
-    /// 4. If `approved=true`: `Ok(())`, the step's tool runs normally.
-    /// 5. If `approved=false`: `Err(StepError::RejectedByUser { reason })`.
-    /// 6. If the channel is closed (runtime shutdown): `Err(StepError::ApprovalChannelClosed)`.
-    ///
-    /// **StepBudget paused during suspension**: the wait is a pure `await`,
-    /// the step counter does not advance during the human suspension.
-    pub(super) async fn suspend_for_approval(
-        &self,
-        step: &PlanStep,
-        pending_approvals: &PendingApprovals,
-    ) -> Result<(), StepError> {
-        // Registration key: task_id + step_id to identify the suspension precisely.
-        let approval_key = format!("{}::{}", self.plan.task_id, step.step_id);
-
-        // 1. Register in PendingApprovals, get rx
-        let rx = pending_approvals.register(&approval_key);
-
-        // 2. Emit TaskInputRequired with step_id set (distinguishes Direct / Orchestrated mode)
-        let prompt = format!(
-            "Approval required before running '{}' (step: {})",
-            step.tool_hint.as_deref().unwrap_or("llm"),
-            step.step_id
-        );
-        let _ = self.event_bus.send(RuntimeEvent::TaskInputRequired {
-            task_id: self.plan.task_id.clone().into(),
-            prompt,
-            step_id: Some(step.step_id.clone()),
-        });
-
-        tracing::info!(
-            task_id = %self.plan.task_id,
-            step_id = %step.step_id,
-            tool = ?step.tool_hint,
-            "step.approval.suspended"
-        );
-
-        // 3. Wait for the human decision (pure await: StepBudget does not advance)
-        let response = rx.await.map_err(|_| StepError::ApprovalChannelClosed)?;
-
-        tracing::info!(
-            task_id = %self.plan.task_id,
-            step_id = %step.step_id,
-            approved = response.approved,
-            "step.approval.decided"
-        );
-
-        // 4/5. Return based on the decision
-        if response.approved {
-            Ok(())
-        } else {
-            Err(StepError::RejectedByUser {
-                reason: response
-                    .reason
-                    .unwrap_or_else(|| "Rejected by the user".into()),
-            })
-        }
     }
     /// Records an episodic memory entry for a completed step.
     ///

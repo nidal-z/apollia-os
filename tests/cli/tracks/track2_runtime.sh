@@ -36,9 +36,10 @@ check_content "llm backends lists local-llama-server" "local-llama-server" "${Q[
 check_content "llm backends lists gpu-server" "gpu-server"  "${Q[@]}" llm backends list
 check_content "mcp list has filesystem connected" "filesystem"  "${Q[@]}" mcp list
 check_content "notify events get has task.completed" "task.completed" "${Q[@]}" notify events get
-# Seeded agents auto-start at boot, so seed-classifier exposes its A2A skill.
-check_content "a2a skills exposes classify_text" "classify_text" "${Q[@]}" a2a skills
-check         "a2a invoke classify_text completes" "${Q[@]}" a2a invoke classify_text --args '{"text":"the app crashes on login","labels":["bug","feature"]}' --timeout 60
+# A seeded agent is on the card under its identifier, read from the store with
+# nothing started.
+check_content "a2a skills exposes agent:seed-classifier" "agent:seed-classifier" "${Q[@]}" a2a skills
+skip          "a2a invoke agent:seed-classifier" "an agent answers through a model; the invocation of a packaged workflow, which needs none, is asserted in the packaged phase"
 
 # Empty-but-valid runtime reads (seeded elsewhere, not surfaced by these paths).
 check         "task list (empty ok)"               "${Q[@]}" task list
@@ -71,8 +72,11 @@ check         "mcp show filesystem"                "${Q[@]}" mcp show filesystem
 check_content "mcp show reports connected" "connected|healthy|yes" "${Q[@]}" mcp show filesystem
 check         "mcp test filesystem"                "${Q[@]}" mcp test filesystem
 check         "mcp raw-config filesystem"          "${Q[@]}" mcp raw-config filesystem
-check         "mcp update filesystem"              "${Q[@]}" mcp update filesystem --require-approval true
-check_content "mcp update persisted requires_approval" "requires_approval.*true|true" "${Q[@]}" mcp raw-config filesystem
+# The update writes back the command the server already runs: the patch is
+# accepted and persisted, and the stub keeps answering.
+MCP_FS_COMMAND="$("${Q[@]}" mcp raw-config filesystem --json | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['command'])" 2>/dev/null || true)"
+check         "mcp update filesystem"              "${Q[@]}" mcp update filesystem --command "$MCP_FS_COMMAND"
+check_json_field "mcp update persisted the command" "d['command'] != ''" "True" "${Q[@]}" mcp raw-config filesystem --json
 check         "mcp restart filesystem"             "${Q[@]}" mcp restart filesystem
 check         "mcp remove notes --confirm"         "${Q[@]}" mcp remove notes --confirm
 check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show notes
@@ -290,40 +294,25 @@ check_exit    "workflow cancel unknown → 1"       1  "${Q[@]}" workflow cancel
 check_exit    "task resume (unknown task) → 1"  1  "${Q[@]}" task resume ghost-task-id --approve
 skip          "task resume (suspended task)" "needs a task suspended in input_required; the model-free stub never suspends"
 
-# ── agent lifecycle (stub agent; degrades to skip if runner unavailable) ─────
-section "agent lifecycle (stub)"
-HELLO_PY="$RUN_TMP/hello.py"
-/bin/cat >"$HELLO_PY" <<'PYEOF'
-"""E2E stub agent for cli-e2e.sh."""
-from apollia import agent, on_message
-from apollia.types import Ctx, Message
-
-@agent(name="e2e-hello", version="0.0.1", description="E2E stub")
-class E2EHello:
-    @on_message
-    async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
-        return f"echo:{message}"
-
-agent_instance = E2EHello()
-PYEOF
-check         "agent validate <stub>"              "$BIN" agent validate "$HELLO_PY"
-check         "agent install <stub> --skip-tests"  "${Q[@]}" agent install "$HELLO_PY" --skip-tests
-check_content "agent list shows e2e-hello" "e2e-hello" "${Q[@]}" agent list
-if "${Q[@]}" agent start e2e-hello >/dev/null 2>&1; then
-    _pass "agent start (post-install)"
-    check    "agent status e2e-hello"              "${Q[@]}" agent status e2e-hello
-    check    "agent messages --limit 5"            "${Q[@]}" agent messages e2e-hello --limit 5
-    check    "agent logs --last 5"                 "${Q[@]}" agent logs e2e-hello --last 5
-    check    "trigger fire (started stub)"         bash -c "'$BIN' --socket '$SOCK' trigger create t-fire --agent e2e-hello --kind cron --detail '@daily' && '$BIN' --socket '$SOCK' trigger fire t-fire; rc=\$?; '$BIN' --socket '$SOCK' trigger delete t-fire --confirm >/dev/null 2>&1; exit \$rc"
-    AGENT_RUNNING=1
-else
-    skip     "agent status/messages/logs/fire" "Python runner could not spawn the SDK loader in the tmp \$HOME"
-    AGENT_RUNNING=0
-fi
-check         "agent update e2e-hello <path>"      "${Q[@]}" agent update e2e-hello "$HELLO_PY"
-check         "agent stop e2e-hello"               "${Q[@]}" agent stop e2e-hello
-check         "agent disable e2e-hello"            "${Q[@]}" agent disable e2e-hello
-check         "agent enable e2e-hello"             "${Q[@]}" agent enable e2e-hello
+# ── agent lifecycle (a seeded agent: data, no Python behind it) ──────────────
+section "agent lifecycle (seeded agent)"
+# The seeded agents are available as soon as the daemon is up: nobody starts
+# them. The lifecycle verbs are played on onboarding-agent and leave it as
+# they found it, enabled and available.
+check_content "agent list shows onboarding-agent"  "onboarding-agent" "${Q[@]}" agent list
+check         "agent status onboarding-agent"      "${Q[@]}" agent status onboarding-agent
+check         "agent messages --limit 5"           "${Q[@]}" agent messages onboarding-agent --limit 5
+check         "agent logs --last 5"                "${Q[@]}" agent logs onboarding-agent --last 5
+check         "trigger fire (seeded agent)"        bash -c "'$BIN' --socket '$SOCK' trigger create t-fire --agent onboarding-agent --kind cron --detail '@daily' && '$BIN' --socket '$SOCK' trigger fire t-fire; rc=\$?; '$BIN' --socket '$SOCK' trigger delete t-fire --confirm >/dev/null 2>&1; exit \$rc"
+check_exit    "agent start (already available) → 1" 1 "${Q[@]}" agent start onboarding-agent
+check_exit    "agent start (unknown agent) → 1"    1 "${Q[@]}" agent start e2e-ghost-agent
+check_exit    "agent start apollia:chat (built in) → 1" 1 "${Q[@]}" agent start apollia:chat
+check         "agent stop onboarding-agent"        "${Q[@]}" agent stop onboarding-agent
+check         "agent start onboarding-agent (after a stop)" "${Q[@]}" agent start onboarding-agent
+check         "agent stop onboarding-agent (again)" "${Q[@]}" agent stop onboarding-agent
+check         "agent disable onboarding-agent"     "${Q[@]}" agent disable onboarding-agent
+check_exit    "agent start (disabled agent) → 1"   1 "${Q[@]}" agent start onboarding-agent
+check_json_field "agent enable makes it available again" "d['runtime_load']" "loaded" "${Q[@]}" agent enable onboarding-agent --json
 # Overrides of a seeded agent: set, read back resolved, then back to defaults.
 # Placed after the empty-journal audit checks: every write is journaled.
 check_content "agent list --definitions has apollia-chat" "apollia-chat" "${Q[@]}" agent list --definitions
@@ -358,14 +347,10 @@ check_exit    "audit journal (unknown nature) → 1" 1 "${Q[@]}" audit journal -
 check_exit    "audit journal (unreadable date) → 1" 1 "${Q[@]}" audit journal --since last-week
 check         "agent package list"                 "${Q[@]}" agent package list
 check_content "agent package list has seed-office-pack" "seed-office-pack" "${Q[@]}" agent package show seed-office-pack
-check         "agent create scaffold --type react" "$BIN" agent create e2e-scaffold --type react
-check         "agent uninstall e2e-hello"          "${Q[@]}" agent uninstall e2e-hello --confirm
-# Both leaves resolve their target before acting, so an unknown name is a
-# deterministic refusal; the success paths need an installed bundle and stay
-# variants below.
-check_exit    "agent repair (unknown agent) → 1"           1 "${Q[@]}" agent repair e2e-ghost-agent
+# The leaf resolves its target before acting, so an unknown name is a
+# deterministic refusal; the success path is played further down, on a
+# package this track installs.
 check_exit    "agent package uninstall (unknown pack) → 1" 1 "${Q[@]}" agent package uninstall e2e-ghost-pack --confirm
-skip          "agent repair / agent package uninstall (installed bundle)" "repair re-provisions a packaged agent's venv; uninstall needs the bundle (seed-office-pack is show-only here)"
 
 # ── eval (report offline; run needs a model → Track 3) ──────────────────────
 section "eval"

@@ -41,18 +41,9 @@ if [[ "$RUNNER_OK" == "1" ]]; then
 
     # ── C.3 run --stream (SSE token stream) ─────────────────────────────────
     section "C.3 run --stream (capture)"
-    # Reinstall + start the echo stub so `run --stream` has a running target
-    # that streams without depending on model quality.
-    RUN_STUB="$RUN_TMP/hello3.py"
-    /bin/cp "$RUN_TMP/hello.py" "$RUN_STUB" 2>/dev/null || true
-    if [[ -f "$RUN_STUB" ]] && "${Q[@]}" agent install "$RUN_STUB" --skip-tests >/dev/null 2>&1 \
-        && "${Q[@]}" agent start e2e-hello >/dev/null 2>&1; then
-        capture_stream "run --stream (echo stub)" 90 1 "ping" -- \
-            "${Q[@]}" run e2e-hello "ping" --stream
-        "${Q[@]}" agent uninstall e2e-hello --confirm >/dev/null 2>&1 || true
-    else
-        skip "run --stream" "echo stub could not be started (Python runner)"
-    fi
+    # A seeded agent answers through the model this track loads.
+    capture_stream "run --stream (seeded agent)" 90 1 "ping" -- \
+        "${Q[@]}" run seed-classifier "ping" --stream
 
     # ── C.4 chat REPL streaming (the marquee test: prove the stream) ─────────
     # Runs last: it is the longest capture. Pass criterion is that a reply

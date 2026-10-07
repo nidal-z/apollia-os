@@ -141,7 +141,6 @@ describe("the search narrows what is loaded", () => {
       auth_help_url: null,
       auth_help_text: null,
       auth_help_i18n_key: null,
-      default_requires_approval: false,
       oauth_pre_registered_client_id_env: null,
     } as unknown as RegistryServerView["enrichment"],
   });

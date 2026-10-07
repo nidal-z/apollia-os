@@ -615,7 +615,8 @@ jobs:
           fi
 
       # The libpython relocation runs before bundling (beforeBundleCommand,
-      # scripts/patch-prebundle-libpython.sh), so what Tauri signs is what the
+      # crates/apollia-desktop/scripts/patch-prebundle-libpython.sh), so what Tauri
+      # signs is what the
       # .dmg carries. This verification renders a verdict: no `|| true`.
       - name: Verify the .app signature
         run: |

@@ -129,7 +129,7 @@ function screens(): Record<string, Rendered> {
     serverTools: { component: McpToolsTab, props: { tools: TOOLS, serverName: "linear" } },
     serverSettings: {
       component: McpSettingsTab,
-      props: { serverName: "linear", approvalLevel: "ask", approvalPending: false, approvalError: null, confirmDisconnect: false, disconnecting: false, disconnectError: null, onapprovalchange: noop, onsaved: noop, onrequestdisconnect: noop, oncanceldisconnect: noop, onconfirmdisconnect: noop },
+      props: { serverName: "linear", confirmDisconnect: false, disconnecting: false, disconnectError: null, onsaved: noop, onrequestdisconnect: noop, oncanceldisconnect: noop, onconfirmdisconnect: noop },
     },
     builtinTools: { component: BuiltinToolsDetail },
     otherConnection: { component: ConnectionSummaryDetail, props: { connection: CONNECTIONS[3], label: "Invoices" } },
