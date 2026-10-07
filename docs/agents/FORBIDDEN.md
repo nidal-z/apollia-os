@@ -238,9 +238,10 @@ describe structure, wording, and intent only.
 
 **NEVER copy an existing agent in `agents/` as a reference template.** Confidence in
 those agents is low. Sources of truth: the SDK type contract
-(`sdk/apollia/types.py` + `sdk/apollia/context/*.py`), `@agent` / `@skill`
-decorator implementations, and the decisions chapter of the documentation
-site.
+(`sdk/apollia/types.py` + `sdk/apollia/context/*.py`), the `@tool` and
+`@workflow` decorator implementations, the manifest schema
+(`crates/apollia-tools/src/apollia_manifest/mod.rs`), and the decisions chapter
+of the documentation site.
 
 **NEVER references to internal artifacts in public-facing files.** Specifically, no
 internal tracker identifiers, sprint or batch numbers, or planning vocabulary

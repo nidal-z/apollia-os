@@ -160,7 +160,7 @@ flowchart TB
         side["TriggerEngine · NotificationEngine · PermissionsEngine"]
         aip["AIP bridge (PyO3)<br/>Rust and Python async · ToolProxy · MemoryInterface"]
     end
-    agent["Python agent<br/>@agent / @on_message<br/>duck-typed"]
+    agent["Package Python<br/>@tool / @workflow"]
 
     sup --> coord --> oria
     oria --> tools
@@ -224,64 +224,94 @@ Getting the most out of a local model:
 
 ## Writing an Agent
 
-An Apollia agent is an ordinary Python class. The SDK decorators declare the
-manifest and the entry points; no base class, no inheritance. `@agent`
-instantiates the class and binds the instance to the module, which is what the
-runtime loads, so do not write `agent = MyClass()` yourself: the line builds a
-second instance that overwrites the registered one. Use absolute imports
-(`from apollia import ...`), never relative ones.
+An Apollia agent is a record, not a program: a mission, a model, the tools it
+is granted, the sources it may read, and its rights. It is written as an
+`[[agents]]` entry in the `apollia.toml` manifest of a package, or created in
+the desktop application without a line of code. Code is optional: the Python of
+a package brings tools (`@tool`) and workflows (`@workflow`), and nothing else.
 
-### Conversational agent
+### An agent and its tool
+
+```toml
+# coach/apollia.toml
+[package]
+name = "coach"
+version = "0.1.0"
+publisher = "Example"
+description = "A friendly product coach."
+sdk = ">=0.3, <0.4"
+
+[[agents]]
+id = "coach"
+name = "Coach"
+mission = """
+You are a product coach. Answer briefly, and count the words of a draft with
+your tool before you comment on its length.
+"""
+examples = ["Is this release note too long?"]
+
+[agents.defaults]
+access = ["pkg:coach/word_count"]
+autonomy = "assisted"
+
+[[tools]]
+name = "word_count"
+module = "tools/word_count.py"
+description = "Count the words of a text."
+action = "read"
+inputs = { type = "object", properties = { text = { type = "string", description = "The text to count." } }, required = ["text"], additionalProperties = false }
+```
 
 ```python
-# coach.py
-from apollia import agent, on_message
-from apollia.types import Ctx, Message
+# coach/tools/word_count.py
+from typing import Annotated, Any
+
+from apollia import tool
+from apollia.types import Ctx
 
 
-@agent(
-    name="coach",
-    version="0.1.0",
-    description="Friendly product coach.",
-)
-class Coach:
-    @on_message
-    async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
-        response = await ctx.llm.complete(
-            messages=[
-                {"role": "system", "content": "You are a helpful coach."},
-                *history,
-                {"role": "user", "content": message},
-            ],
-        )
-        return response.content
+@tool("word_count", "Count the words of a text.", action="read")
+async def word_count(
+    ctx: Ctx,
+    text: Annotated[str, "The text to count."],
+) -> dict[str, Any]:
+    return {"words": len(text.split())}
 ```
 
-- **`@agent(...)`** declares the manifest. `name`, `version`, and `description` are required.
-- **`@on_message`** marks the single conversational entry point. Its signature is fixed: `(self, message, history, ctx)` returning the reply as a string.
+- **`[[agents]]`** is the agent. Its `mission` is its instructions, and
+  `[agents.defaults]` is what the package recommends: the person who installs it
+  can grant or revoke a tool, change the model or the autonomy tier, and the
+  local choice wins.
+- **`@tool`** declares a tool any agent can be granted. `[[tools]]` is its
+  descriptor, written by `python -m apollia describe coach`, so the runtime
+  reads the manifest without running the code.
 
-Install, enable, and talk to it:
+`apollia-os package new coach` writes this starting folder. Build the archive,
+install it, and talk to the agent:
 
 ```bash
-apollia-os agent install ./coach.py
-apollia-os agent enable coach
-apollia-os run coach "How does the Director pattern work?"
+apollia-os package build coach
+apollia-os package install coach-0.1.0.apo
+apollia-os run coach "Is this release note too long? ..."
 ```
+
+The runtime refuses a package whose manifest does not validate: an unknown key
+is named with its full path instead of being dropped in silence.
 
 ### Beyond a conversation
 
-A **worker** answers one skill at a time and returns a payload; a **director**
-orchestrates workers and holds the plan. Both are the same minimal contract: a
-class decorated with `@agent`, and nothing else at module level.
+An agent and a workflow differ by who decides the next step: the model for an
+agent, the author for a workflow. A **workflow** is an async function under
+`@workflow` whose steps are declared ahead; a step can run an agent, a tool or
+another workflow.
 
-Inside a skill, `ctx` is the whole runtime surface: `ctx.llm` for the model,
-`ctx.memory` for what the agent remembers, `ctx.tools` for the native tools
+Inside a tool or a workflow, `ctx` is the whole runtime surface: `ctx.llm` for
+the model, `ctx.memory` for what is remembered, `ctx.tools` for the native tools
 (filesystem, shell, HTTP, search), `ctx.logger` for the trace. Every tool call
 goes through the permission engine and lands in the audit journal.
 
 - [Your first agent](https://docs.apollia.fr/tutorials/your-first-agent/)
-- [Write a worker](https://docs.apollia.fr/how-to/write-a-worker/)
-- [Write a director](https://docs.apollia.fr/how-to/write-a-director/)
+- [Package and distribute an agent](https://docs.apollia.fr/how-to/package-and-distribute-an-agent/)
 - [SDK reference](https://docs.apollia.fr/reference/sdk/), including the full
   `ctx` contract and the native tools
 

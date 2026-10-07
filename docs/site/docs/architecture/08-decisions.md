@@ -11,10 +11,10 @@ route that led there. Where a decision has a cost, the cost is named.
 
 ## Stack and runtime {#stack-and-runtime}
 
-The runtime is Rust on Tokio. Agents are Python, loaded in-process through a
-PyO3 bridge rather than spawned as subprocesses: the bridge translates Rust
-futures to Python coroutines directly, so an agent call costs no process
-boundary and no serialization round-trip.
+The runtime is Rust on Tokio. The code a package brings is Python, loaded
+in-process through a PyO3 bridge rather than spawned as subprocesses: the bridge
+translates Rust futures to Python coroutines directly, so a call into that code
+costs no process boundary and no serialization round-trip.
 
 Every subsystem that owns mutable state is a Tokio actor with a bounded channel
 and a clonable handle. No state is shared between actors behind a lock. The cost
@@ -26,28 +26,70 @@ default path requires a server, a daemon, or a network.
 
 ## The agent contract {#agent-contract}
 
-An agent is a Python class carrying `@agent`, with at least one `@skill` or one
-`@on_message` async method. That is the whole contract. The bridge refuses an
-object that does not expose the dispatch entry point the decorators install;
-there is no escape hatch that accepts an arbitrary callable.
+An agent is a record, not a program: a mission, a model, the tools it is
+granted, the sources it may read, and its rights. A package declares it as an
+`[[agents]]` entry of its `apollia.toml` manifest, and no Python object stands
+for it. What the package declares is a set of defaults, never a constraint: the
+user changes a tool, a source, the model or the autonomy tier from the
+interface, and the local override wins without a new version of the package.
 
-The runtime hands each call a `ctx` object exposing the services an agent may
-use: the LLM router, memory, tools, agent-to-agent messaging, notifications, and
-a logger. `ctx` is the whole runtime surface. An agent reaching around it is
-using something the runtime does not guarantee.
+Code is optional. The Python of a package brings tools and workflows, async
+functions under `@tool` and `@workflow`, and the SDK publishes no other
+decorator. `python -m apollia describe` writes their descriptors into the
+manifest, so reading a manifest never runs the code it describes.
 
-Agent payload schemas are `TypedDict`, read at registration time to build skill
-schemas. This is why deferred annotation evaluation is refused in those modules:
-it turns annotations into strings, and the schema comes out empty with no error.
+The runtime reads the manifest through one parser, under a strict schema. A key
+the schema does not know is refused with its full path, and so is what the
+schema cannot express: an identifier declared twice, an access that names a
+package tool the package does not deliver, a package that declares nothing. A
+package whose manifest does not validate is neither built nor installed.
+
+The runtime hands each tool and each workflow a `ctx` object exposing the
+services it may use: the LLM router, memory, tools, other agents and workflows,
+notifications, and a logger. `ctx` is the whole runtime surface. Code reaching
+around it is using something the runtime does not guarantee.
+
+Payload schemas are `TypedDict`, read when a function is decorated to build the
+schema of its inputs. This is why deferred annotation evaluation is refused in
+those modules: it turns annotations into strings, and the schema comes out empty
+with no error.
 
 The Python SDK has no third-party dependencies. Every one would become a
-dependency of every agent, on every machine, forever.
+dependency of every package, on every machine, forever.
+
+This contract replaced another one on 2026-09-30, when principle 3 was
+rewritten. Until then an agent was a Python class under `@agent` with `@skill`
+or `@on_message` methods, and the bridge refused any object without the dispatch
+entry point those decorators installed. Two observations led to the change. An
+agent that fixes in code the tools it requires is a workflow written in code:
+the person who uses it cannot add a tool or change a right without a new
+version. And one name covered objects whose control was not held by the same
+party, the model in one case and the code of the author in another, so nobody
+could tell which one they had in front of them. The cost is a break: an agent
+written as a class no longer loads, and is rewritten as a manifest entry with
+its Python moved into tools or into a workflow.
 
 ## Execution model {#execution-model}
 
-The autonomous engine observes, reasons, and acts in a loop. It runs in two
-modes: direct, where a skill answers, and orchestrated, where a plan is built
-and its steps executed.
+Two things run, and one question tells them apart: who decides the next step.
+For an agent, the model does. For a workflow, the author does.
+
+An agent runs on the autonomous engine, which observes, reasons, and acts in a
+loop. Its mission is the system prompt, the accesses it is granted are the tools
+the model is offered, and its model and its autonomy tier are resolved when each
+message is sent, so a change on its card applies to a conversation already open.
+The engine runs in two modes: direct, where the model answers and calls tools as
+it goes, and orchestrated, where a plan is built and its steps executed. The
+planning setting of the agent chooses: `never`, `always`, or `auto`, which plans
+when the task reads as a multi-step one.
+
+A workflow is Python whose steps are declared ahead. Its body opens each step by
+name, and a name the declaration does not hold is refused. A step may run an
+agent or another workflow: the nested run stops with the run that made it,
+spends from the same budget, and nesting is bounded at three levels, the first
+run counting as one. The cost of the split is that a fixed sequence can no
+longer pass for an agent. It is written as a workflow, its structure is visible,
+and its user changes its inputs, not its steps.
 
 On the orchestrated path, step arguments are filled at plan time under a
 grammar, with just-in-time extraction as a fallback at execution. Filling them
@@ -591,12 +633,17 @@ carries when the user asks for a copy. No crate enters the lock file for it,
 
 ## Agent-to-agent messaging {#agent-messaging}
 
-A director agent delegates to worker agents by skill identifier, over a durable
-mailbox backed by SQLite. Delivery is leased: a consumer takes a lease, and
-acknowledgement is fenced on the run holding it, so a stale consumer whose lease
-was reassigned cannot delete or requeue a message the new owner is processing.
+One agent reaches another in two ways. A workflow step runs an installed agent
+on a message and waits for its answer: the agent runs under its own grants,
+nested in the run that called it. Or a message is posted to the durable mailbox
+of an agent, backed by SQLite, and the recipient pulls it at its own initiative.
+Mailbox delivery is leased: a consumer takes a lease, and acknowledgement is
+fenced on the run holding it, so a stale consumer whose lease was reassigned
+cannot delete or requeue a message the new owner is processing.
 
-Dispatch propagates the full skill identifier. A shorter dispatch key was used
+The API lists what can be called under a full identifier, `agent:<id>` for an
+agent and `workflow:<package>/<name>` for a workflow, and launches either by
+it. Dispatch propagates that identifier whole. A shorter dispatch key was used
 once and produced ambiguity as soon as two workers exposed similarly named
 skills.
 
@@ -856,13 +903,27 @@ unable to open like a document.
 
 ## Agent distribution {#agent-distribution}
 
-An agent is installed from a local path or a Git URL. Publishing agents to a
-package index was considered and rejected: it would make the index an
-availability dependency of a product whose first promise is running without one.
+An agent travels in a package, one `.apo` file (see
+[Package archive](#package-archive)), and is installed from that file and from
+nothing else: opened from the system, dropped on the window, chosen with the
+Install button, or handed to `apollia-os package install`. Whatever brings it,
+the package is previewed first, with what it contains, who signed it and what
+each of its agents asks for, and nothing is written before the user accepts. An
+agent created in the application leaves it the same way: it is exported as a
+`.apo` whose manifest is written from the agent as it stands, with no secret,
+no memory and no history.
 
-Third-party Python dependencies declared by an agent are installed into that
-agent's own virtual environment, after explicit consent, and the operator sees
-the list before it happens.
+Publishing agents to a package index was considered and rejected: it would make
+the index an availability dependency of a product whose first promise is running
+without one.
+
+Third-party Python dependencies declared by a package are installed into that
+package's own virtual environment, after explicit consent, and the user sees the
+list before it happens.
+
+The cost is one step for an author: a folder or a repository is not installed as
+it is. The archive is built first (`apollia-os package build`), which is where
+the manifest is validated and where the package is signed.
 
 ## Package archive {#package-archive}
 
