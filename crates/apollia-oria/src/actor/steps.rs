@@ -208,14 +208,14 @@ impl ActorLoop {
         }
     }
     /// The backend every model call of a step goes to: the model of the agent
-    /// (`llm_backend` of its manifest) when the router holds it, the router's
+    /// (the one its run was given) when the router holds it, the router's
     /// default otherwise.
     ///
     /// A step never picks its own model. A plan may still carry a
     /// `model_hint`, written by an earlier planner or by the model on its own;
     /// it is not read, so a run stays on the one model its agent was given.
     pub(super) fn agent_backend<'a>(&'a self, llm_router: &LlmRouter) -> Option<&'a str> {
-        let backend = self.manifest.llm_backend.as_deref()?;
+        let backend = self.model_backend.as_deref()?;
         if llm_router.get(Some(backend)).is_some() {
             Some(backend)
         } else {

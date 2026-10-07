@@ -20,14 +20,14 @@ use rusqlite::Connection;
 use apollia_core::schema::Migration;
 
 /// Current schema version of `agents.db`.
-pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 6;
+pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 7;
 
 /// Numbered migration steps of `agents.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`AGENTS_DB_SCHEMA_VERSION`].
 pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] = &[
-    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6,
+    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -137,6 +137,51 @@ fn migrate_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+/// The keys the agent manifest held and no longer does: what an agent may
+/// reach is its definition and the user's overrides, and its model is the
+/// one assigned to it in `system.db`.
+const RETIRED_MANIFEST_KEYS: [&str; 5] = [
+    "tools_required",
+    "tools_optional",
+    "dangerous_tools_allowed",
+    "network_allowlist",
+    "llm_backend",
+];
+
+/// v7: the manifest JSON a row still carries loses the keys the manifest no
+/// longer holds, so that a reader refusing unknown keys reads it.
+///
+/// The access those keys declared was copied into the definition by the v2
+/// step. A row whose JSON does not parse is left as it is. The whole step
+/// runs in one transaction, so a failure leaves the file at v6.
+fn migrate_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let tx = conn.unchecked_transaction()?;
+    let rows: Vec<(String, String)> = {
+        let mut stmt =
+            tx.prepare("SELECT name, manifest_json FROM agents WHERE manifest_json IS NOT NULL")?;
+        let mapped = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        mapped.collect::<Result<_, _>>()?
+    };
+    for (name, manifest_json) in rows {
+        let Ok(serde_json::Value::Object(mut manifest)) =
+            serde_json::from_str::<serde_json::Value>(&manifest_json)
+        else {
+            continue;
+        };
+        let before = manifest.len();
+        for key in RETIRED_MANIFEST_KEYS {
+            manifest.remove(key);
+        }
+        if manifest.len() != before {
+            tx.execute(
+                "UPDATE agents SET manifest_json = ?2 WHERE name = ?1",
+                rusqlite::params![name, serde_json::Value::Object(manifest).to_string()],
+            )?;
+        }
+    }
+    tx.commit()
+}
+
 /// `true` when `table` has a column named `column`.
 fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, rusqlite::Error> {
     conn.query_row(
@@ -208,7 +253,7 @@ fn copy_installed_agents(conn: &Connection) -> Result<(), rusqlite::Error> {
     ) in rows
     {
         let definition =
-            crate::agent_definition::definition_from_manifest_json(&name, &manifest_json);
+            crate::agent_definition::definition_from_legacy_manifest_json(&name, &manifest_json);
         conn.execute(
             "INSERT OR IGNORE INTO agents \
                  (name, origin, package, version, definition_json, install_path, source_path, \
@@ -573,5 +618,55 @@ mod tests {
         let err = open_agents_schema(&conn).unwrap_err();
 
         assert!(matches!(err, SchemaError::NewerThanBinary { .. }));
+    }
+
+    #[test]
+    fn test_agents_db_v7_strips_the_retired_keys_from_the_stored_manifests() {
+        // GIVEN a file at v6 with a manifest carrying the five retired keys,
+        // one that carries none, one that does not parse and a row without one
+        let conn = Connection::open_in_memory().unwrap();
+        open_agents_schema(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 6).unwrap();
+        conn.execute_batch(
+            r#"INSERT INTO agents (name, origin, version, definition_json, manifest_json)
+               VALUES ('triage', 'package', '2.1.0', '{"id":"triage"}',
+                       '{"name":"triage","version":"2.1.0","description":"Sorts the inbox.",
+                         "tools_required":["file_read"],"tools_optional":["web_fetch"],
+                         "dangerous_tools_allowed":true,"network_allowlist":["example.org"],
+                         "llm_backend":"local-code","examples":["Sort today"]}'),
+                      ('plain', 'package', '1.0.0', '{"id":"plain"}',
+                       '{"name":"plain","version":"1.0.0","description":"Plain."}'),
+                      ('broken', 'package', '0.1.0', '{"id":"broken"}', 'not json'),
+                      ('sheet', 'interface', '1', '{"id":"sheet"}', NULL);"#,
+        )
+        .unwrap();
+
+        // WHEN the file is opened
+        open_agents_schema(&conn).unwrap();
+
+        // THEN the first manifest reads strictly and kept every other key,
+        // and the three other rows are as they were
+        let manifest_of = |name: &str| -> Option<String> {
+            conn.query_row(
+                "SELECT manifest_json FROM agents WHERE name = ?1",
+                [name],
+                |row| row.get(0),
+            )
+            .unwrap()
+        };
+        let triage: apollia_core::AgentManifest =
+            serde_json::from_str(&manifest_of("triage").unwrap()).unwrap();
+        assert_eq!(triage.description, "Sorts the inbox.");
+        assert_eq!(triage.examples, vec!["Sort today".to_string()]);
+        assert_eq!(
+            manifest_of("plain").unwrap(),
+            r#"{"name":"plain","version":"1.0.0","description":"Plain."}"#
+        );
+        assert_eq!(manifest_of("broken").unwrap(), "not json");
+        assert_eq!(manifest_of("sheet"), None);
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 7);
     }
 }

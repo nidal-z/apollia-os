@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use apollia_core::{AIPResult, AIPTask, AgentManifest, TaskStatus};
 
-use crate::api::routes_agents::AgentLoader;
 use crate::api::server::AppState;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::eventbus::EventBus;
@@ -44,21 +43,6 @@ impl ExecutionBackend for MockBackend {
     }
 }
 
-/// A loader that names the agent after the file stem, or refuses with `refusal`.
-pub(crate) struct StemLoader {
-    pub(crate) refusal: Option<String>,
-}
-
-impl AgentLoader for StemLoader {
-    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        if let Some(refusal) = &self.refusal {
-            return Err(refusal.clone());
-        }
-        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("x");
-        Ok(manifest(stem))
-    }
-}
-
 /// A manifest with every optional part empty.
 pub(crate) fn manifest(name: &str) -> AgentManifest {
     AgentManifest {
@@ -67,16 +51,12 @@ pub(crate) fn manifest(name: &str) -> AgentManifest {
         name: name.to_owned(),
         version: "1.0.0".to_owned(),
         description: format!("{name} description"),
-        tools_required: vec![],
-        tools_optional: vec![],
         supports_streaming: false,
         supports_a2a: false,
         memory_namespace: None,
         shared_memory_namespaces: vec![],
         max_concurrent_tasks: 1,
         step_budget: None,
-        network_allowlist: None,
-        dangerous_tools_allowed: false,
         tags: vec![],
         skills: vec![],
         execution_mode: "auto".to_owned(),
@@ -84,7 +64,6 @@ pub(crate) fn manifest(name: &str) -> AgentManifest {
         mailbox_allowlist: None,
         system_prompt: None,
         tools_requiring_approval: vec![],
-        llm_backend: None,
         model: None,
         packages: vec![],
         memory_config: None,
@@ -102,7 +81,7 @@ pub(crate) fn manifest(name: &str) -> AgentManifest {
 }
 
 /// The state, with `loader` and `data_dir`; the test sets any other field.
-pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppState<MockBackend> {
+pub(crate) fn app_state(data_dir: PathBuf) -> AppState<MockBackend> {
     let (event_tx, _) = EventBus::new();
     let registry_handle = AgentRegistry::spawn(event_tx.clone());
     let router_handle: TaskRouterHandle<MockBackend> =
@@ -111,7 +90,6 @@ pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppS
         router_handle,
         registry_handle,
         event_sender: event_tx,
-        agent_loader: loader,
         backend: MockBackend,
         llm_router: crate::api::server::empty_shared_llm_router(),
         trigger_engine: None,
@@ -120,7 +98,6 @@ pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppS
         pending_approvals: None,
         plan_gates: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         audit_journal: None,
@@ -227,14 +204,12 @@ pub(crate) fn seeded_chat(data_dir: &Path) -> AppState<MockBackend> {
     .expect("seed approval");
     drop(repo);
 
-    let loader: Arc<dyn AgentLoader> = Arc::new(StemLoader { refusal: None });
-    let mut state = app_state(loader.clone(), data_dir.to_path_buf());
+    let mut state = app_state(data_dir.to_path_buf());
     let tool_registry = apollia_tools::ToolRegistryHandle::start();
     let chat_manager = crate::chat::manager::ChatSessionManagerHandle::spawn(
         &db_path,
         Some(Arc::new(apollia_llm::LlmRouter::empty())),
         tool_registry.clone(),
-        loader,
         None,
         state.event_sender.clone(),
         apollia_core::StepBudgetConfig::default(),

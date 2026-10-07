@@ -620,6 +620,9 @@ impl ToolProxy {
         self
     }
 
+    // TEST-ONLY: the orchestrated loop of a Python agent called it; the
+    // plan-first path of the agent executor carries its own proxy over the
+    // granted tools. Kept for the tests of the access check it runs.
     /// Invoke a tool by name from Rust, without PyO3, returning its JSON output.
     ///
     /// Runs the exact same governance as the Python-facing `call`: permission
@@ -634,6 +637,8 @@ impl ToolProxy {
         self.call_inner(tool_name, input).await
     }
 
+    // TEST-ONLY: same caller as `invoke_native`, gone with the Python agent
+    // path; the plan-first proxy reads the schema from the registry itself.
     /// Return the JSON input schema of `tool_name`, when the registry knows it.
     ///
     /// Reads the tool descriptor from the registry and returns its

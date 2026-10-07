@@ -1,0 +1,28 @@
+# Apollia OS - seed fixture package (automation verification only).
+# Never installed by the seed builder: it sits under fixtures/ as a package
+# folder to build with `apollia-os package build`.
+
+[package]
+name = "seed-deps-pack"
+version = "0.1.0"
+publisher = "Apollia"
+description = "Seed fixture: a worker that declares a pip dependency no index resolves."
+sdk = ">=0.2.0-preview"
+
+[[agents]]
+id = "seed-deps-worker"
+name = "seed-deps-worker"
+mission = "Seed fixture agent: echoes what it is given."
+
+[agents.defaults]
+access = ["pkg:seed-deps-pack/deps_echo"]
+
+[[tools]]
+name = "deps_echo"
+module = "tools/deps_echo.py"
+description = "Echo the text it is given."
+action = "read"
+inputs = { type = "object", properties = { text = { type = "string", description = "The text to echo." } }, required = ["text"], additionalProperties = false }
+
+[pip]
+packages = ["apollia-seed-no-such-package-0000"]

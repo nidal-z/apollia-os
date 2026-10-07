@@ -36,7 +36,7 @@ reason about and one thing to keep running.
 
 ## 3. Minimal contract
 
-<!-- claim:agent-contract-is-decorators-not-manifest-run -->
+<!-- claim:agent-contract-is-a-manifest-read-strictly -->
 An agent is a class decorated with `@agent`, holding at least one async method
 decorated with `@skill` or `@on_message`. There is no base class to inherit and
 no framework to adopt. The point is to keep the surface an author must learn

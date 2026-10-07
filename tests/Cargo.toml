@@ -61,16 +61,6 @@ name = "test_runtime_chain"
 path = "integration/test_runtime_chain.rs"
 
 [[test]]
-name = "test_hello_agent"
-path = "integration/test_hello_agent.rs"
-required-features = ["python-tests"]
-
-[[test]]
-name = "test_agent_cancel"
-path = "integration/test_agent_cancel.rs"
-required-features = ["python-tests"]
-
-[[test]]
 name = "test_llm_degraded"
 path = "integration/test_llm_degraded.rs"
 
@@ -81,11 +71,6 @@ path = "integration/test_run_tools.rs"
 [[test]]
 name = "test_llm_structured_output"
 path = "integration/test_llm_structured_output.rs"
-required-features = ["python-tests"]
-
-[[test]]
-name = "test_llm_agent"
-path = "integration/test_llm_agent.rs"
 required-features = ["python-tests"]
 
 [[test]]
@@ -153,10 +138,6 @@ name = "test_a2a_routing"
 path = "integration/test_a2a_routing.rs"
 
 [[test]]
-name = "test_distribution"
-path = "integration/test_distribution.rs"
-
-[[test]]
 name = "test_a2a_guards"
 path = "integration/test_a2a_guards.rs"
 
@@ -168,9 +149,4 @@ required-features = ["python-tests"]
 [[test]]
 name = "test_package_workflows"
 path = "integration/test_package_workflows.rs"
-required-features = ["python-tests"]
-
-[[test]]
-name = "test_profile_source"
-path = "integration/test_profile_source.rs"
 required-features = ["python-tests"]

@@ -24,7 +24,6 @@ use tokio::sync::broadcast;
 use tower::ServiceExt;
 
 use super::*;
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::routes_llm::tests::{test_app_state_no_llm, MockBackend};
 use crate::api::routes_tasks::{cancel_task, get_task, submit_task};
 use crate::chat::types::ToolDecision;
@@ -147,7 +146,6 @@ async fn fixture_with(
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "scripted"))),
         registry,
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

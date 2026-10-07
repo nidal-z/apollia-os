@@ -41,14 +41,13 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # file under ~/.apollia, module that shapes it, structs (None = all), rebuildable cache?
 MANIFEST = [
     ("apollia.toml", "crates/apollia-core/src/config/*.rs", None, False),
-    ("agents/community/registry.json", "crates/apollia-runtime/src/agents/registry_remote.rs", ["RegistryEntry"], False),
     ("mcp-overrides.json", "crates/apollia-desktop/src/mcp/overrides.rs", ["McpOverrides"], False),
     ("mcp.toml", "crates/apollia-mcp/src/config.rs", ["McpConfig", "McpServerConfig"], False),
     ("models/sampling-defaults.json", "crates/apollia-llm/src/model_defaults/mod.rs", ["UserOverrides", "ModelDefaults"], False),
     ("drive-prefs.toml", "crates/apollia-auth/src/drive_prefs.rs", ["DrivePrefsFile", "AccountDrivePref", "PickedFolder"], False),
     ("oauth-clients.toml", "crates/apollia-auth/src/oauth_clients_file.rs", ["OAuthClientsFile", "OAuthClientEntry"], False),
     ("connectors-index.json", "crates/apollia-auth/src/multi_account.rs", ["AccountIndex"], False),
-    ("agents/<name>/manifest.toml", "crates/apollia-core/src/manifest.rs", ["AgentManifest"], False),
+    ("agents.db, manifest_json of a row a previous version stored", "crates/apollia-core/src/manifest.rs", ["AgentManifest"], False),
     ("memory export (apollia memory export)", "crates/apollia-aip/src/memory.rs", None, False),
     ("sources/project-migration.json", "crates/apollia-runtime/src/project_migration.rs", None, False),
     ("mcp-registry.json", "crates/apollia-mcp/src/registry.rs", ["RegistryListResponse", "RegistryServer"], True),

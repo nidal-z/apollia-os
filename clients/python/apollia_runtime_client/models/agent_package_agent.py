@@ -14,30 +14,20 @@ class AgentPackageAgent:
     """An agent of a package.
 
     Attributes:
-        entry (str): Entry point, relative to the package folder.
-        name (str): Agent name.
-        role (str): `director`, `worker` or `assistant`.
+        name (str): Agent name, as the manifest recorded at installation gives it.
     """
 
-    entry: str
     name: str
-    role: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        entry = self.entry
-
         name = self.name
-
-        role = self.role
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "entry": entry,
                 "name": name,
-                "role": role,
             }
         )
 
@@ -46,16 +36,10 @@ class AgentPackageAgent:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        entry = d.pop("entry")
-
         name = d.pop("name")
 
-        role = d.pop("role")
-
         agent_package_agent = cls(
-            entry=entry,
             name=name,
-            role=role,
         )
 
         agent_package_agent.additional_properties = d

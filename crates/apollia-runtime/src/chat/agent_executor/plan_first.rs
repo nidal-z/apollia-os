@@ -84,7 +84,13 @@ pub(super) fn engages(
             let task_reads_as_steps = score_turn_text(message) >= threshold;
             task_reads_as_steps
                 || matches!(
-                    classify(&task_of("classify", message), &manifest, None, threshold),
+                    classify(
+                        &task_of("classify", message),
+                        &manifest,
+                        spec.granted_tools.len(),
+                        None,
+                        threshold
+                    ),
                     ExecutionMode::Orchestrated
                 )
         }
@@ -158,7 +164,11 @@ impl PlanFirstRun<'_> {
             task_id = %input.session_id,
             "agent.executor.plan_first.started"
         );
-        let agent = PlannedAgent { manifest };
+        let agent = PlannedAgent {
+            manifest,
+            granted_tools: self.spec.granted_tools.clone(),
+            model: self.spec.model.clone(),
+        };
         let task = task_of(input.session_id, input.user_message);
         let result = tokio::select! {
             biased;
@@ -173,11 +183,23 @@ impl PlanFirstRun<'_> {
 /// The agent as the plan-first engine reads it.
 struct PlannedAgent {
     manifest: AgentManifest,
+    /// The access of the agent as resolved for this run.
+    granted_tools: Vec<String>,
+    /// The model the agent was given, when it has one of its own.
+    model: Option<String>,
 }
 
 impl AIPAgent for PlannedAgent {
     fn manifest(&self) -> AgentManifest {
         self.manifest.clone()
+    }
+
+    fn granted_tools(&self) -> Vec<String> {
+        self.granted_tools.clone()
+    }
+
+    fn model_backend(&self) -> Option<String> {
+        self.model.clone()
     }
 }
 
@@ -188,8 +210,9 @@ fn cache_version(spec: &AgentRunSpec) -> String {
     format!("{}+{}", spec.version, &hex::encode(digest)[..16])
 }
 
-/// `spec` described to ORIA: its identifier and cache version, its granted
-/// tools, its budget, its mission as instructions, its model.
+/// `spec` described to ORIA: its identifier and cache version, its budget,
+/// its mission as instructions. Its granted tools and its model are not part
+/// of a manifest: the engine reads them from the run.
 fn manifest_of(
     spec: &AgentRunSpec,
     budget: &StepBudgetConfig,
@@ -204,11 +227,9 @@ fn manifest_of(
         "name": spec.agent_id,
         "version": cache_version(spec),
         "description": spec.mission,
-        "tools_required": spec.granted_tools,
         "step_budget": budget,
         "execution_mode": "orchestrated",
         "system_prompt": instructions,
-        "llm_backend": spec.model,
     }))
     .map_err(|e| ChatError::InternalError(format!("cannot describe the agent to the planner: {e}")))
 }

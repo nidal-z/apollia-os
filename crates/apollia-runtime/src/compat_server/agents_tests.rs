@@ -35,7 +35,6 @@ use super::relay::RelayState;
 use super::router::{compat_router, serve};
 use super::tokens::ServerTokensHandle;
 use crate::agents::task::AgentTaskLauncher;
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::routes_llm::tests::test_app_state_no_llm;
 use crate::batch::{register_request_source, AgentItemRunner, BatchHandle};
 use crate::chat::ChatSessionManagerHandle;
@@ -253,7 +252,6 @@ pub(super) async fn fixture() -> Fixture {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "scripted"))),
         registry,
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

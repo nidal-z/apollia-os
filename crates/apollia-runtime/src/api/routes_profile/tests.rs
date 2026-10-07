@@ -5,13 +5,10 @@ use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 fn state_with_profile(dir: &TempDir) -> AppState<MockBackend> {
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     let repo = UserMemoryRepository::new(&dir.path().join("user_memory.db")).unwrap();
     state.user_memory = Some(Arc::new(Mutex::new(repo)));
     state
@@ -114,10 +111,7 @@ async fn test_a_reset_removes_every_entry_and_counts_them() {
 async fn test_a_daemon_without_a_profile_store_says_so() {
     // GIVEN a daemon whose profile store did not open
     let dir = TempDir::new().unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a client reads the profile
     let (status, refusal) = call(state, "GET", "/api/v1/profile", None).await;

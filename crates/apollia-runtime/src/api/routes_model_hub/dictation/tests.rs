@@ -1,22 +1,17 @@
 //! `GET /api/v1/llm/dictation`, through the whole router.
 
-use std::sync::Arc;
-
 use apollia_llm::hardware::HardwareProfile;
 use apollia_llm::AcceleratorProfile;
 
 use super::dictation_body;
 use crate::api::routes_model_hub::embeddings::CountedLanguageModel;
-use crate::api::test_support::{app_state, call, StemLoader};
+use crate::api::test_support::{app_state, call};
 
 #[tokio::test]
 async fn the_route_lists_the_category_with_its_verdicts_and_one_recommendation() {
     // GIVEN a runtime whose data directory holds no model
     let tmp = tempfile::tempdir().expect("tempdir");
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        tmp.path().to_path_buf(),
-    );
+    let state = app_state(tmp.path().to_path_buf());
 
     // WHEN the dictation route is asked with the size of a language model
     let (status, body) = call(

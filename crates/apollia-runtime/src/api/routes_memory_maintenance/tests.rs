@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use apollia_memory::semantic::{RememberInput, SemanticMemory};
 use apollia_memory::store::MemoryStore;
 use axum::http::StatusCode;
@@ -7,7 +5,7 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 /// A daemon rooted at `dir`, whose namespace `agent-a` holds two facts.
 fn daemon_with_memory(dir: &TempDir) -> (AppState<MockBackend>, Vec<String>) {
@@ -30,10 +28,7 @@ fn daemon_with_memory(dir: &TempDir) -> (AppState<MockBackend>, Vec<String>) {
                 .unwrap()
         })
         .collect();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
     (state, ids)
 }
 

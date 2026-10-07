@@ -5,7 +5,6 @@ use apollia_tools::{PauseRecord, TaskRepository};
 use axum::http::StatusCode;
 
 use crate::a2a::{A2AInvoker, SidechainLogger};
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::server::AppState;
 use crate::api::test_support::{app_state, call, MockBackend};
 
@@ -47,7 +46,7 @@ async fn test_the_tree_names_the_stored_root_and_lists_its_delegations() {
     logger
         .start(&parent, "synthese", &serde_json::json!({}))
         .await;
-    let mut state = app_state(Arc::new(StubAgentLoader), dir.path().to_path_buf());
+    let mut state = app_state(dir.path().to_path_buf());
     state.task_repository = Some(Arc::new(repo));
     with_logger(&mut state, logger);
 
@@ -74,7 +73,7 @@ async fn test_the_tree_names_the_stored_root_and_lists_its_delegations() {
 async fn test_a_task_without_delegation_is_a_root_named_after_itself() {
     // GIVEN a task the runtime has never seen and no delegation recorded
     let dir = tempfile::tempdir().unwrap();
-    let mut state = app_state(Arc::new(StubAgentLoader), dir.path().to_path_buf());
+    let mut state = app_state(dir.path().to_path_buf());
     with_logger(&mut state, SidechainLogger::new_in_memory().unwrap());
 
     // WHEN its tree is read
@@ -92,7 +91,7 @@ async fn test_a_task_without_delegation_is_a_root_named_after_itself() {
 async fn test_a_daemon_without_sidechain_logging_refuses_with_503() {
     // GIVEN a daemon with no A2A invoker
     let dir = tempfile::tempdir().unwrap();
-    let state = app_state(Arc::new(StubAgentLoader), dir.path().to_path_buf());
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a tree is read
     let (status, answer) = call(state, "GET", "/api/v1/tasks/t-1/delegation-tree", None).await;

@@ -80,7 +80,7 @@ platform detail, and copying the site is how one copy loses it.
 
 ## 5. The runtime is embedded, not called over HTTP
 
-`src/backend/` starts the actor mesh in-process. The desktop therefore holds
+`src/main.rs` starts the actor mesh in-process (`apollia_runtime::init_embedded`). The desktop therefore holds
 the same objects the daemon holds, and the temptation is to reach into them
 from a command handler. Do not: a command calls the same handle the HTTP route
 would call, so the two surfaces cannot drift.

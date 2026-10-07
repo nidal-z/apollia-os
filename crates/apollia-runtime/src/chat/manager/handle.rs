@@ -88,7 +88,6 @@ impl ChatSessionManagerHandle {
         db_path: &Path,
         llm_router: Option<Arc<LlmRouter>>,
         tool_registry: ToolRegistryHandle,
-        _agent_loader: Arc<dyn AgentLoader>,
         agent_runner: Option<Arc<dyn ChatAgentRunner>>,
         event_bus: EventBusSender,
         runtime_budget: StepBudgetConfig,

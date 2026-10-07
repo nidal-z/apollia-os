@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 use tokio::sync::oneshot;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, seeded_chat, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, seeded_chat, MockBackend};
 use crate::batch::{
     BatchAccess, BatchHandle, BatchLaunch, ItemEnd, ItemRunner, ItemStatus, SourceDescriptor,
     StartedItem,
@@ -28,10 +28,7 @@ const LIST: &str = "/api/v1/pending-decisions";
 const DECIDE: &str = "/api/v1/pending-decisions/decide";
 
 fn empty_state(dir: &tempfile::TempDir) -> AppState<MockBackend> {
-    app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    )
+    app_state(dir.path().to_path_buf())
 }
 
 async fn items(state: &AppState<MockBackend>) -> Vec<Value> {

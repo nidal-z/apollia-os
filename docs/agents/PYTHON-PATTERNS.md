@@ -94,8 +94,7 @@ class EmailTriage:
 
 Rules :
 
-- The runtime imports a module-level `agent` symbol (`loader.rs` does
-  `getattr("agent")`), but **do not write it by hand**. `@agent` instantiates
+- **Do not write a module-level `agent` symbol by hand**. `@agent` instantiates
   the class and binds the instance to the defining module
   (`sdk/apollia/_internal/module_registry.py`). Adding `agent = MyClass()`
   builds a second instance that overwrites the registered one. It is harmless

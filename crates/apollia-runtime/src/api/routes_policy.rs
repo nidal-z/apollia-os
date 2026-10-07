@@ -50,16 +50,13 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::api::server::AppState;
-    use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+    use crate::api::test_support::{app_state, call, MockBackend};
     use crate::governance::InferenceGovernance;
 
     /// A runtime that read `verdict` at boot, with the folder that holds its data.
     fn state_with(verdict: PolicyVerdict) -> (TempDir, AppState<MockBackend>) {
         let dir = tempfile::tempdir().unwrap();
-        let mut state = app_state(
-            Arc::new(StemLoader { refusal: None }),
-            dir.path().to_path_buf(),
-        );
+        let mut state = app_state(dir.path().to_path_buf());
         state.inference_governance = InferenceGovernance::new(Arc::new(verdict));
         (dir, state)
     }

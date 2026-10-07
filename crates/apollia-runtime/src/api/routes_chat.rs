@@ -786,13 +786,12 @@ mod tests {
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
-    use apollia_core::{AIPResult, AIPTask, AgentManifest, StepBudgetConfig, TaskStatus};
+    use apollia_core::{AIPResult, AIPTask, StepBudgetConfig, TaskStatus};
     use apollia_llm::LlmRouter;
     use apollia_tools::ToolRegistryHandle;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use std::future::Future;
-    use std::path::Path;
     use std::pin::Pin;
     use std::sync::Arc;
     use tower::ServiceExt;
@@ -820,50 +819,6 @@ mod tests {
                     artifacts: Vec::new(),
                     input_required_data: None,
                 })
-            })
-        }
-    }
-
-    struct AlwaysOkLoader;
-    impl crate::api::routes_agents::AgentLoader for AlwaysOkLoader {
-        fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
-            Ok(AgentManifest {
-                autonomy_level: None,
-                format_version: 1,
-                name: "test-agent".into(),
-                version: "0.1.0".into(),
-                description: "test".into(),
-                tools_required: vec![],
-                tools_optional: vec![],
-                supports_streaming: false,
-                supports_a2a: false,
-                memory_namespace: None,
-                shared_memory_namespaces: vec![],
-                max_concurrent_tasks: 1,
-                step_budget: None,
-                network_allowlist: None,
-                dangerous_tools_allowed: false,
-                tags: vec![],
-                skills: vec![],
-                execution_mode: "auto".into(),
-                supports_mailbox: false,
-                mailbox_allowlist: None,
-                system_prompt: None,
-                tools_requiring_approval: vec![],
-                llm_backend: None,
-                model: None,
-                packages: vec![],
-                memory_config: None,
-                agent_type: None,
-                examples: vec![],
-                limitations: vec![],
-                setup_notes: None,
-                agent_class: None,
-                user_memory_write: false,
-                datasources: vec![],
-                templates: vec![],
-                secrets: vec![],
-                check_commands: vec![],
             })
         }
     }
@@ -903,7 +858,6 @@ mod tests {
             &db_path,
             Some(Arc::new(LlmRouter::empty())),
             tool_registry.clone(),
-            Arc::new(AlwaysOkLoader),
             None,
             event_tx.clone(),
             StepBudgetConfig::default(),
@@ -923,7 +877,6 @@ mod tests {
             router_handle,
             registry_handle,
             event_sender: event_tx,
-            agent_loader: Arc::new(AlwaysOkLoader),
             backend: MockBackend,
             llm_router: crate::api::server::shared_llm_router_from(Some(Arc::new(
                 LlmRouter::empty(),
@@ -934,7 +887,6 @@ mod tests {
             pending_approvals: None,
             plan_gates: None,
             notification_config: None,
-            backend_factory: None,
             tool_registry_handle: Some(tool_registry),
             audit_trail: None,
             audit_journal: None,

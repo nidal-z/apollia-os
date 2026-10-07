@@ -41,7 +41,7 @@ surface d'attaque à raisonner et une seule chose à maintenir en fonctionnement
 
 ## 3. Contrat minimal
 
-<!-- claim:agent-contract-is-decorators-not-manifest-run -->
+<!-- claim:agent-contract-is-a-manifest-read-strictly -->
 Un agent est une classe décorée par `@agent`, comportant au moins une méthode
 asynchrone décorée par `@skill` ou `@on_message`. Il n'y a aucune classe de
 base à hériter ni aucun framework à adopter. L'objectif est de garder minimale

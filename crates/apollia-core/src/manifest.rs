@@ -43,12 +43,13 @@ fn default_format_version() -> u32 {
     1
 }
 
-/// Declared identity and capabilities of an agent.
+/// Declared identity and capabilities of an agent, as the registry holds it.
 ///
-/// Single source of truth for tool resolution and runtime configuration at
-/// agent startup (INITIALIZING state).
-/// Returned by the `manifest()` method of each Python agent.
+/// What an agent may reach is not declared here: the access list of an agent
+/// is its definition and the user's overrides, read when a run starts. A key
+/// this type does not know is refused, never dropped in silence.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentManifest {
     /// Version of this on-disk format. A file written before versioning has
     /// no key and reads as format 1; a future format bumps the default and the
@@ -61,11 +62,6 @@ pub struct AgentManifest {
     pub version: String,
     /// Human-readable description of the agent.
     pub description: String,
-    /// Required tools, resolved fail-fast at the INITIALIZING state.
-    pub tools_required: Vec<String>,
-    /// Optional tools: when absent, the agent enters DEGRADED state rather than failing.
-    #[serde(default)]
-    pub tools_optional: Vec<String>,
     /// Whether the agent supports streaming mode (default: false).
     #[serde(default)]
     pub supports_streaming: bool,
@@ -101,13 +97,6 @@ pub struct AgentManifest {
     /// Override of the runtime default step budget (None = use the default).
     #[serde(default)]
     pub step_budget: Option<StepBudgetConfig>,
-    /// Network allowlist (None = no network access permitted).
-    #[serde(default)]
-    pub network_allowlist: Option<Vec<String>>,
-    /// Explicitly allows the use of tools marked `dangerous=true`.
-    /// `false` by default: dangerous tools are blocked unless explicitly opted in.
-    #[serde(default)]
-    pub dangerous_tools_allowed: bool,
     /// Free-form tags for routing and discovery.
     #[serde(default)]
     pub tags: Vec<String>,
@@ -136,13 +125,6 @@ pub struct AgentManifest {
     /// Empty by default: no tool requires approval.
     #[serde(default)]
     pub tools_requiring_approval: Vec<String>,
-    /// Name of the LLM backend to use for this agent.
-    ///
-    /// Must match the `name` field of an entry in `llm_backends` (SQLite system.db).
-    /// If absent or `None`, the runtime uses the backend marked `is_default = true`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    pub llm_backend: Option<String>,
     /// Model defaults the agent's package declares (`@agent(model=...)` in the
     /// SDK, `[agents.defaults.model]` in `apollia.toml`). Its `request` is the
     /// package level of the request settings: above the model's own defaults,
@@ -334,16 +316,12 @@ mod tests {
             name: "devis-agent".into(),
             version: "1.0.0".into(),
             description: "Generates quotes".into(),
-            tools_required: vec!["file_io".into(), "bash_executor".into()],
-            tools_optional: vec![],
             supports_streaming: false,
             supports_a2a: false,
             memory_namespace: None,
             shared_memory_namespaces: vec![],
             max_concurrent_tasks: 1,
             step_budget: None,
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".to_string(),
@@ -351,7 +329,6 @@ mod tests {
             mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
-            llm_backend: None,
             model: None,
             packages: vec![],
             memory_config: None,
@@ -370,7 +347,7 @@ mod tests {
         let json = serde_json::to_string(&manifest).expect("serialization failed");
         // THEN
         assert!(json.contains("devis-agent"));
-        assert!(json.contains("file_io"));
+        assert!(!json.contains("tools_required"), "{json}");
     }
 
     #[test]
@@ -382,16 +359,12 @@ mod tests {
             name: "agent".into(),
             version: "1.0.0".into(),
             description: "desc".into(),
-            tools_required: vec!["file_io".into()],
-            tools_optional: vec![],
             supports_streaming: false,
             supports_a2a: false,
             memory_namespace: None,
             shared_memory_namespaces: vec![],
             max_concurrent_tasks: 1,
             step_budget: None,
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".to_string(),
@@ -399,7 +372,6 @@ mod tests {
             mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
-            llm_backend: None,
             model: None,
             packages: vec![],
             memory_config: None,
@@ -423,7 +395,7 @@ mod tests {
     #[test]
     fn test_tools_requiring_approval_default_empty() {
         // GIVEN a manifest JSON without the tools_requiring_approval field
-        let json = r#"{"name":"test","version":"0.1.0","description":"desc","tools_required":[]}"#;
+        let json = r#"{"name":"test","version":"0.1.0","description":"desc"}"#;
         // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
         // THEN tools_requiring_approval is empty
@@ -434,8 +406,7 @@ mod tests {
     fn test_tools_requiring_approval_parsed() {
         // GIVEN a manifest JSON with tools_requiring_approval
         let json = r#"{
-            "name":"test","version":"0.1.0","description":"desc","tools_required":[],
-            "tools_requiring_approval":["smtp","http_client"]
+            "name":"test","version":"0.1.0","description":"desc","tools_requiring_approval":["smtp","http_client"]
         }"#;
         // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
@@ -446,22 +417,6 @@ mod tests {
         );
     }
 
-    // GIVEN a manifest JSON with "llm_backend": "local-code"
-    // WHEN deserialized
-    // THEN llm_backend == Some("local-code")
-    #[test]
-    fn test_llm_backend_present_extracts_some() {
-        let json = serde_json::json!({
-            "name": "test-agent",
-            "version": "1.0.0",
-            "description": "test",
-            "tools_required": [],
-            "llm_backend": "local-code"
-        });
-        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
-        assert_eq!(manifest.llm_backend, Some("local-code".to_string()));
-    }
-
     #[test]
     fn the_package_request_settings_are_read_from_the_manifest() {
         // GIVEN a manifest the SDK built with `@agent(model={...})`
@@ -469,7 +424,6 @@ mod tests {
             "name": "notes",
             "version": "1.0.0",
             "description": "test",
-            "tools_required": [],
             "model": {
                 "model": "qwen3-8b",
                 "preset": "balanced",
@@ -500,7 +454,6 @@ mod tests {
             "name": "notes",
             "version": "1.0.0",
             "description": "test",
-            "tools_required": [],
             "model": {"request": {"temprature": 0.2}}
         });
 
@@ -511,68 +464,33 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // GIVEN a manifest JSON without the "llm_backend" key
-    // WHEN deserialized
-    // THEN llm_backend == None
     #[test]
-    fn test_llm_backend_absent_is_none() {
-        let json = serde_json::json!({
-            "name": "test-agent",
-            "version": "1.0.0",
-            "description": "test",
-            "tools_required": []
-        });
-        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
-        assert!(manifest.llm_backend.is_none());
-    }
+    fn a_manifest_with_a_retired_or_unknown_key_is_refused() {
+        // GIVEN manifests carrying each key the manifest no longer holds, and a misspelt one
+        let keys = [
+            ("tools_required", serde_json::json!([])),
+            ("tools_optional", serde_json::json!([])),
+            ("dangerous_tools_allowed", serde_json::json!(false)),
+            ("network_allowlist", serde_json::json!(null)),
+            ("llm_backend", serde_json::json!("local-code")),
+            ("descriptoin", serde_json::json!("typo")),
+        ];
 
-    // GIVEN a manifest JSON with "llm_backend": null
-    // WHEN deserialized
-    // THEN llm_backend == None
-    #[test]
-    fn test_llm_backend_null_is_none() {
-        let json = serde_json::json!({
-            "name": "test-agent",
-            "version": "1.0.0",
-            "description": "test",
-            "tools_required": [],
-            "llm_backend": null
-        });
-        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
-        assert!(manifest.llm_backend.is_none());
-    }
+        for (key, value) in keys {
+            let mut json = serde_json::json!({
+                "name": "test-agent",
+                "version": "1.0.0",
+                "description": "test"
+            });
+            json[key] = value;
 
-    // GIVEN a manifest with llm_backend = Some(...)
-    // WHEN serialized to JSON
-    // THEN the field appears in the JSON
-    #[test]
-    fn test_llm_backend_serialized_when_some() {
-        let json = serde_json::json!({
-            "name": "test-agent",
-            "version": "1.0.0",
-            "description": "test",
-            "tools_required": [],
-            "llm_backend": "mistral-small"
-        });
-        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
-        let output = serde_json::to_string(&manifest).unwrap();
-        assert!(output.contains("mistral-small"));
-    }
+            // WHEN it is deserialized
+            let result = serde_json::from_value::<AgentManifest>(json);
 
-    // GIVEN a manifest with llm_backend = None
-    // WHEN serialized to JSON
-    // THEN the field does not appear (skip_serializing_if)
-    #[test]
-    fn test_llm_backend_absent_from_json_when_none() {
-        let json = serde_json::json!({
-            "name": "test-agent",
-            "version": "1.0.0",
-            "description": "test",
-            "tools_required": []
-        });
-        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
-        let output = serde_json::to_string(&manifest).unwrap();
-        assert!(!output.contains("llm_backend"));
+            // THEN it is refused, naming the key, rather than read without it
+            let error = result.expect_err(key).to_string();
+            assert!(error.contains(key), "{key}: {error}");
+        }
     }
 
     #[test]
@@ -584,16 +502,12 @@ mod tests {
             name: "roundtrip-agent".into(),
             version: "1.0.0".into(),
             description: "test".into(),
-            tools_required: vec![],
-            tools_optional: vec![],
             supports_streaming: false,
             supports_a2a: false,
             memory_namespace: None,
             shared_memory_namespaces: vec![],
             max_concurrent_tasks: 1,
             step_budget: None,
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".into(),
@@ -601,7 +515,6 @@ mod tests {
             mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec!["smtp".into(), "bash_executor".into()],
-            llm_backend: None,
             model: None,
             packages: vec![],
             memory_config: None,
@@ -630,7 +543,7 @@ mod tests {
     #[test]
     fn test_packages_field_default() {
         // GIVEN a manifest JSON without a packages field
-        let json = r#"{"name":"test","version":"1.0.0","description":"","tools_required":[]}"#;
+        let json = r#"{"name":"test","version":"1.0.0","description":""}"#;
         // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
         // THEN packages = vec![]
@@ -640,7 +553,8 @@ mod tests {
     #[test]
     fn test_packages_field_populated() {
         // GIVEN a manifest JSON with packages
-        let json = r#"{"name":"excel","version":"0.1.0","description":"","tools_required":[],"packages":["openpyxl>=3.1.0"]}"#;
+        let json =
+            r#"{"name":"excel","version":"0.1.0","description":"","packages":["openpyxl>=3.1.0"]}"#;
         // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
         // THEN packages contains the value
@@ -650,7 +564,7 @@ mod tests {
     #[test]
     fn test_packages_field_roundtrip() {
         // GIVEN a manifest JSON with packages
-        let json = r#"{"name":"pandas-agent","version":"0.1.0","description":"","tools_required":[],"packages":["pandas>=2.0.0"]}"#;
+        let json = r#"{"name":"pandas-agent","version":"0.1.0","description":"","packages":["pandas>=2.0.0"]}"#;
         // WHEN serialized then deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
         let serialized = serde_json::to_string(&manifest).expect("serialize must succeed");
@@ -675,7 +589,7 @@ mod tests {
     #[test]
     fn test_memory_config_absent_from_manifest_is_none() {
         // GIVEN a manifest JSON without memory_config
-        let json = r#"{"name":"agent","version":"1.0.0","description":"","tools_required":[]}"#;
+        let json = r#"{"name":"agent","version":"1.0.0","description":""}"#;
         // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize");
         // THEN memory_config is None
@@ -689,7 +603,6 @@ mod tests {
             "name": "long-running",
             "version": "1.0.0",
             "description": "agent with retention config",
-            "tools_required": [],
             "memory_config": {
                 "episodic_retention_days": 7,
                 "semantic_retention_days": null,
@@ -725,8 +638,7 @@ mod tests {
         let json = serde_json::json!({
             "name": "agent",
             "version": "1.0.0",
-            "description": "desc",
-            "tools_required": ["file_io"]
+            "description": "desc"
         });
         // WHEN deserialized
         let manifest: AgentManifest = serde_json::from_value(json).expect("deserialize");
@@ -741,7 +653,6 @@ mod tests {
             "name": "agent",
             "version": "1.0.0",
             "description": "desc",
-            "tools_required": ["bash_executor"],
             "check_commands": ["cargo test -p my-agent", "cargo clippy"]
         });
         // WHEN deserialized and re-serialized
@@ -765,7 +676,6 @@ mod tests {
             "name": "notes",
             "version": "1.0.0",
             "description": "test",
-            "tools_required": [],
             "autonomy_level": "supervised"
         });
 
@@ -775,7 +685,7 @@ mod tests {
         // THEN the tier is the declared one, and a manifest without it reads none
         assert_eq!(manifest.autonomy_level, Some(AutonomyLevel::Supervised));
         let bare: AgentManifest = serde_json::from_value(serde_json::json!({
-            "name": "notes", "version": "1.0.0", "description": "test", "tools_required": []
+            "name": "notes", "version": "1.0.0", "description": "test"
         }))
         .expect("deserialize");
         assert_eq!(bare.autonomy_level, None);
@@ -788,7 +698,6 @@ mod tests {
             "name": "notes",
             "version": "1.0.0",
             "description": "test",
-            "tools_required": [],
             "autonomy_level": "unbounded"
         });
 

@@ -221,7 +221,7 @@ impl RuntimeContext {
     /// Injected tools proxy; `None` if no tool is allocated.
     ///
     /// Python property `ctx.tools`. Returns Python `None` (no exception) if the
-    /// agent has no `tools_required` or the factory did not provide a proxy.
+    /// run was granted no tool or the factory did not provide a proxy.
     ///
     /// ctx-attachment: optional, the production constructor takes an `Option` and
     ///     leaves `tools` unset when the agent declares no tool.
@@ -1692,16 +1692,12 @@ mod tool_proxy_a2a_tests {
             name: "excel-worker".to_string(),
             version: "0.1.0".to_string(),
             description: "Excel worker".to_string(),
-            tools_required: vec![],
-            tools_optional: vec![],
             supports_streaming: false,
             supports_a2a: true,
             memory_namespace: None,
             shared_memory_namespaces: vec![],
             max_concurrent_tasks: 1,
             step_budget: None,
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
             tags: vec!["worker".to_string()],
             skills: vec![AgentSkill {
                 id: "read-excel".to_string(),
@@ -1717,7 +1713,6 @@ mod tool_proxy_a2a_tests {
             mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
-            llm_backend: None,
             model: None,
             packages: vec![],
             memory_config: None,

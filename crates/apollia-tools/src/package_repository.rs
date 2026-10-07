@@ -1,8 +1,7 @@
 //! SQLite repository for persisting installed agent packages.
 //!
-//! A **package** is a self-contained directory described by an `agent.toml`.
-//! It bundles a director and its workers, triggers, and shared pip
-//! dependencies.
+//! A **package** is what a `.apo` archive installs: the agents, workflows and
+//! tools its `apollia.toml` declares, and the Python dependencies it asks for.
 //!
 //! This repository manages `installed_packages` and `package_items`, the list
 //! of what each package installed (agents, workflows, tools, connections).
@@ -33,7 +32,7 @@ pub struct InstalledPackage {
     pub version: String,
     /// Absolute path of the package directory (`~/.apollia/agents/packages/<name>/`).
     pub root_path: PathBuf,
-    /// Contents of `agent.toml` serialized as JSON.
+    /// Contents of the manifest of the package, serialized as JSON.
     pub manifest_json: String,
     /// Installation timestamp (RFC 3339).
     pub installed_at: String,
@@ -397,33 +396,6 @@ impl PackageRepository {
 
     // ─── Async wrappers ──────────────────────────────────────────────────────
 
-    /// Async wrapper for [`save`].
-    pub async fn save_async(&self, pkg: InstalledPackage) -> Result<(), PackageRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.save(&pkg))
-            .await
-            .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`get`].
-    pub async fn get_async(
-        &self,
-        name: String,
-    ) -> Result<Option<InstalledPackage>, PackageRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.get(&name))
-            .await
-            .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
-    }
-
-    /// Async wrapper for [`list`].
-    pub async fn list_async(&self) -> Result<Vec<InstalledPackage>, PackageRepositoryError> {
-        let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.list())
-            .await
-            .map_err(|e| PackageRepositoryError::SpawnError(e.to_string()))?
-    }
-
     /// Async wrapper for [`delete`].
     pub async fn delete_async(&self, name: String) -> Result<(), PackageRepositoryError> {
         let repo = self.clone();
@@ -653,17 +625,5 @@ mod tests {
         repo.delete("to-delete").expect("delete");
         // THEN the package no longer exists
         assert!(repo.get("to-delete").expect("get").is_none());
-    }
-
-    #[tokio::test]
-    async fn test_list_async_returns_saved_packages() {
-        // GIVEN 2 saved packages
-        let repo = open_test_repo();
-        repo.save(&test_package("pkg-a")).expect("save a");
-        repo.save(&test_package("pkg-b")).expect("save b");
-        // WHEN listing asynchronously
-        let pkgs = repo.list_async().await.expect("list_async");
-        // THEN the 2 packages are returned
-        assert_eq!(pkgs.len(), 2);
     }
 }

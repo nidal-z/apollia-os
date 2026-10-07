@@ -39,7 +39,6 @@ use super::request_mcp_run::{LaunchedRequestRunner, RequestMcp};
 use super::router::compat_router;
 use super::tokens::ServerTokensHandle;
 use crate::agents::task::AgentTaskLauncher;
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::routes_llm::tests::test_app_state_no_llm;
 use crate::chat::ChatSessionManagerHandle;
 use crate::governance::policy_admission::valid_verdict_with_connections;
@@ -303,7 +302,6 @@ async fn fixture(setup: Setup) -> Fixture {
         &dir.path().join("chat.db"),
         Some(llm.clone()),
         tool_registry.clone(),
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

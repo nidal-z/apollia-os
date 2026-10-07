@@ -3,118 +3,23 @@
 //! These routes expose agent lifecycle management via the API. They delegate
 //! to [`AgentRegistryHandle`] for state reads and transitions.
 //!
-//! Agent loading is abstracted via the [`AgentLoader`] trait to keep
-//! `apollia-runtime` decoupled from PyO3/apollia-aip.
-
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+//! An agent is a definition stored in `agents.db`: starting one registers it
+//! from that definition, and nothing is imported.
 
 use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use crate::agents::available::{make_available, Availability};
 use crate::api::server::AppState;
-use crate::coordinator::{DynBackend, ExecutionBackend, ExecutionCoordinator};
+use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::registry::AgentRegistryError;
 
-use apollia_core::{AgentManifest, ProcessState};
+use apollia_core::ProcessState;
 
 /// The installed agents of the machine and their install route.
 pub mod installed;
-
-/// Trait for loading and validating Python agent modules.
-///
-/// Abstracts away the PyO3-based AIP loading so that `apollia-runtime` does
-/// not depend on `apollia-aip`. The concrete implementation lives in `apollia-cli`.
-pub trait AgentLoader: Send + Sync {
-    /// Load a Python agent module from `path`, validate AIP duck typing,
-    /// and return the deserialized [`AgentManifest`].
-    ///
-    /// Returns a human-readable error string on failure.
-    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String>;
-
-    /// Like [`Self::load_and_validate`], with `extra_sys_paths` put on
-    /// `sys.path` before the import: the `site-packages` of the virtualenv an
-    /// agent package built for this agent. The default ignores them, which
-    /// suits a loader that imports no Python.
-    fn load_and_validate_with(
-        &self,
-        path: &Path,
-        extra_sys_paths: &[PathBuf],
-    ) -> Result<AgentManifest, String> {
-        let _ = extra_sys_paths;
-        self.load_and_validate(path)
-    }
-}
-
-/// Factory for creating per-agent execution backends.
-///
-/// Abstracts away PyO3/AIPBridge creation so that `apollia-runtime` remains
-/// decoupled from `apollia-aip`. The concrete implementation lives in `apollia-cli`.
-///
-/// Called once per agent at start time from [`start_agent`].
-pub trait AgentBackendFactory: Send + Sync {
-    /// Creates a real execution backend for the given agent.
-    ///
-    /// The returned `DynBackend` is used for all tasks routed to this agent.
-    /// Implementations load the Python module, create an `AIPBridge`, and
-    /// build a `RuntimeContext` factory that is closed over in the backend.
-    fn create_for_agent(&self, agent_path: &Path, manifest: &AgentManifest) -> DynBackend;
-}
-
-/// Stub [`AgentLoader`] that builds a minimal manifest from the file name.
-///
-/// Intended for tests that don't exercise agent loading logic.
-pub struct StubAgentLoader;
-
-impl AgentLoader for StubAgentLoader {
-    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        let name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("stub-agent")
-            .replace('_', "-");
-        Ok(AgentManifest {
-            autonomy_level: None,
-            format_version: 1,
-            name,
-            version: "0.0.0".to_string(),
-            description: "stub agent for tests".to_string(),
-            tools_required: vec![],
-            tools_optional: vec![],
-            supports_streaming: false,
-            supports_a2a: false,
-            memory_namespace: None,
-            shared_memory_namespaces: vec![],
-            max_concurrent_tasks: 1,
-            step_budget: None,
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
-            tags: vec![],
-            skills: vec![],
-            execution_mode: "auto".to_string(),
-            supports_mailbox: false,
-            mailbox_allowlist: None,
-            system_prompt: None,
-            tools_requiring_approval: vec![],
-            llm_backend: None,
-            model: None,
-            packages: vec![],
-            memory_config: None,
-            agent_type: None,
-            examples: vec![],
-            limitations: vec![],
-            setup_notes: None,
-            agent_class: None,
-            user_memory_write: false,
-            datasources: vec![],
-            templates: vec![],
-            secrets: vec![],
-            check_commands: vec![],
-        })
-    }
-}
 
 /// Query parameters for `GET /api/v1/agents`.
 #[derive(Debug, Deserialize)]
@@ -135,8 +40,8 @@ pub struct SkillDto {
 /// Request body for `POST /api/v1/agents`.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
-    /// Path to the agent Python module.
-    pub agent_path: String,
+    /// Identifier of the stored agent to make available.
+    pub agent: String,
 }
 
 /// Response body for agent operations.
@@ -185,25 +90,6 @@ fn state_to_string(state: &ProcessState) -> String {
         ProcessState::Stopping => "stopping".to_string(),
         ProcessState::Stopped => "stopped".to_string(),
     }
-}
-
-/// Load an agent manifest via the [`AgentLoader`] trait.
-///
-/// Delegates to the concrete loader injected in `AppState`.
-/// Returns a structured error response on failure.
-fn load_manifest(
-    loader: &dyn AgentLoader,
-    agent_path: &str,
-) -> Result<AgentManifest, (StatusCode, Json<ErrorResponse>)> {
-    let path = Path::new(agent_path);
-    loader.load_and_validate(path).map_err(|reason| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: format!("failed to load agent from '{agent_path}': {reason}"),
-            }),
-        )
-    })
 }
 
 /// Convert a registry error to an HTTP error response.
@@ -271,153 +157,142 @@ pub async fn list_agents<B: ExecutionBackend + Clone>(
 
 /// Handler for `POST /api/v1/agents`.
 ///
-/// Loads the Python agent module via [`AgentLoader`], validates
-/// AIP duck typing, registers the agent with its real manifest, transitions
-/// to Active (or Degraded if optional tools are missing), and creates an
-/// [`ExecutionCoordinator`] registered with the [`TaskRouter`].
-///
-/// Tool resolution is delegated to [`apollia_tools::resolve`] which handles
-/// the `a2a:` prefix correctly (A2A dependencies live in the ToolProxy
-/// allowed_tools list, not in the ToolRegistry, and must not trigger
-/// DEGRADED). A missing `tools_required` entry returns 400 Bad Request.
+/// Makes a stored agent available: it is registered from the definition
+/// `agents.db` holds, moved to Active, and given an [`ExecutionCoordinator`]
+/// in the [`TaskRouter`]. An agent is data: nothing is imported, and what it
+/// may reach is read from its resolved access when a run starts.
 ///
 /// Returns 201 Created with the agent_id and state.
-/// Returns 400 Bad Request if the Python module is invalid.
+/// Returns 404 Not Found when no stored agent carries the identifier.
+/// Returns 409 Conflict for a disabled agent, an agent already available,
+/// and the Apollia agent, which is always there.
+///
+/// [`ExecutionCoordinator`]: crate::coordinator::ExecutionCoordinator
+/// [`TaskRouter`]: crate::router::TaskRouter
 #[utoipa::path(
     post,
     path = "/api/v1/agents",
     tag = "agents",
     request_body = StartAgentRequest,
     responses(
-        (status = 201, description = "Agent started", body = AgentResponse),
-        (status = 400, description = "Invalid agent module", body = crate::api::openapi::ApiErrorBody),
+        (status = 201, description = "Agent available", body = AgentResponse),
+        (status = 404, description = "No stored agent carries this identifier", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Agent disabled, already available, or built into Apollia", body = crate::api::openapi::ApiErrorBody),
+        (status = 500, description = "agents.db cannot be read", body = crate::api::openapi::ApiErrorBody),
     )
 )]
 pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Json(req): Json<StartAgentRequest>,
 ) -> Result<(StatusCode, Json<AgentResponse>), (StatusCode, Json<ErrorResponse>)> {
-    let manifest = load_manifest(state.agent_loader.as_ref(), &req.agent_path)?;
-
-    // Deferred MCP tools have no descriptor in the ToolRegistry (only a
-    // lightweight index). Collect their `mcp:<server>/<tool>` names so a
-    // `tools_required` agent can start; the resolver treats them as resolved.
-    let deferred_mcp_tools: std::collections::HashSet<String> = match &state.mcp_handle {
-        Some(handle) => handle
-            .get_tool_index()
-            .await
-            .into_iter()
-            .map(|entry| format!("mcp:{}/{}", entry.server_name, entry.tool_name))
-            .collect(),
-        None => std::collections::HashSet::new(),
-    };
-
-    // Delegate tool resolution to `apollia_tools::resolve` (single source).
-    // The resolver handles A2A dependencies (`a2a:` prefix), which are not in
-    // the ToolRegistry and must not push the agent into DEGRADED.
-    let has_missing_optional = match &state.tool_registry_handle {
-        Some(registry) => {
-            match apollia_tools::resolve(&manifest, registry, &deferred_mcp_tools).await {
-                Ok(report) => matches!(report.status, apollia_tools::ResolutionStatus::Degraded),
-                Err(e) => {
-                    // Missing tools_required: 400 Bad Request (fail fast at startup).
-                    return Err((
-                        StatusCode::BAD_REQUEST,
-                        Json(ErrorResponse {
-                            error: format!("tool resolution failed: {e}"),
-                        }),
-                    ));
-                }
-            }
-        }
-        // No registry available (test harness fallback), treat non-A2A optional tools
-        // as missing. A2A deps are resolved at invocation, never at boot.
-        None => manifest
-            .tools_optional
-            .iter()
-            .any(|name| !name.starts_with("a2a:")),
-    };
-    let max_concurrent = manifest.max_concurrent_tasks;
-    // Clone manifest before consuming it in register(), needed for factory below.
-    let manifest_for_factory = manifest.clone();
-
-    let agent_id = state
+    let refusal = |status: StatusCode, error: String| (status, Json(ErrorResponse { error }));
+    if apollia_tools::is_built_in_agent(&req.agent) {
+        return Err(refusal(
+            StatusCode::CONFLICT,
+            format!(
+                "agent '{}' is built into Apollia and is always available",
+                req.agent
+            ),
+        ));
+    }
+    let stored = stored_agent(&state.data_dir, &req.agent)
+        .await
+        .map_err(|e| refusal(StatusCode::INTERNAL_SERVER_ERROR, e))?
+        .ok_or_else(|| {
+            refusal(
+                StatusCode::NOT_FOUND,
+                format!("agent '{}' is not installed", req.agent),
+            )
+        })?;
+    if !stored.enabled {
+        return Err(refusal(
+            StatusCode::CONFLICT,
+            format!("agent '{}' is disabled", stored.name),
+        ));
+    }
+    let registered = state
         .registry_handle
-        .register(manifest)
+        .find_by_name(&stored.name)
         .await
         .map_err(registry_error_to_response)?;
-
-    let final_state = if has_missing_optional {
-        // optional tools listed but not resolved yet -> DEGRADED
-        state
+    if let Some(id) = registered {
+        let entry = state
             .registry_handle
-            .update_state(agent_id.as_str(), ProcessState::Active)
+            .get_agent(id.as_str())
             .await
             .map_err(registry_error_to_response)?;
-        state
-            .registry_handle
-            .update_state(agent_id.as_str(), ProcessState::Degraded)
-            .await
-            .map_err(registry_error_to_response)?;
-        "degraded"
-    } else {
-        state
-            .registry_handle
-            .update_state(agent_id.as_str(), ProcessState::Active)
-            .await
-            .map_err(registry_error_to_response)?;
-        "active"
-    };
-
-    // Create and register an ExecutionCoordinator for this agent.
-    // Production: factory creates a real AIPBridge backend, converted to B via From<DynBackend>.
-    // Tests: factory is None, use state.backend directly (already type B).
-    let agent_backend: B = match &state.backend_factory {
-        Some(factory) => {
-            let dyn_backend =
-                factory.create_for_agent(Path::new(&req.agent_path), &manifest_for_factory);
-            B::from(dyn_backend)
+        if entry.is_some_and(|e| !matches!(e.process_state, ProcessState::Stopped)) {
+            return Err(refusal(
+                StatusCode::CONFLICT,
+                format!("agent '{}' is already available", stored.name),
+            ));
         }
-        None => state.backend.clone(),
-    };
-    let mut coordinator = ExecutionCoordinator::new(
-        agent_id.clone(),
-        max_concurrent,
-        state.event_sender.clone(),
-        agent_backend,
-    )
-    .with_agent_name(manifest_for_factory.name.clone());
-    if let Some(ref repo) = state.task_repository {
-        coordinator =
-            coordinator.with_task_repository(Arc::clone(repo), state.observability_live());
     }
-    // Fire-and-forget: if registration fails the task submission will return NoCoordinator.
-    let _ = state
-        .router_handle
-        .register_coordinator(agent_id.clone(), coordinator)
-        .await;
 
-    let start_skills = manifest_for_factory
-        .skills
-        .iter()
-        .map(|s| SkillDto {
-            id: s.id.clone(),
-            name: s.name.clone(),
-        })
-        .collect();
+    let agent_id = make_available(
+        &stored,
+        &Availability {
+            registry: &state.registry_handle,
+            router: &state.router_handle,
+            event_sender: &state.event_sender,
+            backend: &state.backend,
+            task_repository: state.task_repository.as_ref(),
+            observability: state.observability_live(),
+        },
+    )
+    .await
+    .map_err(registry_error_to_response)?;
 
     Ok((
         StatusCode::CREATED,
         Json(AgentResponse {
             agent_id: agent_id.to_string(),
-            name: Some(manifest_for_factory.name.clone()),
-            version: Some(manifest_for_factory.version.clone()),
-            state: final_state.to_string(),
-            supports_a2a: manifest_for_factory.supports_a2a,
-            skills: start_skills,
+            name: Some(stored.name.clone()),
+            version: Some(stored.version.clone()),
+            state: "active".to_string(),
+            supports_a2a: false,
+            skills: Vec::new(),
             manifest: None,
         }),
     ))
+}
+
+/// Registers every stored, enabled agent the registry of `state` does not
+/// hold yet: what an installation or a creation calls so that the agent is
+/// available at once, with no start.
+pub(crate) async fn register_missing_agents<B: ExecutionBackend + Clone>(state: &AppState<B>) {
+    crate::agents::available::register_missing(
+        &state.data_dir,
+        &Availability {
+            registry: &state.registry_handle,
+            router: &state.router_handle,
+            event_sender: &state.event_sender,
+            backend: &state.backend,
+            task_repository: state.task_repository.as_ref(),
+            observability: state.observability_live(),
+        },
+    )
+    .await;
+}
+
+/// The stored agent `name` of `<data_dir>/agents.db`, read off the async
+/// threads. `None` when the store does not exist or does not hold it.
+async fn stored_agent(
+    data_dir: &std::path::Path,
+    name: &str,
+) -> Result<Option<apollia_tools::StoredAgent>, String> {
+    let db = apollia_core::paths::DataFile::Agents.path(data_dir);
+    let name = name.to_owned();
+    tokio::task::spawn_blocking(move || {
+        if !db.exists() {
+            return Ok(None);
+        }
+        apollia_tools::AgentRepository::open(&db)
+            .and_then(|repo| repo.stored(&name))
+            .map_err(|e| format!("cannot read agents.db: {e}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Resolves `id_or_name`, either a UUID or a human-readable agent name, to its
@@ -609,7 +484,6 @@ mod tests {
     use apollia_core::{AIPResult, AgentManifest, ProcessState, TaskStatus};
     use std::future::Future;
     use std::pin::Pin;
-    use std::sync::Arc;
 
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
@@ -644,66 +518,6 @@ mod tests {
         }
     }
 
-    /// Mock AgentLoader that builds a manifest from the file path stem.
-    struct MockAgentLoader;
-
-    impl AgentLoader for MockAgentLoader {
-        fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-            let name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .replace('_', "-");
-            Ok(AgentManifest {
-                autonomy_level: None,
-                format_version: 1,
-                name,
-                version: "1.0.0".to_string(),
-                description: "mock agent".to_string(),
-                tools_required: vec![],
-                tools_optional: vec![],
-                supports_streaming: false,
-                supports_a2a: false,
-                memory_namespace: None,
-                shared_memory_namespaces: vec![],
-                max_concurrent_tasks: 1,
-                step_budget: None,
-                network_allowlist: None,
-                dangerous_tools_allowed: false,
-                tags: vec![],
-                skills: vec![],
-                execution_mode: "auto".to_string(),
-                supports_mailbox: false,
-                mailbox_allowlist: None,
-                system_prompt: None,
-                tools_requiring_approval: vec![],
-                llm_backend: None,
-                model: None,
-                packages: vec![],
-                memory_config: None,
-                agent_type: None,
-                examples: vec![],
-                limitations: vec![],
-                setup_notes: None,
-                agent_class: None,
-                user_memory_write: false,
-                datasources: vec![],
-                templates: vec![],
-                secrets: vec![],
-                check_commands: vec![],
-            })
-        }
-    }
-
-    /// Mock AgentLoader that always fails (for error path tests).
-    struct FailingAgentLoader;
-
-    impl AgentLoader for FailingAgentLoader {
-        fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-            Err(format!("syntax error in '{}'", path.display()))
-        }
-    }
-
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
             autonomy_level: None,
@@ -711,16 +525,12 @@ mod tests {
             name: name.to_string(),
             version: "0.1.0".to_string(),
             description: String::new(),
-            tools_required: vec![],
-            tools_optional: vec![],
             supports_streaming: false,
             supports_a2a: false,
             memory_namespace: None,
             shared_memory_namespaces: vec![],
             max_concurrent_tasks: 1,
             step_budget: None,
-            network_allowlist: None,
-            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
             execution_mode: "auto".to_string(),
@@ -728,7 +538,6 @@ mod tests {
             mailbox_allowlist: None,
             system_prompt: None,
             tools_requiring_approval: vec![],
-            llm_backend: None,
             model: None,
             packages: vec![],
             memory_config: None,
@@ -746,10 +555,42 @@ mod tests {
     }
 
     fn test_router() -> (Router, AgentRegistryHandle) {
-        test_router_with_loader(Arc::new(MockAgentLoader))
+        test_router_over(std::path::PathBuf::new())
     }
 
-    fn test_router_with_loader(loader: Arc<dyn AgentLoader>) -> (Router, AgentRegistryHandle) {
+    /// A stored agent named `name` in the store of `data_dir`.
+    fn store_agent(data_dir: &std::path::Path, name: &str, enabled: bool) {
+        let repo = apollia_tools::AgentRepository::open(
+            &apollia_core::paths::DataFile::Agents.path(data_dir),
+        )
+        .expect("open agents.db");
+        repo.save_definition(&apollia_tools::StoredAgent {
+            name: name.to_string(),
+            origin: apollia_tools::AgentOrigin::Package,
+            package: None,
+            version: "1.0.0".to_string(),
+            definition: serde_json::json!({
+                "id": name, "name": name, "mission": "Says hello.", "defaults": {},
+            }),
+            enabled,
+            installed_at: "2026-10-01T00:00:00Z".to_string(),
+            updated_at: "2026-10-01T00:00:00Z".to_string(),
+        })
+        .expect("store the agent");
+    }
+
+    async fn start(router: &Router, agent: &str) -> axum::response::Response {
+        let body = serde_json::json!({ "agent": agent });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/agents")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        router.clone().oneshot(req).await.expect("request failed")
+    }
+
+    fn test_router_over(data_dir: std::path::PathBuf) -> (Router, AgentRegistryHandle) {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -758,7 +599,6 @@ mod tests {
             router_handle,
             registry_handle: registry_handle.clone(),
             event_sender: event_tx,
-            agent_loader: loader,
             backend: MockBackend,
             llm_router: crate::api::server::empty_shared_llm_router(),
             trigger_engine: None,
@@ -767,7 +607,6 @@ mod tests {
             pending_approvals: None,
             plan_gates: None,
             notification_config: None,
-            backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
@@ -784,7 +623,7 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
-            data_dir: std::path::PathBuf::new(),
+            data_dir,
             stt_engine: crate::api::server::empty_shared_stt_engine(),
             stt_repository: crate::api::server::empty_shared_stt_repository(),
             mcp_handle: None,
@@ -882,29 +721,6 @@ mod tests {
         let json = body_json(resp).await;
         let agents = json["agents"].as_array().expect("agents array");
         assert!(agents.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_start_agent_returns_201() {
-        // GIVEN an empty router
-        let (router, _) = test_router();
-
-        // WHEN POST /api/v1/agents with agent_path
-        let body = serde_json::json!({"agent_path": "/path/to/hello_agent.py"});
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/agents")
-            .header("content-type", "application/json")
-            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("request failed");
-
-        // THEN 201 Created with agent_id and state "active"
-        assert_eq!(resp.status(), StatusCode::CREATED);
-        let json = body_json(resp).await;
-        assert_eq!(json["state"], "active");
-        assert!(json["agent_id"].is_string());
-        assert!(!json["agent_id"].as_str().expect("agent_id str").is_empty());
     }
 
     #[tokio::test]
@@ -1106,29 +922,6 @@ mod tests {
             .contains("already stopped"));
     }
 
-    #[tokio::test]
-    async fn test_start_agent_invalid_python_returns_400() {
-        // GIVEN a loader that always fails
-        let (router, _) = test_router_with_loader(Arc::new(FailingAgentLoader));
-
-        // WHEN POST /api/v1/agents with an invalid file
-        let body = serde_json::json!({"agent_path": "/path/to/broken.py"});
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/agents")
-            .header("content-type", "application/json")
-            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("request failed");
-
-        // THEN 400 with a clear error
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        let json = body_json(resp).await;
-        let error = json["error"].as_str().expect("error str");
-        assert!(error.contains("failed to load agent"));
-        assert!(error.contains("syntax error"));
-    }
-
     #[test]
     fn test_agent_list_query_deserializes_supports_a2a() {
         // GIVEN a JSON object with supports_a2a = true (mirrors URL-decoded query)
@@ -1198,199 +991,92 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_start_agent_with_optional_tools_degraded() {
-        // GIVEN a loader that returns a manifest with tools_optional
-        struct DegradedLoader;
-        impl AgentLoader for DegradedLoader {
-            fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
-                Ok(AgentManifest {
-                    autonomy_level: None,
-                    format_version: 1,
-                    name: "degraded-agent".to_string(),
-                    version: "1.0.0".to_string(),
-                    description: "agent with optional tools".to_string(),
-                    tools_required: vec![],
-                    tools_optional: vec!["mcp_erp".to_string()],
-                    supports_streaming: false,
-                    supports_a2a: false,
-                    memory_namespace: None,
-                    shared_memory_namespaces: vec![],
-                    max_concurrent_tasks: 1,
-                    step_budget: None,
-                    network_allowlist: None,
-                    dangerous_tools_allowed: false,
-                    tags: vec![],
-                    skills: vec![],
-                    execution_mode: "auto".to_string(),
-                    supports_mailbox: false,
-                    mailbox_allowlist: None,
-                    system_prompt: None,
-                    tools_requiring_approval: vec![],
-                    llm_backend: None,
-                    model: None,
-                    packages: vec![],
-                    memory_config: None,
-                    agent_type: None,
-                    examples: vec![],
-                    limitations: vec![],
-                    setup_notes: None,
-                    agent_class: None,
-                    user_memory_write: false,
-                    datasources: vec![],
-                    templates: vec![],
-                    secrets: vec![],
-                    check_commands: vec![],
-                })
-            }
-        }
-        let (router, _) = test_router_with_loader(Arc::new(DegradedLoader));
+    async fn test_start_agent_registers_a_stored_agent() {
+        // GIVEN a store holding one enabled agent
+        let data = tempfile::tempdir().expect("tempdir");
+        store_agent(data.path(), "hello-agent", true);
+        let (router, registry) = test_router_over(data.path().to_path_buf());
 
-        // WHEN POST /api/v1/agents
-        let body = serde_json::json!({"agent_path": "/path/to/degraded_agent.py"});
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/agents")
-            .header("content-type", "application/json")
-            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("request failed");
+        // WHEN POST /api/v1/agents names it
+        let resp = start(&router, "hello-agent").await;
 
-        // THEN 201 with state "degraded"
+        // THEN 201, the agent is active in the registry under its mission,
+        // and nothing but its definition was read
         assert_eq!(resp.status(), StatusCode::CREATED);
         let json = body_json(resp).await;
-        assert_eq!(json["state"], "degraded");
+        assert_eq!(json["state"], "active");
+        assert_eq!(json["name"], "hello-agent");
+        let id = json["agent_id"].as_str().expect("agent_id");
+        let entry = registry
+            .get_agent(id)
+            .await
+            .expect("registry call")
+            .expect("agent registered");
+        assert_eq!(entry.process_state, ProcessState::Active);
+        assert_eq!(entry.manifest.description, "Says hello.");
     }
 
     #[tokio::test]
-    async fn test_start_agent_with_a2a_optional_dep_is_active() {
-        // GIVEN an agent that declares only A2A dependencies in tools_optional.
-        // The ToolRegistry is empty; A2A resolution happens at invocation, not at boot.
-        // The agent must therefore start Active, not Degraded.
-        struct A2aOnlyLoader;
-        impl AgentLoader for A2aOnlyLoader {
-            fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
-                Ok(AgentManifest {
-                    autonomy_level: None,
-                    format_version: 1,
-                    name: "a2a-director".to_string(),
-                    version: "1.0.0".to_string(),
-                    description: "director with only A2A optional deps".to_string(),
-                    tools_required: vec![],
-                    tools_optional: vec![
-                        "a2a:search-and-extract".to_string(),
-                        "a2a:synthesize-report".to_string(),
-                    ],
-                    supports_streaming: false,
-                    supports_a2a: true,
-                    memory_namespace: None,
-                    shared_memory_namespaces: vec![],
-                    max_concurrent_tasks: 1,
-                    step_budget: None,
-                    network_allowlist: None,
-                    dangerous_tools_allowed: false,
-                    tags: vec![],
-                    skills: vec![],
-                    execution_mode: "direct".to_string(),
-                    supports_mailbox: false,
-                    mailbox_allowlist: None,
-                    system_prompt: None,
-                    tools_requiring_approval: vec![],
-                    llm_backend: None,
-                    model: None,
-                    packages: vec![],
-                    memory_config: None,
-                    agent_type: None,
-                    examples: vec![],
-                    limitations: vec![],
-                    setup_notes: None,
-                    agent_class: None,
-                    user_memory_write: false,
-                    datasources: vec![],
-                    templates: vec![],
-                    secrets: vec![],
-                    check_commands: vec![],
-                })
-            }
-        }
+    async fn test_start_agent_refuses_what_is_not_a_stored_enabled_agent() {
+        // GIVEN a store holding a disabled agent and an agent already started
+        let data = tempfile::tempdir().expect("tempdir");
+        store_agent(data.path(), "asleep", false);
+        store_agent(data.path(), "awake", true);
+        let (router, registry) = test_router_over(data.path().to_path_buf());
+        assert_eq!(start(&router, "awake").await.status(), StatusCode::CREATED);
 
-        let (event_tx, _) = EventBus::new();
-        let registry_handle = AgentRegistry::spawn(event_tx.clone());
-        let router_handle: TaskRouterHandle<MockBackend> =
-            TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
-        let tool_registry = apollia_tools::ToolRegistryHandle::start();
-        let state = AppState {
-            router_handle,
-            registry_handle: registry_handle.clone(),
-            event_sender: event_tx,
-            agent_loader: Arc::new(A2aOnlyLoader),
-            backend: MockBackend,
-            llm_router: crate::api::server::empty_shared_llm_router(),
-            trigger_engine: None,
-            config_path: None,
-            task_repository: None,
-            pending_approvals: None,
-            plan_gates: None,
-            notification_config: None,
-            backend_factory: None,
-            tool_registry_handle: Some(tool_registry.clone()),
-            audit_trail: None,
-            audit_journal: None,
-            connection_governance: Default::default(),
-            governance: None,
-            inference_governance: Default::default(),
-            obs_config: apollia_core::ObservabilityConfig::default(),
-            config_reload: None,
-            llm_call_repository: None,
-            trigger_def_repo: None,
-            notification_repo: None,
-            notification_engine_handle: None,
-            chat_manager: None,
-            plan_cache: None,
-            mailbox_handle: None,
-            user_memory: None,
-            data_dir: std::path::PathBuf::new(),
-            stt_engine: crate::api::server::empty_shared_stt_engine(),
-            stt_repository: crate::api::server::empty_shared_stt_repository(),
-            mcp_handle: None,
-            mcp_server_repo: None,
-            llm_backend_repo: None,
-            stt_config_repo: None,
-            a2a_invoker: None,
-            resilience_layer: None,
-            runner_proxy: None,
-            llama_server_supervisor: None,
-            mlx_engine: None,
-            secret_store: crate::inference_servers::default_store_opener(),
-            batches: None,
-            workflows: None,
-            compat_server: None,
-            source_registry: None,
-        };
-        let router = Router::new()
-            .route(
-                "/api/v1/agents",
-                get(list_agents::<MockBackend>).post(start_agent::<MockBackend>),
-            )
-            .with_state(state);
+        // WHEN an unknown name, the disabled agent, the started one, the
+        // Apollia agent and a Python path are each started
+        let unknown = start(&router, "nobody").await;
+        let disabled = start(&router, "asleep").await;
+        let twice = start(&router, "awake").await;
+        let built_in = start(&router, apollia_tools::APOLLIA_AGENT_ID).await;
+        let path = start(&router, "/path/to/hello_agent.py").await;
 
-        // WHEN the agent is started through the API
-        let body = serde_json::json!({"agent_path": "/path/to/a2a_director.py"});
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/agents")
-            .header("content-type", "application/json")
-            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("request failed");
+        // THEN each is refused with its own status, and the registry holds
+        // the one agent that was started
+        assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+        assert_eq!(disabled.status(), StatusCode::CONFLICT);
+        assert_eq!(twice.status(), StatusCode::CONFLICT);
+        assert_eq!(built_in.status(), StatusCode::CONFLICT);
+        assert_eq!(path.status(), StatusCode::NOT_FOUND);
+        let listed = registry.list_agents().await.expect("list");
+        assert_eq!(listed.len(), 1);
+    }
 
-        // THEN 201 with state "active" (not "degraded")
-        assert_eq!(resp.status(), StatusCode::CREATED);
-        let json = body_json(resp).await;
+    #[tokio::test]
+    async fn test_a_stopped_agent_is_started_again() {
+        // GIVEN a stored agent started, then stopped
+        let data = tempfile::tempdir().expect("tempdir");
+        store_agent(data.path(), "hello-agent", true);
+        let (router, registry) = test_router_over(data.path().to_path_buf());
         assert_eq!(
-            json["state"], "active",
-            "agent with only A2A optional deps must be Active, not Degraded - got: {json}"
+            start(&router, "hello-agent").await.status(),
+            StatusCode::CREATED
         );
+        let stop = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/agents/hello-agent")
+            .body(Body::empty())
+            .expect("build request");
+        let stopped = router.clone().oneshot(stop).await.expect("request failed");
+        assert_eq!(stopped.status(), StatusCode::OK);
 
-        tool_registry.shutdown().await;
+        // WHEN it is started again
+        let again = start(&router, "hello-agent").await;
+
+        // THEN it is active once more, under one name
+        assert_eq!(again.status(), StatusCode::CREATED);
+        let id = registry
+            .find_by_name("hello-agent")
+            .await
+            .expect("registry call")
+            .expect("registered");
+        let entry = registry
+            .get_agent(id.as_str())
+            .await
+            .expect("registry call")
+            .expect("agent registered");
+        assert_eq!(entry.process_state, ProcessState::Active);
     }
 }

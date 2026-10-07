@@ -8,7 +8,7 @@ use apollia_llm::model_cards::fetch::RegistrySource;
 use apollia_llm::model_cards::{default_cache_dir, store_index};
 
 use super::{card_body, cards_body, configured_source};
-use crate::api::test_support::{app_state, call, StemLoader};
+use crate::api::test_support::{app_state, call};
 
 const INDEX: &str = include_str!("../../../../../apollia-llm/src/model_cards/fixtures/index.json");
 const SIGNATURE: &str =
@@ -30,10 +30,7 @@ async fn a_registry_cut_by_configuration_gives_an_empty_catalogue_that_says_so()
         "[models]\nregistry_enabled = false\n",
     )
     .expect("write config");
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        tmp.path().to_path_buf(),
-    );
+    let state = app_state(tmp.path().to_path_buf());
 
     // WHEN the catalogue opens
     let (status, body) = call(state, "GET", "/api/v1/llm/registry/cards?lang=fr", None).await;
@@ -160,10 +157,7 @@ fn one_card_is_read_from_the_copy_with_its_source_and_english_as_fallback() {
 async fn the_card_route_answers_404_before_the_catalogue_was_ever_opened() {
     // GIVEN a runtime whose data directory holds no copy
     let tmp = tempfile::tempdir().expect("tempdir");
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        tmp.path().to_path_buf(),
-    );
+    let state = app_state(tmp.path().to_path_buf());
 
     // WHEN a card is asked
     let (status, body) = call(
@@ -185,10 +179,7 @@ async fn the_card_route_answers_404_before_the_catalogue_was_ever_opened() {
 async fn the_readme_route_refuses_an_identifier_that_is_not_owner_and_name() {
     // GIVEN a runtime
     let tmp = tempfile::tempdir().expect("tempdir");
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        tmp.path().to_path_buf(),
-    );
+    let state = app_state(tmp.path().to_path_buf());
 
     // WHEN a README is asked for a path escape
     let (status, _body) = call(
@@ -214,10 +205,7 @@ async fn a_registry_cut_by_the_policy_says_so_and_the_import_from_a_disk_stays()
         "[models]\nregistry_enabled = true\n",
     )
     .expect("write config");
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        tmp.path().to_path_buf(),
-    );
+    let mut state = app_state(tmp.path().to_path_buf());
     let verdict =
         apollia_permissions::PolicyVerdict::Valid(Box::new(apollia_permissions::ValidPolicy {
             policy: apollia_permissions::parse_policy(

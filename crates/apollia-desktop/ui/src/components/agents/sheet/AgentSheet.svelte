@@ -105,7 +105,7 @@
 
   $effect(() => {
     void adjust?.revision;
-    void loadDefinition(definitionId, agent);
+    void loadDefinition(definitionId);
   });
 
   $effect(() => {
@@ -130,7 +130,7 @@
     return () => clearInterval(timer);
   });
 
-  async function loadDefinition(id: string, declared: AgentListItem | null): Promise<void> {
+  async function loadDefinition(id: string): Promise<void> {
     const ticket = guard.begin();
     accessLoading = true;
     const [definition, lastFallback, history, connected] = await Promise.all([
@@ -144,9 +144,7 @@
     fallback = lastFallback;
     changes = history;
     connections = connected;
-    const ids = definition
-      ? definition.access
-      : [...(declared?.tools_required ?? []), ...(declared?.tools_optional ?? [])];
+    const ids = definition ? definition.access : [];
     const views = await Promise.all(ids.map((accessId) => describeAccess(accessId)));
     if (!ticket.current) return;
     accesses = views;

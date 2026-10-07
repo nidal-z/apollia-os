@@ -32,10 +32,6 @@
     <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-caption">
       <dt class={rowLabel}>{$t("agent_sheet.technical_execution_mode")}</dt>
       <dd class={rowValue}>{agent.execution_mode ?? "auto"}</dd>
-      {#if agent.install_path}
-        <dt class={rowLabel}>{$t("agent_sheet.technical_install_path")}</dt>
-        <dd class={rowValue}>{agent.install_path}</dd>
-      {/if}
       {#if definition}
         <dt class={rowLabel}>{$t("agent_sheet.technical_origin")}</dt>
         <dd class={rowValue}>{definition.origin}{definition.package ? ` · ${definition.package}` : ""} · {definition.version}</dd>

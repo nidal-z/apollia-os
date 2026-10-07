@@ -14,10 +14,8 @@ pub(in crate::commands::agent) async fn run_list(
         return run_list_a2a(client, json).await;
     }
 
-    // Fetch installed agents from local DB.
-    let installed = open_repository()
-        .and_then(|repo| repo.list().ok())
-        .unwrap_or_default();
+    // The stored agents of the local store.
+    let installed = stored_agents();
 
     // Fetch runtime agents (may fail if runtime not running).
     let runtime_agents = client.list_agents().await.ok();
@@ -58,37 +56,24 @@ async fn run_list_a2a(client: &RuntimeClient, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os agent start <path-or-name>`: register / re-load an agent.
+/// `apollia-os agent start <agent_id>`: make a stored agent available again.
 ///
-/// Accepts either a filesystem path to a `.py` (legacy mode for ad-hoc
-/// agents) or the **name** of an already installed agent. In the latter case
-/// we look it up in `agents.db` and forward its `install_path` to the runtime,
-/// so operators don't have to remember where every package landed inside
-/// `~/.apollia/agents/`.
+/// An agent is available as soon as it is installed and enabled; the verb
+/// brings back one that `agent stop` took out of the runtime inventory.
 pub(in crate::commands::agent) async fn run_start(
     client: &RuntimeClient,
     arg: &str,
     json: bool,
 ) -> i32 {
-    let resolved_path = if looks_like_file_path(arg) {
-        arg.to_string()
-    } else {
-        match open_repository().and_then(|r| r.get(arg).ok().flatten()) {
-            Some(entry) => entry.install_path.to_string_lossy().to_string(),
-            None => {
-                let msg = format!(
-                    "agent '{arg}' not installed (and not a file path); install it first via \
-                     `apollia-os agent install <path>` or pass a `.py` path"
-                );
-                return crate::output::emit_error(
-                    json,
-                    exit_codes::GENERAL_ERROR,
-                    &msg.to_string(),
-                );
-            }
-        }
-    };
-    match client.start_agent(&resolved_path).await {
+    if looks_like_file_path(arg) {
+        // A Python file is not an agent: an agent arrives with a package.
+        let msg = format!(
+            "{}\nAn agent is installed with its package: apollia-os package install <file.apo>",
+            file_path_hint(HintVerb::Start, arg)
+        );
+        return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg);
+    }
+    match client.start_agent(arg).await {
         Ok(resp) => {
             if json {
                 println!(
@@ -112,7 +97,7 @@ pub(in crate::commands::agent) async fn run_start(
 /// mistypes a path reads the hint and copies the example verbatim; a name
 /// nothing answers to lands them on `agent not found`, with nothing telling
 /// them the example was the wrong part.
-pub(in crate::commands::agent) const HINT_EXAMPLE_AGENT: &str = "hello";
+pub(in crate::commands::agent) const HINT_EXAMPLE_AGENT: &str = "apollia-guide";
 
 /// Sub-command a [`file_path_hint`] tells the operator to retype.
 ///
@@ -121,6 +106,7 @@ pub(in crate::commands::agent) const HINT_EXAMPLE_AGENT: &str = "hello";
 /// into a second failure.
 #[derive(Debug, Clone, Copy)]
 pub(in crate::commands::agent) enum HintVerb {
+    Start,
     Stop,
     Show,
 }
@@ -128,10 +114,11 @@ pub(in crate::commands::agent) enum HintVerb {
 impl HintVerb {
     /// Every variant, so the crate's tests can check them all against the parser.
     #[cfg(test)]
-    pub(in crate::commands::agent) const ALL: [Self; 2] = [Self::Stop, Self::Show];
+    pub(in crate::commands::agent) const ALL: [Self; 3] = [Self::Start, Self::Stop, Self::Show];
 
     pub(in crate::commands::agent) fn as_str(self) -> &'static str {
         match self {
+            Self::Start => "start",
             Self::Stop => "stop",
             Self::Show => "show",
         }

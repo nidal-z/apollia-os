@@ -19,9 +19,9 @@
 #                              asked for and silently skipped would produce a
 #                              plausible-looking wrong fixture.
 #   APOLLIA_SEED_PLANNER       "1" adds the opt-in orchestrated planner: the
-#                              seed-planner agent row, its package under
-#                              agents/seed-planner, and the seed-trigger-planner
-#                              row (planner/fragments, planner/files). Not set
+#                              seed-planner agent row and the
+#                              seed-trigger-planner row
+#                              (planner/fragments). Not set
 #                              means the base fixture, whose row counts the CLI
 #                              suite and the -det books assert. Any other value
 #                              is a hard error, for the same reason as a missing
@@ -235,8 +235,7 @@ done
 
 # 1a) Planner opt-in rows. Replayed AFTER the base fragments and BEFORE the
 #     overlay, into databases the base schemas already created, so an overlay
-#     still lands last and step 3 rewrites the planner's install_path like every
-#     other agent row. Nothing here runs on the base build: the CLI suite and
+#     still lands last. Nothing here runs on the base build: the CLI suite and
 #     the -det books count four agents and four triggers.
 if [ "$PLANNER" = "1" ]; then
   for frag in "$HERE"/planner/fragments/*.sql; do
@@ -284,11 +283,6 @@ if [ -d "$HERE/files/fixtures" ]; then
   cp -R "$HERE/files/fixtures/." "$DATA/fixtures/"
 fi
 
-# 2p) Planner opt-in package, copied over the base agents like an overlay's
-#     (same name wins) and before step 3, whose install_path rewrite names it.
-if [ "$PLANNER" = "1" ] && [ -d "$HERE/planner/files/agents" ]; then
-  cp -R "$HERE/planner/files/agents/." "$DATA/agents/"
-fi
 
 # 2a) Memory fixture file names ARE namespaces: list_memory_namespaces() returns
 #     the file stem and list_memory_entries(ns) opens `<ns>.db` then filters its
@@ -348,15 +342,10 @@ if [ -f "$HERE/files/mcp-stub-server.py" ]; then
   fi
 fi
 
-# 3) Rewrite agent install_path + package root_path to the real seed location
-#    (fragment used a placeholder). Runs only if agents.db exists.
-#    install_path must point at the agent's .py entrypoint (agent.py): the boot
-#    loader validates it as a .py file (loader.rs), not the containing directory.
+# 3) Rewrite the placeholder path of each installed package to the real seed
+#    location (the fragment used a placeholder). Runs only if agents.db
+#    exists. An agent row names no file: an agent is data.
 if [ -f "$DATA/agents.db" ]; then
-  seed_sqlite "$DATA/agents.db" \
-    "UPDATE installed_agents SET install_path = '$DATA_ALIAS/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
-  seed_sqlite "$DATA/agents.db" \
-    "UPDATE installed_agents SET source_path = '$DATA_ALIAS/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
   seed_sqlite "$DATA/agents.db" \
     "UPDATE installed_packages SET root_path = '$DATA_ALIAS/agents/packages/' || name WHERE 1;" 2>/dev/null || true
 fi

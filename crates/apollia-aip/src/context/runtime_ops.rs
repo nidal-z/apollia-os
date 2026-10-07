@@ -30,7 +30,10 @@ impl RuntimeContext {
     ///
     /// The context never panics at construction: degradation is signaled, but
     /// the agent decides whether the absence of a capability is fatal.
-    // REASON: test constructor mirroring the production bridge wiring, handle by handle.
+    // TEST-ONLY: production builds the context of a tool or a workflow through
+    // `package_tools`; this constructor builds one handle by handle for the
+    // tests of the context services.
+    // REASON: one argument per handle of the context it builds.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_llm(
         llm_router: Option<Arc<LlmRouter>>,

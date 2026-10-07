@@ -85,13 +85,12 @@ Les quatre paliers déclarent 100, 200, 300 et 500 pas de raisonnement, et cette
 table est réelle. Ce qui la lit, c'est le chemin du chat, et le chat libre
 s'exécute au palier par défaut sans jamais en changer.
 
-<!-- claim:tier-budget-capped-at-thirty-on-agent-paths -->
-Une exécution d'agent ne lit pas cette table du tout. Les deux chemins
-d'exécution prennent le budget déclaré par le manifeste de l'agent et le
-plafonnent contre un plafond runtime fixe de 30 pas de raisonnement, 60 appels
-d'outils et 600 secondes de temps réel. Élargir le palier élargit donc ce qu'un
-agent peut tenter bien avant de changer ce que l'agent obtient réellement, et
-cela ne supprime jamais la limite dure. La mécanique de la boucle de vérification
+<!-- claim:agent-run-budget-is-its-tier-capped-by-the-ceiling -->
+Une exécution d'agent lit cette table elle aussi. Elle prend le budget du palier
+auquel l'agent s'exécute et le plafonne contre un plafond runtime fixe de 100 pas
+de raisonnement, 200 appels d'outils et 1200 secondes de temps réel. Élargir le
+palier élargit donc ce qu'un agent peut tenter bien avant de changer ce que
+l'agent obtient réellement, et cela ne supprime jamais la limite dure. La mécanique de la boucle de vérification
 relève du
 [modèle de plan et d'exécution orchestrée](/explanation/the-plan-model), et les
 garde-fous sous lesquels elle s'exécute relèvent du

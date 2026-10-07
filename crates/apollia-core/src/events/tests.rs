@@ -33,10 +33,6 @@ fn test_all_variants_exist_and_clone() {
         },
         RuntimeEvent::AllReady,
         RuntimeEvent::ShutdownRequested,
-        RuntimeEvent::AgentLoadFailed {
-            name: "broken-agent".into(),
-            error: "module not found".into(),
-        },
         RuntimeEvent::AgentInstalled {
             name: "mon-agent".into(),
             version: "0.1.0".into(),

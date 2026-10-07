@@ -1,33 +1,27 @@
 //! Integration tests - agent persistence E2E.
 //!
-//! Validates the complete cycle: install → persist → boot → reload
-//! using real `AgentRepository` (SQLite) and `Supervisor` auto-load.
-//! No Python dependency - uses a configurable mock `AgentLoader`.
+//! Validates the complete cycle: store → boot → available again, using a real
+//! `AgentRepository` (SQLite) and the `Supervisor` auto-load. An agent is a
+//! definition: nothing is imported, so no Python is involved.
 //!
-//! install → persist → reload at boot
-//! disabled agent not loaded at boot
-//! uninstall removes files + DB entry
-//! corrupted agent does not block boot (graceful degradation)
-//! update replaces file and manifest in DB
+//! stored agent → available at boot, under what its definition says
+//! disabled agent not available at boot
+//! uninstalled agent gone at the next boot
+//! a newer definition is the one the next boot registers
 
 use apollia_e2e_tests::reserve_port;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock};
-use std::time::Duration;
+use std::path::PathBuf;
 
-use apollia_core::{AgentManifest, EventBusSender, RuntimeEvent};
-use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
 use apollia_runtime::{
     api::APIServerConfig,
-    supervisor::{Supervisor, SupervisorConfig},
+    supervisor::{Supervisor, SupervisorConfig, SupervisorHandles},
 };
-use apollia_tools::{AgentRepository, InstalledAgent};
+use apollia_tools::{AgentOrigin, AgentRepository, StoredAgent};
 use tempfile::TempDir;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock backend - completes instantly, no Python needed
+// Mock backend - completes instantly
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
@@ -60,157 +54,24 @@ impl ExecutionBackend for InstantBackend {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Configurable mock AgentLoader
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Mock `AgentLoader` that returns a manifest built from the parent directory name.
-///
-/// Install paths follow `~/.apollia/agents/<name>/agent.py`, so the parent
-/// directory name is the agent name. If the file does not exist on disk,
-/// returns an error - simulating a corrupted/deleted agent scenario.
-struct FileCheckingAgentLoader;
-
-impl AgentLoader for FileCheckingAgentLoader {
-    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        if !path.exists() {
-            return Err(format!("file not found: {}", path.display()));
-        }
-
-        let name = agent_name_from_path(path);
-        Ok(test_manifest(&name, "1.0.0"))
-    }
-}
-
-/// Backend factory standing in for the Python bridge: each call is an import
-/// of the agent's module. A missing file fails the import, which emits
-/// `AgentLoadFailed` on the bus, as the real factory does.
-struct FileCheckingBackendFactory {
-    builds: Arc<AtomicUsize>,
-    bus: Arc<OnceLock<EventBusSender>>,
-}
-
-impl AgentBackendFactory for FileCheckingBackendFactory {
-    fn create_for_agent(&self, agent_path: &Path, manifest: &AgentManifest) -> DynBackend {
-        self.builds.fetch_add(1, Ordering::SeqCst);
-        if !agent_path.exists() {
-            if let Some(bus) = self.bus.get() {
-                let _ = bus.send(RuntimeEvent::AgentLoadFailed {
-                    name: manifest.name.clone(),
-                    error: format!("file not found: {}", agent_path.display()),
-                });
-            }
-        }
-        DynBackend::new(InstantBackend)
-    }
-}
-
-/// Mock `AgentLoader` that returns a manifest with a specific version
-/// read from the file content (first line = version).
-struct VersionAwareAgentLoader;
-
-impl AgentLoader for VersionAwareAgentLoader {
-    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        if !path.exists() {
-            return Err(format!("file not found: {}", path.display()));
-        }
-
-        let content =
-            std::fs::read_to_string(path).map_err(|e| format!("cannot read file: {e}"))?;
-        let version = content.lines().next().unwrap_or("0.0.0").trim().to_string();
-
-        let name = agent_name_from_path(path);
-        Ok(test_manifest(&name, &version))
-    }
-}
-
-/// Extract agent name from install path `…/agents/<name>/agent.py`.
-///
-/// Falls back to the file stem if the path has no parent directory.
-fn agent_name_from_path(path: &Path) -> String {
-    path.parent()
-        .and_then(|p| p.file_name())
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown")
-        .to_string()
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Test helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Build a minimal `AgentManifest` for tests.
-fn test_manifest(name: &str, version: &str) -> AgentManifest {
-    AgentManifest {
-        autonomy_level: None,
-        format_version: 1,
+/// A stored agent named `name` at `version`, as a package leaves it.
+fn stored_agent(name: &str, version: &str) -> StoredAgent {
+    StoredAgent {
         name: name.to_string(),
+        origin: AgentOrigin::Package,
+        package: None,
         version: version.to_string(),
-        description: format!("Test agent {name}"),
-        tools_required: vec![],
-        tools_optional: vec![],
-        supports_streaming: false,
-        supports_a2a: false,
-        supports_mailbox: false,
-        mailbox_allowlist: None,
-        memory_namespace: None,
-        shared_memory_namespaces: vec![],
-        max_concurrent_tasks: 1,
-        step_budget: None,
-        network_allowlist: None,
-        dangerous_tools_allowed: false,
-        tags: vec![],
-        skills: vec![],
-        execution_mode: "auto".to_string(),
-        system_prompt: None,
-        tools_requiring_approval: vec![],
-        llm_backend: None,
-        model: None,
-        packages: vec![],
-        memory_config: None,
-        agent_type: None,
-        examples: vec![],
-        limitations: vec![],
-        setup_notes: None,
-        agent_class: None,
-        user_memory_write: false,
-        datasources: vec![],
-        templates: vec![],
-        secrets: vec![],
-        check_commands: vec![],
-    }
-}
-
-/// Build an `InstalledAgent` record for persistence.
-fn test_installed_agent(name: &str, version: &str, install_path: &Path) -> InstalledAgent {
-    InstalledAgent {
-        name: name.to_string(),
-        version: version.to_string(),
-        install_path: install_path.to_path_buf(),
-        source_path: PathBuf::from(format!("/tmp/{name}.py")),
-        manifest: test_manifest(name, version),
+        definition: serde_json::json!({
+            "id": name, "name": name, "mission": format!("Mission of {name} {version}"),
+            "defaults": {},
+        }),
         enabled: true,
         installed_at: "2026-03-17T10:00:00Z".to_string(),
         updated_at: "2026-03-17T10:00:00Z".to_string(),
     }
-}
-
-/// Simulate install: copy source file → agents dir, save to DB.
-fn simulate_install(
-    repo: &AgentRepository,
-    agents_dir: &Path,
-    name: &str,
-    version: &str,
-    source_content: &str,
-) -> PathBuf {
-    let agent_dir = agents_dir.join(name);
-    std::fs::create_dir_all(&agent_dir).expect("create agent dir");
-    let install_path = agent_dir.join("agent.py");
-    std::fs::write(&install_path, source_content).expect("write agent file");
-
-    let agent = test_installed_agent(name, version, &install_path);
-    repo.save(&agent).expect("save agent to DB");
-
-    install_path
 }
 
 /// Build a `SupervisorConfig` pointing at the given temp directory.
@@ -238,7 +99,6 @@ fn test_supervisor_config(
         data_dir: tmp_dir.path().to_path_buf(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
-        bundled_agents_path: None,
         package_repository: None,
         tools_config: apollia_core::ToolsConfig::default(),
         mcp_loading: apollia_mcp::session::LoadingMode::Eager,
@@ -251,356 +111,149 @@ fn test_supervisor_config(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Install an agent, persist to DB, then boot Supervisor → agent is auto-loaded.
-#[tokio::test]
-async fn test_install_persist_reload_cycle() {
-    // GIVEN a temp directory with agents.db and a valid agent file
-    let tmp = TempDir::new().expect("create temp dir");
-    let db_path = tmp.path().join("agents.db");
-    let agents_dir = tmp.path().join("agents");
-
-    let repo = AgentRepository::open(&db_path).expect("open repo");
-    simulate_install(&repo, &agents_dir, "reload-agent", "1.0.0", "# valid agent");
-    drop(repo);
-
-    // WHEN the Supervisor starts with the same agents.db
-    let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
+/// Boots a supervisor over the `agents.db` of `tmp`.
+async fn boot(tmp: &TempDir) -> SupervisorHandles<InstantBackend> {
+    let repo = AgentRepository::open(&tmp.path().join("agents.db")).expect("reopen repo");
     let reserved_port = reserve_port();
-    let port = reserved_port.port();
-    let config = test_supervisor_config(&tmp, port, Some(repo2));
+    let config = test_supervisor_config(tmp, reserved_port.port(), Some(repo));
     let supervisor = Supervisor::new(config);
-
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
-    let handles = supervisor
-        .start::<InstantBackend>(
-            InstantBackend,
-            Arc::new(FileCheckingAgentLoader),
-            None,
-            None,
-        )
+    supervisor
+        .start::<InstantBackend>(InstantBackend, None)
         .await
-        .expect("supervisor start");
-
-    // THEN the agent is registered in the AgentRegistry
-    let agents = handles
-        .registry_handle
-        .list_agents()
-        .await
-        .expect("list agents");
-
-    assert_eq!(agents.len(), 1, "expected 1 auto-loaded agent");
-    assert_eq!(agents[0].manifest.name, "reload-agent");
-
-    // Cleanup
-    handles.api_handle.shutdown();
+        .expect("supervisor start")
 }
 
-/// Disabled agent is NOT loaded at boot.
-#[tokio::test]
-async fn test_disabled_agent_not_loaded_at_boot() {
-    // GIVEN an agent installed but disabled in the DB
-    let tmp = TempDir::new().expect("create temp dir");
-    let db_path = tmp.path().join("agents.db");
-    let agents_dir = tmp.path().join("agents");
-
-    let repo = AgentRepository::open(&db_path).expect("open repo");
-    simulate_install(&repo, &agents_dir, "disabled-agent", "1.0.0", "# agent");
-    repo.set_enabled("disabled-agent", false)
-        .expect("disable agent");
-    drop(repo);
-
-    // WHEN the Supervisor starts
-    let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let reserved_port = reserve_port();
-    let port = reserved_port.port();
-    let config = test_supervisor_config(&tmp, port, Some(repo2));
-    let supervisor = Supervisor::new(config);
-
-    // Release the probe listener only now, right before the bind it protects.
-    reserved_port.release();
-    let handles = supervisor
-        .start::<InstantBackend>(
-            InstantBackend,
-            Arc::new(FileCheckingAgentLoader),
-            None,
-            None,
-        )
-        .await
-        .expect("supervisor start");
-
-    // THEN no agent is registered (disabled agents are filtered by list_enabled)
-    let agents = handles
-        .registry_handle
-        .list_agents()
-        .await
-        .expect("list agents");
-
-    assert!(agents.is_empty(), "disabled agent should not be loaded");
-
-    handles.api_handle.shutdown();
-}
-
-/// Uninstall removes files and DB entry; Supervisor won't load it.
-#[tokio::test]
-async fn test_uninstall_removes_files_and_db() {
-    // GIVEN an agent installed in a temp directory
-    let tmp = TempDir::new().expect("create temp dir");
-    let db_path = tmp.path().join("agents.db");
-    let agents_dir = tmp.path().join("agents");
-
-    let repo = AgentRepository::open(&db_path).expect("open repo");
-    let install_path = simulate_install(&repo, &agents_dir, "doomed-agent", "1.0.0", "# to remove");
-
-    // Verify pre-conditions
-    assert!(
-        install_path.exists(),
-        "agent file should exist before uninstall"
-    );
-    assert!(
-        repo.get("doomed-agent").expect("get").is_some(),
-        "agent should exist in DB"
-    );
-
-    // WHEN uninstall: delete DB entry + remove directory
-    repo.delete("doomed-agent").expect("delete from DB");
-    let agent_dir = install_path.parent().expect("agent dir");
-    std::fs::remove_dir_all(agent_dir).expect("remove agent dir");
-
-    // THEN the file and DB entry are gone
-    assert!(!install_path.exists(), "agent file should be removed");
-    assert!(!agent_dir.exists(), "agent directory should be removed");
-    assert!(
-        repo.get("doomed-agent")
-            .expect("get after delete")
-            .is_none(),
-        "agent should not exist in DB after uninstall"
-    );
-
-    drop(repo);
-
-    // AND Supervisor at boot does not attempt to load this agent
-    let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let reserved_port = reserve_port();
-    let port = reserved_port.port();
-    let config = test_supervisor_config(&tmp, port, Some(repo2));
-    let supervisor = Supervisor::new(config);
-
-    // Release the probe listener only now, right before the bind it protects.
-    reserved_port.release();
-    let handles = supervisor
-        .start::<InstantBackend>(
-            InstantBackend,
-            Arc::new(FileCheckingAgentLoader),
-            None,
-            None,
-        )
-        .await
-        .expect("supervisor start");
-
-    let agents = handles
-        .registry_handle
-        .list_agents()
-        .await
-        .expect("list agents");
-    assert!(
-        agents.is_empty(),
-        "uninstalled agent should not be loaded at boot"
-    );
-
-    handles.api_handle.shutdown();
-}
-
-/// Corrupted agent (file deleted) does not block boot: it is registered like
-/// any other, and its module fails only when a task reaches it, which emits
-/// AgentLoadFailed.
-#[tokio::test]
-async fn test_corrupted_agent_graceful_degradation() {
-    // GIVEN 2 installed agents, one with its file manually deleted, and a
-    // backend factory that counts each import and fails on a missing file
-    let tmp = TempDir::new().expect("create temp dir");
-    let db_path = tmp.path().join("agents.db");
-    let agents_dir = tmp.path().join("agents");
-
-    let repo = AgentRepository::open(&db_path).expect("open repo");
-    simulate_install(&repo, &agents_dir, "valid-agent", "1.0.0", "# valid");
-    let corrupted_path =
-        simulate_install(&repo, &agents_dir, "corrupted-agent", "1.0.0", "# corrupt");
-
-    std::fs::remove_file(&corrupted_path).expect("delete corrupted file");
-    drop(repo);
-
-    let builds = Arc::new(AtomicUsize::new(0));
-    let bus = Arc::new(OnceLock::new());
-    let factory = Arc::new(FileCheckingBackendFactory {
-        builds: Arc::clone(&builds),
-        bus: Arc::clone(&bus),
-    });
-
-    // WHEN the supervisor starts on that repository
-    let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let reserved_port = reserve_port();
-    let port = reserved_port.port();
-    let config = test_supervisor_config(&tmp, port, Some(repo2));
-    let supervisor = Supervisor::new(config);
-
-    // Release the probe listener only now, right before the bind it protects.
-    reserved_port.release();
-    let handles = supervisor
-        .start::<DynBackend>(
-            DynBackend::new(InstantBackend),
-            Arc::new(FileCheckingAgentLoader),
-            Some(factory),
-            None,
-        )
-        .await
-        .expect("supervisor start - should not fail despite corrupted agent");
-
-    // THEN both agents are registered and no module was imported at boot
+/// The names of the registered agents, sorted.
+async fn registered(handles: &SupervisorHandles<InstantBackend>) -> Vec<String> {
     let mut names: Vec<String> = handles
         .registry_handle
         .list_agents()
         .await
         .expect("list agents")
         .into_iter()
-        .map(|a| a.manifest.name)
+        .map(|entry| entry.manifest.name)
         .collect();
     names.sort();
-    assert_eq!(names, vec!["corrupted-agent", "valid-agent"]);
-    assert_eq!(
-        builds.load(Ordering::SeqCst),
-        0,
-        "nothing is imported at boot"
-    );
+    names
+}
 
-    // WHEN a task reaches the corrupted agent
-    let _ = bus.set(handles.event_sender.clone());
-    let mut event_rx = handles.event_sender.subscribe();
-    handles
-        .router_handle
-        .submit("corrupted-agent", apollia_core::AIPInput::default())
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A stored agent is available again after a restart.
+#[tokio::test]
+async fn test_stored_agent_is_available_after_a_restart() {
+    // GIVEN a store holding one agent, written then closed
+    let tmp = TempDir::new().expect("create temp dir");
+    let repo = AgentRepository::open(&tmp.path().join("agents.db")).expect("open repo");
+    repo.save_definition(&stored_agent("reload-agent", "1.0.0"))
+        .expect("store");
+    drop(repo);
+
+    // WHEN the Supervisor starts over the same store
+    let handles = boot(&tmp).await;
+
+    // THEN the agent is registered under what its definition says, and the
+    // Apollia agent the store always holds is not
+    let agents = handles
+        .registry_handle
+        .list_agents()
         .await
-        .expect("a task to a registered agent is dispatched");
-
-    // THEN its module load fails and AgentLoadFailed names it
-    let failed = tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            match event_rx.recv().await {
-                Ok(RuntimeEvent::AgentLoadFailed { name, .. }) => break Some(name),
-                Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => break None,
-            }
-        }
-    })
-    .await
-    .expect("AgentLoadFailed within 5s");
-    assert_eq!(failed.as_deref(), Some("corrupted-agent"));
+        .expect("list agents");
+    assert_eq!(agents.len(), 1, "expected 1 registered agent");
+    assert_eq!(agents[0].manifest.name, "reload-agent");
+    assert_eq!(agents[0].manifest.version, "1.0.0");
     assert_eq!(
-        builds.load(Ordering::SeqCst),
-        1,
-        "only the reached agent is imported"
+        agents[0].manifest.description,
+        "Mission of reload-agent 1.0.0"
     );
-
-    // AND the event bus is still operational
-    let _ = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
-    let received = tokio::time::timeout(Duration::from_millis(500), async {
-        loop {
-            match event_rx.recv().await {
-                Ok(RuntimeEvent::ShutdownRequested) => break true,
-                Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => break false,
-            }
-        }
-    })
-    .await
-    .expect("event bus timeout");
-    assert!(received, "event bus should be operational");
 
     handles.api_handle.shutdown();
 }
 
-/// Update replaces the file on disk and the manifest in DB.
+/// A disabled agent is not available at boot.
 #[tokio::test]
-async fn test_update_replaces_file_and_manifest() {
-    // GIVEN an agent "test-agent" v1 installed
+async fn test_disabled_agent_not_available_at_boot() {
+    // GIVEN two stored agents, one of them disabled
     let tmp = TempDir::new().expect("create temp dir");
-    let db_path = tmp.path().join("agents.db");
-    let agents_dir = tmp.path().join("agents");
-
-    let repo = AgentRepository::open(&db_path).expect("open repo");
-    let install_path = simulate_install(&repo, &agents_dir, "test-agent", "1.0.0", "1.0.0");
-
-    // Verify v1 state
-    let v1 = repo.get("test-agent").expect("get v1").expect("v1 exists");
-    assert_eq!(v1.version, "1.0.0");
-    let v1_content = std::fs::read_to_string(&install_path).expect("read v1 file");
-    assert_eq!(v1_content, "1.0.0");
-
-    // WHEN update with v2: write new content to install_path + update DB
-    let new_content = "2.0.0";
-    std::fs::write(&install_path, new_content).expect("write v2 file");
-
-    let loader = VersionAwareAgentLoader;
-    let new_manifest = loader
-        .load_and_validate(&install_path)
-        .expect("validate v2");
-
-    let updated = InstalledAgent {
-        name: v1.name,
-        version: new_manifest.version.clone(),
-        install_path: install_path.clone(),
-        source_path: PathBuf::from("/tmp/test-agent-v2.py"),
-        manifest: new_manifest,
-        enabled: v1.enabled,
-        installed_at: v1.installed_at,
-        updated_at: "2026-03-17T12:00:00Z".to_string(),
-    };
-    repo.save(&updated).expect("save updated agent");
-
-    // THEN the file on disk has the new content
-    let v2_content = std::fs::read_to_string(&install_path).expect("read v2 file");
-    assert_eq!(v2_content, "2.0.0");
-
-    // AND the DB has the new version
-    let v2 = repo.get("test-agent").expect("get v2").expect("v2 exists");
-    assert_eq!(v2.version, "2.0.0");
-    assert_eq!(v2.manifest.version, "2.0.0");
-
-    // AND the install_path in DB still points to the same file
-    assert_eq!(v2.install_path, install_path);
-
+    let repo = AgentRepository::open(&tmp.path().join("agents.db")).expect("open repo");
+    repo.save_definition(&stored_agent("awake", "1.0.0"))
+        .expect("store");
+    repo.save_definition(&stored_agent("asleep", "1.0.0"))
+        .expect("store");
+    repo.set_enabled("asleep", false).expect("disable");
     drop(repo);
 
-    // AND when Supervisor boots, it loads the updated agent
-    let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
-    let reserved_port = reserve_port();
-    let port = reserved_port.port();
-    let config = test_supervisor_config(&tmp, port, Some(repo2));
-    let supervisor = Supervisor::new(config);
+    // WHEN the Supervisor starts
+    let handles = boot(&tmp).await;
 
-    // Release the probe listener only now, right before the bind it protects.
-    reserved_port.release();
-    let handles = supervisor
-        .start::<InstantBackend>(
-            InstantBackend,
-            Arc::new(VersionAwareAgentLoader),
-            None,
-            None,
-        )
-        .await
-        .expect("supervisor start with updated agent");
+    // THEN the enabled agent alone is registered
+    assert_eq!(registered(&handles).await, ["awake"]);
 
+    handles.api_handle.shutdown();
+}
+
+/// An uninstalled agent is gone at the next boot.
+#[tokio::test]
+async fn test_uninstalled_agent_is_gone_at_the_next_boot() {
+    // GIVEN two stored agents, one of them deleted with its override
+    let tmp = TempDir::new().expect("create temp dir");
+    let repo = AgentRepository::open(&tmp.path().join("agents.db")).expect("open repo");
+    repo.save_definition(&stored_agent("kept", "1.0.0"))
+        .expect("store");
+    repo.save_definition(&stored_agent("removed", "1.0.0"))
+        .expect("store");
+    repo.set_override(
+        "removed",
+        apollia_tools::OverrideField::Mission,
+        &serde_json::json!("Mine."),
+    )
+    .expect("override");
+    repo.delete("removed").expect("delete");
+    assert!(repo.stored("removed").expect("stored").is_none());
+    assert!(repo.overrides("removed").expect("overrides").is_empty());
+    drop(repo);
+
+    // WHEN the Supervisor starts
+    let handles = boot(&tmp).await;
+
+    // THEN only the agent that was kept is registered
+    assert_eq!(registered(&handles).await, ["kept"]);
+
+    handles.api_handle.shutdown();
+}
+
+/// A newer definition is the one the next boot registers.
+#[tokio::test]
+async fn test_a_newer_definition_is_the_one_registered_at_the_next_boot() {
+    // GIVEN an agent stored at 1.0.0, then stored again at 2.0.0 as an
+    // update of its package does
+    let tmp = TempDir::new().expect("create temp dir");
+    let repo = AgentRepository::open(&tmp.path().join("agents.db")).expect("open repo");
+    repo.save_definition(&stored_agent("update-agent", "1.0.0"))
+        .expect("store v1");
+    repo.save_definition(&stored_agent("update-agent", "2.0.0"))
+        .expect("store v2");
+    drop(repo);
+
+    // WHEN the Supervisor starts
+    let handles = boot(&tmp).await;
+
+    // THEN one agent is registered, at the newer version and mission
     let agents = handles
         .registry_handle
         .list_agents()
         .await
         .expect("list agents");
     assert_eq!(agents.len(), 1);
-    assert_eq!(agents[0].manifest.name, "test-agent");
+    assert_eq!(agents[0].manifest.version, "2.0.0");
+    assert_eq!(
+        agents[0].manifest.description,
+        "Mission of update-agent 2.0.0"
+    );
 
     handles.api_handle.shutdown();
 }

@@ -10,7 +10,6 @@ use apollia_mcp::session::LoadingMode;
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_tools::ToolRegistryHandle;
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::chat::manager::{ChatSessionManagerHandle, CreateSessionParams};
 use crate::chat::types::{ChatMode, SessionConfigUpdate};
 use crate::profile::{delete_profile_and_release, profile_for_execution, ProfileStore};
@@ -21,7 +20,6 @@ fn spawn(dir: &tempfile::TempDir) -> ChatSessionManagerHandle {
         &dir.path().join("chat.db"),
         Some(Arc::new(apollia_llm::LlmRouter::empty())),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         event_tx.clone(),
         StepBudgetConfig::default(),

@@ -242,8 +242,8 @@ pub async fn uninstall_agent<M: McpServerAdder>(
     }
 
     let mut folders = vec![targets.data_dir.join("venvs").join(name)];
-    if let Some(code) = targets.agents.get(name)? {
-        if let Some(folder) = code.install_path.parent() {
+    if let Some(code) = targets.agents.legacy_install_path(name)? {
+        if let Some(folder) = code.parent() {
             folders.push(folder.to_path_buf());
         }
     }
