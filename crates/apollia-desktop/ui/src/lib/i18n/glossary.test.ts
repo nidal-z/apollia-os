@@ -1,5 +1,9 @@
 import { describe, test, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import glossary from "./glossary.json";
+import frCatalogue from "./fr.json";
+import enCatalogue from "./en.json";
 
 /**
  * The official interface vocabulary, read as data.
@@ -78,16 +82,37 @@ describe("glossary.json", () => {
     }
   });
 
-  test("lists its exemptions as sorted, unique catalogue keys", () => {
+  test("holds no exemption: every text outside developer mode speaks the glossary", () => {
     // GIVEN the exemption lists the vocabulary guard reads as a ratchet
-    for (const exemptions of [glossary.fr.exemptions, glossary.en.exemptions]) {
-      // WHEN each list is read
-      // THEN it holds dotted keys, once each, in order, so a removal is one line
-      for (const key of exemptions) {
-        expect(key).toMatch(/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$/);
-      }
-      expect(new Set(exemptions).size).toBe(exemptions.length);
-      expect([...exemptions].sort()).toEqual(exemptions);
+    const { fr, en } = glossary;
+    // WHEN each list is read
+    // THEN both are empty, so no catalogue key is excused from the banned terms
+    expect(fr.exemptions).toEqual([]);
+    expect(en.exemptions).toEqual([]);
+  });
+
+  test("the steps panel of the chat carries the glossary word, not the name of the Activity log screen", () => {
+    // GIVEN the title of the chat panel that lists what the agent does, and the
+    // title of the screen that keeps the record of every action
+    const catalogues = { fr: frCatalogue, en: enCatalogue };
+    for (const lang of ["fr", "en"] as const) {
+      // WHEN both titles are read in one locale
+      const panel = catalogues[lang].plan_session.tab_journal;
+      const screen = catalogues[lang].nav.journal;
+      // THEN the panel carries the word of the glossary, and the two no longer share one
+      expect(panel).toBe(glossary[lang].chat_steps_panel);
+      expect(screen).toBe(glossary[lang].screens.activity_log);
+      expect(panel).not.toBe(screen);
+      expect(panel).not.toBe(catalogues[lang].journal.title);
     }
+  });
+
+  test("the chat mounts the steps panel under that title", () => {
+    // GIVEN the source of the chat screen
+    const chat = readFileSync(resolve(__dirname, "../../routes/Chat.svelte"), "utf-8");
+    // WHEN the tab of its side panel is located by its test id
+    const tab = chat.slice(chat.indexOf('data-testid="chat-inspector-journal-tab"'));
+    // THEN the first text it renders is the key the catalogues give that word
+    expect(tab.slice(0, tab.indexOf("</button>"))).toContain('$t("plan_session.tab_journal")');
   });
 });
