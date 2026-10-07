@@ -336,12 +336,10 @@
     return () => clearTimeout(timer);
   });
 
-  // The first row is shown when nothing is chosen, or when the choice left the list.
+  // The gallery is shown until a card is asked for; a choice that left the
+  // list (another usage, another search) gives the gallery back.
   $effect(() => {
-    const first = entries[0];
-    if (!open || !first) return;
-    if (selectedKey !== null && entries.some((e) => e.key === selectedKey)) return;
-    untrack(() => select(first));
+    if (selectedKey !== null && !entries.some((e) => e.key === selectedKey)) selectedKey = null;
   });
 
   // A change of format asks the repositories of the chosen entry again.
@@ -394,26 +392,7 @@
   hideClose
   data-testid="ai-discover-window"
 >
-  <div class="flex h-[min(680px,80vh)] min-h-0">
-    <DiscoverColumn
-      bind:query
-      bind:format
-      bind:sort
-      bind:fitsOnly
-      {category}
-      {formats}
-      {capacityGb}
-      {entries}
-      {selectedKey}
-      {searching}
-      loading={searching ? searchLoading : selectionLoading}
-      {offline}
-      {searchError}
-      {selectionNote}
-      onselect={select}
-      oncategory={setCategory}
-      onrefresh={() => void loadSelection()}
-    />
+  <div class="flex h-[min(720px,84vh)] min-h-0">
     {#if selected}
       <DiscoverCard
         entry={selected}
@@ -433,20 +412,30 @@
         onconversation={() => void openConversation()}
         ondownload={requestDownload}
         oncopy={copyIdentifier}
+        onback={() => (selectedKey = null)}
         onclose={close}
       />
     {:else}
-      <div class="flex min-w-0 flex-1 flex-col p-5" data-testid="ai-discover-card-empty">
-        <button
-          type="button"
-          class="ml-auto rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-          onclick={close}
-          data-testid="ai-discover-close-empty"
-        >
-          {$t("common.close")}
-        </button>
-        <p class="m-auto max-w-sm text-center text-sm text-muted-foreground">{$t("ai.discover.card_empty")}</p>
-      </div>
+      <DiscoverColumn
+        bind:query
+        bind:format
+        bind:sort
+        bind:fitsOnly
+        {category}
+        {formats}
+        {capacityGb}
+        {entries}
+        {selectedKey}
+        {searching}
+        loading={searching ? searchLoading : selectionLoading}
+        {offline}
+        {searchError}
+        {selectionNote}
+        onselect={select}
+        oncategory={setCategory}
+        onrefresh={() => void loadSelection()}
+        onclose={close}
+      />
     {/if}
   </div>
 </Dialog>

@@ -243,7 +243,7 @@
     </div>
 
     <!-- Editable title -->
-    <div class="min-w-0 flex-1">
+    <div class="min-w-24 flex-1">
       {#if editing}
         <input
           bind:this={titleInput}
@@ -266,7 +266,7 @@
           aria-label={$t("chat.rename_session")}
           data-testid="chat-header-title"
         >
-          <span class="truncate text-body-sm font-medium">{displayTitle}</span>
+          <span class="truncate text-body-sm font-semibold">{displayTitle}</span>
           <Edit3
             size={10}
             class="shrink-0 text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-colors"
@@ -302,10 +302,6 @@
         <Spinner size={11} />
         <span class="hidden sm:inline">{$t("chat.thinking")}</span>
       </span>
-    {:else}
-      <Badge variant="outline" class="text-micro-xs px-1.5 py-0 shrink-0 border-success/30 text-success">
-        {$t("chat.status_active")}
-      </Badge>
     {/if}
 
     <!-- A2A workers popover -->

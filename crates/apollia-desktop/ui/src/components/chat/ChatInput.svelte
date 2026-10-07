@@ -23,6 +23,7 @@
   import { addToast } from "$lib/components/ui/toast";
   import { chatInputAppend } from "$lib/stores/artifacts";
   import { chatSendKey, composerEnterAction } from "$lib/stores/chatSendKey";
+  import { chatFullWidth } from "$lib/stores/chatAppearance";
   import type { ImageSupport, PendingAttachment } from "$lib/chat/attachments";
   import type { ChatModelCapabilities } from "$lib/types";
   import { createComposerAttachments } from "./useComposerAttachments.svelte";
@@ -612,7 +613,7 @@
 
   <div
     bind:this={inputCardEl}
-    class="relative flex flex-col rounded-xl border bg-surface-1 transition-colors {focused ? 'border-primary/60' : 'border-border/60'}"
+    class="relative mx-auto flex w-full flex-col rounded-xl border bg-surface-1 transition-colors {$chatFullWidth ? 'max-w-none' : 'max-w-[760px]'} {focused ? 'border-primary/60' : 'border-border/60'}"
     class:ring-2={attachments.dragOver}
     class:ring-primary={attachments.dragOver}
     ondragover={attachments.handleDragOver}

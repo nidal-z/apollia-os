@@ -122,7 +122,7 @@
 
   <div class="min-h-0 flex-1 overflow-y-auto px-8 py-5">
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-      <div data-testid="agents-column">
+      <div class="min-w-0" data-testid="agents-column">
         <AgentListSection title={$t("agents.column_agents")} count={agents.length}>
           {#if !hasQuery}
             <AgentPinnedRow selected={false} onSelect={onSelectApollia} />
@@ -155,7 +155,7 @@
         </AgentListSection>
       </div>
 
-      <div data-testid="workflows-column">
+      <div class="min-w-0" data-testid="workflows-column">
         <AgentListSection title={$t("agents.column_workflows")} count={workflows.length}>
           {#if workflowsLoading && workflows.length === 0}
             <SkeletonList count={3} rowClass="rounded-lg px-2.5 py-2" />

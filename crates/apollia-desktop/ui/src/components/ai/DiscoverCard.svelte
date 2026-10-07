@@ -6,7 +6,7 @@
    * on it, then what its author defines and its README on demand.
    */
   import { locale, t } from "svelte-i18n";
-  import { Check, Copy, Download, ExternalLink, Heart, MessageSquarePlus, WifiOff, X } from "lucide-svelte";
+  import { ArrowLeft, Check, Copy, Download, ExternalLink, Heart, MessageSquarePlus, WifiOff, X } from "lucide-svelte";
   import { formatRelativeTime } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
   import { Tooltip } from "$lib/components/ui/tooltip";
@@ -53,6 +53,8 @@
     onconversation: () => void;
     ondownload: () => void;
     oncopy: () => void;
+    /** Back to the gallery the card was opened from. */
+    onback: () => void;
     onclose: () => void;
   }
 
@@ -74,6 +76,7 @@
     onconversation,
     ondownload,
     oncopy,
+    onback,
     onclose,
   }: Props = $props();
 
@@ -109,8 +112,17 @@
   );
 </script>
 
-<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-auto p-5" data-testid="ai-discover-card">
+<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5" data-testid="ai-discover-card">
   <header class="flex flex-col gap-2">
+    <button
+      type="button"
+      class="-ml-1.5 flex w-fit items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      onclick={onback}
+      data-testid="ai-discover-back"
+    >
+      <ArrowLeft size={13} aria-hidden="true" />
+      {$t("ai.discover.back_to_gallery")}
+    </button>
     <div class="flex items-center gap-2">
       <h2 class="min-w-0 truncate text-lg font-semibold text-foreground" data-testid="ai-discover-card-name">
         {entry.name}
