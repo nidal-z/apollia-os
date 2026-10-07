@@ -7,6 +7,8 @@
 // written as the variable `APOLLIA_TOKEN`, never as a value. The SDKs named
 // in the Python and JavaScript examples are those of the caller: they appear
 // in the text only.
+//
+// i18n-ignore-file: the texts are code samples for a caller, not interface strings.
 
 import type { LocalServerView } from "$lib/ipc/localServer";
 import {
