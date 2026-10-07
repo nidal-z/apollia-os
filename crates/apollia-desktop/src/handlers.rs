@@ -257,6 +257,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::onboarding::ai_setup::get_ai_setup_info,
         commands::onboarding::ai_setup::scan_for_gguf_models,
         commands::documentation::get_documentation_page,
+        commands::documentation::get_documentation_manifest,
+        commands::documentation::get_documentation_image,
         commands::onboarding::companion::create_companion_session,
         commands::onboarding::companion::set_companion_enabled,
         commands::onboarding::companion::get_companion_enabled,

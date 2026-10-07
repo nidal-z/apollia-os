@@ -1,16 +1,36 @@
 <script lang="ts">
-  import { decorateCodeBlocks, handleMarkdownLinkClick, renderMarkdown } from "$lib/utils/markdown";
+  import {
+    decorateCodeBlocks,
+    handleMarkdownLinkClick,
+    renderMarkdown,
+    type MarkdownProfile,
+  } from "$lib/utils/markdown";
   import { hydrateCodeBlocks } from "$lib/utils/shikiHydrator";
   import "./markdown-prose.css";
 
   interface Props {
     content: string;
     class?: string;
+    /** What is rendered: the output of a model, or a page of the documentation. */
+    profile?: MarkdownProfile;
+    /**
+     * Takes every link of the content, with the address as it is written.
+     * Without it, a link leaves for the browser.
+     */
+    onlink?: (href: string) => void;
+    /** Runs on the mounted content after every render, once the code blocks are decorated. */
+    ondecorate?: (root: HTMLElement) => void;
   }
 
-  let { content, class: className = "" }: Props = $props();
+  let {
+    content,
+    class: className = "",
+    profile = "chat",
+    onlink,
+    ondecorate,
+  }: Props = $props();
 
-  const rendered = $derived(renderMarkdown(content));
+  const rendered = $derived(renderMarkdown(content, profile));
 
   let container = $state<HTMLDivElement | undefined>();
 
@@ -25,13 +45,25 @@
     void rendered; // depend on rendered output
     if (!container) return;
     decorateCodeBlocks(container);
+    ondecorate?.(container);
     void hydrateCodeBlocks(container);
   });
+
+  /** Hands a clicked link to `onlink`, so the webview never follows it itself. */
+  function routeLink(event: MouseEvent): boolean {
+    if (!onlink) return false;
+    const anchor = (event.target as Element | null)?.closest?.("a[href]");
+    if (!anchor) return false;
+    event.preventDefault();
+    onlink(anchor.getAttribute("href") ?? "");
+    return true;
+  }
 
   async function handleClick(event: MouseEvent): Promise<void> {
     // Outbound links first: the anchors are injected markup, so this
     // container is the only place that can route them to the opener. The
     // copy-button branch below returns early and would swallow the click.
+    if (routeLink(event)) return;
     if (handleMarkdownLinkClick(event)) return;
 
     const target = event.target as HTMLElement;

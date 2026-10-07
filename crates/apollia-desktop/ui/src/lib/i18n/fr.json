@@ -5119,6 +5119,30 @@
         "title": "Points d'accès pris en charge",
         "summary": "OpenAI : chat, réponses, modèles, embeddings · Anthropic : messages · API d'Apollia",
         "open": "Ouvrir la page des points d'accès pris en charge"
+      },
+      "docs": {
+        "tree_label": "Pages de la documentation",
+        "breadcrumb_label": "Fil d'Ariane",
+        "copy_markdown": "Copier en Markdown",
+        "copied": "Copié",
+        "copy_failed": "La page n'a pas pu être copiée.",
+        "view_on_web": "Voir sur le web",
+        "previous": "Précédent : {title}",
+        "next": "Suivant : {title}",
+        "previous_page": "Page précédente",
+        "next_page": "Page suivante",
+        "loading": "Chargement de la page…",
+        "error": "Cette page de documentation n'a pas pu être lue.",
+        "fallback": "Cette page n'existe pas encore en français : la voici en anglais.",
+        "diagram_on_web": "Voir le diagramme sur le web",
+        "admonition": {
+          "note": "Note",
+          "tip": "Astuce",
+          "info": "Info",
+          "warning": "Attention",
+          "caution": "Attention",
+          "danger": "Danger"
+        }
       }
     }
   },

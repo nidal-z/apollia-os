@@ -5119,6 +5119,30 @@
         "title": "Supported endpoints",
         "summary": "OpenAI: chat, responses, models, embeddings · Anthropic: messages · Apollia API",
         "open": "Open the page of supported endpoints"
+      },
+      "docs": {
+        "tree_label": "Documentation pages",
+        "breadcrumb_label": "Breadcrumb",
+        "copy_markdown": "Copy as Markdown",
+        "copied": "Copied",
+        "copy_failed": "The page could not be copied.",
+        "view_on_web": "View on the web",
+        "previous": "Previous: {title}",
+        "next": "Next: {title}",
+        "previous_page": "Previous page",
+        "next_page": "Next page",
+        "loading": "Loading the page…",
+        "error": "This documentation page could not be read.",
+        "fallback": "This page is not available in your language yet: here it is in English.",
+        "diagram_on_web": "View the diagram on the web",
+        "admonition": {
+          "note": "Note",
+          "tip": "Tip",
+          "info": "Info",
+          "warning": "Warning",
+          "caution": "Caution",
+          "danger": "Danger"
+        }
       }
     }
   },
