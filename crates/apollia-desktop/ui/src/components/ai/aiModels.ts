@@ -51,6 +51,15 @@ export function matchesQuery(model: InstalledModel, query: string): boolean {
 }
 
 /**
+ * The name a row of the list shows: the name of the model, or the name of
+ * the file (the folder, for an MLX model) of its weights when Settings >
+ * General asks for the full file name.
+ */
+export function shownModelName(model: InstalledModel, fullFileName: boolean): string {
+  return fullFileName && model.name !== "" ? model.name : model.id;
+}
+
+/**
  * The models of one category in screen order: the pinned ones first, the most
  * recently pinned on top, then the others by name.
  */

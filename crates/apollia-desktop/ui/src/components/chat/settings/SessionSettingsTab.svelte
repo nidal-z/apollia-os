@@ -48,6 +48,7 @@
     DEFAULT_MAX_TOKENS,
     INSTRUCTIONS_MAX_CHARS,
     NOTES_MAX_CHARS,
+    PRESET_FIELD_KEYS,
     REASONING_EFFORTS,
     REASONING_EFFORT_KEYS,
     agentIdOf,
@@ -68,6 +69,11 @@
   import PresetBlock from "./PresetBlock.svelte";
   import PresetNameDialog from "./PresetNameDialog.svelte";
   import ApplyToAgentDialog from "./ApplyToAgentDialog.svelte";
+  import PresetSaveConfirmDialog, {
+    holdPresetSave,
+    type PendingPresetSave,
+  } from "../../presets/PresetSaveConfirmDialog.svelte";
+  import { presetSaveConfirm } from "$lib/stores/generalBehaviours";
 
   interface Props {
     session: ChatSessionDetail | null;
@@ -91,6 +97,7 @@
   let instructions = $state("");
   let instructionsTimer: ReturnType<typeof setTimeout> | null = null;
   let saving = $state(false);
+  let pendingSave = $state<PendingPresetSave | null>(null);
   let applying = $state(false);
 
   const closed = $derived(session?.status === "closed");
@@ -150,6 +157,18 @@
     instructions = text;
     if (instructionsTimer) clearTimeout(instructionsTimer);
     instructionsTimer = setTimeout(storeInstructions, 600);
+  }
+
+  // With the confirmation asked in Settings > General, the settings changed
+  // are confirmed before the preset is named; a cancel never reaches the name.
+  function askSaveAs(): void {
+    pendingSave = holdPresetSave($presetSaveConfirm, {
+      name: null,
+      fieldKeys: controller.modified.map((field) => PRESET_FIELD_KEYS[field]),
+      run: () => {
+        saving = true;
+      },
+    });
   }
 
   async function saveAs(name: string): Promise<string | null> {
@@ -488,7 +507,7 @@
         variant="ghost"
         size="sm"
         class="w-full justify-start"
-        onclick={() => (saving = true)}
+        onclick={askSaveAs}
         disabled={controller.model === null}
         data-testid="session-save-as-preset"
       >
@@ -515,6 +534,12 @@
   onclose={() => (saving = false)}
   onsubmit={saveAs}
   testid="session-save-preset-dialog"
+/>
+
+<PresetSaveConfirmDialog
+  pending={pendingSave}
+  onsettled={() => (pendingSave = null)}
+  testid="session-save-preset-confirm"
 />
 
 <ApplyToAgentDialog
