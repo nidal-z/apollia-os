@@ -1,6 +1,6 @@
 /**
  * Typed Tauri command wrappers for the local server of the developer screen:
- * its state, its start and its stop
+ * its state, its start, its stop and its reopening
  * (`crates/apollia-desktop/src/commands/local_server.rs`).
  */
 import { invoke } from "@tauri-apps/api/core";
@@ -17,6 +17,17 @@ export interface LocalServerView {
   address: string;
   /** Why the last start failed, `null` after a start that succeeded. */
   lastError: string | null;
+  /** How many tokens of the server are in use. */
+  activeTokens: number;
+  /** The settings of the server the organization policy imposes. */
+  imposedByPolicy: LocalServerPolicyLocks;
+}
+
+/** For each setting of the server a policy can fix, whether it does. */
+export interface LocalServerPolicyLocks {
+  serveOnLan: boolean;
+  requireAuth: boolean;
+  allowRequestMcp: boolean;
 }
 
 /** What `startLocalServer` rejects with. */
@@ -40,4 +51,12 @@ export function startLocalServer(): Promise<LocalServerView> {
 /** Stops the local server. */
 export function stopLocalServer(): Promise<LocalServerView> {
   return invoke<LocalServerView>("stop_local_server");
+}
+
+/**
+ * Closes and reopens the local server so it applies its settings as they
+ * stand; a stopped server stays stopped. Rejects with a `LocalServerRefusal`.
+ */
+export function restartLocalServer(): Promise<LocalServerView> {
+  return invoke<LocalServerView>("restart_local_server");
 }

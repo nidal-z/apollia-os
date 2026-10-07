@@ -15,6 +15,7 @@ import {
   type SettingSource,
 } from "$lib/ipc/settings";
 import { navigateTo } from "$lib/stores/navigation";
+import { SERVER_SETTING_KEYS } from "$lib/stores/serverSettings";
 import { isSensitiveFamily } from "$lib/tools/action-family";
 
 /** Families a new agent is granted whole (`[tools.new_agent] families`). */
@@ -23,8 +24,11 @@ export const NEW_AGENT_FAMILIES_KEY = "tools.new_agent.families";
 export const NEW_AGENT_ACCESS_KEY = "tools.new_agent.access";
 /** The profile switch a new conversation is born with. */
 export const SHARE_PROFILE_DEFAULT_KEY = "chat.share_profile_default";
-/** Whether a request to the compatible server may bring an MCP server. */
-export const ALLOW_REQUEST_MCP_KEY = "server.allow_request_mcp";
+/**
+ * Whether a request to the compatible server may bring an MCP server: the
+ * key the server settings of the Developer screen show too.
+ */
+export const ALLOW_REQUEST_MCP_KEY = SERVER_SETTING_KEYS.allowRequestMcp;
 
 /** The blocks of the section, in order, by the i18n key of their title. */
 export const INTEGRATIONS_BLOCKS = [

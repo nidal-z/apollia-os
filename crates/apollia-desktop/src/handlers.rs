@@ -46,6 +46,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::llm_loaded::list_loaded_models,
         commands::llm_loaded::unload_loaded_model,
         commands::local_server::get_local_server,
+        commands::local_server::restart_local_server,
         commands::local_server::start_local_server,
         commands::local_server::stop_local_server,
         commands::llm_load::estimate_model_load,

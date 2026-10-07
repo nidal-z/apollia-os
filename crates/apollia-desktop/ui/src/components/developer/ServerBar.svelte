@@ -2,8 +2,10 @@
   /**
    * The bar of the local server: whether it runs, the switch that starts and
    * stops it (and its shortcut), the address a client reaches it at with its
-   * copy button, and "Load a model". A start refused because another program
-   * holds the port says so under the bar.
+   * copy button, the settings of the server, and "Load a model". A start
+   * refused because another program holds the port says so under the bar,
+   * and so does a server that answers the local network without asking for a
+   * token, for as long as it does.
    *
    * The server lives in the runtime: the bar reads and drives it, and holds
    * nothing of it.
@@ -17,10 +19,30 @@
   import { addToast } from "$lib/components/ui/toast";
   import KeyboardHint from "$lib/components/feedback/KeyboardHint.svelte";
   import { developerMode } from "$lib/stores/developerMode";
-  import { getLocalServer, startLocalServer, stopLocalServer } from "$lib/ipc/localServer";
+  import {
+    getLocalServer,
+    restartLocalServer,
+    startLocalServer,
+    stopLocalServer,
+    type LocalServerView,
+  } from "$lib/ipc/localServer";
+  import {
+    SERVER_SETTING_KEYS,
+    hydrateServerSettings,
+    serverSettings,
+    setServerSetting,
+  } from "$lib/stores/serverSettings";
   import { SHORTCUTS, comboFor, splitCombo } from "$lib/navigation/shortcuts";
   import { registerShortcutHandler } from "$lib/navigation/shortcutDispatcher";
   import LoadModelButton from "./LoadModelButton.svelte";
+  import ServerSettingsPanel from "./ServerSettingsPanel.svelte";
+  import {
+    SERVER_SETTINGS_TEXTS,
+    barFailure,
+    changeServerSetting,
+    imposedByPolicy,
+    servedOnLanWithoutAuth,
+  } from "./serverSettings";
   import {
     EMPTY_BAR,
     SERVER_TOGGLE_SHORTCUT,
@@ -33,6 +55,7 @@
     switchServer,
     type LocalServerIpc,
     type ServerBarState,
+    type ServerFailure,
   } from "./localServer";
 
   const ipc: LocalServerIpc = {
@@ -54,9 +77,14 @@
   const status = $derived(serverStatus(bar));
   const address = $derived(reachableAddress(bar));
   const failure = $derived(bar.failure);
+  const requireAuth = $derived($serverSettings[SERVER_SETTING_KEYS.requireAuth]);
+  const lanWithoutAuth = $derived(servedOnLanWithoutAuth(bar.view, requireAuth.value === true));
+  const authImposed = $derived(imposedByPolicy(SERVER_SETTING_KEYS.requireAuth, requireAuth, bar.view));
+  let requiring = $state(false);
 
   onMount(() => {
     let live = true;
+    void hydrateServerSettings();
     void readServer(ipc).then((read) => {
       if (!live) return;
       bar = read;
@@ -79,6 +107,27 @@
     bar = await switchServer(ipc, bar, next);
     on = serverStatus(bar) === "running";
     switching = false;
+  }
+
+  /** The settings reopened the server: the bar shows what came of it. */
+  function takeServer(view: LocalServerView | null, failed: ServerFailure | null): void {
+    bar = { view, failure: failed };
+    on = serverStatus(bar) === "running";
+  }
+
+  /** The warning's own way out: require a token, and reopen the server. */
+  async function requireToken(): Promise<void> {
+    if (requiring) return;
+    requiring = true;
+    const done = await changeServerSetting(SERVER_SETTING_KEYS.requireAuth, true, {
+      write: setServerSetting,
+      restart: restartLocalServer,
+      read: getLocalServer,
+      view: bar.view,
+    });
+    if (done.view !== undefined) takeServer(done.view, barFailure(done.failure));
+    if (done.failure?.kind === "write") addToast($t(SERVER_SETTINGS_TEXTS.writeFailed), "error");
+    requiring = false;
   }
 
   async function copy(): Promise<void> {
@@ -121,6 +170,8 @@
         {/if}
       </div>
 
+      <ServerSettingsPanel view={bar.view} onserver={takeServer} />
+
       <div class="ml-auto flex items-center gap-2">
         {#if address}
           <span class="text-xs text-success-a11y">{$t("dev.developer.server.reachable_at")}</span>
@@ -154,6 +205,25 @@
         <LoadModelButton />
       </div>
     </div>
+
+    {#if lanWithoutAuth}
+      <Banner variant="warning" surface="card" data-testid="developer-server-lan-warning">
+        {$t(SERVER_SETTINGS_TEXTS.lanWarning)}
+        {#snippet trailing()}
+          {#if !authImposed}
+            <Button
+              variant="outline"
+              size="sm"
+              loading={requiring}
+              onclick={() => void requireToken()}
+              data-testid="developer-server-lan-require-auth"
+            >
+              {$t(SERVER_SETTINGS_TEXTS.lanRequireAuth)}
+            </Button>
+          {/if}
+        {/snippet}
+      </Banner>
+    {/if}
 
     {#if failure}
       <Banner variant="destructive" surface="card" data-testid="developer-server-error">
