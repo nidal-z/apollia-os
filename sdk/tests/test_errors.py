@@ -10,7 +10,6 @@ from apollia.errors import (
     NeedHumanInput,
     PayloadError,
     SchemaError,
-    SkillNotFound,
 )
 
 
@@ -28,11 +27,10 @@ def test_all_inherit_from_agent_error() -> None:
         NeedHumanInput,
         PayloadError,
         SchemaError,
-        SkillNotFound,
         AgentConfigError,
     ):
         # WHEN its ancestry is inspected
-        # THEN it is rooted at AgentError, so the dispatcher can map it
+        # THEN it is rooted at AgentError, so one except clause catches them all
         assert issubclass(cls, AgentError)
 
 
@@ -105,26 +103,6 @@ def test_schema_error_str() -> None:
     # WHEN it is rendered as text
     # THEN the message is what comes out, with no decoration
     assert str(err) == "unsupported type"
-
-
-def test_skill_not_found_default_known() -> None:
-    # GIVEN a lookup failure built without the list of known skills
-    err = SkillNotFound("a.b")
-
-    # WHEN its fields and text are read
-    # THEN the known list is empty and the missing identifier is in the message
-    assert err.skill_id == "a.b"
-    assert err.known == []
-    assert "a.b" in str(err)
-
-
-def test_skill_not_found_with_known() -> None:
-    # GIVEN a lookup failure built with the list of known skills
-    err = SkillNotFound("a.b", known=["a.c", "a.d"])
-
-    # WHEN the known list is read
-    # THEN it is carried through unchanged, so the caller can suggest
-    assert err.known == ["a.c", "a.d"]
 
 
 def test_agent_config_error_str() -> None:

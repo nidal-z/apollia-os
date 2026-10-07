@@ -1,7 +1,7 @@
 """Entry point for ``python -m apollia``.
 
-Delegates to :func:`apollia.cli.__main__.main`, which dispatches every
-sub-command (``new``, ``inspect``, …) onto a single parser.
+Delegates to :func:`apollia.cli.__main__.main`, which dispatches the
+sub-command ``describe``.
 """
 
 from __future__ import annotations

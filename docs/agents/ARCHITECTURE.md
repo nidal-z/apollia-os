@@ -325,5 +325,5 @@ either locale resolves.
 | LLM router | `crates/apollia-llm/src/router.rs` |
 | PyO3 bridge | `crates/apollia-aip/src/` |
 | CLI commands | `crates/apollia-cli/src/commands/` |
-| SDK decorators | `sdk/apollia/agent.py`, `sdk/apollia/skills.py` |
+| SDK decorators | `sdk/apollia/tool_decorator.py`, `sdk/apollia/workflow_decorator.py` |
 | Desktop UI | `crates/apollia-desktop/ui/src/` |

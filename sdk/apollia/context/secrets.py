@@ -7,7 +7,7 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class SecretsInterface(Protocol):
-    """Read-only access to credentials declared in ``@agent(secrets=(...))``.
+    """Read-only access to the credentials the context was granted.
 
     Every ``get`` reads the encrypted credential store at call time; there is
     no snapshot taken at task startup. The store is the ``governance.db``

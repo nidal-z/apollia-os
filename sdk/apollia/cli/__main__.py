@@ -1,8 +1,9 @@
 """Entry point for ``python -m apollia`` and the ``apollia`` console script.
 
-This dispatcher wires every sub-command (``new``, ``inspect``, ``describe``) onto a
-single :class:`argparse.ArgumentParser`. Each sub-command lives in its
-own module and registers itself via ``build_parser``.
+This dispatcher wires the sub-command ``describe`` onto a single
+:class:`argparse.ArgumentParser`. A sub-command lives in its own module and
+registers itself via ``build_parser``. A new package is written by
+``apollia-os package new``, the command line of the runtime.
 """
 
 from __future__ import annotations
@@ -12,8 +13,6 @@ import sys
 from typing import TYPE_CHECKING
 
 from apollia.cli import describe as describe_cmd
-from apollia.cli import inspect as inspect_cmd
-from apollia.cli.scaffold import VALID_AGENT_TYPES, _handle_new
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -23,40 +22,9 @@ def _build_parser() -> argparse.ArgumentParser:
     """Build the top-level ``apollia`` parser with every sub-command wired."""
     parser = argparse.ArgumentParser(
         prog="apollia",
-        description="Apollia SDK - agent development toolkit",
+        description="Apollia SDK - tools and workflows of a package",
     )
     subparsers = parser.add_subparsers(dest="command")
-
-    # `apollia new` - agent scaffolding (delegates to scaffold.py).
-    new_parser = subparsers.add_parser(
-        "new",
-        help="Generate a new agent from a template",
-    )
-    new_parser.add_argument(
-        "name",
-        help="Agent name in kebab-case (e.g. 'my-agent')",
-    )
-    new_parser.add_argument(
-        "--type",
-        dest="agent_type",
-        choices=VALID_AGENT_TYPES,
-        default="react",
-        help=("Agent type (default: react). Use 'worker' for domain-specialized Worker Agents."),
-    )
-    new_parser.add_argument(
-        "--output-dir",
-        default=".",
-        help="Output directory (default: current directory)",
-    )
-
-    def _run_new(ns: argparse.Namespace) -> int:
-        _handle_new(ns)
-        return 0
-
-    new_parser.set_defaults(func=_run_new)
-
-    # `apollia inspect` - read-only manifest inspection.
-    inspect_cmd.build_parser(subparsers)
 
     # `apollia describe` - write the tool and workflow descriptors of a package.
     describe_cmd.build_parser(subparsers)

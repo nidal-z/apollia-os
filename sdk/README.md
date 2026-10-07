@@ -1,12 +1,17 @@
 # Apollia Python SDK
 
-> **Apollia AgentKit v0.2.0-preview** - Python toolkit for building agents that run on [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
+> **Apollia AgentKit v0.2.0-preview** - the Python a package brings to [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
 
-The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **18 backend services** (LLM, memory, tools, A2A, agents, workflows, user, mail, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
+An agent is data: its mission, its examples and what it may reach are written in the `apollia.toml` of a package. No Python stands for an agent. The Python of a package brings two things, and the SDK offers one decorator for each:
+
+- `@tool`, an `async def` function an agent can be granted;
+- `@workflow`, an `async def (ctx, inputs)` function whose steps are declared ahead.
+
+Both receive `ctx`, a typed runtime context exposing **17 backend services** (LLM, memory, tools, agents, workflows, user, mail, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
 
 **Design philosophy** :
-- Signature **is** the schema (type hints → JSON Schema → runtime validation)
-- Errors are **typed exceptions** trapped by the SDK at the dispatch boundary
+- Signature **is** the schema (type hints → JSON Schema)
+- Errors are **typed exceptions**
 - Zero external dependencies (stdlib only)
 - `mypy --strict` clean
 
@@ -24,138 +29,92 @@ python -c "import apollia; print(apollia.__version__)"
 # 0.2.0-preview
 ```
 
-## Quickstart - four canonical patterns
+## Quickstart
 
-### 1. Conversational agent
+`apollia-os package new invoice-sorter` writes a folder that builds as written: an `apollia.toml` declaring one agent, and one tool under `tools/`.
 
-```python
-from apollia import agent, on_message
-from apollia.types import Ctx, Message
-
-
-@agent(
-    name="apollia-guide",
-    version="0.1.0",
-    description="Friendly product coach for new Apollia users",
-)
-class ApolliaGuide:
-    SYSTEM_PROMPT = "You are a helpful product coach..."
-
-    @on_message
-    async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
-        full = ""
-        async for token in ctx.llm.stream(
-            messages=[
-                {"role": "system", "content": self.SYSTEM_PROMPT},
-                *history,
-                {"role": "user", "content": message},
-            ]
-        ):
-            ctx.events.emit_token(token)
-            full += token
-        return full
-```
-
-### 2. Multi-skill worker
+### A tool
 
 ```python
-from apollia import agent, skill, DomainError
+from typing import Annotated, Any
+
+from apollia import DomainError, tool
 from apollia.types import Ctx
 
 
-@agent(
-    name="pdf-worker",
-    version="0.1.0",
-    description="Read, extract, and parse PDF files",
-    packages=["pypdf>=4.0"],
-    tags=("file", "pdf"),
-    agent_type="worker",
+@tool(
+    "extract_totals",
+    "Read the totals of an invoice.",
+    action="read",
+    examples=[{"path": "invoices/2026-09.pdf"}],
 )
-class PdfWorker:
-    @skill("pdf.read_text", description="Extract text content from a PDF")
-    async def read_text(
-        self,
-        path: str,
-        page_range: str | None = None,
-        max_chars_per_page: int = 100_000,
-        ctx: Ctx = None,
-    ) -> dict:
-        import os
-        from pypdf import PdfReader
-
-        if not os.path.exists(path):
-            raise DomainError("FILE_NOT_FOUND", f"PDF not found: {path}")
-
-        reader = PdfReader(path)
-        text = "\n".join(p.extract_text()[:max_chars_per_page] for p in reader.pages)
-        return {"text": text, "pages": len(reader.pages)}
+async def extract_totals(
+    ctx: Ctx,
+    path: Annotated[str, "path of the invoice"],
+    rounding: int = 2,
+) -> dict[str, Any]:
+    if not path.endswith(".pdf"):
+        raise DomainError("NOT_A_PDF", f"not a PDF: {path}")
+    ctx.logger.info("reading %s", path)
+    return {"total": round(42.0, rounding)}
 ```
 
-The SDK:
-- Generates a JSON Schema from your signature (`path: str` → required string, `max_chars_per_page: int = 100_000` → optional integer)
-- Validates the incoming payload against it
-- Catches `DomainError` and converts it to `AIPResult.failed(code, message)` automatically
-- Wraps your return dict in `AIPResult.completed(...)`
+- `name` and `description` are positional; `name` matches `[a-z0-9_-]+` and is unique in the package.
+- `action` is one of the five families `apollia.toml` reads: `read`, `read_personal`, `write_or_delete`, `send_external`, `execute_code`. Every family except `read` is sensitive. There is no separate flag for sensitivity: the tool declares the family that says what it really does.
+- The input schema is inferred from the signature, `ctx` left out: `path` is a required string carrying its description, `rounding` an optional integer.
+- `examples` are sample input payloads, shown to the model beside the schema.
 
-### 3. Director using ReAct + A2A
+### A workflow
 
 ```python
-from apollia import agent, on_message, react
-from apollia.types import Ctx, Message
+from typing import Annotated, TypedDict
+
+from apollia import WorkflowCtx, workflow
 
 
-@agent(
-    name="veille-ia",
-    version="0.2.0",
-    description="Competitive intelligence director",
+class MonthClose(TypedDict):
+    folder: Annotated[str, "folder holding the invoices"]
+
+
+@workflow(
+    "close-month",
+    "Extract every invoice of a folder and file the totals.",
+    inputs=MonthClose,
+    steps=["extract", "file"],
+    action="write_or_delete",
 )
-class VeilleIA:
-    SYSTEM_PROMPT = "You orchestrate research workers..."
-
-    @on_message
-    async def run_cycle(self, message: str, history: list[Message], ctx: Ctx) -> str:
-        return await react(
-            ctx,
-            system=self.SYSTEM_PROMPT,
-            user=message,
-            tools=[
-                await ctx.a2a.skill_as_tool("research.search_and_extract"),
-                await ctx.a2a.skill_as_tool("research.extract_entities"),
-                await ctx.a2a.skill_as_tool("research.synthesize_report"),
-            ],
-            max_steps=15,
-        )
+async def close_month(ctx: WorkflowCtx, inputs: MonthClose) -> dict[str, str]:
+    async with ctx.step("extract"):
+        answer = await ctx.agents.run("accountant", f"totals of {inputs['folder']}")
+    async with ctx.step("file"):
+        await ctx.workflows.run("file-ledger", {"text": answer})
+    return {"answer": answer}
 ```
 
-### 4. Orchestrated agent (ORIA-piloted)
+- `inputs` is a `TypedDict`; its schema is the launch form. Each input is a type the form knows: `str`, `apollia.LongText`, `apollia.FileInput` (received as the absolute path of the file), `datetime.date`, `int`, `float`, `bool`, `Literal[...]`, or a list of text or numbers. Any other type is refused when the module is imported.
+- `steps` is what the card of the workflow shows without running the code. The body opens each step with `async with ctx.step("name")`, which refuses a name `steps` does not declare.
+- A step calls `ctx.llm`, `ctx.tools`, `ctx.agents.run(agent_id, message)`, `ctx.workflows.run(workflow_id, inputs)`, `ctx.user.ask(question)` or plain Python. The loop that alternates model calls and tool calls belongs to an agent: a step that needs one hands the message to an agent.
 
-```python
-from apollia import agent, orchestrated
+### The manifest
 
-
-@agent(name="email-triage", version="0.1.0", description="Sort and route emails")
-@orchestrated(system_prompt="You triage incoming emails using available tools...")
-class EmailTriage:
-    async def on_plan_complete(self, step_results: dict[str, str], ctx) -> str:
-        return "\n\n".join(text for text in step_results.values() if text)
-```
-
-The ORIA engine (Rust) generates and executes a plan from the system prompt. The agent only provides metadata + optional post-processing.
+`python -m apollia describe <folder>` imports the modules of the folder and rewrites the `[[tools]]` and `[[workflows]]` tables of its `apollia.toml` from the decorated functions: name, module, description, action family, input schema, and the steps of a workflow. Everything else in the manifest is kept as written, so reading the manifest never runs the code.
 
 ## The `Ctx` Protocol
 
-Every handler receives `ctx: Ctx`. The 15 services:
+Every tool and every workflow receives `ctx`. The 17 services:
 
 | Service | Type | Use |
 |---|---|---|
-| `ctx.llm` | `LlmProxy` | `complete`, `chat`, `stream` (async iterator), `map`, `run_tools` |
+| `ctx.llm` | `LlmProxy` | `complete`, `chat`, `stream` (async iterator), `map` |
 | `ctx.memory` | `MemoryInterface` | episodic / semantic / procedural + `export` / `import_data` |
 | `ctx.tools` | `ToolProxy` | `call(name, input)`, `describe(name)`, `list_tools()` |
-| `ctx.a2a` | `A2AInterface` | `invoke(skill_id)`, `discover`, `list_skills`, `skill_as_tool` |
+| `ctx.agents` | `AgentsInterface` | `run(agent_id, message)`, bound in a workflow run |
+| `ctx.workflows` | `WorkflowsInterface` | `run(workflow_id, inputs)`, bound in a workflow run |
+| `ctx.user` | `UserInterface` | `ask(question, *, options=None, hint=None)`, bound in a workflow run |
 | `ctx.mail` | `MailInterface` | `send`, `receive`, `poll`, `pending`, `list`, `ack`, `nack` - durable inbox, at-least-once |
 | `ctx.datasources` | `DatasourcesInterface` | `get(name)` - runtime YAML access |
-| `ctx.templates` | `TemplatesInterface` | `render(name, **vars)` - Jinja2 |
-| `ctx.secrets` | `SecretsInterface` | `get(key)` - read-only credentials, gated by manifest |
+| `ctx.templates` | `TemplatesInterface` | `render(name, **vars)` |
+| `ctx.secrets` | `SecretsInterface` | `get(key)` - read-only credentials |
 | `ctx.events` | `EventsInterface` | `emit_token`, `emit_thought`, `emit_retry`, `emit_action_parse_error` |
 | `ctx.logger` | `logging.Logger` | piped to Rust `tracing` |
 | `ctx.profile` | `ProfileInterface` | canonical user profile (read/write gated) |
@@ -164,123 +123,47 @@ Every handler receives `ctx: Ctx`. The 15 services:
 | `ctx.notify` | `NotifyInterface` | desktop / webhook notifications |
 | `ctx.budget` | `BudgetView` | `steps_remaining`, `tool_calls_remaining`, `elapsed_seconds`, `wall_clock_remaining` |
 
-All typed via `typing.Protocol` - IDE autocomplete works everywhere, `mypy --strict` passes.
+All typed via `typing.Protocol`, so IDE autocomplete works everywhere and `mypy --strict` passes. The reach of a service depends on the context: each interface module under `apollia/context/` states its own.
 
 ## Error model
 
-Raise typed exceptions; the SDK traps them at the dispatch boundary:
+Raise typed exceptions, all rooted at `AgentError`:
 
 ```python
-from apollia import DomainError, NeedHumanInput
+from apollia import DomainError
+from apollia.errors import QuestionDeclined
 
-# Business error → AIPResult.failed(code, message, details)
+# A business failure, with a stable code the catching code can branch on
 raise DomainError("FILE_TOO_LARGE", "File exceeds 100MB", details={"size_mb": 153})
 
-# HITL suspension → AIPResult.input_required(prompt, context)
-raise NeedHumanInput("Approve processing this 100MB file?", context={"path": "/tmp/big.pdf"})
+# Inside a workflow step: the user declined the question ctx.user.ask asked
+try:
+    answer = await ctx.user.ask("Purge the list?", options=["yes", "no"])
+except QuestionDeclined as declined:
+    ctx.logger.info("declined: %s", declined.reason)
 ```
 
-You never construct `AIPResult` yourself - it's internal to the SDK.
-
-## Manifest declarations
-
-`@agent` accepts:
-
-```python
-@agent(
-    name="...",                      # required
-    version="...",                   # required, semver
-    description="...",               # required
-    packages=("pypdf>=4",),          # PyPI deps installed in agent venv
-    tags=("file", "pdf"),            # discovery
-    datasources=("competitors",),    # YAML files in <agent_dir>/datasources/
-    templates=("report",),           # Jinja2 files in <agent_dir>/templates/
-    secrets=("brave_api_key",),      # credentials accessible via ctx.secrets
-    tools_required=("file_read",),   # native tools the agent will call
-    memory_namespace="my-agent",
-    user_memory_write=False,         # gate for ctx.profile.set()
-    step_budget={"max_steps": 30, "max_tool_calls": 50, "wall_clock_secs": 300},
-    agent_type="worker",             # worker / assistant / system
-)
-class MyAgent:
-    ...
-```
-
-`apollia inspect path/to/agent.py` shows the generated manifest before running.
+A malformed declaration (`@tool` on a function that is not `async def`, an unknown action family, a workflow input of an unsupported type) raises `AgentConfigError` when the module is imported.
 
 ## Documenting parameters with `Annotated`
 
-Skills exposed via A2A are seen by LLM callers (Chat Libre, director ReAct loops, other workers) as **tools**. The richer the JSON Schema description, the higher the chance a mid-market LLM (Mistral Small, Haiku, Llama 70B) builds a valid payload on the first try.
-
-`typing.Annotated[T, "description"]` is the canonical way to document a parameter. The SDK introspects the second argument and propagates it into `input_schema.properties[param].description` - visible to every LLM that calls the skill as a tool.
+A tool is seen by the model through its JSON Schema. `typing.Annotated[T, "description"]` is the canonical way to document a parameter: the SDK propagates the second argument into `input_schema.properties[param].description`.
 
 ```python
-from typing import Annotated
-
-from apollia import agent, skill
-from apollia.types import Ctx
-
-
-@agent(name="chart-worker", version="0.1.0", description="Render charts to PNG/SVG.", agent_type="worker")
-class ChartWorker:
-    @skill("chart.bar", description="Render a bar chart.")
-    async def bar(
-        self,
-        series: list[dict],  # see "Structured payloads with TypedDict" below
-        format: Annotated[str, "'png' (default, raster) | 'svg' (vector)."] = "png",
-        orientation: Annotated[
-            str,
-            "'vertical' (bars rise from baseline) | 'horizontal' (bars extend right).",
-        ] = "vertical",
-        dpi: int = 150,  # trivial numeric - no Annotated, keeps signature readable
-        ctx: Ctx = None,
-    ) -> dict:
-        ...
+async def bar(
+    ctx: Ctx,
+    format: Annotated[str, "'png' (default, raster) | 'svg' (vector)."] = "png",
+    dpi: int = 150,  # trivial numeric - no Annotated, keeps signature readable
+) -> dict: ...
 ```
-
-Skip `Annotated` for trivial numerics/booleans (`dpi: int = 150`, `overwrite: bool = False`) - keep the signature readable.
-
-## Providing examples for the LLM
-
-`@skill(examples=[{...}])` attaches one or more **payload templates** to the skill. The SDK propagates them to the tool descriptor LLM-facing - the LLM sees not only the JSON Schema but also a concrete, valid call shape.
-
-```python
-@skill(
-    "pdf.read_text",
-    description="Extract text from a PDF, optionally limited to a page range.",
-    examples=[
-        {"path": "/tmp/report.pdf"},                              # minimal
-        {"path": "/tmp/report.pdf", "page_range": "1-10"},        # with range
-    ],
-)
-async def read_text(
-    self,
-    path: str,
-    page_range: str | None = None,
-    ctx: Ctx = None,
-) -> dict:
-    ...
-```
-
-Guidelines:
-- At least 1 realistic example per skill - must cover every `required` field.
-- Demonstrate the exact structure of complex parameters (`list[TypedDict]`, nested dicts).
-- The SDK does **not** validate examples against the inferred schema - author responsibility to keep them in sync.
-
-`apollia inspect <agent.py> --json` shows `manifest.skills[].examples` so you can confirm propagation.
 
 ## Structured payloads with TypedDict
 
-When a parameter is a complex structure (`list[dict[str, Any]]`, nested config), the inferred JSON Schema is just `object` / `array of object` - opaque, no `properties`, no `required`. LLMs guess the shape and frequently get it wrong.
-
-Replace `list[dict[str, Any]]` with a `TypedDict` declared in a sibling `schemas.py`. The SDK introspects the TypedDict and produces a **structurally strict** sub-schema (`properties` + `required` + sub-types).
+When a parameter is a complex structure, replace `list[dict[str, Any]]` with a `TypedDict`. The SDK introspects it and produces a strict sub-schema (`properties`, `required`, sub-types).
 
 ```python
 # schemas.py - DO NOT add `from __future__ import annotations` !
 from typing import Literal, NotRequired, TypedDict
-
-
-BarOrientation = Literal["vertical", "horizontal"]
 
 
 class BarSeries(TypedDict):
@@ -290,77 +173,51 @@ class BarSeries(TypedDict):
     color: NotRequired[str]  # optional, hex #RRGGBB
 ```
 
-```python
-# chart-worker.py
-from schemas import BarSeries  # type: ignore[import-not-found]
+**Why no `from __future__ import annotations` in a module that defines a `TypedDict`**: PEP 563 turns all annotations into strings at class creation, which breaks `TypedDict.__required_keys__` (every field becomes "required"). The SDK uses `__required_keys__` to compute the `required` array of the JSON Schema, so under PEP 563 the schema lies about which fields are mandatory.
 
+## Testing
 
-@skill("chart.bar", description="...", examples=[...])
-async def bar(self, series: list[BarSeries], ctx: Ctx = None) -> dict:
-    ...
-```
-
-**Why no `from __future__ import annotations` in `schemas.py`** - PEP 563 turns all annotations into strings at class creation, which breaks `TypedDict.__required_keys__` (every field becomes "required"). The SDK uses `__required_keys__` to compute the `required: [...]` array of the JSON Schema, so under PEP 563 the schema lies about which fields are mandatory. Keep `schemas.py` free of `from __future__ import annotations`; the worker `.py` can still use it freely (only the TypedDict definitions are sensitive).
-
-Single source of truth: the TypedDict documents the contract for the LLM (via the schema), for callers (via type hints), and for tests / eval cases. No drift between schema, code, and docs.
-
-## Testing - isomorphic mocks
+A tool and a workflow are plain `async def` functions. A test builds a `MockContext`, configures its services and awaits the function as written:
 
 ```python
 import pytest
-from apollia.testing import mock, assert_result_completed, assert_skill_called
+from apollia.testing import MockContext, assert_tool_called
 
-from pdf_worker import PdfWorker  # your agent class
-
-
-@pytest.mark.asyncio
-async def test_read_text_happy_path(tmp_path):
-    # Create a tiny PDF fixture
-    pdf = tmp_path / "test.pdf"
-    pdf.write_bytes(b"%PDF-1.4\n...minimal pdf...")
-
-    agent, ctx = mock(PdfWorker)
-    result = await agent.invoke_skill("pdf.read_text", path=str(pdf))
-
-    assert_result_completed(result)
-    assert ctx.events.tokens == []  # no streaming for this skill
+from tools.invoices import close_month, extract_totals
 
 
 @pytest.mark.asyncio
-async def test_read_text_missing_file():
-    agent, ctx = mock(PdfWorker)
-    result = await agent.invoke_skill("pdf.read_text", path="/nonexistent.pdf")
-    assert result["status"] == "failed"
-    assert result["error"]["code"] == "FILE_NOT_FOUND"
+async def test_extract_totals_rounds():
+    ctx = MockContext()
+    result = await extract_totals(ctx, path="invoices/2026-09.pdf", rounding=1)
+    assert result == {"total": 42.0}
+
+
+@pytest.mark.asyncio
+async def test_close_month_hands_the_folder_to_the_accountant():
+    ctx = MockContext()
+    ctx.agents.answers = {"accountant": "42.00"}
+    await close_month(ctx, {"folder": "2026-09"})
+    assert ctx.agents.run_calls == [("accountant", "totals of 2026-09")]
 ```
 
-`mock(AgentClass)` returns `(instance, ctx)` where:
-- `instance.invoke_skill(skill_id, **kwargs)` bypasses runtime dispatch
-- `ctx` is a `MockContext` implementing 14 of the 15 surfaces (`ctx.mail` has no mock yet) - pre-configure via `ctx.llm.responses = [...]`, `ctx.datasources.values = {...}`, `ctx.secrets.values = {...}`, etc.
+`MockContext` implements every surface but `ctx.mail`. Pre-configure it in place (`ctx.llm.responses = [...]`, `ctx.datasources.values = {...}`, `ctx.secrets.values = {...}`) and assert on the same surfaces. Under a `MockContext` the steps of a workflow report nothing; `ctx.step` still refuses an undeclared name.
 
 ## CLI
 
 ```bash
-# Inspect an agent module before running it
-python -m apollia inspect agents/examples/hello/agent.py
-python -m apollia inspect agents/examples/hello/agent.py --json
-
 # Write the [[tools]] and [[workflows]] of a package's apollia.toml
 # from its @tool and @workflow functions
 python -m apollia describe path/to/package
-
-# Scaffold a new agent
-python -m apollia new my-agent --type worker
 ```
+
+Writing a new package, building its archive and installing it are commands of the runtime: `apollia-os package new`, `apollia-os package build`, `apollia-os package install`.
 
 ## Architecture references
 
 - **The type contract** in `apollia/types.py` and `apollia/context/` - the
-  authority on what `ctx` offers an agent at runtime
+  authority on what `ctx` offers at runtime
 - **Design decisions** in the architecture chapter of the documentation site
-- **Example agents** in `agents/examples/` - the shape a working agent takes
-- **Scaffolding**: `python -m apollia new <name> --type worker` generates a
-  starting point that already satisfies the minimal contract
 
 ## Project structure
 
@@ -369,21 +226,17 @@ sdk/
 ├── pyproject.toml
 ├── README.md          (this file)
 └── apollia/
-    ├── __init__.py    # public API : agent, skill, on_message, orchestrated, tool, workflow, react, errors
-    ├── agent.py       # @agent decorator
-    ├── skills.py      # @skill decorator
+    ├── __init__.py    # public API : tool, workflow, WorkflowCtx, errors, Ctx
     ├── tool_decorator.py      # @tool decorator
     ├── workflow_decorator.py  # @workflow decorator and ctx.step
-    ├── messages.py    # @on_message decorator
-    ├── orchestration.py  # @orchestrated decorator
-    ├── react.py       # apollia.react(ctx, ...) utility
     ├── errors.py      # DomainError, NeedHumanInput, PayloadError, ...
-    ├── types.py       # Ctx Protocol, vision types, helpers
-    ├── context/       # 18 Protocol surfaces (llm, memory, tools, a2a, agents, workflows, user, mail, ...)
-    ├── _internal/     # dispatch, inference, manifest, aip_result, logger_bridge
-    ├── testing/       # mock(), MockContext, assertions
-    ├── cli/           # apollia inspect, apollia new, apollia describe
-    └── utils/         # parsing, formatting, assertion helpers (legacy compat)
+    ├── hitl.py        # typed pauses: questions and approvals
+    ├── types.py       # Ctx Protocol, workflow input types, vision helpers
+    ├── context/       # 17 Protocol surfaces (llm, memory, tools, agents, workflows, user, mail, ...)
+    ├── _internal/     # inference, logger_bridge
+    ├── testing/       # MockContext, assertions
+    ├── cli/           # apollia describe
+    └── utils/         # parsing, formatting, assertion helpers
 ```
 
 ## License

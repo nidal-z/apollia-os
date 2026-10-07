@@ -1,27 +1,25 @@
-"""Factory for ``(agent_instance, MockContext)`` used in unit tests.
+"""``MockContext``, the ``ctx`` a tool or a workflow receives in a unit test.
 
 This module is the public entry point for the ``apollia.testing``
-package: ``from apollia.testing import mock``.
+package: ``from apollia.testing import MockContext``.
 
-Usage::
+A tool and a workflow are plain ``async def`` functions: a test builds the
+context, configures its services and awaits the function itself::
 
-    from apollia.testing import mock, assert_skill_called
+    from apollia.testing import MockContext, assert_tool_called
 
-    agent, ctx = mock(MyAgent)
+    ctx = MockContext()
     ctx.llm.responses = [{"content": "..."}]
-    result = await agent.invoke_skill("my.skill", x=1)
-    assert_skill_called(ctx, "child.skill")
+    result = await my_workflow(ctx, {"path": "notes.txt"})
+    assert_tool_called(ctx, "file_read")
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
-from apollia._internal.dispatch import dispatch_message, dispatch_skill
-from apollia._internal.manifest import MANIFEST_ATTR
 from apollia.testing.context import (
-    MockA2A,
     MockAgents,
     MockBudget,
     MockDatasources,
@@ -40,8 +38,6 @@ from apollia.testing.mocks import MockLlmProxy, MockMemory, MockToolProxy
 if TYPE_CHECKING:
     from apollia.hitl import HitlPayload, InputResponse
 
-T = TypeVar("T")
-
 
 class MockContext:
     """Mock of the ``Ctx`` Protocol: every service surface but ``mail``.
@@ -57,7 +53,7 @@ class MockContext:
     Tests assert on the same surfaces::
 
         assert ctx.events.tokens == ["Hello", " world"]
-        assert ctx.a2a.invoke_calls == [("worker.skill", {"x": 1})]
+        assert ctx.agents.run_calls == [("triage", "Sort this message.")]
     """
 
     def __init__(self) -> None:
@@ -65,7 +61,6 @@ class MockContext:
         self.llm = MockLlmProxy()
         self.memory = MockMemory()
         self.tools = MockToolProxy()
-        self.a2a = MockA2A()
         self.agents = MockAgents()
         self.workflows = MockWorkflows()
         self.user = MockUser()
@@ -78,7 +73,7 @@ class MockContext:
         self.stt = MockStt()
         self.notify = MockNotify()
         self.budget = MockBudget()
-        self.logger: logging.Logger = logging.getLogger("apollia.test.agent")
+        self.logger: logging.Logger = logging.getLogger("apollia.test")
         # A first run until a test says otherwise, as in production.
         self.is_resumed: bool = False
         self.input_response: InputResponse | None = None
@@ -94,16 +89,16 @@ class MockContext:
     ) -> None:
         """Put the context in the state of a task resumed from a pause.
 
-        The runtime runs a resumed agent again from the top with
+        The runtime runs resumed code again from the top with
         ``ctx.is_resumed`` true and ``ctx.input_response`` set; this does the
-        same for a test, so the resume branch of a skill can be exercised
-        without a runtime::
+        same for a test, so the resume branch can be exercised without a
+        runtime::
 
-            agent, ctx = mock(MyAgent)
+            ctx = MockContext()
             with pytest.raises(NeedHumanInput) as paused:
-                await agent.invoke_skill("pick.list")
+                await pick(ctx)
             ctx.resume_with(answer="b", payload=paused.value.payload)
-            result = await agent.invoke_skill("pick.list")
+            result = await pick(ctx)
 
         Args:
             approved: The operator's decision.
@@ -128,52 +123,4 @@ class MockContext:
         self.logger.log(getattr(logging, level.upper(), logging.INFO), message)
 
 
-def mock(agent_cls: type[T]) -> tuple[T, MockContext]:
-    """Create an agent instance bound to a fully-mocked ``Ctx``.
-
-    The returned agent is decorated with two extra helpers that bypass
-    the Rust runtime and dispatch handlers directly with the mock ctx:
-
-    * ``await agent.invoke_skill(skill_id, **payload)`` →
-      :class:`AIPResult` dict (handles validation, ``ctx=`` injection,
-      exception trapping).
-    * ``await agent.invoke_message(message, history=None)`` →
-      :class:`AIPResult` dict via the agent's ``@on_message`` handler.
-
-    Args:
-        agent_cls: A class decorated with :func:`apollia.agent`.
-
-    Returns:
-        Tuple of ``(agent_instance, mock_ctx)``.  Configure ``mock_ctx``
-        before calling the helpers.
-
-    Raises:
-        ValueError: If ``agent_cls`` is not decorated with ``@agent``.
-    """
-    if not hasattr(agent_cls, MANIFEST_ATTR):
-        raise ValueError(
-            f"{agent_cls.__name__} is not decorated with @agent - "
-            f"missing attribute {MANIFEST_ATTR!r}"
-        )
-
-    instance = agent_cls()
-    ctx = MockContext()
-
-    async def invoke_skill(skill_id: str, **kwargs: object) -> dict[str, Any]:
-        """Invoke a ``@skill`` handler directly with the mock ctx."""
-        return await dispatch_skill(instance, skill_id, kwargs, ctx)
-
-    async def invoke_message(
-        message: str,
-        history: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
-        """Invoke the ``@on_message`` handler directly with the mock ctx."""
-        return await dispatch_message(instance, message, history or [], ctx)
-
-    instance.invoke_skill = invoke_skill  # type: ignore[attr-defined]
-    instance.invoke_message = invoke_message  # type: ignore[attr-defined]
-
-    return instance, ctx
-
-
-__all__ = ["MockContext", "mock"]
+__all__ = ["MockContext"]

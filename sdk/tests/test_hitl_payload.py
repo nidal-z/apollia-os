@@ -1,11 +1,11 @@
-"""Typed pauses in the SDK: the payload reaches the runtime, the answer reaches the agent."""
+"""Typed pauses in the SDK: the payload rides the pause, the answer reaches the code."""
+
+from typing import Any
 
 import pytest
-from apollia import NeedHumanInput, agent, skill
-from apollia._internal.aip_result import from_exception, from_handler_return
+from apollia import NeedHumanInput
 from apollia.hitl import ApprovalPayload, QuestionPayload
-from apollia.testing import mock
-from apollia.types import AIPResult
+from apollia.testing import MockContext
 
 QUESTION: QuestionPayload = {
     "genre": "choix",
@@ -21,93 +21,63 @@ APPROVAL: ApprovalPayload = {
 }
 
 
-def test_need_human_input_carries_its_payload_to_the_runtime_shape() -> None:
-    # GIVEN a pause raised with a typed question
+def test_need_human_input_carries_its_payload_and_its_context() -> None:
+    # GIVEN a pause raised with a typed question and a context
+    # WHEN it is built
     exc = NeedHumanInput("Which list?", {"step": 1}, payload=QUESTION)
 
-    # WHEN the dispatch boundary maps it
-    result = from_exception(exc)
-
-    # THEN the runtime receives the payload beside the prompt and the context
-    assert result["status"] == "input_required"
-    data = result["input_required_data"]
-    assert data["prompt"] == "Which list?"
-    assert data["context"] == {"step": 1}
-    assert data["payload"] == QUESTION
+    # THEN the prompt, the context and the payload are read back as given
+    assert exc.prompt == "Which list?"
+    assert exc.context == {"step": 1}
+    assert exc.payload == QUESTION
+    assert exc.from_tool_call is False
 
 
-def test_a_prompt_only_pause_keeps_its_historical_shape() -> None:
-    # GIVEN a pause raised without a payload
-    result = from_exception(NeedHumanInput("Send?"))
+def test_a_prompt_only_pause_carries_no_payload() -> None:
+    # GIVEN a pause raised without a payload nor a context
+    # WHEN it is built
+    exc = NeedHumanInput("Send?")
 
-    # WHEN it reaches the runtime shape
-    # THEN no payload key appears, so the runtime reads it as it always did
-    assert "payload" not in result["input_required_data"]
-
-
-def test_aip_result_input_required_returned_from_a_skill_pauses_the_task() -> None:
-    # GIVEN the public factory, returned rather than raised
-    value = AIPResult.input_required("Delete?", {"list": "b"}, payload=APPROVAL)
-
-    # WHEN a handler return is coerced
-    result = from_handler_return(value)
-
-    # THEN the task pauses. Read as a dataclass it used to complete, carrying
-    # the pause as data, so the factory never paused anything.
-    assert result["status"] == "input_required"
-    assert result["input_required_data"]["payload"] == APPROVAL
-    assert result["input_required_data"]["context"] == {"list": "b"}
+    # THEN the payload is absent and the context is empty rather than None
+    assert exc.payload is None
+    assert exc.context == {}
 
 
-def test_legacy_completed_and_failed_results_keep_their_meaning() -> None:
-    # GIVEN the other two public factories, returned from a handler
-    # WHEN each is coerced
-    done = from_handler_return(AIPResult.completed("ok"))
-    broken = from_handler_return(AIPResult.failed("NOPE", "no"))
-
-    # THEN each lands on its own status rather than on a completed data blob
-    assert done["status"] == "completed"
-    assert broken["status"] == "failed"
-    assert broken["error"]["code"] == "NOPE"
-
-
-@agent(name="two-pause-agent", version="1.0.0", description="asks, then asks for approval")
-class TwoPauseAgent:
-    @skill("clean.list")
-    async def clean(self, ctx) -> dict:  # type: ignore[no-untyped-def]
-        response = ctx.input_response
-        if response is None:
-            raise NeedHumanInput("Which list?", payload=QUESTION)
-        if response["payload"]["genre"] == "choix":
-            raise NeedHumanInput(
-                "Delete it?",
-                {"list": response["answer"]},
-                payload=APPROVAL,
-            )
-        return {"list": response["context"]["list"], "approved": response["approved"]}
+async def clean(ctx: Any) -> dict[str, Any]:
+    """Ask which list, then ask to approve its deletion, then report both."""
+    response = ctx.input_response
+    if response is None:
+        raise NeedHumanInput("Which list?", payload=QUESTION)
+    if response["payload"]["genre"] == "choix":
+        raise NeedHumanInput(
+            "Delete it?",
+            {"list": response["answer"]},
+            payload=APPROVAL,
+        )
+    return {"list": response["context"]["list"], "approved": response["approved"]}
 
 
 @pytest.mark.asyncio
-async def test_an_agent_resumed_twice_reads_each_answer_through_ctx() -> None:
-    # GIVEN an agent that asks a question, then an approval, on a mock context
-    agent_instance, ctx = mock(TwoPauseAgent)
+async def test_code_resumed_twice_reads_each_answer_through_ctx() -> None:
+    # GIVEN code that asks a question, then an approval, on a mock context
+    ctx = MockContext()
     assert ctx.is_resumed is False
 
     # WHEN it runs, pauses, is resumed with an answer, pauses again, and is
     # resumed with the approval
-    first = await agent_instance.invoke_skill("clean.list")
-    assert first["status"] == "input_required"
-    ctx.resume_with(answer="b", payload=first["input_required_data"]["payload"])
-    second = await agent_instance.invoke_skill("clean.list")
-    assert second["status"] == "input_required"
+    with pytest.raises(NeedHumanInput) as first:
+        await clean(ctx)
+    ctx.resume_with(answer="b", payload=first.value.payload)
+    with pytest.raises(NeedHumanInput) as second:
+        await clean(ctx)
     ctx.resume_with(
         approved=True,
-        payload=second["input_required_data"]["payload"],
-        context=second["input_required_data"]["context"],
+        payload=second.value.payload,
+        context=second.value.context,
     )
-    third = await agent_instance.invoke_skill("clean.list")
+    third = await clean(ctx)
 
     # THEN it returns what it received across both pauses
     assert ctx.is_resumed is True
-    assert third["status"] == "completed"
-    assert third["output"][0]["data"] == {"list": "b", "approved": True}
+    assert second.value.payload == APPROVAL
+    assert third == {"list": "b", "approved": True}

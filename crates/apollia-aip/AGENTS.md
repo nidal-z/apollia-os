@@ -123,10 +123,10 @@ contract : the `Ctx` Protocol in `sdk/apollia/types.py` and the per-service
 interfaces in `sdk/apollia/context/*.py`. The implementation in this crate
 must keep parity with that contract.
 
-`Ctx` exposes 15 typed services (`ctx.llm`, `ctx.memory`, `ctx.tools`,
-`ctx.a2a`, `ctx.mail`, `ctx.datasources`, `ctx.templates`, `ctx.secrets`,
-`ctx.events`, `ctx.logger`, `ctx.profile`, `ctx.workspace`, `ctx.stt`,
-`ctx.notify`, `ctx.budget`). Read the exact method signatures from
+`Ctx` exposes 17 typed services (`ctx.llm`, `ctx.memory`, `ctx.tools`,
+`ctx.agents`, `ctx.workflows`, `ctx.user`, `ctx.mail`, `ctx.datasources`,
+`ctx.templates`, `ctx.secrets`, `ctx.events`, `ctx.logger`, `ctx.profile`,
+`ctx.workspace`, `ctx.stt`, `ctx.notify`, `ctx.budget`). Read the exact method signatures from
 `sdk/apollia/context/<service>.py`. Note `ctx.logger` (structured logging),
 not a bare `ctx.log`, and `ctx.tools` (plural).
 
@@ -185,7 +185,7 @@ change to `docs/agents/OBSERVABILITY.md` first, then here.
 - The tests are inline, in `#[cfg(test)]` modules beside the code. This crate
   has no `tests/` directory and no fixture agent tree; do not cite one.
 - A test that touches the interpreter calls
-  `pyo3::prepare_freethreaded_python()` first (`src/a2a.rs`, `src/events.rs`,
+  `pyo3::prepare_freethreaded_python()` first (`src/events.rs`,
   `src/llm.rs`).
 - `#[tokio::test]` is used where the code under test is async; keep the GIL
   handling explicit inside it, and never hold the GIL across the `.await`.

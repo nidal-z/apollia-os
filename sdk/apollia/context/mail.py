@@ -1,6 +1,6 @@
 """ctx.mail - asynchronous inter-agent messaging.
 
-Distinct from ``ctx.a2a`` (synchronous skill RPC): ``send`` posts a message into
+Distinct from ``ctx.agents.run`` (a synchronous run): ``send`` posts a message into
 another agent's durable inbox and returns immediately, while the recipient pulls
 it at its own initiative. Delivery is at-least-once: ``receive`` leases a message
 rather than deleting it; the consuming context acknowledges it on success, and
@@ -31,7 +31,7 @@ class MailInterface(Protocol):
     build the agent context with no mailbox handle (``apollia-os start`` in
     task mode, and the chat runner), so every call there raises
     ``RuntimeError("mailbox not available in this runtime context")``. The
-    agent must also declare the capability with ``@agent(mailbox=True)``, or
+    context must also carry the mailbox capability, or
     the call is refused before the handle is even looked up.
     """
 

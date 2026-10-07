@@ -25,11 +25,10 @@ def test_ctx_importable_from_apollia_root() -> None:
 
 
 def test_each_subprotocol_importable() -> None:
-    """All 14 sub-protocols are exported from ``apollia.context.*``."""
+    """Every sub-protocol is exported from ``apollia.context.*``."""
     # GIVEN the context package
     # WHEN every sub-protocol is imported from its own module
     # THEN each import succeeds, so no surface is exported by name only
-    from apollia.context.a2a import A2AInterface  # noqa: F401
     from apollia.context.budget import BudgetView  # noqa: F401
     from apollia.context.datasources import DatasourcesInterface  # noqa: F401
     from apollia.context.events import EventsInterface  # noqa: F401
@@ -60,8 +59,6 @@ def test_each_subprotocol_importable() -> None:
         ("apollia.context.memory", "MemoryInterface"),
         ("apollia.context.tools", "ToolProxy"),
         ("apollia.context.tools", "ToolDescriptor"),
-        ("apollia.context.a2a", "A2AInterface"),
-        ("apollia.context.a2a", "SkillCard"),
         ("apollia.context.datasources", "DatasourcesInterface"),
         ("apollia.context.templates", "TemplatesInterface"),
         ("apollia.context.secrets", "SecretsInterface"),
@@ -111,7 +108,6 @@ class _CompleteCtxMock:
         self.llm: Any = MagicMock()
         self.memory: Any = MagicMock()
         self.tools: Any = MagicMock()
-        self.a2a: Any = MagicMock()
         self.agents: Any = MagicMock()
         self.workflows: Any = MagicMock()
         self.user: Any = MagicMock()
@@ -137,7 +133,6 @@ class _IncompleteCtxMock:
         # Intentionally NOT setting ``llm``.
         self.memory: Any = MagicMock()
         self.tools: Any = MagicMock()
-        self.a2a: Any = MagicMock()
         self.agents: Any = MagicMock()
         self.workflows: Any = MagicMock()
         self.user: Any = MagicMock()
@@ -235,15 +230,17 @@ def test_memory_protocol_has_expected_methods() -> None:
     assert not missing, f"MemoryInterface missing: {missing}"
 
 
-def test_a2a_protocol_has_invoke_discover_list() -> None:
-    # GIVEN the A2A sub-protocol
-    from apollia.context.a2a import A2AInterface
+def test_ctx_publishes_no_synchronous_call_between_agents() -> None:
+    # GIVEN the protocol of the context and the one of ``ctx.llm``
+    from apollia.context.llm import LlmProxy
+    from apollia.types import Ctx
 
-    # WHEN its members are listed
-    members = set(dir(A2AInterface))
+    # WHEN their members are listed
+    services = set(Ctx.__annotations__)
+    llm_members = set(dir(LlmProxy))
 
-    # THEN the four documented entry points are all present
-    assert "invoke" in members
-    assert "discover" in members
-    assert "list_skills" in members
-    assert "skill_as_tool" in members
+    # THEN ``ctx.a2a`` and the tool loop are gone, and running an agent or a
+    # workflow goes through the two services that replace them
+    assert "a2a" not in services
+    assert "run" + "_tools" not in llm_members
+    assert {"agents", "workflows"} <= services
