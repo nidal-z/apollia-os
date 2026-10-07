@@ -35,6 +35,7 @@
     "ai-panel-inference-section-settings-toggle",
     "ai-panel-inference-section-structured",
     "ai-panel-inference-section-structured-toggle",
+    "ai-panel-load-field-draft_model",
     "ai-panel-load-field-flash_attn",
     "ai-panel-load-field-n_ctx",
     "ai-panel-load-field-n_gpu_layers",
@@ -44,6 +45,8 @@
     "ai-panel-load-section-advanced-toggle",
     "ai-panel-load-section-context",
     "ai-panel-load-section-context-toggle",
+    "ai-panel-load-section-speculative",
+    "ai-panel-load-section-speculative-toggle",
     "ai-panel-tab-inference",
     "ai-panel-tab-load",
     "settings-nav-developer"
@@ -426,8 +429,41 @@
       "nth": 0
     },
     {
+      "kind": "expect",
+      "testid": "ai-panel-load-section-speculative"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-load-section-speculative-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-load-field-draft_model",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-load-draft-note"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-load-draft-unavailable",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
       "label": "03d-model-panel-loading-unfolded"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-panel-load-section-speculative-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-load-field-draft_model",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",

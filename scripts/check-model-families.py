@@ -58,6 +58,9 @@ Rules, each reported with the entry it names:
       the author fields (name, type `liste` or `booleen`, values for a list,
       default, explanation in `fr` and in `en`, source) and its repositories
     * no card carries an em-dash
+    * a card marked `draft`, a model published to draft for a larger one in
+      speculative decoding, is a language card and cites the address that
+      shows it: the mark files the model as a draft on the user's machine
     * a card naming a recorded `template` declares the tools and reasoning
       capabilities the runtime computes from it: the markers are read from
       `crates/apollia-llm/src/capabilities.rs`, so the guard and the runtime
@@ -360,6 +363,12 @@ def check_card(path: pathlib.Path, card: dict, tools_m: list[str], reason_m: lis
             owner, _, rest = str(repo).partition("/")
             if not owner or not rest or "/" in rest:
                 fault(f"repository {repo!r} is not owner/name")
+    if "draft" in card:
+        mark = card["draft"]
+        if card.get("kind") != "language":
+            fault("is marked as a draft model but is not a language card")
+        if not isinstance(mark, dict) or not str(mark.get("source", "")).startswith("https://"):
+            fault("is marked as a draft model without the address that shows it")
     template = card.get("template")
     if template is not None:
         tpl = ROOT / template
@@ -468,9 +477,10 @@ def run(
 
 
 def selftest() -> int:
-    """The guard answers 0 on the tree and 1 on each of eight faulty fixtures:
-    five faulty tables, and three faulty cards (a missing language, an
-    em-dash, a capability the recorded template contradicts)."""
+    """The guard answers 0 on the tree and 1 on each of nine faulty fixtures:
+    five faulty tables, and four faulty cards (a missing language, an
+    em-dash, a capability the recorded template contradicts, a draft mark
+    that cites no address)."""
     today = datetime.date.today()
     future = (today + datetime.timedelta(days=30)).isoformat()
     tree = FAMILIES.read_text(encoding="utf-8")
@@ -519,7 +529,10 @@ def selftest() -> int:
             card["description"]["en"] += " " + EM_DASH + " fast"
         def contradicted(card: dict) -> None:
             card["capabilities"]["tools"] = not card["capabilities"]["tools"]
+        def unsourced_draft(card: dict) -> None:
+            card["draft"] = {"source": ""}
         faulty_cards = {
+            "a card marked as a draft model with no address": unsourced_draft,
             "a card without its French description": no_french,
             "a card carrying an em-dash": em_dash,
             "a card whose tools capability the template contradicts": contradicted,

@@ -21,6 +21,7 @@
 //! that for every search result would cost more than the listing itself.
 
 pub mod parse;
+pub mod vocabulary;
 
 #[cfg(test)]
 mod builder;

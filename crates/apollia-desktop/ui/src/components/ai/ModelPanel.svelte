@@ -319,6 +319,7 @@
         {#if tab === "load"}
           <ModelLoadTab
             format={model.format}
+            {detail}
             bind:form
             {errors}
             writable={loadSettingsKept}

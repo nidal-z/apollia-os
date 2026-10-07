@@ -300,3 +300,61 @@ fn test_the_commands_of_the_panel_serve_an_attached_window() {
         assert!(gate(LinkMode::Attached, command).is_ok(), "{command}");
     }
 }
+
+/// A GGUF header of a language model declaring a vocabulary of `tokens`
+/// entries of the family `family`.
+fn with_vocabulary(family: &str, tokens: u64) -> Vec<u8> {
+    let mut out = gguf(&[
+        ("general.architecture", "qwen2"),
+        ("general.size_label", "0.5B"),
+        ("tokenizer.ggml.model", family),
+    ]);
+    // One more pair than `gguf` declared: the vocabulary array.
+    out[16..24].copy_from_slice(&4u64.to_le_bytes());
+    let key = "tokenizer.ggml.tokens";
+    out.extend_from_slice(&(key.len() as u64).to_le_bytes());
+    out.extend_from_slice(key.as_bytes());
+    out.extend_from_slice(&9u32.to_le_bytes());
+    out.extend_from_slice(&8u32.to_le_bytes());
+    out.extend_from_slice(&tokens.to_le_bytes());
+    for _ in 0..tokens {
+        out.extend_from_slice(&1u64.to_le_bytes());
+        out.push(b't');
+    }
+    out
+}
+
+#[test]
+fn test_the_detail_proposes_the_drafts_of_the_same_vocabulary_to_a_gguf_model_only() {
+    // GIVEN a GGUF model, two models filed as drafts of which one shares its
+    // vocabulary, and an MLX model
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    write(dir, "main.gguf", &with_vocabulary("gpt2", 200));
+    write(dir, "small.gguf", &with_vocabulary("gpt2", 200));
+    write(dir, "other.gguf", &with_vocabulary("gpt2", 100));
+    write(dir, "folder-mlx/config.json", br#"{"model_type":"qwen2"}"#);
+    write(dir, "folder-mlx/model.safetensors", b"weights");
+    reconcile(dir).unwrap();
+    override_category_in(dir, "small", Some(ModelCategory::Draft)).unwrap();
+    override_category_in(dir, "other", Some(ModelCategory::Draft)).unwrap();
+
+    // WHEN the detail of the GGUF model and of the MLX model are read
+    let gguf_model = detail_in(dir, "main", "fr").unwrap();
+    let mlx_model = detail_in(dir, "folder-mlx", "fr").unwrap();
+
+    // THEN the GGUF model has the setting and the one compatible draft; the
+    // MLX model has no such setting and nothing to choose
+    assert!(gguf_model.draft_setting);
+    assert_eq!(
+        gguf_model.compatible_drafts,
+        [DraftCandidate {
+            id: "small".to_owned(),
+            parameters: Some("0.5B".to_owned()),
+            size_bytes: std::fs::metadata(dir.join("small.gguf")).unwrap().len(),
+        }]
+    );
+    assert_eq!(mlx_model.format, ModelFormat::Mlx);
+    assert!(!mlx_model.draft_setting);
+    assert!(mlx_model.compatible_drafts.is_empty());
+}

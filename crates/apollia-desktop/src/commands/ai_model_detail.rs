@@ -3,7 +3,8 @@
 //! - `get_installed_model_detail`: what the panel shows beyond the row of the
 //!   list: the weights file, its quantisation and architecture, the category
 //!   detected and the one chosen over it, the other weights files of the same
-//!   model, and the switches its card declares.
+//!   model, the switches its card declares, and the draft models that can
+//!   draft for it.
 //! - `set_installed_model_category_override`: the category chosen over the
 //!   detected one, or its removal.
 //! - `set_installed_model_source_override`: another weights file of the same
@@ -42,6 +43,17 @@ pub struct SourceCandidate {
     pub size_bytes: u64,
 }
 
+/// A draft model the load settings of a model may name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DraftCandidate {
+    /// Identifier in the model index, what the load settings store.
+    pub id: String,
+    /// Parameter count label read from its header, for example `"0.5B"`.
+    pub parameters: Option<String>,
+    /// Size on disk in bytes.
+    pub size_bytes: u64,
+}
+
 /// What the panel of a model shows beyond its row.
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelDetailView {
@@ -65,6 +77,11 @@ pub struct ModelDetailView {
     pub source_candidates: Vec<SourceCandidate>,
     /// The switches the card of the model declares, in the asked language.
     pub author_fields: Vec<LocalizedAuthorField>,
+    /// Whether the engine of the model takes a draft model for speculative
+    /// decoding: the GGUF engine does, the MLX engine does not.
+    pub draft_setting: bool,
+    /// The installed draft models whose vocabulary is the one of this model.
+    pub compatible_drafts: Vec<DraftCandidate>,
 }
 
 fn file_name(path: &Path) -> String {
@@ -180,6 +197,16 @@ fn detail_in(models_dir: &Path, id: &str, lang: &str) -> Result<ModelDetailView,
             .map(|p| p.display().to_string()),
         source_candidates: source_candidates(&index, model),
         author_fields: author_fields(model, lang),
+        draft_setting: model.format == ModelFormat::Gguf,
+        compatible_drafts: index
+            .compatible_drafts(&model.id)
+            .into_iter()
+            .map(|draft| DraftCandidate {
+                id: draft.id.clone(),
+                parameters: draft.parameters.clone(),
+                size_bytes: draft.size_bytes,
+            })
+            .collect(),
     })
 }
 

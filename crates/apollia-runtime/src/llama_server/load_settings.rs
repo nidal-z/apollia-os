@@ -58,7 +58,8 @@ pub struct LoadSettings {
     pub mmap: Option<bool>,
     /// Engine seed (`--seed`).
     pub seed: Option<u32>,
-    /// Draft model path for speculative decoding (`--model-draft`).
+    /// Draft model for speculative decoding, by its identifier in the model
+    /// index. The launch resolves it to the path `--model-draft` takes.
     pub draft_model: Option<String>,
     /// Speculative decoding mode (`--spec-type`).
     pub spec_type: Option<SpecType>,
@@ -163,8 +164,10 @@ impl LoadSettings {
         }
     }
 
-    /// Lay the settings over `config`. The chat template is not among them:
-    /// the engine reads it from a file, which the caller writes and sets.
+    /// Lay the settings over `config`. Two are not among them, because the
+    /// engine takes a path where the preset holds something else: the chat
+    /// template, which the caller writes to a file, and the draft model, which
+    /// the caller resolves from its index identifier. The caller sets both.
     pub fn apply(&self, config: &mut LlamaServerConfig) {
         fn set<T: Clone>(slot: &mut Option<T>, value: &Option<T>) {
             if value.is_some() {
@@ -202,7 +205,6 @@ impl LoadSettings {
         set(&mut config.rope_freq_base, &self.rope_freq_base);
         set(&mut config.rope_freq_scale, &self.rope_freq_scale);
         set(&mut config.seed, &self.seed);
-        set(&mut config.draft_model, &self.draft_model);
         set(&mut config.spec_type, &self.spec_type);
         set(&mut config.flash_attn, &self.flash_attn);
         set(&mut config.cache_type_k, &self.cache_type_k);
@@ -212,8 +214,8 @@ impl LoadSettings {
 
 /// The launch configuration of one model: the base, then the preset, then the
 /// environment, then the automatic plans for whatever neither of the two
-/// fixed. The chat template file, when the preset carries one, is already
-/// set on `base`.
+/// fixed. The chat template file and the draft model path, when the preset
+/// carries them, are already set on `base`.
 ///
 /// The window is not a plan: the supervisor resolves it before (the preset's,
 /// else the backend's, else the default) and sets it on `base`, so it stands

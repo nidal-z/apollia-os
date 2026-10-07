@@ -104,6 +104,8 @@ function detail(over: Partial<ModelDetail> = {}): ModelDetail {
     source_file_override: null,
     source_candidates: [],
     author_fields: [],
+    draft_setting: true,
+    compatible_drafts: [],
     ...over,
   };
 }
@@ -278,14 +280,17 @@ describe("the Loading tab", () => {
     expect(translated("ai.panel.load.none")).toBe(true);
   });
 
-  test("the two sections hold the context and the offload, then the advanced settings", () => {
+  test("the sections hold the context and the offload, the draft model, then the advanced settings", () => {
     // GIVEN the sections of the tab
     // WHEN their fields are read
     const context = fieldsOf(LOAD_FIELDS, "context").map((f) => f.key);
+    const speculative = fieldsOf(LOAD_FIELDS, "speculative").map((f) => f.key);
     const advanced = fieldsOf(LOAD_FIELDS, "advanced").map((f) => f.key);
-    // THEN the first holds the two the loading window asks, the second the rest
-    expect([...LOAD_SECTIONS]).toEqual(["context", "advanced"]);
+    // THEN the first holds the two the loading window asks, the second the
+    // draft model alone, the third the rest
+    expect([...LOAD_SECTIONS]).toEqual(["context", "speculative", "advanced"]);
     expect(context).toEqual(["n_ctx", "n_gpu_layers"]);
+    expect(speculative).toEqual(["draft_model"]);
     expect(advanced).toEqual([
       "n_threads",
       "n_batch",

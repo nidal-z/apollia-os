@@ -12,7 +12,7 @@ use crate::residency::room::{plan_room, Room};
 use super::config::env_getter;
 use super::load_settings::{self, LoadSettings};
 use super::{
-    devices, log_level, ngl, parallel, projector, LlamaServerConfig, LlamaServerSupervisor,
+    devices, draft, log_level, ngl, parallel, projector, LlamaServerConfig, LlamaServerSupervisor,
 };
 
 impl LlamaServerSupervisor {
@@ -35,6 +35,15 @@ impl LlamaServerSupervisor {
             .unwrap_or(None);
         base.model_path = model_path;
         base.chat_template_file = template_file.map(|path| path.display().to_string());
+        // The draft model is named by its index identifier: resolved against
+        // the index, on disk, and held to the vocabulary of this model.
+        let (lookup, named) = (base.model_path.clone(), load.clone());
+        let (draft_model, load) =
+            tokio::task::spawn_blocking(move || draft::for_model(&lookup, &named))
+                .await
+                .unwrap_or_else(|_| (None, load.clone()));
+        let load = &load;
+        base.draft_model = draft_model;
         base.n_ctx = n_ctx;
         // The engine log level of the settings, read at every load so a change
         // applies to the next one; the environment still wins in `compose`.

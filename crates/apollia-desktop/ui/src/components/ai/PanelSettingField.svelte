@@ -10,7 +10,7 @@
   import { Select } from "$lib/components/ui/select";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Tooltip } from "$lib/components/ui/tooltip";
-  import { isAuto, type SettingField } from "./modelDetail";
+  import { isAuto, type DraftOption, type SettingField } from "./modelDetail";
 
   interface Props {
     field: SettingField;
@@ -21,9 +21,18 @@
     disabled?: boolean;
     /** The tab the setting belongs to, which names its `data-testid`. */
     scope: "load" | "inference";
+    /** The draft models a `draft` setting is chosen among. */
+    drafts?: readonly DraftOption[];
   }
 
-  let { field, value = $bindable(""), errorKey, disabled = false, scope }: Props = $props();
+  let {
+    field,
+    value = $bindable(""),
+    errorKey,
+    disabled = false,
+    scope,
+    drafts = [],
+  }: Props = $props();
 
   const id = $derived(`ai-panel-${scope}-field-${field.key}`);
   const auto = $derived($t("ai.panel.auto"));
@@ -59,6 +68,19 @@
       <option value="">{auto}</option>
       <option value="true">{$t("ai.panel.on")}</option>
       <option value="false">{$t("ai.panel.off")}</option>
+    </Select>
+  {:else if field.kind === "draft"}
+    <Select size="sm" {id} bind:value {disabled} data-testid={id}>
+      <option value="">{$t("ai.panel.load.draft.none")}</option>
+      {#each drafts as draft (draft.id)}
+        <option value={draft.id} data-available={draft.available}>
+          {draft.available
+            ? draft.parameters
+              ? `${draft.id} · ${draft.parameters}`
+              : draft.id
+            : $t("ai.panel.load.draft.unavailable", { values: { id: draft.id } })}
+        </option>
+      {/each}
     </Select>
   {:else if field.kind === "choice"}
     <Select size="sm" {id} bind:value {disabled} data-testid={id}>

@@ -257,8 +257,10 @@ pub fn mark_defaults(
     search_entry: Option<&str>,
 ) {
     for model in models.iter_mut() {
-        model.default_chat = model.category == ModelCategory::Language
-            && chat_path.is_some_and(|p| Path::new(&model.path) == p);
+        model.default_chat = matches!(
+            model.category,
+            ModelCategory::Language | ModelCategory::Draft
+        ) && chat_path.is_some_and(|p| Path::new(&model.path) == p);
         model.default_search =
             model.embedding_entry.is_some() && model.embedding_entry.as_deref() == search_entry;
     }
