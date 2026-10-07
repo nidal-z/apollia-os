@@ -57,7 +57,10 @@
     >
       {#snippet child({ wrapperProps, props, open: isOpen })}
         {#if isOpen}
-          <div {...wrapperProps}>
+          <!-- The wrapper is the positioned element and it carries a transform,
+               so it is the one that stacks: the layer set on the content alone
+               left a popover opened from a dialog painted under that dialog. -->
+          <div {...wrapperProps} style:z-index="var(--z-overlay)">
             <div {...props} transition:popoverTransition>
               {@render content()}
             </div>

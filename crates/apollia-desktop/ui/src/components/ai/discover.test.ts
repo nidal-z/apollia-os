@@ -422,18 +422,22 @@ describe("the card and its download", () => {
 
 describe("what the window no longer does", () => {
   const sources = readdirSync(HERE)
-    .filter((name) => name.startsWith("Discover") || name === "discover.ts")
+    .filter((name) => name.startsWith("Discover") || name === "discover.ts" || name === "discoverCard.ts")
     .map((name) => [name, readFileSync(path.join(HERE, name), "utf8")] as const);
 
   test("the window is read", () => {
     // GIVEN the sources of the discovery window
     // WHEN they are listed
-    // THEN the window, its column, its card and their decisions are there
+    // THEN the window, its column, its card with its parts and their decisions are there
     expect(sources.map(([name]) => name).sort()).toEqual([
       "DiscoverCard.svelte",
       "DiscoverColumn.svelte",
+      "DiscoverOptions.svelte",
+      "DiscoverReadme.svelte",
+      "DiscoverSettings.svelte",
       "DiscoverWindow.svelte",
       "discover.ts",
+      "discoverCard.ts",
     ]);
   });
 

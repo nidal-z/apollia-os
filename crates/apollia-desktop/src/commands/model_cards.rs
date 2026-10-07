@@ -1,15 +1,32 @@
-//! Tauri IPC command for the model cards of the catalogue.
+//! Tauri IPC commands for the model cards of the catalogue.
 //!
 //! - [`list_model_cards`]: the catalogue opens, the signed index of cards is
 //!   read (main address, mirror, kept copy) and every card is returned in the
 //!   asked language
+//! - [`get_model_readme`]: the README of a repository, read at its source
+//!   when the user asks for it and kept nowhere
+//! - [`get_dictation_models`]: the dictation models of the registry, whether
+//!   each fits this machine, and the one recommended for it
 //!
-//! The command never reads the runtime: it reads the registry, the data
-//! directory, its `apollia.toml` and the organisation policy, which the daemon
-//! shares when the application is attached to one, so it serves both modes.
+//! [`list_model_cards`] never reads the runtime: it reads the registry, the
+//! data directory, its `apollia.toml` and the organisation policy, which the
+//! daemon shares when the application is attached to one, so it serves both
+//! modes. The two others delegate to the runtime's HTTP API, embedded or
+//! attached: `GET /api/v1/llm/registry/readme` and `GET /api/v1/llm/dictation`.
 
 use apollia_llm::model_cards::fetch::{open_catalogue, CatalogueView, RegistrySource};
 use apollia_llm::model_cards::{compiled_public_key, default_cache_dir};
+use tauri::State;
+
+use crate::attached::RuntimeLink;
+
+const README_PATH: &str = "/api/v1/llm/registry/readme";
+const DICTATION_PATH: &str = "/api/v1/llm/dictation";
+
+/// The route that reads the README of `repo`, an `owner/name` identifier.
+fn readme_path(repo: &str) -> String {
+    format!("{README_PATH}?repo={}", urlencoding::encode(repo))
+}
 
 /// The data directory of this installation.
 pub(crate) fn data_dir() -> std::path::PathBuf {
@@ -37,6 +54,28 @@ pub async fn list_model_cards(lang: Option<String>) -> Result<CatalogueView, Str
     .map_err(|e| e.to_string())
 }
 
+/// The README of `repo` as text, with the repository, its owner and the
+/// licence it declares. Read at the source on each call; nothing of it is
+/// written to disk. Rejected with the runtime's message when the network is
+/// cut, the repository has no README, or the text passes the size cap.
+#[tauri::command]
+pub async fn get_model_readme(
+    link: State<'_, RuntimeLink>,
+    repo: String,
+) -> Result<serde_json::Value, String> {
+    link.get_json(&readme_path(&repo)).await
+}
+
+/// The dictation models of the registry, each with its footprint and whether
+/// it fits this machine, and the one recommended beside the largest language
+/// model installed. Answered without the network.
+#[tauri::command]
+pub async fn get_dictation_models(
+    link: State<'_, RuntimeLink>,
+) -> Result<serde_json::Value, String> {
+    link.get_json(DICTATION_PATH).await
+}
+
 /// Copy the card of `repo_id`, from the kept index, next to the model just
 /// downloaded at `model_path`, so the card reads offline from then on. A
 /// failure is logged and never fails the download.
@@ -58,6 +97,30 @@ pub(crate) fn copy_card_for_download(model_path: &std::path::Path, repo_id: Opti
             error = %error,
             detail = "the download itself is unaffected",
             "desktop.model_cards.copy_failed"
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_the_readme_route_carries_the_repository_as_one_encoded_query_value() {
+        // GIVEN a repository identifier, and one that tries to add a query key
+        let repo = "Qwen/Qwen3-8B";
+        let hostile = "Qwen/Qwen3-8B&lang=fr";
+
+        // WHEN the route is built for each
+        let plain = readme_path(repo);
+        let escaped = readme_path(hostile);
+
+        // THEN the slash and the ampersand travel inside the one `repo` value,
+        // which the route then refuses or accepts as a whole
+        assert_eq!(plain, "/api/v1/llm/registry/readme?repo=Qwen%2FQwen3-8B");
+        assert_eq!(
+            escaped,
+            "/api/v1/llm/registry/readme?repo=Qwen%2FQwen3-8B%26lang%3Dfr"
         );
     }
 }

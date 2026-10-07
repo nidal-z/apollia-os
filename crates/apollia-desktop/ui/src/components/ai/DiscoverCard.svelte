@@ -1,30 +1,31 @@
 <script lang="ts">
   /**
    * DiscoverCard - the card of the model chosen in the discovery window: its
-   * name and figures, what it is and what it can do, then its variants for
-   * this computer and the download of the chosen one.
+   * name and figures, what it is and what it can do, its download options
+   * for this computer with the download of the chosen one or a conversation
+   * on it, then what its author defines and its README on demand.
    */
   import { locale, t } from "svelte-i18n";
-  import { Check, Copy, Download, Heart, WifiOff, X } from "lucide-svelte";
-  import { cn, formatRelativeTime } from "$lib/utils";
+  import { Check, Copy, Download, ExternalLink, Heart, MessageSquarePlus, WifiOff, X } from "lucide-svelte";
+  import { formatRelativeTime } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
   import { Tooltip } from "$lib/components/ui/tooltip";
   import CapabilityIcon from "./CapabilityIcon.svelte";
+  import DiscoverOptions from "./DiscoverOptions.svelte";
+  import DiscoverReadme from "./DiscoverReadme.svelte";
+  import DiscoverSettings from "./DiscoverSettings.svelte";
   import ExplainedBadge from "./ExplainedBadge.svelte";
   import { capabilitiesOf, capabilityLabelKey } from "./explanations";
   import { gigabytes } from "./aiModels";
   import {
     countLabel,
-    levelBits,
     parameterLabel,
     publisherKindKeys,
-    variantKey,
-    verdictKeys,
-    verdictVariant,
     type CardDetail,
     type DiscoverEntry,
     type DownloadAction,
   } from "./discover";
+  import { domainKey, purposeKey, showsFormat, type ConversationAction } from "./discoverCard";
   import type { ModelFormat, ModelVariant } from "$lib/ipc/modelHub";
 
   interface Props {
@@ -37,7 +38,19 @@
     variants: readonly ModelVariant[];
     chosen: ModelVariant | null;
     action: DownloadAction;
+    /** What "Use in a new conversation" does for the chosen variant. */
+    conversation: ConversationAction;
+    /** A conversation is being opened. */
+    opening: boolean;
+    /** The page "See the source" opens; null when nothing names one. */
+    sourceUrl: string | null;
+    /** The repository the README is read from; null when nothing names one. */
+    readmeRepo: string | null;
     onpick: (variant: ModelVariant) => void;
+    /** Back to the variant recommended for this computer. */
+    ondefault: () => void;
+    onsource: () => void;
+    onconversation: () => void;
     ondownload: () => void;
     oncopy: () => void;
     onclose: () => void;
@@ -51,7 +64,14 @@
     variants,
     chosen,
     action,
+    conversation,
+    opening,
+    sourceUrl,
+    readmeRepo,
     onpick,
+    ondefault,
+    onsource,
+    onconversation,
     ondownload,
     oncopy,
     onclose,
@@ -59,6 +79,7 @@
 
   const lang = $derived($locale ?? "fr");
   const embeddings = $derived(entry.category === "embeddings");
+  const purpose = $derived(purposeKey(entry.category));
   const capabilities = $derived(capabilitiesOf(detail?.capabilities ?? entry.capabilities));
   const params = $derived(parameterLabel(entry.parameters, lang));
   const architecture = $derived(entry.architecture ?? detail?.architecture ?? null);
@@ -79,12 +100,13 @@
     download: "ai.discover.status.ready",
   };
 
-  function memoryOf(variant: ModelVariant): string | null {
-    if (variant.memory_gb === null || variant.memory_gb === undefined) return null;
-    return new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(
-      variant.memory_gb,
-    );
-  }
+  const footprint = $derived(
+    chosen?.memory_gb === null || chosen?.memory_gb === undefined
+      ? null
+      : new Intl.NumberFormat(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(
+          chosen.memory_gb,
+        ),
+  );
 </script>
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-auto p-5" data-testid="ai-discover-card">
@@ -149,6 +171,12 @@
           testid="ai-discover-card-publisher-kind"
         />
       {/if}
+      {#if sourceUrl}
+        <Button variant="outline" size="sm" class="ml-auto gap-1.5" onclick={onsource} data-testid="ai-discover-card-source">
+          <ExternalLink size={14} aria-hidden="true" />
+          {$t("ai.menu.source")}
+        </Button>
+      {/if}
     </div>
   </header>
 
@@ -178,20 +206,22 @@
       <div class="flex items-baseline gap-1.5">
         <dt class="text-overline text-muted-foreground">{$t("ai.discover.fact.domain")}</dt>
         <dd class="text-foreground" data-testid="ai-discover-card-domain">
-          {$t(embeddings ? "ai.discover.category_embeddings" : "ai.kind.language")}
+          {$t(domainKey(entry.category))}
         </dd>
       </div>
-      <div class="flex items-center gap-1.5">
-        <dt class="text-overline text-muted-foreground">{$t("ai.discover.fact.formats")}</dt>
-        <dd>
-          <ExplainedBadge
-            label={(embeddings ? "gguf" : format).toUpperCase()}
-            explanation={$t("ai.format_explanation")}
-            help
-            testid="ai-discover-card-format"
-          />
-        </dd>
-      </div>
+      {#if showsFormat(entry.category)}
+        <div class="flex items-center gap-1.5">
+          <dt class="text-overline text-muted-foreground">{$t("ai.discover.fact.formats")}</dt>
+          <dd>
+            <ExplainedBadge
+              label={(embeddings ? "gguf" : format).toUpperCase()}
+              explanation={$t("ai.format_explanation")}
+              help
+              testid="ai-discover-card-format"
+            />
+          </dd>
+        </div>
+      {/if}
       {#if memory !== null}
         <div class="flex items-baseline gap-1.5">
           <dt class="text-overline text-muted-foreground">{$t("ai.discover.fact.min_memory")}</dt>
@@ -207,11 +237,11 @@
         </div>
       {/if}
     </dl>
-    {#if embeddings}
+    {#if purpose}
       <div class="flex flex-col gap-1" data-testid="ai-discover-card-purpose">
         <p class="text-overline text-muted-foreground">{$t("ai.discover.fact.purpose")}</p>
-        <p class="text-sm text-foreground">{$t("ai.kind.embeddings_explanation")}</p>
-        {#if entry.recommendedHere}
+        <p class="text-sm text-foreground">{$t(purpose)}</p>
+        {#if entry.recommendedHere && embeddings}
           <p class="text-sm text-foreground" data-testid="ai-discover-card-recommended-here">
             {$t("ai.discover.recommended_here_explanation")}
           </p>
@@ -237,81 +267,32 @@
         <p class="text-sm text-muted-foreground" data-testid="ai-discover-variants-loading">
           {$t("ai.discover.variants_loading")}
         </p>
-      {:else if variants.length > 0}
-        <ul class="flex flex-col gap-1" role="radiogroup" aria-label={$t("ai.discover.download_title")}>
-          {#each variants as variant (variantKey(variant))}
-            {@const picked = chosen !== null && variantKey(chosen) === variantKey(variant)}
-            {@const verdict = verdictKeys(variant.compatibility)}
-            {@const footprint = memoryOf(variant)}
-            <li
-              class={cn(
-                "flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm",
-                picked ? "border-primary/50 bg-muted" : "border-border",
-              )}
-              data-testid="ai-discover-variant"
-              data-variant-level={variant.level}
-            >
-              <button
-                type="button"
-                role="radio"
-                aria-checked={picked}
-                class="font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                onclick={() => onpick(variant)}
-                data-testid="ai-discover-variant-pick"
-              >
-                {embeddings
-                  ? entry.name
-                  : $t("ai.discover.variant_bits", { values: { bits: levelBits(variant.level) } })}
-              </button>
-              <ExplainedBadge
-                label={variant.format.toUpperCase()}
-                explanation={$t("ai.format_explanation")}
-                testid="ai-discover-variant-format"
-              />
-              {#if variant.recommended && !embeddings}
-                <ExplainedBadge
-                  label={$t("ai.discover.recommended")}
-                  explanation={$t("ai.discover.recommended_explanation")}
-                  variant="primary"
-                  testid="ai-discover-variant-recommended"
-                />
-              {/if}
-              {#if verdict && !embeddings}
-                <ExplainedBadge
-                  label={$t(verdict.label)}
-                  explanation={$t(verdict.explanation)}
-                  variant={verdictVariant(variant.compatibility)}
-                  testid="ai-discover-variant-verdict"
-                />
-              {/if}
-              {#if variant.downloaded}
-                <ExplainedBadge
-                  label={$t("ai.discover.on_this_computer")}
-                  explanation={$t("ai.discover.on_this_computer_explanation")}
-                  variant="success"
-                  testid="ai-discover-variant-downloaded"
-                />
-              {/if}
-              <span class="ml-auto whitespace-nowrap text-muted-foreground" data-testid="ai-discover-variant-size">
-                {$t("ai.installed.size", { values: { size: gigabytes(variant.size_bytes, lang) } })}
-                {#if footprint !== null}
-                  · {$t("ai.discover.variant_memory", { values: { size: footprint } })}
-                {/if}
-              </span>
-            </li>
-          {/each}
-        </ul>
+      {:else if chosen !== null}
+        <DiscoverOptions
+          name={entry.name}
+          category={entry.category}
+          {capabilities}
+          {variants}
+          {chosen}
+          {onpick}
+          {ondefault}
+        />
+        {#if footprint !== null}
+          <p class="text-xs text-muted-foreground" data-testid="ai-discover-chosen-memory">
+            {$t("ai.discover.variant_memory", { values: { size: footprint } })}
+          </p>
+        {/if}
       {/if}
-      <div class="flex flex-wrap items-center gap-3">
-        <p class="flex min-w-0 flex-1 items-start gap-2 text-sm text-muted-foreground" data-testid="ai-discover-status">
-          {#if action === "offline"}
-            <WifiOff size={14} class="mt-0.5 shrink-0 text-warning-a11y" aria-hidden="true" />
-          {:else if action === "downloaded"}
-            <Check size={14} class="mt-0.5 shrink-0 text-success-a11y" aria-hidden="true" />
-          {/if}
-          <span>{detailLoading ? "" : $t(STATUS_KEYS[action])}</span>
-        </p>
-        {#if chosen !== null || action === "offline"}
+      <p class="flex items-start gap-2 text-sm text-muted-foreground" data-testid="ai-discover-status">
+        {#if action === "offline"}
+          <WifiOff size={14} class="mt-0.5 shrink-0 text-warning-a11y" aria-hidden="true" />
+        {:else if action === "downloaded"}
+          <Check size={14} class="mt-0.5 shrink-0 text-success-a11y" aria-hidden="true" />
+        {/if}
+        <span>{detailLoading ? "" : $t(STATUS_KEYS[action])}</span>
+      </p>
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        {#if action !== "downloaded" && (chosen !== null || action === "offline")}
           <Button
             variant="primary-solid"
             size="sm"
@@ -329,7 +310,46 @@
             {/if}
           </Button>
         {/if}
+        {#if conversation.kind === "ready"}
+          <Button
+            variant="primary-solid"
+            size="sm"
+            class="gap-1.5"
+            loading={opening}
+            disabled={opening}
+            onclick={onconversation}
+            data-testid="ai-discover-conversation"
+          >
+            <MessageSquarePlus size={14} aria-hidden="true" />
+            {$t("ai.discover.conversation.use")}
+          </Button>
+        {:else}
+          <Tooltip content={$t(conversation.reasonKey)} class="max-w-xs">
+            {#snippet trigger(props)}
+              <span
+                {...props}
+                role="button"
+                tabindex="0"
+                aria-disabled="true"
+                class="inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-md border border-border px-3 text-sm text-muted-foreground opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                data-testid="ai-discover-conversation"
+                data-blocked={conversation.reasonKey}
+              >
+                <MessageSquarePlus size={14} aria-hidden="true" />
+                {$t("ai.discover.conversation.use")}
+              </span>
+            {/snippet}
+          </Tooltip>
+        {/if}
       </div>
     </div>
   </section>
+
+  <DiscoverSettings authorFields={entry.authorFields} defaults={entry.defaults} />
+
+  {#if readmeRepo}
+    {#key readmeRepo}
+      <DiscoverReadme repo={readmeRepo} />
+    {/key}
+  {/if}
 </div>

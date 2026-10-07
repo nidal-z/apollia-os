@@ -5049,7 +5049,8 @@
       "language": "Modèle de langage",
       "language_explanation": "Ce modèle répond dans les conversations et fait travailler les agents.",
       "embeddings": "Embeddings",
-      "embeddings_explanation": "Ce modèle sert à chercher par le sens dans vos sources et dans la mémoire. Il ne converse pas."
+      "embeddings_explanation": "Ce modèle sert à chercher par le sens dans vos sources et dans la mémoire. Il ne converse pas.",
+      "dictation_explanation": "Ce modèle transcrit votre voix en texte pour la dictée. Il ne converse pas."
     },
     "format_explanation": "Format du fichier du modèle. Apollia choisit d'après lui le moteur qui le fait tourner : vous n'avez rien à régler.",
     "loaded": {
@@ -5302,8 +5303,8 @@
       "variant_bits": "{bits} bits",
       "variant_memory": "environ {size} Go en mémoire",
       "recommended": "Recommandée",
-      "recommended_explanation": "La variante recommandée pour votre matériel : le meilleur équilibre entre vitesse et qualité qui tient sur ce poste.",
-      "on_this_computer": "Sur ce poste",
+      "recommended_explanation": "Recommandée pour votre matériel : bon équilibre entre vitesse et qualité.",
+      "downloaded": "Téléchargée",
       "on_this_computer_explanation": "Cette variante est déjà téléchargée sur ce poste.",
       "verdict": {
         "fits": "Tient sur ce poste",
@@ -5326,6 +5327,52 @@
       "download_plain": "Télécharger",
       "download_started": "Téléchargement lancé. Il se suit et s'annule depuis le panneau des téléchargements.",
       "token_needed": "Ce modèle est en accès restreint : enregistrez votre jeton Hugging Face dans les réglages généraux, puis relancez le téléchargement.",
+      "options": {
+        "title": "Choisir une option de téléchargement",
+        "use_default": "Utiliser le défaut"
+      },
+      "offload": {
+        "label": "Déchargement GPU complet possible",
+        "explanation": "Déchargement GPU complet possible : le modèle tient en entier dans la mémoire de l'accélérateur de ce poste, ce qui peut nettement accélérer ses réponses. D'autres facteurs (l'architecture du modèle, l'intégrité du fichier, la mémoire libre au moment du chargement) peuvent encore empêcher le chargement."
+      },
+      "conversation": {
+        "use": "Utiliser dans une nouvelle conversation",
+        "reason": {
+          "not_downloaded": "La variante choisie n'est pas encore sur ce poste : téléchargez-la d'abord.",
+          "not_listed": "La variante est sur ce poste, mais elle n'apparaît pas encore parmi les modèles avec lesquels converser. Fermez cette fenêtre, puis rouvrez-la.",
+          "not_language": "Ce modèle ne converse pas : aucune conversation ne s'ouvre avec lui."
+        }
+      },
+      "author_fields": {
+        "title": "Champs propres à l'auteur",
+        "subtitle": "Réglages particuliers prévus par l'auteur du modèle",
+        "type_list": "liste",
+        "type_boolean": "oui ou non",
+        "default": "défaut : {value}",
+        "yes": "oui",
+        "no": "non"
+      },
+      "defaults": {
+        "title": "Paramètres par défaut",
+        "subtitle": "Valeurs conseillées par l'auteur du modèle",
+        "off": "désactivée",
+        "temperature": "Température",
+        "top_p": "Seuil de probabilité cumulée (top-p)",
+        "top_k": "Nombre de choix gardés (top-k)",
+        "min_p": "Probabilité minimale (min-p)",
+        "repetition_penalty": "Pénalité de répétition",
+        "presence_penalty": "Pénalité de présence"
+      },
+      "readme": {
+        "title": "Texte de présentation (README)",
+        "show": "Afficher le README",
+        "hide": "Masquer le README",
+        "loading": "Lecture du README à sa source…",
+        "byline": "Dépôt {repo} · Auteur : {author} · Licence : {license}",
+        "license_none": "non déclarée",
+        "note": "Lu à la source à votre demande ; rien n'est gardé après fermeture.",
+        "error": "Le README n'a pas pu être lu : {detail}"
+      },
       "card_empty": "Choisissez un modèle à gauche pour lire sa fiche.",
       "too_large": {
         "title": "Télécharger une variante trop grande ?",

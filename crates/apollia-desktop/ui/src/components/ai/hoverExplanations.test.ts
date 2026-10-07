@@ -12,8 +12,9 @@ import { CAPABILITIES, capabilityExplanationKey, capabilityLabelKey } from "./ex
  * native `title`, which the system would draw in its own chrome.
  *
  * The rule holds by construction: a capability is drawn by `CapabilityIcon`,
- * which reads its text from the capability, and a badge by `ExplainedBadge`,
- * whose `explanation` is required. This suite reads the sources of the screen
+ * which reads its text from the capability, a badge by `ExplainedBadge` and
+ * an icon that marks a row (the recommended variant, the full offload) by
+ * `ExplainedMark`, whose `explanation` is required. This suite reads the sources of the screen
  * and refuses what would step around them. A story that adds a surface to the
  * AI screen adds its folder or file to `SCREEN_SOURCES`.
  */
@@ -28,7 +29,11 @@ const SCREEN_SOURCES = ["components/ai", "routes/Ai.svelte"];
 const CAPABILITY_ICONS = ["Eye", "Wrench", "Lightbulb", "Brain"];
 
 /** The components that hold the rule, exempt from the checks they implement. */
-const HOLDERS = ["CapabilityIcon.svelte", "ExplainedBadge.svelte"];
+const HOLDERS = ["CapabilityIcon.svelte", "ExplainedBadge.svelte", "ExplainedMark.svelte"];
+
+/** The lucide icons that mark a fact about a row; only `ExplainedMark` wraps them. */
+const MARK_ICONS = ["ThumbsUp", "Zap"];
+
 
 function svelteFiles(entry: string): string[] {
   const full = path.join(SRC, entry);
@@ -78,6 +83,27 @@ export function unexplainedBadges(src: string, file: string): number[] {
     if (!explanation) out.push(lineOf(src, tag.index));
   }
   return out;
+}
+
+/** Lines of a mark drawn without its name or its explanation. */
+export function unexplainedMarks(src: string): number[] {
+  const filled = (attrs: string, name: string): boolean =>
+    new RegExp(`\\s${name}=(\\{[^}]*\\S[^}]*\\}|"(?=[^"]*[^"\\s])[^"]*")`).test(attrs);
+  return openingTags(src, "ExplainedMark")
+    .filter((tag) => !filled(tag.attrs, "label") || !filled(tag.attrs, "explanation"))
+    .map((tag) => lineOf(src, tag.index));
+}
+
+/**
+ * Lines of a mark icon drawn bare: outside an `ExplainedMark`, and not hidden
+ * from assistive technology beside a text that already says what it marks.
+ */
+export function bareMarkIcons(src: string): number[] {
+  const marked = src.replace(/<ExplainedMark\b[\s\S]*?<\/ExplainedMark>/g, (block) => block.replace(/[^\n]/g, " "));
+  return MARK_ICONS.flatMap((icon) => openingTags(marked, icon))
+    .filter((tag) => !/\saria-hidden="true"/.test(tag.attrs))
+    .map((tag) => lineOf(marked, tag.index))
+    .sort((a, b) => a - b);
 }
 
 /** Lines of a capability icon drawn outside `CapabilityIcon`, or without its capability. */
@@ -135,6 +161,44 @@ describe("the checks refuse what they exist for", () => {
   });
 });
 
+describe("the marks of the download options", () => {
+  test("a mark without its explanation is found, a complete one is not", () => {
+    // GIVEN a mark with no explanation, one with an empty name, and a complete one
+    const src = [
+      '<ExplainedMark label="Recommended"><ThumbsUp /></ExplainedMark>',
+      '<ExplainedMark label="" explanation={$t("x")}><Zap /></ExplainedMark>',
+      '<ExplainedMark label={$t("a")} explanation={$t("b")}><Zap aria-hidden="true" /></ExplainedMark>',
+    ].join("\n");
+    // WHEN the unexplained marks are read
+    // THEN the first two are found
+    expect(unexplainedMarks(src)).toEqual([1, 2]);
+  });
+
+  test("a thumb drawn on its own is found, one inside its mark is not", () => {
+    // GIVEN a bare thumb, a decorative one hidden from a screen reader, and one inside a mark
+    const src = [
+      "<ThumbsUp size={12} />",
+      '<ThumbsUp size={12} aria-hidden="true" />',
+      '<ExplainedMark label={$t("a")} explanation={$t("b")}>',
+      "  <ThumbsUp size={12} />",
+      "</ExplainedMark>",
+    ].join("\n");
+    // WHEN the bare mark icons are read
+    // THEN only the first is found
+    expect(bareMarkIcons(src)).toEqual([1]);
+  });
+
+  test("the options draw the thumb on the recommended variant alone", () => {
+    // GIVEN the source of the download options
+    const src = readFileSync(path.join(HERE, "DiscoverOptions.svelte"), "utf8");
+    // WHEN the mark of the recommendation is looked for
+    const mark = /\{#if variant\.recommended\}\s*<ExplainedMark[^>]*explanation=\{\$t\("ai\.discover\.recommended_explanation"\)\}/.test(src);
+    // THEN it is drawn under the one condition that the variant is the recommended one
+    expect(mark).toBe(true);
+    expect(src.match(/<ExplainedMark/g)?.length).toBe(2);
+  });
+});
+
 describe("the AI screen explains every icon and badge on hover", () => {
   const files = SCREEN_SOURCES.flatMap(svelteFiles);
 
@@ -149,6 +213,9 @@ describe("the AI screen explains every icon and badge on hover", () => {
     expect(names).toContain("ModelPanel.svelte");
     expect(names).toContain("ModelInfoTab.svelte");
     expect(names).toContain("ModelDevSections.svelte");
+    expect(names).toContain("DiscoverOptions.svelte");
+    expect(names).toContain("DiscoverReadme.svelte");
+    expect(names).toContain("DiscoverSettings.svelte");
   });
 
   test.each(files.map((f) => [path.relative(SRC, f), f]))("%s carries no native title", (_name, file) => {
@@ -169,6 +236,8 @@ describe("the AI screen explains every icon and badge on hover", () => {
       // THEN each goes through the component that requires its text
       expect(unexplainedBadges(src, base)).toEqual([]);
       expect(unexplainedCapabilityIcons(src, base)).toEqual([]);
+      expect(unexplainedMarks(src)).toEqual([]);
+      expect(bareMarkIcons(src)).toEqual([]);
     },
   );
 

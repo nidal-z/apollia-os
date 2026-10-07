@@ -3,19 +3,22 @@
    * DiscoverWindow - the discovery window of the AI screen. It opens on the
    * Apollia selection, which stays readable without the network; typing in
    * the search field asks the recognised publishers instead. The model chosen
-   * on the left shows its card in the centre, with its variants for this
-   * computer and the download of the chosen one, which the downloads panel of
-   * the top bar then follows.
+   * on the left shows its card in the centre, with its download options for
+   * this computer and the download of the chosen one, which the downloads
+   * panel of the top bar then follows. A variant already on this computer
+   * opens a conversation instead.
    */
   import { untrack } from "svelte";
   import { get } from "svelte/store";
   import { locale, t } from "svelte-i18n";
   import {
+    getDictationModels,
     getHardwareProfile,
     getHfModel,
     listModelCards,
     searchHfModels,
     startVariantDownload,
+    type DictationModels,
     type FoundModel,
     type HardwareProfile,
     type InstalledModel,
@@ -25,7 +28,13 @@
     type SearchSort,
   } from "$lib/ipc/modelHub";
   import { getEmbeddingsRecommendation, type EmbeddingsRecommendation } from "$lib/ipc/embeddings";
-  import { recommendModels, type SelectionFamily } from "$lib/ipc/models";
+  import { recommendModels, startModelDownload, type SelectionFamily } from "$lib/ipc/models";
+  import { createChatSession } from "$lib/ipc/agents";
+  import { startRequest } from "$lib/chat/applyTargetChoice";
+  import { startAgentChat } from "$lib/agents/startAgentChat";
+  import { pendingChatSessionId } from "$lib/stores/chat";
+  import { navigateTo } from "$lib/stores/navigation";
+  import { openExternalUrl } from "$lib/utils/externalLink";
   import { getHfToken } from "$lib/ipc/modelsFolder";
   import { downloads } from "$lib/stores/downloads";
   import { openSettingsWindow } from "$lib/stores/settingsWindow";
@@ -40,6 +49,8 @@
     chosenVariant,
     detailFromFound,
     detailFromRepos,
+    dictationEntries,
+    dictationVariant,
     downloadAction,
     embeddingEntries,
     embeddingVariant,
@@ -55,6 +66,7 @@
     type DiscoverCategory,
     type DiscoverEntry,
   } from "./discover";
+  import { conversationAction, readmeRepo, sourcePage } from "./discoverCard";
 
   interface Props {
     open: boolean;
@@ -84,6 +96,7 @@
   let selectionNote = $state<string | null>(null);
   let families = $state<SelectionFamily[]>([]);
   let embeddings = $state<EmbeddingsRecommendation | null>(null);
+  let dictation = $state<DictationModels | null>(null);
   let hardware = $state<HardwareProfile | null>(null);
   let selectionLoading = $state(false);
 
@@ -101,6 +114,7 @@
   let pickedKey = $state<string | null>(null);
   let started = $state<Set<string>>(new Set());
   let confirming = $state<ModelVariant | null>(null);
+  let opening = $state(false);
 
   let searchRun = 0;
   let detailRun = 0;
@@ -112,7 +126,8 @@
 
   const entries = $derived.by((): DiscoverEntry[] => {
     if (category === "embeddings") return embeddingEntries(embeddings, cards);
-    if (searching) return searchEntries(found, lang);
+    if (category === "dictation") return dictationEntries(dictation, cards);
+    if (searching) return searchEntries(found, lang, cards);
     return shownSelection(selectionEntries(cards, families), { fitsOnly, capacityGb, sort });
   });
 
@@ -124,19 +139,31 @@
       const model = selected.embedding;
       return [embeddingVariant(model, installed.some((m) => m.embedding_entry === model.id))];
     }
+    if (selected.dictation.length > 0) {
+      const recommended = dictation?.recommended ?? null;
+      return selected.dictation.map((model) => dictationVariant(model, recommended, installed));
+    }
     return detail?.variants ?? [];
   });
 
   const chosen = $derived(chosenVariant(variants, pickedKey));
   const action = $derived(downloadAction(chosen, { offline, started }));
+  const conversation = $derived(
+    selected
+      ? conversationAction(selected, chosen, installed)
+      : ({ kind: "blocked", reasonKey: "ai.discover.conversation.reason.not_downloaded" } as const),
+  );
+  const sourceUrl = $derived(selected ? sourcePage(selected, chosen) : null);
+  const readmeFrom = $derived(selected ? readmeRepo(selected, chosen) : null);
 
   async function loadSelection(): Promise<void> {
     selectionLoading = true;
-    const [catalogue, recommendation, registry, profile] = await Promise.allSettled([
+    const [catalogue, recommendation, registry, profile, voice] = await Promise.allSettled([
       listModelCards(lang),
       recommendModels(),
       getEmbeddingsRecommendation(null),
       getHardwareProfile(),
+      getDictationModels(),
     ]);
     if (catalogue.status === "fulfilled") {
       cards = catalogue.value.cards;
@@ -148,6 +175,7 @@
     }
     if (registry.status === "fulfilled") embeddings = registry.value;
     if (profile.status === "fulfilled") hardware = profile.value;
+    if (voice.status === "fulfilled") dictation = voice.value;
     selectionLoading = false;
   }
 
@@ -174,7 +202,7 @@
   async function loadDetail(entry: DiscoverEntry): Promise<void> {
     const run = ++detailRun;
     detail = null;
-    if (entry.embedding) {
+    if (entry.embedding || entry.dictation.length > 0) {
       detailLoading = false;
       return;
     }
@@ -229,7 +257,17 @@
     const key = variantKey(variant);
     started = new Set([...started, key]);
     try {
-      await startVariantDownload({ repo_id: variant.repo_id, selector: variantSelector(variant) });
+      if (selected?.category === "dictation") {
+        // A dictation file is one file at a pinned address, checked on arrival
+        // against the digest of the registry.
+        await startModelDownload({
+          url: `https://huggingface.co/${variant.repo_id}/resolve/main/${variant.origin_file}`,
+          filename: variant.origin_file,
+          repo_id: variant.repo_id,
+        });
+      } else {
+        await startVariantDownload({ repo_id: variant.repo_id, selector: variantSelector(variant) });
+      }
       addToast(get(t)("ai.discover.download_started"), "info");
     } catch (err: unknown) {
       started = new Set([...started].filter((k) => k !== key));
@@ -241,6 +279,36 @@
     if (!chosen) return;
     if (action === "confirm") confirming = chosen;
     else if (action === "download") void download(chosen);
+  }
+
+  async function openConversation(): Promise<void> {
+    if (conversation.kind !== "ready" || opening) return;
+    const route = conversation.route;
+    opening = true;
+    const opened = await startAgentChat({
+      createSession: () =>
+        createChatSession(
+          startRequest({
+            kind: "model",
+            route,
+            label: route,
+            source: "local",
+            format: chosen?.format ?? null,
+            server: null,
+            parameters: null,
+            path: null,
+          }),
+        ),
+      rememberSession: (sessionId) => pendingChatSessionId.set(sessionId),
+      report: (err) => reportError(err, { surface: "toast" }),
+      navigate: () => navigateTo("chat"),
+    });
+    opening = false;
+    if (opened) onclose();
+  }
+
+  function openSource(): void {
+    if (sourceUrl) void openExternalUrl(sourceUrl);
   }
 
   function close(): void {
@@ -280,7 +348,9 @@
   $effect(() => {
     void format;
     untrack(() => {
-      if (open && selected && !selected.found && !selected.embedding) void loadDetail(selected);
+      if (open && selected && !selected.found && !selected.embedding && selected.dictation.length === 0) {
+        void loadDetail(selected);
+      }
     });
   });
 
@@ -353,7 +423,14 @@
         {variants}
         {chosen}
         {action}
+        {conversation}
+        {opening}
+        {sourceUrl}
+        readmeRepo={readmeFrom}
         onpick={(variant) => (pickedKey = variantKey(variant))}
+        ondefault={() => (pickedKey = null)}
+        onsource={openSource}
+        onconversation={() => void openConversation()}
         ondownload={requestDownload}
         oncopy={copyIdentifier}
         onclose={close}

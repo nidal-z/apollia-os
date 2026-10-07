@@ -3,7 +3,8 @@
  * are tested in `node`: which models the left column lists (the Apollia
  * selection, the results of a search, the models of search by meaning), what
  * the card in the centre reads, which variant a download takes and whether it
- * asks first.
+ * asks first. What the card does once a variant is chosen is in
+ * `discoverCard.ts`.
  *
  * Nothing here reads a file name or a repository name to guess what a model
  * is: capabilities, precision and category all come from the answers of the
@@ -13,9 +14,12 @@ import type { EmbeddingModel, EmbeddingsRecommendation } from "$lib/ipc/embeddin
 import type {
   AcceleratorProfile,
   Compatibility,
+  DictationModel,
+  DictationModels,
   FoundModel,
   HfModelCard,
   HubCapabilities,
+  InstalledModel,
   ModelCardView,
   ModelFormat,
   ModelVariant,
@@ -26,15 +30,16 @@ import type {
 } from "$lib/ipc/modelHub";
 import type { SelectionFamily } from "$lib/ipc/models";
 
-/** The two kinds of model the window tells apart. */
-export type DiscoverCategory = "language" | "embeddings";
+/** The three kinds of model the window tells apart. */
+export type DiscoverCategory = "language" | "embeddings" | "dictation";
 
 /** The categories, in the order of their chips. */
-export const DISCOVER_CATEGORIES: readonly DiscoverCategory[] = ["language", "embeddings"];
+export const DISCOVER_CATEGORIES: readonly DiscoverCategory[] = ["language", "embeddings", "dictation"];
 
 const CATEGORY_KEYS: Record<DiscoverCategory, string> = {
   language: "ai.category.language",
   embeddings: "ai.discover.category_embeddings",
+  dictation: "ai.category.dictation",
 };
 
 /** The catalogue key of a category chip. */
@@ -66,7 +71,13 @@ export function formatsFor(accelerator: AcceleratorProfile | null | undefined): 
 }
 
 /** Where a row of the left column comes from. */
-export type EntrySource = "selection" | "search" | "embeddings";
+export type EntrySource = "selection" | "search" | "embeddings" | "dictation";
+
+/** A setting the author of a model defines, as its card states it. */
+export type AuthorField = ModelCardView["author_fields"][number];
+
+/** The request settings the author of a model advises, as its card states them. */
+export type CardDefaults = ModelCardView["defaults"];
 
 /** One row of the left column, and what the card in the centre starts from. */
 export interface DiscoverEntry {
@@ -102,6 +113,14 @@ export interface DiscoverEntry {
   found: FoundModel | null;
   /** The registry entry of a model of search by meaning. */
   embedding: EmbeddingModel | null;
+  /** The files of a dictation model, one per precision. */
+  dictation: DictationModel[];
+  /** The page the model comes from, when a card or a result states it. */
+  sourceUrl: string | null;
+  /** The settings its author defines, each with its default and what it does. */
+  authorFields: AuthorField[];
+  /** The request settings its author advises; null when no card states them. */
+  defaults: CardDefaults | null;
 }
 
 function emptyEntry(): Omit<DiscoverEntry, "key" | "source" | "category" | "name" | "identifier"> {
@@ -120,7 +139,16 @@ function emptyEntry(): Omit<DiscoverEntry, "key" | "source" | "category" | "name
     repos: [],
     found: null,
     embedding: null,
+    dictation: [],
+    sourceUrl: null,
+    authorFields: [],
+    defaults: null,
   };
+}
+
+/** What a row takes from the card that describes its model. */
+function fromCard(card: ModelCardView): Pick<DiscoverEntry, "sourceUrl" | "authorFields" | "defaults"> {
+  return { sourceUrl: card.source_url, authorFields: card.author_fields, defaults: card.defaults };
 }
 
 function sameRepo(a: string, b: string): boolean {
@@ -185,6 +213,7 @@ export function selectionEntries(
       license: card.license.id,
       parameters: size ? Math.round(size.paramsB * 1e9) : null,
       repos: size ? mergeRepos(size.repos, card.repos) : [...card.repos],
+      ...fromCard(card),
     };
   });
   const uncarded = sizes
@@ -222,10 +251,19 @@ export function localized(text: { fr: string; en: string }, locale: string): str
   return french ? text.fr : text.en;
 }
 
-/** The rows of a search, in the order the search answered. */
-export function searchEntries(models: readonly FoundModel[], locale: string): DiscoverEntry[] {
+/**
+ * The rows of a search, in the order the search answered. A result whose
+ * model has a card of the catalogue takes its author fields and its advised
+ * settings from it; its page stays the one of its own repository.
+ */
+export function searchEntries(
+  models: readonly FoundModel[],
+  locale: string,
+  cards: readonly ModelCardView[] = [],
+): DiscoverEntry[] {
   return models.map((model): DiscoverEntry => {
     const card = model.card;
+    const origin = card.origin_card_id ? cards.find((c) => c.id === card.origin_card_id) : undefined;
     return {
       ...emptyEntry(),
       key: `search:${model.repo_id}`,
@@ -243,6 +281,8 @@ export function searchEntries(models: readonly FoundModel[], locale: string): Di
       parameters: card.parameters,
       architecture: card.architecture,
       found: model,
+      ...(origin ? fromCard(origin) : {}),
+      sourceUrl: card.source_url,
     };
   });
 }
@@ -274,9 +314,82 @@ export function embeddingEntries(
       minMemoryGb: card?.memory.min_gb ?? null,
       license: model.license,
       embedding: model,
+      sourceUrl: card?.source_url ?? null,
     };
   });
   return [...entries].sort((a, b) => Number(b.recommendedHere) - Number(a.recommendedHere));
+}
+
+/**
+ * The dictation models: one row per model, which gathers its files, the model
+ * whose file is recommended for this machine first and marked as such. The
+ * registry orders the files; a row keeps the order it found them in.
+ */
+export function dictationEntries(
+  dictation: DictationModels | null,
+  cards: readonly ModelCardView[],
+): DiscoverEntry[] {
+  if (!dictation) return [];
+  const groups = new Map<string, DictationModel[]>();
+  for (const model of dictation.models) {
+    groups.set(model.card, [...(groups.get(model.card) ?? []), model]);
+  }
+  const entries = [...groups.entries()].map(([cardId, files]): DiscoverEntry => {
+    const first = files[0] as DictationModel;
+    const card = cards.find((c) => c.kind === "dictation" && c.id === cardId);
+    return {
+      ...emptyEntry(),
+      key: `dictation:${cardId}`,
+      source: "dictation",
+      category: "dictation",
+      name: card?.label ?? first.label,
+      identifier: cardId,
+      publisher: card?.publisher ?? first.publisher,
+      description: card?.description ?? "",
+      updatedAt: first.released,
+      inSelection: true,
+      recommendedHere: files.some((file) => file.id === dictation.recommended),
+      minMemoryGb: card?.memory.min_gb ?? null,
+      license: card?.license.id ?? first.license,
+      dictation: files,
+      sourceUrl: card?.source_url ?? null,
+    };
+  });
+  return [...entries].sort((a, b) => Number(b.recommendedHere) - Number(a.recommendedHere));
+}
+
+/** The last segment of a path, whichever separator the system writes. */
+export function fileName(path: string): string {
+  const parts = path.split(/[\\/]/);
+  return parts[parts.length - 1] ?? path;
+}
+
+/**
+ * One file of a dictation model as a variant of its card: its footprint and
+ * its verdict come from the registry, and it is on this computer when a
+ * dictation model of the index carries its file. Its `level` is never read:
+ * the row shows the quantisation as published.
+ */
+export function dictationVariant(
+  model: DictationModel,
+  recommended: string | null,
+  installed: readonly InstalledModel[],
+): ModelVariant {
+  return {
+    repo_id: model.repo,
+    format: "gguf",
+    level: "q8",
+    quantization: model.quantization,
+    origin_file: model.file,
+    files: [model.file],
+    size_bytes: model.size_bytes,
+    weights_bytes: model.size_bytes,
+    sha256: model.sha256,
+    memory_gb: model.footprint_gb,
+    compatibility: model.fits ? "fits" : "too_large",
+    downloaded: installed.some((m) => m.category === "dictation" && fileName(m.path) === model.file),
+    recommended: model.id === recommended,
+  };
 }
 
 /**
