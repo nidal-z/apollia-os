@@ -287,7 +287,15 @@
   }
 </script>
 
-<div class="max-w-3xl space-y-6" data-testid="agent-sheet" data-agent={definitionId} aria-label={$t("agent_sheet.label")}>
+<!-- What the agent is on the left, what it did and keeps on the right; one
+     column on a narrow window. -->
+<div
+  class="grid max-w-6xl grid-cols-1 gap-x-8 gap-y-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]"
+  data-testid="agent-sheet"
+  data-agent={definitionId}
+  aria-label={$t("agent_sheet.label")}
+>
+  <div class="min-w-0 space-y-6">
   {#if adjusting && adjust?.draft && adjust.base}
     <AdjustMission draft={adjust.draft} modified={marked("mission") || marked("examples")} />
     <AdjustModel draft={adjust.draft} options={modelOptions($llmBackends)} {presets} modified={marked("model")} />
@@ -308,6 +316,8 @@
     <SheetAccess {groups} loading={accessLoading} modified={marked("access")} {remote} />
     <SheetSources rows={sources} modified={marked("sources")} />
   {/if}
+  </div>
+  <div class="min-w-0 space-y-6">
   <SheetAlways {definitionId} />
   <SheetActivity
     {runs}
@@ -323,4 +333,5 @@
   {#if agent}
     <SheetTechnical {agent} definition={resolved} />
   {/if}
+</div>
 </div>
