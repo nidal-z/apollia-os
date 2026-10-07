@@ -3444,7 +3444,6 @@
     },
     "mode_agent": "Agent Chat",
     "mode_libre": "Free Chat",
-    "status_active": "Active",
     "status_closed": "Closed",
     "message_count": "{n, plural, =0 {no messages} one {# message} other {# messages}}",
     "input_placeholder": "Type your message...",
@@ -4021,6 +4020,8 @@
         "effort_low": "Low",
         "effort_medium": "Medium",
         "effort_high": "High",
+        "preserve_thinking": "Keep the reasoning of earlier answers",
+        "preserve_thinking_help": "The reasoning of earlier answers is sent back to the model with each message: it keeps its train of thought, and the context fills up faster.",
         "scope": "Holds for this conversation only."
       },
       "response": {
@@ -5549,13 +5550,22 @@
         "note": "Read at the source at your request; nothing is kept once closed.",
         "error": "The README could not be read: {detail}"
       },
-      "card_empty": "Choose a model on the left to read its card.",
       "too_large": {
         "title": "Download a variant that is too large?",
         "message": "This variant weighs {size} GB, while this computer can give a model about {capacity} GB. It may fail to load. The recommended variant, when there is one, is the one that fits.",
         "message_unknown": "This variant weighs {size} GB and exceeds the memory this computer can give a model. It may fail to load.",
         "confirm": "Download anyway"
-      }
+      },
+      "gallery_subtitle": "Pick what you want to do: Apollia shows what fits this computer first.",
+      "usage": {
+        "language": "Chat and write",
+        "embeddings": "Search my documents",
+        "dictation": "Dictate"
+      },
+      "group_fits": "Fits this computer",
+      "group_heavier": "Needs more memory",
+      "back_to_gallery": "Back to the catalogue",
+      "min_memory": "from {size} GB of memory"
     },
     "panel": {
       "sidebar_tab": "Model",

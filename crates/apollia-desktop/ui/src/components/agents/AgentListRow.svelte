@@ -83,7 +83,7 @@
 >
   <AgentRowContextMenu
     items={menuItems}
-    class="min-w-0 flex-1"
+    class="flex min-w-0 flex-1"
     data-testid="agent-row-menu"
   >
     <Button
@@ -92,7 +92,7 @@
       type="button"
       data-nav-row
       onclick={onSelect}
-      class="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
+      class="flex w-full min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
       data-testid="agent-list-row"
       data-agent-name={agent.name}
     >

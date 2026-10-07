@@ -384,20 +384,20 @@ just release-linux
 just release-windows
 ```
 
-Remplacez la cible et/ou les exécuteurs sur n'importe quel préréglage :
+Chaque préréglage prend le jeu d'exécuteurs comme unique argument :
 
 ```sh
 # Windows avec Vulkan pour le LLM (AMD / Intel / repli NVIDIA)
-just release-windows runners="cpu vulkan"
+just release-windows "cpu vulkan"
 
 # Windows avec l'exécuteur de reconnaissance vocale CUDA (NVIDIA) ; le moteur reste Vulkan
-just release-windows runners="cpu cuda"
+just release-windows "cpu cuda"
 
 # Linux avec Vulkan
-just release-linux runners="cpu vulkan"
+just release-linux "cpu vulkan"
 
 # macOS avec un jeu d'exécuteurs personnalisé
-just release-macos runners="cpu metal"
+just release-macos "cpu metal"
 ```
 
 Pour un triplet et un jeu d'exécuteurs non couverts par un préréglage,

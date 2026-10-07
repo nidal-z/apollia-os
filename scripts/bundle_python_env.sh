@@ -13,8 +13,8 @@
 # form those tools can open: git-bash's `/c/Users/...` is its own POSIX view
 # and rustc opens nothing under that name.
 #
-# Sourced by the justfile. Sets BUNDLE_PY and BUNDLE_LIBDIR; returns 1 when the
-# directory holds neither shape.
+# Sourced by scripts/lib/python-bundle.sh. Sets BUNDLE_PY and BUNDLE_LIBDIR;
+# returns 1 when the directory holds neither shape.
 
 bundle_python_native() {
     if command -v cygpath >/dev/null 2>&1; then

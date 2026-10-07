@@ -51,7 +51,7 @@ moves `hitl.db` to schema v2. Nothing is removed from the public API.
   takes an optional `skill_id`. `GET /api/v1/tasks` finds `input_required` tasks
   and lists agent, skill, `created_at`, prompt and payload, and
   `GET /api/v1/approvals/pending` carries `payload` and `skill_id`.
-  `just hitl-e2e` proves the path on a real daemon.
+  `just test-hitl` proves the path on a real daemon.
 - A structured MCP tool result reaches the agent with a `structured` key holding
   the object as the server built it; `content` is unchanged.
 - `GET /api/v1/audit/journal?agents=<name>,<name>` and `apollia-os audit journal

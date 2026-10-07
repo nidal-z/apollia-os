@@ -90,7 +90,9 @@
     >
       <Users size={11} class="shrink-0" />
       <span>{activeWorkers.length}</span>
-      <span class="hidden sm:inline text-secondary/70">{$t("chat.a2a_workers")}</span>
+      {#if activeWorkers.length > 0}
+        <span class="hidden sm:inline text-secondary/70">{$t("chat.a2a_workers")}</span>
+      {/if}
       <ChevronDown size={9} class="opacity-70" />
     </button>
   {/snippet}

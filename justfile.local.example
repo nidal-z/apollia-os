@@ -1,0 +1,13 @@
+# Personal recipes. Copy this file to `justfile.local` (untracked): the
+# justfile imports it when it exists, and its recipes are listed with the
+# others. Settings that are only values belong in `.env` instead.
+
+# A model you use every day, served with a context of your choosing
+[group('local')]
+llama-mine:
+    APOLLIA_LLAMA_CTX=131072 just llama-server "$HOME/models/my-model.gguf"
+
+# The desktop in dev mode beside that same model
+[group('local')]
+desktop-dev-mine:
+    APOLLIA_LLAMA_CTX=131072 just desktop-dev-llama "$HOME/models/my-model.gguf"

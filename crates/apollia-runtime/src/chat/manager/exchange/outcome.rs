@@ -66,7 +66,10 @@ impl ChatSessionManager {
         // turn goes beside it, under `generation`.
         let mut metadata = serde_json::Map::new();
         if let Some(t) = response.thinking_trace.as_ref() {
-            metadata.insert("thinking_trace".into(), serde_json::json!(t));
+            metadata.insert(
+                crate::chat::types::THINKING_TRACE_KEY.into(),
+                serde_json::json!(t),
+            );
             if !response.reasoning_boundaries.is_empty() {
                 metadata.insert(
                     "reasoning_boundaries".into(),

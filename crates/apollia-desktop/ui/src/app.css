@@ -1452,7 +1452,21 @@
 .chat-actions {
   display: flex;
   gap: 4px;
-  margin-top: 16px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+/* The actions of a turn rest until the turn is pointed at or holds the focus;
+   those of the last turn stay, since they are the next gesture. */
+[data-message-id]:hover .chat-actions,
+[data-message-id]:focus-within .chat-actions,
+[data-message-id]:not(:has(~ [data-message-id])) .chat-actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .chat-actions {
+    opacity: 1;
+  }
 }
 .chat-actions button {
   display: grid;

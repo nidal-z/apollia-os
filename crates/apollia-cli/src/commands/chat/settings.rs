@@ -31,7 +31,8 @@ pub enum ChatSettingsCommand {
     ///
     /// Reaches the runtime; exits 2 when it is not running. The fields are
     /// `preset`, `thinking`, `reasoning_effort` (`low`, `medium`, `high`),
-    /// `temperature`, `max_tokens`, `context_overflow` (`summarize_middle`,
+    /// `preserve_thinking` (the reasoning of the earlier answers goes back to
+    /// the model), `temperature`, `max_tokens`, `context_overflow` (`summarize_middle`,
     /// `sliding_window`, `stop_at_limit`), `instructions`,
     /// `disabled_accesses`, `proposed_accesses`, `only_accesses` and
     /// `profile_access`. `{}`
@@ -194,6 +195,22 @@ mod tests {
         );
         assert!(refused.is_err_and(|message| message.contains("system_prompt")));
         assert!(broken.is_err_and(|message| message.starts_with("invalid settings")));
+    }
+
+    #[test]
+    fn keeping_the_earlier_reasoning_is_written_and_read_like_any_setting() {
+        // GIVEN a document that keeps the reasoning of the earlier answers,
+        // and the answer of the runtime for that conversation
+        let written = r#"{"thinking": true, "preserve_thinking": true}"#;
+        let stored = serde_json::json!({ "preserve_thinking": true, "thinking": true });
+
+        // WHEN the first is read to be sent and the second rendered for a person
+        let sent = parse_settings(written);
+        let lines = settings_lines(&stored);
+
+        // THEN the field is sent as written and named on a line of its own
+        assert_eq!(sent, Ok(stored.clone()));
+        assert_eq!(lines, ["preserve_thinking: true", "thinking: true"]);
     }
 
     #[test]

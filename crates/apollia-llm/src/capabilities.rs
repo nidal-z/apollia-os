@@ -21,7 +21,8 @@ mod reasoning;
 
 pub use reasoning::{
     family_profile, mlx_config_model_type, reasoning_profile, ReasoningProfile,
-    TemplateReasoningVariables, FAMILY_PROFILES, REASONING_EFFORT_VARIABLE, THINKING_VARIABLE,
+    TemplateReasoningVariables, FAMILY_PROFILES, PRESERVE_THINKING_VARIABLE,
+    REASONING_EFFORT_VARIABLE, THINKING_VARIABLE,
 };
 
 /// Image formats `llama-server` decodes, through `stb_image`.

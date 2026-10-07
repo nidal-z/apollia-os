@@ -341,6 +341,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         }),
         thinking: session_settings.thinking,
         reasoning_effort: session_settings.reasoning_effort,
+        preserve_thinking: session_settings.preserve_thinking,
         overflow: session_settings.overflow(),
         proposed_accesses,
     };

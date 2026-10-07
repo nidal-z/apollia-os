@@ -113,7 +113,7 @@ décrivent ce qu'il configure réellement dans ce dépôt.
 | `rustfmt.toml` | Formatage : édition 2021, `max_width = 100`, imports réordonnés, raccourcis field-init et try, fins de ligne Unix. |
 | `deny.toml` | Politique `cargo-deny` : une liste blanche de licences acceptables, le refus des registres inconnus, un avertissement sur les versions de dépendances dupliquées, et une liste documentée, par release, des avis de sécurité ignorés (chacun avec sa condition de levée). |
 | `Cross.toml` | Cross-compilation `cross-rs` : les étapes `pre-build` qui installent les bibliothèques système Linux (ALSA, PulseAudio, JACK, CMake, clang) dans le conteneur de build pour les cibles GNU/Linux x86_64 et aarch64. |
-| `justfile` | Recettes de tâches `just` : les commandes canoniques pour construire, tester, linter, et exécuter l'automate desktop. |
+| `justfile` | Recettes de tâches `just` : les commandes canoniques pour construire, tester, linter, et exécuter l'automate desktop. `just` seul les liste par groupe et `just doctor` vérifie la chaîne d'outils. Ses réglages sont des variables d'environnement, listées avec leurs valeurs par défaut dans `.env.example` ; les recettes personnelles vont dans un `justfile.local` non suivi, sur le modèle de `justfile.local.example`. |
 | `.pre-commit-config.yaml` | La liste des hooks, et le fichier à lire pour la connaître plutôt qu'une copie de celle-ci : hygiène des fichiers et détection de secrets, `ruff` sur `sdk/`, `rustfmt` et `cargo check` sur l'espace de travail, neuf des gardes du dépôt sous `scripts/` (dont les règles de prose), et le build du site de documentation. Deux entrées tournent en dehors du commit lui-même : `clippy` au push, et la convention de message de commit à `commit-msg`. À ne jamais contourner. |
 | `.editorconfig` | Règles d'espacement indépendantes de l'éditeur : fins de ligne LF, ligne finale vide, et tailles d'indentation par langage (4 pour Rust/Python/TOML, 2 pour le web et Markdown). |
 | `.python-version` | Fige l'interpréteur Python local (`3.13.7`) pour des outils comme `pyenv`. |
@@ -141,7 +141,7 @@ convention (surcharges de contributeur par machine et par session) ; ils
 peuvent ne pas exister dans une copie de travail donnée.
 
 **Ce que le `HOME` ensemencé couvre.** Les deux recettes qui le construisent,
-`desktop-dev-automation-seeded` et `desktop-dev-automation-seeded-llama`,
+`automation-seeded` et `automation-seeded-llama`,
 remplacent `HOME` par la copie jetable avant de lancer l'application, de sorte
 que l'application testée ne lit et n'écrit que cette copie, jamais le profil
 `~/.apollia` réel. Les recettes atteignent quand même le répertoire personnel
@@ -149,7 +149,7 @@ réel en deux endroits. Toutes deux y résolvent `CARGO_HOME` et `RUSTUP_HOME`
 (`~/.cargo`, `~/.rustup`) avant le remplacement, pour que la compilation
 utilise la chaîne d'outils et le cache de crates déjà présents plutôt qu'un
 cache vide sous la graine. Et la recette `-llama`, celle qui pilote un vrai
-modèle, lit un fichier du profil réel, le GGUF du modèle sous
-`~/.apollia/models/`, parce que la graine porte des GGUF de remplacement et non
-un modèle exécutable. Ces deux points sont écrits dans les recettes elles-mêmes,
-dans le `justfile`.
+modèle, lit un fichier hors de la graine, le GGUF du modèle que vous nommez en
+argument ou dans `APOLLIA_LLAMA_MODEL`, parce que la graine porte des GGUF de
+remplacement et non un modèle exécutable. Ces deux points sont écrits là où les
+recettes sont implémentées, dans `scripts/lib/automation.sh`.

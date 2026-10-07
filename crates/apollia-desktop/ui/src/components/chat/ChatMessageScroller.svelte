@@ -101,13 +101,13 @@
 <div
   bind:this={scroll.container}
   onscroll={() => scroll.onScroll()}
-  class="h-full overflow-y-auto px-4 py-5 [&>*]:mx-auto [&>*]:w-full {$chatDensity === 'compact'
+  class="h-full overflow-y-auto px-6 py-6 [&>*]:mx-auto [&>*]:w-full {$chatDensity === 'compact'
     ? 'space-y-3'
     : 'space-y-5'} {$chatFullWidth
     ? '[&>*]:max-w-none'
     : $contextDrawerOpen
       ? '[&>*]:max-w-[680px]'
-      : '[&>*]:max-w-[860px]'}"
+      : '[&>*]:max-w-[760px]'}"
   data-chat-full-width={$chatFullWidth}
   data-testid="chat-messages-list"
 >

@@ -584,7 +584,7 @@ GUARDS = [
                 (".apollia-automation/report.json",),
                 "no automation report. The gestural corpus renders a runtime "
                 "verdict only after a run of the real app: just "
-                "desktop-dev-automation-seeded scripts/automation/master-det.json",
+                "automation-seeded scripts/automation/master-det.json",
             ),
         ),
         measure_automation,

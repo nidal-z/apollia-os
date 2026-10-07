@@ -350,20 +350,20 @@ just release-linux
 just release-windows
 ```
 
-Override the target and/or runners on any preset:
+Each preset takes the runner set as its one argument:
 
 ```sh
 # Windows with Vulkan LLM (AMD / Intel / fallback NVIDIA)
-just release-windows runners="cpu vulkan"
+just release-windows "cpu vulkan"
 
 # Windows with the CUDA speech-to-text runner (NVIDIA); the engine stays Vulkan
-just release-windows runners="cpu cuda"
+just release-windows "cpu cuda"
 
 # Linux with Vulkan
-just release-linux runners="cpu vulkan"
+just release-linux "cpu vulkan"
 
 # macOS with a custom runner set
-just release-macos runners="cpu metal"
+just release-macos "cpu metal"
 ```
 
 For a triple and runner set not covered by a preset, use the generic recipe:

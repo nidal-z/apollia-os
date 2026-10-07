@@ -6,7 +6,7 @@
     "list_example_packages is stubbed with the example installed, so the trial opens its copy dialog at once; the value imitates ExamplePackage of crates/apollia-runtime/src/packages/examples.rs. The trial of an example not installed, which goes through the preview of the package first, is held by the Playwright spec tests/agents/example-trial.spec.ts.",
     "copy_example_dataset is stubbed: nothing is written by this book. Its value imitates ExampleDatasetCopy of crates/apollia-desktop/src/commands/example_dataset.rs, whose tests hold the real copy and read the workbook back. The first answer is a refusal, to show the error line; the second names a file left as it was, to show the kept line.",
     "The folder picker (plugin:dialog|open) answers a folder of the throwaway home. The calls that make the copied folder a source of the agent are stubbed too (list_connections, add_folder_connection, list_sources, add_source, get_agent_definition, set_agent_override): their values imitate Connection and Source of the runtime's registries and ResolvedAgent of the agent definitions. The stubbed agent is not installed, so the launch dialog is opened on the workbook and cancelled, never launched.",
-    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just desktop-dev-automation-seeded scripts/automation/example-trial-det.json"
+    "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just automation-seeded scripts/automation/example-trial-det.json"
   ],
   "steps": [
     {
