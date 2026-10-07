@@ -1580,25 +1580,8 @@ before a call there is the governance of the run: a tool whose family is
 sensitive is asked for unless the user authorised it. The `requires_approval`
 flag of a server adds no pause of its own on that path.
 
-The paragraph this identifier anchors still describes the pause of the former
-task path, with `ctx.tools.call` and `ToolApprovalDenied`. It has to be
-revisited with the page that carries it; until then this entry says what the
-code does.
-"""
-
-[[claim]]
-id = "mcp-gated-tool-does-not-block-install"
-scope = "public"
-symbol = "register_session_tools_in_registry"
-status = "wired"
-proof = "crates/apollia-mcp/src/manager/views.rs"
-evidence = "dangerous: false,"
-note = """
-An MCP tool descriptor used to carry its server's `requires_approval` as
-`dangerous`, and install-time resolution refuses a `dangerous` tool unless the
-manifest sets `dangerous_tools_allowed`, which the SDK decorator does not
-expose. Under eager loading an agent requiring a tool of a gated server was
-refused with a 400, while one requiring a tool of an ungated server installed.
-The page says such an agent installs and the approval is held per call; that
-holds while the registered descriptor is not `dangerous`.
+The paragraph this identifier anchors says exactly that: the flag adds no pause
+of its own, and the question before a call comes from the governance of the
+run. If the evidence stops matching, the dispatcher changed how it builds its
+MCP executors and the sentence has to be read again against it.
 """

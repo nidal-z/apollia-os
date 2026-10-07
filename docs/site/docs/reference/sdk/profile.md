@@ -1,5 +1,5 @@
 ---
-sidebar_position: 11
+sidebar_position: 10
 title: ctx.profile
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->
@@ -43,8 +43,8 @@ writes a free-form entry, shared by every profile. The ``user.`` prefix
 of the historical ``remember_user("user.X")`` keys is accepted and
 stripped.
 
-Read-only by default; write methods require the agent manifest to
-declare ``@agent(user_memory_write=True)``.  Calling `set` or
+Read-only by default; write methods require a context granted the write
+to user memory.  Calling `set` or
 `update` from a non-writable context raises a runtime error. A
 field written goes to the resolved profile.
 

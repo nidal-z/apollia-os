@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 4
 title: ctx.mail
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->
@@ -18,7 +18,7 @@ Reachable from the desktop application only. Both command-line runners
 build the agent context with no mailbox handle (``apollia-os start`` in
 task mode, and the chat runner), so every call there raises
 ``RuntimeError("mailbox not available in this runtime context")``. The
-agent must also declare the capability with ``@agent(mailbox=True)``, or
+context must also carry the mailbox capability, or
 the call is refused before the handle is even looked up.
 
 #### `send`

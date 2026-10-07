@@ -558,7 +558,7 @@ class MeetingDirector:
 `emit_thought` diffuse une étape de raisonnement à tout observateur via
 [`ctx.events`](/reference/sdk/events). Les sept appels à `skill_as_tool`
 transforment chaque skill de worker en un outil que le modèle peut choisir ;
-[`ctx.a2a`](/reference/sdk/a2a) résout chaque schéma au moment de l'appel.
+`ctx.a2a` résout chaque schéma au moment de l'appel.
 
 <!-- claim:a2a-tool-name-is-prefixed-and-encoded -->
 Le prompt écrit les noms d'outils tels que le modèle les reçoit, et non tels que

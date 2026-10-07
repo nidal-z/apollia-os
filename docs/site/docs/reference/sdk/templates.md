@@ -1,5 +1,5 @@
 ---
-sidebar_position: 7
+sidebar_position: 6
 title: ctx.templates
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->
@@ -14,8 +14,7 @@ _Bases: Protocol_
 
 Runtime Jinja2 template rendering.
 
-Templates are declared via ``@agent(templates=(...))`` and resolved
-from the agent package's ``templates/`` directory at task startup.
+A template is one the context was given, addressed by its name.
 
 #### `render`
 
@@ -26,7 +25,7 @@ def render(self, name: str, **context: object) -> str
 Render a declared template.
 
 Args:
-    name: Template name as declared in ``@agent(templates=(...))``.
+    name: Name of a template the context was given.
     **context: Variables exposed to the template.
 
 Returns:

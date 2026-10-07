@@ -5,18 +5,27 @@ title: Demander une sortie structurée au modèle
 
 # Demander une sortie structurée au modèle
 
-Un agent qui attend une valeur, et non un paragraphe, passe un JSON Schema à
+Un code qui attend une valeur, et non un paragraphe, passe un JSON Schema à
 `ctx.llm.complete` ou `ctx.llm.chat`. L'appel contraint alors ce que le modèle
 peut émettre, vérifie ce qui revient contre ce même schéma, et vous rend la
 valeur validée sous la forme d'un objet Python ordinaire. Il n'y a rien à
 analyser et aucune expression régulière à maintenir.
 
+## Où `ctx.llm` est joignable
+
+`ctx.llm` est un service que le runtime peut laisser non attaché, et il vaut
+alors `None` : la [référence `ctx.llm`](/reference/sdk/llm) le dit. Sur les
+binaires livrés aujourd'hui, il n'est pas attaché au contexte d'un outil ni à
+celui d'un workflow, où le modèle se joint par un agent, avec `ctx.agents.run`.
+Cette page décrit le contrat de l'appel là où le service est attaché, et c'est
+aussi ce que sert `MockContext` dans un test unitaire.
+
 ## Passer un schéma, recevoir une valeur
 
 ```python
-from apollia import agent, skill
+from apollia.types import Ctx
 
-RAPPORT = {
+REPORT = {
     "type": "object",
     "properties": {
         "title": {"type": "string"},
@@ -26,16 +35,13 @@ RAPPORT = {
 }
 
 
-@agent(name="reporter", version="1.0.0", description="Résume en une fiche")
-class Reporter:
-    @skill(id="summarize")
-    async def summarize(self, payload, ctx):
-        rapport = await ctx.llm.complete(
-            [{"role": "user", "content": payload["text"]}],
-            schema=RAPPORT,
-        )
-        # `rapport` est un dict, déjà vérifié contre RAPPORT.
-        return {"title": rapport["title"], "count": rapport["count"]}
+async def summarize(ctx: Ctx, text: str) -> dict[str, object]:
+    report = await ctx.llm.complete(
+        [{"role": "user", "content": text}],
+        schema=REPORT,
+    )
+    # `report` is a dict, already checked against REPORT.
+    return {"title": report["title"], "count": report["count"]}
 ```
 
 Sans `schema`, l'appel rend un `LlmResponse` et `response.content` est une
@@ -81,7 +87,7 @@ noeud fautif, de sorte que vous branchez sur un champ plutôt que sur une phrase
 from apollia.errors import StructuredOutputError
 
 try:
-    rapport = await ctx.llm.complete(messages, schema=RAPPORT)
+    rapport = await ctx.llm.complete(messages, schema=REPORT)
 except StructuredOutputError as e:
     ctx.logger.warning("sortie structurée en échec sur %s : %s", e.path, e.reason)
 ```
@@ -94,16 +100,16 @@ except StructuredOutputError as e:
 - `response_invalid` : la réponse est revenue et le schéma la refuse.
 
 Rien n'est réessayé pour vous. Qu'une seconde tentative vaille ses jetons dépend
-de l'agent, et le runtime n'a pas à en décider.
+de l'appelant, et le runtime n'a pas à en décider.
 
 ## Ce que cela coûte
 
 Un appel contraint est un appel au modèle, donc il compte pour une étape dans le
-`StepBudget` de l'agent, exactement comme un appel non contraint. Le journal
+`StepBudget` de l'exécution, exactement comme un appel non contraint. Le journal
 d'audit note que la génération était contrainte, ainsi qu'une empreinte du
 schéma ; le schéma lui-même n'est jamais écrit dans le journal.
 
 ## Étapes suivantes
 
 - [Référence `ctx.llm`](/reference/sdk/llm)
-- [Écrire un worker](/how-to/write-a-worker)
+- [Écrire un workflow](/how-to/write-a-director)
