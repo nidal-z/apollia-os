@@ -24,11 +24,13 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) })
 import ChatSettings, {
   CHAT_CONVERSATION_ROWS,
   CHAT_NAMING_CHOICES,
+  CHAT_PROMPT_TEMPLATE_ROW,
   CHAT_SETTINGS_BLOCKS,
   CHAT_SHORTCUT_ROWS,
   CHAT_TOKEN_COUNT_ROW,
   CHAT_TRASH_ROW,
   conversationRowTestId,
+  conversationRows,
   namingLocked,
   regenerateRowKeys,
   sendKeyRowKeys,
@@ -37,6 +39,13 @@ import { CHAT_BEHAVIOUR_KEYS, chatBehaviours } from "$lib/stores/chatBehaviours"
 import { SHORTCUTS } from "$lib/navigation/shortcuts";
 import { CHAT_AUTO_NAMING_DEFAULT } from "$lib/stores/chatAutoNaming";
 import { CHAT_TRASH_DEFAULT } from "$lib/stores/chatTrash";
+import {
+  CHAT_PROMPT_TEMPLATE_DEFAULT,
+  CHAT_PROMPT_TEMPLATE_STORAGE_KEY,
+  chatPromptTemplate,
+  parseChatPromptTemplate,
+} from "$lib/stores/chatPromptTemplate";
+import { developerMode } from "$lib/stores/developerMode";
 import en from "$lib/i18n/en.json";
 import fr from "$lib/i18n/fr.json";
 
@@ -274,5 +283,90 @@ describe("Settings > Chat - the section as the mockup lays it out", () => {
     expect(namingLocked("policy")).toBe(true);
     expect(namingLocked("user")).toBe(false);
     expect(namingLocked("default")).toBe(false);
+  });
+});
+
+describe("Settings > Chat - the prompt template row of the developer mode", () => {
+  test("developer mode on, the row sits between the token count and the renaming double click", () => {
+    // GIVEN the developer mode on
+    developerMode.set(true);
+
+    // WHEN the page renders
+    const html = render(ChatSettings).body;
+    developerMode.set(false);
+    const at = (testId: string) => html.indexOf(`data-testid="${testId}"`);
+
+    // THEN the row is on the page, after the token count and before the
+    // double click that renames, and the rows around it keep their order
+    const ids = conversationRows(true).map(conversationRowTestId);
+    expect(ids).toEqual([
+      "chat-single-empty",
+      "chat-unload-before-load",
+      "chat-trash-toggle",
+      "chat-double-click-edit",
+      "chat-token-count",
+      "chat-show-prompt-template",
+      "chat-double-click-rename",
+      "plan-mode-default-toggle",
+    ]);
+    const positions = ids.map(at);
+    expect(positions.every((p) => p > -1)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  test("developer mode off, the row is not in the page", () => {
+    // GIVEN the developer mode off, and the preference left on from before
+    developerMode.set(false);
+    chatPromptTemplate.set(true);
+
+    // WHEN the page renders
+    const html = render(ChatSettings).body;
+    chatPromptTemplate.set(CHAT_PROMPT_TEMPLATE_DEFAULT);
+
+    // THEN nothing of the row is rendered, and the other rows are untouched
+    expect(html).not.toContain(CHAT_PROMPT_TEMPLATE_ROW.testId);
+    expect(conversationRows(false)).toEqual(CHAT_CONVERSATION_ROWS);
+  });
+
+  test("the row is off by default and explains itself in French and in English", () => {
+    // GIVEN the developer mode on and the default of the preference
+    developerMode.set(true);
+
+    // WHEN the page renders
+    const html = render(ChatSettings).body;
+    developerMode.set(false);
+    const at = html.indexOf(`data-testid="${CHAT_PROMPT_TEMPLATE_ROW.testId}-switch"`);
+    const tag = html.slice(html.lastIndexOf("<", at), html.indexOf(">", at));
+
+    // THEN the switch is off, and both catalogues carry its two texts
+    expect(CHAT_PROMPT_TEMPLATE_DEFAULT).toBe(false);
+    expect(tag).toContain('aria-checked="false"');
+    expect(lookup(en, CHAT_PROMPT_TEMPLATE_ROW.labelKey)).toBe(
+      "Always show the prompt template in the chat panel",
+    );
+    for (const key of [CHAT_PROMPT_TEMPLATE_ROW.labelKey, CHAT_PROMPT_TEMPLATE_ROW.hintKey]) {
+      expect(typeof lookup(fr, key), key).toBe("string");
+      expect(typeof lookup(en, key), key).toBe("string");
+      expect(lookup(fr, key), key).not.toBe(lookup(en, key));
+    }
+    expect(html).toContain(lookup(fr, CHAT_PROMPT_TEMPLATE_ROW.hintKey) as string);
+  });
+
+  test("the preference is kept beside the theme, and read back as it was left", () => {
+    // GIVEN the preference at its default
+    chatPromptTemplate.set(CHAT_PROMPT_TEMPLATE_DEFAULT);
+
+    // WHEN the switch is turned on
+    chatPromptTemplate.set(true);
+    const stored = localStorage.getItem(CHAT_PROMPT_TEMPLATE_STORAGE_KEY);
+    chatPromptTemplate.set(CHAT_PROMPT_TEMPLATE_DEFAULT);
+
+    // THEN the browser storage holds it, the next start reads it on, and a
+    // missing or unknown value reads as the default
+    expect(stored).toBe("on");
+    expect(parseChatPromptTemplate(stored)).toBe(true);
+    expect(localStorage.getItem(CHAT_PROMPT_TEMPLATE_STORAGE_KEY)).toBe("off");
+    expect(parseChatPromptTemplate(null)).toBe(false);
+    expect(parseChatPromptTemplate("yes")).toBe(false);
   });
 });

@@ -44,8 +44,14 @@
   import ModelInfoTab from "./ModelInfoTab.svelte";
   import ModelLoadTab from "./ModelLoadTab.svelte";
   import ModelPresetBar from "./ModelPresetBar.svelte";
+  import PresetSaveConfirmDialog, {
+    holdPresetSave,
+    type PendingPresetSave,
+  } from "../presets/PresetSaveConfirmDialog.svelte";
+  import { presetSaveConfirm } from "$lib/stores/generalBehaviours";
   import {
     chatTargetOf,
+    changedFieldKeys,
     defaultPresetWrite,
     formChanged,
     formFromPreset,
@@ -83,6 +89,7 @@
   let baseline = $state<PanelForm>(formFromPreset(null));
   let errors = $state<Record<string, string>>({});
   let working = $state(false);
+  let pendingSave = $state<PendingPresetSave | null>(null);
   let run = 0;
 
   const chosen = $derived(presets.find((p) => p.id === presetId) ?? null);
@@ -176,7 +183,11 @@
     const read = settings();
     if (id === null || read === null) return;
     const preset: PresetWrite = newPresetWrite(name, read, loadSettingsKept);
-    void act(() => write(id, () => createModelPreset(id, preset), "ai.panel.preset.saved"));
+    pendingSave = holdPresetSave($presetSaveConfirm, {
+      name: preset.name,
+      fieldKeys: changedFieldKeys(form, baseline, loadSettingsKept),
+      run: () => act(() => write(id, () => createModelPreset(id, preset), "ai.panel.preset.saved")),
+    });
   }
 
   function save(): void {
@@ -185,7 +196,12 @@
     const read = settings();
     if (id === null || preset === null || read === null) return;
     const body = presetUpdateWrite(preset, read, loadSettingsKept);
-    void act(() => write(id, () => updateModelPreset(preset.id, body), "ai.panel.preset.saved"));
+    pendingSave = holdPresetSave($presetSaveConfirm, {
+      name: preset.name,
+      fieldKeys: changedFieldKeys(form, baseline, loadSettingsKept),
+      run: () =>
+        act(() => write(id, () => updateModelPreset(preset.id, body), "ai.panel.preset.saved")),
+    });
   }
 
   function setDefault(): void {
@@ -342,3 +358,9 @@
     </div>
   </div>
 {/if}
+
+<PresetSaveConfirmDialog
+  pending={pendingSave}
+  onsettled={() => (pendingSave = null)}
+  testid="ai-panel-preset-save-confirm"
+/>

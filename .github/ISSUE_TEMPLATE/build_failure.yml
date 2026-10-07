@@ -30,9 +30,9 @@ body:
     attributes:
       label: Output of `python3 --version` and the path it resolves to
       description: >-
-        The interpreter PyO3 links against. The tree pins 3.13.7 in
+        The interpreter PyO3 links against. The tree pins 3.13.13 in
         `.python-version`.
-      placeholder: Python 3.13.7, /usr/local/bin/python3
+      placeholder: Python 3.13.13, /usr/local/bin/python3
     validations:
       required: true
 

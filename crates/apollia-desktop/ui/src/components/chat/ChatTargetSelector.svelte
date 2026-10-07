@@ -9,7 +9,9 @@
    * conversation is `targetAction` in `$lib/chat/chatTargets`, applied by the
    * owner of the conversation. A model of this computer that is not in
    * memory goes through the loading window first, and is reported once
-   * loaded. Beside the button of an open conversation, the eject button
+   * loaded; with the full loading window turned off in Settings > General,
+   * it loads at once and the window opens only on a refusal. Beside the
+   * button of an open conversation, the eject button
    * unloads the model the conversation talks to.
    */
   import { onMount, tick } from "svelte";
@@ -20,7 +22,10 @@
   import { chatTargetSelectorRequests } from "$lib/stores/chatTargetSelector";
   import { chatTargets, refreshChatTargets } from "$lib/stores/chatTargets";
   import { askModelLoad, loadedModels, refreshModelResidency } from "$lib/stores/modelResidency";
-  import { loadedInstance, needsLoadWindow } from "$lib/chat/modelLoad";
+  import { loadChosen, loadedInstance, needsLoadWindow } from "$lib/chat/modelLoad";
+  import { loadModel } from "$lib/ipc/llmLoad";
+  import { modelLoadWindow } from "$lib/stores/generalBehaviours";
+  import { addToast } from "$lib/components/ui/toast";
   import {
     conversationModel,
     filterTargetGroups,
@@ -62,6 +67,8 @@
   let open = $state(false);
   let query = $state("");
   let loading = $state(false);
+  /** A model loading at once, without the window: the button waits for it. */
+  let directLoading = $state(false);
   const groups = $derived($chatTargets.groups);
   const unreachable = $derived($chatTargets.unreachable);
   const defaultModel = $derived($chatTargets.defaultModel);
@@ -113,7 +120,7 @@
       close();
       return;
     }
-    if (disabled) return;
+    if (disabled || directLoading) return;
     open = true;
     query = "";
     void load();
@@ -130,9 +137,28 @@
     close();
     if (needsLoadWindow(target, $loadedModels)) {
       if (loadgate && !(await loadgate(target))) return;
+      directLoading = !$modelLoadWindow;
+      if (directLoading) {
+        addToast($t("chat.model_load.direct_loading", { values: { name: target.route } }), "info");
+      }
+      const chosen = await loadChosen($modelLoadWindow, loadModel, target.route);
+      directLoading = false;
+      if (chosen.kind === "loaded") {
+        await refreshModelResidency();
+        addToast(
+          $t("chat.model_load.loaded_toast", { values: { name: chosen.outcome.modelId } }),
+          "success",
+        );
+        onpick(target);
+        return;
+      }
       askModelLoad({
         modelId: target.route,
         format: target.format,
+        notice:
+          chosen.refusal === null
+            ? undefined
+            : $t("chat.model_load.direct_refused", { values: { error: chosen.refusal } }),
         onloaded: () => onpick(target),
       });
       return;
@@ -165,7 +191,7 @@
   <button
     type="button"
     onclick={() => void toggle()}
-    {disabled}
+    disabled={disabled || directLoading}
     class="v4-hair inline-flex max-w-full items-center gap-1.5 rounded-md border bg-surface-1 px-2 py-1 text-body-xs text-foreground transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50"
     aria-label={$t("chat.target_selector.aria")}
     aria-haspopup="listbox"

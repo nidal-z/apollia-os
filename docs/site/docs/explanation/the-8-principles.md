@@ -86,12 +86,12 @@ The first is the profile of the conversation, and it is the one you control. A
 conversation designates one of your profiles, or follows the default one. On
 every turn, at every autonomy tier, the assistant appends a short brief of that
 profile to its system prompt: name, role, function, tools, preferences and
-notes, whatever you filled in. It sits under a switch, "Use my preferences", in
-the configuration panel of the conversation. The switch is on when a
-conversation is created, it is stored with the conversation, and turning it off
-takes effect on the next message. The context gauge of the same panel says
-whether the prompt carries the profile, so what you read there is what the model
-received. Companion sessions and sessions that run an installed agent never
+notes, whatever you filled in. It sits under a switch, "Apollia knows my
+profile", in the Integrations tab of the right panel of the conversation. The
+switch is on when a conversation is created, it is stored with the conversation,
+and turning it off takes effect on the next message. The context gauge of the
+composer says whether the prompt carries the profile, so what you read there
+is what the model received. Companion sessions and sessions that run an installed agent never
 receive it, switch or not.
 
 <!-- claim:cross-session-recall-injects-summaries -->

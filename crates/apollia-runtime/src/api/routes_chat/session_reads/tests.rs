@@ -12,7 +12,7 @@ use crate::chat::manager::ChatSessionManagerHandle;
 use crate::chat::ChatToolsConfig;
 
 /// A daemon state whose chat manager runs over `dir`.
-fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
+pub(crate) fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
     let mut state = app_state(dir.path().to_path_buf());
     let tools_config = Arc::new(ChatToolsConfig {
         data_dir: dir.path().to_path_buf(),
@@ -44,7 +44,7 @@ fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
     state
 }
 
-async fn new_free_chat(state: &AppState<MockBackend>) -> String {
+pub(crate) async fn new_free_chat(state: &AppState<MockBackend>) -> String {
     let (status, info) = call(
         state.clone(),
         "POST",
@@ -177,7 +177,10 @@ async fn test_the_workspace_is_refused_without_a_chat_subsystem() {
 
 /// `state` given a backend table whose default row serves a Qwen3 GGUF the
 /// index records as a reasoning switch that reads images.
-fn with_default_qwen3(mut state: AppState<MockBackend>, dir: &TempDir) -> AppState<MockBackend> {
+pub(crate) fn with_default_qwen3(
+    mut state: AppState<MockBackend>,
+    dir: &TempDir,
+) -> AppState<MockBackend> {
     use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
     use apollia_llm::model_index::{
         IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelOrigin, INDEX_FILE_NAME,

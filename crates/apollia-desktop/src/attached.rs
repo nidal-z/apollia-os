@@ -71,6 +71,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_targets",
     // The model calls behind the total of one answer.
     "list_turn_llm_calls",
+    // The notes of a conversation.
+    "get_chat_session_notes",
+    "set_chat_session_notes",
+    // The prompt template the model of a conversation receives.
+    "get_chat_prompt_template",
     // A turn played again, a decision on a tool call, the worker skills.
     "authorize_chat_tool",
     "edit_and_resend_chat_message",

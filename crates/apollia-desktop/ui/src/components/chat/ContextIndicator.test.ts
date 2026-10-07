@@ -339,7 +339,7 @@ describe("the composer holds the only context gauge", () => {
     // GIVEN the conversation and its configuration panel
     // WHEN their sources are read
     // THEN neither mounts the gauge nor draws a context bar
-    for (const file of ["ChatConversation.svelte", "ChatConfigPanelBody.svelte"]) {
+    for (const file of ["ChatConversation.svelte", "ChatIntegrationsTab.svelte"]) {
       const source = read(file);
       expect(source).not.toContain("<ContextIndicator");
       expect(source).not.toContain("context-window-bar");

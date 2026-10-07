@@ -199,6 +199,8 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("desktop.chat_double_click_edit", Boolean, Some("false"), Reloadable, "Open the edition of a message of a conversation on a double click.")),
     locked(key("desktop.chat_double_click_rename", Boolean, Some("true"), Reloadable, "Rename a conversation or a folder of the list on a double click.")),
     locked(key("desktop.chat_regenerate_shortcut", Boolean, Some("true"), Reloadable, "Regenerate the last answer of the conversation shown with Cmd + R on a Mac, Ctrl + R elsewhere.")),
+    locked(key("desktop.model_load_window", Boolean, Some("true"), Reloadable, "Open the loading window when a conversation chooses a model of this machine that is not in memory; off, the model loads at once under its default preset.")),
+    locked(key("desktop.preset_save_confirm", Boolean, Some("false"), Reloadable, "Ask for a confirmation that lists the settings changed before they are saved into a preset.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),

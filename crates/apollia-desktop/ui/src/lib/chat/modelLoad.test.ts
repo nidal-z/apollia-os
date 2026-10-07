@@ -21,6 +21,7 @@ import {
   emptyForm,
   formFromSettings,
   isReloadShortcut,
+  loadChosen,
   loadRequest,
   loadedInstance,
   needsLoadWindow,
@@ -430,5 +431,43 @@ describe("reloading the last model", () => {
       last,
       message: "loading was refused by the balanced load guardrail",
     });
+  });
+});
+
+describe("choosing a model that is not in memory", () => {
+  test("with the full loading window on, the window opens and nothing is loaded", async () => {
+    // GIVEN the setting on, as it is by default
+    // WHEN a model that is not in memory is chosen
+    const chosen = await loadChosen(true, loadModel, qwen.route);
+    // THEN the answer is the window, with no refusal, and the runtime was not asked
+    expect(chosen).toEqual({ kind: "window", refusal: null });
+    expect(ipc).not.toHaveBeenCalled();
+  });
+
+  test("with it off, the model loads at once under its default preset", async () => {
+    // GIVEN the setting off, and a runtime that loads
+    const outcome: ModelLoadOutcome = { modelId: qwen.route, loaded: resident() };
+    ipc.mockResolvedValue(outcome);
+    // WHEN the model is chosen
+    const chosen = await loadChosen(false, loadModel, qwen.route);
+    // THEN the explicit load route is called with the model alone: no
+    //      setting over its default preset, and no consent to the guardrail
+    expect(chosen).toEqual({ kind: "loaded", outcome });
+    expect(ipc).toHaveBeenCalledTimes(1);
+    expect(ipc).toHaveBeenCalledWith("load_model", { request: { modelId: qwen.route } });
+  });
+
+  test("with it off, a load the guardrail refuses opens the window with the refusal", async () => {
+    // GIVEN the setting off, and a runtime whose guardrail refuses the load
+    ipc.mockRejectedValue("loading was refused by the balanced load guardrail");
+    // WHEN the model is chosen
+    const chosen = await loadChosen(false, loadModel, qwen.route);
+    // THEN the window opens and carries the refusal, and no second,
+    //      confirmed load was sent
+    expect(chosen).toEqual({
+      kind: "window",
+      refusal: "loading was refused by the balanced load guardrail",
+    });
+    expect(ipc).toHaveBeenCalledTimes(1);
   });
 });

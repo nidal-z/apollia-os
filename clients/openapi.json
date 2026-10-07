@@ -15165,6 +15165,59 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/prompt-template": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/prompt-template`, the prompt\ntemplate the model of a session receives.",
+        "description": "The template of the preset the session chose when that preset carries\none, else the template the local engine reports for the model of the\nsession when it is loaded. Reading it never loads a model.",
+        "operationId": "get_session_prompt_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The prompt template of the session and where it comes from",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPromptTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem or backend repository unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/restore": {
       "post": {
         "tags": [
@@ -27560,6 +27613,15 @@
           }
         }
       },
+      "PromptTemplateSource": {
+        "type": "string",
+        "description": "Where the template shown comes from.",
+        "enum": [
+          "preset",
+          "engine",
+          "unavailable"
+        ]
+      },
       "ProposedRuleView": {
         "type": "object",
         "description": "One proposed permission rule, as the approval card draws it.",
@@ -28793,6 +28855,26 @@
           }
         },
         "additionalProperties": false
+      },
+      "SessionPromptTemplate": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/sessions/{id}/prompt-template`.",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/PromptTemplateSource",
+            "description": "Where the template comes from."
+          },
+          "template": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The template, `null` when `source` is `unavailable`."
+          }
+        }
       },
       "SessionSettings": {
         "type": "object",

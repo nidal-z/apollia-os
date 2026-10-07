@@ -118,7 +118,7 @@ describe("i18n tools - EN completeness", () => {
     const chat = getSection(en as unknown as JsonObject, "chat");
     expect(chat).toHaveProperty("authorize_action");
     expect(chat.authorize_action).toBe(
-      "The assistant would like to perform an action",
+      "The agent would like to perform an action",
     );
   });
 });

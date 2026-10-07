@@ -352,6 +352,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             get(crate::api::routes_chat::session_reads::get_session_model_capabilities::<B>),
         )
         .route(
+            "/api/v1/sessions/:id/prompt-template",
+            get(crate::api::routes_chat::prompt_template::get_session_prompt_template::<B>),
+        )
+        .route(
             "/api/v1/sessions/:id/images/:file",
             get(crate::api::routes_chat::session_reads::get_session_image::<B>),
         )

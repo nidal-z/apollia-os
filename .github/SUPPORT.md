@@ -1,8 +1,10 @@
 # Getting help with Apollia OS
 
-Apollia OS is a single-maintainer preview. There is no support contract and no
-response-time commitment. What follows is the route that gets you an answer
-fastest, in the order to try it.
+Apollia OS is maintained by the Apollia team. There is no support contract and
+no response-time commitment for questions and issues; the one exception is a
+security report, which follows the timeline in [SECURITY.md](../SECURITY.md).
+What follows is the route that gets you an answer fastest, in the order to try
+it.
 
 ## 1. Read the documentation
 
@@ -31,17 +33,18 @@ an issue.
 
 ## 4. Open an issue
 
-Three forms exist, and each one asks for what the maintainer would otherwise
+Three forms exist, and each one asks for what the maintainers would otherwise
 have to request:
 
 - **Bug report**, for something that does not behave as documented.
 - **Build failure**, for a build from source that does not complete.
 - **Feature request**, for a capability that does not exist yet.
 
-Read [CONTRIBUTING.md](../CONTRIBUTING.md) first. Pull requests are closed by
-policy: the project takes issues, not patches, during the preview.
+Read [CONTRIBUTING.md](../CONTRIBUTING.md) first: it states what the project
+accepts, and what happens to a pull request.
 
 ## 5. Report a vulnerability
 
 Never in a public issue. Use GitHub Security Advisories, as described in
-[SECURITY.md](../SECURITY.md).
+[SECURITY.md](../SECURITY.md): acknowledgement within 72 hours, a status update
+within 7 days.

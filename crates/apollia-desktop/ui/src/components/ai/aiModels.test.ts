@@ -1,4 +1,7 @@
 import { describe, test, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { InstalledModel } from "$lib/ipc/modelHub";
 import type { LoadedModel } from "$lib/types";
 import {
@@ -15,6 +18,7 @@ import {
   menuEntries,
   parameterCount,
   revealLabelKey,
+  shownModelName,
   sortModels,
   totalBytes,
 } from "./aiModels";
@@ -267,5 +271,37 @@ describe("the filter shortcut", () => {
     expect(hostPlatform("MacIntel")).toBe("mac");
     expect(hostPlatform("Win32")).toBe("windows");
     expect(hostPlatform("Linux x86_64")).toBe("linux");
+  });
+});
+
+describe("the name a row of the list shows", () => {
+  test("it is the name of the model unless the full file name is asked", () => {
+    // GIVEN a model whose file is not named like it
+    const m = model({ id: "qwen3-8b", name: "Qwen3-8B-Q4_K_M.gguf" });
+    // WHEN the row is named with the setting off, then on
+    // THEN it shows the name of the model, then the name of the file
+    expect(shownModelName(m, false)).toBe("qwen3-8b");
+    expect(shownModelName(m, true)).toBe("Qwen3-8B-Q4_K_M.gguf");
+  });
+
+  test("a model without a file name keeps its name", () => {
+    // GIVEN a model the index gave no file name
+    const m = model({ id: "qwen3-8b", name: "" });
+    // WHEN the full file name is asked
+    // THEN the row still shows a name
+    expect(shownModelName(m, true)).toBe("qwen3-8b");
+  });
+
+  test("the list of the AI screen names its rows through that rule", () => {
+    // GIVEN the source of the section "On this computer"
+    const src = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "InstalledModelsSection.svelte"),
+      "utf8",
+    );
+    // WHEN the cell of the name is read
+    // THEN it goes through the rule with the setting of Settings > General
+    expect(src).toContain(
+      'data-testid="ai-model-name">{shownModelName(model, $modelFullFileName)}</span>',
+    );
   });
 });

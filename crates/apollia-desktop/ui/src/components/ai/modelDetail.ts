@@ -481,6 +481,39 @@ export function formChanged(form: PanelForm, baseline: PanelForm): boolean {
   );
 }
 
+/** The i18n key of the structured output switch, as the list of changes names it. */
+export const STRUCTURED_LABEL_KEY = "ai.panel.inference.structured.label";
+
+function changedDrafts(
+  fields: readonly SettingField[],
+  typed: Record<string, string>,
+  held: Record<string, string>,
+): string[] {
+  return fields
+    .filter((f) => (typed[f.key] ?? "").trim() !== (held[f.key] ?? "").trim())
+    .map((f) => f.labelKey);
+}
+
+/**
+ * The settings a save would change, by the i18n key of their label and in
+ * the order of the tabs. The load settings are left out while presets do not
+ * keep them: a save then writes none of them.
+ */
+export function changedFieldKeys(
+  form: PanelForm,
+  baseline: PanelForm,
+  loadSettingsKept: boolean,
+): string[] {
+  const structured =
+    form.structured !== baseline.structured ||
+    (form.structured && form.schema.trim() !== baseline.schema.trim());
+  return [
+    ...(loadSettingsKept ? changedDrafts(LOAD_FIELDS, form.load, baseline.load) : []),
+    ...changedDrafts(INFERENCE_FIELDS, form.request, baseline.request),
+    ...(structured ? [STRUCTURED_LABEL_KEY] : []),
+  ];
+}
+
 /**
  * Whether the panel warns that the model will be relaunched: a load setting
  * was changed while the model is in memory. A load setting only takes effect

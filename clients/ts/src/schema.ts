@@ -4991,6 +4991,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/prompt-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/prompt-template`, the prompt
+         *     template the model of a session receives.
+         * @description The template of the preset the session chose when that preset carries
+         *     one, else the template the local engine reports for the model of the
+         *     session when it is loaded. Reading it never loads a model.
+         */
+        get: operations["get_session_prompt_template"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/restore": {
         parameters: {
             query?: never;
@@ -10045,6 +10068,11 @@ export interface components {
              */
             name: string;
         };
+        /**
+         * @description Where the template shown comes from.
+         * @enum {string}
+         */
+        PromptTemplateSource: "preset" | "engine" | "unavailable";
         /** @description One proposed permission rule, as the approval card draws it. */
         ProposedRuleView: {
             /** @description `allow` or `deny`. */
@@ -10667,6 +10695,13 @@ export interface components {
              *     a model.
              */
             notes: string;
+        };
+        /** @description Answer of `GET /api/v1/sessions/{id}/prompt-template`. */
+        SessionPromptTemplate: {
+            /** @description Where the template comes from. */
+            source: components["schemas"]["PromptTemplateSource"];
+            /** @description The template, `null` when `source` is `unavailable`. */
+            template?: string | null;
         };
         /**
          * @description The settings of one conversation. Every field is optional: one left out
@@ -24353,6 +24388,47 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_prompt_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The prompt template of the session and where it comes from */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionPromptTemplate"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem or backend repository unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

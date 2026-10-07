@@ -404,6 +404,7 @@ from .profile_summary_view import ProfileSummaryView
 from .profile_update import ProfileUpdate
 from .profile_update_fields import ProfileUpdateFields
 from .project_outcome import ProjectOutcome
+from .prompt_template_source import PromptTemplateSource
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
@@ -460,6 +461,7 @@ from .session_folder_body import SessionFolderBody
 from .session_metrics import SessionMetrics
 from .session_model_capabilities import SessionModelCapabilities
 from .session_notes import SessionNotes
+from .session_prompt_template import SessionPromptTemplate
 from .session_settings import SessionSettings
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
@@ -1012,6 +1014,7 @@ __all__ = (
     "ProfileUpdate",
     "ProfileUpdateFields",
     "ProjectOutcome",
+    "PromptTemplateSource",
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
@@ -1066,6 +1069,7 @@ __all__ = (
     "SessionMetrics",
     "SessionModelCapabilities",
     "SessionNotes",
+    "SessionPromptTemplate",
     "SessionSettings",
     "SessionWorkspace",
     "SetAgentModelRequest",

@@ -97,12 +97,12 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "agents.logs", // Logs
   "agents.title", // Agents
   "automations.status.active", // Active
-  "automations.target_prefix", // Assistant
-  "automations.wizard.step_agent", // Assistant
+  "automations.target_prefix", // Agent
+  "automations.wizard.step_agent", // Agent
   "batch_launch.agent.title", // Agent
   "batch_launch.source.title", // Source
   "chat.activity.sources", // Sources
-  "chat.assistant", // Assistant
+  "chat.assistant", // Apollia
   "chat.chips.vision", // Vision
   "chat.citations_aria", // Citations
   "chat.command_group.agents", // Agents
@@ -111,17 +111,18 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.conversations_aria", // Conversations
   "chat.export.meta_mode", // Mode
   "chat.export.meta_session", // Session
-  "chat.export.role_assistant", // Assistant
+  "chat.export.role_assistant", // Apollia
   "chat.journal.agent", // Agent
   "chat.mode_auto", // Auto
   "chat.planMode.phaseLabel", // Phase
   "chat.quickpicker.agents_section", // Agents
   "chat.quickpicker.docs_link", // Documentation
+  "chat.integrations.group_workflows", // Workflows
+  "chat.session_settings.preset.title", // Preset
   "chat.shortcut_group.chat", // Chat
   "chat.shortcut_group.messages", // Messages
   "chat.shortcut_group.navigation", // Navigation
   "chat.status_active", // Active
-  "chat.system_prompt", // Instructions
   "chat.target_selector.group_agents", // Agents
   "chat.title", // Chat
   "commandPalette.groups.actions", // Actions
@@ -188,7 +189,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "packages.preview.version", // version {version}
   "plan_mode.history_pause", // Pause
   "plan_session.origin_initial", // Initial
-  "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
   "policy.badge.active", // Active
   "policy.section.journal.title", // Journal
@@ -203,8 +203,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.about.docs_title", // Documentation
   "settings.chat.conversations_title", // Conversations
   "settings.credential.absent", // Absent
-  "settings.developer.mcp.kind_agent", // Agent
-  "settings.developer.mcp.kind_workflow", // Workflow
+  "dev.developer.mcp.kind_agent", // Agent
+  "dev.developer.mcp.kind_workflow", // Workflow
   "settings.engines.channel_stable", // Stable
   "settings.developer.on_demand.idle_unit", // minutes
   "settings.general.application_title", // Application
@@ -224,7 +224,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.shortcuts.category.navigation", // Navigation
   "settings.shortcuts.scope.global_label", // Global
   "settings.stt.section.performance_title", // PERFORMANCE
-  "settings.stt_backend", // Backend
   "settings.stt_input_device", // Microphone
   "settings.stt_microphone", // Microphone
   "settings.system_version", // Version

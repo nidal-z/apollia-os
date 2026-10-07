@@ -2873,10 +2873,10 @@ def check_ui_vocabulary_ratchet() -> None:
     glossary = json.loads(uivocab.GLOSSARY.read_text(encoding="utf-8"))
     debt = sum(len(glossary[lang]["exemptions"]) for lang in uivocab.LOCALES)
     case(
-        "the real exemption list still carries debt",
-        debt > 0,
-        "the list is empty, so the cases above exercise a list the tree does "
-        "not have; rewrite this case to demand an empty list",
+        "the real exemption list is empty",
+        debt == 0,
+        "an exemption came back in the glossary; the list was emptied and the "
+        "ratchet holds it there",
     )
 
 

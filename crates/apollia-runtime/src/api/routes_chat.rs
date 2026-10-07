@@ -45,6 +45,7 @@ pub mod conversations;
 pub mod folders;
 pub mod pause;
 pub mod plan;
+pub mod prompt_template;
 pub mod session_reads;
 mod session_route;
 pub mod settings;

@@ -411,28 +411,38 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
       "timeoutMs": 10000
     },
     {
-      "kind": "expect",
-      "testidPrefix": "config-tool-"
+      "kind": "click",
+      "testid": "chat-inspector-integrations-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-session-integrations",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-row",
+      "timeoutMs": 10000
     },
     {
       "kind": "click",
-      "testidPrefix": "config-tool-"
+      "testid": "session-access-switch"
     },
     {
       "kind": "screenshot",
-      "label": "11-config-tool-toggle"
+      "label": "11-session-access-switched"
     },
     {
       "kind": "click",
-      "testidPrefix": "config-group-toggle-"
+      "testid": "session-access-switch"
     },
     {
       "kind": "screenshot",
-      "label": "12-config-group-toggle"
+      "label": "12-session-access-restored"
     },
     {
       "kind": "expect",
@@ -1037,32 +1047,6 @@
     {
       "kind": "awaitTurn",
       "label": "18-budget-ready"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-config-button"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "config-step-budget",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "fill",
-      "testid": "config-step-budget",
-      "text": "1"
-    },
-    {
-      "kind": "click",
-      "testid": "config-save"
-    },
-    {
-      "kind": "screenshot",
-      "label": "18-step-budget-set"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-config-button"
     },
     {
       "kind": "sendChat",

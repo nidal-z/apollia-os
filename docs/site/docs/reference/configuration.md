@@ -99,7 +99,7 @@ still accepted, with a `config.key.retired` warning.
 | `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
 | `[models]` | The signed index of model cards, the models folder (`dir`), whether a preset carries load settings (`preset_load_settings`), and the rule applied to an imported file (`[models.import]`). |
 | `[observability]` | Trace capture and retention, documented below. |
-| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` or `always`), `chat_debug_blocks`, `resource_widget`, the chat behaviours `chat_single_empty`, `chat_double_click_edit`, `chat_double_click_rename` and `chat_regenerate_shortcut`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
+| `[desktop]` | Settings of the desktop application: `developer_mode`, `update_channel` (`stable` or `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` or `always`), `chat_debug_blocks`, `resource_widget`, the chat behaviours `chat_single_empty`, `chat_double_click_edit`, `chat_double_click_rename` and `chat_regenerate_shortcut`, the general behaviours `model_load_window` and `preset_save_confirm`, and `link_preview_enabled`, which fetches the preview of a link shown in a conversation. Off by default, since the fetch leaves the machine. |
 | `[server]` | The compatible server: `enabled`, `port`, `require_auth`, `cors`, and loading on demand: `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, and `separate_reasoning_content`. |
 | `[engines]` | Settings of the local inference engines (`log_level`, `gguf`, `mlx`, `auto_update`, `auto_purge`). |
 | `[author]` | The publisher name of the agents exported from this machine (`name`). |
@@ -301,6 +301,8 @@ Settings of the desktop application that the engine reads.
 | `desktop.chat_double_click_edit` | boolean | `false` | Open the edition of a message of a conversation on a double click. The organization policy can fix it. |
 | `desktop.chat_double_click_rename` | boolean | `true` | Rename a conversation or a folder of the list on a double click. The organization policy can fix it. |
 | `desktop.chat_regenerate_shortcut` | boolean | `true` | Regenerate the last answer of the conversation shown with Cmd + R on a Mac, Ctrl + R elsewhere. The organization policy can fix it. |
+| `desktop.model_load_window` | boolean | `true` | Open the loading window when a conversation chooses a model of this machine that is not in memory; off, the model loads at once under its default preset, and the load guardrail still applies. The organization policy can fix it. |
+| `desktop.preset_save_confirm` | boolean | `false` | Ask for a confirmation that lists the settings changed before they are saved into a preset. The organization policy can fix it. |
 
 ### `[server]`
 

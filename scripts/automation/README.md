@@ -228,9 +228,9 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   list). Fold one into `master-det` by adding it to `ORDER`
   and re-running `regen_master.py --write`, after its first green solo run.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
-  config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,
+  config, plan mode, ask_user), `hitl-critical`, `coach-llm`,
   `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, and `master-llm` (an
-  aggregate of chat/hitl/coach, 197 steps).
+  aggregate of chat/hitl/coach, 192 steps).
 - **First launch** (needs `desktop-dev-automation-first-run`, a blank home and
   two model files): `first-run-llm`, the timed first launch described above.
   Written against the source and statically validated; its first runtime
@@ -508,7 +508,7 @@ a run, and nothing reads them back.
   type (open, single, multi) and `ask-user-submit` stays disabled until every
   question is answered. Use `ask-user-skip`, which is type-independent. Leaving the
   card pending keeps the session `processing`, which silently hides every
-  read-only-gated control downstream (`config-save` and friends).
+  control a busy conversation disables downstream.
 - **Sizing `awaitTurn`.** `maxApprovals` defaults to 25. The plan-review steps use 6
   on purpose, but the turn that FOLLOWS an approval executes the whole plan and needs
   the full budget, otherwise it aborts as a runaway turn.

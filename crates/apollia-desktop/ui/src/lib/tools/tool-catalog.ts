@@ -267,31 +267,3 @@ export const DEFAULT_ENABLED_TOOLS = new Set<string>(
 export const TOOL_BY_ID = new Map<string, ToolMeta>(
   TOOL_CATALOG.map((t) => [t.id, t])
 );
-
-/** Return the enabled state of all tools in a group. */
-export function getGroupState(
-  group: ToolGroupMeta,
-  enabledTools: Set<string>
-): "all" | "some" | "none" {
-  const enabled = group.tools.filter((id) => enabledTools.has(id)).length;
-  if (enabled === 0) return "none";
-  if (enabled === group.tools.length) return "all";
-  return "some";
-}
-
-/**
- * Toggle a group: if all tools are enabled, disable all; otherwise enable all.
- * Returns a new Set - does not mutate the input.
- */
-export function toggleGroup(
-  group: ToolGroupMeta,
-  enabledTools: Set<string>
-): Set<string> {
-  const next = new Set(enabledTools);
-  if (getGroupState(group, enabledTools) === "all") {
-    group.tools.forEach((id) => next.delete(id));
-  } else {
-    group.tools.forEach((id) => next.add(id));
-  }
-  return next;
-}

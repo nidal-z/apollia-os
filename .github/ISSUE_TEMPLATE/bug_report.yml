@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Every field marked required is one the maintainer would otherwise have
+        Every field marked required is one the maintainers would otherwise have
         to ask for. Filling them turns three round trips into one.
 
   - type: textarea
@@ -68,7 +68,7 @@ body:
     attributes:
       label: Apollia version
       description: The version string, or the commit hash for a build from source.
-      placeholder: 0.1.0-preview
+      placeholder: 0.3.0
     validations:
       required: true
 
@@ -99,10 +99,7 @@ body:
       options:
         - Embedded llama-server, local GGUF
         - External OpenAI-compatible server
-        - Anthropic
-        - OpenAI
-        - Google
-        - Mistral
+        - Ollama
         - Other, described below
     validations:
       required: true

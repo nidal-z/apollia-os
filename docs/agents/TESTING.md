@@ -157,7 +157,7 @@ fn test_agent_list_parse_json() {
 }
 ```
 
-Target : 150+ parsing tests workspace-wide (acquired in the CLI sprint).
+Target : 150+ parsing tests workspace-wide.
 
 ### 5.2 End-to-end (`tests/cli/cli-e2e.sh`)
 

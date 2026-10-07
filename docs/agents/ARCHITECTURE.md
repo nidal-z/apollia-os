@@ -238,7 +238,7 @@ Source : `crates/apollia-mcp/`.
 
 Config-driven backend selection. `[llm.routing]` in the agent TOML drives
 routing. Backends : the embedded `llama-server` (local, upstream llama.cpp),
-Anthropic, OpenAI, Ollama, Vertex.
+an OpenAI-compatible server at a designated address, and Ollama.
 
 Source : `crates/apollia-llm/src/router.rs`.
 

@@ -18,7 +18,7 @@ body:
     attributes:
       label: Proposed solution
       description: >-
-        A rough shape is enough; the maintainer refines the design before any
+        A rough shape is enough; the maintainers refine the design before any
         implementation. Pseudo-code, a mock-up, or an example invocation all
         help.
     validations:
