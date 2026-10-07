@@ -5009,7 +5009,26 @@
         "documentation": "Documentation"
       },
       "logs": {
-        "title": "Server logs"
+        "title": "Server logs",
+        "summary": "{count, plural, =0 {No line} one {# line} other {# lines}}",
+        "level_label": "Level of the lines shown",
+        "levels": {
+          "debug": "All levels",
+          "info": "Info and above",
+          "warn": "Warnings and errors",
+          "error": "Errors only"
+        },
+        "clear": "Clear",
+        "clear_title": "Empties the logs of the server. The Apollia activity log is not touched.",
+        "detach": "Detach into a window",
+        "reattach": "Bring back to the screen",
+        "detached_notice": "The logs are open in their own window.",
+        "collapse": "Collapse the logs",
+        "expand": "Expand the logs",
+        "empty": "No line yet. Calls the local server receives show here.",
+        "interrupted": "The logs stopped being read.",
+        "resume": "Resume",
+        "failed": "The logs did not answer the request: {error}"
       },
       "settings_hint": "The developer mode and the MCP bridge are set in Settings.",
       "settings_link": "Settings › Developer",
@@ -5093,6 +5112,40 @@
         "load_model": "Load a model",
         "load_reading": "Reading the models…",
         "load_empty": "No model of this computer is waiting to be loaded."
+      },
+      "models": {
+        "title": "Loaded models",
+        "empty": "No model is loaded. \"Load a model\" puts one in memory.",
+        "size": "{size} GB",
+        "parallel": "Parallel {count}",
+        "eject": "Eject",
+        "eject_failed": "{name} could not be ejected: {error}",
+        "copy_id": "Copy the identifier",
+        "copied": "Identifier copied.",
+        "copy_failed": "The identifier could not be copied.",
+        "detail": "Detail and settings",
+        "detail_unavailable": "This file is not in the list of models of this computer: its settings do not open from here."
+      },
+      "exposed": {
+        "title": "Exposed agents and workflows",
+        "badge": "Exposed",
+        "badge_explanation": "Another application can call it through the local server, like a model.",
+        "agent_explanation": "An agent: it takes a message and answers once its work is done.",
+        "workflow_explanation": "A workflow: it takes a JSON object that carries its inputs.",
+        "inputs_message": "Inputs: message",
+        "inputs_fields": "Inputs: {names}",
+        "inputs_none": "Inputs: none",
+        "inputs_unknown": "Inputs: not read",
+        "governed": "Governed: access, consents, budget",
+        "error": "The list of exposed agents and workflows could not be read.",
+        "empty_title": "No exposed agent or workflow",
+        "empty_body": "Tick an agent or a workflow under \"Exposed agents and workflows\", in Settings › Developer: it will appear here under the identifier {identifier}, and its calls will stay governed.",
+        "empty_action": "Open Settings › Developer"
+      },
+      "endpoints": {
+        "title": "Supported endpoints",
+        "summary": "OpenAI: chat, responses, models, embeddings · Anthropic: messages · Apollia API",
+        "open": "Open the page of supported endpoints"
       }
     }
   },

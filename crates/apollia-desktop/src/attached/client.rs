@@ -340,6 +340,24 @@ impl AttachedClient {
         }
     }
 
+    /// Opens an open-ended SSE stream of the runtime at `path`, query
+    /// included. The answer is the body, read frame by frame by the caller.
+    pub(crate) async fn open_stream(&self, path: &str) -> Result<reqwest::Response, AttachedError> {
+        let response = self
+            .http
+            .get(self.url(path))
+            .bearer_auth(&self.token)
+            .header(reqwest::header::ACCEPT, "text/event-stream")
+            .send()
+            .await
+            .map_err(AttachedError::Unreachable)?;
+        if response.status().is_success() {
+            Ok(response)
+        } else {
+            Err(refusal(response).await)
+        }
+    }
+
     fn url(&self, path: &str) -> String {
         format!("{}{path}", self.base)
     }

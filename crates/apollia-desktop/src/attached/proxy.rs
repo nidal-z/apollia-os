@@ -9,11 +9,20 @@ use serde_json::Value;
 
 use super::{AttachedError, RuntimeLink};
 use crate::commands::{
-    http_delete_json, http_get_for_file, http_get_json, http_patch_json, http_post_for_file,
-    http_post_json, http_post_json_refusable, http_put_json, HttpFailure,
+    http_delete_json, http_get_for_file, http_get_json, http_open_stream, http_patch_json,
+    http_post_for_file, http_post_json, http_post_json_refusable, http_put_json, HttpFailure,
 };
 
 impl RuntimeLink {
+    /// Opens the open-ended SSE stream `path` of the runtime this application
+    /// drives. The caller reads the body frame by frame.
+    pub(crate) async fn open_stream(&self, path: &str) -> Result<reqwest::Response, String> {
+        match self {
+            Self::Embedded(runtime) => http_open_stream(runtime.api_port, path).await,
+            Self::Attached(remote) => Ok(remote.open_stream(path).await?),
+        }
+    }
+
     /// `GET path` on the runtime this application drives.
     pub(crate) async fn get_json(&self, path: &str) -> Result<Value, String> {
         match self {

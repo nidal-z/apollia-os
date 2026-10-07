@@ -48,7 +48,14 @@ UI_SUBTREE = Path("crates/apollia-desktop/ui/src")
 # argument object, so they impose no key. The list is exactly what the tree
 # declares today; an injected type absent from it makes the guard report a
 # missing key, which is the loud failure a guard should have.
-INJECTED_TYPES = ("State", "tauri::State", "AppHandle", "tauri::AppHandle")
+INJECTED_TYPES = (
+    "State",
+    "tauri::State",
+    "AppHandle",
+    "tauri::AppHandle",
+    "WebviewWindow",
+    "tauri::WebviewWindow",
+)
 
 COMMAND_ATTRIBUTE = "#[tauri::command]"
 FN_SIGNATURE = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+(\w+)\s*\(")
@@ -313,6 +320,7 @@ def _build_subject(root: Path) -> tuple[Path, Path]:
         "#[allow(clippy::too_many_arguments)]\n"
         "pub async fn install_agent_package(\n"
         "    app: tauri::AppHandle,\n"
+        "    window: tauri::WebviewWindow,\n"
         "    package_id: String,\n"
         "    limit: Option<u32>,\n"
         ") -> Result<(), String> {\n"
@@ -384,6 +392,16 @@ def selftest() -> int:
 
         faults, _ = measure('await invoke("install_agent_package", { packageId: id });\n')
         results.append(_case("an Option argument is not required", not faults))
+        results.append(
+            _case(
+                "the handle and the window Tauri injects impose no key",
+                not faults
+                and all(
+                    "window" not in keys and "app" not in keys
+                    for keys in commands["install_agent_package"].values()
+                ),
+            )
+        )
 
         faults, unreadable = measure(
             'await invoke("install_agent_package", { ...payload });\n'
