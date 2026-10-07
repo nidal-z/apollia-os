@@ -242,6 +242,7 @@ pub async fn fetch_mcp_registry(
                     oauth_pre_registered_client_id_env: enrichment
                         .oauth_pre_registered_client_id_env
                         .clone(),
+                    examples: enrichment.examples.clone(),
                 }),
                 is_installed: installed_names.contains(&enrichment.package_identifier),
                 remotes: match (&enrichment.remote_url, &enrichment.remote_transport) {
@@ -383,6 +384,7 @@ pub async fn fetch_mcp_curated(
                 oauth_pre_registered_client_id_env: enrichment
                     .oauth_pre_registered_client_id_env
                     .clone(),
+                examples: enrichment.examples.clone(),
             }),
             is_installed: installed_names.contains(&enrichment.package_identifier)
                 || installed_names.contains(&name),

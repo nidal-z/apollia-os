@@ -42,6 +42,14 @@ pub struct VariantUpdate {
     pub latest_tag: String,
     /// True when a tag is installed and the manifest offers a newer one.
     pub update_available: bool,
+    /// Size in bytes of the archive of the newest build, as the verified
+    /// manifest states it: what installing or updating downloads.
+    pub size: u64,
+    /// Day the newest build was published, `YYYY-MM-DD`, when the manifest
+    /// states it.
+    pub latest_released: Option<String>,
+    /// Day the installed build was published, when its manifest stated it.
+    pub installed_released: Option<String>,
 }
 
 /// Compare what is installed with a verified manifest, per variant offered
@@ -54,16 +62,19 @@ pub fn updates(root: &Path, manifest: &Manifest, platform: &str) -> Vec<VariantU
             let Some(latest) = manifest.newest(engine, variant, platform) else {
                 continue;
             };
-            let installed = newest_installed(root, engine, variant).map(|p| p.tag);
+            let installed = newest_installed(root, engine, variant);
             let update_available = installed
-                .as_deref()
-                .is_some_and(|tag| compare_tags(&latest.tag, tag) == std::cmp::Ordering::Greater);
+                .as_ref()
+                .is_some_and(|p| compare_tags(&latest.tag, &p.tag) == std::cmp::Ordering::Greater);
             out.push(VariantUpdate {
                 engine,
                 variant,
-                installed_tag: installed,
+                installed_released: installed.as_ref().and_then(|p| p.released.clone()),
+                installed_tag: installed.map(|p| p.tag),
                 latest_tag: latest.tag.clone(),
                 update_available,
+                size: latest.size,
+                latest_released: latest.released.clone(),
             });
         }
     }
@@ -184,7 +195,13 @@ pub async fn install_package(
 }
 
 /// [`install_package`], calling `progress(received, total)` as the archive
-/// arrives, `total` being the size the verified manifest states.
+/// arrives, `total` being the size the verified manifest states. The first
+/// call, `progress(0, total)`, is made once the manifest signature held and
+/// before the archive is requested: nothing is called while the signature is
+/// still being verified, nor when it is refused.
+///
+/// The archive being received is deleted however the download ends, a
+/// dropped future included.
 ///
 /// # Errors
 ///
@@ -215,14 +232,20 @@ pub async fn install_package_with_progress(
         .await
         .map_err(io(&downloads))?;
     let file_name = archive_file_name(&package);
-    let archive_path = downloads.join(&file_name);
-    let result = download(&client(&url)?, &url, &archive_path, &package, &progress).await;
-    let outcome = match result {
-        Ok(()) => install_verified_archive(store, &package, &archive_path, Source::Downloaded),
-        Err(e) => Err(e),
-    };
-    let _ = tokio::fs::remove_file(&archive_path).await;
-    outcome
+    let archive = PartialArchive(downloads.join(&file_name));
+    progress(0, package.size);
+    download(&client(&url)?, &url, &archive.0, &package, &progress).await?;
+    install_verified_archive(store, &package, &archive.0, Source::Downloaded)
+}
+
+/// An archive being received, deleted when the download ends: installed,
+/// refused, or dropped because its task was cancelled.
+struct PartialArchive(PathBuf);
+
+impl Drop for PartialArchive {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 fn archive_file_name(package: &Package) -> String {
@@ -323,6 +346,7 @@ fn install_verified_archive(
         platform: package.platform.clone(),
         sha256: package.sha256.clone(),
         source,
+        released: package.released.clone(),
         path: final_dir.clone(),
     };
     let record_bytes =
@@ -365,6 +389,20 @@ pub fn import_from_dir(
     store: &EngineStore,
     dir: &Path,
 ) -> Result<Vec<InstalledPackage>, EngineStoreError> {
+    import_from_dir_with_progress(store, dir, || {})
+}
+
+/// [`import_from_dir`], calling `verified()` once the manifest signature held
+/// and before any archive of the directory is read.
+///
+/// # Errors
+///
+/// Those of [`import_from_dir`].
+pub fn import_from_dir_with_progress(
+    store: &EngineStore,
+    dir: &Path,
+    verified: impl FnOnce(),
+) -> Result<Vec<InstalledPackage>, EngineStoreError> {
     let manifest_path = dir.join(MANIFEST_FILE);
     let signature_path = dir.join(SIGNATURE_FILE);
     let bytes = read_capped(&manifest_path)?;
@@ -379,6 +417,7 @@ pub fn import_from_dir(
         .map_err(|source| EngineStoreError::Signature { source })?;
     let manifest = Manifest::parse(&bytes)?;
     accept_sequence(&store.root, &manifest)?;
+    verified();
     let mut installed = Vec::new();
     for package in manifest
         .packages

@@ -12,6 +12,8 @@ pub mod agent_export;
 pub mod agent_packages;
 pub mod agent_sheet;
 pub mod agents;
+pub mod ai_model_detail;
+pub mod ai_models;
 pub mod artifacts;
 pub mod authorizations;
 #[cfg(debug_assertions)]
@@ -23,7 +25,10 @@ pub mod chat;
 pub mod cli;
 pub mod config;
 pub mod connections;
+pub mod documentation;
 pub mod embeddings;
+pub mod engine_installation;
+pub mod example_dataset;
 pub mod hardware_window;
 pub mod hf_token;
 pub mod hitl;
@@ -31,8 +36,12 @@ pub mod integrations;
 pub mod journal;
 pub mod link_preview;
 pub mod llm;
+pub mod llm_load;
 pub mod llm_loaded;
+pub mod llm_residency;
 pub mod llm_servers;
+pub mod local_server;
+pub mod logs_window;
 pub mod mcp;
 pub mod mcp_bridge;
 pub mod mcp_coaching;
@@ -53,6 +62,9 @@ pub mod package_files;
 pub mod plan_mode;
 pub mod project_migration;
 pub mod recommend;
+pub mod server_logs;
+pub mod server_tokens;
+pub mod sources;
 pub mod stt;
 pub mod tasks;
 pub mod tool_governance;
@@ -102,6 +114,43 @@ pub(crate) fn set_api_token(token: String) {
 /// The `Authorization` header value for bridge requests, when a token is set.
 fn bridge_auth_header() -> Option<String> {
     API_TOKEN.get().map(|t| format!("Bearer {t}"))
+}
+
+/// Upper bound on the body of a refused stream: an error message.
+const STREAM_REFUSAL_BYTES: u64 = 64 * 1024;
+
+/// Opens an open-ended SSE stream of the internal REST API at `path`, query
+/// included. The answer is the body, read frame by frame by the caller; a
+/// refusal is the runtime's own message.
+pub(crate) async fn http_open_stream(port: u16, path: &str) -> Result<reqwest::Response, String> {
+    let client = apollia_core::net::loopback_client_builder()
+        .build()
+        .map_err(|e| format!("failed to build the stream client: {e}"))?;
+    let mut request = client
+        .get(format!("http://127.0.0.1:{port}{path}"))
+        .header(reqwest::header::ACCEPT, "text/event-stream");
+    if let Some(auth) = bridge_auth_header() {
+        request = request.header(reqwest::header::AUTHORIZATION, auth);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
+    let status = response.status();
+    if status.is_success() {
+        return Ok(response);
+    }
+    let message =
+        apollia_core::net::read_capped_json::<serde_json::Value>(response, STREAM_REFUSAL_BYTES)
+            .await
+            .ok()
+            .and_then(|body| {
+                body.get("error")
+                    .and_then(|e| e.as_str())
+                    .map(str::to_owned)
+            })
+            .unwrap_or_else(|| format!("runtime API answered {status}"));
+    Err(message)
 }
 
 /// Sends a GET request to the internal REST API on `localhost:{port}` and
@@ -157,9 +206,8 @@ pub(crate) async fn http_get_json(port: u16, path: &str) -> Result<serde_json::V
 
 /// Sends a POST request with a JSON body to the internal REST API.
 ///
-/// Used to register an installed agent, for `resume_task`, and for the
-/// graceful shutdown via the tray, which need complex operations handled by
-/// the REST handlers.
+/// Used to register an installed agent and for the graceful shutdown via the
+/// tray, which need complex operations handled by the REST handlers.
 pub(crate) async fn http_post_json(
     port: u16,
     path: &str,
@@ -293,14 +341,53 @@ async fn http_request_json(
     path: &str,
     body: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
+    http_request_refusable(port, method, path, body)
+        .await
+        .map_err(|failure| failure.message)
+}
+
+/// Why a request to the internal REST API did not return its JSON.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HttpFailure {
+    /// The HTTP status of a refusal; `None` when no answer was read.
+    pub(crate) status: Option<u16>,
+    /// The text the interface shows.
+    pub(crate) message: String,
+}
+
+impl HttpFailure {
+    fn unanswered(message: String) -> Self {
+        Self {
+            status: None,
+            message,
+        }
+    }
+}
+
+/// `POST path` with a JSON body, for a caller that tells one refusal from
+/// another by its HTTP status.
+pub(crate) async fn http_post_json_refusable(
+    port: u16,
+    path: &str,
+    body: &serde_json::Value,
+) -> Result<serde_json::Value, HttpFailure> {
+    http_request_refusable(port, "POST", path, Some(body)).await
+}
+
+async fn http_request_refusable(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<&serde_json::Value>,
+) -> Result<serde_json::Value, HttpFailure> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
-        .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
+        .map_err(|e| HttpFailure::unanswered(format!("failed to connect to runtime API: {e}")))?;
 
     let io = TokioIo::new(stream);
     let (mut sender, conn) = http1::handshake(io)
         .await
-        .map_err(|e| format!("HTTP handshake failed: {e}"))?;
+        .map_err(|e| HttpFailure::unanswered(format!("HTTP handshake failed: {e}")))?;
 
     tokio::spawn(async move {
         let _ = conn.await;
@@ -308,8 +395,8 @@ async fn http_request_json(
 
     let auth = bridge_auth_header();
     let req = if let Some(json_body) = body {
-        let body_bytes =
-            serde_json::to_vec(json_body).map_err(|e| format!("failed to serialize body: {e}"))?;
+        let body_bytes = serde_json::to_vec(json_body)
+            .map_err(|e| HttpFailure::unanswered(format!("failed to serialize body: {e}")))?;
         let mut builder = hyper::Request::builder()
             .method(method)
             .uri(path)
@@ -320,7 +407,7 @@ async fn http_request_json(
         }
         builder
             .body(Full::new(Bytes::from(body_bytes)))
-            .map_err(|e| format!("failed to build request: {e}"))?
+            .map_err(|e| HttpFailure::unanswered(format!("failed to build request: {e}")))?
     } else {
         let mut builder = hyper::Request::builder()
             .method(method)
@@ -331,20 +418,20 @@ async fn http_request_json(
         }
         builder
             .body(Full::new(Bytes::new()))
-            .map_err(|e| format!("failed to build request: {e}"))?
+            .map_err(|e| HttpFailure::unanswered(format!("failed to build request: {e}")))?
     };
 
     let resp = sender
         .send_request(req)
         .await
-        .map_err(|e| format!("request failed: {e}"))?;
+        .map_err(|e| HttpFailure::unanswered(format!("request failed: {e}")))?;
 
     let status = resp.status();
     let resp_bytes = resp
         .into_body()
         .collect()
         .await
-        .map_err(|e| format!("failed to read response body: {e}"))?
+        .map_err(|e| HttpFailure::unanswered(format!("failed to read response body: {e}")))?
         .to_bytes();
     let body_str = String::from_utf8_lossy(&resp_bytes);
 
@@ -353,12 +440,16 @@ async fn http_request_json(
             .ok()
             .and_then(|j| j.get("error").and_then(|e| e.as_str()).map(String::from))
             .unwrap_or_else(|| format!("API error ({}): {}", status.as_u16(), body_str));
-        return Err(error_msg);
+        return Err(HttpFailure {
+            status: Some(status.as_u16()),
+            message: error_msg,
+        });
     }
 
     // A route that answers `204 No Content` has nothing to parse.
     if resp_bytes.is_empty() {
         return Ok(serde_json::Value::Null);
     }
-    serde_json::from_str(&body_str).map_err(|e| format!("invalid JSON response: {e}"))
+    serde_json::from_str(&body_str)
+        .map_err(|e| HttpFailure::unanswered(format!("invalid JSON response: {e}")))
 }

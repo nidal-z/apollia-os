@@ -4,10 +4,12 @@
    *
    * Self-contained: on open it starts the loopback flow, listens for the
    * `oauth://code-ready` / `oauth://error` events, and on success (Google)
-   * advances to the Drive-folder step. Uses the canonical `Dialog` (bits-ui
+   * advances to the Drive-folder step; then, when the parent can try it, to
+   * the account added and its "Try". Uses the canonical `Dialog` (bits-ui
    * focus trap + portal), not a hand-rolled overlay.
    */
   import { t } from "svelte-i18n";
+  import { CircleCheck, Play } from "lucide-svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Banner } from "$lib/components/ui/banner";
@@ -36,9 +38,11 @@
     oncompleted: () => void;
     /** Bring the connection's OAuth client into view, on its page. */
     onopenclient: (provider: ProviderId) => void;
+    /** "Try" the account just connected. */
+    ontry?: (provider: ProviderId, accountId: string) => void;
   }
 
-  let { open, provider, onclose, oncompleted, onopenclient }: Props = $props();
+  let { open, provider, onclose, oncompleted, onopenclient, ontry }: Props = $props();
 
   let authUrl = $state<string | null>(null);
   let flowState = $state<string | null>(null);
@@ -51,7 +55,7 @@
   let errorIsMissingSecret = $state(false);
   let busy = $state(false);
   let awaitingCallback = $state(false);
-  let step = $state<"auth" | "drive_folder">("auth");
+  let step = $state<"auth" | "drive_folder" | "done">("auth");
   let connectedAccountId = $state<string | null>(null);
   let driveFolderDraft = $state("");
   let driveFolderSaving = $state(false);
@@ -66,8 +70,23 @@
   const dialogTitle = $derived(
     step === "drive_folder"
       ? $t("connections.oauth_drive_folder_title")
-      : $t("connections.oauth_connect_title", { values: { provider: providerName } }),
+      : step === "done"
+        ? $t("connections.try.native_added_title", { values: { provider: providerShort } })
+        : $t("connections.oauth_connect_title", { values: { provider: providerName } }),
   );
+
+  /** The flow is over: the account added and its "Try" when offered, else closed. */
+  function finish(): void {
+    if (ontry && connectedAccountId) step = "done";
+    else close();
+  }
+
+  function tryAccount(): void {
+    const target = provider;
+    const account = connectedAccountId;
+    close();
+    if (target && account) ontry?.(target, account);
+  }
 
   async function clearListeners(): Promise<void> {
     const fns = unlistenFns;
@@ -164,12 +183,12 @@
     try {
       const result = await oauthCompleteFlow(flowState, pastedCode.trim());
       oncompleted();
+      connectedAccountId = result.account_id;
       if (result.provider === "google") {
-        connectedAccountId = result.account_id;
         driveFolderDraft = "Apollia";
         step = "drive_folder";
       } else {
-        close();
+        finish();
       }
     } catch (e) {
       error = formatTauriError(e, $t);
@@ -187,7 +206,7 @@
     driveFolderError = null;
     try {
       await oauthSetDriveFolder(connectedAccountId, driveFolderDraft.trim());
-      close();
+      finish();
     } catch (e) {
       driveFolderError = formatTauriError(e, $t);
     } finally {
@@ -219,10 +238,24 @@
 </script>
 
 <Dialog {open} onclose={close} size="sm" title={dialogTitle} data-testid="oauth-dialog">
-  {#if step === "drive_folder"}
+  {#if step === "done"}
+    <p class="flex items-center gap-2 text-body-sm text-foreground" data-testid="oauth-done">
+      <CircleCheck size={14} class="shrink-0 text-success" aria-hidden="true" />
+      {$t("connections.try.native_added_body", { values: { account: connectedAccountId ?? "" } })}
+    </p>
+    <div class="mt-4 flex justify-end gap-2">
+      <Button variant="outline" size="sm" onclick={tryAccount} data-testid="oauth-done-try">
+        {#snippet icon()}<Play size={12} />{/snippet}
+        {$t("connections.try.action")}
+      </Button>
+      <Button variant="primary-solid" size="sm" onclick={close} data-testid="oauth-done-close">
+        {$t("connections.try.done")}
+      </Button>
+    </div>
+  {:else if step === "drive_folder"}
     <OauthDriveFolderStep bind:draft={driveFolderDraft} saving={driveFolderSaving} error={driveFolderError} />
     <div class="mt-4 flex justify-end gap-2">
-      <Button variant="ghost" size="sm" onclick={close} disabled={driveFolderSaving}>
+      <Button variant="ghost" size="sm" onclick={finish} disabled={driveFolderSaving}>
         {$t("connections.keep_default")}
       </Button>
       <Button

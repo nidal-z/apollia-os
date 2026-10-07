@@ -70,7 +70,7 @@ the seed's exact row counts, so a fixture change is a suite change.
 `apollia-runner` exposes `local-cuda`, `local-metal` and `local-rocm`, which
 turn on three mutually exclusive `whisper-rs` backends at once. CI omits it for
 the same reason (`ci.yml`), and the feature matrix is exercised in
-`nightly.yml`.
+`weekly.yml`.
 
 The desktop UI is covered by Vitest unit tests and by Playwright suites under
 `crates/apollia-desktop/ui/tests/`. There is no WebDriver for WKWebView on

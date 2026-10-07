@@ -115,9 +115,13 @@ const ENGINES: EnginesResponse = {
       installed_tag: "b7001",
       latest_tag: "b7100",
       update_available: true,
+      size: 0,
+      latest_released: null,
+      installed_released: null,
     },
   ],
   cuda_proposable: false,
+  nvidia_card: null,
   dictation: null,
 };
 

@@ -1505,7 +1505,7 @@ mod tests {
             "http://localhost:11434/v1",
             "http://127.0.0.1:11434/v1",
             "http://192.168.1.20:11434/v1",
-            "http://mac-studio.local:11434/v1",
+            "http://inference-box.local:11434/v1",
         ] {
             assert_eq!(
                 infer_api_provider_from_url(url),

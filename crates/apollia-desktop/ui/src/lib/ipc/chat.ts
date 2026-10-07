@@ -14,6 +14,7 @@ import type {
   ChatModelCapabilities,
   ChatSessionDetail,
   ConversationStatsView,
+  SessionSettings,
   UpdateSessionRequest,
 } from "$lib/types";
 
@@ -41,9 +42,25 @@ export function sendChatMessage(
   return invoke<string>("send_chat_message", { sessionId, content, images, documents });
 }
 
-/** What the model of a conversation can do: images and their formats. */
+/** What the model of a conversation can do: its reasoning setting, images. */
 export function getChatModelCapabilities(sessionId: string): Promise<ChatModelCapabilities> {
   return invoke<ChatModelCapabilities>("get_chat_model_capabilities", { sessionId });
+}
+
+/** What a conversation changes from its agent: only the fields it sets. */
+export function getChatSessionSettings(sessionId: string): Promise<SessionSettings> {
+  return invoke<SessionSettings>("get_chat_session_settings", { sessionId });
+}
+
+/**
+ * Replace the settings of a conversation; resolves with them as stored. They
+ * hold for the turns that follow, in this conversation alone.
+ */
+export function setChatSessionSettings(
+  sessionId: string,
+  settings: SessionSettings,
+): Promise<SessionSettings> {
+  return invoke<SessionSettings>("set_chat_session_settings", { sessionId, settings });
 }
 
 /** One stored image of a conversation, by the file name its message lists. */
@@ -70,6 +87,44 @@ export function editAndResendChatMessage(
     messageId,
     content,
   });
+}
+
+/** Whether the last answer of a conversation can be continued, and why not. */
+export interface ChatContinuation {
+  available: boolean;
+  reason: "engine" | "agent" | "no_model" | null;
+}
+
+/**
+ * Branch off into a new conversation holding the messages up to and including
+ * `messageId`; resolves with the id of the new conversation.
+ */
+export function forkChatSession(sessionId: string, messageId: string): Promise<string> {
+  return invoke<string>("fork_chat_session", { sessionId, messageId });
+}
+
+/** Whether the model of the conversation continues its last answer. */
+export function getChatContinuation(sessionId: string): Promise<ChatContinuation> {
+  return invoke<ChatContinuation>("get_chat_continuation", { sessionId });
+}
+
+/** Continue `messageId`, the last answer; the rest streams as an answer does. */
+export function continueChatResponse(sessionId: string, messageId: string): Promise<void> {
+  return invoke<void>("continue_chat_response", { sessionId, messageId });
+}
+
+/** Replace the text of an answer in place; no turn is played again. */
+export function editChatResponse(
+  sessionId: string,
+  messageId: string,
+  content: string,
+): Promise<void> {
+  return invoke<void>("edit_chat_response", { sessionId, messageId, content });
+}
+
+/** Remove a message and, for an answer, the steps of its turn. */
+export function deleteChatMessage(sessionId: string, messageId: string): Promise<void> {
+  return invoke<void>("delete_chat_message", { sessionId, messageId });
 }
 
 /** Write an exported conversation to `destPath` with the given MIME type. */

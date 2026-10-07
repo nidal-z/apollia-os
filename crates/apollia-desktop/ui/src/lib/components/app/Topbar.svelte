@@ -2,21 +2,21 @@
   /**
    * Topbar - V3 Operator cockpit header.
    *
-   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [Downloads] [Activity] [Settings] [Help] [Detail sidebar] [UserMenu]
+   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [Downloads] [Help] [Detail sidebar] [UserMenu]
    */
   import { t } from "svelte-i18n";
   import {
     CircleHelp,
     Menu,
+    PanelLeft,
     PanelRight,
     Search,
-    ShieldCheck,
-    Settings as SettingsIcon,
   } from "lucide-svelte";
   import { detailSidebar, guideVisible } from "$lib/stores/detailSidebar";
+  import { navPosition } from "$lib/stores/chatAppearance";
   import { onboardingModalOpen } from "$lib/stores/onboarding";
   import { zLayer } from "$lib/design/tokens";
-  import { navigateTo } from "$lib/stores/navigation";
+  import { keycapsFor } from "$lib/navigation/shortcuts";
   import { commandPaletteOpen } from "$lib/stores/commandPalette";
   import { sidebarState, layoutActions } from "$lib/stores/layout";
   import { runningTasks } from "$lib/stores/tasks";
@@ -39,6 +39,9 @@
   }
 
   const agentsAtWork = $derived($runningTasks.length);
+
+  // The keys that open the palette on this system.
+  const paletteKeys = keycapsFor("palette.open");
 </script>
 
 <header
@@ -75,9 +78,10 @@
     >
       <Search size={13} strokeWidth={1.75} class="flex-shrink-0" />
       <span class="flex-1 truncate">{$t("topbar.search.placeholder")}</span>
-      <kbd class="hidden items-center gap-0.5 text-overline sm:flex">
-        <span class="v4-hair rounded border bg-muted px-1 py-px">⌘</span>
-        <span class="v4-hair rounded border bg-muted px-1 py-px">K</span>
+      <kbd class="hidden items-center gap-0.5 text-overline sm:flex" data-testid="topbar-search-shortcut">
+        {#each paletteKeys as key (key)}
+          <span class="v4-hair rounded border bg-muted px-1 py-px">{key}</span>
+        {/each}
       </kbd>
     </button>
   </div>
@@ -96,28 +100,6 @@
     {/if}
 
     <DownloadsPanel />
-
-    <button
-      type="button"
-      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-      onclick={() => navigateTo("inbox")}
-      aria-label={$t("nav.inbox")}
-      data-testid="topbar-inbox"
-      title={$t("nav.inbox")}
-    >
-      <ShieldCheck size={14} strokeWidth={1.5} />
-    </button>
-
-    <button
-      type="button"
-      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-      onclick={() => navigateTo("settings")}
-      aria-label={$t("nav.settings")}
-      data-testid="topbar-settings"
-      title={$t("nav.settings")}
-    >
-      <SettingsIcon size={14} strokeWidth={1.5} />
-    </button>
 
     <button
       type="button"
@@ -142,7 +124,11 @@
       data-testid="topbar-detail-sidebar-toggle"
       title={$t("topbar.detail_sidebar_aria")}
     >
-      <PanelRight size={14} strokeWidth={1.5} />
+      {#if $navPosition === "right"}
+        <PanelLeft size={14} strokeWidth={1.5} />
+      {:else}
+        <PanelRight size={14} strokeWidth={1.5} />
+      {/if}
     </button>
 
     <UserMenu />

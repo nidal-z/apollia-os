@@ -9,7 +9,7 @@
     "url": "https://github.com/Apollia-OS/apollia-os.git",
     "directory": "crates/apollia-desktop/ui"
   },
-  "author": "Nidal Zoumita <admin@apollia.fr>",
+  "author": "Apollia <contact@apollia.fr>",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

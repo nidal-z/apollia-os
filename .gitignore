@@ -64,6 +64,7 @@ crates/apollia-desktop/python/*
 # Windows build so the loader finds it (see bundle-cli.sh for why).
 crates/apollia-desktop/python313.dll
 crates/apollia-desktop/apollia-os
+crates/apollia-desktop/apollia-os.exe
 
 # Dev-only automation harness output (screenshots + report.json)
 /.apollia-automation/
@@ -111,10 +112,6 @@ CLAUDE.md
 # Python bundle cache (packaging)
 /target/python-bundle/
 
-# SonarQube local scan artifacts.
-/.sonar/
-/.scannerwork/
-
 # Agents that are not part of the public tree. Their sources of truth live in a
 # separate private repository. These patterns are belt-and-suspenders: the
 # physical move keeps them off the working tree, the entries below catch
@@ -153,17 +150,14 @@ CLAUDE.md
 /docs/adr/
 /docs/Decisions-Log.md
 
-# Public roadmap. Held back until it is stable enough to be a commitment rather
-# than a sketch: a roadmap that moves every month costs more trust than it buys.
-/ROADMAP.md
-
 # Assistant and browser-automation scratch output.
 /.playwright-mcp/
 /notes/
 /llm.txt
 
-# cargo-mutants configuration. Mutation testing is a development practice, not
-# part of building or using the product.
+# A cargo-mutants configuration kept at the repository root for local runs.
+# cargo-mutants reads `.cargo/mutants.toml` and never this path, and the weekly
+# mutation job passes its whole scope on the command line.
 /mutants.toml
 
 # Prebuilt STT runner binaries staged for local desktop dev. Opaque
@@ -193,6 +187,7 @@ sdk/build/
 
 # Throwaway seeded data ecosystem for automation verification (build-seed.sh)
 .apollia-seed-home/
+.apollia-first-run-home/
 
 # CLI E2E suite report output (regenerated each run)
 tests/cli/report/

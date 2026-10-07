@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Every download the tree performs is verified against a pinned sha256 sum.
 
-Four surfaces are held to the same rule:
+Five surfaces are held to the same rule:
 
   1. The llama-server assets: every asset `packaging/fetch-llama-server.sh`
      can select carries a 64-hex sum in `packaging/llama-server-checksums.txt`
@@ -18,7 +18,12 @@ Four surfaces are held to the same rule:
      own pip. The MLX engine set names none of its excluded packages
      (MLX_EXCLUDED) and is installed with `--no-deps`, so an excluded package
      cannot come back through the closure.
-  4. The workflow `run:` blocks: a step that downloads with wget, curl or
+  4. The engine channel: every source of every package pinned in
+     `packaging/engine-sources.json` is an https address with a 64-hex sum,
+     no archive is pinned twice with two sums, and
+     `packaging/build-engine-manifest.py`, which publishes them under a
+     signed manifest, reads that file and compares each digest to its pin.
+  5. The workflow `run:` blocks: a step that downloads with wget, curl or
      Invoke-WebRequest either verifies a sha256 in the same step or sits on
      the named exemption list below, which only ever shrinks.
 
@@ -34,6 +39,7 @@ subject is unreadable (nothing measured, which is not a pass).
 """
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -57,6 +63,8 @@ MLX_BUILD = "packaging/build-mlx-engine.sh"
 # is GPL-3.0 and only serves the embeddings endpoint; the engine set is
 # installed with --no-deps so that leaving it out holds.
 MLX_EXCLUDED = ("mlx-embeddings",)
+ENGINE_SOURCES = "packaging/engine-sources.json"
+ENGINE_BUILD = "packaging/build-engine-manifest.py"
 WORKFLOW_DIR = ".github/workflows"
 SCRIPT_DIRS = ("packaging", "crates/apollia-desktop/scripts")
 
@@ -68,8 +76,8 @@ SCRIPT_DIRS = ("packaging", "crates/apollia-desktop/scripts")
 # entry left with the step it named when the release dropped that preset.
 EXEMPT_WORKFLOW_STEPS = {
     ("release.yml", "Install Vulkan SDK (Linux)"),
-    ("nightly.yml", "Install ROCm"),
-    ("nightly.yml", "Install Vulkan SDK"),
+    ("weekly.yml", "Install ROCm"),
+    ("weekly.yml", "Install Vulkan SDK"),
 }
 
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
@@ -408,6 +416,58 @@ def check_workflows(
     return problems
 
 
+def check_engine_sources(sources_path: Path, script_path: Path) -> int:
+    """The archives the engine channel is published from are all pinned."""
+    print("engine channel: pinned upstream archives")
+    text = _read(sources_path)
+    script = _read(script_path)
+    if text is None or script is None:
+        sys.exit(2)
+    try:
+        packages = json.loads(text).get("packages")
+    except json.JSONDecodeError as err:
+        print(f"unreadable {sources_path.name}: {err}", file=sys.stderr)
+        sys.exit(2)
+    if not isinstance(packages, list) or not packages:
+        print(f"no package in {sources_path.name}", file=sys.stderr)
+        sys.exit(2)
+    problems = 0
+    sums: dict[str, str] = {}
+    for package in packages:
+        label = "{} {} {} {}".format(
+            package.get("engine"), package.get("tag"),
+            package.get("variant"), package.get("platform"),
+        )
+        sources = package.get("sources") or []
+        if not sources:
+            print(f"  GAP    {label}: no source")
+            problems += 1
+        for source in sources:
+            url = str(source.get("url", ""))
+            pinned = str(source.get("sha256", ""))
+            if not url.startswith("https://"):
+                print(f"  GAP    {label}: {url or '(no address)'} is not https")
+                problems += 1
+            elif not SHA256_HEX.fullmatch(pinned):
+                print(f"  GAP    {label}: {url}  no 64-hex sum")
+                problems += 1
+            elif sums.setdefault(url, pinned) != pinned:
+                print(f"  GAP    {label}: {url} is pinned with two different sums")
+                problems += 1
+            else:
+                print(f"  ok     {label:44s} {url.rsplit('/', 1)[-1]}")
+    body = "\n".join(
+        line for line in script.splitlines() if not line.lstrip().startswith("#")
+    )
+    if sources_path.name not in body or "differs from the pinned" not in body:
+        print(
+            f"  GAP    {script_path.name} does not read {sources_path.name} "
+            "and refuse a digest that differs from its pin"
+        )
+        problems += 1
+    return problems
+
+
 def check_fetch_scripts(root: Path, dirs: tuple[str, ...]) -> int:
     print("shell scripts: every downloading script names a sums verification")
     problems = 0
@@ -626,6 +686,52 @@ def selftest() -> int:
             check_requirements(req, other_build) > 0,
         )
 
+        engine_script = tmp / "build-engine-manifest.py"
+        engine_script.write_text(
+            'SOURCES = "engine-sources.json"\n'
+            'raise SystemExit("sha256 differs from the pinned one")\n',
+            encoding="utf-8",
+        )
+        engine_pins = tmp / "engine-sources.json"
+
+        def engine_pin(url: str, pinned: str) -> None:
+            engine_pins.write_text(
+                json.dumps(
+                    {
+                        "packages": [
+                            {
+                                "engine": "llama-server", "tag": "b1",
+                                "variant": "cuda", "platform": "linux-x64",
+                                "sources": [{"url": url, "sha256": pinned}],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+        engine_pin("https://example.invalid/a.zip", "a" * 64)
+        control(
+            "a pinned engine source passes",
+            check_engine_sources(engine_pins, engine_script) == 0,
+        )
+        engine_pin("https://example.invalid/a.zip", "")
+        control(
+            "an engine source without a sum is a gap",
+            check_engine_sources(engine_pins, engine_script) > 0,
+        )
+        engine_pin("http://example.invalid/a.zip", "a" * 64)
+        control(
+            "an engine source over plain http is a gap",
+            check_engine_sources(engine_pins, engine_script) > 0,
+        )
+        engine_pin("https://example.invalid/a.zip", "a" * 64)
+        engine_script.write_text("# engine-sources.json\n", encoding="utf-8")
+        control(
+            "a publication script that compares no digest is a gap",
+            check_engine_sources(engine_pins, engine_script) > 0,
+        )
+
         wf = tmp / "workflows"
         wf.mkdir()
         (wf / "fixture.yml").write_text(
@@ -686,6 +792,9 @@ def main() -> int:
         REPO_ROOT / MLX_BUILD,
         pip_pinned_by=REPO_ROOT / BUNDLE_BUILD,
         excluded=MLX_EXCLUDED,
+    )
+    problems += check_engine_sources(
+        REPO_ROOT / ENGINE_SOURCES, REPO_ROOT / ENGINE_BUILD
     )
     problems += check_workflows(REPO_ROOT / WORKFLOW_DIR, EXEMPT_WORKFLOW_STEPS)
     problems += check_fetch_scripts(REPO_ROOT, SCRIPT_DIRS)

@@ -13,7 +13,10 @@ use std::path::{Path, PathBuf};
 use apollia_core::paths::DataFile;
 use apollia_core::{LlmBackendRepository, SttConfigRepository};
 use apollia_llm::model_index::INDEX_FILE_NAME;
-use apollia_llm::{IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelIndexError};
+use apollia_llm::recommend::EmbeddingCatalogue;
+use apollia_llm::{
+    IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelIndexError, ModelOrigin,
+};
 use serde::Serialize;
 
 /// Why the installed models could not be listed, or one of them removed.
@@ -86,6 +89,17 @@ pub struct InstalledModelView {
     /// What the model can do, vision included only when the engine can read
     /// an image for it. `None` until the index has been rebuilt by this build.
     pub capabilities: Option<apollia_llm::Capabilities>,
+    /// The page the model was downloaded from; `None` for a model imported
+    /// from a disk, whose origin is unknown.
+    pub source_url: Option<String>,
+    /// The entry of the embeddings registry this file is, by digest or by
+    /// file name; `None` outside the embeddings category, and for a file the
+    /// registry does not list.
+    pub embedding_entry: Option<String>,
+    /// Whether this is the language model the machine chats with by default.
+    pub default_chat: bool,
+    /// Whether this is the embeddings model search by meaning uses.
+    pub default_search: bool,
 }
 
 /// A model file referenced by the active configuration.
@@ -206,7 +220,50 @@ pub fn used_by(file: &Path, refs: &[ModelRef]) -> Option<String> {
 /// [`InstalledModelError::Index`] when the index can be neither read nor
 /// built.
 pub fn list(data_dir: &Path) -> Result<Vec<InstalledModelView>, InstalledModelError> {
-    list_in(&models_dir(data_dir), &in_use_refs(data_dir))
+    let mut models = list_in(&models_dir(data_dir), &in_use_refs(data_dir))?;
+    let search = crate::embeddings::default_model(data_dir).unwrap_or_else(|e| {
+        tracing::event!(
+            tracing::Level::WARN,
+            error = %e,
+            "model.installed.search_default_unread"
+        );
+        None
+    });
+    mark_defaults(
+        &mut models,
+        default_chat_path(data_dir).as_deref(),
+        search.as_deref(),
+    );
+    Ok(models)
+}
+
+/// The file of the local language model the machine chats with by default:
+/// the default backend row when it runs on the local engine. An unreadable
+/// database names none, as [`in_use_refs`] reads none.
+pub fn default_chat_path(data_dir: &Path) -> Option<PathBuf> {
+    let repo = LlmBackendRepository::open(&DataFile::System.path(data_dir)).ok()?;
+    repo.list()
+        .ok()?
+        .into_iter()
+        .find(|cfg| cfg.is_default && cfg.provider == apollia_core::LlmProvider::LlamaCpp)
+        .map(|cfg| PathBuf::from(cfg.model))
+}
+
+/// Mark the model the machine chats with by default (`chat_path`) and the
+/// embeddings model search uses (`search_entry`, an entry of the registry).
+pub fn mark_defaults(
+    models: &mut [InstalledModelView],
+    chat_path: Option<&Path>,
+    search_entry: Option<&str>,
+) {
+    for model in models.iter_mut() {
+        model.default_chat = matches!(
+            model.category,
+            ModelCategory::Language | ModelCategory::Draft
+        ) && chat_path.is_some_and(|p| Path::new(&model.path) == p);
+        model.default_search =
+            model.embedding_entry.is_some() && model.embedding_entry.as_deref() == search_entry;
+    }
 }
 
 /// The installed models of the folder `dir`, read from its model index.
@@ -220,16 +277,44 @@ pub fn list_in(
     refs: &[ModelRef],
 ) -> Result<Vec<InstalledModelView>, InstalledModelError> {
     let index = current(dir)?;
+    let registry = EmbeddingCatalogue::embedded().ok();
     let mut out: Vec<InstalledModelView> = index
         .models
         .iter()
-        .map(|model| installed_view(model, refs))
+        .map(|model| installed_view(model, refs, registry.as_ref()))
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(out)
 }
 
-fn installed_view(model: &IndexedModel, refs: &[ModelRef]) -> InstalledModelView {
+/// The registry entry `model` is: the one carrying its digest, else the one
+/// carrying its file name, as the search engine finds its file.
+fn embedding_entry(model: &IndexedModel, registry: Option<&EmbeddingCatalogue>) -> Option<String> {
+    if model.effective_category() != ModelCategory::Embeddings {
+        return None;
+    }
+    let registry = registry?;
+    let by_digest = model.sha256.as_deref().and_then(|d| registry.by_sha256(d));
+    let by_name = || {
+        let name = model.path.file_name()?;
+        registry.models().iter().find(|e| name == e.file.as_str())
+    };
+    by_digest.or_else(by_name).map(|e| e.id.clone())
+}
+
+/// The page of the repository a catalogue model was downloaded from.
+fn source_url(origin: &ModelOrigin) -> Option<String> {
+    match origin {
+        ModelOrigin::Catalog { repo, .. } => Some(format!("https://huggingface.co/{repo}")),
+        ModelOrigin::Import => None,
+    }
+}
+
+fn installed_view(
+    model: &IndexedModel,
+    refs: &[ModelRef],
+    registry: Option<&EmbeddingCatalogue>,
+) -> InstalledModelView {
     let category = model.effective_category();
     let kind = match category {
         ModelCategory::Dictation => InstalledModelKind::Stt,
@@ -255,6 +340,10 @@ fn installed_view(model: &IndexedModel, refs: &[ModelRef]) -> InstalledModelView
         in_use: owner.is_some(),
         used_by: owner,
         capabilities: model.capabilities.clone(),
+        source_url: source_url(&model.origin),
+        embedding_entry: embedding_entry(model, registry),
+        default_chat: false,
+        default_search: false,
     }
 }
 

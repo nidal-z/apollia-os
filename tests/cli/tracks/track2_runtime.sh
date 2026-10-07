@@ -94,7 +94,6 @@ check_exit    "tools show inexistant → 1"  1       "${Q[@]}" tools show inexis
 check         "tools config get bash_executor"     "${Q[@]}" tools config get bash_executor
 check_exit    "tools config set (unknown key) → 1" 1 "${Q[@]}" tools config set bash_executor.timeout_secs 30
 check         "tools disable web_read + re-enable"  bash -c "'$BIN' --socket '$SOCK' tools disable web_read && '$BIN' --socket '$SOCK' tools enable web_read"
-check         "tools approvals resolved"           "${Q[@]}" tools approvals resolved
 # The seed ships a deliberately-fake (non-decryptable) tool credential blob to
 # exercise the desktop "test" button; it makes `tools reload` fail to decrypt.
 # Drop it from THIS run's throwaway seed HOME (never the shared fixture) so the
@@ -255,6 +254,10 @@ fi
 section "approvals"
 check_json_field "approvals pending --json holds no item" "len(d['items'])" 0 "${Q[@]}" approvals pending --json
 check         "approvals pending (empty)"                    "${Q[@]}" approvals pending
+# No workflow of the seed waits on a question: answering one that does not
+# wait is refused by the runtime, in human and in JSON form.
+check_exit    "approvals decide unknown question → 1"        1 "${Q[@]}" approvals decide workflow-question:00000000-0000-0000-0000-000000000000 answer --value 12
+check_exit    "approvals decide unknown question --json → 1" 1 "${Q[@]}" approvals decide workflow-question:00000000-0000-0000-0000-000000000000 refuse --reason later --json
 
 # ── batches ─────────────────────────────────────────────────────────────────
 # The batch engine runs in the daemon. The seed holds no batch. It reads

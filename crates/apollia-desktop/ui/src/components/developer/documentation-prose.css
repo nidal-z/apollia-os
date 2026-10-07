@@ -1,0 +1,100 @@
+/* The typography of a documentation page, over the prose of the chat: larger
+   headings, the admonitions of the site, its screenshots, and the note under
+   a diagram. Every rule is namespaced under `.apollia-doc`. */
+
+.apollia-doc h1,
+.apollia-doc h2,
+.apollia-doc h3,
+.apollia-doc h4 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  scroll-margin-top: 1rem;
+}
+.apollia-doc h1 { font-size: 1.4em; }
+.apollia-doc h2 { font-size: 1.25em; }
+.apollia-doc h3 { font-size: 1.1em; font-weight: 600; }
+.apollia-doc h4 { font-size: 1em; font-weight: 600; }
+
+.apollia-doc p,
+.apollia-doc ul,
+.apollia-doc ol,
+.apollia-doc table {
+  margin-bottom: 0.9em;
+}
+
+.apollia-doc a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.apollia-doc img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75em 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+}
+/* An image whose bytes have not arrived shows its caption, not a broken frame. */
+.apollia-doc img:not([src]) {
+  border-style: dashed;
+  padding: 0.5em 0.75em;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.9em;
+}
+
+/* ── Admonitions ── */
+.apollia-doc blockquote.apollia-admonition {
+  margin: 1em 0;
+  padding: 0.75em 1em;
+  border: 1px solid hsl(var(--info) / 0.4);
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--info) / 0.1);
+  color: hsl(var(--foreground));
+  font-style: normal;
+}
+.apollia-doc .apollia-admonition-title {
+  margin-bottom: 0.35em;
+  font-weight: 600;
+  color: hsl(var(--info-foreground));
+}
+.apollia-doc blockquote.apollia-admonition-tip {
+  border-color: hsl(var(--success) / 0.4);
+  background: hsl(var(--success) / 0.1);
+}
+.apollia-doc .apollia-admonition-tip > .apollia-admonition-title {
+  color: hsl(var(--text-success));
+}
+.apollia-doc blockquote.apollia-admonition-warning,
+.apollia-doc blockquote.apollia-admonition-caution {
+  border-color: hsl(var(--warning) / 0.4);
+  background: hsl(var(--warning) / 0.1);
+}
+.apollia-doc .apollia-admonition-warning > .apollia-admonition-title,
+.apollia-doc .apollia-admonition-caution > .apollia-admonition-title {
+  color: hsl(var(--text-warning));
+}
+.apollia-doc blockquote.apollia-admonition-danger {
+  border-color: hsl(var(--destructive) / 0.4);
+  background: hsl(var(--destructive) / 0.1);
+}
+.apollia-doc .apollia-admonition-danger > .apollia-admonition-title {
+  color: hsl(var(--text-danger));
+}
+
+/* ── A diagram left as code ── */
+.apollia-doc .apollia-doc-diagram {
+  margin-top: -0.25em;
+  font-size: 0.9em;
+}
+.apollia-doc .apollia-doc-diagram-link {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: calc(var(--radius) - 4px);
+}
+.apollia-doc .apollia-doc-diagram-link:focus-visible {
+  outline: 2px solid hsl(var(--ring) / 0.6);
+  outline-offset: 2px;
+}

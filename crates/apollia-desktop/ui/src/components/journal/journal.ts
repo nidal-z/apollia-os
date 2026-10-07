@@ -304,7 +304,10 @@ const CONSENT_SENTENCE: Record<string, string> = {
  * did, and the sentence holds no argument of the call. `agentName` gives the
  * name an agent is shown under.
  */
-export function sentenceOf(line: JournalLine, agentName: (agent: string | null) => string): Sentence {
+export function sentenceOf(
+  line: Pick<JournalLine, "kind" | "payload" | "summary">,
+  agentName: (agent: string | null) => string,
+): Sentence {
   const tag = kindTag(line.kind);
   const values = { agent: agentName(line.summary.agent) };
   if (tag === "tool_call_completed") {

@@ -35,6 +35,9 @@ pub struct ExplicitEstimate {
     pub n_gpu_layers: i32,
     /// Layers the model has, from its header; `0` when it could not be read.
     pub total_layers: u32,
+    /// Window the model was trained with, from its header: the most a load
+    /// can ask for. `None` when the header does not say.
+    pub max_ctx: Option<u32>,
     /// Memory on the accelerator, in gigabytes.
     pub gpu_gb: f64,
     /// Weights, cache and engine overhead, in gigabytes.
@@ -205,6 +208,7 @@ pub(crate) fn estimate_config(
         n_ctx: config.n_ctx,
         n_gpu_layers: config.n_gpu_layers,
         total_layers: fit.plan.total_layers,
+        max_ctx: facts.context_length.and_then(|n| u32::try_from(n).ok()),
         gpu_gb: gpu_gb(&fit, config.n_gpu_layers, architecture.uses_accelerator()),
         total_gb: fit.estimate.total_gb,
         kv_cache_measured: fit.estimate.kv_cache_measured,

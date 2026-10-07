@@ -31,25 +31,35 @@ amont.
 
 ## Quel moteur part avec quel artefact
 
-Le moteur est choisi à la construction de l'artefact, un par artefact, donc il
-n'y a rien à sélectionner à l'installation. Ce qui est livré :
+Le moteur embarqué est choisi à la construction de l'artefact, un par artefact,
+donc il n'y a rien à sélectionner à l'installation. Il y a un installeur par
+système. Ce qui est livré :
 
 | Artefact | Moteur | Couvre |
 |---|---|---|
 | Application de bureau, macOS | Metal | Apple Silicon |
-| Application de bureau, Windows et Linux, paquet par défaut | Vulkan | NVIDIA, AMD et Intel |
-| Application de bureau, Windows et Linux, paquet `-cuda` | CUDA | NVIDIA |
+| Application de bureau, Windows et Linux | Vulkan | NVIDIA, AMD et Intel |
 | CLI, presets `*-cpu` | processeur | toute machine, sans offload GPU |
 | CLI, presets `*-vulkan` | Vulkan | NVIDIA, AMD et Intel |
 
-Vulkan dans le paquet de bureau par défaut est un arbitrage assumé. Un binaire
-de 32 Mo atteint les trois fabricants, là où le moteur CUDA ne couvre que
-NVIDIA, pèse 238 Mo plus 373 Mo de runtime, et retombe sur le processeur avec
-toute autre carte. Les possesseurs de cartes NVIDIA reçoivent donc un second
-paquet plutôt qu'un paquet par défaut plus lourd : la chaîne de publication
-compile elle-même un `llama-server` CUDA, pour Windows et pour Linux, et le
-confie aux paquets `-cuda`. Ils figurent sur la page de téléchargement à côté
-des paquets par défaut.
+Vulkan dans le paquet de bureau est un arbitrage assumé. Un binaire de 32 Mo
+atteint les trois fabricants, là où le moteur CUDA ne couvre que NVIDIA, pèse
+238 Mo plus 373 Mo de runtime, et retombe sur le processeur avec toute autre
+carte. Le moteur CUDA n'est donc dans aucun installeur. Il est publié à part,
+sur le canal des moteurs, et l'application le télécharge à la demande : sur une
+machine dotée d'une carte NVIDIA, l'écran IA le propose, **Accélérer avec votre
+carte NVIDIA**, et un clic l'installe. Le prochain chargement d'un modèle
+l'utilise, et le moteur Vulkan embarqué reste en place comme repli. Sous
+Windows, le téléchargement porte les bibliothèques d'exécution CUDA ; sous
+Linux, le moteur s'appuie sur celles de la machine.
+
+Rien n'est exécuté avant d'être vérifié. Le canal publie un manifeste qui liste
+chaque archive avec son SHA-256, signé au format minisign avec une clé de
+distribution dédiée. L'application porte la moitié publique de cette clé, ne
+demande aucune archive avant que la signature tienne, et supprime une archive
+dont l'empreinte diffère. Une machine sans réseau importe les trois mêmes sortes
+de fichier, manifeste, signature et archive, depuis un disque, par les mêmes
+contrôles.
 
 Les archives de ligne de commande n'ont aucun preset CUDA, sur aucune
 plateforme. Si vous exécutez le daemon depuis la ligne de commande sur une carte
@@ -167,10 +177,10 @@ l'emporte sur celui qui est embarqué :
 export APOLLIA_LLAMA_SERVER_BIN=/opt/llama.cpp/build/bin/llama-server
 ```
 
-C'est aussi le chemin prévu pour une compilation CUDA sous Linux, qu'aucune
-publication amont ne fournit. Un exploitant qui fait tourner des cartes NVIDIA
-dispose en général déjà d'un llama.cpp compilé pour ces cartes et réglé pour sa
-charge ; Apollia l'utilise plutôt que de lui substituer le sien.
+C'est aussi le chemin pour une compilation CUDA à vous. Un exploitant qui fait
+tourner des cartes NVIDIA dispose en général déjà d'un llama.cpp compilé pour
+ces cartes et réglé pour sa charge ; Apollia l'utilise plutôt que de lui en
+substituer une autre.
 
 ## Voir aussi
 

@@ -1,5 +1,5 @@
 use serde_json::json;
-use wiremock::matchers::{body_json, header, method, path, query_param};
+use wiremock::matchers::{body_json, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::*;
@@ -97,31 +97,6 @@ async fn test_a_refusal_is_posted_with_its_reason() {
 }
 
 #[tokio::test]
-async fn test_the_daemon_ledger_reads_as_the_inbox_history() {
-    // GIVEN a daemon whose chat ledger holds one refused tool call
-    let server = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path("/api/v1/sessions/approval-history"))
-        .and(query_param("limit", "20"))
-        .and(query_param("days", "7"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
-            "session_id": "s-1", "message_id": "a-1", "tool_name": "bash_executor",
-            "decision": "refuse", "resolved_at": "2026-10-03T00:00:00Z",
-            "reason": "not this folder",
-        }])))
-        .expect(1)
-        .mount(&server)
-        .await;
-
-    // WHEN the attached arm reads the history with the default window
-    let entries = approval_history(&client(&server), 20, 7).await.unwrap();
-
-    // THEN the entry the inbox draws comes back, its reason kept
-    assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].reason.as_deref(), Some("not this folder"));
-}
-
-#[tokio::test]
 async fn test_only_the_skills_of_worker_agents_are_listed_as_the_embedded_command_does() {
     // GIVEN a daemon listing one skill, one agent that takes a message and
     // one workflow
@@ -150,7 +125,6 @@ async fn test_a_refusal_of_the_daemon_is_shown_in_its_own_words() {
     let busy = "session busy: s-1";
     let not_user = "internal error: can only edit a user message";
     let not_waiting = "session not awaiting approval";
-    let no_chat = "chat subsystem not available";
     let no_a2a = "A2A invoker not initialized";
     let base = "/api/v1/sessions/s-1";
     let a = refusing(
@@ -168,11 +142,10 @@ async fn test_a_refusal_of_the_daemon_is_shown_in_its_own_words() {
     )
     .await;
     let c = refusing("POST", &format!("{base}/authorize"), 409, not_waiting).await;
-    let d = refusing("GET", "/api/v1/sessions/approval-history", 503, no_chat).await;
-    let e = refusing("GET", "/api/v1/a2a/skills", 503, no_a2a).await;
+    let d = refusing("GET", "/api/v1/a2a/skills", 503, no_a2a).await;
 
     // WHEN each command's attached arm is called
-    let shown: [String; 5] = [
+    let shown: [String; 4] = [
         regenerate(&client(&a), "s-1", "a-1")
             .await
             .unwrap_err()
@@ -185,13 +158,9 @@ async fn test_a_refusal_of_the_daemon_is_shown_in_its_own_words() {
             .await
             .unwrap_err()
             .into(),
-        approval_history(&client(&d), 20, 7)
-            .await
-            .unwrap_err()
-            .into(),
-        a2a_skills(&client(&e)).await.unwrap_err().into(),
+        a2a_skills(&client(&d)).await.unwrap_err().into(),
     ];
 
     // THEN the interface shows the daemon's words, never an unavailability
-    assert_eq!(shown, [busy, not_user, not_waiting, no_chat, no_a2a]);
+    assert_eq!(shown, [busy, not_user, not_waiting, no_a2a]);
 }

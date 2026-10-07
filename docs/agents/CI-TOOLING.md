@@ -138,9 +138,10 @@ Actual structure :
 .github/workflows/
 ├── ci.yml            # PR gate (see jobs below)
 ├── codeql.yml        # CodeQL: rust + python + javascript-typescript
-├── nightly.yml       # heavy / advisory: e2e, feature-matrix, coverage HTML,
+├── weekly.yml        # heavy / advisory: e2e, feature-matrix, coverage HTML,
 │                     #   deep-audit, geiger (unsafe surface), loom, miri, kani, fuzz-deep
 ├── release.yml       # tag-triggered: build binaries, attach to release
+├── engines.yml       # manual: sign and publish the engine channel
 └── auto-close-prs.yml
 ```
 
@@ -176,12 +177,12 @@ blocking.
   against `origin/main`. Informative while the crates are unpublished / pre-1.0.
 - `fuzz` : `cargo +nightly fuzz run` over each seed corpus for ~60s (nightly,
   libFuzzer). A short regression smoke on the untrusted-input parsers; the long
-  session is `fuzz-deep` in `nightly.yml`. See `docs/agents/TESTING.md` 8b.
+  session is `fuzz-deep` in `weekly.yml`. See `docs/agents/TESTING.md` 8b.
 
 `python-tests` is **blocking**. It was advisory while three SDK tests failed;
 they are fixed, so it gates.
 
-Nightly-only advisory jobs (in `nightly.yml`) :
+Weekly-only advisory jobs (in `weekly.yml`) :
 
 - `loom` : exhaustive interleaving check of the runtime actor algorithms on the
   pinned `1.95.0`, via `RUSTFLAGS="--cfg loom" cargo test --manifest-path
@@ -245,6 +246,31 @@ that escalates the token to `id-token: write` + `attestations: write` (plus the
 `permissions: contents: read` at the top level; jobs escalate only what they
 need. Verification commands for consumers live in `SECURITY.md`.
 
+### Engine channel (`engines.yml`)
+
+The engines the application downloads after install (the CUDA `llama-server`,
+Node.js) are not built by `release.yml` and do not follow its tags. `engines.yml`
+is started by hand with a channel and a llama.cpp tag, and runs
+`packaging/build-engine-manifest.py`: every upstream archive is checked against
+its SHA-256 pinned in `packaging/engine-sources.json`, each package is
+repackaged as one zip, and the manifest is signed in the minisign format by
+`cargo tauri signer sign` with the distribution key.
+
+- **Two keys, never mixed.** `APOLLIA_DIST_SIGNING_KEY` signs distribution
+  metadata; `TAURI_SIGNING_PRIVATE_KEY` signs application updates and is not
+  read by this workflow. The script refuses a run where both hold one value.
+- **The trigger is the fence.** The distribution and object-storage secrets sit
+  at repository level, so the workflow runs on `workflow_dispatch` only;
+  `check_ci_workflows.py` (rule `dist-secrets`) refuses a pull-request trigger
+  on any job that names them.
+- **Proved before signed.** `just engine-manifest-test` runs the script on
+  stand-in archives with a throwaway key and hands the output to the engine
+  store; the workflow runs it first, then verifies the real manifest against
+  the public key compiled into the tree before anything is uploaded.
+- **Adding a tag is a commit.** A tag is publishable once its archives are
+  pinned in `engine-sources.json`; `check_download_sums.py` holds every source
+  to an https address and a 64-hex sum.
+
 ---
 
 ## 6. Coverage
@@ -258,7 +284,7 @@ cargo llvm-cov --workspace --lcov --output-path lcov.info \
 
 `COVERAGE_FLOOR` is a workflow-level env var set just below the measured
 baseline so the gate is green from day one, then ratcheted up over time and
-never lowered. The full HTML report is produced by the nightly `coverage` job.
+never lowered. The full HTML report is produced by the weekly `coverage` job.
 
 Target : > 80% lines / > 70% branches on core crates. Aspirational
 workspace-wide.

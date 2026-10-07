@@ -6,12 +6,13 @@ use std::path::Path;
 
 use crate::local_engine::guardrails::{self, GuardrailPolicy, LoadEstimate};
 use crate::local_engine::{GuardrailRefusal, LoadConsent};
+use crate::residency::replace::unload_before_load;
 use crate::residency::room::{plan_room, Room};
 
 use super::config::env_getter;
 use super::load_settings::{self, LoadSettings};
 use super::{
-    devices, log_level, ngl, parallel, projector, LlamaServerConfig, LlamaServerSupervisor,
+    devices, draft, log_level, ngl, parallel, projector, LlamaServerConfig, LlamaServerSupervisor,
 };
 
 impl LlamaServerSupervisor {
@@ -34,6 +35,15 @@ impl LlamaServerSupervisor {
             .unwrap_or(None);
         base.model_path = model_path;
         base.chat_template_file = template_file.map(|path| path.display().to_string());
+        // The draft model is named by its index identifier: resolved against
+        // the index, on disk, and held to the vocabulary of this model.
+        let (lookup, named) = (base.model_path.clone(), load.clone());
+        let (draft_model, load) =
+            tokio::task::spawn_blocking(move || draft::for_model(&lookup, &named))
+                .await
+                .unwrap_or_else(|_| (None, load.clone()));
+        let load = &load;
+        base.draft_model = draft_model;
         base.n_ctx = n_ctx;
         // The engine log level of the settings, read at every load so a change
         // applies to the next one; the environment still wins in `compose`.
@@ -75,6 +85,10 @@ impl LlamaServerSupervisor {
     /// models already resident count against the budget: when the sum is
     /// refused, the resident models nothing holds are stopped, least recently
     /// used first and only as many as needed, before the launch is refused.
+    ///
+    /// With `[llm.residency] unload_before_load` on, the resident models that
+    /// are not pinned and answer no request are stopped first, whatever the
+    /// room: see [`crate::residency::replace`].
     pub(super) async fn admit(
         &self,
         config: &LlamaServerConfig,
@@ -86,21 +100,27 @@ impl LlamaServerSupervisor {
         let shape = ngl::runtime_shape(config);
         let sized = tokio::task::spawn_blocking(move || {
             let policy = GuardrailPolicy::read_under(config_file.as_deref(), &imposed);
+            let unload_first = unload_before_load(config_file.as_deref(), &imposed);
             if policy.level == guardrails::GuardrailLevel::Disabled {
-                return (policy, None);
+                return (policy, None, unload_first);
             }
             let path = Path::new(&model_path);
             let estimate = std::fs::metadata(path).ok().map(|meta| {
                 LoadEstimate::gguf(path, meta.len(), &shape, &apollia_llm::hardware::detect())
             });
-            (policy, estimate)
+            (policy, estimate, unload_first)
         })
         .await;
         // A panicked estimate is no estimate: the launch goes ahead, as for an
         // unreadable file.
-        let Ok((policy, estimate)) = sized else {
+        let Ok((policy, estimate, unload_first)) = sized else {
             return Ok(None);
         };
+        if unload_first {
+            return self
+                .admit_alone(&policy, estimate, consent, &config.model_path)
+                .await;
+        }
         let Some(estimate) = estimate else {
             guardrails::enforce(&policy, None, consent, &config.model_path)?;
             return Ok(None);

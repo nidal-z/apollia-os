@@ -7,7 +7,10 @@
    *
    * It renders and reports the choice; what the choice does to the
    * conversation is `targetAction` in `$lib/chat/chatTargets`, applied by the
-   * owner of the conversation.
+   * owner of the conversation. A model of this computer that is not in
+   * memory goes through the loading window first, and is reported once
+   * loaded. Beside the button of an open conversation, the eject button
+   * unloads the model the conversation talks to.
    */
   import { onMount, tick } from "svelte";
   import { t } from "svelte-i18n";
@@ -15,16 +18,19 @@
   import { Tooltip } from "$lib/components/ui/tooltip";
   import { MOD_LABEL } from "$lib/shortcuts/chatShortcuts";
   import { chatTargetSelectorRequests } from "$lib/stores/chatTargetSelector";
-  import { listChatTargets } from "$lib/ipc/chatTargets";
+  import { chatTargets, refreshChatTargets } from "$lib/stores/chatTargets";
+  import { askModelLoad, loadedModels, refreshModelResidency } from "$lib/stores/modelResidency";
+  import { loadedInstance, needsLoadWindow } from "$lib/chat/modelLoad";
   import {
-    buildTargetGroups,
+    conversationModel,
     filterTargetGroups,
     modelLabel,
     targetLabel,
     type ChatTarget,
     type ConversationTarget,
-    type TargetGroups,
+    type ModelTarget,
   } from "$lib/chat/chatTargets";
+  import ModelEjectButton from "./ModelEjectButton.svelte";
 
   interface Props {
     /** The conversation shown, `null` before one is started. */
@@ -33,16 +39,32 @@
     onpick: (target: ChatTarget) => void;
     /** Greys the button out, e.g. while a turn runs. */
     disabled?: boolean;
+    /** Shows the eject button, for the selector of an open conversation. */
+    ejectable?: boolean;
+    /** Whether the chat shortcut opens this selector: the one of the active pane. */
+    listens?: boolean;
+    /**
+     * Asked before the loading window opens on a model that is not in
+     * memory; `false` keeps the window closed, the owner says why.
+     */
+    loadgate?: (target: ModelTarget) => Promise<boolean>;
   }
 
-  let { conversation, onpick, disabled = false }: Props = $props();
+  let {
+    conversation,
+    onpick,
+    disabled = false,
+    ejectable = false,
+    listens = true,
+    loadgate,
+  }: Props = $props();
 
   let open = $state(false);
   let query = $state("");
   let loading = $state(false);
-  let groups = $state<TargetGroups>({ agents: [], models: [] });
-  let unreachable = $state<string[]>([]);
-  let defaultModel = $state<string | null>(null);
+  const groups = $derived($chatTargets.groups);
+  const unreachable = $derived($chatTargets.unreachable);
+  const defaultModel = $derived($chatTargets.defaultModel);
   let root = $state<HTMLDivElement | undefined>(undefined);
   let searchInput = $state<HTMLInputElement | undefined>(undefined);
 
@@ -51,19 +73,20 @@
   const shown = $derived(filterTargetGroups(groups, query));
   const nothingShown = $derived(shown.agents.length === 0 && shown.models.length === 0);
 
+  /** The model of the conversation, when it is in memory on this computer. */
+  const resident = $derived(
+    conversation
+      ? loadedInstance(
+          $loadedModels,
+          conversationModel(groups, conversation, defaultModel)?.path ?? null,
+        )
+      : null,
+  );
+
   async function load(): Promise<void> {
     loading = true;
-    try {
-      const payload = await listChatTargets();
-      groups = buildTargetGroups(payload);
-      unreachable = payload.servers.filter((s) => s.error !== null).map((s) => s.server);
-      const fallback = payload.default_model?.model_id;
-      defaultModel = typeof fallback === "string" ? fallback : null;
-    } catch {
-      // The list stays as it was; the button still shows the conversation.
-    } finally {
-      loading = false;
-    }
+    await Promise.all([refreshChatTargets(), refreshModelResidency()]);
+    loading = false;
   }
 
   onMount(() => {
@@ -71,11 +94,12 @@
   });
 
   // The chat shortcut: each request toggles the selector. The value the
-  // store holds when the selector mounts is not a request.
+  // store holds when the selector mounts is not a request, nor is one made
+  // while another pane was the active one.
   let seenRequests: number | null = null;
   $effect(() => {
     const requests = $chatTargetSelectorRequests;
-    if (seenRequests === null) {
+    if (seenRequests === null || !listens) {
       seenRequests = requests;
       return;
     }
@@ -102,8 +126,17 @@
     query = "";
   }
 
-  function pick(target: ChatTarget): void {
+  async function pick(target: ChatTarget): Promise<void> {
     close();
+    if (needsLoadWindow(target, $loadedModels)) {
+      if (loadgate && !(await loadgate(target))) return;
+      askModelLoad({
+        modelId: target.route,
+        format: target.format,
+        onloaded: () => onpick(target),
+      });
+      return;
+    }
     onpick(target);
   }
 
@@ -115,7 +148,7 @@
     } else if (event.key === "Enter") {
       event.preventDefault();
       const first = shown.agents[0] ?? shown.models[0];
-      if (first) pick(first);
+      if (first) void pick(first);
     }
   }
 
@@ -128,7 +161,7 @@
 
 <svelte:window onpointerdown={handleWindowPointer} />
 
-<div class="relative min-w-0" bind:this={root} data-testid="chat-target-selector">
+<div class="relative flex min-w-0 items-center gap-1" bind:this={root} data-testid="chat-target-selector">
   <button
     type="button"
     onclick={() => void toggle()}
@@ -155,6 +188,9 @@
     </kbd>
     <ChevronDown size={12} class="shrink-0 text-muted-foreground" />
   </button>
+  {#if ejectable}
+    <ModelEjectButton model={resident} />
+  {/if}
 
   {#if open}
     <div
@@ -197,7 +233,7 @@
               type="button"
               role="option"
               aria-selected="false"
-              onclick={() => pick(agent)}
+              onclick={() => void pick(agent)}
               class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-xs hover:bg-muted"
               data-testid="chat-target-selector-agent-option"
               data-target-id={agent.id}
@@ -235,7 +271,7 @@
               type="button"
               role="option"
               aria-selected="false"
-              onclick={() => pick(model)}
+              onclick={() => void pick(model)}
               class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-body-xs hover:bg-muted"
               data-testid="chat-target-selector-model-option"
               data-target-route={model.route}

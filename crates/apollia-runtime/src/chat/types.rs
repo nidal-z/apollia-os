@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use apollia_core::RunId;
 
+use super::session_settings::{SessionSettings, SessionSettingsError};
+
 mod approvals;
 
 pub use approvals::{ApprovalTimeoutParams, ChatApprovalAsked, PendingChatApprovals};
@@ -26,8 +28,6 @@ pub struct ChatSession {
     pub mode: ChatMode,
     /// Agent name, present only in Agent mode.
     pub agent_name: Option<String>,
-    /// System prompt used to prime the LLM.
-    pub system_prompt: String,
     /// Current lifecycle status.
     pub status: SessionStatus,
     /// In-memory message history (populated on demand).
@@ -71,6 +71,14 @@ pub struct ChatSession {
     /// the user turns it off. Persisted across restarts.
     #[serde(default = "profile_switch_on")]
     pub use_profile: bool,
+    /// Settings of the conversation: what it changes from its agent, for
+    /// itself alone. Persisted across restarts.
+    #[serde(default)]
+    pub settings: SessionSettings,
+    /// Notes the user keeps beside the conversation. Persisted across
+    /// restarts.
+    #[serde(default)]
+    pub notes: String,
 }
 
 /// A conversation is born with its profile switch on.
@@ -590,6 +598,17 @@ pub enum ChatError {
     /// The name given to a folder is refused: blank, or too long.
     #[error("invalid folder name: {0}")]
     InvalidFolderName(String),
+    /// The session holds no message with this id.
+    #[error("message not found: {0}")]
+    MessageNotFound(String),
+    /// The action does not apply to this message: an answer that is not the
+    /// last one to continue, a user message to rewrite in place, an empty text.
+    #[error("message refused: {0}")]
+    MessageRefused(String),
+    /// The last answer cannot be continued; the reason is the one the
+    /// continuation read of the session reports.
+    #[error("the answer cannot be continued: {0}")]
+    ContinuationRefused(String),
     /// An approve or reject was requested on a session that is not awaiting
     /// approval. The soft plan gate only resolves from the awaiting-approval
     /// phase, so this fails fast instead of starting execution out of order.
@@ -616,6 +635,22 @@ pub enum ChatError {
     /// a password, damaged).
     #[error("document refused: {0}")]
     DocumentRejected(String),
+    /// Settings or notes of a conversation are refused.
+    #[error("invalid session settings: {0}")]
+    InvalidSettings(#[from] SessionSettingsError),
+    /// The conversation reached the context limit of its model and is set to
+    /// stop there instead of dropping or summarizing its older messages.
+    #[error(
+        "this conversation has reached the context limit of its model \
+         ({tokens} tokens for a limit of {limit}). Nothing was dropped: fork it from an \
+         earlier message, or open a new conversation, to go on"
+    )]
+    ContextLimitReached {
+        /// Tokens the next call would have sent.
+        tokens: usize,
+        /// Tokens the limit allows.
+        limit: usize,
+    },
     /// The hybrid routing cost ceiling was reached and `ceiling_action` is `HardStop`.
     ///
     /// The run stopped cleanly with no data loss. It can be resumed in a new run
@@ -695,6 +730,12 @@ pub struct SessionInfo {
     pub created_at: String,
     /// User-defined display title (falls back to agent_name or mode).
     pub title: Option<String>,
+    /// Messages the session holds, whatever their role.
+    #[serde(default)]
+    pub message_count: u32,
+    /// Tokens the model generated across the answers of the session.
+    #[serde(default)]
+    pub output_tokens: u64,
 }
 
 /// A change to a session's configuration. An absent field keeps its value;
@@ -702,7 +743,9 @@ pub struct SessionInfo {
 /// the runtime default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SessionConfigUpdate {
-    /// New system prompt.
+    /// New instructions of the conversation, under the name older clients
+    /// give them. They are added to the mission of the agent and written to
+    /// the settings of the conversation.
     pub system_prompt: Option<String>,
     /// New list of tools available in the session.
     pub available_tools: Option<Vec<String>>,
@@ -832,7 +875,6 @@ mod tests {
             id: "sess-1".into(),
             mode: ChatMode::Agent,
             agent_name: Some("test-agent".into()),
-            system_prompt: "You are helpful.".into(),
             status: SessionStatus::Active,
             history: vec![],
             authorized_tools: std::collections::HashSet::new(),
@@ -847,6 +889,8 @@ mod tests {
             plan_phase: PlanPhase::Done,
             profile_id: None,
             use_profile: true,
+            settings: crate::chat::SessionSettings::default(),
+            notes: String::new(),
         };
 
         // WHEN we serialize and deserialize

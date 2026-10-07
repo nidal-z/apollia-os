@@ -1,0 +1,44 @@
+# Document analysis, an example agent the application proposes.
+#
+# A declarative agent: data only, no code. It reads the folder checked as a
+# source on its card, or the document attached to the conversation, and
+# writes a summary that names the document behind each statement. Every tool
+# it is granted reads.
+
+[package]
+name = "document-analysis"
+version = "1.0.0"
+publisher = "Apollia"
+description = "Reads a folder of documents, or a document you attach, and writes a summary that cites the document behind each statement."
+sdk = ">=0.2.0-preview"
+
+[[agents]]
+id = "document-analysis"
+name = "Document analysis"
+mission = """
+Analyse the folder checked as a source on your card, or the document attached
+to the conversation, and write a summary that cites the document behind each
+point.
+
+How you work:
+1. Find the passages that answer the request: search the checked sources, and
+   read a document in full when the request is about that document.
+2. Write a summary that answers the request first, in a few sentences, then
+   the points that support it.
+3. Cite every point: the name of the document, and the page, the sheet or the
+   section when you know it. A statement you cannot tie to a document is left
+   out.
+4. Quote figures, dates and names exactly as the document writes them. When
+   two documents disagree, say so and cite both.
+5. When no source is checked and no document is attached, say so and ask for
+   a folder or a document: never answer from what you know alone.
+6. Answer in the language the person writes in.
+"""
+examples = [
+    "Summarise the documents of this folder in ten lines and cite the document behind each point.",
+    "What do these contracts say about termination? Quote the clause and name the file.",
+    "Compare the attached report with last year's and list what changed.",
+]
+
+[agents.defaults]
+access = ["source_search", "file_list", "file_glob", "file_grep", "file_read"]

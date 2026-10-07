@@ -18,7 +18,7 @@ export type ShortcutCategory =
   | "chat"
   | "settings"
   | "companion"
-  | "approvals";
+  | "developer";
 
 export type ShortcutScope = "global" | "contextual";
 
@@ -49,7 +49,7 @@ export const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
   "chat",
   "settings",
   "companion",
-  "approvals",
+  "developer",
 ];
 
 export const SHORTCUTS: ShortcutEntry[] = [
@@ -131,6 +131,14 @@ export const SHORTCUTS: ShortcutEntry[] = [
     scopeHintKey: "settings.shortcuts.scope.chat",
   },
   {
+    id: "chat.regenerate",
+    combo: { mac: "⌘+R", win: "Ctrl+R" },
+    descriptionKey: "settings.shortcuts.items.chat_regenerate",
+    scope: "contextual",
+    category: "chat",
+    scopeHintKey: "settings.shortcuts.scope.chat",
+  },
+  {
     id: "chat.artifacts",
     combo: { mac: "⌘+⇧+A", win: "Ctrl+Shift+A" },
     descriptionKey: "settings.shortcuts.items.chat_artifacts",
@@ -195,32 +203,27 @@ export const SHORTCUTS: ShortcutEntry[] = [
     category: "companion",
   },
 
-  // ── Approvals ──────────────────────────────────────────────────────
+  // ── Developer ──────────────────────────────────────────────────────
   {
-    id: "approvals.accept",
-    combo: { mac: "A", win: "A" },
-    descriptionKey: "settings.shortcuts.items.approvals_accept",
+    id: "developer.server_toggle",
+    combo: { mac: "⌘+.", win: "Ctrl+." },
+    descriptionKey: "settings.shortcuts.items.developer_server_toggle",
     scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
-  },
-  {
-    id: "approvals.refuse",
-    combo: { mac: "R", win: "R" },
-    descriptionKey: "settings.shortcuts.items.approvals_refuse",
-    scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
-  },
-  {
-    id: "approvals.next",
-    combo: { mac: "J / K", win: "J / K" },
-    descriptionKey: "settings.shortcuts.items.approvals_next",
-    scope: "contextual",
-    category: "approvals",
-    scopeHintKey: "settings.shortcuts.scope.approvals",
+    category: "developer",
+    scopeHintKey: "settings.shortcuts.scope.developer",
   },
 ];
+
+/**
+ * `entries` as the catalogue lists them for a developer mode: the shortcuts
+ * of the developer screen stay out with the mode off, like the screen.
+ */
+export function visibleShortcuts(
+  entries: readonly ShortcutEntry[],
+  developerMode: boolean,
+): ShortcutEntry[] {
+  return entries.filter((entry) => developerMode || entry.category !== "developer");
+}
 
 /** `true` when running on macOS (best-effort browser detection). */
 /** The combo that sends a message under the send key of Settings > Chat. */
@@ -249,6 +252,16 @@ export function isMacPlatform(): boolean {
 /** Return the platform-appropriate combo string for a shortcut. */
 export function comboFor(entry: ShortcutEntry, mac = isMacPlatform()): string {
   return mac ? entry.combo.mac : entry.combo.win;
+}
+
+/**
+ * The keycaps of a registered shortcut on this system, or on the one given:
+ * `keycapsFor("palette.open")` is ⌘ K on macOS, Ctrl K on Windows and Linux.
+ * An id the registry does not hold has no keycap.
+ */
+export function keycapsFor(id: string, mac = isMacPlatform()): string[] {
+  const entry = SHORTCUTS.find((e) => e.id === id);
+  return entry ? splitCombo(comboFor(entry, mac)) : [];
 }
 
 /** Split a chord into its individual keycaps (e.g. "⌘+⇧+P" → ["⌘","⇧","P"]). */

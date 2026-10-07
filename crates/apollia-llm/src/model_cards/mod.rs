@@ -120,6 +120,14 @@ pub struct CardMemory {
     pub source: String,
 }
 
+/// The mark of a model published to draft for a larger one in speculative
+/// decoding, with where that is shown.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CardDraft {
+    /// Address that shows the model published or used as a draft model.
+    pub source: String,
+}
+
 /// Sampling values the publisher recommends, each optional.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CardDefaults {
@@ -208,6 +216,10 @@ pub struct ModelCard {
     /// original and its conversions.
     #[serde(default)]
     pub repos: Vec<String>,
+    /// Set when the model is published to draft for a larger model of the
+    /// same vocabulary. It stays a language model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft: Option<CardDraft>,
 }
 
 impl ModelCard {

@@ -35,12 +35,11 @@ function relative(file: string): string {
   return path.relative(COMPONENTS_DIR, file);
 }
 
-/** The seven components this lot repaired, with the catalogue key each falls back to. */
+/** The six components this lot repaired, with the catalogue key each falls back to. */
 const REPAIRED: Array<[string, string[]]> = [
   ["operator/ErrorBanner.svelte", ["common.retry", "a11y.dismiss"]],
   ["operator/FilterChipBar.svelte", ["a11y.filter_bar"]],
   ["ui/action-menu/ActionMenu.svelte", ["a11y.actions_menu"]],
-  ["ui/data-table/DataTable.svelte", ["common.no_data"]],
   ["ui/dialog/ConfirmDialog.svelte", ["common.confirm", "common.cancel"]],
   ["ui/form-field/FormField.svelte", ["common.optional_label"]],
   ["ui/sheet/SheetHeader.svelte", ["a11y.close"]],

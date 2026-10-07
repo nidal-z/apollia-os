@@ -36,7 +36,7 @@ function source(rel: string): string {
 
 function reset(): void {
   closeSettingsWindow();
-  navigateTo("dashboard");
+  navigateTo("agents");
   settingsSubRoute.set(DEFAULT_SETTINGS_SUB_ROUTE);
 }
 
@@ -257,8 +257,8 @@ describe("the tools and the permissions leave the settings", () => {
   });
 
   it("lands a caller that still names a former section on the default one", () => {
-    // GIVEN a caller that still asks for the permissions section, from the dashboard
-    expect(get(currentRoute)).toBe("dashboard");
+    // GIVEN a caller that still asks for the permissions section, from the Agents screen
+    expect(get(currentRoute)).toBe("agents");
 
     // WHEN it opens the settings on it
     navigateToSettings("permissions");

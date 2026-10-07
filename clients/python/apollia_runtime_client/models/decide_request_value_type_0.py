@@ -12,7 +12,8 @@ T = TypeVar("T", bound="DecideRequestValueType0")
 @_attrs_define
 class DecideRequestValueType0:
     """The answer to the typed question of a paused task: a proposition id,
-    free text when it allows it, or a value.
+    free text when it allows it, or a value. For the question of a
+    workflow: the chosen choice or free text, when `answers` is not given.
 
     """
 

@@ -49,6 +49,7 @@ fn manager_following(dir: &tempfile::TempDir, feed: ConfigFeed) -> ChatSessionMa
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        answer_prefills: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
         config_feed: Some(feed),
         plan_mode_default_tx: tokio::sync::watch::Sender::new(false),

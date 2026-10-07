@@ -34,6 +34,7 @@ from apollia.testing.context import (
     MockSecrets,
     MockStt,
     MockTemplates,
+    MockUser,
     MockWorkflows,
     MockWorkspace,
 )
@@ -62,6 +63,7 @@ __all__ = [
     "MockStt",
     "MockTemplates",
     "MockToolProxy",
+    "MockUser",
     "MockWorkflows",
     "MockWorkspace",
     # Interaction assertions

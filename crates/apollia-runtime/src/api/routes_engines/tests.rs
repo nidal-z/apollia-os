@@ -111,7 +111,12 @@ async fn test_list_names_installed_engines_with_their_source() {
     import_from_dir(&store, usb.path()).unwrap();
 
     // WHEN the engines are listed
-    let view = engines_view(dir.path(), Vec::new(), true).unwrap();
+    let view = engines_view(
+        dir.path(),
+        Vec::new(),
+        Some("NVIDIA GeForce RTX 4070".to_owned()),
+    )
+    .unwrap();
     let (status, body) = call(dir.path(), "GET", "/api/v1/engines", None).await;
 
     // THEN the engine is there with its tag, variant, path and source, the
@@ -138,13 +143,23 @@ fn test_cuda_is_proposable_only_with_a_card_and_without_the_engine() {
     let dir = tempfile::tempdir().unwrap();
 
     // WHEN the view is built with and without an NVIDIA card
-    let with_card = engines_view(dir.path(), Vec::new(), true).unwrap();
-    let without = engines_view(dir.path(), Vec::new(), false).unwrap();
+    let with_card = engines_view(
+        dir.path(),
+        Vec::new(),
+        Some("NVIDIA GeForce RTX 4070".to_owned()),
+    )
+    .unwrap();
+    let without = engines_view(dir.path(), Vec::new(), None).unwrap();
 
     // THEN CUDA is proposed only with the card
     assert!(with_card.cuda_proposable);
     assert!(!without.cuda_proposable);
     assert!(with_card.updates.is_empty());
+    assert_eq!(
+        with_card.nvidia_card.as_deref(),
+        Some("NVIDIA GeForce RTX 4070")
+    );
+    assert_eq!(without.nvidia_card, None);
 }
 
 #[tokio::test]
@@ -293,4 +308,93 @@ fn test_the_engines_the_runtime_starts_are_marked_in_service() {
     // AND with nothing in reach, nothing is marked
     mark_in_service(&mut entries, None, None);
     assert!(entries.iter().all(|e| !e.in_service));
+}
+
+#[tokio::test]
+async fn test_the_installation_route_answers_a_refusal_as_a_state_then_forgets_it() {
+    // GIVEN an empty data directory and a directory without signature
+    let dir = tempfile::tempdir().unwrap();
+    let usb = tempfile::tempdir().unwrap();
+    std::fs::write(usb.path().join(MANIFEST_FILE), fixture("stable-5.json")).unwrap();
+    let route = "/api/v1/engines/installation";
+
+    // WHEN the installation is read, an import started and followed to its
+    //      end, then dismissed
+    let (s1, idle) = call(dir.path(), "GET", route, None).await;
+    let (s2, started) = call(
+        dir.path(),
+        "POST",
+        "/api/v1/engines/installation/import",
+        Some(json!({"path": usb.path().display().to_string()})),
+    )
+    .await;
+    let root = engine_store::store_root(dir.path());
+    let ended = match engine_store::install_job::subscribe(&root) {
+        Some(mut rx) => {
+            let done = rx.wait_for(|state| !state.is_running()).await.unwrap();
+            serde_json::to_value(&*done).unwrap()
+        }
+        None => started.clone(),
+    };
+    let (_, read) = call(dir.path(), "GET", route, None).await;
+    let (s3, dismissed) = call(dir.path(), "DELETE", route, None).await;
+    let (_, after) = call(dir.path(), "GET", route, None).await;
+
+    // THEN every answer is a state: idle, then the refusal with its code (no
+    //      key in this build, or no signature on the disk), kept until dismissed
+    assert_eq!(
+        (s1, s2, s3),
+        (StatusCode::OK, StatusCode::OK, StatusCode::OK)
+    );
+    assert_eq!(idle, json!({"state": "idle"}));
+    assert_eq!(ended["state"], "failed", "{ended}");
+    assert_eq!(ended["kind"], "import");
+    assert_eq!(ended["archive_requested"], false);
+    let code = ended["code"].as_str().unwrap();
+    assert!(
+        code == "no_trusted_key" || code == "signature_missing",
+        "{ended}"
+    );
+    assert_eq!(read, ended);
+    assert_eq!(dismissed, json!({"state": "idle"}));
+    assert_eq!(after, json!({"state": "idle"}));
+}
+
+#[tokio::test]
+async fn test_a_download_without_a_key_or_a_mirror_ends_as_a_refused_state() {
+    // GIVEN a store whose mirror is an address nothing listens on
+    let dir = tempfile::tempdir().unwrap();
+    let (_, _) = call(
+        dir.path(),
+        "PUT",
+        "/api/v1/engines/settings",
+        Some(json!({"channel": "stable", "base_url": "http://127.0.0.1:9"})),
+    )
+    .await;
+
+    // WHEN the CUDA engine is asked for and the installation followed
+    let (status, started) = call(
+        dir.path(),
+        "POST",
+        "/api/v1/engines/installation",
+        Some(json!({"engine": "llama-server", "variant": "cuda"})),
+    )
+    .await;
+    let root = engine_store::store_root(dir.path());
+    let ended = match engine_store::install_job::subscribe(&root) {
+        Some(mut rx) => {
+            let done = rx.wait_for(|state| !state.is_running()).await.unwrap();
+            serde_json::to_value(&*done).unwrap()
+        }
+        None => started.clone(),
+    };
+
+    // THEN the answer is a state, refused before any archive: no key in this
+    //      build, or a mirror that cannot be reached
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ended["state"], "failed", "{ended}");
+    assert_eq!(ended["kind"], "install");
+    assert_eq!(ended["archive_requested"], false);
+    let code = ended["code"].as_str().unwrap();
+    assert!(code == "no_trusted_key" || code == "network", "{ended}");
 }

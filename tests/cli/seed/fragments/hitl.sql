@@ -15,8 +15,8 @@
 --     task-overview-input, output_text feeds task-overview-output, and
 --     transitions_json feeds the trace timeline.
 --   * task_approvals: a pending row (approved IS NULL) backs get_approval_info /
---     the Inbox pending enrichment; a resolved row backs list_resolved_approvals
---     and the task timeline HITL events.
+--     the pending enrichment of the To review screen; a resolved row backs
+--     the task timeline HITL events.
 --
 -- IMPORTANT read-path note (residual gap, see the session report): the Inbox
 -- "pending" tab (inbox-row-primary-*) is populated by list_pending_approvals,
@@ -135,8 +135,7 @@ VALUES
 
 -- Approvals. The pending row (approved IS NULL) backs the input_required task;
 -- get_approval_info LEFT JOINs it on approved IS NULL. The resolved row
--- (approved = 1, responded_at set) backs list_resolved_approvals and the task
--- timeline HITL events.
+-- (approved = 1, responded_at set) backs the task timeline HITL events.
 INSERT INTO task_approvals
   (id, task_id, step_id, prompt, context_json, approved, reason,
    requested_at, responded_at, suspended_at, wait_duration_ms)

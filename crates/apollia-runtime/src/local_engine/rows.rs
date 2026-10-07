@@ -11,7 +11,7 @@
 use std::path::Path;
 
 use apollia_core::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
-use apollia_llm::model_index::{ModelCategory, ModelIndex, INDEX_FILE_NAME};
+use apollia_llm::model_index::{ModelIndex, INDEX_FILE_NAME};
 
 /// The row name for an index identifier: lowercase, with every character a
 /// row name refuses replaced by `-`.
@@ -53,7 +53,7 @@ pub fn local_row_for(
     let Some(model) = index.get(model_id) else {
         return Ok(None);
     };
-    if model.effective_category() != ModelCategory::Language {
+    if !model.is_language_model() {
         return Ok(None);
     }
     let name = row_name(model_id);
@@ -136,7 +136,7 @@ pub fn chat_route(
 
 #[cfg(test)]
 mod tests {
-    use apollia_llm::model_index::{IndexedModel, ModelFormat, ModelOrigin};
+    use apollia_llm::model_index::{IndexedModel, ModelCategory, ModelFormat, ModelOrigin};
 
     use super::*;
 

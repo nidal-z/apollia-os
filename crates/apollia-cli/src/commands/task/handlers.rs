@@ -354,18 +354,10 @@ pub(super) fn run_inspect(task_id: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os task approvals [--pending]`: list resolved (or pending) HITL approvals.
-///
-/// Without `--pending`: calls `GET /api/v1/approvals/resolved`.
-/// With `--pending`: calls `GET /api/v1/approvals/pending`.
-pub(super) async fn run_approvals(client: &RuntimeClient, pending: bool, json: bool) -> i32 {
-    let uri = if pending {
-        "/api/v1/approvals/pending"
-    } else {
-        "/api/v1/approvals/resolved"
-    };
-
-    let resp = match client.get(uri).await {
+/// `apollia-os task approvals`: the task approvals waiting for a decision,
+/// from `GET /api/v1/approvals/pending`.
+pub(super) async fn run_approvals(client: &RuntimeClient, json: bool) -> i32 {
+    let resp = match client.get("/api/v1/approvals/pending").await {
         Ok(r) => r,
         Err(e) => return handle_error(e, json),
     };
@@ -391,7 +383,7 @@ pub(super) async fn run_approvals(client: &RuntimeClient, pending: bool, json: b
             serde_json::to_string_pretty(&parsed).unwrap_or_default()
         );
     } else {
-        format_approvals_list(&parsed, pending);
+        format_approvals_list(&parsed);
     }
     exit_codes::SUCCESS
 }

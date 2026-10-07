@@ -10,7 +10,14 @@ import type { OnboardingPhase } from "$lib/types";
  * come back. The progress counts the steps of this list and no other, so a
  * step that is not built yet is not announced.
  */
-export type OnboardingStep = "welcome" | "ai-setup" | "embeddings" | "chat" | "first-agent";
+export type OnboardingStep =
+  | "welcome"
+  | "ai-setup"
+  | "embeddings"
+  | "chat"
+  | "first-agent"
+  | "connection"
+  | "first-task";
 
 export interface OnboardingStepEntry {
   id: OnboardingStep;
@@ -43,16 +50,38 @@ export const ONBOARDING_STEPS: readonly OnboardingStepEntry[] = [
   { id: "embeddings", labelKey: "onboarding_modal.step_search", phase: "embeddings" },
   { id: "chat", labelKey: "onboarding_modal.step_about", phase: "acquaintance" },
   { id: "first-agent", labelKey: "onboarding_modal.step_first_agent", phase: "first_agent" },
+  { id: "connection", labelKey: "onboarding_modal.step_connection", phase: "connection" },
+  { id: "first-task", labelKey: "onboarding_modal.step_first_task", phase: "first_task" },
 ];
 
 /**
- * The step that follows `step`, `null` after the last one built: the modal
- * then closes, as it does at the end of the first launch. A step added to the
- * list is reached from the one before it with no change to the modal.
+ * The step the modal closes on. The first task is not done inside the modal:
+ * reaching it closes the first launch on the agent at work, a conversation or
+ * the launch of a batch (`firstTask.ts`). The progress still counts it, so the
+ * person sees what the last step leads to.
  */
-export function nextStep(step: OnboardingStep): OnboardingStep | null {
+export const CLOSING_STEP: OnboardingStep = "first-task";
+
+/** The phase the backend stands on once the first launch is over. */
+export const CLOSED_PHASE: OnboardingPhase = "done";
+
+/** Whether reaching `step` closes the modal; `null` is the end of the list. */
+export function closesModal(step: OnboardingStep | null): boolean {
+  return step === null || step === CLOSING_STEP;
+}
+
+/**
+ * The step that follows `step`, `null` after the last one. A step added to the
+ * list is reached from the one before it with no change to the modal. A step
+ * named in `passed` is stepped over: it has nothing to show this time.
+ */
+export function nextStep(
+  step: OnboardingStep,
+  passed: readonly OnboardingStep[] = [],
+): OnboardingStep | null {
   const index = ONBOARDING_STEPS.findIndex((entry) => entry.id === step);
-  return ONBOARDING_STEPS[index + 1]?.id ?? null;
+  const next = ONBOARDING_STEPS.slice(index + 1).find((entry) => !passed.includes(entry.id));
+  return next?.id ?? null;
 }
 
 /** The phase the backend moves to when `step` opens. */
@@ -64,13 +93,15 @@ export function phaseOfStep(step: OnboardingStep): OnboardingPhase {
  * The step to reopen for a persisted phase, so the flow resumes across
  * restarts on the step it was left on. A phase no step of this list stands
  * for reopens on the last step before it; a phase this interface does not
- * know reopens on the first step.
+ * know reopens on the first step. The closing step is never reopened, since
+ * it shows nothing: a first launch left there, or on a phase after it, reopens
+ * on the last step that has a screen.
  */
 export function stepOfPhase(phase: string): OnboardingStep {
   const reached = ONBOARDING_PHASE_ORDER.indexOf(phase as OnboardingPhase);
   for (let index = reached; index >= 0; index -= 1) {
     const entry = ONBOARDING_STEPS.find((step) => step.phase === ONBOARDING_PHASE_ORDER[index]);
-    if (entry) return entry.id;
+    if (entry && entry.id !== CLOSING_STEP) return entry.id;
   }
   return ONBOARDING_STEPS[0].id;
 }

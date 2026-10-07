@@ -2,7 +2,7 @@
 """Regenerate master-det.json from the per-page <page>-det.json scripts.
 
 master-det = head (section-00 start + global onboarding dismiss) then, for each
-page in section order: [screenshot section-NN-<page>, goto dashboard, waitFor
+page in section order: [screenshot section-NN-<page>, goto chat, waitFor
 app-main] + the page's steps minus its leading 2-step onboarding preamble
 (onboarding-skip + waitGone). The master's `dynamicTestids` declaration is the
 union of the pages' declarations, since its steps are the union of theirs.
@@ -22,7 +22,7 @@ ARGS = _parser.parse_args()
 SCRIPTS = "scripts/automation"
 # section order (from the section-NN markers), name maps to <name>-det.json
 ORDER = [
-    "nav-det", "dashboard-det", "chat-det", "agents-det",
+    "nav-det", "chat-det", "agents-det",
     "automations-det", "inbox-det", "notifications-det",
     "memory-det", "connections-det", "observability-det", "coach-det",
     "settings-det", "profile-det", "llm-det", "model-hub-det", "stt-det",
@@ -48,7 +48,7 @@ for n, page in enumerate(ORDER, start=1):
     body = ps[2:]
     dynamics.update(d.get("dynamicTestids", []))
     out.append({"kind": "screenshot", "label": f"section-{n:02d}-{page}"})
-    out.append({"kind": "goto", "route": "dashboard"})
+    out.append({"kind": "goto", "route": "chat"})
     out.append({"kind": "waitFor", "testid": "app-main"})
     out.extend(body)
 

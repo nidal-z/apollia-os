@@ -7,7 +7,7 @@ sidebar_position: 4
 # Set up your profile on first launch
 
 > On the first start of Apollia (or after a reset), a configuration flow opens automatically.
-> It walks you through five steps - the language, the AI, the model that searches by meaning, a short conversation that proposes your profile, a first agent - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode in Settings, off by default.
+> It walks you through seven steps - the language, the AI, the model that searches by meaning, a short conversation that proposes your profile, a first agent, a connection that agent needs, a first task with it - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode in Settings, off by default.
 > Total duration: 3 to 8 minutes depending on model downloads.
 >
 > This page covers **the initial flow only**. To edit your profile day to day from the installed application, see **[My profile](../memoire/manage-my-profile.md)**.
@@ -19,7 +19,7 @@ sidebar_position: 4
 
 ## Flow overview
 
-The flow is paced by a progress rail visible at the top of the window, with the count of the steps above it: **Language · AI · Search · About me · First agent**. You can go back at any step, and **Configure later** is available at the top right of the window, on every step, to postpone the whole thing.
+The flow is paced by a progress rail visible at the top of the window, with the count of the steps above it: **Language · AI · Search · About me · First agent · Connection · First task**. You can go back at any step, and **Configure later** is available at the top right of the window, on every step, to postpone the whole thing.
 
 | Step | What happens there |
 |---|---|
@@ -28,6 +28,8 @@ The flow is paced by a progress rail visible at the top of the window, with the 
 | **Search** | A second, smaller model that lets your agents find a document by its meaning. It can be skipped. |
 | **About me** | A short conversation with an agent, every question of which can be skipped. The agent then proposes a profile, which you read over and correct before it is saved. |
 | **First agent** | Three ways to an agent that is ready to work: install a package, create one by describing your need, or start from an example. It can be skipped. |
+| **Connection** | The connections your first agent needs and you do not have yet, each one added in place. It is shown only when one is missing, and it can be skipped. |
+| **First task** | The window closes on your agent at work: a conversation with its first example ready to send, or a batch on a sample workbook. It has no screen of its own. |
 
 ## Detailed steps
 
@@ -108,7 +110,26 @@ Three cards, three ways to an agent that is ready to work when the window closes
 - **Create by describing my need** opens a short conversation. Apollia drafts the sheet of the agent as you answer, you read it over and correct it, and **Save the agent** creates it.
 - **Start from an example** lists the ready-made agents Apollia proposes, each with its mission and the connection it requires. Choose one: only that one is installed, after the same confirmation as any package.
 
-Once an agent is there, the step names it and **Continue** closes the window. **Skip** closes it with no agent: you talk to Apollia, and you can add an agent at any time from the **Agents** screen.
+Once an agent is there, the step names it and **Continue** moves on. **Skip** closes the window with no agent, on a conversation with Apollia, and you can add an agent at any time from the **Agents** screen.
+
+### Step 6 - A useful connection
+
+This step appears only when the agent you kept needs a connection you do not have yet. An agent you created by describing your need, or one whose connections are all there, goes straight past it.
+
+Each missing connection has its line, with the reason the agent gives for needing it:
+
+- **Add** opens, above the window, the same dialog as the **Connections** screen, directly on that connection. Once it is added, its line reads **Present**.
+- A connection the selection of Apollia does not list has no **Add** button: add it later from the **Connections** screen.
+
+**Skip** and **Continue** both close the window, whatever the lines show: nothing here is required, and a missing connection can be added at any time from the **Connections** screen.
+
+### Step 7 - A first task
+
+The last step has no screen: the window closes, the setup is recorded as done, and Apollia opens on your agent at work.
+
+- **With the agent you kept**, a conversation with it opens. The first example the agent declares is already written in the message box, and nothing is sent: send it as it is, or change it first. An agent that declares no example opens on an empty message box.
+- **With the example that qualifies requests**, Apollia offers to copy its sample data, a workbook of made-up requests and a small folder of reference documents, into a folder you choose. Nothing is copied before you confirm. Once it is copied, **Launch the batch on the workbook** opens the launch of a batch on that workbook, with a preview of its first rows. If you cancel the copy or the launch, the conversation with the agent opens instead.
+- **Without an agent**, a conversation with Apollia opens.
 
 ### Skip the flow
 
@@ -127,7 +148,7 @@ If you want to go through the first-launch flow again:
 1. Open **Settings → Danger Zone**.
 2. Click **Reset Onboarding**. This action only clears the progress and profile markers - your LLM backends, downloaded models and other data stay intact.
 3. A confirmation window asks you to type `RESET`. Confirm.
-4. The five-step flow restarts from the choice of the language.
+4. The seven-step flow restarts from the choice of the language.
 
 For **small adjustments** (fixing your name, adding a daily tool) without going through the flow again, open **Settings → Profile** directly - see [My profile](../memoire/manage-my-profile.md). On a profile with empty fields, **Complete with an agent** starts the same short conversation for that profile; its proposal comes back into the form, where **Save** writes it and **Skip** drops it.
 

@@ -57,6 +57,30 @@ pub struct LoadedModelDto {
     /// Who loaded the model: `app`, or `server` when the compatible server
     /// loaded it for a request of another program. Fixed at load.
     pub origin: LoadOrigin,
+    /// Memory the load guardrail estimated for it at launch, in gigabytes;
+    /// absent when the launch was not estimated.
+    pub footprint_gb: Option<f64>,
+    /// Identifier of the model in the model index, the name an agent uses;
+    /// absent for a file the index does not hold.
+    pub model_id: Option<String>,
+    /// Size of its weights on disk, from the model index.
+    pub size_bytes: Option<u64>,
+    /// What the model can do, from the model index.
+    #[schema(value_type = Option<Object>)]
+    pub capabilities: Option<apollia_llm::Capabilities>,
+}
+
+impl LoadedModelDto {
+    /// Complete the entry with what the model index holds for its file.
+    fn with_index(mut self, index: &apollia_llm::ModelIndex) -> Self {
+        let path = std::path::Path::new(&self.model_path);
+        if let Some(model) = index.models.iter().find(|m| m.owns(path)) {
+            self.model_id = Some(model.id.clone());
+            self.size_bytes = Some(model.size_bytes);
+            self.capabilities = model.capabilities.clone();
+        }
+        self
+    }
 }
 
 impl From<LoadedModel> for LoadedModelDto {
@@ -74,6 +98,10 @@ impl From<LoadedModel> for LoadedModelDto {
             last_used_at: m.last_used_at.to_rfc3339(),
             active_requests: m.active_requests,
             origin: LoadOrigin::App,
+            footprint_gb: m.footprint_gb,
+            model_id: None,
+            size_bytes: None,
+            capabilities: None,
         }
     }
 }
@@ -161,6 +189,14 @@ pub async fn list_loaded_models<B: ExecutionBackend + Clone>(
             .map(|(a, b)| a + b);
     }
     loaded.sort_by_key(|m| std::cmp::Reverse(m.last_used_at));
+    let models_dir = crate::installed_models::models_dir(&state.data_dir);
+    // A folder with no index yet completes nothing; the list still answers.
+    let index = tokio::task::spawn_blocking(move || {
+        apollia_llm::ModelIndex::load(&crate::installed_models::index_path(&models_dir))
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default();
     let residency = Engines { llama, mlx }.residency();
     let models = loaded
         .into_iter()
@@ -172,6 +208,7 @@ pub async fn list_loaded_models<B: ExecutionBackend + Clone>(
                 origin,
                 ..LoadedModelDto::from(m)
             }
+            .with_index(&index)
         })
         .collect();
     Json(LoadedModelsResponse {
@@ -444,5 +481,52 @@ mod tests {
         let after: serde_json::Value = serde_json::from_slice(&after).expect("json");
         assert_eq!(after["models"].as_array().map(Vec::len), Some(1));
         assert_eq!(after["models"][0]["engine"], "llama-server");
+    }
+
+    #[test]
+    fn test_a_resident_model_is_completed_with_its_index_entry_and_its_footprint() {
+        // GIVEN a resident model whose launch was estimated at 4.5 GB, and an
+        //       index holding its file and another one
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path();
+        std::fs::write(dir.join("chat.gguf"), b"GGUF1").expect("write");
+        std::fs::write(dir.join("other.gguf"), b"GGUF22").expect("write");
+        let mut index = apollia_llm::ModelIndex::default();
+        for name in ["chat.gguf", "other.gguf"] {
+            index
+                .record(dir, &dir.join(name), apollia_llm::ModelOrigin::Import)
+                .expect("record");
+        }
+        let resident = LoadedModel {
+            engine: Engine::LlamaServer,
+            kind: ModelKind::Chat,
+            model: "chat".into(),
+            model_path: dir.join("chat.gguf").display().to_string(),
+            port: 1,
+            n_ctx: 4096,
+            n_gpu_layers: 99,
+            n_parallel: None,
+            loaded_at: chrono::Utc::now(),
+            last_used_at: chrono::Utc::now(),
+            active_requests: 0,
+            footprint_gb: Some(4.5),
+        };
+
+        // WHEN it is listed against the index, and a file the index lacks
+        let listed = LoadedModelDto::from(resident.clone()).with_index(&index);
+        let stranger = LoadedModelDto::from(LoadedModel {
+            model_path: "/elsewhere/x.gguf".into(),
+            ..resident
+        })
+        .with_index(&index);
+
+        // THEN the first carries its index identifier, its size and its
+        //      footprint, the stranger its footprint alone
+        assert_eq!(listed.model_id.as_deref(), Some("chat"));
+        assert_eq!(listed.size_bytes, Some(5));
+        assert_eq!(listed.footprint_gb, Some(4.5));
+        assert_eq!(stranger.model_id, None);
+        assert_eq!(stranger.size_bytes, None);
+        assert_eq!(stranger.footprint_gb, Some(4.5));
     }
 }

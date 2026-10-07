@@ -83,7 +83,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_agents::installed::{install_agent, list_installed_agents};
     use crate::api::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use crate::api::routes_app_lifecycle::app_lifecycle_router;
-    use crate::api::routes_approvals::{list_pending_approvals, list_resolved_approvals};
+    use crate::api::routes_approvals::list_pending_approvals;
     use crate::api::routes_artifacts::artifacts_router;
     use crate::api::routes_audit::{
         get_audit_anchor, get_audit_stats, list_audit, list_audit_journal, post_replay_run,
@@ -94,7 +94,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_chat::user_inputs::{
         answer_user_input, list_pending_user_inputs, reject_user_input,
     };
-    use crate::api::routes_chat::{approval_history, turns};
+    use crate::api::routes_chat::{answers, approval_history, turns};
     use crate::api::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
@@ -250,10 +250,6 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             "/api/v1/approvals/pending",
             get(list_pending_approvals::<B>),
         )
-        .route(
-            "/api/v1/approvals/resolved",
-            get(list_resolved_approvals::<B>),
-        )
         // Every decision waiting for the user, answered from one place
         .route(
             "/api/v1/pending-decisions",
@@ -329,6 +325,18 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/sessions/:id/messages/:message_id/resend",
             post(turns::resend_message::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/continuation",
+            get(answers::get_continuation::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id/continue",
+            post(answers::continue_answer::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id",
+            axum::routing::put(answers::edit_answer::<B>).delete(answers::delete_message::<B>),
         )
         .route(
             "/api/v1/sessions/:id/authorize",
@@ -427,6 +435,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(conversations_router::<B>())
         .merge(crate::api::routes_chat::trash::trash_router::<B>())
         .merge(crate::api::routes_chat::folders::folders_router::<B>())
+        .merge(crate::api::routes_chat::settings::settings_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())
         .merge(crate::api::routes_policy::policy_router::<B>())

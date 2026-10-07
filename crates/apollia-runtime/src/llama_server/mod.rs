@@ -20,6 +20,7 @@
 
 mod config;
 pub mod devices;
+mod draft;
 mod embeddings;
 mod engine_facts;
 mod explicit;

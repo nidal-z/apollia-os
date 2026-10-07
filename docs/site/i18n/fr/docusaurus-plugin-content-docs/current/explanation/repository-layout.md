@@ -82,8 +82,9 @@ principales :
 | `.github/CODE_OF_CONDUCT.md` | Normes de conduite de la communauté. GitHub le lit depuis `.github/` comme depuis la racine. |
 | `GOVERNANCE.md` | Comment les décisions sont prises et qui maintient le projet. |
 | `SECURITY.md` | Comment signaler une vulnérabilité, et la politique de versions supportées. |
-| `SPONSORS.md` | Informations sur le financement et le sponsoring. |
 | `CHANGELOG.md` | Registre lisible des changements notables par release. |
+| `ROADMAP.md` | La direction du projet : ce qui est livré, la version en cours, et les versions prévues ensuite. |
+| `CITATION.cff` | Métadonnées de citation, au format Citation File Format, pour qui référence le projet dans une publication. |
 
 ## Licences
 
@@ -94,9 +95,9 @@ licence qui convient à ses besoins.
 
 | Fichier | Ce que c'est |
 |---|---|
-| `LICENSE` | Un court index qui énonce la double licence et pointe vers les deux textes complets. Il confirme aussi que les contributions sont soumises à la même double licence. Ce n'est pas lui-même un texte de licence. |
 | `LICENSE-APACHE` | Le texte complet de l'Apache License 2.0. |
 | `LICENSE-MIT` | Le texte complet de la MIT License. |
+| `NOTICE` | Les composants tiers que les paquets de release redistribuent à côté du code du projet, chacun avec sa licence. |
 
 ## Configuration de build et de qualité
 
@@ -112,14 +113,12 @@ décrivent ce qu'il configure réellement dans ce dépôt.
 | `rustfmt.toml` | Formatage : édition 2021, `max_width = 100`, imports réordonnés, raccourcis field-init et try, fins de ligne Unix. |
 | `deny.toml` | Politique `cargo-deny` : une liste blanche de licences acceptables, le refus des registres inconnus, un avertissement sur les versions de dépendances dupliquées, et une liste documentée, par release, des avis de sécurité ignorés (chacun avec sa condition de levée). |
 | `Cross.toml` | Cross-compilation `cross-rs` : les étapes `pre-build` qui installent les bibliothèques système Linux (ALSA, PulseAudio, JACK, CMake, clang) dans le conteneur de build pour les cibles GNU/Linux x86_64 et aarch64. |
-| `sonar-project.properties` | Configuration d'analyse SonarQube (build communautaire local, ne fait pas partie de la release publique) : racines des sources et des tests, exclusions, chemin du rapport Clippy importé, et exemptions documentées par règle. |
 | `justfile` | Recettes de tâches `just` : les commandes canoniques pour construire, tester, linter, et exécuter l'automate desktop. |
 | `.pre-commit-config.yaml` | La liste des hooks, et le fichier à lire pour la connaître plutôt qu'une copie de celle-ci : hygiène des fichiers et détection de secrets, `ruff` sur `sdk/`, `rustfmt` et `cargo check` sur l'espace de travail, neuf des gardes du dépôt sous `scripts/` (dont les règles de prose), et le build du site de documentation. Deux entrées tournent en dehors du commit lui-même : `clippy` au push, et la convention de message de commit à `commit-msg`. À ne jamais contourner. |
 | `.editorconfig` | Règles d'espacement indépendantes de l'éditeur : fins de ligne LF, ligne finale vide, et tailles d'indentation par langage (4 pour Rust/Python/TOML, 2 pour le web et Markdown). |
 | `.python-version` | Fige l'interpréteur Python local (`3.13.7`) pour des outils comme `pyenv`. |
-| `.mailmap` | Canonicalise le nom et l'email des contributeurs à travers l'historique git. |
 | `.cargo/` | Réglages par défaut de Cargo : `config.toml` fixe l'environnement de build (cible de déploiement macOS, un profil dev accéléré) et `audit.toml` contient les avis ignorés par `cargo-audit` (reflet de `deny.toml`). |
-| `.github/` | Configuration GitHub : les workflows CI, CodeQL, nightly, et de release (`.github/workflows/`), plus `CODEOWNERS`, les templates d'issue et de PR, `dependabot.yml`, et `FUNDING.yml`. |
+| `.github/` | Configuration GitHub : les workflows CI, CodeQL, de vérifications hebdomadaires, et de release (`.github/workflows/`), plus `CODEOWNERS`, les templates d'issue et de PR, `dependabot.yml`, et `FUNDING.yml`. |
 | `.gitignore` | Chemins que git ne suit pas (voir ci-dessous). |
 
 ## Entrées locales uniquement (ignorées par git, jamais livrées)

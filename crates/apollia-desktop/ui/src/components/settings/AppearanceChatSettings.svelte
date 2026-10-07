@@ -1,6 +1,8 @@
 <!--
   Settings > Appearance, the two blocks about reading the chat: "Chat style"
-  (text size and weight, density, width) and "Reasoning" (unfold by default).
+  (rendered or plain text, text size and weight, generation figures, scroll on
+  send and while an answer arrives, bubbles or blocks, density, width) and
+  "Reasoning" (unfold by default, vignette).
   The values live in `lib/stores/chatAppearance.ts`; this file only edits them.
 -->
 <script lang="ts">
@@ -18,7 +20,13 @@
     CHAT_FONT_SIZE_MAX,
     CHAT_FONT_SIZE_MIN,
     CHAT_FONT_WEIGHTS,
+    CHAT_MESSAGE_STYLES,
+    CHAT_VIEW_MODES,
+    GENERATION_INFO_SCOPES,
     type ChatDensity,
+    type ChatMessageStyle,
+    type ChatViewMode,
+    type GenerationInfoScope,
     type ChatFontSize,
     type ChatFontWeight,
   } from "$lib/stores/chatAppearance";
@@ -34,6 +42,35 @@
     compact: "settings.appearance.density_compact",
   };
 
+  const VIEW_MODE_LABEL_KEYS: Record<ChatViewMode, string> = {
+    markdown: "settings.appearance.view_mode_markdown",
+    plain: "settings.appearance.view_mode_plain",
+  };
+  const GENERATION_INFO_LABEL_KEYS: Record<GenerationInfoScope, string> = {
+    last: "settings.appearance.generation_info_last",
+    all: "settings.appearance.generation_info_all",
+  };
+  const MESSAGE_STYLE_LABEL_KEYS: Record<ChatMessageStyle, string> = {
+    bubble: "settings.appearance.message_style_bubble",
+    block: "settings.appearance.message_style_block",
+  };
+
+  function onMessageStyleKeydown(e: KeyboardEvent): void {
+    const dir =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (dir === 0) return;
+    e.preventDefault();
+    const n = CHAT_MESSAGE_STYLES.length;
+    const next =
+      CHAT_MESSAGE_STYLES[(CHAT_MESSAGE_STYLES.indexOf($chatAppearance.messageStyle) + dir + n) % n];
+    setChatAppearance({ messageStyle: next });
+    (e.currentTarget as HTMLElement).querySelector<HTMLElement>(`[data-value="${next}"]`)?.focus();
+  }
+
   const atDefaultSize = $derived(
     $chatAppearance.fontSize === CHAT_APPEARANCE_DEFAULTS.fontSize,
   );
@@ -48,6 +85,44 @@
 
 <SettingsSection title={$t("settings.appearance.chat_style_title")} bodyLayout="flush">
   {#snippet icon()}<Type size={15} strokeWidth={1.75} />{/snippet}
+
+  <SettingsFieldRow
+    label={$t("settings.appearance.view_mode_label")}
+    hint={$t("settings.appearance.view_mode_hint")}
+    for="appearance-view-mode"
+    data-testid="appearance-view-mode"
+  >
+    {#snippet control()}
+      <Select
+        id="appearance-view-mode"
+        size="sm"
+        value={$chatAppearance.viewMode}
+        onchange={(e) => setChatAppearance({ viewMode: e.currentTarget.value as ChatViewMode })}
+        data-testid="appearance-view-mode-select"
+      >
+        {#each CHAT_VIEW_MODES as mode (mode)}
+          <option value={mode}>{$t(VIEW_MODE_LABEL_KEYS[mode])}</option>
+        {/each}
+      </Select>
+    {/snippet}
+  </SettingsFieldRow>
+
+  <SettingsFieldRow
+    label={$t("settings.appearance.tab_scrollbar_label")}
+    hint={$t("settings.appearance.tab_scrollbar_hint")}
+    for="appearance-tab-scrollbar"
+    data-testid="appearance-tab-scrollbar"
+  >
+    {#snippet control()}
+      <Toggle
+        id="appearance-tab-scrollbar"
+        checked={$chatAppearance.tabScrollbar}
+        onchange={(checked) => setChatAppearance({ tabScrollbar: checked })}
+        aria-label={$t("settings.appearance.tab_scrollbar_label")}
+        data-testid="appearance-tab-scrollbar-toggle"
+      />
+    {/snippet}
+  </SettingsFieldRow>
 
   <SettingsFieldRow
     label={$t("settings.appearance.font_size_label")}
@@ -106,6 +181,97 @@
   </SettingsFieldRow>
 
   <SettingsFieldRow
+    label={$t("settings.appearance.generation_info_label")}
+    help={$t("settings.appearance.generation_info_help")}
+    for="appearance-generation-info"
+    data-testid="appearance-generation-info"
+  >
+    {#snippet control()}
+      <Select
+        id="appearance-generation-info"
+        size="sm"
+        value={$chatAppearance.generationInfo}
+        onchange={(e) =>
+          setChatAppearance({ generationInfo: e.currentTarget.value as GenerationInfoScope })}
+        data-testid="appearance-generation-info-select"
+      >
+        {#each GENERATION_INFO_SCOPES as scope (scope)}
+          <option value={scope}>{$t(GENERATION_INFO_LABEL_KEYS[scope])}</option>
+        {/each}
+      </Select>
+    {/snippet}
+  </SettingsFieldRow>
+
+  <SettingsFieldRow
+    label={$t("settings.appearance.scroll_sent_top_label")}
+    for="appearance-scroll-sent-top"
+    border={false}
+    data-testid="appearance-scroll-sent-top"
+  >
+    {#snippet control()}
+      <Toggle
+        id="appearance-scroll-sent-top"
+        checked={$chatAppearance.scrollSentToTop}
+        onchange={(checked) => setChatAppearance({ scrollSentToTop: checked })}
+        aria-label={$t("settings.appearance.scroll_sent_top_label")}
+        data-testid="appearance-scroll-sent-top-toggle"
+      />
+    {/snippet}
+  </SettingsFieldRow>
+
+  <SettingsFieldRow
+    label={$t("settings.appearance.follow_generation_label")}
+    for="appearance-follow-generation"
+    indent
+    data-testid="appearance-follow-generation"
+  >
+    {#snippet control()}
+      <Toggle
+        id="appearance-follow-generation"
+        checked={$chatAppearance.followGeneration}
+        onchange={(checked) => setChatAppearance({ followGeneration: checked })}
+        aria-label={$t("settings.appearance.follow_generation_label")}
+        data-testid="appearance-follow-generation-toggle"
+      />
+    {/snippet}
+  </SettingsFieldRow>
+
+  <SettingsFieldRow
+    label={$t("settings.appearance.message_style_label")}
+    data-testid="appearance-message-style"
+  >
+    {#snippet control()}
+      <div
+        role="radiogroup"
+        tabindex={-1}
+        aria-label={$t("settings.appearance.message_style_label")}
+        class="inline-flex gap-0.5 rounded-lg border border-border bg-muted/60 p-0.5"
+        onkeydown={onMessageStyleKeydown}
+        data-testid="appearance-message-style-toggle"
+      >
+        {#each CHAT_MESSAGE_STYLES as style (style)}
+          {@const active = $chatAppearance.messageStyle === style}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabindex={active ? 0 : -1}
+            data-value={style}
+            class="rounded-md px-3 py-1.5 text-label-sm ring-offset-background transition-all duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1
+              {active
+              ? 'bg-card text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'}"
+            onclick={() => setChatAppearance({ messageStyle: style })}
+            data-testid="appearance-message-style-{style}"
+          >
+            {$t(MESSAGE_STYLE_LABEL_KEYS[style])}
+          </button>
+        {/each}
+      </div>
+    {/snippet}
+  </SettingsFieldRow>
+
+  <SettingsFieldRow
     label={$t("settings.appearance.density_label")}
     hint={$t("settings.appearance.density_hint")}
     for="appearance-density"
@@ -151,7 +317,6 @@
     label={$t("settings.appearance.reasoning_expand_label")}
     hint={$t("settings.appearance.reasoning_expand_hint")}
     for="appearance-reasoning-expand"
-    border={false}
     data-testid="appearance-reasoning-expand"
   >
     {#snippet control()}
@@ -161,6 +326,24 @@
         onchange={(checked) => setChatAppearance({ expandReasoning: checked })}
         aria-label={$t("settings.appearance.reasoning_expand_label")}
         data-testid="appearance-reasoning-expand-toggle"
+      />
+    {/snippet}
+  </SettingsFieldRow>
+
+  <SettingsFieldRow
+    label={$t("settings.appearance.reasoning_vignette_label")}
+    hint={$t("settings.appearance.reasoning_vignette_hint")}
+    for="appearance-reasoning-vignette"
+    border={false}
+    data-testid="appearance-reasoning-vignette"
+  >
+    {#snippet control()}
+      <Toggle
+        id="appearance-reasoning-vignette"
+        checked={$chatAppearance.reasoningVignette}
+        onchange={(checked) => setChatAppearance({ reasoningVignette: checked })}
+        aria-label={$t("settings.appearance.reasoning_vignette_label")}
+        data-testid="appearance-reasoning-vignette-toggle"
       />
     {/snippet}
   </SettingsFieldRow>

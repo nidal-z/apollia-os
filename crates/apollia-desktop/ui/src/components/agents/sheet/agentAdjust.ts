@@ -46,9 +46,6 @@ export type AdjustWrite =
   | { kind: "set_model"; model: ModelDraft }
   | { kind: "clear_model" };
 
-/** The sources the sheet always offers to check, whatever the agent holds. */
-export const OFFERED_SOURCES: readonly string[] = ["profile", "memory"];
-
 // ── Draft ───────────────────────────────────────────────────────────────
 
 function modelDraft(model: AgentModelAssignment | null): ModelDraft | null {
@@ -252,12 +249,6 @@ export function filterCandidates(candidates: GrantCandidate[], query: string): G
 }
 
 // ── Sources ─────────────────────────────────────────────────────────────
-
-/** The sources the adjustment lists, each checked or not. */
-export function sourceChoices(inForce: string[], draft: string[]): { id: string; checked: boolean }[] {
-  const ids = [...new Set([...OFFERED_SOURCES, ...inForce, ...draft])];
-  return ids.map((id) => ({ id, checked: draft.includes(id) }));
-}
 
 /** Checks or unchecks `id` in the draft. */
 export function toggleSource(sources: string[], id: string, checked: boolean): string[] {

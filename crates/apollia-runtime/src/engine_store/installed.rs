@@ -37,6 +37,9 @@ pub struct InstalledPackage {
     pub sha256: String,
     /// Downloaded or imported.
     pub source: Source,
+    /// Day the build was published, `YYYY-MM-DD`, when its manifest said so.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub released: Option<String>,
     /// Directory it was extracted into. Not stored: filled when read.
     #[serde(skip)]
     pub path: PathBuf,

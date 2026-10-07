@@ -1,7 +1,28 @@
+<script lang="ts" module>
+  import type { ChatMessageStyle } from "$lib/stores/chatAppearance";
+
+  /**
+   * The frame of a user message: a bubble on the right, or, with the "blocks"
+   * style of Appearance, a block the width of the column with no bubble. A
+   * message being edited takes the column either way.
+   */
+  export function userMessageFrame(input: {
+    style: ChatMessageStyle;
+    editing: boolean;
+  }): { align: "items-end" | "items-start"; frame: string } {
+    if (input.style === "block") return { align: "items-start", frame: "chat-user-block w-full py-1" };
+    return { align: "items-end", frame: input.editing ? "w-full" : "chat-user-bubble" };
+  }
+</script>
+
 <script lang="ts">
   import { fly } from "svelte/transition";
   import { t, locale } from "svelte-i18n";
-  import { Copy, Check, RefreshCw, Pencil } from "lucide-svelte";
+  import { getContext } from "svelte";
+  import { ANSWER_ACTIONS, type AnswerActionsContext } from "$lib/chat/answerActions";
+  import MessageActions from "./MessageActions.svelte";
+  import { doubleClickEdits } from "$lib/chat/chatBehaviours";
+  import { chatDoubleClickEdit } from "$lib/stores/chatBehaviours";
   import type { ChatMessageView } from "$lib/types";
   import { developerMode } from "$lib/stores/developerMode";
   import MessageRenderer from "./MessageRenderer.svelte";
@@ -13,7 +34,8 @@
   import MessageDocuments from "./MessageDocuments.svelte";
   import { documentsText, typedText } from "$lib/chat/messageDocuments";
   import GenerationInfo from "./GenerationInfo.svelte";
-  import { readGeneration } from "$lib/chat/generationStats";
+  import { readGeneration, showsGenerationInfo } from "$lib/chat/generationStats";
+  import { chatMessageStyle, generationInfoScope } from "$lib/stores/chatAppearance";
   import { parseStream } from "$lib/chat/streamParser";
   import { extractSources } from "$lib/chat/reasoning";
   import {
@@ -34,6 +56,8 @@
     variant?: "default" | "compact";
     /** True while a turn is generating - disables regenerate/edit affordances. */
     busy?: boolean;
+    /** The answer that keeps its generation figures under "last message only". */
+    lastAnswerId?: string | null;
     /** Regenerate the reply to this assistant turn (truncate-in-place). */
     onregenerate?: (messageId: string) => void;
     /** Replace this user message and re-run from it (truncate-in-place). */
@@ -46,6 +70,7 @@
     showTimestamp = true,
     variant = "default",
     busy = false,
+    lastAnswerId = null,
     onregenerate,
     onedit,
   }: Props = $props();
@@ -96,7 +121,13 @@
 
   // The total of the turn, written by the runtime under its answer: read from
   // the message itself, so a reloaded conversation shows the same line.
-  const generation = $derived(isUser ? null : readGeneration(message.metadata));
+  // Which answers show it is a choice of Settings > Appearance.
+  const generation = $derived(
+    isUser ||
+      !showsGenerationInfo({ scope: $generationInfoScope, messageId: message.id, lastAnswerId })
+      ? null
+      : readGeneration(message.metadata),
+  );
 
   // Source cards (zone 3): deduplicated web pages the agent consulted.
   const sources = $derived(extractSources(nonPendingCalls));
@@ -131,27 +162,19 @@
   const widthClass = "w-full";
   const compact = $derived(variant === "compact");
 
-  let copied = $state(false);
-
-  async function handleCopy(): Promise<void> {
-    if (!message.content) return;
-    try {
-      await navigator.clipboard.writeText(isUser ? userText : message.content);
-      copied = true;
-      setTimeout(() => { copied = false; }, 1500);
-    } catch {
-      // clipboard API may not be available
-    }
-  }
-
-  // Inline edit of a user turn (G10). Opening the editor seeds it with the
-  // current text; saving hands the new content up so the parent truncates the
-  // history from this message and re-runs.
+  // Inline edit. A user turn hands its new text up, and the parent truncates
+  // the history from it and runs again; an answer is rewritten in place
+  // through the conversation, and nothing runs.
+  const answers = getContext<AnswerActionsContext | undefined>(ANSWER_ACTIONS);
   let editing = $state(false);
   let editValue = $state("");
 
-  const canRegenerate = $derived(!isUser && !!onregenerate && !!message.content);
-  const canEdit = $derived(isUser && !!onedit && !!message.content);
+  const canEdit = $derived(
+    !!message.content &&
+      (isUser ? !!onedit : !!answers && message.role === "assistant"),
+  );
+
+  const userFrame = $derived(userMessageFrame({ style: $chatMessageStyle, editing }));
 
   function startEdit(): void {
     editValue = isUser ? userText : (message.content ?? "");
@@ -162,10 +185,28 @@
     editing = false;
   }
 
+  // A double click on a message of the user opens its edition when
+  // Settings > Chat asks for it; an answer keeps the double click for
+  // selecting a word.
+  function onBubbleDblClick(): void {
+    const opens = doubleClickEdits({
+      enabled: $chatDoubleClickEdit,
+      isUser,
+      canEdit,
+      busy,
+      editing,
+    });
+    if (opens) startEdit();
+  }
+
   function saveEdit(): void {
     const next = editValue.trim();
     if (!next) return;
     editing = false;
+    if (!isUser) {
+      if (next !== (message.content ?? "").trim()) answers?.editAnswer(message.id, next);
+      return;
+    }
     // The text of an attached document stays behind the edited text, so the
     // agent still reads it.
     onedit?.(message.id, next + documentsText(message.content ?? "", message.metadata));
@@ -173,10 +214,11 @@
 </script>
 
 <div
-  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} {compact
+  class="group flex flex-col {isUser ? userFrame.align : 'items-start'} {compact
     ? 'chat-density-compact gap-0.5'
     : 'gap-1'} w-full"
   data-testid="chat-message-{message.id}"
+  data-message-style={isUser ? $chatMessageStyle : undefined}
   in:fly={{ y: 4, duration: 200 }}
 >
   <!-- Zone 1: the turn in the order it happened, each reasoning fragment a
@@ -206,15 +248,14 @@
     <MessageDocuments messageId={message.id} metadata={message.metadata} />
   {/if}
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="relative {isUser
-      ? editing
-        ? widthClass
-        : 'chat-user-bubble'
+      ? userFrame.frame
       : `${widthClass} text-foreground ${compact ? "py-0.5" : "py-1"}`}"
+    ondblclick={onBubbleDblClick}
   >
-    {#if isUser}
-      {#if editing}
+    {#if editing}
         <div class="flex flex-col gap-2">
           <!-- svelte-ignore a11y_autofocus -->
           <textarea
@@ -243,16 +284,15 @@
                 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               data-testid="chat-message-edit-save-{message.id}"
             >
-              {$t("chat.edit_save")}
+              {isUser ? $t("chat.edit_save") : $t("common.save")}
             </button>
           </div>
         </div>
-      {:else}
+    {:else if isUser}
         <MessageImages {sessionId} messageId={message.id} metadata={message.metadata} />
         {#if userText}
           <p class="whitespace-pre-wrap break-words">{userText}</p>
         {/if}
-      {/if}
     {:else if isEmptyAgentResponse}
       <p
         class="whitespace-pre-wrap break-words text-body-md italic text-muted-foreground/80"
@@ -315,50 +355,14 @@
     </div>
   {/if}
 
-  <!-- Zone 5: turn actions - a row below the turn (mockup .actions). Assistant
-       turns get regenerate + copy; user turns get the inline edit affordance. -->
-  {#if isUser}
-    {#if canEdit && !editing}
-      <div class="chat-actions" data-testid="chat-message-actions-{message.id}">
-        <button
-          type="button"
-          onclick={startEdit}
-          disabled={busy}
-          title={$t("chat.edit_message")}
-          aria-label={$t("chat.edit_message")}
-          data-testid="chat-message-edit-{message.id}"
-        >
-          <Pencil size={15} />
-        </button>
-      </div>
-    {/if}
-  {:else if message.content}
-    <div class="chat-actions" data-testid="chat-message-actions-{message.id}">
-      {#if canRegenerate}
-        <button
-          type="button"
-          onclick={() => onregenerate?.(message.id)}
-          disabled={busy}
-          title={$t("chat.regenerate")}
-          aria-label={$t("chat.regenerate")}
-          data-testid="chat-message-regenerate-{message.id}"
-        >
-          <RefreshCw size={15} />
-        </button>
-      {/if}
-      <button
-        type="button"
-        onclick={handleCopy}
-        title={$t("chat.copy_message")}
-        aria-label={$t("chat.copy_message")}
-        data-testid="chat-message-copy-{message.id}"
-      >
-        {#if copied}
-          <Check size={15} class="text-success" />
-        {:else}
-          <Copy size={15} />
-        {/if}
-      </button>
-    </div>
+  <!-- Zone 5: the actions of the turn, a row below it. -->
+  {#if !editing && (isUser ? canEdit || !!answers : !!message.content || !!answers)}
+    <MessageActions
+      {message}
+      copyText={isUser ? userText : (message.content ?? "")}
+      {busy}
+      onregenerate={isUser ? undefined : onregenerate}
+      onstartedit={canEdit ? startEdit : undefined}
+    />
   {/if}
 </div>

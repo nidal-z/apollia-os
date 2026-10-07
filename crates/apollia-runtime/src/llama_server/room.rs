@@ -7,6 +7,9 @@ use std::sync::Arc;
 use apollia_core::ModelUnloadReason;
 
 use crate::engine_store::Engine;
+use crate::local_engine::guardrails::{self, GuardrailPolicy, LoadEstimate};
+use crate::local_engine::{GuardrailRefusal, LoadConsent};
+use crate::residency::replace::{beside_the_ones_that_stay, replaced, Replaceable};
 use crate::residency::room::Resident;
 use crate::residency::Residency;
 
@@ -47,6 +50,42 @@ impl LlamaServerSupervisor {
                 last_used: i.last_used,
             })
             .collect()
+    }
+
+    /// Hold the launch of `model_path` to `policy` when a load first unloads
+    /// the resident models: judged beside the pinned ones and the ones
+    /// answering a request, which stay, then every other one is stopped. A
+    /// refused launch stops nothing. Returns the footprint of the model alone.
+    /// The caller holds the respawn lock.
+    pub(super) async fn admit_alone(
+        &self,
+        policy: &GuardrailPolicy,
+        estimate: Option<LoadEstimate>,
+        consent: LoadConsent,
+        model_path: &str,
+    ) -> Result<Option<f64>, GuardrailRefusal> {
+        let residents: Vec<Replaceable> = {
+            let instances = self.instances.lock().await;
+            instances
+                .iter()
+                .filter(|i| i.model_path != model_path)
+                .map(|i| Replaceable {
+                    model_path: i.model_path.clone(),
+                    footprint_gb: i.footprint_gb.unwrap_or(0.0),
+                    stays: i.in_flight.load(Ordering::Acquire) > 0
+                        || self
+                            .residency
+                            .get()
+                            .is_some_and(|r| r.is_pinned(&i.model_path)),
+                })
+                .collect()
+        };
+        let judged = estimate
+            .as_ref()
+            .map(|estimate| beside_the_ones_that_stay(estimate, &residents));
+        guardrails::enforce(policy, judged.as_ref(), consent, model_path)?;
+        self.make_room(&replaced(&residents)).await;
+        Ok(estimate.map(|estimate| estimate.total_gb))
     }
 
     /// Stop the processes of `models` that serve no request, to make room for

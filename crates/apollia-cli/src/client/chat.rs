@@ -152,6 +152,62 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// What a conversation changes from its agent, via
+    /// `GET /api/v1/sessions/:id/settings`.
+    pub async fn get_session_settings(
+        &self,
+        session_id: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/sessions/{session_id}/settings"))
+            .await?;
+        answer_of(resp)
+    }
+
+    /// Replace the settings of a conversation via
+    /// `PUT /api/v1/sessions/:id/settings`; answers them as stored.
+    pub async fn put_session_settings(
+        &self,
+        session_id: &str,
+        settings: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .put(
+                &format!("/api/v1/sessions/{session_id}/settings"),
+                Some(settings),
+            )
+            .await?;
+        answer_of(resp)
+    }
+
+    /// The notes kept beside a conversation, via
+    /// `GET /api/v1/sessions/:id/notes`.
+    pub async fn get_session_notes(
+        &self,
+        session_id: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/sessions/{session_id}/notes"))
+            .await?;
+        answer_of(resp)
+    }
+
+    /// Replace the notes of a conversation via
+    /// `PUT /api/v1/sessions/:id/notes`; answers them as stored.
+    pub async fn put_session_notes(
+        &self,
+        session_id: &str,
+        notes: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .put(
+                &format!("/api/v1/sessions/{session_id}/notes"),
+                Some(&serde_json::json!({ "notes": notes })),
+            )
+            .await?;
+        answer_of(resp)
+    }
+
     /// List recent sessions via `GET /api/v1/sessions/recent?limit=N`.
     pub async fn list_recent_chat_sessions(
         &self,
@@ -317,4 +373,15 @@ impl RuntimeClient {
 
         Ok(rx)
     }
+}
+
+/// The JSON answer of `resp`, or the error its status stands for.
+fn answer_of(resp: super::RawResponse) -> Result<serde_json::Value, ClientError> {
+    if resp.status >= 400 {
+        return Err(ClientError::ServerError {
+            status: resp.status,
+            body: extract_error(&resp.body, resp.status),
+        });
+    }
+    Ok(serde_json::from_str(&resp.body)?)
 }

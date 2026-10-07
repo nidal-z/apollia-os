@@ -102,6 +102,23 @@ pub fn elapsed_since(started_at: &str) -> Option<u64> {
     u64::try_from(elapsed.num_milliseconds()).ok()
 }
 
+/// The tokens generated across `history`: the sum of the totals written
+/// under its answers. A message without a total counts for none.
+#[must_use]
+pub fn output_tokens_of(history: &[crate::chat::types::ChatMessage]) -> u64 {
+    history
+        .iter()
+        .filter_map(|message| {
+            message
+                .metadata
+                .as_ref()?
+                .get("generation")?
+                .get("output_tokens")?
+                .as_u64()
+        })
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

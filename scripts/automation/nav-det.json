@@ -1,9 +1,9 @@
 {
-  "name": "nav-det (app chrome: sidebar nav + topbar + user menu + command palette, developer mode off and on, its sidebar entries asserted)",
+  "name": "nav-det (app chrome: sidebar in two ranks + topbar + user menu + command palette, developer mode off and on, its sidebar entries asserted)",
   "stopOnError": false,
   "notes": [
     "Code-verified against components/app/{Sidebar,Topbar,UserMenu}.svelte + ui/command/{Command,CommandItem}.svelte + keyboard/globalShortcuts.ts.",
-    "With the developer mode off, nav-llm is listed for every user and the developer group (sidebar-developer-group: nav-transcriptions, nav-observability, nav-memory) is asserted ABSENT via waitGone; with the mode on, the group appears after the secondary entries (Sidebar.svelte visibleDeveloperNav).",
+    "The sidebar has two ranks (Sidebar.svelte PRIMARY_NAV, SECONDARY_NAV): sidebar-primary-rank holds nav-chat, nav-agents, nav-integrations, nav-llm, nav-inbox, and sidebar-secondary-rank holds nav-library, nav-automations, nav-authorizations, nav-journal, nav-settings; the walk clicks the ten in that order. The organisation policy has no entry: it is read on the panel authorizations-policy at the head of the authorizations screen. With the developer mode off, nav-developer and the developer group (sidebar-developer-group: nav-transcriptions, nav-observability, nav-memory) are asserted ABSENT via waitGone; with the mode on, nav-developer closes the first rank and opens developer-page, and the group appears after the second rank (Sidebar.svelte visibleDeveloperNav).",
     "Command palette items carry interpolated ids `command-item-{action-id}` (CommandItem.svelte); the old exact `command-item` no longer exists, so a generic item is matched via testidPrefix.",
     "topbar-search click dispatches Cmd+K, which globalShortcuts.ts TOGGLES; a second click closes the palette.",
     "user-menu-about navigates to the About settings sub-page (UserMenu.goAbout -> navigateToSettings('about')); there is no About dialog, so the landing is asserted on about-section and there is nothing to close.",
@@ -13,11 +13,14 @@
   ],
   "dynamicTestids": [
     "nav-agents",
+    "nav-authorizations",
     "nav-automations",
     "nav-chat",
-    "nav-dashboard",
+    "nav-developer",
     "nav-inbox",
     "nav-integrations",
+    "nav-journal",
+    "nav-library",
     "nav-llm",
     "nav-memory",
     "nav-observability",
@@ -76,17 +79,16 @@
       "testid": "topbar"
     },
     {
-      "kind": "click",
-      "testid": "nav-dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "screenshot",
       "label": "01-sidebar-operator"
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar-primary-rank"
+    },
+    {
+      "kind": "expect",
+      "testid": "sidebar-secondary-rank"
     },
     {
       "kind": "click",
@@ -94,7 +96,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "app-main",
+      "testid": "chat-page",
       "timeoutMs": 8000
     },
     {
@@ -108,11 +110,20 @@
     },
     {
       "kind": "click",
-      "testid": "nav-automations"
+      "testid": "nav-integrations"
     },
     {
       "kind": "waitFor",
       "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
       "timeoutMs": 8000
     },
     {
@@ -121,16 +132,52 @@
     },
     {
       "kind": "waitFor",
-      "testid": "app-main",
+      "testid": "inbox-page",
       "timeoutMs": 8000
     },
     {
       "kind": "click",
-      "testid": "nav-integrations"
+      "testid": "nav-library"
     },
     {
       "kind": "waitFor",
-      "testid": "app-main",
+      "testid": "library-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-automations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "nav-authorizations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-policy",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02a-authorizations-policy-panel"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-journal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-page",
       "timeoutMs": 8000
     },
     {
@@ -148,7 +195,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -173,6 +220,11 @@
     {
       "kind": "waitGone",
       "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-developer",
       "timeoutMs": 4000
     },
     {
@@ -234,50 +286,6 @@
     },
     {
       "kind": "click",
-      "testid": "topbar-inbox"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-topbar-inbox"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "topbar-settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-topbar-settings"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
       "testid": "topbar-user-menu"
     },
     {
@@ -321,7 +329,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -357,7 +365,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -388,7 +396,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -423,7 +431,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -456,6 +464,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "nav-developer",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
       "label": "12-sidebar-developer-entries"
     },
@@ -471,6 +484,19 @@
     {
       "kind": "screenshot",
       "label": "13-nav-llm-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-nav-developer-screen"
     },
     {
       "kind": "click",
@@ -535,7 +561,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -570,7 +596,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -590,6 +616,11 @@
     {
       "kind": "waitGone",
       "testid": "nav-memory",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-developer",
       "timeoutMs": 4000
     },
     {
@@ -632,7 +663,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -732,7 +763,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",

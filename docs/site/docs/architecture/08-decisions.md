@@ -187,6 +187,16 @@ runtime suspends the run, emits an event carrying what is being asked, and
 resumes on the answer. Suspension is a first-class state, not a blocking wait:
 the process is free, and a run can stay parked across a restart.
 
+A workflow asks the user a question from inside a step, through
+`ctx.user.ask`: one question, the choices it proposes when it has some, and a
+free answer the user may always give instead. The question is listed with the
+other decisions waiting for the user, with the run, the workflow and the step
+it comes from, and the answer wakes the step where it stopped. This wait is
+not a parked state: a workflow runs in memory and does not resume, so a run
+that waits on a question when the runtime stops is failed at the next start,
+with that reason, like every interrupted run. A declined question reaches the
+step as `QuestionDeclined`, which the author may catch.
+
 ## Memory {#memory-model}
 
 Memory has three layers: episodic events with an importance score, semantic
@@ -574,6 +584,11 @@ file, itself, `zopfli` and `zlib-rs` (see [Package archive](#package-archive)).
 back into the file a batch was read from is decided with the reader of
 spreadsheets (see [Documents and sources](#documents-and-sources)).
 
+The desktop application writes one more workbook with it: the demonstration
+dataset an example agent can be tried on, built from a table the application
+carries when the user asks for a copy. No crate enters the lock file for it,
+`rust_xlsxwriter` becoming a direct dependency of the desktop.
+
 ## Agent-to-agent messaging {#agent-messaging}
 
 A director agent delegates to worker agents by skill identifier, over a durable
@@ -959,6 +974,23 @@ between them, as stated above.
 Releases are published on GitHub Releases. The desktop app checks that feed only
 when the operator asks, never in the background, and reports an empty feed as an
 empty feed rather than as an error.
+
+There is one installer per system. No installer exists in a second edition for
+one kind of graphics card: an edition per card made the reader choose a download
+from hardware they may not know, and tied the version of an engine to a release
+of the application. The engines an installer does not embed, the CUDA build of
+`llama-server` and the Node.js that runs tool servers, are published apart, on
+their own channel, under a manifest signed in the minisign format with a
+dedicated distribution key (see [Local inference](#local-inference)). The
+pipeline that publishes them is separate from the one that publishes the
+application and is started by hand: it takes upstream archives pinned by
+SHA-256, repackages each as zip, and signs the manifest with a key that signs
+nothing else, distinct from the key of the application updates. The registry
+of Apollia serves the manifest and the archives, and GitHub Releases mirrors
+them. An application installed from a former CUDA edition keeps updating: the
+update manifest it asks is still published, as a copy of the standard one, so
+it moves to the one installer of its system and gets the CUDA engine from the
+engine channel.
 
 ## Verification {#verification}
 

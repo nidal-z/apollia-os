@@ -119,6 +119,13 @@ impl BuiltInChatAgent {
             );
         }
 
+        // A continued answer closes the request: the engine prefills it and
+        // writes what follows. Nothing is added to ask for the rest.
+        if let Some(answer) = self.answer_prefill.as_deref() {
+            llm_messages.push(LlmChatMessage::assistant(answer));
+            tracing::info!(session_id = %session_id, "chat.answer.continued");
+        }
+
         let ids = ToolCallContextIds {
             session_id,
             message_id,

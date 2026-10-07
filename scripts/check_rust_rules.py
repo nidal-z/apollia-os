@@ -137,7 +137,6 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/backend/factory.rs": 2,
     "crates/apollia-desktop/src/backend/runner.rs": 1,
     "crates/apollia-desktop/src/commands/agents.rs": 1,
-    "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/stt.rs": 2,
     "crates/apollia-desktop/src/main.rs": 4,
@@ -199,7 +198,6 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
 # lock and is red.
 ARC_MUTEX_ALIASES: set[str] = {
     "crates/apollia-auth/src/callback.rs::ResultCell",
-    "crates/apollia-desktop/src/commands/llm.rs::LlmPingCache",
     "crates/apollia-desktop/src/commands/model_hub.rs::SharedDownloadManager",
     "crates/apollia-desktop/src/commands/stt.rs::SttFlowState",
     "crates/apollia-desktop/src/main.rs::SharedLlmRouter",

@@ -24,6 +24,7 @@
   import { chatInputAppend } from "$lib/stores/artifacts";
   import { chatSendKey, composerEnterAction } from "$lib/stores/chatSendKey";
   import type { ImageSupport, PendingAttachment } from "$lib/chat/attachments";
+  import type { ChatModelCapabilities } from "$lib/types";
   import { createComposerAttachments } from "./useComposerAttachments.svelte";
   import { createComposerDictation } from "./useComposerDictation.svelte";
   import { createComposerRateLimit } from "./useComposerRateLimit.svelte";
@@ -74,6 +75,10 @@
     planDisabled?: boolean;
     /** What the model of the conversation does with images; `null` unknown. */
     imageSupport?: ImageSupport | null;
+    /** What that model can do, for the chips; `null` while unknown. */
+    capabilities?: ChatModelCapabilities | null;
+    /** Opens what was recalled for the last turn, from the context gauge. */
+    oncontextinspect?: () => void;
     /**
      * Conversation the composer writes in. The prompt rewrite reads the
      * profile that conversation designates; without it, the default profile.
@@ -81,6 +86,8 @@
     sessionId?: string | null;
     /** The agent of the conversation, which a batch on a joined file runs. */
     agentName?: string | null;
+    /** Whether text sent to "the composer" lands here: the one of the active pane. */
+    active?: boolean;
   }
 
   let {
@@ -96,8 +103,11 @@
     onplantoggle,
     planDisabled = false,
     imageSupport = null,
+    capabilities = null,
+    oncontextinspect,
     sessionId = null,
     agentName = null,
+    active = true,
   }: Props = $props();
 
   const DEFAULT_SUGGESTION_KEYS = [
@@ -182,7 +192,7 @@
 
   onMount(() => {
     const unsubscribeAppend = chatInputAppend.subscribe((req) => {
-      if (req === null) return;
+      if (req === null || !active) return;
       const suffix = value.length === 0 || value.endsWith("\n") ? "" : " ";
       value = `${value}${suffix}${req.text}`;
       autoResize();
@@ -682,6 +692,9 @@
       ontrigger={toggleTrigger}
       {onstop}
       onsend={send}
+      {sessionId}
+      {capabilities}
+      {oncontextinspect}
     />
   </div>
 

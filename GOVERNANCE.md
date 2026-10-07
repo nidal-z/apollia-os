@@ -42,7 +42,7 @@ to `main` and `develop`, and every pull request, runs the gates declared in
 test suites, the repository's own guards on prose and capability claims, a
 line-coverage floor, and `cargo deny`, which answers the advisory, bans,
 licenses and sources questions in one pass. Heavier work runs on a weekly
-schedule from [.github/workflows/nightly.yml](.github/workflows/nightly.yml):
+schedule from [.github/workflows/weekly.yml](.github/workflows/weekly.yml):
 cross-platform end-to-end runs, mutation testing, and a full dependency check.
 
 Those two files are the source. This page names families rather than a list,

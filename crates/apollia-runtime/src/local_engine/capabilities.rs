@@ -10,7 +10,7 @@
 use std::path::Path;
 
 use apollia_core::{LlmBackendError, LlmBackendRepository, LlmProvider};
-use apollia_llm::model_index::{ModelCategory, ModelIndex, INDEX_FILE_NAME};
+use apollia_llm::model_index::{ModelIndex, INDEX_FILE_NAME};
 use apollia_llm::Capabilities;
 
 /// The model a name resolves to, and what it can do.
@@ -49,7 +49,7 @@ pub fn model_capabilities(
         index
             .get(&name)
             .or_else(|| path.and_then(|p| index.models.iter().find(|m| m.owns(p))))
-            .filter(|m| m.effective_category() == ModelCategory::Language)
+            .filter(|m| m.is_language_model())
             .map(|m| m.capabilities.clone())
     };
     let (local, capabilities) = match repo.find_by_name(&name)? {
@@ -74,7 +74,7 @@ mod tests {
     use std::path::PathBuf;
 
     use apollia_core::LlmBackendConfig;
-    use apollia_llm::model_index::{IndexedModel, ModelFormat, ModelOrigin};
+    use apollia_llm::model_index::{IndexedModel, ModelCategory, ModelFormat, ModelOrigin};
     use apollia_llm::{ReasoningProfile, VisionEngine};
 
     use super::*;

@@ -28,6 +28,7 @@
 
 mod engines;
 pub mod origin;
+pub mod replace;
 pub mod room;
 
 pub use engines::{
@@ -203,6 +204,12 @@ impl Residency {
         book.pins.contains(model_path) || book.is_leased(model_path)
     }
 
+    /// Whether the user pinned `model_path`.
+    #[must_use]
+    pub fn is_pinned(&self, model_path: &str) -> bool {
+        self.book().pins.contains(model_path)
+    }
+
     /// The pinned models, in path order.
     #[must_use]
     pub fn pins(&self) -> Vec<String> {
@@ -256,6 +263,7 @@ impl Residency {
         match minutes {
             Ok(Some(idle_unload_minutes)) => LlmResidencyConfig {
                 idle_unload_minutes,
+                ..default
             }
             .idle_unload(),
             Ok(None) | Err(_) => {

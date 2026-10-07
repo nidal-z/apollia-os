@@ -15,6 +15,20 @@
     }
     return { key: "chat.reasoning.thought", withDuration: false };
   }
+
+  /**
+   * The vignette of a reasoning block: the fade over the clipped edge of a
+   * thought still arriving, once its text runs past the block. A finished
+   * thought is shown whole and has no edge to fade; the setting of Appearance
+   * turns the fade off.
+   */
+  export function showsVignette(input: {
+    enabled: boolean;
+    live: boolean;
+    clipped: boolean;
+  }): boolean {
+    return input.enabled && input.live && input.clipped;
+  }
 </script>
 
 <script lang="ts">
@@ -28,6 +42,7 @@
   import { ChevronRight } from "lucide-svelte";
   import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
   import { formatThoughtDuration } from "$lib/chat/toolStep";
+  import { reasoningVignette } from "$lib/stores/chatAppearance";
 
   interface Props {
     content: string;
@@ -47,6 +62,15 @@
     ontoggle,
     live = false,
   }: Props = $props();
+
+  let thought = $state<HTMLParagraphElement | undefined>(undefined);
+  let clipped = $state(false);
+  $effect(() => {
+    // Re-measured on every chunk: the thought grows until it passes the block.
+    void content;
+    clipped = thought !== undefined && thought.scrollHeight > thought.clientHeight;
+  });
+  const vignette = $derived(showsVignette({ enabled: $reasoningVignette, live, clipped }));
 
   const title = $derived.by<string>(() => {
     const { key, withDuration } = reasoningTitleKey({ live, durationMs, kind });
@@ -80,7 +104,16 @@
       data-testid="reasoning-thought"
     >
       {#if live}
-        <p class="max-h-40 overflow-hidden whitespace-pre-wrap">{content}</p>
+        <div class="relative" data-vignette={vignette}>
+          <p bind:this={thought} class="max-h-40 overflow-hidden whitespace-pre-wrap">{content}</p>
+          {#if vignette}
+            <span
+              class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-surface-2 to-transparent"
+              aria-hidden="true"
+              data-testid="reasoning-vignette"
+            ></span>
+          {/if}
+        </div>
       {:else}
         <MarkdownContent {content} />
       {/if}

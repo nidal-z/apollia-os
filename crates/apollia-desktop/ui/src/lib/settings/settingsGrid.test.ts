@@ -47,9 +47,8 @@ describe("settings navigation column", () => {
     const layout = SETTINGS_NAV.map((g) => [g.labelKey, g.entries.map((e) => e.key)]);
 
     // THEN Settings comes first, Integrations follows the model defaults,
-    // Notifications sits just before Developer, which
-    // closes its use-ranked part, the sections leaving the settings follow, and
-    // System holds Engines and Hardware
+    // Notifications sits just before Developer, which closes its use-ranked
+    // part, Configuration follows, and System holds Engines and Hardware
     expect(layout).toEqual([
       [
         "settings.nav.cluster_settings",
@@ -64,8 +63,6 @@ describe("settings navigation column", () => {
           "notifications",
           "developer",
           "configuration",
-          "llm",
-          "model-hub",
         ],
       ],
       ["settings.nav.cluster_system", ["engines", "hardware"]],
@@ -79,7 +76,18 @@ describe("settings navigation column", () => {
     // WHEN they are compared to the store and to the former sections
     // THEN they are exactly the sub-routes, and none of the former ones
     expect([...keys].sort()).toEqual([...SETTINGS_SUB_ROUTES].sort());
-    for (const gone of ["about", "help", "danger", "shortcuts", "observability", "system"]) {
+    const former = [
+      "about",
+      "help",
+      "danger",
+      "shortcuts",
+      "observability",
+      "system",
+      "llm",
+      "llm-backends",
+      "model-hub",
+    ];
+    for (const gone of former) {
       expect(keys as string[]).not.toContain(gone);
     }
   });

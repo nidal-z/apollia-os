@@ -20,7 +20,7 @@
   import type { WorkflowListItem, WorkflowRun } from "$lib/ipc/workflows";
   import type { ExamplePackage } from "$lib/ipc/packageExamples";
   import AgentExamples from "./AgentExamples.svelte";
-  import { examplesOpenByDefault } from "./agentExamples";
+  import { examplesOpenByDefault, type ExampleCard } from "./agentExamples";
   import AgentListSection from "./AgentListSection.svelte";
   import AgentListRow from "./AgentListRow.svelte";
   import AgentPinnedRow from "./AgentPinnedRow.svelte";
@@ -45,6 +45,8 @@
     onCreateAgent: () => void;
     /** Open the preview of the example of that package name. */
     onInstallExample: (name: string) => void;
+    /** Try the example of that card on its demonstration dataset. */
+    onTryExample: (card: ExampleCard) => void;
     onOpenLogs: (agentId: string) => void;
     onRequestUninstallAgent: (agent: AgentListItem) => void;
     onStartChat: (name: string) => void;
@@ -64,6 +66,7 @@
     onInstallPackageFile,
     onCreateAgent,
     onInstallExample,
+    onTryExample,
     onOpenLogs,
     onRequestUninstallAgent,
     onStartChat,
@@ -185,6 +188,7 @@
       openByDefault={examplesOpen}
       onInstall={onInstallExample}
       onOpenSheet={onSelectAgent}
+      onTry={onTryExample}
     />
   </div>
 </div>

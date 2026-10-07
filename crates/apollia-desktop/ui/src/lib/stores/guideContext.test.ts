@@ -1,4 +1,4 @@
-import { vi, describe, test, expect, beforeEach } from "vitest";
+import { vi, describe, test, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(""),
@@ -7,6 +7,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { get } from "svelte/store";
+import { locale, waitLocale } from "svelte-i18n";
+import "$lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import {
   GUIDE_SUBSCREENS,
@@ -25,6 +27,11 @@ const mockedInvoke = vi.mocked(invoke);
 function source(relative: string): string {
   return readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 }
+
+beforeAll(async () => {
+  locale.set("en");
+  await waitLocale();
+});
 
 beforeEach(() => {
   resetGuideSubscreen();
@@ -48,7 +55,6 @@ describe("guideContext - route and sub-screen", () => {
     // GIVEN an active guide session on the Agents screen
     mockedInvoke.mockImplementation((cmd: string) => {
       if (cmd === "create_companion_session") return Promise.resolve({ session_id: "s-1" });
-      if (cmd === "get_companion_context") return Promise.resolve("Agents text.");
       return Promise.resolve(null);
     });
     await companionStore.createSession("agents");

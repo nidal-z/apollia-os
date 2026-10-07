@@ -110,6 +110,14 @@ export const chatLayout = {
 } as const;
 
 /**
+ * The narrowest a conversation gets in the split chat. The `grid-cols-panes-2`
+ * class reads it; under that width the pane area scrolls sideways.
+ */
+export const chatPane = {
+  minWidth: "var(--chat-pane-min-width)",
+} as const;
+
+/**
  * Stacking order.
  *
  * Tailwind ships no `zIndex` mapping, so before `tailwind.config.ts` grew
@@ -149,5 +157,6 @@ export const tokens = {
   gradient,
   logoPaper,
   chatLayout,
+  chatPane,
   zLayer,
 } as const;

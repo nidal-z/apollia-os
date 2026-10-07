@@ -4,7 +4,8 @@
 //! `GET /api/v1/pending-decisions` lists, in one answer, every decision a run
 //! waits on: the tool consents of the conversations and of the runs outside
 //! any conversation, the pauses of tasks (`hitl.db`), the batch items waiting
-//! for an access, and the questions agents asked the user. Each item carries
+//! for an access, the questions agents asked the user and the questions
+//! running workflows stopped on. Each item carries
 //! the answers it takes: once, always and refuse for a consent; once and
 //! refuse for executing code; the proposed choices and a free answer for a
 //! question.
@@ -12,8 +13,9 @@
 //! `POST /api/v1/pending-decisions/decide` answers one item, through the very
 //! call that answers it where it was born: the chat consent through the chat
 //! manager, the pause through the task resume, the batch item through the batch
-//! engine, the question through the `ask_user` registry. Deciding here or there
-//! is the same decision.
+//! engine, the question through the `ask_user` registry, the question of a
+//! workflow through the workflow engine, which wakes the step that asked.
+//! Deciding here or there is the same decision.
 //!
 //! An installed package waits for nothing: its update is confirmed when it is
 //! installed, so no package update is listed.
@@ -23,6 +25,8 @@ mod decide;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod workflow_tests;
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -45,7 +49,7 @@ pub enum PendingKind {
     TaskPause,
     /// A batch item that stopped on an access nobody granted.
     BatchItem,
-    /// A question an agent asked the user.
+    /// A question an agent, or a step of a workflow, asked the user.
     Question,
 }
 
@@ -85,9 +89,18 @@ pub struct PendingOrigin {
     /// Position of the item in its source, from 0.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rank: Option<u64>,
-    /// The `ask_user` request of a question.
+    /// The `ask_user` request of a question, or the request of a workflow's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
+    /// The workflow run that asked a question.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
+    /// Its workflow, `<package>/<workflow>`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workflow_id: Option<String>,
+    /// The step the run waits in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub step: Option<String>,
 }
 
 /// One decision waiting for the user.
@@ -107,6 +120,16 @@ pub struct PendingDecision {
     /// Its action family (`read_personal`, `write_or_delete`, `send_external`,
     /// `execute_code`, `unclassified`), when known.
     pub family: Option<String>,
+    /// The full arguments of the call a consent is about, as the chat card
+    /// shows them behind "see more".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// The whole command or source, when the consent is about running code.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// The folder that code runs in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_dir: Option<String>,
     /// The answers it takes.
     pub answers: Vec<PendingAnswer>,
     /// The questions of a question, each with its proposed choices, or the
@@ -143,7 +166,8 @@ pub struct DecideRequest {
     #[schema(value_type = Option<Vec<Object>>)]
     pub answers: Option<Vec<apollia_tools::tools::ask_user::UserAnswer>>,
     /// The answer to the typed question of a paused task: a proposition id,
-    /// free text when it allows it, or a value.
+    /// free text when it allows it, or a value. For the question of a
+    /// workflow: the chosen choice or free text, when `answers` is not given.
     #[serde(default)]
     #[schema(value_type = Option<Object>)]
     pub value: Option<serde_json::Value>,
@@ -159,6 +183,9 @@ pub struct DecideResponse {
     pub answer: PendingAnswer,
     /// How many waiting runs, conversations or items went on.
     pub resumed: u64,
+    /// How many other batch items, waiting on an access this answer now
+    /// covers, ran again besides the item answered.
+    pub batch_items_resumed: u64,
     /// What happened, to show the user.
     pub message: String,
 }

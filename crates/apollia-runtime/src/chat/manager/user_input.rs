@@ -156,7 +156,6 @@ impl ChatSessionManager {
                 id: row.id.clone(),
                 mode,
                 agent_name: row.agent_name,
-                system_prompt: row.system_prompt,
                 status,
                 history,
                 authorized_tools,
@@ -171,6 +170,8 @@ impl ChatSessionManager {
                 plan_phase,
                 profile_id: row.profile_id,
                 use_profile: row.use_profile,
+                settings: SessionSettings::from_column(&row.id, &row.settings),
+                notes: row.notes,
             };
             self.sessions.insert(row.id, session);
         }

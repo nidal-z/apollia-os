@@ -1,4 +1,6 @@
 import { describe, test, expect, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { render as renderToString } from "svelte/server";
 import { locale, waitLocale } from "svelte-i18n";
 
@@ -19,9 +21,23 @@ vi.hoisted(() => {
 });
 
 import "$lib/i18n";
-import Sidebar, { visibleDeveloperNav, visiblePrimaryNav } from "./Sidebar.svelte";
+import Sidebar, {
+  PRIMARY_NAV,
+  SECONDARY_NAV,
+  visibleDeveloperNav,
+  visiblePrimaryNav,
+  visibleSidebarRoutes,
+} from "./Sidebar.svelte";
 import { developerMode } from "$lib/stores/developerMode";
+import { invoke } from "@tauri-apps/api/core";
+import type { PendingDecision, PendingKind } from "$lib/ipc/pendingDecisions";
+import { refreshPendingDecisions } from "$lib/stores/pendingDecisions";
+import { pendingApprovals } from "$lib/stores/hitl";
+import { pendingChatApprovals } from "$lib/stores/chat";
 import { DEVELOPER_ROUTES } from "$lib/navigation/developerRoutes";
+import glossary from "$lib/i18n/glossary.json";
+import en from "$lib/i18n/en.json";
+import fr from "$lib/i18n/fr.json";
 
 // The entry lists are locked through the module helpers, and the placement of
 // the developer group through Svelte's server renderer, the only renderer the
@@ -35,12 +51,157 @@ function developerRoutes(developerMode: boolean): string[] {
   return visibleDeveloperNav(developerMode).map((entry) => entry.route);
 }
 
-async function renderSidebar(on: boolean): Promise<string> {
-  locale.set("en");
-  await waitLocale("en");
+async function renderSidebar(on: boolean, language: "en" | "fr" = "en"): Promise<string> {
+  locale.set(language);
+  await waitLocale(language);
   developerMode.set(on);
   return renderToString(Sidebar).body;
 }
+
+/** The routes of the entries drawn, in the order the markup draws them. */
+function drawnRoutes(html: string): string[] {
+  return [...html.matchAll(/data-testid="nav-([\w-]+)"/g)].map((match) => match[1]);
+}
+
+/** The rank each drawn entry declares, by route. */
+function drawnRanks(html: string): Record<string, string> {
+  const ranks: Record<string, string> = {};
+  for (const match of html.matchAll(/data-rank="(\w+)" data-testid="nav-([\w-]+)"/g)) {
+    ranks[match[2]] = match[1];
+  }
+  return ranks;
+}
+
+type Catalogue = Record<string, unknown>;
+
+function resolve(catalogue: Catalogue, dottedKey: string): string | undefined {
+  let node: unknown = catalogue;
+  for (const part of dottedKey.split(".")) {
+    if (typeof node !== "object" || node === null) return undefined;
+    node = (node as Catalogue)[part];
+  }
+  return typeof node === "string" ? node : undefined;
+}
+
+const PRIMARY = ["chat", "agents", "integrations", "llm", "inbox"];
+const SECONDARY = ["library", "automations", "authorizations", "journal", "settings"];
+const DEVELOPER_GROUP = ["transcriptions", "observability", "memory"];
+
+// The screen of the glossary each of the ten entries carries the name of.
+const OFFICIAL_SCREEN: Record<string, keyof (typeof glossary)["fr"]["screens"]> = {
+  chat: "chat",
+  agents: "agents",
+  integrations: "connections",
+  llm: "ai",
+  inbox: "review",
+  library: "library",
+  automations: "automations",
+  authorizations: "permissions",
+  journal: "activity_log",
+  settings: "settings",
+};
+
+describe("Sidebar - two ranks, five entries each", () => {
+  test("with the developer mode off, the sidebar lists exactly the ten entries, in order", async () => {
+    // GIVEN the developer mode off
+    // WHEN the sidebar computes its entries, then draws them
+    const listed = visibleSidebarRoutes(false);
+    const html = await renderSidebar(false);
+
+    // THEN the five everyday screens come first, the five others second,
+    // and nothing else is listed or drawn
+    expect(listed).toEqual([...PRIMARY, ...SECONDARY]);
+    expect(drawnRoutes(html)).toEqual([...PRIMARY, ...SECONDARY]);
+    expect(html).not.toContain('data-testid="nav-developer"');
+    expect(html).not.toContain('data-testid="nav-policy"');
+  });
+
+  test("with the developer mode on, the developer screen closes the first rank and the group follows", async () => {
+    // GIVEN the developer mode on
+    // WHEN the sidebar computes its entries, then draws them
+    const listed = visibleSidebarRoutes(true);
+    const html = await renderSidebar(true);
+
+    // THEN the first rank holds six entries, the developer screen after the
+    // review screen; the second rank is unchanged; the group comes last
+    const expected = [...PRIMARY, "developer", ...SECONDARY, ...DEVELOPER_GROUP];
+    expect(routes(true)).toEqual([...PRIMARY, "developer"]);
+    expect(listed).toEqual(expected);
+    expect(drawnRoutes(html)).toEqual(expected);
+  });
+
+  test("each drawn entry declares its rank, the second quieter than the first", async () => {
+    // GIVEN the developer mode on, where the three ranks are drawn
+    // WHEN the sidebar is rendered
+    const html = await renderSidebar(true);
+    const ranks = drawnRanks(html);
+
+    // THEN the entries of each rank say which one they belong to, and the
+    // ranks sit in their own containers, the first before the second
+    for (const route of [...PRIMARY, "developer"]) expect(ranks[route]).toBe("primary");
+    for (const route of SECONDARY) expect(ranks[route]).toBe("secondary");
+    for (const route of DEVELOPER_GROUP) expect(ranks[route]).toBe("developer");
+    const first = html.indexOf('data-testid="sidebar-primary-rank"');
+    const second = html.indexOf('data-testid="sidebar-secondary-rank"');
+    expect(first).toBeGreaterThan(-1);
+    expect(second).toBeGreaterThan(first);
+    expect(html.indexOf('data-testid="sidebar-developer-group"')).toBeGreaterThan(second);
+  });
+
+  test("the organisation policy is no entry of the sidebar, in either mode", () => {
+    // GIVEN the developer mode off, then on
+    // WHEN the routes of the sidebar are listed
+    const off = visibleSidebarRoutes(false);
+    const on = visibleSidebarRoutes(true);
+
+    // THEN the policy is among neither, and no route is listed twice
+    expect(off).not.toContain("policy");
+    expect(on).not.toContain("policy");
+    expect(new Set(on).size).toBe(on.length);
+  });
+
+  test.each([
+    ["fr", fr as Catalogue],
+    ["en", en as Catalogue],
+  ] as const)("the ten entries carry the official screen names of the glossary in %s", async (language, catalogue) => {
+    // GIVEN the official screen names of the glossary for one language
+    const official = glossary[language].screens;
+    const entries = [...PRIMARY_NAV.filter((entry) => !entry.developer), ...SECONDARY_NAV];
+
+    // WHEN the label of each of the ten entries is resolved in that language
+    const labels = Object.fromEntries(
+      entries.map((entry) => [entry.route, resolve(catalogue, entry.labelKey)]),
+    );
+    const html = await renderSidebar(false, language);
+
+    // THEN every label is the word of the glossary, and it is the word drawn
+    expect(Object.keys(labels)).toEqual(Object.keys(OFFICIAL_SCREEN));
+    for (const [route, screen] of Object.entries(OFFICIAL_SCREEN)) {
+      expect(labels[route]).toBe(official[screen]);
+      expect(html).toContain(`>${official[screen]}</span>`);
+    }
+  });
+
+  test.each([
+    ["fr", fr as Catalogue],
+    ["en", en as Catalogue],
+  ] as const)("with the developer mode on, the developer entry is named in %s", async (language, catalogue) => {
+    // GIVEN the name of the developer entry in one language, an ordinary
+    // catalogue string rather than a word of the glossary
+    const name = resolve(catalogue, "nav.sidebar.developer");
+    expect(name?.trim()).toBeTruthy();
+    expect(Object.values(glossary[language].screens)).not.toContain(name);
+
+    // WHEN the sidebar is rendered in that language, mode on then off
+    const on = await renderSidebar(true, language);
+    const off = await renderSidebar(false, language);
+
+    // THEN the developer entry carries its name with the mode on, and is not
+    // drawn at all with the mode off
+    expect(on).toContain(`>${name}</span>`);
+    expect(off).not.toContain(`>${name}</span>`);
+  });
+});
 
 describe("Sidebar - primary entries and the developer mode", () => {
   test("with the developer mode off, the AI screen is listed and no technical screen is", () => {
@@ -148,6 +309,83 @@ describe("Sidebar - the rendered developer group", () => {
     expect(transcriptions).toBeGreaterThan(group);
     expect(observability).toBeGreaterThan(transcriptions);
     expect(html.indexOf('data-testid="nav-memory"')).toBeGreaterThan(observability);
-    expect(html).toContain('aria-label="Developer mode"');
+    expect(html).toContain('aria-labelledby="sidebar-developer-group-title"');
+    expect(html).toContain(">Developer mode</span>");
+  });
+});
+
+function waiting(kind: PendingKind): PendingDecision {
+  return {
+    id: `${kind}-1`,
+    kind,
+    agentId: "agent",
+    summary: "Something is asked.",
+    access: null,
+    family: null,
+    answers: kind === "question" ? ["answer"] : ["once", "refuse"],
+    questions: null,
+    allowOther: false,
+    origin: {},
+    askedAt: null,
+  };
+}
+
+/** Publishes `items` as the list of decisions the runtime holds. */
+async function runtimeLists(items: PendingDecision[]): Promise<void> {
+  vi.mocked(invoke).mockImplementationOnce(async () => ({ items }));
+  await refreshPendingDecisions();
+}
+
+/** The count drawn beside the review entry, or null when none is drawn. */
+function reviewCount(html: string): string | null {
+  return /data-testid="nav-inbox-count">([^<]*)</.exec(html)?.[1] ?? null;
+}
+
+describe("Sidebar - the count of what waits for the user", () => {
+  test("a list with one item of each kind shows 4", async () => {
+    // GIVEN a consent, a paused task, a batch item and a question waiting
+    await runtimeLists([
+      waiting("consent"),
+      waiting("task_pause"),
+      waiting("batch_item"),
+      waiting("question"),
+    ]);
+
+    // WHEN the sidebar is drawn
+    const html = await renderSidebar(false);
+
+    // THEN the review entry counts the four of them
+    expect(reviewCount(html)).toBe("4");
+  });
+
+  test("the count is the length of the list, whatever the event stores hold", async () => {
+    // GIVEN an empty list, while the stores the live events feed still hold
+    // two paused tasks and a consent
+    await runtimeLists([]);
+    pendingApprovals.set([{}, {}] as never);
+    pendingChatApprovals.set([{}] as never);
+
+    // WHEN the sidebar is drawn
+    const html = await renderSidebar(false);
+    pendingApprovals.set([]);
+    pendingChatApprovals.set([]);
+
+    // THEN no count is drawn: nothing is added to the list
+    expect(reviewCount(html)).toBeNull();
+  });
+
+  test("the sidebar source holds one formula for that count", () => {
+    // GIVEN the source of the sidebar
+    const source = readFileSync(
+      fileURLToPath(new URL("./Sidebar.svelte", import.meta.url)),
+      "utf8",
+    );
+
+    // WHEN looking for the counters it used to add up
+    // THEN none is read any more, and the shared count is
+    for (const former of ["pendingCount", "pendingChatApprovalCount", "pendingUserInputCount"]) {
+      expect(source).not.toContain(former);
+    }
+    expect(source).toContain("$toReviewCount");
   });
 });

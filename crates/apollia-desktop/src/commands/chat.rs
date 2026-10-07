@@ -14,13 +14,16 @@ use crate::attached::{segment, RuntimeLink};
 
 /// Automatic session naming lives in `naming`, the on-disk export in `export`,
 /// the daemon routes of the conversations in `conversations`, the images of
-/// the chat in `images`.
+/// the chat in `images`, the actions under an answer in `answers`, the
+/// settings a conversation holds for itself in `settings`.
+pub mod answers;
 pub(crate) mod conversations;
 pub mod export;
 pub mod folders;
 pub mod images;
 pub mod naming;
 mod remote;
+pub mod settings;
 pub mod targets;
 pub mod trash;
 pub mod turn_calls;
@@ -37,6 +40,10 @@ pub struct CreateSessionRequest {
     /// Tools to make available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
+    /// Limit the conversation to `tools`: nothing else of its agent is
+    /// offered, and a tool the agent does not hold asks at each call.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub limited_to_tools: bool,
     /// The model chosen for the session: the identifier of a language model
     /// of the model index, or `<server>/<model>`. Absent keeps the model of
     /// the agent.
@@ -56,6 +63,9 @@ pub struct ChatSessionSummary {
     pub created_at: String,
     pub closed_at: Option<String>,
     pub title: Option<String>,
+    /// Tokens the model generated across the answers of the session.
+    #[serde(default)]
+    pub output_tokens: u64,
 }
 
 /// Detailed view of a chat session (flat structure for frontend).
@@ -143,16 +153,19 @@ pub async fn create_chat_session(
         None => None,
     };
 
-    let info = manager
-        .create_session(apollia_runtime::chat::manager::CreateSessionParams {
-            mode,
-            agent_name: request.agent_name,
-            system_prompt: request.system_prompt,
-            tools: request.tools,
-            model,
-        })
-        .await
-        .map_err(|e| e.to_string())?;
+    let params = apollia_runtime::chat::manager::CreateSessionParams {
+        mode,
+        agent_name: request.agent_name,
+        system_prompt: request.system_prompt,
+        tools: request.tools,
+        model,
+    };
+    let info = if request.limited_to_tools {
+        manager.create_limited_session(params).await
+    } else {
+        manager.create_session(params).await
+    }
+    .map_err(|e| e.to_string())?;
 
     Ok(session_info_to_summary(&info))
 }
@@ -528,33 +541,6 @@ pub async fn respond_user_input(
         .map_err(|e| e.to_string())
 }
 
-/// Reject a pending `ask_user` request with a mandatory reason.
-#[tauri::command]
-pub async fn respond_user_input_rejected(
-    link: State<'_, RuntimeLink>,
-    request_id: String,
-    reason: String,
-) -> Result<(), String> {
-    let state = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            let path = format!("/api/v1/user-inputs/{}/reject", segment(&request_id));
-            let body = serde_json::json!({ "reason": reason });
-            let _: serde_json::Value = remote.post(&path, &body).await?;
-            return Ok(());
-        }
-    };
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "chat subsystem not available".to_string())?;
-
-    manager
-        .reject_user_input(request_id, reason)
-        .await
-        .map_err(|e| e.to_string())
-}
-
 /// List all currently pending `ask_user` requests (for inbox / reconnection).
 #[tauri::command]
 pub async fn list_pending_user_inputs(
@@ -573,60 +559,6 @@ pub async fn list_pending_user_inputs(
         .list_pending_user_inputs()
         .await
         .map_err(|e| e.to_string())
-}
-
-/// List recently resolved chat tool approvals for the history view.
-#[tauri::command]
-pub async fn list_chat_approval_history(
-    link: State<'_, RuntimeLink>,
-    limit: Option<i64>,
-    days: Option<i64>,
-) -> Result<Vec<ResolvedChatApproval>, String> {
-    let (limit, days) = (limit.unwrap_or(20), days.unwrap_or(7));
-    let state = match link.inner() {
-        RuntimeLink::Embedded(runtime) => runtime,
-        RuntimeLink::Attached(remote) => {
-            return Ok(remote::approval_history(remote, limit, days).await?);
-        }
-    };
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "chat subsystem not available".to_string())?;
-
-    let rows = manager
-        .list_approval_history(limit, days)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(rows
-        .into_iter()
-        .map(|r| ResolvedChatApproval {
-            session_id: r.session_id,
-            message_id: r.message_id,
-            tool_name: r.tool_name,
-            decision: r.decision,
-            resolved_at: r.resolved_at,
-            reason: r.reason,
-        })
-        .collect())
-}
-
-/// Resolved chat tool approval entry for the UI history.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolvedChatApproval {
-    /// Session identifier.
-    pub session_id: String,
-    /// Message identifier the approval was attached to.
-    pub message_id: String,
-    /// Tool that required approval.
-    pub tool_name: String,
-    /// Decision taken (`accept`, `refuse`, `always_accept`).
-    pub decision: String,
-    /// ISO-8601 timestamp of the resolution.
-    pub resolved_at: String,
-    /// Operator-provided refusal reason (only set for `refuse` decisions).
-    pub reason: Option<String>,
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -655,8 +587,8 @@ fn parse_tool_decision(s: &str, reason: Option<String>) -> Result<ToolDecision, 
 
 /// Converts a [`SessionInfo`] into a flat [`ChatSessionSummary`].
 ///
-/// `SessionInfo` is lightweight (no messages loaded), so `message_count`
-/// defaults to 0 and `last_message_preview` to `None`.
+/// `SessionInfo` is lightweight (no messages loaded): it carries the message
+/// count and the generated tokens, and `last_message_preview` stays `None`.
 fn session_info_to_summary(info: &SessionInfo) -> ChatSessionSummary {
     ChatSessionSummary {
         id: info.id.clone(),
@@ -664,10 +596,11 @@ fn session_info_to_summary(info: &SessionInfo) -> ChatSessionSummary {
         agent_name: info.agent_name.clone(),
         status: info.status.as_sql().to_string(),
         last_message_preview: None,
-        message_count: 0,
+        message_count: info.message_count,
         created_at: info.created_at.clone(),
         closed_at: None,
         title: info.title.clone(),
+        output_tokens: info.output_tokens,
     }
 }
 
@@ -699,7 +632,9 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         id: session.id,
         mode: session.mode.as_sql().to_string(),
         agent_name: session.agent_name,
-        system_prompt: session.system_prompt,
+        // The instructions of the conversation, under the name the
+        // configuration panel reads them by.
+        system_prompt: session.settings.instructions.unwrap_or_default(),
         status: session.status.as_sql().to_string(),
         available_tools: session.available_tools,
         authorized_tools,
@@ -899,6 +834,7 @@ mod tests {
             created_at: "2026-03-20T10:00:00Z".into(),
             closed_at: None,
             title: None,
+            output_tokens: 0,
         };
         // WHEN it is serialized and read back
         let json = serde_json::to_string(&summary).expect("serialize");
@@ -921,14 +857,18 @@ mod tests {
             status: SessionStatus::Processing,
             created_at: "2026-03-20T10:00:00Z".into(),
             title: None,
+            message_count: 6,
+            output_tokens: 1840,
         };
         // WHEN it is converted to the summary the front end reads
         let summary = session_info_to_summary(&info);
-        // THEN the enums become their wire names and the message count starts at zero
+        // THEN the enums become their wire names, and the message count and
+        //      the generated tokens are the runtime's
         assert_eq!(summary.id, "sess-1");
         assert_eq!(summary.mode, "agent");
         assert_eq!(summary.agent_name.as_deref(), Some("test-agent"));
         assert_eq!(summary.status, "processing");
-        assert_eq!(summary.message_count, 0);
+        assert_eq!(summary.message_count, 6);
+        assert_eq!(summary.output_tokens, 1840);
     }
 }

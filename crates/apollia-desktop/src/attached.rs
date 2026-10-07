@@ -15,19 +15,17 @@
 
 mod client;
 mod error;
+mod launch;
 mod proxy;
 mod relay;
 
-use apollia_core::EventBusSender;
 use apollia_runtime::embedded::RuntimeHandle;
-use tauri::Manager;
 
 pub(crate) use client::AttachedClient;
 pub(crate) use error::AttachedError;
-
-/// Capacity of the local bus the relay publishes the daemon's events on, the
-/// same order as the runtime's own bus.
-const RELAY_BUS_CAPACITY: usize = 1024;
+pub(crate) use launch::run;
+pub(crate) use proxy::segment;
+pub(crate) use relay::{Frame, SseReader};
 
 /// The commands that serve the attached mode. Every other registered command
 /// answers [`AttachedError::NotRouted`] while the runtime is a daemon.
@@ -37,12 +35,9 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// shares since it listens on this machine. [`run`] manages the download
 /// manager it holds. `list_model_cards` needs none either: it reads the model
 /// registry, the data directory and its `apollia.toml`, never the runtime.
-/// `get_companion_context` needs none: it answers from a table of help texts
-/// compiled into this binary. `get_resolved_setting` and `set_setting` need
-/// none: they read and write the `apollia.toml` of the data directory, never
-/// the runtime (`set_setting` then shows its write to the runtime, in either
-/// mode, for the journal), and neither does `get_models_dir`, which reads the
-/// same file.
+/// `get_resolved_setting` and `set_setting` need none: they read and write the
+/// `apollia.toml` of the data directory, never the runtime (`set_setting` then shows its write to the runtime, in either
+/// mode, for the journal), and neither does `get_models_dir`.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
     "create_chat_session",
@@ -50,12 +45,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
-    // The images of the chat: what the model of a conversation reads, and
-    // the stored images of its messages.
+    // The images of the chat: what the model reads, and the stored images.
     "get_chat_model_capabilities",
     "read_chat_image",
-    // The conversations as the list manages them: configure, rename, name,
-    // erase.
+    // The settings a conversation holds for itself, read and replaced.
+    "get_chat_session_settings",
+    "set_chat_session_settings",
+    // The conversations as the list manages them: configure, rename, erase.
     "delete_chat_session",
     "generate_chat_session_name",
     "rename_chat_session",
@@ -75,13 +71,18 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_targets",
     // The model calls behind the total of one answer.
     "list_turn_llm_calls",
-    // The chat: a turn played again, a decision on a tool call, the history
-    // of those decisions, and the skills of the worker agents.
+    // A turn played again, a decision on a tool call, the worker skills.
     "authorize_chat_tool",
     "edit_and_resend_chat_message",
     "list_a2a_skills",
-    "list_chat_approval_history",
     "regenerate_chat_response",
+    // The actions under an answer: branch off, continue the last answer,
+    // rewrite an answer, remove a message.
+    "continue_chat_response",
+    "delete_chat_message",
+    "edit_chat_response",
+    "fork_chat_session",
+    "get_chat_continuation",
     // Agents: the registry and the uninstall of an agent.
     "agent_status_snapshot",
     "list_agents",
@@ -94,29 +95,42 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_tasks",
     // Tasks: the delegation tree, over `/api/v1/tasks/{id}/delegation-tree`.
     "get_delegation_tree",
-    // Approvals: the pending and resolved ones, and the decision that resumes
-    // the task.
+    // Approvals: the task pauses waiting for a decision.
     "list_pending_approvals",
-    "list_resolved_approvals",
-    "resume_task",
+    // Every decision waiting for the user in one list, and the answer to one,
+    // over `/api/v1/pending-decisions`.
+    "decide_pending_decision",
+    "list_pending_decisions",
     // The questions an agent asked the user.
     "list_pending_user_inputs",
     "respond_user_input",
-    "respond_user_input_rejected",
     // Commands whose whole body is a call to a runtime route, served through
     // the methods of `proxy.rs` in both modes.
-    // Models: the inference servers, the loaded models, the costs.
-    "create_llm_backend",
-    "delete_llm_backend",
-    "get_llm_cost_stats",
+    // Models: the loaded models, the costs.
     "list_loaded_models",
-    "set_default_llm_backend",
+    // Loading a model by hand: the estimate, the load, the last one loaded.
+    "estimate_model_load",
+    "get_last_loaded_model",
+    "load_model",
+    "reload_last_loaded_model",
+    // The lease of an open conversation on its model, and the pin.
+    "list_model_pins",
+    "open_model_lease",
+    "release_model_lease",
+    "set_model_pin",
+    // The AI screen: the embeddings model of search.
+    "set_embeddings_default",
     "unload_loaded_model",
-    "update_llm_backend",
-    // A server declared from the interface: test, save, and the default model.
+    // The servers of the AI screen: test, save, list, change, forget, and the
+    // default model.
+    "delete_llm_server",
+    "get_default_model",
+    "list_llm_server_models",
+    "list_llm_servers",
     "save_llm_server",
     "set_default_model",
     "test_llm_server",
+    "update_llm_server",
     // MCP servers and the curated catalogue.
     "add_mcp_server",
     "fetch_mcp_curated",
@@ -147,8 +161,30 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_connections",
     "list_imap_providers",
     "remove_folder_connection",
+    // The registry of sources, what an agent may consult once checked, and
+    // where the index of each stands.
+    "add_source",
+    "get_source_index",
+    "list_source_folder_kinds",
+    "list_sources",
+    "remove_source",
     // The report of the migration of the former projects.
     "get_project_migration_report",
+    // The local server of the developer screen: its state, its start, its
+    // stop and its reopening, over `/api/v1/server`.
+    "get_local_server",
+    "restart_local_server",
+    "start_local_server",
+    "stop_local_server",
+    // The tokens of the local server, over `/api/v1/server/tokens`.
+    "create_server_token",
+    "list_server_tokens",
+    "revoke_server_token",
+    // The logs of the local server: the stream of `/api/v1/server/logs` at a
+    // level, its end, and the route that empties them.
+    "clear_server_logs",
+    "unwatch_server_logs",
+    "watch_server_logs",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",
@@ -177,13 +213,12 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_batch",
     "list_batches",
     "preview_batch_source",
-    // Notifications and the activity feed.
+    // Notifications.
     "create_notification_channel",
     "delete_notification_channel",
     "get_notification_events",
     "get_notification_logs",
     "list_notification_channels",
-    "list_runtime_activity",
     "set_notification_events",
     "test_notification_channel",
     "update_notification_channel",
@@ -206,7 +241,6 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_task_trace",
     "list_agent_messages",
     "list_tools",
-    "verify_audit_run",
     // The sheet of an agent: the agent resolved, its model fallback, its
     // governance history.
     "get_agent_definition",
@@ -214,6 +248,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_changes",
     "get_journal_entry",
     "list_journal_entries",
+    "export_journal",
+    "read_journal_export",
+    "verify_journal",
     // The adjustment of an agent on its sheet: its overrides, the return to
     // defaults, its model and the presets to choose from.
     "clear_agent_model",
@@ -269,6 +306,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_default_embeddings_model",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Models: the README of a repository, read at its source on demand over
+    // `/api/v1/llm/registry/readme`, and the dictation models with the one
+    // for the machine of the daemon, over `/api/v1/llm/dictation`.
+    "get_dictation_models",
+    "get_model_readme",
     // Named settings of `apollia.toml`, read with their source and written
     // key by key: the developer mode.
     "get_resolved_setting",
@@ -293,10 +335,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_import_namespace",
     "purge_memory",
     // The companion: its preference and its guide session, over
-    // `/api/v1/companion/...`. Its per-route help text is a table compiled
-    // into the window and needs no route.
+    // `/api/v1/companion/...`.
     "create_companion_session",
-    "get_companion_context",
     "get_companion_enabled",
     "set_companion_enabled",
     // The transcription history, over `/api/v1/stt/transcriptions`, and the
@@ -376,11 +416,19 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // Models: the removal of an installed model, refused while a backend or
     // the dictation engine of the runtime uses it.
     "delete_installed_model",
-    // LLM engines: the list, the test, the reload. The last ping of each
-    // engine stays in this window's memory, which [`run`] manages in both
-    // modes.
+    // Models: the pin of an installed model, written to the index of the
+    // models folder, which the daemon shares since it listens on this machine.
+    "set_installed_model_pinned",
+    // Models: the panel of an installed model. Its detail and its two
+    // overrides read and write that same index; its presets are runtime
+    // routes.
+    "get_installed_model_detail",
+    "set_installed_model_category_override",
+    "set_installed_model_source_override",
+    "create_model_preset",
+    "update_model_preset",
+    // LLM engines: the list and the reload.
     "list_llm_backends",
-    "ping_llm_backend",
     "reload_llm",
     "reload_llm_from_db",
     // Dictation: its settings, the reload of its engine, its status and its
@@ -420,6 +468,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // `/api/v1/engines/check`, and the resources the machine is using over
     // `/api/v1/llm/hardware/usage`.
     "check_engine_updates",
+    // The followed installation of an engine, over
+    // `/api/v1/engines/installation`: its state, the verified download of a
+    // variant, the import of a folder of the daemon's machine, and the
+    // cancellation of the download.
+    "dismiss_engine_installation",
+    "get_engine_installation",
+    "import_engine_folder",
+    "start_engine_installation",
     "get_observability_config",
     "get_python_interpreter",
     "get_resource_usage",
@@ -446,6 +502,22 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
 /// reasons and refuses an entry without one.
 pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
+        "get_documentation_page",
+        "reads a page of the documentation archive compiled into this application",
+    ),
+    (
+        "get_documentation_manifest",
+        "reads the tree and the titles of the documentation archive compiled into this application",
+    ),
+    (
+        "get_documentation_image",
+        "reads an image of the documentation archive compiled into this application",
+    ),
+    (
+        "get_documentation_openapi",
+        "reads the OpenAPI document of the documentation archive compiled into this application",
+    ),
+    (
         "get_system_info",
         "describes this application, its version, and the machine that carries the window",
     ),
@@ -462,6 +534,15 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "opens or brings forward a window of this application; what it shows is read by routed commands",
     ),
     (
+        "open_server_logs_window",
+        "opens or brings forward the window of this application that shows the logs of the server; the lines are read by routed commands",
+    ),
+    (
+        "close_server_logs_window",
+        "closes the logs window of this application, which hands the logs back to the developer screen",
+    ),
+    ("print_journal", "opens the print dialog of the system on this window"),
+    (
         "quit_app",
         "closes this window and leaves the daemon serving",
     ),
@@ -473,6 +554,7 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "install_update",
         "replaces this application, not the daemon",
     ),
+    ("copy_example_dataset", "writes files this application carries into a folder the user chose"),
     (
         "get_cli_status",
         "reads the command-line link this application installs",
@@ -528,6 +610,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "reveal_session_path",
         "shows a file in the file manager of this machine, the session folder read from the runtime",
+    ),
+    (
+        "reveal_installed_model",
+        "shows a model of the models folder of this machine in its file manager",
     ),
     (
         "start_model_download",
@@ -587,11 +673,6 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Encodes one path segment of a daemon route.
-pub(crate) fn segment(value: &str) -> std::borrow::Cow<'_, str> {
-    urlencoding::encode(value)
-}
-
 /// Where the runtime this application drives lives.
 #[derive(Clone)]
 pub(crate) enum RuntimeLink {
@@ -648,142 +729,6 @@ where
             );
             invoke.resolver.reject(String::from(error));
             true
-        }
-    }
-}
-
-/// Arms the dictation of this window against the daemon: the microphone is
-/// the one of this machine, the engine and the history the daemon's, the
-/// thresholds its configuration, read once when the window attaches. Nothing
-/// is armed while the daemon has dictation off, as in the embedded mode.
-async fn arm_dictation(
-    app: tauri::AppHandle,
-    client: AttachedClient,
-    bus: EventBusSender,
-    state: crate::commands::stt::SttFlowState,
-) {
-    let config: apollia_core::SttConfigRow = match client.get("/api/v1/stt/config").await {
-        Ok(config) => config,
-        Err(error) => {
-            tracing::event!(
-                tracing::Level::WARN,
-                error = %error,
-                "desktop.attached.dictation_unarmed"
-            );
-            return;
-        }
-    };
-    if !config.enabled {
-        return;
-    }
-    let flow = crate::stt::flow::SttFlow::new(
-        config,
-        crate::stt::transcriber::Transcriber::Daemon(client),
-        bus,
-        app,
-    );
-    if let Ok(mut guard) = state.lock() {
-        *guard = Some(std::sync::Arc::new(flow));
-    }
-}
-
-/// Runs the application attached to the daemon serving `port`, and never
-/// returns.
-///
-/// Nothing of the embedded runtime is built: no PyO3, no database, no
-/// listener. The interface talks to the daemon through the routed commands,
-/// receives its events through the relay, and learns it is gone through the
-/// liveness probe. Quitting leaves the daemon running.
-pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>) -> ! {
-    let client = match AttachedClient::new(format!("http://127.0.0.1:{port}"), token) {
-        Ok(client) => client,
-        Err(error) => {
-            tracing::event!(
-                tracing::Level::ERROR,
-                error = %error,
-                "desktop.attached.client_failed"
-            );
-            std::process::exit(1)
-        }
-    };
-    let (bus, _) = tokio::sync::broadcast::channel(RELAY_BUS_CAPACITY);
-    let bus: EventBusSender = bus;
-
-    let setup_client = client.clone();
-    let setup_bus = bus.clone();
-    let dictation: crate::commands::stt::SttFlowState =
-        std::sync::Arc::new(std::sync::Mutex::new(None));
-    let app = crate::package_open::attach(tauri::Builder::default())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_opener::init())
-        .manage(RuntimeLink::Attached(client))
-        .manage(crate::startup::ApiPort(port))
-        .manage(dictation.clone())
-        .manage(
-            std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))
-                as crate::commands::model_hub::SharedDownloadManager,
-        )
-        .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
-        .manage(crate::commands::llm::LlmPingCache::default())
-        .on_menu_event(|app, event| {
-            if event.id().as_ref() == crate::tray::MENU_QUIT_APP {
-                crate::tray::initiate_quit(app);
-            }
-        })
-        .setup(move |app| {
-            crate::i18n::attach_listener(app);
-            crate::tray::setup_tray(app)?;
-            crate::package_open::launch(app.handle());
-            #[cfg(target_os = "macos")]
-            crate::tray::setup_app_menu(app)?;
-
-            crate::events::spawn_event_bridge(app.handle().clone(), setup_bus.clone());
-            relay::spawn_event_relay(setup_client.clone(), setup_bus.clone());
-            relay::spawn_liveness(app.handle().clone(), setup_client.clone());
-            tauri::async_runtime::spawn(arm_dictation(
-                app.handle().clone(),
-                setup_client.clone(),
-                setup_bus.clone(),
-                dictation.clone(),
-            ));
-
-            let main_window = app
-                .get_webview_window("main")
-                .ok_or("main window not found in tauri.conf.json")?;
-            let window_for_close = main_window.clone();
-            main_window.on_window_event(move |event| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    match crate::tray::close_button_action() {
-                        crate::tray::CloseAction::HideToTray => {
-                            let _ = window_for_close.hide();
-                        }
-                        crate::tray::CloseAction::Quit => {
-                            crate::tray::initiate_quit(window_for_close.app_handle());
-                        }
-                    }
-                }
-            });
-            tracing::event!(tracing::Level::INFO, port, "desktop.attached.started");
-            Ok(())
-        })
-        .invoke_handler(gated(LinkMode::Attached, crate::handlers::commands()))
-        .build(context);
-
-    match app {
-        Ok(app) => {
-            let _ = app.run_return(|app, event| crate::package_open::on_run_event(app, &event));
-            std::process::exit(0)
-        }
-        Err(error) => {
-            tracing::event!(
-                tracing::Level::ERROR,
-                error = %error,
-                "desktop.attached.build_failed"
-            );
-            std::process::exit(1)
         }
     }
 }

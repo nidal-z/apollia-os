@@ -5,12 +5,16 @@
    * day. Five filters narrow the list; the route applies them. "See more"
    * opens the full detail of an entry in the detail sidebar, for every user.
    * In developer mode every entry arrives unfolded in the list, with its
-   * technical details, and the header folds them all at once.
+   * technical details, and the header folds them all at once. The header
+   * also verifies the integrity of the whole journal and exports it, as a
+   * CSV file or as a page to print, with the filters in force.
    */
   import { onDestroy, untrack } from "svelte";
   import { locale, t } from "svelte-i18n";
   import { ScrollText } from "lucide-svelte";
+  import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { Button } from "$lib/components/ui/button";
+  import { addToast } from "$lib/components/ui/toast/store";
   import { Card, EmptyState, ErrorBanner, PageLayout, SkeletonList } from "$lib/components/operator";
   import { APOLLIA_AGENT_ID } from "$lib/chat/chatTargets";
   import type { JournalLine } from "$lib/ipc/journal";
@@ -18,8 +22,11 @@
   import { detailSidebar } from "$lib/stores/detailSidebar";
   import { developerMode } from "$lib/stores/developerMode";
   import { journalSelection } from "$lib/stores/journalSelection";
+  import JournalExportDialog from "./JournalExportDialog.svelte";
   import JournalFilterBar from "./JournalFilterBar.svelte";
+  import JournalPrintSheet from "./JournalPrintSheet.svelte";
   import JournalRow from "./JournalRow.svelte";
+  import JournalVerdict from "./JournalVerdict.svelte";
   import {
     NO_FILTER,
     activeFilterCount,
@@ -35,9 +42,12 @@
     type Expansion,
     type JournalFilters,
   } from "./journal";
+  import { exportFileName, exportQueryOf, filterMentions, type ExportFormat } from "./journalExport";
   import { createJournal } from "./useJournal.svelte";
+  import { createJournalActions } from "./useJournalActions.svelte";
 
   const journal = createJournal();
+  const actions = createJournalActions();
 
   let filters = $state<JournalFilters>({ ...NO_FILTER });
   let expansion = $state<Expansion>(expansionFor(false));
@@ -123,6 +133,40 @@
       .map((agent) => ({ id: agent.name, name: agent.name })),
   ]);
 
+  /** The filters in force, in the words the export recalls them with. */
+  const filterWords = $derived(
+    filterMentions(filters, agentName)
+      .map((mention) => ("key" in mention ? $t(mention.key) : mention.text))
+      .join(", "),
+  );
+
+  async function pickExportPath(): Promise<string | null> {
+    const path = await saveDialog({
+      defaultPath: exportFileName(new Date()),
+      filters: [{ name: $t("journal.export.csv_file"), extensions: ["csv"] }],
+    });
+    return typeof path === "string" ? path : null;
+  }
+
+  async function exportAs(format: ExportFormat, wantsDetail: boolean): Promise<void> {
+    const outcome = await actions.runExport({
+      format,
+      wantsDetail,
+      query: exportQueryOf(filters, $developerMode, new Date()),
+      pickPath: pickExportPath,
+    });
+    if (outcome.status === "written") {
+      addToast($t("journal.export.written", { values: { path: outcome.path } }), "success");
+    }
+  }
+
+  async function printPage(): Promise<void> {
+    const refused = await actions.print();
+    if (refused !== null) {
+      addToast($t("journal.print.failed", { values: { message: refused } }), "error");
+    }
+  }
+
   function dayLabel(group: DayGroup): string {
     if (group.date === null) return $t("journal.day_unknown");
     const date = group.date.toLocaleDateString($locale ?? "en", {
@@ -148,6 +192,18 @@
       {$t(someUnfolded ? "dev.journal.fold_all" : "dev.journal.unfold_all")}
     </Button>
   {/if}
+  <Button
+    variant="outline"
+    size="sm"
+    disabled={actions.verification.status === "running"}
+    onclick={() => void actions.verify()}
+    data-testid="journal-verify"
+  >
+    {$t(actions.verification.status === "running" ? "journal.verify.running" : "journal.verify.action")}
+  </Button>
+  <Button variant="primary-solid" size="sm" onclick={() => void actions.openExport()} data-testid="journal-export">
+    {$t("journal.export.action")}
+  </Button>
 {/snippet}
 
 <PageLayout
@@ -157,6 +213,22 @@
   class="space-y-4 p-6"
   data-testid="journal-page"
 >
+  {#if actions.verification.status === "done"}
+    <JournalVerdict
+      verdict={actions.verification.verdict}
+      checkedAt={actions.verification.checkedAt}
+      onExport={() => void actions.openExport()}
+      onClose={actions.dismissVerdict}
+    />
+  {:else if actions.verification.status === "failed"}
+    <ErrorBanner
+      tone="danger"
+      message={$t("journal.verify.failed", { values: { message: actions.verification.message } })}
+      onretry={() => void actions.verify()}
+      data-testid="journal-verify-error"
+    />
+  {/if}
+
   <JournalFilterBar
     {filters}
     agents={filterAgents}
@@ -252,3 +324,21 @@
     {/if}
   {/if}
 </PageLayout>
+
+<JournalExportDialog
+  open={actions.exportOpen}
+  filters={filterWords}
+  rule={actions.detailRule}
+  exporting={actions.exporting}
+  error={actions.exportError}
+  onClose={actions.closeExport}
+  onExport={(format, wantsDetail) => void exportAs(format, wantsDetail)}
+/>
+
+<JournalPrintSheet
+  document={actions.printed}
+  filters={filterWords}
+  {agentName}
+  onPrint={() => void printPage()}
+  onClose={actions.closePrint}
+/>

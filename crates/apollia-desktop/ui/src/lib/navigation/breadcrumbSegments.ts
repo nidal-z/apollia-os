@@ -25,7 +25,7 @@ export interface BreadcrumbSegment {
 /**
  * i18n key of a settings sub-page, mirroring the keys the settings navigation
  * column reads (`routes/Settings.svelte`): hyphens become underscores, so
- * "model-hub" resolves `settings.nav.model_hub`.
+ * "model-defaults" resolves `settings.nav.model_defaults`.
  */
 export function settingsSubRouteLabelKey(sub: SettingsSubRoute): string {
   return `settings.nav.${sub.replace(/-/g, "_")}`;

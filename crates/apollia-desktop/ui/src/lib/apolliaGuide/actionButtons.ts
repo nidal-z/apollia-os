@@ -13,6 +13,9 @@
  * Parsing and execution are client-side; the agent is the source of the
  * block.
  */
+import { get } from "svelte/store";
+import { visibleRoutes } from "$lib/apolliaGuide/guideRoutes";
+import { developerMode } from "$lib/stores/developerMode";
 import { navigateTo, type Route } from "$lib/stores/navigation";
 
 /** Kind of UI action the coach may propose. */
@@ -81,24 +84,21 @@ export function parseApolliaActions(content: string): {
 }
 
 /**
- * Allowlist of routes the coach is allowed to deep-link to. The guide is a
- * declarative agent and filters nothing itself: this map is the one enforced,
- * routes absent from it are dropped silently. `/onboarding` is deliberately absent,
- * onboarding is a modal, not a route.
+ * The route a path of the guide opens, or `null` when no visible screen
+ * answers to it. This is the one allowlist of the application: the paths are
+ * the visible routes (`visibleRoutes`), each written `/<route>`, and nothing
+ * else. The guide is a declarative agent and filters nothing itself, so a
+ * path absent from the list (a removed screen, a name the model invented) is
+ * dropped here. With the developer mode off, the developer screens are
+ * dropped too, since the router would not show them.
  */
-const ROUTE_ALLOWLIST: Record<string, Route> = {
-  "/dashboard": "dashboard",
-  "/agents": "agents",
-  "/chat": "chat",
-  "/automations": "automations",
-  "/integrations": "integrations",
-  "/inbox": "inbox",
-  "/llm": "llm",
-  "/triggers": "automations",
-  "/memory": "memory",
-  "/observability": "observability",
-  "/settings": "settings",
-};
+export function allowedGuideRoute(
+  path: string,
+  developer: boolean = get(developerMode),
+): Route | null {
+  const [base] = path.split("?", 1);
+  return visibleRoutes(developer).find((route) => `/${route}` === base) ?? null;
+}
 
 /**
  * Allowlist of Tauri commands the coach may invoke. Currently empty - the
@@ -117,8 +117,8 @@ export function validateActionButton(raw: RawActionButton): SafeActionButton | n
 
   if (raw.action === "navigate") {
     const route = typeof raw.payload?.route === "string" ? raw.payload.route : "";
-    const [basePath, query = ""] = route.split("?", 2);
-    const resolved = ROUTE_ALLOWLIST[basePath];
+    const [, query = ""] = route.split("?", 2);
+    const resolved = allowedGuideRoute(route);
     if (!resolved) return null;
     return {
       label: raw.label,

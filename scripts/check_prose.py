@@ -17,6 +17,10 @@ vocabulary that `docs/agents/FORBIDDEN.md` forbids in any committed file. The
 tracker is not published, so every one of those references pointed at something
 a reader outside this machine could not open.
 
+Two further rules keep a person and a workstation out of the tree: the
+maintainer's first name, family name and handle in any spelling, and a host
+name of the form a workstation announces on the local network.
+
 Every rule is one entry of `RULES`: its pattern, its label, the paths it
 exempts, and whether it also judges file names. A rule that needs an exemption
 does not need a second mechanism.
@@ -100,6 +104,31 @@ TWIN_MANIFEST_EXEMPT = re.compile(
     r"^crates/apollia-desktop/ui/figma/manifest\.json$"
 )
 
+# A person's first name, family name and handle, in any case and inside any
+# longer token: an address, a commit author, a home directory, a host name and
+# a URL slug all embed one of the two stems, so one unanchored pattern covers
+# what four anchored ones would each miss a spelling of. Neither stem is a
+# fragment of a word this tree uses.
+PERSONAL_IDENTITY = re.compile(r"(?i:nida[l]|zoumit[a])")
+
+# The one named hole: the ownership file addresses a GitHub account by its
+# handle, which is the syntax GitHub reads.
+# TODO(once .github/CODEOWNERS names an organisation team): drop the exemption.
+CODEOWNERS_EXEMPT = re.compile(r"^\.github/CODEOWNERS$")
+
+# The name a workstation announces on the local network: hyphen-separated
+# tokens, one of which is a hardware model, then the mDNS suffix. The model has
+# to be a whole token, so a host named after a word that merely starts with the
+# same letters stays legal, and so does every file whose name carries a
+# `.local` segment with no host in front of it. A test that needs a second
+# machine names it by its role.
+MACHINE_TOKEN = r"(?:mac|imac|macbook|macmini|macstudio|macpro|mbp|mba)"
+MACHINE_HOSTNAME = re.compile(
+    r"(?i:(?<![a-z0-9])(?:[a-z0-9]+-)*"
+    + MACHINE_TOKEN
+    + r"(?:-[a-z0-9]+)*[.]local(?![a-z0-9]))"
+)
+
 
 class Rule(NamedTuple):
     pattern: re.Pattern[str]
@@ -108,8 +137,8 @@ class Rule(NamedTuple):
     names: bool = False
 
 
-# Bracket classes keep the three middle patterns from matching their own
-# literal text here.
+# Bracket classes keep the patterns from matching their own literal text here.
+# The tracker rule stays last: the self-test addresses it by position.
 RULES = [
     Rule(
         re.compile(re.escape(EM_DASH)),
@@ -125,8 +154,19 @@ RULES = [
         "dead domain",
     ),
     Rule(
-        re.compile(r"github[.]com/(nidal-z|nidalzoumit[a])/"),
+        re.compile(r"github[.]com/(nida[l]-z|nida[l]zoumit[a])/"),
         "stale GitHub slug",
+    ),
+    Rule(
+        PERSONAL_IDENTITY,
+        "personal name or handle; the project speaks as Apollia",
+        CODEOWNERS_EXEMPT,
+        names=True,
+    ),
+    Rule(
+        MACHINE_HOSTNAME,
+        "workstation host name; name the machine by its role",
+        names=True,
     ),
     Rule(
         TRACKING_IDENTIFIER,

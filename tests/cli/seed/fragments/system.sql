@@ -15,16 +15,16 @@
 --       FROM stt_config WHERE id = 1
 --     consumed by get_stt_config IPC -> the STT settings form.
 --
--- Unblocks the desktop automation for llm-det.json / llm-backends.json:
---   * llm-grid / llm-backends-list / llm-backends-section  <- >= 1 backend row
---   * llm-backend-card / llm-backend-badge / llm-backend-type-badge
---   * set-default-{name}  (settings/Llm.svelte, one per backend)
+-- Unblocks the desktop automation for llm-det.json and destructive.json:
+--   * ai-server-entry / ai-server-panel  <- each OpenAI-compatible row below
+--     becomes a server of the AI screen at the first opening of the database,
+--     one per distinct address, sorted by name
 -- and stt-det.json:
 --   * stt-config-form / stt-model-select / stt-language-input / stt-trigger /
 --     stt-clipboard / stt-silence / stt-max-rec / stt-enable-toggle
 --     (settings/Stt.svelte reads the seeded row as a configured state)
 --
--- config_json shape mirrors what LlmBackendDialog.svelte writes/reads:
+-- config_json shape is the one the runtime reads:
 --   llama-cpp -> model_path (basename must match form.model), context_size, temperature
 --   api       -> base_url, api_key ("${VAR}" sentinel), context_size, temperature
 --

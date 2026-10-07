@@ -15,9 +15,13 @@ pub(super) const CONSENT: &str = "consent:";
 pub(super) const TASK: &str = "task:";
 pub(super) const BATCH: &str = "batch:";
 pub(super) const QUESTION: &str = "question:";
+pub(super) const WORKFLOW_QUESTION: &str = "workflow-question:";
+/// The `id` of the one question a workflow asks at a time, in the shape the
+/// `ask_user` questions take.
+pub(super) const WORKFLOW_ANSWER_ID: &str = "answer";
 
 /// Every decision waiting for the user: the consents, the task pauses, the
-/// batch items, the questions, each oldest first. A subsystem that is not
+/// batch items, the questions of agents then of workflows, each oldest first. A subsystem that is not
 /// running contributes nothing.
 pub(crate) async fn collect<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
@@ -65,7 +69,61 @@ pub(crate) async fn collect<B: ExecutionBackend + Clone>(
             ),
         }
     }
+    if let Some(workflows) = &state.workflows {
+        match workflows.pending_questions().await {
+            Ok(questions) => items.extend(questions.into_iter().map(workflow_question)),
+            Err(e) => tracing::event!(
+                tracing::Level::WARN,
+                error = %e,
+                "pending.workflow_questions.read_failed"
+            ),
+        }
+    }
     items
+}
+
+/// The question a step of a workflow stopped on, in the shape of the
+/// questions agents ask: one question, its choices when it proposes some, and
+/// a free answer besides them.
+fn workflow_question(waiting: crate::workflows::WorkflowQuestion) -> PendingDecision {
+    let kind = if waiting.asked.options.is_empty() {
+        "open"
+    } else {
+        "single_choice"
+    };
+    let mut question = serde_json::json!({
+        "id": WORKFLOW_ANSWER_ID,
+        "question": waiting.asked.question,
+        "type": kind,
+    });
+    if !waiting.asked.options.is_empty() {
+        question["options"] = serde_json::json!(waiting.asked.options);
+    }
+    if let Some(hint) = &waiting.asked.hint {
+        question["hint"] = serde_json::json!(hint);
+    }
+    PendingDecision {
+        id: format!("{WORKFLOW_QUESTION}{}", waiting.request_id),
+        kind: PendingKind::Question,
+        agent_id: None,
+        summary: waiting.asked.question,
+        access: None,
+        family: None,
+        answers: vec![PendingAnswer::Answer, PendingAnswer::Refuse],
+        questions: Some(serde_json::Value::Array(vec![question])),
+        detail: None,
+        code: None,
+        working_dir: None,
+        allow_other: true,
+        origin: PendingOrigin {
+            request_id: Some(waiting.request_id),
+            run_id: Some(waiting.run_id),
+            workflow_id: Some(waiting.workflow_id),
+            step: waiting.step,
+            ..PendingOrigin::default()
+        },
+        asked_at: Some(waiting.asked_at),
+    }
 }
 
 fn answer_of(answer: ConsentAnswer) -> PendingAnswer {
@@ -91,6 +149,9 @@ fn consent(asked: crate::chat::ChatApprovalAsked) -> PendingDecision {
         summary: asked.prompt,
         access: Some(asked.tool_name),
         family: asked.family,
+        detail: asked.detail,
+        code: asked.code,
+        working_dir: asked.working_dir,
         answers,
         questions: None,
         allow_other: false,
@@ -125,6 +186,9 @@ fn task_pause(pause: crate::api::routes_approvals::PendingApprovalResponse) -> P
         summary: pause.prompt,
         access: pause.skill_id,
         family: None,
+        detail: None,
+        code: None,
+        working_dir: None,
         answers: task_answers(pause.payload.as_ref()),
         questions: pause.payload,
         allow_other,
@@ -172,6 +236,9 @@ fn batch_item(batch: &BatchRow, item: &BatchItemRow, accesses: &[BatchAccess]) -
             .clone()
             .unwrap_or_else(|| "Waiting for a decision".to_string()),
         family: known.map(|a| a.family.clone()),
+        detail: None,
+        code: None,
+        working_dir: None,
         answers: batch_answers(known),
         access,
         questions: None,
@@ -204,6 +271,9 @@ fn question(view: crate::chat::manager::PendingUserInputView) -> PendingDecision
         summary,
         access: None,
         family: None,
+        detail: None,
+        code: None,
+        working_dir: None,
         answers: vec![PendingAnswer::Answer, PendingAnswer::Refuse],
         questions,
         allow_other: true,

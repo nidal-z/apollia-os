@@ -59,6 +59,17 @@ pub trait CompletionModel: Send + Sync {
         false
     }
 
+    /// Whether a request that ends on an assistant message has that message
+    /// continued, rather than answered by a new one.
+    ///
+    /// `false` (the default) is the answer for every engine it was not
+    /// measured on: a server free to close the trailing message and open a new
+    /// turn would answer something other than the rest of the text, and the
+    /// caller would stitch the two together as if they were one answer.
+    fn continues_answer(&self) -> bool {
+        false
+    }
+
     /// Maximum context window of the loaded model, in tokens, when known.
     ///
     /// Lets the router size context compaction to the real model window instead

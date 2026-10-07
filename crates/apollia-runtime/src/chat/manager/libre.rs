@@ -37,33 +37,31 @@ pub(in crate::chat::manager) fn load_chat_libre_overrides(
     out
 }
 
-/// Apply Libre-mode governance overrides to the session prompt and return the
-/// derived session defaults.
+/// The defaults a free chat is born with: the model assigned to the Apollia
+/// agent, recorded on the session for downstream routing.
 ///
-/// When `is_libre` is `false`, leaves `prompt` untouched and returns the empty
-/// defaults (legacy behavior).
-///
-/// - `system_prompt` : prepended to the caller's prompt when set.
-/// - `llm_backend`   : recorded on the session for downstream routing.
-pub(in crate::chat::manager) fn apply_libre_overrides(
+/// When `is_libre` is `false`, returns the empty defaults. The mission of
+/// Apollia is not copied onto the session: each message reads it from the
+/// agent ([`apollia_mission`]), and what the session adds to it lives in its
+/// settings.
+pub(in crate::chat::manager) fn libre_session_defaults(
     is_libre: bool,
-    prompt: &mut String,
     governance_db: Option<&std::path::Path>,
 ) -> LibreSessionDefaults {
     if !is_libre {
         return LibreSessionDefaults::default();
     }
-    let overrides = load_chat_libre_overrides(governance_db);
-    if let Some(sp) = overrides.system_prompt {
-        if prompt.trim().is_empty() {
-            *prompt = sp;
-        } else {
-            *prompt = format!("{sp}\n\n{prompt}");
-        }
-    }
     LibreSessionDefaults {
-        llm_backend: overrides.llm_backend,
+        llm_backend: load_chat_libre_overrides(governance_db).llm_backend,
     }
+}
+
+/// The mission of the Apollia agent as resolved now, empty when it has none:
+/// the run then starts from the built-in prompt of its tier.
+pub(in crate::chat::manager) fn apollia_mission(governance_db: Option<&std::path::Path>) -> String {
+    load_chat_libre_overrides(governance_db)
+        .system_prompt
+        .unwrap_or_default()
 }
 
 /// Accumulate the metrics of one completed exchange into `entry`.
@@ -189,6 +187,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         available_tools,
         authorized_tools,
         system_prompt,
+        session_settings,
         context_window_size,
         stored_summary,
         llm_for_summarize,
@@ -213,6 +212,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         hook_executor,
         cancel,
         pending_injection,
+        answer_prefill,
         preferred_backend,
         turn_id,
         turn_images,
@@ -225,13 +225,32 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             &super::default_access_of(chat_tools_config_for_session.as_deref()),
         )
         .await;
-    let available_tools = super::code_context::with_code_context(
-        chat_tools_config_for_session.as_deref(),
-        &agent_id,
-        available_tools,
-        &mut package_tools,
-    )
-    .await;
+    // The conversation takes accesses out of the agent's list and may propose
+    // some the agent does not hold, for itself alone: nothing is written to
+    // the agent or to governance. The conversation that creates an agent is
+    // offered its draft tool and nothing else.
+    let (available_tools, proposed_accesses) = if agent_draft {
+        (available_tools, Vec::new())
+    } else {
+        let proposed = session_settings.proposed_beyond(&available_tools);
+        (
+            session_settings.apply_to_accesses(available_tools),
+            proposed,
+        )
+    };
+    // A conversation limited to a list of accesses is offered nothing a
+    // source of its agent would add.
+    let available_tools = if session_settings.is_limited() {
+        available_tools
+    } else {
+        super::code_context::with_code_context(
+            chat_tools_config_for_session.as_deref(),
+            &agent_id,
+            available_tools,
+            &mut package_tools,
+        )
+        .await
+    };
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
     // `tool_search` tool is built from it twice: as a dispatcher executor (so a
@@ -260,6 +279,9 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     // connected account, or nothing.
     let available_tools =
         crate::connectors_bridge::resolve_connector_access(&agent_id, available_tools).await;
+    // A proposed access is asked about under the name its calls carry.
+    let proposed_accesses =
+        crate::connectors_bridge::resolve_connector_access(&agent_id, proposed_accesses).await;
     // The folders granted to the agent are the roots of its file tools.
     let (available_tools, folders) = super::dispatcher::granted_folders(
         available_tools,
@@ -301,6 +323,26 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     let system_prompt = match &agent_draft {
         Some(offer) => crate::chat::agent_draft_tool::creation_prompt(offer),
         None => system_prompt,
+    };
+
+    // The request settings of the conversation, above the three levels read
+    // beside the data directory: the model, the package, and the preset of
+    // the conversation or of the agent.
+    let session = crate::chat::builtin_agent::SessionOverrides {
+        instructions: session_settings.instructions.clone(),
+        request: session_settings.request_level(),
+        request_levels: chat_tools_config_for_session.as_deref().map(|cfg| {
+            apollia_llm::AgentModelBinding::new(
+                agent_id.clone(),
+                None,
+                Some(apollia_core::paths::DataFile::System.path(&cfg.data_dir)),
+            )
+            .with_session_preset(session_settings.preset)
+        }),
+        thinking: session_settings.thinking,
+        reasoning_effort: session_settings.reasoning_effort,
+        overflow: session_settings.overflow(),
+        proposed_accesses,
     };
 
     // Read the tool-turn temperature before the config is moved into the
@@ -393,10 +435,12 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             composition: composer.map(|composer| Composition { composer, depth: 1 }),
             turn_id,
             agent_draft,
+            session,
         },
         &runtime_budget,
         cancel,
-    );
+    )
+    .continuing(answer_prefill);
     let summary = resolve_exchange_summary(ExchangeSummaryParams {
         history: &history,
         context_window_size,
@@ -536,7 +580,6 @@ mod context_gauge_tests {
             id: "sess-gauge".into(),
             mode: ChatMode::Libre,
             agent_name: None,
-            system_prompt: String::new(),
             status: SessionStatus::Active,
             history,
             authorized_tools: std::collections::HashSet::new(),
@@ -551,6 +594,8 @@ mod context_gauge_tests {
             plan_phase: PlanPhase::Done,
             profile_id: None,
             use_profile: true,
+            settings: crate::chat::SessionSettings::default(),
+            notes: String::new(),
         }
     }
 

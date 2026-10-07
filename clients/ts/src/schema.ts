@@ -464,27 +464,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/approvals/resolved": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Handler for `GET /api/v1/approvals/resolved`.
-         * @description Returns the last `limit` resolved approvals (approved or rejected)
-         *     within the last `days` days.
-         */
-        get: operations["list_resolved_approvals"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/artifacts": {
         parameters: {
             query?: never;
@@ -1439,6 +1418,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["install_engine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/installation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["engine_installation_state"];
+        put?: never;
+        post: operations["start_engine_installation"];
+        delete: operations["dismiss_engine_installation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/installation/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["start_engine_import"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2530,7 +2541,11 @@ export interface paths {
         delete: operations["delete_llm_server"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * `PATCH /api/v1/llm/servers/{name}`: change a saved server field by field.
+         *     The change applies to the next request sent to one of its models.
+         */
+        patch: operations["update_llm_server"];
         trace?: never;
     };
     "/api/v1/llm/servers/{name}/models": {
@@ -4680,6 +4695,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/continuation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/continuation`: whether the last
+         *     answer can be continued on the model the next turn runs on, and why not.
+         */
+        get: operations["get_continuation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/erase": {
         parameters: {
             query?: never;
@@ -4753,6 +4788,52 @@ export interface paths {
         put?: never;
         /** Handler for `POST /api/v1/sessions/:id/messages`, send message. */
         post: operations["send_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/sessions/{id}/messages/{message_id}`: replace the
+         *     text of an answer, marked edited. No turn is played again.
+         */
+        put: operations["edit_answer"];
+        post?: never;
+        /**
+         * Handler for `DELETE /api/v1/sessions/{id}/messages/{message_id}`: remove a
+         *     message and, for an answer, the tool messages of its turn.
+         */
+        delete: operations["delete_message"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/messages/{message_id}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/messages/{message_id}/continue`.
+         * @description `message_id` is the last answer of the session. Its turn runs again with
+         *     the answer as the prefill, and the answer that lands replaces it under the
+         *     same id.
+         */
+        post: operations["continue_answer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6162,6 +6243,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/{id}/notes`. */
+        get: operations["get_session_notes"];
+        /** Handler for `PUT /api/v1/sessions/{id}/notes`. */
+        put: operations["put_session_notes"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/{id}/settings`. */
+        get: operations["get_session_settings"];
+        /** Handler for `PUT /api/v1/sessions/{id}/settings`. */
+        put: operations["put_session_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7352,6 +7469,22 @@ export interface components {
             /** @description Provider identifier. */
             provider: string;
         };
+        /**
+         * @description What a conversation does when it reaches the context limit of its model.
+         * @enum {string}
+         */
+        ContextOverflowSetting: "summarize_middle" | "sliding_window" | "stop_at_limit";
+        /** @description Whether the last answer of a conversation can be continued. */
+        Continuation: {
+            /** @description `true` when the model of the conversation continues an answer. */
+            available: boolean;
+            reason?: null | components["schemas"]["ContinuationRefusal"];
+        };
+        /**
+         * @description Why the last answer of a conversation cannot be continued.
+         * @enum {string}
+         */
+        ContinuationRefusal: "engine" | "agent" | "no_model";
         /** @description Statistics of one chat conversation. */
         ConversationStatsView: {
             /**
@@ -7517,6 +7650,13 @@ export interface components {
         CreateSessionRequest: {
             /** @description Agent name (required when `mode == "agent"`). */
             agent_name?: string | null;
+            /**
+             * @description Limit the conversation to `tools`: of the accesses of its agent only
+             *     they are offered, and those the agent does not hold are proposed,
+             *     each of their calls asking for consent. Read back as
+             *     `settings.only_accesses`. Refused when `tools` is empty.
+             */
+            limited_to_tools?: boolean;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
             /**
@@ -7525,7 +7665,11 @@ export interface components {
              *     the name of a backend. Absent keeps the model of the agent.
              */
             model?: string | null;
-            /** @description Custom system prompt. */
+            /**
+             * @description Instructions of the conversation, added to the mission of its agent and
+             *     never in its place: 4000 characters at most. Read back as
+             *     `settings.instructions`.
+             */
             system_prompt?: string | null;
             /** @description List of tool names available in this session. */
             tools?: string[];
@@ -7628,7 +7772,8 @@ export interface components {
             reason?: string | null;
             /**
              * @description The answer to the typed question of a paused task: a proposition id,
-             *     free text when it allows it, or a value.
+             *     free text when it allows it, or a value. For the question of a
+             *     workflow: the chosen choice or free text, when `answers` is not given.
              */
             value?: Record<string, never> | null;
         };
@@ -7636,6 +7781,12 @@ export interface components {
         DecideResponse: {
             /** @description The answer applied. */
             answer: components["schemas"]["PendingAnswer"];
+            /**
+             * Format: int64
+             * @description How many other batch items, waiting on an access this answer now
+             *     covers, ran again besides the item answered.
+             */
+            batchItemsResumed: number;
             /** @description The item answered. */
             id: string;
             /** @description What happened, to show the user. */
@@ -7724,6 +7875,15 @@ export interface components {
             /** @description The path removed, as it was asked for. */
             deleted: string;
         };
+        /** @description Answer of `DELETE /api/v1/sessions/{id}/messages/{message_id}`. */
+        DeletedMessages: {
+            /**
+             * Format: int32
+             * @description Messages removed: the one named and, for an answer, the tool messages
+             *     of its turn.
+             */
+            deleted: number;
+        };
         /** @description Answer of `DELETE /api/v1/profiles/{id}`. */
         DeletedProfile: {
             /** @description The identifier removed, as the request named it. */
@@ -7803,6 +7963,11 @@ export interface components {
              *     path means the root of My Drive.
              */
             folder_path?: string | null;
+        };
+        /** @description Request body for `PUT /api/v1/sessions/{id}/messages/{message_id}`. */
+        EditAnswerRequest: {
+            /** @description The new text of the answer. */
+            content: string;
         };
         /** @description The default embeddings model, and whether this machine has its file. */
         EmbeddingDefaultResponse: {
@@ -7886,6 +8051,60 @@ export interface components {
             /** @description Variant to install; its newest build on the channel is taken. */
             variant: components["schemas"]["EngineVariant"];
         };
+        /**
+         * @description What an installation is, for the one who asked.
+         * @enum {string}
+         */
+        EngineInstallationKind: "install" | "update" | "import";
+        /** @description Where the installation of a store stands. */
+        EngineInstallationState: {
+            /** @enum {string} */
+            state: "idle";
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "verifying";
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /**
+             * Format: int64
+             * @description Bytes of the archive received so far.
+             */
+            received: number;
+            /** @enum {string} */
+            state: "downloading";
+            /**
+             * Format: int64
+             * @description Size of the archive the verified manifest states.
+             */
+            total: number;
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "installing";
+        } | {
+            /** @description What was done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "installed";
+        } | {
+            /**
+             * @description True when an archive had been requested from the mirror: false
+             *     means the refusal came before any download.
+             */
+            archive_requested: boolean;
+            /** @description Why, as a stable word. */
+            code: components["schemas"]["EngineRefusalCode"];
+            /** @description Why, readable as is. */
+            error: string;
+            /** @description What was being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "failed";
+        };
         /** @description Engines installed by a request. */
         EngineInstalledResponse: {
             /** @description What was installed. */
@@ -7896,6 +8115,12 @@ export interface components {
          * @enum {string}
          */
         EngineName: "llama-server" | "vllm-mlx" | "nodejs";
+        /**
+         * @description Why the store refused, as a stable word an interface can branch on. The
+         *     sentence of the error says the same to a reader.
+         * @enum {string}
+         */
+        EngineRefusalCode: "no_trusted_key" | "signature_invalid" | "signature_unknown_key" | "signature_missing" | "manifest_invalid" | "rollback" | "package_not_found" | "digest_mismatch" | "archive_invalid" | "network" | "storage";
         /** @description Body of the settings routes. */
         EngineSettingsBody: {
             /** @description Base address manifests and archives are fetched from. */
@@ -7927,6 +8152,8 @@ export interface components {
              * @description Sequence of the last verified manifest of that channel, if any.
              */
             manifest_sequence?: number | null;
+            /** @description Name of the NVIDIA card detected, when there is one. */
+            nvidia_card?: string | null;
             /**
              * @description Per variant offered by that manifest for this platform, whether a newer
              *     build than the installed one exists. Empty until a manifest verified.
@@ -8683,6 +8910,12 @@ export interface components {
             engine: components["schemas"]["EngineName"];
             /** @description What the load guardrail makes of it. */
             guardrail: components["schemas"]["GuardrailCheckDto"];
+            /**
+             * Format: int32
+             * @description The largest window the model accepts, from its header; absent when
+             *     the header does not say, and for an MLX model.
+             */
+            maxCtx?: number | null;
             memory?: null | components["schemas"]["MemoryEstimateDto"];
             /** @description The model, as asked. */
             modelId: string;
@@ -8698,6 +8931,11 @@ export interface components {
              * @description Layers it would place on the accelerator; absent for an MLX model.
              */
             nGpuLayers?: number | null;
+            /**
+             * @description The quantisation the file name declares (`Q4_K_M`); absent when it
+             *     declares none.
+             */
+            quantization?: string | null;
             /**
              * Format: int32
              * @description Layers the model has; absent when unknown.
@@ -8751,11 +8989,19 @@ export interface components {
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
             activeRequests: number;
+            /** @description What the model can do, from the model index. */
+            capabilities?: Record<string, never> | null;
             /**
              * @description The engine serving the model, chosen by its format: `llama-server` for
              *     GGUF, `vllm-mlx` for MLX.
              */
             engine: components["schemas"]["EngineName"];
+            /**
+             * Format: double
+             * @description Memory the load guardrail estimated for it at launch, in gigabytes;
+             *     absent when the launch was not estimated.
+             */
+            footprintGb?: number | null;
             /**
              * @description What the model serves: `chat`, or `embeddings` for the instance that
              *     serves search by meaning, which counts neither against `maxLoaded` nor
@@ -8768,6 +9014,11 @@ export interface components {
             loadedAt: string;
             /** @description Display name, the model file name without its extension. */
             model: string;
+            /**
+             * @description Identifier of the model in the model index, the name an agent uses;
+             *     absent for a file the index does not hold.
+             */
+            modelId?: string | null;
             /** @description Path the model was loaded from; the key an unload takes. */
             modelPath: string;
             /**
@@ -8796,6 +9047,11 @@ export interface components {
              * @description Loopback port of the process serving it.
              */
             port: number;
+            /**
+             * Format: int64
+             * @description Size of its weights on disk, from the model index.
+             */
+            sizeBytes?: number | null;
         };
         /** @description Response body for `GET /api/v1/llm/loaded-models`. */
         LoadedModelsResponse: {
@@ -9556,6 +9812,13 @@ export interface components {
             answers: components["schemas"]["PendingAnswer"][];
             /** @description When it was asked, RFC 3339, when known. */
             askedAt?: string | null;
+            /** @description The whole command or source, when the consent is about running code. */
+            code?: string | null;
+            /**
+             * @description The full arguments of the call a consent is about, as the chat card
+             *     shows them behind "see more".
+             */
+            detail?: string | null;
             /**
              * @description Its action family (`read_personal`, `write_or_delete`, `send_external`,
              *     `execute_code`, `unclassified`), when known.
@@ -9574,6 +9837,8 @@ export interface components {
             questions?: Record<string, never> | null;
             /** @description What is asked, in a sentence. */
             summary: string;
+            /** @description The folder that code runs in. */
+            workingDir?: string | null;
         };
         /** @description The decisions waiting for the user. */
         PendingDecisionList: {
@@ -9605,14 +9870,20 @@ export interface components {
              * @description Position of the item in its source, from 0.
              */
             rank?: number | null;
-            /** @description The `ask_user` request of a question. */
+            /** @description The `ask_user` request of a question, or the request of a workflow's. */
             requestId?: string | null;
+            /** @description The workflow run that asked a question. */
+            runId?: string | null;
             /** @description The conversation, for a consent or a question asked in one. */
             sessionId?: string | null;
+            /** @description The step the run waits in. */
+            step?: string | null;
             /** @description The paused task. */
             taskId?: string | null;
             /** @description The tool call a consent is about. */
             toolCallId?: string | null;
+            /** @description Its workflow, `<package>/<workflow>`. */
+            workflowId?: string | null;
         };
         /**
          * @description A key changed since the start that waits for a restart, with its line in
@@ -10154,16 +10425,6 @@ export interface components {
             /** @description Version of the definition. */
             version: string;
         };
-        /** @description One resolved HITL approval entry. */
-        ResolvedApprovalResponse: {
-            agent_name: string;
-            approved: boolean;
-            reason?: string | null;
-            responded_at?: string | null;
-            task_id: string;
-            /** Format: int64 */
-            wait_duration_ms?: number | null;
-        };
         /** @description The memory and the processor in use at the time of the request. */
         ResourceUsageResponse: {
             /**
@@ -10379,6 +10640,12 @@ export interface components {
         };
         /** @description Body of `GET /api/v1/llm/servers/{name}/models`. */
         ServerModelsResponse: {
+            /**
+             * Format: int32
+             * @description Window an agent is expected to have, in tokens: a model served with a
+             *     shorter one is marked `context_short`.
+             */
+            expected_context_window: number;
             /** @description Models the server offers, in its order. */
             models: components["schemas"]["ServerModel"][];
             /** @description Server name. */
@@ -10414,10 +10681,18 @@ export interface components {
             base_url: string;
             /** @description Whether the server's models are routable. */
             enabled: boolean;
+            /** @description Fields added to every request sent to this server. Absent when none. */
+            extra_params?: Record<string, never> | null;
             /** @description Whether a key is held for this server. */
             has_key: boolean;
             /** @description Unique name, the first segment of `<server>/<model>`. */
             name: string;
+            /**
+             * Format: int32
+             * @description Seconds the server may stay silent before a request to it is given
+             *     up. Absent when the default of the runtime applies.
+             */
+            timeout_secs?: number | null;
         };
         /** @description A token as the list shows it: never its value. */
         ServerTokenView: {
@@ -10543,6 +10818,64 @@ export interface components {
             reasoning_profile?: null | components["schemas"]["ReasoningProfileDto"];
             /** @description Whether the model reads images. */
             vision: boolean;
+        };
+        /** @description The notes of a conversation, as `GET` answers them and `PUT` takes them. */
+        SessionNotes: {
+            /**
+             * @description Free text the user keeps beside the conversation. It is never sent to
+             *     a model.
+             */
+            notes: string;
+        };
+        /**
+         * @description The settings of one conversation. Every field is optional: one left out
+         *     is inherited from the agent. An unknown field is refused.
+         */
+        SessionSettings: {
+            context_overflow?: null | components["schemas"]["ContextOverflowSetting"];
+            /** @description Accesses of the agent switched off for this conversation. */
+            disabled_accesses?: string[];
+            /** @description Instructions added to the mission of the agent for this conversation. */
+            instructions?: string | null;
+            /**
+             * Format: int32
+             * @description Upper bound on the length of an answer, in tokens.
+             */
+            max_tokens?: number | null;
+            /**
+             * @description Accesses the conversation is limited to. When the list is not empty,
+             *     of the accesses of the agent only those it names are kept, and those
+             *     it names that the agent does not hold are proposed: each of their
+             *     calls asks for consent.
+             */
+            only_accesses?: string[];
+            /**
+             * Format: int64
+             * @description Preset chosen for the conversation, a preset of its model. It takes
+             *     the place of the agent's preset.
+             */
+            preset?: number | null;
+            /**
+             * @description For an installed agent, whether it may read the user profile in this
+             *     conversation, whatever its own profile source says. Left out, the
+             *     source of the agent decides. The profile is read by a tool and never
+             *     placed in the prompt of an installed agent.
+             */
+            profile_access?: boolean | null;
+            /**
+             * @description Accesses the agent does not hold, proposed for this conversation:
+             *     the model may call them and each call asks for consent.
+             */
+            proposed_accesses?: string[];
+            /** @description Level of reasoning (`low`, `medium`, `high`), for a model that reads it. */
+            reasoning_effort?: string | null;
+            /**
+             * Format: float
+             * @description Sampling temperature, between 0 and 2.
+             */
+            temperature?: number | null;
+            /** @description Reasoning on or off, for a model that reads it. */
+            thinking?: boolean | null;
         };
         /** @description Answer of `GET /api/v1/sessions/{id}/workspace`. */
         SessionWorkspace: {
@@ -11673,6 +12006,34 @@ export interface components {
             request?: Record<string, never>;
         };
         /**
+         * @description Body of `PATCH /api/v1/llm/servers/{name}`. A field left out keeps what
+         *     the server has.
+         */
+        UpdateServerRequest: {
+            /**
+             * @description New key, written to the secret store. `null` or an empty string
+             *     removes the key the server had.
+             */
+            api_key?: string | null;
+            /** @description New base address, with or without the trailing `/v1`. */
+            base_url?: string | null;
+            /** @description Whether the server's models are routable. */
+            enabled?: boolean | null;
+            /**
+             * @description JSON object whose fields are added to every request sent to this
+             *     server; a field the request already carries is left as it is. `model`,
+             *     `messages`, `stream`, `stream_options`, `tools` and `tool_choice` are
+             *     refused. `null` adds nothing.
+             */
+            extra_params?: Record<string, never> | null;
+            /**
+             * Format: int32
+             * @description Seconds the server may stay silent before a request to it is given
+             *     up, 60 to 3600. `null` returns to the default of the runtime.
+             */
+            timeout_secs?: number | null;
+        };
+        /**
          * @description Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its
          *     value.
          */
@@ -11688,7 +12049,11 @@ export interface components {
              *     default profile.
              */
             profile_id?: string | null;
-            /** @description New system prompt. */
+            /**
+             * @description New instructions of the conversation, added to the mission of its agent:
+             *     4000 characters at most. Written to `settings.instructions`; the other
+             *     settings are left as they are.
+             */
             system_prompt?: string | null;
             /** @description New list of tools available in the session. */
             tools?: string[] | null;
@@ -11730,10 +12095,23 @@ export interface components {
         VariantUpdate: {
             /** @description Engine. */
             engine: components["schemas"]["EngineName"];
+            /** @description Day the installed build was published, when its manifest stated it. */
+            installed_released?: string | null;
             /** @description Newest tag installed here, if any. */
             installed_tag?: string | null;
+            /**
+             * @description Day the newest build was published, `YYYY-MM-DD`, when the manifest
+             *     states it.
+             */
+            latest_released?: string | null;
             /** @description Newest tag the verified manifest offers. */
             latest_tag: string;
+            /**
+             * Format: int64
+             * @description Size in bytes of the archive of the newest build, as the verified
+             *     manifest states it: what installing or updating downloads.
+             */
+            size: number;
             /** @description True when a tag is installed and the manifest offers a newer one. */
             update_available: boolean;
             /** @description Variant. */
@@ -13108,40 +13486,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PendingApprovalResponse"][];
-                };
-            };
-        };
-    };
-    list_resolved_approvals: {
-        parameters: {
-            query?: {
-                /** @description Maximum number of resolved approvals to return (default 20) */
-                limit?: number;
-                /** @description Look-back window in days (default 7) */
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Recently resolved approvals */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolvedApprovalResponse"][];
-                };
-            };
-            /** @description Internal error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -15507,6 +15851,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    engine_installation_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where the installation stands */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    start_engine_installation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description The installation started, the one already running, or the refusal that kept it from starting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    dismiss_engine_installation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The download cancelled or the outcome forgotten; a verification or an extraction is left to end */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    start_engine_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineImportRequest"];
+            };
+        };
+        responses: {
+            /** @description The import started, the installation already running, or the refusal that kept it from starting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
                 };
             };
         };
@@ -18371,6 +18803,69 @@ export interface operations {
             };
             /** @description Server not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Repository or secret store not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServerRequest"];
+            };
+        };
+        responses: {
+            /** @description Server updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerResponse"];
+                };
+            };
+            /** @description The organisation policy refuses the new address; nothing was changed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Invalid address, timeout out of bounds, or a reserved field among the extra parameters */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -23290,6 +23785,47 @@ export interface operations {
             };
         };
     };
+    get_continuation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the last answer can be continued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Continuation"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     erase_session: {
         parameters: {
             query?: never;
@@ -23468,6 +24004,189 @@ export interface operations {
                 };
             };
             /** @description The model of the session does not read images */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    edit_answer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description Answer to rewrite */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Answer rewritten */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A user message, or an empty text */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session or message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed or busy */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description Message to remove */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Messages removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedMessages"];
+                };
+            };
+            /** @description Session or message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed or busy */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    continue_answer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description The last answer of the session */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answer being continued */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not the last answer, or an empty one */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session or message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed or busy */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model does not continue an answer */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -26745,6 +27464,214 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_session_notes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The notes of the conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionNotes"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    put_session_notes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionNotes"];
+            };
+        };
+        responses: {
+            /** @description The notes as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionNotes"];
+                };
+            };
+            /** @description Unknown field, or notes too long */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings of the conversation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionSettings"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    put_session_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionSettings"];
+            };
+        };
+        responses: {
+            /** @description The settings as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionSettings"];
+                };
+            };
+            /** @description Unknown field, or a value that cannot be applied */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
             };
         };
     };

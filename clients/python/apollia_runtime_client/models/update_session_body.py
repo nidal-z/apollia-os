@@ -22,7 +22,9 @@ class UpdateSessionBody:
                 the model of the agent.
             profile_id (None | str | Unset): Profile the conversation designates; `null` returns it to the current
                 default profile.
-            system_prompt (None | str | Unset): New system prompt.
+            system_prompt (None | str | Unset): New instructions of the conversation, added to the mission of its agent:
+                4000 characters at most. Written to `settings.instructions`; the other
+                settings are left as they are.
             tools (list[str] | None | Unset): New list of tools available in the session.
             use_profile (bool | None | Unset): Profile switch of the conversation: whether the built-in assistant
                 receives the profile in its prompt.

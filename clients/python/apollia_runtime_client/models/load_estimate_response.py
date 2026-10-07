@@ -28,8 +28,12 @@ class LoadEstimateResponse:
         model_id (str): The model, as asked.
         model_path (str): The file or folder that would be loaded.
         n_ctx (int): Context window the process would be launched with.
+        max_ctx (int | None | Unset): The largest window the model accepts, from its header; absent when
+            the header does not say, and for an MLX model.
         memory (MemoryEstimateDto | None | Unset):
         n_gpu_layers (int | None | Unset): Layers it would place on the accelerator; absent for an MLX model.
+        quantization (None | str | Unset): The quantisation the file name declares (`Q4_K_M`); absent when it
+            declares none.
         total_layers (int | None | Unset): Layers the model has; absent when unknown.
     """
 
@@ -39,8 +43,10 @@ class LoadEstimateResponse:
     model_id: str
     model_path: str
     n_ctx: int
+    max_ctx: int | None | Unset = UNSET
     memory: MemoryEstimateDto | None | Unset = UNSET
     n_gpu_layers: int | None | Unset = UNSET
+    quantization: None | str | Unset = UNSET
     total_layers: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -59,6 +65,12 @@ class LoadEstimateResponse:
 
         n_ctx = self.n_ctx
 
+        max_ctx: int | None | Unset
+        if isinstance(self.max_ctx, Unset):
+            max_ctx = UNSET
+        else:
+            max_ctx = self.max_ctx
+
         memory: dict[str, Any] | None | Unset
         if isinstance(self.memory, Unset):
             memory = UNSET
@@ -72,6 +84,12 @@ class LoadEstimateResponse:
             n_gpu_layers = UNSET
         else:
             n_gpu_layers = self.n_gpu_layers
+
+        quantization: None | str | Unset
+        if isinstance(self.quantization, Unset):
+            quantization = UNSET
+        else:
+            quantization = self.quantization
 
         total_layers: int | None | Unset
         if isinstance(self.total_layers, Unset):
@@ -91,10 +109,14 @@ class LoadEstimateResponse:
                 "nCtx": n_ctx,
             }
         )
+        if max_ctx is not UNSET:
+            field_dict["maxCtx"] = max_ctx
         if memory is not UNSET:
             field_dict["memory"] = memory
         if n_gpu_layers is not UNSET:
             field_dict["nGpuLayers"] = n_gpu_layers
+        if quantization is not UNSET:
+            field_dict["quantization"] = quantization
         if total_layers is not UNSET:
             field_dict["totalLayers"] = total_layers
 
@@ -117,6 +139,15 @@ class LoadEstimateResponse:
         model_path = d.pop("modelPath")
 
         n_ctx = d.pop("nCtx")
+
+        def _parse_max_ctx(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        max_ctx = _parse_max_ctx(d.pop("maxCtx", UNSET))
 
         def _parse_memory(data: object) -> MemoryEstimateDto | None | Unset:
             if data is None:
@@ -144,6 +175,15 @@ class LoadEstimateResponse:
 
         n_gpu_layers = _parse_n_gpu_layers(d.pop("nGpuLayers", UNSET))
 
+        def _parse_quantization(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        quantization = _parse_quantization(d.pop("quantization", UNSET))
+
         def _parse_total_layers(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -160,8 +200,10 @@ class LoadEstimateResponse:
             model_id=model_id,
             model_path=model_path,
             n_ctx=n_ctx,
+            max_ctx=max_ctx,
             memory=memory,
             n_gpu_layers=n_gpu_layers,
+            quantization=quantization,
             total_layers=total_layers,
         )
 

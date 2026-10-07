@@ -1,104 +1,56 @@
-"""Agent used by test_hitl_e2e.py to pause on the task path and read the answers.
+"""Workflow of the package used by test_hitl_e2e.py to pause on questions.
 
-Two skills, one per property the end-to-end test proves:
+The module of the package ``hitl-e2e``. Its one workflow, ``purge``, asks the
+user twice, each time from inside a step:
 
-* ``hitl.ask`` asks a typed question, then asks for an approval, and returns
-  everything it received across both resumes.
-* ``hitl.mcp`` calls a tool on an MCP server declared ``requires_approval``. The
-  call pauses the task; resumed approved, it runs; resumed declined, it raises
-  ``ToolApprovalDenied``, which the skill catches and returns.
-* ``hitl.card_then_write`` raises its own card carrying its state, and once
-  approved makes the gated call without catching the engine's pause. Resumed
-  from that second pause, it must still read its state.
+* ``choose`` asks which list to purge and proposes two; the answer is one of
+  them or free text, and is not caught when declined, so a refusal fails the
+  step and the run.
+* ``confirm`` asks to confirm the purge of the list just chosen, a question
+  built from the first answer; a refusal is caught as ``QuestionDeclined`` and
+  returned with its reason.
+* ``purge`` returns everything the two answers gave.
+
+The file keeps the name the end-to-end suite has always loaded; it declares no
+agent.
 """
 
-from apollia import NeedHumanInput, agent, skill
-from apollia.errors import ToolApprovalDenied
-from apollia.hitl import ApprovalPayload, QuestionPayload
-from apollia.types import Ctx
+from typing import Any, TypedDict
 
-QUESTION: QuestionPayload = {
-    "genre": "choix",
-    "question": "Which list should be purged?",
-    "propositions": [
-        {"id": "leads", "libelle": "Leads"},
-        {"id": "clients", "libelle": "Clients"},
-    ],
-    "autre": False,
-    "portee": "this run",
-    "memoire": False,
-}
+from apollia import WorkflowCtx, workflow
+from apollia.errors import QuestionDeclined
 
 
-def purge_approval(target: str) -> ApprovalPayload:
-    """The approval asked once the list is known."""
-    return {
-        "genre": "approbation",
-        "geste": "crm/purge",
-        "risque": "critical",
-        "detail": [f"list: {target}"],
-        "delai": 600,
-    }
+class Purge(TypedDict):
+    crm: str
 
 
-@agent(
-    name="hitl-e2e-agent",
-    version="1.0.0",
-    description="Pauses on the task path and returns what it was answered.",
-    tools_required=("mcp:calc/add",),
+@workflow(
+    "purge",
+    "Purge a list of a CRM, after asking which one and a confirmation.",
+    inputs=Purge,
+    steps=["choose", "confirm", "purge"],
+    action="write_or_delete",
 )
-class HitlE2EAgent:
-    """End-to-end subject for typed pauses."""
-
-    @skill("hitl.ask", description="Ask a question, then an approval.")
-    async def ask(self, ctx: Ctx = None) -> dict:  # type: ignore[assignment]
-        """Pause twice, then return both answers."""
-        response = ctx.input_response
-        if response is None:
-            raise NeedHumanInput("Which list should be purged?", payload=QUESTION)
-        if response["payload"]["genre"] == "choix":
-            chosen = response["answer"]
-            raise NeedHumanInput(
-                f"Purge the list {chosen}?",
-                {"list": chosen},
-                payload=purge_approval(chosen),
-            )
-        return {
-            "is_resumed": ctx.is_resumed,
-            "list": response["context"]["list"],
-            "purge_approved": response["approved"],
-            "purge_reason": response["reason"],
-            "answered_gesture": response["payload"]["geste"],
-        }
-
-    @skill("hitl.mcp", description="Call a tool whose server requires approval.")
-    async def mcp(self, ctx: Ctx = None) -> dict:  # type: ignore[assignment]
-        """Call the gated tool; the call itself pauses the task."""
+async def purge(ctx: WorkflowCtx, inputs: Purge) -> dict[str, Any]:
+    """Ask which list, ask to confirm, then return both answers."""
+    async with ctx.step("choose"):
+        chosen = await ctx.user.ask(
+            "Which list should be purged?",
+            options=["leads", "clients"],
+            hint="a list of the CRM",
+        )
+    async with ctx.step("confirm"):
         try:
-            out = await ctx.tools.call("mcp:calc/add", {"a": 2, "b": 3})
-        except ToolApprovalDenied as denied:
-            return {"mcp": "denied", "tool": denied.tool, "reason": denied.reason}
-        return {"mcp": out["content"]}
-
-    @skill("hitl.card_then_write", description="Own card, then a gated write.")
-    async def card_then_write(self, ctx: Ctx = None) -> dict:  # type: ignore[assignment]
-        """The shape of a generated write flow: a card per record, then the write."""
-        response = ctx.input_response
-        if response is None:
-            raise NeedHumanInput(
-                "Write record r-1?",
-                {"records": ["r-1"], "index": 0},
-                payload={
-                    "genre": "approbation",
-                    "geste": "espace/write",
-                    "risque": "medium",
-                    "detail": ["r-1"],
-                },
+            confirmation = await ctx.user.ask(
+                f"Purge the list {chosen} of {inputs['crm']}?", options=["yes", "no"]
             )
-        state = response["context"]
-        record = state["records"][state["index"]]
-        out = await ctx.tools.call("mcp:calc/add", {"a": 2, "b": 3})
-        return {"record": record, "mcp": out["content"]}
-
-
-agent = HitlE2EAgent()
+        except QuestionDeclined as declined:
+            return {
+                "list": chosen,
+                "purged": False,
+                "declined_question": declined.question,
+                "decline_reason": declined.reason,
+            }
+    async with ctx.step("purge"):
+        return {"list": chosen, "purged": confirmation == "yes", "confirmation": confirmation}

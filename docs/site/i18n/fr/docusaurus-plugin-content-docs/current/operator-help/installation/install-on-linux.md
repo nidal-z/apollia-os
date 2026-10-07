@@ -11,7 +11,6 @@ publication, `https://github.com/Apollia-OS/apollia-os/releases`.
 
 - **`.AppImage`** (recommandé, x86_64) : application desktop portable, aucune installation requise.
 - **`.deb`** (x86_64) : paquet Debian/Ubuntu (`sudo apt install ./Apollia-OS_<version>_amd64.deb`).
-- **`Apollia-OS_<version>_amd64-cuda.deb`** : le même paquet avec une compilation CUDA du moteur d'inférence, pour une carte NVIDIA. Aucune AppImage CUDA n'est publiée.
 - **`apollia-os-linux-x86-cpu.tar.gz`** et **`apollia-os-linux-x86-vulkan.tar.gz`** : les deux bundles en ligne de commande pour x86_64, un par moteur, CPU ou Vulkan.
 - **`apollia-os-linux-arm-cpu.tar.gz`** : le bundle en ligne de commande pour aarch64. Aucun installeur de bureau n'est publié pour cette architecture.
 
@@ -86,12 +85,18 @@ Deux accélérations, et Linux y répond différemment.
 
 **L'inférence LLM locale tourne déjà sur le GPU.** Les bundles de bureau,
 AppImage comme `.deb`, embarquent une compilation Vulkan du moteur
-`llama-server`, le `-cuda.deb` une compilation CUDA pour les cartes NVIDIA, et le
-bundle en ligne de commande `apollia-os-linux-x86-vulkan.tar.gz` la version
-Vulkan. Vulkan pilote indifféremment les
-cartes NVIDIA, AMD et Intel. Rien à installer et rien à régler : avec un pilote
-qui fonctionne, le moteur utilise la carte. Le bundle `-cpu` est celui à prendre
-sur une machine sans pilote graphique.
+`llama-server`, et le bundle en ligne de commande
+`apollia-os-linux-x86-vulkan.tar.gz` la version Vulkan. Vulkan pilote
+indifféremment les cartes NVIDIA, AMD et Intel. Rien à installer et rien à
+régler : avec un pilote qui fonctionne, le moteur utilise la carte. Le bundle
+`-cpu` est celui à prendre sur une machine sans pilote graphique.
+
+**Une carte NVIDIA peut aller plus loin.** Il y a un installeur par système, et
+aucun installeur à part pour les cartes NVIDIA. Quand l'application détecte une
+telle carte, son écran IA propose le moteur accéléré, **Accélérer avec votre
+carte NVIDIA** : un clic le télécharge, une fois sa signature vérifiée, et le
+prochain chargement d'un modèle l'utilise. Sous Linux, ce moteur s'appuie sur
+les bibliothèques CUDA de la machine.
 
 **La dictée tourne sur le processeur dans les paquets de bureau.** La
 reconnaissance vocale tourne dans le sidecar `apollia-runner`, bâti sur

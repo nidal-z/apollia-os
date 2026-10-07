@@ -103,7 +103,7 @@ avertissement `config.key.retired`.
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), la présence de réglages de chargement dans un preset (`preset_load_settings`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
-| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), `chat_debug_blocks`, `resource_widget`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
+| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), `chat_debug_blocks`, `resource_widget`, les comportements du chat `chat_single_empty`, `chat_double_click_edit`, `chat_double_click_rename` et `chat_regenerate_shortcut`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
 | `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, et `separate_reasoning_content`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`, `gguf`, `mlx`, `auto_update`, `auto_purge`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
@@ -171,6 +171,7 @@ Backends LLM, routage, et le runner de transcription. Le fichier par défaut lai
 | `llm.guardrails.ceiling_gb` | décimal | non définie | Plus grande estimation, en gigaoctets, que le niveau ceiling lance. La politique de l'organisation peut l'imposer. |
 | `llm.guardrails.bypass` | l'une de confirm, unrestricted | `"confirm"` | Ce que demande d'abord le chargement d'un modèle refusé : confirm, une confirmation explicite, ou unrestricted, rien. La politique de l'organisation peut l'imposer. |
 | `llm.residency.idle_unload_minutes` | entier | `60` | Minutes sans requête au bout desquelles un modèle local que rien ne retient est déchargé ; 0 ne décharge jamais. La politique de l'organisation peut l'imposer. |
+| `llm.residency.unload_before_load` | booléen | `false` | Avant de charger un modèle local, décharger ceux en mémoire qui ne sont pas épinglés et ne servent aucune requête ; désactivé, plusieurs modèles restent chargés ensemble. La politique de l'organisation peut l'imposer. |
 | `llm.defaults.context` | l'une de custom, model_max | `"custom"` | Fenêtre de contexte d'un modèle local que ni APOLLIA_LLAMA_N_CTX, ni un preset, ni son backend ne fixent : custom, la valeur de llm.defaults.context_tokens, ou model_max, la longueur pour laquelle le modèle a été entraîné. La politique de l'organisation peut l'imposer. |
 | `llm.defaults.context_tokens` | entier | `0` | Fenêtre de contexte par défaut, en jetons, quand llm.defaults.context vaut custom ; 0 laisse le moteur la dimensionner à la mémoire de cette machine, modèle par modèle, jusqu'à 32768. La politique de l'organisation peut l'imposer. |
 | `llm.images.limit_side` | booléen | `true` | Réduire une image avant de l'envoyer à un modèle quand son plus grand côté dépasse llm.images.max_side_px. La politique de l'organisation peut l'imposer. |
@@ -302,6 +303,10 @@ Réglages de l'application de bureau que le moteur lit.
 | `desktop.chat_auto_naming` | l'une de never, auto, always | `"auto"` | Nommer une nouvelle conversation d'après son premier message : jamais, automatiquement quand le modèle génère assez vite, ou toujours. La politique de l'organisation peut l'imposer. |
 | `desktop.chat_debug_blocks` | booléen | `true` | Mode développeur allumé, montrer les données brutes d'une étape d'outil et la trace détaillée dans une conversation. La politique de l'organisation peut l'imposer. |
 | `desktop.resource_widget` | booléen | `false` | Montrer le processeur, la mémoire et la mémoire vidéo utilisés au pied de la barre latérale. La politique de l'organisation peut l'imposer. |
+| `desktop.chat_single_empty` | booléen | `true` | Rouvrir la conversation vide qui existe déjà plutôt qu'en ouvrir une seconde. La politique de l'organisation peut l'imposer. |
+| `desktop.chat_double_click_edit` | booléen | `false` | Ouvrir la modification d'un message d'une conversation par un double-clic. La politique de l'organisation peut l'imposer. |
+| `desktop.chat_double_click_rename` | booléen | `true` | Renommer une conversation ou un dossier de la liste par un double-clic. La politique de l'organisation peut l'imposer. |
+| `desktop.chat_regenerate_shortcut` | booléen | `true` | Régénérer la dernière réponse de la conversation affichée avec Cmd + R sur un Mac, Ctrl + R ailleurs. La politique de l'organisation peut l'imposer. |
 
 ### `[server]`
 
@@ -578,12 +583,22 @@ Un modèle local que rien n'utilise rend sa mémoire de lui-même.
 ```toml
 [llm.residency]
 idle_unload_minutes = 60   # 0 garde chargé un modèle inutilisé
+unload_before_load = false # true charge un seul modèle à la fois
 ```
 
 | Règle | Décharge |
 | --- | --- |
 | Délai d'inactivité | un modèle qu'aucune requête n'a utilisé depuis `idle_unload_minutes`, vérifié toutes les trente secondes |
 | Dernière conversation fermée | un modèle aussitôt, quand la dernière conversation ouverte qui l'utilise se ferme |
+| Décharger avant de charger | avec `unload_before_load` activé, tous les autres modèles en mémoire du moteur quand un modèle est chargé, qu'il tienne ou non à côté d'eux |
+
+Plusieurs modèles restent chargés ensemble par défaut, autant que le garde-fou
+de chargement en admet. Avec `unload_before_load` activé, un chargement décharge
+d'abord les modèles en mémoire du même moteur qui ne sont pas épinglés et ne
+servent aucune requête, y compris celui qu'une conversation ouverte utilise. Le
+modèle à charger est jugé par le garde-fou à côté de ceux qui restent, et un
+chargement que le garde-fou refuse ne décharge rien. La clé est relue à chaque
+chargement.
 
 Un modèle que l'utilisateur a épinglé n'est déchargé par aucune des deux règles,
 et un modèle qui sert une réponse n'est jamais déchargé. L'épingle est gardée

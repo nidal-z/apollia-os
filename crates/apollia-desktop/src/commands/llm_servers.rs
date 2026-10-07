@@ -1,21 +1,24 @@
-//! Tauri IPC commands for declaring an inference server from the interface.
+//! Tauri IPC commands for the inference servers of the interface.
 //!
 //! Each command delegates to the runtime's REST API, so it serves both modes:
 //! `POST /api/v1/llm/servers/test` lists the models of an address that is not
 //! saved yet, `POST /api/v1/llm/servers` saves a server (its key going to the
-//! secret store of the runtime), and `PUT /api/v1/llm/default-model` makes one
-//! model the default of the machine.
+//! secret store of the runtime), `GET /api/v1/llm/servers` and
+//! `GET /api/v1/llm/servers/{name}/models` list the saved servers and the
+//! models of one, `PATCH` and `DELETE /api/v1/llm/servers/{name}` change and
+//! forget one, and `GET` and `PUT /api/v1/llm/default-model` read and set the
+//! default model of the machine.
 //!
-//! A refused test reaches the webview as a [`ServerTestFailure`]: the sentence
-//! of the runtime, and the kind of thing to check, so the interface can say it
-//! in the language of the person.
+//! A server that does not list its models, saved or not, reaches the webview
+//! as a [`ServerTestFailure`]: the sentence of the runtime, and the kind of
+//! thing to check, so the interface can say it in the language of the person.
 
 use apollia_runtime::governance::{REMOTE_SERVER_DENIED_REASON, SERVER_NOT_ALLOWED_REASON};
 use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::State;
 
-use crate::attached::RuntimeLink;
+use crate::attached::{segment, RuntimeLink};
 
 const SERVERS_PATH: &str = "/api/v1/llm/servers";
 const TEST_PATH: &str = "/api/v1/llm/servers/test";
@@ -80,6 +83,66 @@ fn listed_models(answer: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// What a refusal that reads `message` is rejected with.
+fn refusal(event: &'static str, message: String) -> ServerTestFailure {
+    let kind = failure_kind(&message);
+    tracing::event!(tracing::Level::WARN, kind = %kind, event = %event, "llm.server.refused");
+    ServerTestFailure { kind, message }
+}
+
+/// The route of one saved server.
+fn server_path(name: &str) -> String {
+    format!("{SERVERS_PATH}/{}", segment(name))
+}
+
+/// Lists the saved servers, as `GET /api/v1/llm/servers` answers them: the
+/// address, whether a key is held, whether the server is enabled, and its
+/// settings. The key is never part of it.
+#[tauri::command]
+pub async fn list_llm_servers(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    let answer = link.get_json(SERVERS_PATH).await?;
+    Ok(answer.get("servers").cloned().unwrap_or_else(|| json!([])))
+}
+
+/// Lists the models of the saved server `name`, each with the window the
+/// server serves it with, beside the window an agent is expected to have.
+/// This is also the test of a saved server: it reaches the server with the
+/// key it was saved with.
+#[tauri::command]
+pub async fn list_llm_server_models(
+    name: String,
+    link: State<'_, RuntimeLink>,
+) -> Result<Value, ServerTestFailure> {
+    let path = format!("{}/models", server_path(&name));
+    match link.get_json(&path).await {
+        Ok(answer) => Ok(answer),
+        Err(message) => Err(refusal("models", message)),
+    }
+}
+
+/// Changes the saved server `name`. `changes` carries the fields to change
+/// and nothing else: a field left out keeps what the server has.
+#[tauri::command]
+pub async fn update_llm_server(
+    name: String,
+    changes: Value,
+    link: State<'_, RuntimeLink>,
+) -> Result<Value, String> {
+    link.patch_json(&server_path(&name), &changes).await
+}
+
+/// Forgets the saved server `name` and the key it had.
+#[tauri::command]
+pub async fn delete_llm_server(name: String, link: State<'_, RuntimeLink>) -> Result<(), String> {
+    link.delete_json(&server_path(&name)).await.map(|_| ())
+}
+
+/// The default model of the machine, `None` when none is set.
+#[tauri::command]
+pub async fn get_default_model(link: State<'_, RuntimeLink>) -> Result<Option<Value>, String> {
+    link.get_json_or_none(DEFAULT_MODEL_PATH).await
+}
+
 /// Lists the models of the server at `base_url`, saving nothing.
 ///
 /// The key, when one is given, is used for this call only.
@@ -92,11 +155,7 @@ pub async fn test_llm_server(
     let body = json!({ "base_url": base_url.trim(), "api_key": key_of(api_key) });
     match link.post_json(TEST_PATH, &body).await {
         Ok(answer) => Ok(listed_models(&answer)),
-        Err(message) => {
-            let kind = failure_kind(&message);
-            tracing::event!(tracing::Level::WARN, kind = %kind, "llm.server.test.refused");
-            Err(ServerTestFailure { kind, message })
-        }
+        Err(message) => Err(refusal("test", message)),
     }
 }
 
@@ -177,6 +236,15 @@ mod tests {
             failure_kind("LLM backend repository not available"),
             "other"
         );
+    }
+
+    #[test]
+    fn the_route_of_a_server_escapes_its_name() {
+        // GIVEN a server name, and one that would read as two path segments
+        // WHEN the route of each is built
+        // THEN the name stays one segment of the path
+        assert_eq!(server_path("corp"), "/api/v1/llm/servers/corp");
+        assert_eq!(server_path("a/b"), "/api/v1/llm/servers/a%2Fb");
     }
 
     #[test]

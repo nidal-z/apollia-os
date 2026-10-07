@@ -13,7 +13,7 @@ releases.
 ## 1. Command shape
 
 Every command is `apollia-os <noun> <verb> [args]`, except the bare-verb
-whitelist below. The tree carries 243 leaves today; read it with
+whitelist below. The tree carries 240 leaves today; read it with
 `apollia-os --help` recursively, never from memory.
 
 **Verb taxonomy.** Every leaf's last token belongs to one of the categories
@@ -29,8 +29,8 @@ the same commit as the command.
 | relationship | `add`, `remove` |
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel`, `pause` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
-| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
-| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `approvals`, `messages`, `skills`, `accounts`, `accesses`, `capabilities`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
+| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `set-approval`, `revoke-approval`, `list-pending`, `decide`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed
@@ -39,7 +39,9 @@ the same commit as the command.
 purpose, verified against real usage:
 
 - `get` / `set` are config key/value pairs (`config`, `chat config`,
-  `tools config`, `notify events`), not entity reads.
+  `tools config`, `notify events`), not entity reads. `chat settings` and
+  `chat notes` use them the same way for one conversation: `get <session>`
+  reads what the conversation holds, `set <session> <value>` replaces it.
 - `add` / `remove` attach and detach a relationship, git-style (`mcp add`);
   they do not create or delete an entity.
 - `clear` and `evict` are distinct in `plan cache`: wipe all against purge by
@@ -68,12 +70,15 @@ session whatever `HOME` says.
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 
-**`approvals`** (`pending`) lists, from the runtime, every decision a run
-waits on: the tool consents of the conversations and of the runs outside any
-conversation, the paused tasks, the batch items waiting for an access, and the
-questions agents asked. Each item names the answers it takes (`once`,
-`always`, `refuse`, or `answer` for a question); they are given through
-`POST /api/v1/pending-decisions/decide`. With no runtime it exits 2.
+**`approvals`** (`pending`, `decide`) lists, from the runtime, every decision
+a run waits on: the tool consents of the conversations and of the runs outside
+any conversation, the paused tasks, the batch items waiting for an access, the
+questions agents asked and the questions running workflows stopped on. Each
+item names the answers it takes (`once`, `always`, `refuse`, or `answer` for a
+question). `decide <id> <answer>` gives one, through
+`POST /api/v1/pending-decisions/decide`: `--value` carries the answer to a
+question, `--reason` the reason of a refusal. An item that does not wait, or
+an answer it does not take, exits 1. With no runtime both exit 2.
 
 **`batch`** (`run`, `status`, `list`, `accesses`, `pause`, `resume`, `stop`,
 `retry`, `export`) runs a stored agent without code on every item of a source, in the

@@ -1,5 +1,5 @@
 /**
- * Markdown renderer for chat content.
+ * Markdown renderer for chat content and for the embedded documentation.
  *
  * The pipeline is: marked -> DOMPurify -> DOM decoration. `renderMarkdown`
  * returns sanitized markup that contains nothing but rendering tags, and the
@@ -25,7 +25,7 @@
  * demand), preserves first-paint, and respects `principle 1` (no outbound
  * traffic - Shiki bundles grammars locally via Vite).
  */
-import { Marked } from "marked";
+import { Marked, type MarkedExtension } from "marked";
 import DOMPurify from "dompurify";
 import { get } from "svelte/store";
 import { t } from "svelte-i18n";
@@ -39,7 +39,25 @@ function escapeHtml(text: string): string {
     .replaceAll('"', "&quot;");
 }
 
-const marked = new Marked({
+/**
+ * What is rendered, which decides what survives sanitization.
+ *
+ * `chat` is the output of a model and the pages it quotes: rendering tags
+ * only. `documentation` is a page of the documentation compiled into the
+ * application: the same tags, plus the images of that archive. An image never
+ * carries an address the webview could fetch: the renderer writes the path of
+ * the archive in `data-doc-image`, and the container that mounts the page
+ * sets the source after purification, from the bytes the shell hands over.
+ */
+export type MarkdownProfile = "chat" | "documentation";
+
+/** The attribute that names an image of the documentation archive. */
+export const DOC_IMAGE_ATTR = "data-doc-image";
+
+/** The folder of the site, and of the archive, that holds the images. */
+const DOC_IMAGE_ROOT = "/img/";
+
+const CHAT: MarkedExtension = {
   gfm: true,
   breaks: false,
   renderer: {
@@ -53,6 +71,19 @@ const marked = new Marked({
 
     link({ href, text }) {
       return `<a href="${escapeHtml(href ?? "")}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+    },
+  },
+};
+
+const marked = new Marked(CHAT);
+
+const documentationMarked = new Marked(CHAT, {
+  renderer: {
+    // An image of the archive is named, never addressed. Any other image
+    // would be a request to another machine: its caption is shown instead.
+    image({ href, text }) {
+      if (!href.startsWith(DOC_IMAGE_ROOT)) return escapeHtml(text);
+      return `<img alt="${escapeHtml(text)}" ${DOC_IMAGE_ATTR}="${escapeHtml(href)}">`;
     },
   },
 });
@@ -83,6 +114,10 @@ const ALLOWED_TAGS = [
 const ALLOWED_ATTR = [
   "class", "href", "target", "rel", "title",
 ];
+
+/** What a page of the documentation adds: its images, named by archive path. */
+const DOCUMENTATION_TAGS = [...ALLOWED_TAGS, "img"];
+const DOCUMENTATION_ATTR = [...ALLOWED_ATTR, "alt", DOC_IMAGE_ATTR];
 
 const CODE_LANGUAGE_CLASS = /^language-[A-Za-z0-9_+#.-]+$/;
 
@@ -124,14 +159,15 @@ export function handleMarkdownLinkClick(event: MouseEvent): boolean {
   return true;
 }
 
-export function renderMarkdown(raw: string): string {
+export function renderMarkdown(raw: string, profile: MarkdownProfile = "chat"): string {
   if (!raw) return "";
 
-  const html = marked.parse(raw) as string;
+  const documentation = profile === "documentation";
+  const html = (documentation ? documentationMarked : marked).parse(raw) as string;
 
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
+    ALLOWED_TAGS: documentation ? DOCUMENTATION_TAGS : ALLOWED_TAGS,
+    ALLOWED_ATTR: documentation ? DOCUMENTATION_ATTR : ALLOWED_ATTR,
     // DOMPurify accepts every `data-*` attribute by default, over and above
     // ALLOWED_ATTR. Off, or a model-authored `data-copy-code` / `data-code`
     // pair survives sanitization and the copy button copies a payload the

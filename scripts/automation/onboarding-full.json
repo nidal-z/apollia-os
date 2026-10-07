@@ -101,7 +101,7 @@
     {
       "kind": "expect",
       "testid": "onboarding-step-count",
-      "contains": "2 sur 5"
+      "contains": "2 sur 7"
     },
     {
       "kind": "expect",
@@ -230,7 +230,7 @@
     {
       "kind": "expect",
       "testid": "onboarding-step-count",
-      "contains": "3 sur 5"
+      "contains": "3 sur 7"
     },
     {
       "kind": "screenshot",
@@ -662,7 +662,7 @@
     {
       "kind": "expect",
       "testid": "onboarding-step-count",
-      "contains": "5 sur 5"
+      "contains": "5 sur 7"
     },
     {
       "kind": "expect",
@@ -855,12 +855,12 @@
           "installedVersion": null
         },
         {
-          "name": "qualifier-des-demandes",
+          "name": "qualify-requests",
           "version": "1.0.0",
           "description": "Sorts incoming requests and says what each one needs.",
           "agents": [
             {
-              "id": "qualifier-des-demandes",
+              "id": "qualify-requests",
               "name": "Qualifier des demandes",
               "mission": "Reads each request, sorts it and says what it needs next."
             }
@@ -874,10 +874,10 @@
       "kind": "stubInvoke",
       "command": "preview_example_package",
       "argsMatch": {
-        "name": "qualifier-des-demandes"
+        "name": "qualify-requests"
       },
       "resolve": {
-        "name": "qualifier-des-demandes",
+        "name": "qualify-requests",
         "version": "1.0.0",
         "description": "Sorts incoming requests and says what each one needs.",
         "sdk": ">=0.3",
@@ -893,7 +893,7 @@
         "signatureRequired": false,
         "agents": [
           {
-            "id": "qualifier-des-demandes",
+            "id": "qualify-requests",
             "name": "Qualifier des demandes",
             "mission": "Reads each request, sorts it and says what it needs next.",
             "examples": [],
@@ -916,10 +916,10 @@
       "kind": "stubInvoke",
       "command": "install_example_package",
       "argsMatch": {
-        "name": "qualifier-des-demandes"
+        "name": "qualify-requests"
       },
       "resolve": {
-        "name": "qualifier-des-demandes",
+        "name": "qualify-requests",
         "version": "1.0.0"
       }
     },
@@ -993,7 +993,7 @@
     {
       "kind": "waitFor",
       "testid": "package-preview-title",
-      "contains": "qualifier-des-demandes",
+      "contains": "qualify-requests",
       "timeoutMs": 6000
     },
     {
@@ -1025,14 +1025,464 @@
       "kind": "clearStubs"
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_agent_package_detail",
+      "argsMatch": {
+        "name": "qualify-requests"
+      },
+      "resolve": {
+        "name": "qualify-requests",
+        "version": "1.0.0",
+        "description": "Sorts incoming requests and says what each one needs.",
+        "author": "Apollia",
+        "agents": [],
+        "installed_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "root_path": "",
+        "root_missing": false,
+        "manifest": {
+          "package": {
+            "name": "qualify-requests",
+            "version": "1.0.0"
+          },
+          "requires": [
+            {
+              "type": "io.apollia.automation/browser",
+              "reason": "Pour ouvrir et lire les pages web citées dans les demandes."
+            }
+          ]
+        },
+        "signature": {
+          "status": "unsigned",
+          "publisher": "Apollia",
+          "trusted": false
+        },
+        "embedded": false,
+        "content": {
+          "agents": [],
+          "workflows": [],
+          "tools": []
+        },
+        "automations": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": []
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "fetch_mcp_curated",
+      "resolve": [
+        {
+          "name": "io.apollia.automation/browser",
+          "title": "Navigateur",
+          "description": "Opens and reads web pages.",
+          "version": "1.0.0",
+          "repository_url": null,
+          "website_url": null,
+          "packages": null,
+          "trust_level": "official",
+          "category": "web",
+          "enrichment": null,
+          "is_installed": false,
+          "remotes": [
+            {
+              "type": "streamable-http",
+              "url": "https://browser.automation.invalid/mcp",
+              "headers": []
+            }
+          ]
+        }
+      ]
+    },
+    {
       "kind": "click",
       "testid": "first-agent-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-connection",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-step-count",
+      "contains": "6 sur 7"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-subtitle",
+      "contains": "Qualifier des demandes"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-line",
+      "contains": "Navigateur"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-line-reason",
+      "contains": "pages web"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-line-add"
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-skip"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11g-onb-connection-missing"
+    },
+    {
+      "kind": "click",
+      "testid": "connection-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-agent-kept",
+      "contains": "Qualifier des demandes",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "first-agent-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-connection",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_mcp_connection",
+      "resolve": {
+        "kind": "success",
+        "server_info": "navigateur",
+        "protocol_version": "2025-06-18",
+        "tools": [],
+        "test_duration_ms": 5,
+        "live_health": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "add_mcp_server",
+      "resolve": {
+        "name": "navigateur",
+        "health": {
+          "state": "healthy",
+          "verified": true
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_mcp_live_server",
+      "resolve": {
+        "kind": "success",
+        "server_info": "navigateur",
+        "protocol_version": "2025-06-18",
+        "tools": [
+          {
+            "name": "open_page"
+          },
+          {
+            "name": "read_page"
+          }
+        ],
+        "test_duration_ms": 9,
+        "live_health": {
+          "state": "healthy",
+          "verified": true
+        }
+      }
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": [
+        {
+          "id": "mcp:navigateur",
+          "kind": "mcp",
+          "label": "Navigateur",
+          "account": null,
+          "provenance": "selection",
+          "remote": true,
+          "official": true,
+          "state": "connected",
+          "tools": []
+        }
+      ]
+    },
+    {
+      "kind": "click",
+      "testid": "connection-line-add",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-warning-accept",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11h-onb-connection-add-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-warning-accept",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-done-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connection-line-present",
+      "contains": "Présente",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connection-line-add",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "connection-skip"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11i-onb-connection-present"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/onboarding-first-task"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "copy_example_dataset",
+      "argsMatch": {
+        "example": "qualify-requests"
+      },
+      "resolve": {
+        "destination": "${HOME}/onboarding-first-task",
+        "workbook": "${HOME}/onboarding-first-task/demandes.xlsx",
+        "folder": "${HOME}/onboarding-first-task/referentiel",
+        "rows": 12,
+        "kept": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "resolve": {
+        "id": "onboarding-first-task",
+        "mode": "agent",
+        "agent_name": "qualify-requests",
+        "status": "active",
+        "last_message_preview": null,
+        "message_count": 0,
+        "created_at": "2026-10-06T00:00:00Z",
+        "closed_at": null,
+        "title": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_chat_session",
+      "argsMatch": {
+        "sessionId": "onboarding-first-task"
+      },
+      "resolve": {
+        "id": "onboarding-first-task",
+        "mode": "agent",
+        "agent_name": "qualify-requests",
+        "system_prompt": "",
+        "status": "active",
+        "available_tools": [],
+        "authorized_tools": [],
+        "messages": [],
+        "created_at": "2026-10-06T00:00:00Z",
+        "closed_at": null,
+        "llm_backend": null,
+        "title": null,
+        "plan_mode": false,
+        "plan_phase": "discovery"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_agent_definition",
+      "argsMatch": {
+        "name": "qualify-requests"
+      },
+      "resolve": {
+        "id": "qualify-requests",
+        "origin": "package",
+        "package": "qualify-requests",
+        "version": "1.0.0",
+        "enabled": true,
+        "name": "Qualifier des demandes",
+        "mission": "Reads each request, sorts it and says what it needs next.",
+        "examples": [
+          "",
+          "Qualifie cette demande et dis ce qu'il lui manque."
+        ],
+        "access": [],
+        "sources": [],
+        "model": null,
+        "autonomy": "assisted",
+        "profile": null,
+        "overridden": []
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "connection-continue",
       "timeoutMs": 3000
     },
     {
       "kind": "waitGone",
       "testid": "onboarding-modal",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "example-trial-title"
+    },
+    {
+      "kind": "expect",
+      "testid": "example-trial-fictional"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12a-onb-first-task-choose-folder"
+    },
+    {
+      "kind": "fill",
+      "testid": "example-trial-destination",
+      "text": "${HOME}/onboarding-first-task"
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-copy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "example-trial-copied",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "example-trial-where",
+      "contains": "onboarding-first-task"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "example-trial-also-source",
+      "checked": false
+    },
+    {
+      "kind": "click",
+      "testid": "example-trial-launch",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "batch-launch-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "batch-launch-title"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-onb-first-task-batch-on-the-workbook"
+    },
+    {
+      "kind": "click",
+      "testid": "batch-launch-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "batch-launch-title",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "first-task-intro",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "first-task-intro-title",
+      "contains": "Qualifier des demandes"
+    },
+    {
+      "kind": "expect",
+      "testid": "first-task-intro-body",
+      "contains": "prérempli"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-send-button"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-onb-first-task-conversation-prefilled"
+    },
+    {
+      "kind": "clearStubs"
     },
     {
       "kind": "waitGone",
@@ -1387,7 +1837,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -1408,7 +1858,9 @@
     "curated-llm-row is played through the invoke stub, in the first ai-setup pass right after the picker import: a once stub rejects start_variant_download (lib/ipc/modelHub.ts) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the file name of the first row, a .gguf the live recommendation picks for the machine, so the book asserts the extension and not a name. The download is followed outside the step (llmDownload.ts), so the book then leaves the step on it: onboarding-model-progress shows in the header on the AI setup and still on the embeddings step, and embeddings-back finds llm-download-progress where it was. No event ever settles that fake id, so the book ends it with llm-download-cancel, which cancel_model_download refuses for an id it never knew: the step drops the download, the header notice goes and the curated list comes back, which the later passes of the step need.",
     "The embeddings step (OnboardingEmbeddingsStep.svelte) follows ai-setup-continue. Its recommendation comes from get_embeddings_recommendation, which the runtime answers from its embedded table with no network, so embeddings-model-card renders in a deterministic run. The step was already opened once while the language model downloaded, and it reads its recommendation again each time it opens, so the book waits for embeddings-download rather than expecting it at once. The book plays, in order: the import of a file the registry does not offer (the picker stub resolves the seed's Phi-3-mini-Q4.gguf, embeddingsSetup.ts refuses it before any copy and embeddings-error names it); a download the invoke stub rejects, then one it resolves with a fake id so embeddings-download-progress renders; embeddings-download-cancel, which cancel_model_download refuses for an id it never knew, so the step puts the offer back; three round trips through embeddings-back, the first with get_embeddings_recommendation rejected (embeddings-unavailable, the step stays passable), the second with get_memory_embeddings_model resolving an installed entry (embeddings-ready); and the passing, whose warning lists the two unavailable functions before embeddings-continue-without opens the conversation. No default embeddings model is ever set by this book.",
     "The server of the AI step is played after the first danger-zone reset, inside the modal, which stays open throughout (OnboardingServerForm.svelte, serverSetup.ts). The first two refusals are real: an address without its scheme is refused by the form before any call, and http://127.0.0.1:9 goes to the backend, where nothing listens, so test_llm_server (commands/llm_servers.rs) rejects with a ServerTestFailure of kind unreachable whose sentence names the address. The listing and the choice are stubbed, a deterministic run having no server: a once stub resolves test_llm_server with two identifiers, then once stubs resolve save_llm_server with a ServerResponse and set_default_model with a DefaultModelResponse (routes_llm/servers.rs, routes_llm/presets.rs), so nothing is written to the seeded store. ai-setup-continue then leads to the embeddings step, and onboarding-skip closes the modal for the reset that follows.",
-    "The first-agent step (OnboardingFirstAgent.svelte, firstAgent.ts) follows the profile review and is the last step built: first-agent-continue, or first-agent-skip, closes the modal. Its three cards are played in turn. first-agent-card-install goes through the plugin-dialog `open` stub, then preview_package_file is stubbed with a PackagePreview (crates/apollia-runtime/src/packages/preview.rs): no file exists at the path, the book only reads that the preview dialog rises above the modal, and cancels it. first-agent-card-create mounts components/agents/create/CreateAgent.svelte inside the step; create_chat_session is refused once, so the conversation says it could not start and agent-create-cancel returns to the cards with no model turn. The draft and the saved agent are played by agent-create-det on the Agents screen.",
-    "The binary proposes no example of its own yet, so the three example commands are stubbed as in agent-examples-det: list_example_packages answers two ExamplePackage (crates/apollia-runtime/src/packages/examples.rs), and preview_example_package and install_example_package are armed with argsMatch on the chosen name alone, so a call naming the other example would reach the runtime and fail the book. The installation itself writes nothing into the seeded home; the step keeps the agent the preview named in its installed event (first-agent-kept). The real installation of one example and of that one only is held by the runtime tests of packages/examples.rs."
+    "The first-agent step (OnboardingFirstAgent.svelte, firstAgent.ts) follows the profile review. first-agent-skip keeps no agent, so the connection step after it is passed over and the modal closes on a conversation with Apollia, which onboarding-llm plays; first-agent-continue leads to that step when the agent kept lacks a connection. Its three cards are played in turn. first-agent-card-install goes through the plugin-dialog `open` stub, then preview_package_file is stubbed with a PackagePreview (crates/apollia-runtime/src/packages/preview.rs): no file exists at the path, the book only reads that the preview dialog rises above the modal, and cancels it. first-agent-card-create mounts components/agents/create/CreateAgent.svelte inside the step; create_chat_session is refused once, so the conversation says it could not start and agent-create-cancel returns to the cards with no model turn. The draft and the saved agent are played by agent-create-det on the Agents screen.",
+    "The binary proposes no example of its own yet, so the three example commands are stubbed as in agent-examples-det: list_example_packages answers two ExamplePackage (crates/apollia-runtime/src/packages/examples.rs), and preview_example_package and install_example_package are armed with argsMatch on the chosen name alone, so a call naming the other example would reach the runtime and fail the book. The installation itself writes nothing into the seeded home; the step keeps the agent the preview named in its installed event (first-agent-kept). The real installation of one example and of that one only is held by the runtime tests of packages/examples.rs.",
+    "The connection step (OnboardingConnection.svelte, connectionStep.ts) is the last step with a screen: connection-continue, or connection-skip, reaches the first task, which closes the modal. Nothing was really installed at the step before, so what the step reads is stubbed: get_agent_package_detail answers an AgentPackageDetail (crates/apollia-runtime/src/agent_packages.rs) whose recorded manifest requires one connection, list_connections answers none, and fetch_mcp_curated answers a selection of one RegistryServerView named as the manifest names it, remote and without authentication. connection-back returns to the first agent, which still names the agent kept. connection-line-add opens the add dialog of the Connections screen (ConnectorWizard.svelte) above the modal; its probe, its addition and its trial are stubbed (test_mcp_connection, add_mcp_server, test_mcp_live_server, shapes of commands/mcp.rs), so nothing is written to the seeded home, and list_connections then answers the Connection added. The book reads that the line turns to present, that connection-skip is still there, and that the modal never closed. The real addition of a connection is played by connections-det.",
+    "The first task (OnboardingFirstTask.svelte, firstTask.ts) is what the modal closes on, and the header counts it as the seventh step (onboarding-step-count). The example kept is named qualify-requests, the one the application carries a demonstration dataset for, so connection-continue closes the modal on the copy dialog of that dataset (ExampleTrialDialog.svelte). copy_example_dataset is stubbed, with the value example-trial-det uses, so nothing is written; the folder is typed, the reference documents are left unchecked so that no source is added, and example-trial-launch opens the launch dialog on the copied workbook (BatchLaunchDialog.svelte), which is cancelled: no agent is installed, no batch is launched. Leaving the launch falls back on the conversation with the agent. create_chat_session and get_chat_session are stubbed with a ChatSessionSummary and an empty ChatSessionDetail (lib/types/chat.ts), and get_agent_definition with a ResolvedAgent whose first example is blank and whose second is not: first-task-intro names the agent, and first-task-intro-body is drawn only when the composer was filled with an example. The text of the composer itself is a textarea value, which the book cannot read; firstTask.test.ts holds it. The first launch is recorded as done by the walk of the phases to their last one, which the reset that follows starts over."
   ]
 }

@@ -11,7 +11,6 @@ Every file below is attached to each release on the publication page,
 
 - **`.AppImage`** (recommended, x86_64): portable desktop application, no installation required.
 - **`.deb`** (x86_64): Debian/Ubuntu package (`sudo apt install ./Apollia-OS_<version>_amd64.deb`).
-- **`Apollia-OS_<version>_amd64-cuda.deb`**: the same package with a CUDA build of the inference engine, for an NVIDIA card. No CUDA AppImage is published.
 - **`apollia-os-linux-x86-cpu.tar.gz`** and **`apollia-os-linux-x86-vulkan.tar.gz`**: the two command-line bundles for x86_64, one per engine, CPU or Vulkan.
 - **`apollia-os-linux-arm-cpu.tar.gz`**: the command-line bundle for aarch64. No desktop installer is published for that architecture.
 
@@ -84,12 +83,17 @@ menu-bar icon.
 Two accelerations, and Linux answers them differently.
 
 **Local LLM inference already runs on the GPU.** The desktop bundles, AppImage
-and `.deb` alike, embed a Vulkan build of the `llama-server` engine, the
-`-cuda.deb` a CUDA build for NVIDIA cards, and the
+and `.deb` alike, embed a Vulkan build of the `llama-server` engine, and the
 `apollia-os-linux-x86-vulkan.tar.gz` command-line bundle the Vulkan one. Vulkan drives
 NVIDIA, AMD and Intel cards alike. Nothing to install and nothing to set: with a
 working driver the engine uses the card. The `-cpu` bundle is the one to take on
 a machine with no graphics driver.
+
+**An NVIDIA card can go further.** There is one installer per system, and no
+separate one for NVIDIA cards. When the application detects such a card, its AI
+screen offers the accelerated engine, **Speed up with your NVIDIA card**: one
+click downloads it, after its signature is verified, and the next model load
+uses it. On Linux that engine relies on the CUDA libraries of the machine.
 
 **Dictation runs on the processor in the desktop packages.** Speech to text
 runs in the `apollia-runner` sidecar, which is built on whisper. The desktop

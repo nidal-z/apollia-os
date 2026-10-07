@@ -12,9 +12,9 @@ import { fileURLToPath } from "node:url";
  *
  * This suite reads the component sources rather than rendering them, so it
  * covers every caller in the tree and not only the ones a render test happens
- * to mount. The recipe it enforces is the one `RecentActivityStrip` uses:
- * `size="auto"` plus a class that makes the button a full-width stacked or
- * top-aligned box.
+ * to mount. The recipe it enforces is `size="auto"` plus a class that makes
+ * the button a full-width stacked or top-aligned box; the worked example
+ * below spells it out.
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -148,37 +148,42 @@ describe("Button - a multi-block caller carries the whole tile recipe", () => {
     expect(files.length).toBeGreaterThan(0);
 
     // WHEN each Button call is parsed and the multi-block ones are isolated
-    const multiBlock: ButtonCall[] = [];
     const missing: string[] = [];
     for (const file of files) {
       const src = readFileSync(file, "utf8");
       const relative = path.relative(SRC_DIR, file);
       for (const call of buttonCalls(src, relative)) {
         if (!BLOCK_CHILD.test(call.body)) continue;
-        multiBlock.push(call);
         if (!followsTileRecipe(call.openTag)) {
           missing.push(`${call.file}:${call.line}\n    ${call.openTag}`);
         }
       }
     }
 
-    // THEN the scan found the real population (RecentActivityStrip at least,
-    // the worked example below), and none of it misses the recipe
-    expect(multiBlock.length).toBeGreaterThanOrEqual(1);
+    // THEN none of them misses the recipe. The tree may hold no multi-block
+    // caller at all; the tests below prove the scan sees one when it exists.
     expect(missing).toEqual([]);
   });
 
-  test("RecentActivityStrip stays the worked example the recipe is read from", () => {
-    // GIVEN the caller the recipe was extracted from
-    const file = path.join(SRC_DIR, "components/dashboard/RecentActivityStrip.svelte");
-    const src = readFileSync(file, "utf8");
+  test("the worked example of the recipe is seen and accepted", () => {
+    // GIVEN a card of three stacked blocks inside a Button that follows the recipe
+    const tile = [
+      '<Button variant="ghost" size="auto" type="button"',
+      '  class="w-full text-left px-3 py-2.5 flex-col items-stretch rounded-xl"',
+      "  onclick={onOpen}",
+      ">",
+      '  <div class="flex items-center gap-1.5">Status</div>',
+      '  <div class="truncate">Name</div>',
+      "  <div>Time</div>",
+      "</Button>",
+    ].join("\n");
 
     // WHEN its Button calls are parsed
-    const multiBlock = buttonCalls(src, "RecentActivityStrip.svelte").filter((call) =>
+    const multiBlock = buttonCalls(tile, "Tile.svelte").filter((call) =>
       BLOCK_CHILD.test(call.body)
     );
 
-    // THEN exactly one multi-block caller exists and it carries the recipe
+    // THEN the one multi-block caller is found and it carries the recipe
     expect(multiBlock).toHaveLength(1);
     expect(followsTileRecipe(multiBlock[0]!.openTag)).toBe(true);
   });

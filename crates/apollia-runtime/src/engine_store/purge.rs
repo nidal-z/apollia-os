@@ -168,6 +168,7 @@ mod tests {
             platform: "linux-x64".to_owned(),
             sha256: "0".repeat(64),
             source: Source::Downloaded,
+            released: None,
             path: dir.clone(),
         };
         std::fs::write(dir.join(RECORD_FILE), serde_json::to_vec(&package).unwrap()).unwrap();

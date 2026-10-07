@@ -63,6 +63,19 @@ test:
 test-python:
     PYO3_PYTHON="$(command -v python3)" cargo test --workspace --features python-tests
 
+# The engine channel is written by a Python script and read by the Rust engine
+# store, and the two meet only in the published files. This runs the script on
+# stand-in archives, signs with a key pair generated on the spot, and hands the
+# result to the store: accepted intact, refused after one altered byte. The
+# signed half needs `cargo tauri signer` and is ignored by a plain `cargo
+# test`; engines.yml runs the same command before it signs with the real key.
+# The one test left out judges a real publication directory and has its own
+# step there.
+
+# Prove the engine manifest script writes what the engine store accepts
+engine-manifest-test:
+    cargo test -p apollia-runtime --test engine_manifest_publication -- --include-ignored --skip test_published_directory_is_signed_by_the_compiled_key
+
 # `--no-default-features` was written into three release presets and compiled
 # nowhere: `cargo check -p apollia-cli --no-default-features` did not even
 # build, because a `match` arm behind the crate's own `cloud` feature vanished
@@ -566,10 +579,11 @@ cli-build:
 cli-e2e-runtime:
     APOLLIA_REQUIRE_RUNTIME=1 APOLLIA_TEST_MODEL_GGUF=/nonexistent-apollia-e2e.gguf bash tests/cli/cli-e2e.sh
 
-# Builds the daemon, then drives it over HTTP on a throwaway HOME (question,
-# approval, gated MCP call). No model.
+# Builds the daemon, then drives it over HTTP and the CLI on a throwaway HOME:
+# a package workflow pauses on a question, is answered, declined, and left
+# waiting across a restart. No model.
 
-# Typed pauses on the task path, end to end, no model
+# A workflow pausing on a question, end to end, no model
 hitl-e2e: cli-build
     PYTHONPATH=sdk python3 -m pytest tests/hitl/test_hitl_e2e.py -q -p no:cacheprovider
 
@@ -739,6 +753,8 @@ guards:
       "scripts/check_tauri_ipc_args.py"
       "scripts/check_tauri_ipc_callers.py"
       "scripts/check_tracing_messages.py"
+      "scripts/check_tracked_inventory.py"
+      "scripts/check_tracked_inventory.py --selftest"
       "scripts/check_unimported_files.py"
       "scripts/check_ui_vocabulary.py"
       "scripts/check_windows_python_dll.py"
@@ -996,7 +1012,12 @@ desktop-dev-automation-seeded script: _require-tauri runners-dev
     # assertion suite run with it reads its own failures as product
     # regressions. `desktop-screenshots` sets APOLLIA_SEED_SHOOTING=1 to opt
     # back in, because for a screenshot an empty timeline is the defect.
-    if [ "${APOLLIA_SEED_SHOOTING:-0}" = "1" ]; then
+    if [ "${APOLLIA_SEED_BLANK:-0}" = "1" ]; then
+      # `desktop-dev-automation-first-run` prepared the home itself: a first
+      # launch is measured on a home no seed has filled, and with the public
+      # registry in reach, as a new installation has it.
+      echo "→ blank home, no seed: $SEED_HOME"
+    elif [ "${APOLLIA_SEED_SHOOTING:-0}" = "1" ]; then
       bash "{{justfile_directory()}}/tests/cli/seed/build-seed.sh" "$SEED_HOME"
     else
       env -u APOLLIA_SEED_OVERLAY bash "{{justfile_directory()}}/tests/cli/seed/build-seed.sh" "$SEED_HOME"
@@ -1098,6 +1119,68 @@ desktop-screenshots script:
     fi
     echo "→ screenshots with narrative overlay: $OVERLAY"
     APOLLIA_SEED_SHOOTING=1 APOLLIA_SEED_OVERLAY="$OVERLAY" \
+      just desktop-dev-automation-seeded "{{script}}"
+
+# The first launch is the one run that cannot start from the seed: the seed
+# holds a backend already declared, a profile, agents and conversations, and a
+# first launch is the application meeting an empty home. This recipe builds
+# that home, with one thing in it: the two model files, so that the run
+# measures the launch and not a download. The application then wires and loads
+# the language model itself, with its own engine, and that loading is counted.
+#
+# The files are cloned, not linked. The scan of the models folder skips a
+# symbolic link, so a link would show no model at all; a hard link would let a
+# write through to the real file; a copy-on-write clone (APFS, or a reflink
+# where the file system has one) costs no bytes and leaves the real file out of
+# reach. On a file system with neither, the files are copied.
+#
+# The embeddings file keeps its registry name: the import of the embeddings
+# step recognises a model by that name, and the recipe names it.
+# Usage: just desktop-dev-automation-first-run scripts/automation/first-run-llm.json ~/.apollia/models/<model>.gguf
+
+# Blank home + the two model files, for the first-launch recipe.
+desktop-dev-automation-first-run script model=llama_model embeddings="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f "{{script}}" ]; then
+      echo "script not found: {{script}} (try scripts/automation/first-run-llm.json)" >&2
+      exit 1
+    fi
+    EMBEDDINGS_NAME="multilingual-e5-small-q8_0.gguf"
+    MODEL="{{model}}"
+    if [ -z "$MODEL" ]; then
+      MODEL="$HOME/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf"
+    fi
+    EMBEDDINGS="{{embeddings}}"
+    if [ -z "$EMBEDDINGS" ]; then
+      EMBEDDINGS="$HOME/.apollia/models/$EMBEDDINGS_NAME"
+    fi
+    if [ ! -f "$MODEL" ]; then
+      echo "model not found: $MODEL (pass a path or export APOLLIA_LLAMA_MODEL)" >&2
+      exit 1
+    fi
+    if [ ! -f "$EMBEDDINGS" ] || [ "$(basename "$EMBEDDINGS")" != "$EMBEDDINGS_NAME" ]; then
+      echo "embeddings model not found: $EMBEDDINGS" >&2
+      echo "  The first-launch recipe imports $EMBEDDINGS_NAME, under that name." >&2
+      echo "  Get it once: the embeddings step of a first launch downloads it, and" >&2
+      echo "  the Hub repository cstr/multilingual-e5-small-GGUF holds the file." >&2
+      echo "  Then pass its path as the third argument, or leave it in the models" >&2
+      echo "  folder of the real home." >&2
+      exit 1
+    fi
+    # A fixed path, so the removal below can never be pointed elsewhere.
+    BLANK_HOME="$PWD/.apollia-first-run-home"
+    rm -rf "$BLANK_HOME"
+    mkdir -p "$BLANK_HOME/.apollia/models"
+    for file in "$MODEL" "$EMBEDDINGS"; do
+      case "$(uname -s)" in
+        Darwin) cp -c "$file" "$BLANK_HOME/.apollia/models/" ;;
+        Linux) cp --reflink=auto "$file" "$BLANK_HOME/.apollia/models/" ;;
+        *) cp "$file" "$BLANK_HOME/.apollia/models/" ;;
+      esac
+    done
+    echo "→ first launch on a blank home: $(basename "$MODEL") + $EMBEDDINGS_NAME"
+    APOLLIA_SEED_BLANK=1 APOLLIA_SEED_HOME="$BLANK_HOME" \
       just desktop-dev-automation-seeded "{{script}}"
 
 # The app runs under the seeded HOME, but llama-server loads the REAL model from

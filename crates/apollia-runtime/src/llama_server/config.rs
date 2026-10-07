@@ -240,7 +240,8 @@ pub struct LlamaServerConfig {
     /// Engine seed (`--seed`). `None` leaves the engine default, a random seed.
     pub seed: Option<u32>,
     /// Draft model for speculative decoding (`--model-draft`), an absolute
-    /// path.
+    /// path. A preset names the draft by its index identifier; the launch
+    /// resolves it to this path.
     pub draft_model: Option<String>,
     /// Speculative decoding mode (`--spec-type`). `None` leaves the engine
     /// default, which is off.

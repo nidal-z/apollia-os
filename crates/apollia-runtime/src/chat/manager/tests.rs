@@ -395,6 +395,7 @@ async fn test_resolve_tool_approval() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        answer_prefills: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
         config_feed: None,
         plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
@@ -406,7 +407,6 @@ async fn test_resolve_tool_approval() {
         id: "sess-1".into(),
         mode: ChatMode::Libre,
         agent_name: None,
-        system_prompt: String::new(),
         status: SessionStatus::Processing,
         history: vec![],
         authorized_tools: std::collections::HashSet::new(),
@@ -421,6 +421,8 @@ async fn test_resolve_tool_approval() {
         plan_phase: PlanPhase::Done,
         profile_id: None,
         use_profile: true,
+        settings: crate::chat::SessionSettings::default(),
+        notes: String::new(),
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -481,6 +483,7 @@ async fn test_always_accept_grants_no_tool_by_name() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        answer_prefills: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
         config_feed: None,
         plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
@@ -491,7 +494,6 @@ async fn test_always_accept_grants_no_tool_by_name() {
         id: "sess-1".into(),
         mode: ChatMode::Libre,
         agent_name: None,
-        system_prompt: String::new(),
         status: SessionStatus::Processing,
         history: vec![],
         authorized_tools: std::collections::HashSet::new(),
@@ -506,6 +508,8 @@ async fn test_always_accept_grants_no_tool_by_name() {
         plan_phase: PlanPhase::Done,
         profile_id: None,
         use_profile: true,
+        settings: crate::chat::SessionSettings::default(),
+        notes: String::new(),
     };
     manager.sessions.insert("sess-1".into(), session);
 
@@ -645,6 +649,7 @@ async fn test_cross_session_context_substantive_message() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        answer_prefills: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
         config_feed: None,
         plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
@@ -722,6 +727,7 @@ async fn test_cross_session_context_trivial_message() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        answer_prefills: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
         config_feed: None,
         plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
@@ -778,6 +784,7 @@ async fn test_cross_session_context_no_relevant_sessions() {
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        answer_prefills: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
         config_feed: None,
         plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
@@ -976,6 +983,7 @@ pub(super) fn manager_with_session_in_phase(
         pause_tokens: HashMap::new(),
         pause_states: HashMap::new(),
         pending_injections: HashMap::new(),
+        answer_prefills: HashMap::new(),
         pending_plan_continuations: HashMap::new(),
         config_feed: None,
         plan_mode_default_tx: tokio::sync::watch::Sender::new(false),
@@ -985,7 +993,6 @@ pub(super) fn manager_with_session_in_phase(
         id: "sess-1".into(),
         mode: ChatMode::Libre,
         agent_name: None,
-        system_prompt: String::new(),
         status: SessionStatus::Active,
         history: vec![],
         authorized_tools: std::collections::HashSet::new(),
@@ -1000,6 +1007,8 @@ pub(super) fn manager_with_session_in_phase(
         plan_phase: phase,
         profile_id: None,
         use_profile: true,
+        settings: crate::chat::SessionSettings::default(),
+        notes: String::new(),
     };
     manager.sessions.insert("sess-1".into(), session);
     (manager, event_rx)

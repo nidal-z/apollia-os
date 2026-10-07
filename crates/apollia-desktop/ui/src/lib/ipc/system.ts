@@ -99,6 +99,12 @@ export interface EngineVariantUpdate {
   /** Newest tag the verified channel offers. */
   latest_tag: string;
   update_available: boolean;
+  /** Bytes installing or updating to the newest build downloads, as the verified list states. */
+  size: number;
+  /** Day the newest build was published, `YYYY-MM-DD`; `null` when the channel does not say. */
+  latest_released: string | null;
+  /** Day the installed build was published; `null` when unknown or when none is installed. */
+  installed_released: string | null;
 }
 
 /** The dictation engine, whisper.cpp inside the runner the daemon starts. */
@@ -115,6 +121,8 @@ export interface EnginesResponse {
   manifest_sequence: number | null;
   updates: EngineVariantUpdate[];
   cuda_proposable: boolean;
+  /** Name of the NVIDIA card detected, `null` without one. */
+  nvidia_card: string | null;
   dictation: DictationEngine | null;
 }
 

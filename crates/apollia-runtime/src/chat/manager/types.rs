@@ -89,7 +89,10 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// exchange starts.
     pub(in crate::chat::manager) available_tools: apollia_tools::AgentAccess,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
+    /// The mission of the agent, read when the message is sent.
     pub(in crate::chat::manager) system_prompt: String,
+    /// What the conversation changes from its agent, for itself alone.
+    pub(in crate::chat::manager) session_settings: SessionSettings,
     pub(in crate::chat::manager) context_window_size: usize,
     pub(in crate::chat::manager) stored_summary: Option<String>,
     pub(in crate::chat::manager) llm_for_summarize: Option<Arc<LlmRouter>>,
@@ -126,6 +129,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Operator instruction to consume on a resume turn, when this exchange is a
     /// resume carrying a queued injection. `None` for ordinary turns.
     pub(in crate::chat::manager) pending_injection: Option<InjectedInstruction>,
+    /// The answer the exchange continues, when the user asked for the last
+    /// answer to be continued. `None` for every other turn.
+    pub(in crate::chat::manager) answer_prefill: Option<String>,
     /// Backend the session prefers (the free chat's stored choice), tried
     /// before the default at each call of the turn.
     pub(in crate::chat::manager) preferred_backend: Option<String>,

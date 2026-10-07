@@ -20,11 +20,6 @@
     "connections-sidebar-filter-all",
     "danger-card-factory-reset",
     "global-event-task.completed",
-    "inbox-activity-filter-all",
-    "inbox-filter-all",
-    "inbox-tab-activity",
-    "inbox-tab-notifications",
-    "inbox-tab-pending",
     "mcp-detail-tab-overview",
     "observability-tab-audit-trail",
     "observability-tab-llm-costs",
@@ -35,7 +30,6 @@
     "settings-nav-chat",
     "settings-nav-developer",
     "settings-nav-general",
-    "settings-nav-model-hub",
     "settings-nav-notifications",
     "settings-nav-profile",
     "settings-nav-stt",
@@ -408,7 +402,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -570,7 +564,7 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-args-input",
-      "text": "-y @modelcontextprotocol/server-filesystem /Users/moi/Documents"
+      "text": "-y @modelcontextprotocol/server-filesystem /Users/me/Documents"
     },
     {
       "kind": "sleep",
@@ -693,31 +687,16 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "llm"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-model-hub"
+      "testid": "llm-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-content"
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "installation-telecharger-des-modeles-locaux-1"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "installed-model-row-",
+      "testid": "ai-model-row",
       "nth": 0,
       "timeoutMs": 8000
     },
@@ -730,8 +709,36 @@
       "label": "installation-telecharger-des-modeles-locaux-1bis"
     },
     {
+      "kind": "click",
+      "testid": "ai-discover-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-window",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "installation-telecharger-des-modeles-locaux-1"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-window",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -935,7 +942,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -1533,28 +1540,6 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-bento",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "observabilite-lire-le-digest-quotidien-1"
-    },
-    {
-      "kind": "goto",
       "route": "observability"
     },
     {
@@ -1726,11 +1711,11 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -1780,23 +1765,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "inbox-tabbar",
+      "testid": "review-empty",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-filter-all",
-      "timeoutMs": 5000
     },
     {
       "kind": "sleep",
@@ -1807,64 +1777,12 @@
       "label": "transversal-utiliser-l-inbox-1"
     },
     {
-      "kind": "click",
-      "testid": "inbox-tab-activity",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "inbox-activity-filter-all",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-filter-all",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "activity-row",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "transversal-utiliser-l-inbox-3"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-notifications",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "data-table",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "transversal-utiliser-l-inbox-4"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-tab-pending",
-      "timeoutMs": 5000
-    },
-    {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 8000
     },
     {

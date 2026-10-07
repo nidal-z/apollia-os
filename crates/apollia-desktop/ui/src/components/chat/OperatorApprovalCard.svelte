@@ -24,6 +24,11 @@
     code?: string | null;
     /** The folder a live request names; read from the call when absent. */
     workingDir?: string | null;
+    /**
+     * Takes the answer in place of the conversation's own call: the screen
+     * that lists every waiting decision answers each through one route.
+     */
+    ondecide?: ((decision: ConsentDecision) => Promise<void>) | null;
   }
 
   let {
@@ -34,6 +39,7 @@
     answers = null,
     code: requestCode = null,
     workingDir: requestWorkingDir = null,
+    ondecide = null,
   }: Props = $props();
 
   const resolvedToolCallId = $derived(toolCallId ?? toolCall.tool_name);
@@ -67,6 +73,11 @@
     isProcessing = true;
     error = null;
     try {
+      if (ondecide) {
+        await ondecide({ decision, reason });
+        isProcessing = false;
+        return;
+      }
       await authorizeChatTool({
         sessionId,
         messageId,

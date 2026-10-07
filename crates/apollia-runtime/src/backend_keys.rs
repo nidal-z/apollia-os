@@ -529,6 +529,8 @@ mod tests {
             has_key: true,
             api_key_env: None,
             enabled: true,
+            timeout_secs: None,
+            extra_params: None,
         };
         repo.save_server(&server).unwrap();
         file_store(&dir)
@@ -577,6 +579,8 @@ mod tests {
             has_key: false,
             api_key_env: None,
             enabled: true,
+            timeout_secs: None,
+            extra_params: None,
         })
         .unwrap();
         let default = repo

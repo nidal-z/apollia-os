@@ -6,7 +6,7 @@
 use apollia_runtime::a2a::SkillListing;
 use serde::{Deserialize, Serialize};
 
-use super::{A2ASkillView, ResolvedChatApproval};
+use super::A2ASkillView;
 use crate::attached::{segment, AttachedClient, AttachedError};
 
 /// The body of `POST /api/v1/sessions/{id}/authorize`.
@@ -66,19 +66,6 @@ pub(crate) async fn authorize(
     let path = format!("/api/v1/sessions/{}/authorize", segment(session_id));
     let _: serde_json::Value = client.post(&path, body).await?;
     Ok(())
-}
-
-/// The recent decisions on chat tool calls.
-pub(crate) async fn approval_history(
-    client: &AttachedClient,
-    limit: i64,
-    days: i64,
-) -> Result<Vec<ResolvedChatApproval>, AttachedError> {
-    client
-        .get(&format!(
-            "/api/v1/sessions/approval-history?limit={limit}&days={days}"
-        ))
-        .await
 }
 
 /// The skills the worker agents declare. The route also lists the agents that

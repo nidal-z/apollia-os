@@ -12,7 +12,7 @@
     "chat-mic-button is played in chat-det.json, not here: dictation.toggle() (useComposerDictation.svelte.ts:59-77) calls start_tour_recording and stop_tour_recording with no getUserMedia in front, so both IPCs are answered by the harness and the cpal capture is never opened.",
     "The load-model picker is answered with the seed's whisper placeholder (ggml-base.bin), never with an LLM GGUF: measured on d1-stt, picking Phi-3-mini-Q4.gguf reached the saved configuration, the engine started on it, and the app stopped answering after the overlay was created.",
     "stt-test-start and stt-test-stop are played on the settings SttTestCard through the harness: start_tour_recording resolves null (Result<(), String> in commands/stt.rs:976-990, so the real command would open a cpal capture, flow.rs:182-233, and needs an engine the placeholder ggml-base.bin cannot load), which flips recording and swaps the button's testid to stt-test-stop (SttTestCard.svelte:190); stop_tour_recording is rejected with a string, which the catch of toggle (SttTestCard.svelte:128-131) turns into an error toast and a return to stt-test-start, the only scripted end of course since stt-transcribed and stt-dictation-failed are Tauri events no stub can emit (stt-test-result and stt-test-failure stay unreachable). toggle awaits ensureMicPermission first (SttTestCard.svelte:121), a WebView getUserMedia that never throws and whose result is ignored; App.svelte:85-91 already primes it at boot because the seed enables STT, and wry 0.55.1 grants the WebView side (wry_web_view_ui_delegate.rs:126-136), so the click adds no prompt the boot did not already raise.",
-    "Transcriptions is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute), so the book asserts dashboard-page there and turns developer-mode-on before every visit; the STT settings stay reachable in both modes."
+    "Transcriptions is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute), so the book asserts chat-page there and turns developer-mode-on before every visit; the STT settings stay reachable in both modes."
   ],
   "dynamicTestids": [
     "nav-transcriptions",
@@ -473,7 +473,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -791,7 +791,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {

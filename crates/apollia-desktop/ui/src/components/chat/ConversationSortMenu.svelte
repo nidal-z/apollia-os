@@ -1,7 +1,8 @@
 <!--
   Sort menu of the conversation list: one choice that carries both the
   criterion and the direction (newest or oldest created first, most recent
-  activity first, name A to Z). The choice is remembered (`sessionSort`).
+  activity first, name A to Z, most generated tokens first). The choice is
+  remembered (`sessionSort`).
 -->
 <script module lang="ts">
   import type { SessionSort } from "$lib/stores/chatSessions";
@@ -12,6 +13,7 @@
     oldest: "chat.sort.oldest",
     activity: "chat.sort.activity",
     name: "chat.sort.name",
+    tokens: "chat.sort.tokens",
   };
 </script>
 
