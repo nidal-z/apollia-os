@@ -84,9 +84,9 @@
 </script>
 
 <section class="flex min-h-0 flex-1 flex-col gap-3" data-testid="ai-installed-section">
-  <div class="flex flex-wrap items-center gap-2">
-    <h2 class="mr-auto text-sm font-semibold text-foreground">{$t("ai.installed.title")}</h2>
-    <div class="w-56">
+  <div class="flex items-center gap-2">
+    <h2 class="mr-auto shrink-0 text-sm font-semibold text-foreground">{$t("ai.installed.title")}</h2>
+    <div class="w-56 min-w-28 shrink">
       <Input
         size="sm"
         icon={Search}
