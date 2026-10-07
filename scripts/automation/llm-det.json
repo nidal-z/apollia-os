@@ -353,7 +353,7 @@
     },
     {
       "kind": "expect",
-      "testid": "ai-panel-tab-info"
+      "testid": "ai-panel-info"
     },
     {
       "kind": "waitGone",

@@ -139,53 +139,43 @@
       </div>
     </div>
   {:else}
-    <div class="min-h-0 flex-1 overflow-auto rounded-lg border border-border" data-testid="ai-installed-table">
-      <table class="w-full text-sm">
-        <thead class="bg-muted text-xs text-muted-foreground">
-          <tr>
-            <th class="w-full px-4 py-2 text-left font-medium">{$t("ai.installed.col_name")}</th>
-            <th class="px-3 py-2 text-left font-medium">{$t("ai.installed.col_params")}</th>
-            <th class="px-3 py-2 text-left font-medium">{$t("ai.installed.col_size")}</th>
-            <th class="px-3 py-2 text-left font-medium">{$t("ai.installed.col_modified")}</th>
-            <th class="px-3 py-2 text-right font-medium">{$t("ai.installed.col_actions")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each groups as group (group.category)}
-            {#if filter === "all"}
-              <tr>
-                <td colspan="5" class="px-3 pb-1 pt-3 text-xs text-muted-foreground" data-testid="ai-group-{group.category}">
-                  {$t("ai.installed.group", {
-                    values: { label: $t(categoryLabelKey(group.category)), count: group.models.length },
-                  })}
-                </td>
-              </tr>
-            {/if}
-            {#if group.models.length === 0}
-              <tr>
-                <td colspan="5" class="px-3 py-6 text-center text-sm text-muted-foreground" data-testid="ai-category-empty">
-                  {query.trim()
-                    ? $t("ai.installed.no_match", { values: { query: query.trim() } })
-                    : $t(emptyCategoryKey(group.category))}
-                </td>
-              </tr>
-            {/if}
-            {#each group.models as model (model.path)}
-              {@const params = parameterCount(model.parameters, lang)}
-              <!-- The gear of the row is the keyboard path to the same panel. -->
+    <div class="min-h-0 flex-1 overflow-auto" data-testid="ai-installed-table">
+      {#each groups as group (group.category)}
+        {#if filter === "all"}
+          <h3 class="mb-2 mt-4 text-overline uppercase text-muted-foreground first:mt-0" data-testid="ai-group-{group.category}">
+            {$t("ai.installed.group", {
+              values: { label: $t(categoryLabelKey(group.category)), count: group.models.length },
+            })}
+          </h3>
+        {/if}
+        {#if group.models.length === 0}
+          <p class="py-6 text-center text-sm text-muted-foreground" data-testid="ai-category-empty">
+            {query.trim()
+              ? $t("ai.installed.no_match", { values: { query: query.trim() } })
+              : $t(emptyCategoryKey(group.category))}
+          </p>
+        {/if}
+        <ul class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+          {#each group.models as model (model.path)}
+            {@const params = parameterCount(model.parameters, lang)}
+            <li class="min-w-0">
+              <!-- The gear of the card is the keyboard path to the same panel. -->
               <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <tr
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
                 class={cn(
-                  "cursor-pointer border-t border-border hover:bg-muted/50",
-                  openId === model.id && "bg-muted",
+                  "flex h-full cursor-pointer flex-col gap-2.5 rounded-xl border bg-surface-1 p-4 transition-colors",
+                  openId === model.id
+                    ? "border-primary/50 bg-primary/5"
+                    : "border-border hover:border-primary/30 hover:bg-surface-2",
                 )}
-                aria-selected={openId === model.id}
+                aria-current={openId === model.id ? "true" : undefined}
                 onclick={(event) => openFromRow(event, model)}
                 data-testid="ai-model-row"
                 data-model-id={model.id}
               >
-                <td class="px-4 py-2.5 font-medium">
-                  <div class="flex flex-wrap items-center gap-1.5">
+                <div class="flex items-start gap-2">
+                  <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                     {#if model.pinned_at}
                       <Tooltip content={$t("ai.installed.pinned_explanation")}>
                         <span class="inline-flex text-primary" role="img" aria-label={$t("ai.menu.pin")} data-testid="ai-model-pinned">
@@ -193,67 +183,12 @@
                         </span>
                       </Tooltip>
                     {/if}
-                    <span class="font-medium text-foreground" data-testid="ai-model-name">{shownModelName(model, $modelFullFileName)}</span>
+                    <span class="min-w-0 truncate text-sm font-semibold text-foreground" data-testid="ai-model-name">{shownModelName(model, $modelFullFileName)}</span>
                     {#each capabilitiesOf(model.capabilities) as capability (capability)}
                       <CapabilityIcon {capability} />
                     {/each}
-                    <ExplainedBadge
-                      label={model.format.toUpperCase()}
-                      explanation={$t("ai.format_explanation")}
-                      help
-                      testid="ai-model-format"
-                    />
-                    {#if model.default_chat}
-                      <ExplainedBadge
-                        label={$t("ai.badge.default")}
-                        explanation={$t("ai.badge.default_explanation")}
-                        variant="primary"
-                        testid="ai-model-default"
-                      />
-                    {/if}
-                    {#if model.default_search}
-                      <ExplainedBadge
-                        label={$t("ai.badge.search")}
-                        explanation={$t("ai.badge.search_explanation")}
-                        variant="primary"
-                        testid="ai-model-search"
-                      />
-                    {/if}
-                    {#if loadedPaths.has(model.path)}
-                      <ExplainedBadge
-                        label={$t("ai.badge.loaded")}
-                        explanation={$t("ai.badge.loaded_explanation")}
-                        variant="success"
-                        testid="ai-model-loaded"
-                      />
-                    {/if}
-                    {#if !model.origin_verified}
-                      <ExplainedBadge
-                        label={$t("ai.badge.unverified")}
-                        explanation={$t("ai.badge.unverified_explanation")}
-                        variant="warning"
-                        testid="ai-model-unverified"
-                      />
-                    {/if}
                   </div>
-                </td>
-                <td class="whitespace-nowrap px-3 py-2">
-                  {#if model.parameters}
-                    <ExplainedBadge
-                      label={params ? $t(params.unitKey, { values: { n: params.value } }) : model.parameters}
-                      explanation={$t("ai.installed.params_explanation")}
-                      testid="ai-model-params"
-                    />
-                  {/if}
-                </td>
-                <td class="whitespace-nowrap px-3 py-2 text-foreground">
-                  {$t("ai.installed.size", { values: { size: gigabytes(model.size_bytes, lang) } })}
-                </td>
-                <td class="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                  {model.modified_at ? formatRelativeTime(model.modified_at, lang) : ""}
-                </td>
-                <td class="px-3 py-2 text-right">
-                  <div class="inline-flex items-center gap-0.5">
+                  <div class="-mr-1.5 -mt-1 inline-flex shrink-0 items-center gap-0.5">
                     <Tooltip
                       content={$t("ai.panel.open")}
                       onclick={() => onopen(model)}
@@ -265,19 +200,77 @@
                     </Tooltip>
                     <ModelActionsMenu {model} {platform} {onselect} />
                   </div>
-                </td>
-              </tr>
-            {/each}
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  {#if loadedPaths.has(model.path)}
+                    <ExplainedBadge
+                      label={$t("ai.badge.loaded")}
+                      explanation={$t("ai.badge.loaded_explanation")}
+                      variant="success"
+                      testid="ai-model-loaded"
+                    />
+                  {/if}
+                  {#if model.default_chat}
+                    <ExplainedBadge
+                      label={$t("ai.badge.default")}
+                      explanation={$t("ai.badge.default_explanation")}
+                      variant="primary"
+                      testid="ai-model-default"
+                    />
+                  {/if}
+                  {#if model.default_search}
+                    <ExplainedBadge
+                      label={$t("ai.badge.search")}
+                      explanation={$t("ai.badge.search_explanation")}
+                      variant="primary"
+                      testid="ai-model-search"
+                    />
+                  {/if}
+                  <ExplainedBadge
+                    label={model.format.toUpperCase()}
+                    explanation={$t("ai.format_explanation")}
+                    help
+                    testid="ai-model-format"
+                  />
+                  {#if model.parameters}
+                    <ExplainedBadge
+                      label={params ? $t(params.unitKey, { values: { n: params.value } }) : model.parameters}
+                      explanation={$t("ai.installed.params_explanation")}
+                      testid="ai-model-params"
+                    />
+                  {/if}
+                  {#if !model.origin_verified}
+                    <ExplainedBadge
+                      label={$t("ai.badge.unverified")}
+                      explanation={$t("ai.badge.unverified_explanation")}
+                      variant="warning"
+                      testid="ai-model-unverified"
+                    />
+                  {/if}
+                </div>
+                <p class="mt-auto flex items-baseline gap-2 text-xs text-muted-foreground">
+                  <span class="shrink-0 tabular-nums text-foreground">
+                    {$t("ai.installed.size", { values: { size: gigabytes(model.size_bytes, lang) } })}
+                  </span>
+                  {#if model.used_by}
+                    <span class="min-w-0 flex-1 truncate" data-testid="ai-model-used-by">
+                      {$t("ai.installed.used_by", { values: { name: model.used_by } })}
+                    </span>
+                  {:else}
+                    <span class="flex-1"></span>
+                  {/if}
+                  <span class="shrink-0">{model.modified_at ? formatRelativeTime(model.modified_at, lang) : ""}</span>
+                </p>
+              </div>
+            </li>
           {/each}
-          {#if filter === "all" && shown === 0 && query.trim()}
-            <tr>
-              <td colspan="5" class="px-3 py-6 text-center text-sm text-muted-foreground" data-testid="ai-category-empty">
-                {$t("ai.installed.no_match", { values: { query: query.trim() } })}
-              </td>
-            </tr>
-          {/if}
-        </tbody>
-      </table>
+        </ul>
+      {/each}
+      {#if filter === "all" && shown === 0 && query.trim()}
+        <p class="py-6 text-center text-sm text-muted-foreground" data-testid="ai-category-empty">
+          {$t("ai.installed.no_match", { values: { query: query.trim() } })}
+        </p>
+      {/if}
     </div>
   {/if}
 

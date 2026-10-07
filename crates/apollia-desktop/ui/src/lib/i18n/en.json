@@ -5258,11 +5258,6 @@
       "filter_label": "Filter models",
       "import": "Import a file",
       "discover": "Discover models",
-      "col_params": "Parameters",
-      "col_name": "Name",
-      "col_size": "Size",
-      "col_modified": "Modified",
-      "col_actions": "Actions",
       "params_billions": "{n}B",
       "params_millions": "{n}M",
       "params_explanation": "The number of parameters of the model, in billions (B) or millions (M). The larger it is, the more capable the model, and the more memory it needs.",
@@ -5279,7 +5274,9 @@
       "empty_draft": "A draft model is a small model of the same family as a larger one, which speeds up its answers. None is installed.",
       "no_match": "No model matches “{query}”.",
       "error": "The list of models on this computer could not be read.",
-      "import_title": "Import a model file"
+      "import_title": "Import a model file",
+      "used_by": "used by {name}",
+      "col_actions": "Actions"
     },
     "badge": {
       "default": "Default",

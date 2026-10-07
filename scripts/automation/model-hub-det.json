@@ -710,6 +710,17 @@
       "contains": "Automation Labs"
     },
     {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "waitFor",
       "testid": "ai-discover-card-name",
       "contains": "Automation Alpha 8B",
@@ -1177,6 +1188,16 @@
       }
     },
     {
+      "kind": "click",
+      "testid": "ai-discover-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-column",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "setChecked",
       "testid": "ai-discover-fits",
       "checked": true
@@ -1235,9 +1256,30 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "ai-discover-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-column",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "selectOption",
       "testid": "ai-discover-format",
       "value": "mlx"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -1255,9 +1297,30 @@
       "label": "03-discover-format-mlx"
     },
     {
+      "kind": "click",
+      "testid": "ai-discover-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-column",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "selectOption",
       "testid": "ai-discover-format",
       "value": "gguf"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -1420,6 +1483,16 @@
       }
     },
     {
+      "kind": "click",
+      "testid": "ai-discover-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-column",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "fill",
       "testid": "ai-discover-search",
       "text": "alpha"
@@ -1492,6 +1565,16 @@
         "capacity_gb": 21.3,
         "unreachable": []
       }
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-column",
+      "timeoutMs": 6000
     },
     {
       "kind": "fill",
@@ -2410,6 +2493,16 @@
     },
     {
       "kind": "click",
+      "testid": "ai-discover-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-column",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
       "testid": "ai-discover-refresh",
       "timeoutMs": 3000
     },
@@ -2439,6 +2532,17 @@
       "kind": "expect",
       "testid": "ai-discover-result-recommended",
       "contains": "Recommended for this computer"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -2481,6 +2585,16 @@
     },
     {
       "kind": "click",
+      "testid": "ai-discover-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-column",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
       "testid": "ai-discover-category-dictation",
       "timeoutMs": 3000
     },
@@ -2495,6 +2609,17 @@
       "testid": "ai-discover-result",
       "nth": 0,
       "contains": "Automation Voice Base"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -2569,8 +2694,29 @@
     },
     {
       "kind": "click",
+      "testid": "ai-discover-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-column",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
       "testid": "ai-discover-category-language",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -2824,6 +2970,17 @@
       "kind": "waitFor",
       "testid": "ai-discover-window",
       "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-result-open",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-card",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",

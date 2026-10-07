@@ -5258,11 +5258,6 @@
       "filter_label": "Filtrer les modèles",
       "import": "Importer un fichier",
       "discover": "Découvrir des modèles",
-      "col_params": "Paramètres",
-      "col_name": "Nom",
-      "col_size": "Taille",
-      "col_modified": "Modifié",
-      "col_actions": "Actions",
       "params_billions": "{n} Md",
       "params_millions": "{n} M",
       "params_explanation": "Nombre de paramètres du modèle, en milliards (Md) ou en millions (M). Plus il est grand, plus le modèle est capable, et plus il demande de mémoire.",
@@ -5279,7 +5274,9 @@
       "empty_draft": "Un brouillon est un petit modèle de la même famille qu'un plus grand, qui accélère ses réponses. Aucun n'est installé.",
       "no_match": "Aucun modèle ne correspond à « {query} ».",
       "error": "La liste des modèles du poste n'a pas pu être lue.",
-      "import_title": "Importer un fichier de modèle"
+      "import_title": "Importer un fichier de modèle",
+      "used_by": "utilisé par {name}",
+      "col_actions": "Actions"
     },
     "badge": {
       "default": "Par défaut",

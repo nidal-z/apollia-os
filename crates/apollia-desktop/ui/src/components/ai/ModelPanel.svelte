@@ -319,13 +319,17 @@
         {/if}
       </header>
 
-      <TabBar
-        items={tabs}
-        activeTab={tab}
-        ontabchange={(key) => (asked = key as PanelTab)}
-        testidPrefix="ai-panel"
-        variant="underline"
-      />
+      <!-- A lone tab is not a choice: the bar shows once the developer mode
+           adds Loading and Inference to Infos. -->
+      {#if tabs.length > 1}
+        <TabBar
+          items={tabs}
+          activeTab={tab}
+          ontabchange={(key) => (asked = key as PanelTab)}
+          testidPrefix="ai-panel"
+          variant="underline"
+        />
+      {/if}
 
       {#if tab === "info"}
         <ModelInfoTab {model} {detail} oncopy={(text) => void copy(text)} />
