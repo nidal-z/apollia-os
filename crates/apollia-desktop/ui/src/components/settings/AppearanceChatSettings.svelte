@@ -108,6 +108,23 @@
   </SettingsFieldRow>
 
   <SettingsFieldRow
+    label={$t("settings.appearance.tab_scrollbar_label")}
+    hint={$t("settings.appearance.tab_scrollbar_hint")}
+    for="appearance-tab-scrollbar"
+    data-testid="appearance-tab-scrollbar"
+  >
+    {#snippet control()}
+      <Toggle
+        id="appearance-tab-scrollbar"
+        checked={$chatAppearance.tabScrollbar}
+        onchange={(checked) => setChatAppearance({ tabScrollbar: checked })}
+        aria-label={$t("settings.appearance.tab_scrollbar_label")}
+        data-testid="appearance-tab-scrollbar-toggle"
+      />
+    {/snippet}
+  </SettingsFieldRow>
+
+  <SettingsFieldRow
     label={$t("settings.appearance.font_size_label")}
     hint={$t("settings.appearance.font_size_hint")}
     for="appearance-font-size"

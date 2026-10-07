@@ -3524,6 +3524,39 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "appearance-tab-scrollbar",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-tab-scrollbar-toggle",
+      "checked": true
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-panes",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "resizeWindow",
       "width": 900,
       "height": 800
@@ -3540,7 +3573,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "40d-split-narrow-tabs (900 px: one pane at a time, the others behind tabs)"
+      "label": "40d-split-narrow-tabs (900 px: one pane at a time, the others behind tabs, the tab scroll bar turned on in Appearance)"
     },
     {
       "kind": "click",
@@ -3563,6 +3596,44 @@
       "kind": "waitGone",
       "testid": "chat-pane-tabs",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "appearance-tab-scrollbar",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-tab-scrollbar-toggle",
+      "checked": false
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-panes",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-pane",
+      "nth": 1
     },
     {
       "kind": "click",

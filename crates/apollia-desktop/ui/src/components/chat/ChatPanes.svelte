@@ -7,6 +7,9 @@
    * inside a pane makes it the active one. In a narrow window one pane shows
    * at a time and the others are reached by the tabs above it; a pane that is
    * not shown stays mounted, so its draft and its answer in progress are kept.
+   * Side by side, a pane never gets narrower than its minimal width: when the
+   * open panes do not fit, the area scrolls sideways. Its scroll bar follows
+   * the same display preference as the one of the tabs.
    */
   import { t } from "svelte-i18n";
   import { Plus, X } from "lucide-svelte";
@@ -25,9 +28,12 @@
     type ChatPane,
     type PaneSeat,
   } from "$lib/chat/chatPanes";
+  import { paneColumnsClass, scrollRailClass } from "$lib/chat/paneScroll";
+  import { paneScrollbar } from "$lib/stores/chatAppearance";
   import { chatPanes } from "$lib/stores/chatPanes";
   import type { ChatSessionSummary } from "$lib/types";
   import ChatConversation from "./ChatConversation.svelte";
+  import ChatPaneTabs from "./ChatPaneTabs.svelte";
   import EmptySessionsState from "./EmptySessionsState.svelte";
   import QuickPicker from "./QuickPicker.svelte";
 
@@ -84,34 +90,19 @@
 
 <main class="relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
   {#if tabsShown(layout, narrow)}
-    <div
-      class="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-3"
-      role="tablist"
-      aria-label={$t("chat.panes.tabs_aria")}
-      data-testid="chat-pane-tabs"
-    >
-      {#each layout.panes as pane (pane.id)}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={pane.id === layout.activeId}
-          class="max-w-48 shrink-0 truncate border-b-2 px-3 py-2 text-body-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 {pane.id ===
-          layout.activeId
-            ? 'border-primary font-medium text-foreground'
-            : 'border-transparent text-muted-foreground hover:text-foreground'}"
-          onclick={() => chatPanes.activate(pane.id)}
-          data-testid="chat-pane-tab"
-        >
-          {titleOf(pane)}
-        </button>
-      {/each}
-    </div>
+    <ChatPaneTabs
+      tabs={layout.panes.map((pane) => ({ id: pane.id, title: titleOf(pane) }))}
+      activeId={layout.activeId}
+      showScrollbar={$paneScrollbar}
+      onactivate={(id) => chatPanes.activate(id)}
+    />
   {/if}
 
   <div
-    class="grid min-h-0 flex-1 {grid.columns === 2 ? 'grid-cols-2' : 'grid-cols-1'} {grid.rows === 2
-      ? 'grid-rows-2'
-      : 'grid-rows-1'}"
+    class="grid min-h-0 flex-1 overflow-y-hidden {scrollRailClass($paneScrollbar)} {paneColumnsClass(
+      grid,
+    )} {grid.rows === 2 ? 'grid-rows-2' : 'grid-rows-1'}"
+    data-scrollbar={$paneScrollbar ? "shown" : "hidden"}
     data-testid="chat-panes"
   >
     {#each layout.panes as pane, index (pane.id)}

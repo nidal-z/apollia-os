@@ -18,6 +18,7 @@ import {
   reasoningExpandedByDefault,
   resetChatFontSize,
   setChatAppearance,
+  paneScrollbar,
 } from "./chatAppearance";
 
 describe("chatAppearance - defaults", () => {
@@ -104,6 +105,7 @@ describe("chatAppearance - navigation, display and scroll choices", () => {
     const chosen = {
       navPosition: "right",
       viewMode: "plain",
+      tabScrollbar: true,
       generationInfo: "all",
       scrollSentToTop: false,
       followGeneration: false,
@@ -159,6 +161,33 @@ describe("chatAppearance - navigation, display and scroll choices", () => {
     expect(get(chatMessageStyle)).toBe("block");
     expect(get(reasoningVignette)).toBe(false);
     chatAppearance.set({ ...CHAT_APPEARANCE_DEFAULTS });
+  });
+});
+
+describe("chatAppearance - the scroll bar of the split chat", () => {
+  test("it is off until the reader asks for it, and the reader follows the store", () => {
+    // GIVEN nothing stored
+    const fresh = parseChatAppearance(null);
+
+    // WHEN the reader turns the bar on
+    const before = get(paneScrollbar);
+    setChatAppearance({ tabScrollbar: true });
+    const after = get(paneScrollbar);
+    chatAppearance.set({ ...CHAT_APPEARANCE_DEFAULTS });
+
+    // THEN it was off by default and the projection answers the new value
+    expect(fresh.tabScrollbar).toBe(false);
+    expect(before).toBe(false);
+    expect(after).toBe(true);
+  });
+
+  test("a stored value that is not a switch falls back to off", () => {
+    // GIVEN a stored entry whose bar is a word
+    const raw = JSON.stringify({ tabScrollbar: "always" });
+
+    // WHEN read
+    // THEN the bar is off
+    expect(parseChatAppearance(raw).tabScrollbar).toBe(false);
   });
 });
 

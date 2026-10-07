@@ -2821,6 +2821,8 @@
       "view_mode_hint": "In plain text, an answer is shown as received, with no formatting.",
       "view_mode_markdown": "Rendered Markdown",
       "view_mode_plain": "Plain text",
+      "tab_scrollbar_label": "Show the tab scroll bar",
+      "tab_scrollbar_hint": "In the split view, the row of tabs and the pane area show a scroll bar as soon as they overflow. They scroll without it too.",
       "generation_info_label": "Generation info",
       "generation_info_help": "The line under an answer: its speed, its length, the delay before the first word, its duration and why it ended.",
       "generation_info_last": "Last message only",
