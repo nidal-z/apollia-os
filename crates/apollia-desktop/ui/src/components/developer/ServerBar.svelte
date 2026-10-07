@@ -2,7 +2,8 @@
   /**
    * The bar of the local server: whether it runs, the switch that starts and
    * stops it (and its shortcut), the address a client reaches it at with its
-   * copy button, the settings of the server, and "Load a model". A start
+   * copy button, the settings of the server (and, from them, the window of
+   * its tokens), and "Load a model". A start
    * refused because another program holds the port says so under the bar,
    * and so does a server that answers the local network without asking for a
    * token, for as long as it does.
@@ -36,6 +37,8 @@
   import { registerShortcutHandler } from "$lib/navigation/shortcutDispatcher";
   import LoadModelButton from "./LoadModelButton.svelte";
   import ServerSettingsPanel from "./ServerSettingsPanel.svelte";
+  import ServerTokensDialog from "./ServerTokensDialog.svelte";
+  import { withActiveTokens } from "./serverTokens";
   import {
     SERVER_SETTINGS_TEXTS,
     barFailure,
@@ -81,6 +84,8 @@
   const lanWithoutAuth = $derived(servedOnLanWithoutAuth(bar.view, requireAuth.value === true));
   const authImposed = $derived(imposedByPolicy(SERVER_SETTING_KEYS.requireAuth, requireAuth, bar.view));
   let requiring = $state(false);
+  let settingsOpen = $state(false);
+  let tokensOpen = $state(false);
 
   onMount(() => {
     let live = true;
@@ -113,6 +118,17 @@
   function takeServer(view: LocalServerView | null, failed: ServerFailure | null): void {
     bar = { view, failure: failed };
     on = serverStatus(bar) === "running";
+  }
+
+  /** The window of the tokens takes the place of the settings, which close. */
+  function manageTokens(): void {
+    settingsOpen = false;
+    tokensOpen = true;
+  }
+
+  /** The window of the tokens read or changed them: the count follows. */
+  function takeTokenCount(count: number): void {
+    bar = withActiveTokens(bar, count);
   }
 
   /** The warning's own way out: require a token, and reopen the server. */
@@ -170,7 +186,12 @@
         {/if}
       </div>
 
-      <ServerSettingsPanel view={bar.view} onserver={takeServer} />
+      <ServerSettingsPanel
+        bind:open={settingsOpen}
+        view={bar.view}
+        onserver={takeServer}
+        onmanagetokens={manageTokens}
+      />
 
       <div class="ml-auto flex items-center gap-2">
         {#if address}
@@ -205,6 +226,12 @@
         <LoadModelButton />
       </div>
     </div>
+
+    <ServerTokensDialog
+      open={tokensOpen}
+      onclose={() => (tokensOpen = false)}
+      oncount={takeTokenCount}
+    />
 
     {#if lanWithoutAuth}
       <Banner variant="warning" surface="card" data-testid="developer-server-lan-warning">

@@ -175,6 +175,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "restart_local_server",
     "start_local_server",
     "stop_local_server",
+    // The tokens of the local server, over `/api/v1/server/tokens`.
+    "create_server_token",
+    "list_server_tokens",
+    "revoke_server_token",
     // Apollia as an MCP server, over `/api/v1/mcp/exposed`.
     "list_mcp_exposable",
     "set_mcp_exposed",

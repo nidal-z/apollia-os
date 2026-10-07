@@ -591,6 +591,25 @@ fn test_the_local_server_of_the_developer_screen_passes_the_gate_attached() {
 }
 
 #[test]
+fn test_the_tokens_of_the_local_server_pass_the_gate_attached() {
+    // GIVEN the three commands of the window of the tokens
+    let commands = [
+        "create_server_token",
+        "list_server_tokens",
+        "revoke_server_token",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none answers that the service makes it unavailable
+    assert!(refused.is_empty(), "refused: {refused:?}");
+}
+
+#[test]
 fn test_models_mcp_connections_and_notifications_pass_the_gate_attached() {
     // GIVEN the screens of models, MCP servers, connections, notifications
     // and triggers, through the command each one opens with

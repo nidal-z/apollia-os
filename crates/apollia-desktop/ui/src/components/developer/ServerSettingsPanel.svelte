@@ -44,13 +44,14 @@
     view: LocalServerView | null;
     /** A reopening changed the state of the server: the bar takes it. */
     onserver: (view: LocalServerView | null, failure: ServerFailure | null) => void;
-    /** Opens the window of the tokens; the button waits while there is none. */
-    onmanagetokens?: () => void;
+    /** Asks for the window of the tokens, which takes the place of the panel. */
+    onmanagetokens: () => void;
+    /** Whether the panel is open; the bar may close it. */
+    open?: boolean;
   }
 
-  let { view, onserver, onmanagetokens }: Props = $props();
+  let { view, onserver, onmanagetokens, open = $bindable(false) }: Props = $props();
 
-  let open = $state(false);
   let busy = $state<ServerSettingKey | null>(null);
   let failure = $state<SettingFailure | null>(null);
   let portText = $state("");
@@ -201,8 +202,7 @@
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={onmanagetokens === undefined}
-                    onclick={() => onmanagetokens?.()}
+                    onclick={onmanagetokens}
                     data-testid="developer-server-manage-tokens"
                   >
                     {$t(SERVER_SETTINGS_TEXTS.manageTokens)}
