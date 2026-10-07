@@ -20,14 +20,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use apollia_aip::package_tools::PackageTools;
-use apollia_core::{AgentManifest, AutonomyLevel, RunId, RuntimeEvent, StepBudgetConfig};
+use apollia_core::{AutonomyLevel, RunId, RuntimeEvent, StepBudgetConfig};
 use apollia_llm::types::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, StreamChunk,
     TokenUsage, ToolCall,
 };
 use apollia_llm::LlmRouter;
 use apollia_mcp::session::LoadingMode;
-use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_runtime::chat::{
     AgentRunSpec, AgentTaskRun, ChatSessionManagerHandle, ToolCallStatus, ToolDecision,
 };
@@ -307,14 +306,6 @@ impl CompletionModel for Scripted {
     }
 }
 
-struct NoPythonAgents;
-
-impl AgentLoader for NoPythonAgents {
-    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        Err(format!("no Python agent in this test: {}", path.display()))
-    }
-}
-
 /// An agent created in the interface, without code, granted `pkg:calc/add`
 /// alone, as the store resolves it.
 fn interface_agent(dir: &Path) -> AgentRunSpec {
@@ -371,7 +362,6 @@ async fn interface_agent_runs_the_package_tool_it_is_granted() {
         &fx.path("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "scripted"))),
         registry.clone(),
-        Arc::new(NoPythonAgents),
         None,
         event_sender.clone(),
         StepBudgetConfig::default(),

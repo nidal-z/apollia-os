@@ -250,6 +250,8 @@ pub async fn build_agent_tool_executors(
     build_executors(handle, None, Vec::new()).await
 }
 
+// TEST-ONLY: the task backend of a Python agent built its MCP executors
+// with it; production builds them with `build_agent_tool_executors`.
 /// Build the agent-facing MCP executors for one task on the task path, gated
 /// through that task's approval state.
 ///

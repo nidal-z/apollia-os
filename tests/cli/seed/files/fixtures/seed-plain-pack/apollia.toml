@@ -1,0 +1,25 @@
+# Apollia OS - seed fixture package (automation verification only).
+# Never installed by the seed builder: it sits under fixtures/ as a package
+# folder to build with `apollia-os package build`.
+
+[package]
+name = "seed-plain-pack"
+version = "0.1.0"
+publisher = "Apollia"
+description = "Seed fixture: a worker with no dependency, which builds and installs without a network."
+sdk = ">=0.2.0-preview"
+
+[[agents]]
+id = "seed-plain-worker"
+name = "seed-plain-worker"
+mission = "Seed fixture agent: echoes what it is given."
+
+[agents.defaults]
+access = ["pkg:seed-plain-pack/plain_echo"]
+
+[[tools]]
+name = "plain_echo"
+module = "tools/plain_echo.py"
+description = "Echo the text it is given."
+action = "read"
+inputs = { type = "object", properties = { text = { type = "string", description = "The text to echo." } }, required = ["text"], additionalProperties = false }

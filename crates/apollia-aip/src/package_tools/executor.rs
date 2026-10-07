@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use super::grant::GrantedStores;
 use super::{dotted_module, PackageTool};
-use crate::bridge::cancel;
+use crate::cancel;
 use crate::context::RuntimeContext;
 
 /// The Python helpers: importing the module and finding the decorated

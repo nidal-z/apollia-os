@@ -1,13 +1,11 @@
-use std::sync::Arc;
-
 use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 fn state_in(data_dir: std::path::PathBuf) -> AppState<MockBackend> {
-    app_state(Arc::new(StemLoader { refusal: None }), data_dir)
+    app_state(data_dir)
 }
 
 /// A daemon whose data directory is a regular file: `artifacts.db` cannot

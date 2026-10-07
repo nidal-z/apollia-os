@@ -1,15 +1,12 @@
-//! Config loading, agent rewiring and the shutdown wait.
+//! Config loading, the backend of the registered agents and the shutdown wait.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::pin::Pin;
 
-use apollia_core::{ResilientReceiver, RuntimeEvent};
-use apollia_runtime::api::routes_agents::AgentBackendFactory;
-use apollia_runtime::coordinator::{DynBackend, ExecutionCoordinator};
-use apollia_runtime::eventbus::EventBusSender;
-use apollia_runtime::on_demand::{BackendLoader, OnDemandBackend};
+use apollia_core::{AIPResult, AIPTask, ResilientReceiver, RuntimeEvent, TaskStatus};
+use apollia_runtime::coordinator::ExecutionBackend;
 
-use super::factory::find_config_file;
+use super::probe::find_config_file;
 use super::StartError;
 
 /// Locates and parses `apollia.toml`, through the shared validation of
@@ -94,114 +91,34 @@ pub(super) fn resolve_tcp_port(flag: Option<u16>, api: &apollia_core::ApiConfig)
     flag.unwrap_or(api.port)
 }
 
-/// Populates a shared `OnceLock` from an optional value, ignoring the result
-/// (the lock is set at most once; a second attempt is a harmless no-op).
-pub(super) fn set_lock_if_some<T>(lock: &std::sync::OnceLock<T>, value: Option<T>) {
-    if let Some(v) = value {
-        let _ = lock.set(v);
-    }
-}
-
-/// Rewire every auto-loaded enabled agent once the factory's OnceLocks are
-/// populated, so that no task can ever reach a backend built before them.
+/// The backend of the coordinator each registered agent holds.
 ///
-/// The coordinator gets a fresh [`OnDemandBackend`]: nothing is imported
-/// here, the module of the agent is imported by its first task and released
-/// after `idle_unload` without a call. Calling `register_coordinator` is
-/// idempotent: the router replaces the existing entry in its `HashMap`.
-pub(super) async fn rewire_auto_loaded_agents(
-    repo: &apollia_tools::AgentRepository,
-    factory: &Arc<dyn AgentBackendFactory>,
-    handles: &apollia_runtime::supervisor::SupervisorHandles<DynBackend>,
-    event_sender: &EventBusSender,
-    idle_unload: std::time::Duration,
-) {
-    let installed = match repo.list_enabled() {
-        Ok(rows) => rows,
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                detail = "the rewire is skipped",
-                "agent.rewire.list.failed"
-            );
-            return;
-        }
-    };
-    let mut rewired = 0usize;
-    for agent in installed {
-        if !agent.enabled {
-            continue;
-        }
-        let agent_id = match handles
-            .registry_handle
-            .find_by_name(&agent.manifest.name)
-            .await
-        {
-            Ok(Some(id)) => id,
-            Ok(None) => {
-                tracing::debug!(
-                    name = %agent.manifest.name,
-                    reason = "the supervisor skipped the agent",
-                    "agent.rewire.absent"
-                );
-                continue;
-            }
-            Err(e) => {
-                tracing::warn!(
-                    name = %agent.manifest.name,
-                    error = %e,
-                    "agent.rewire.lookup.failed"
-                );
-                continue;
-            }
-        };
-        let loader: BackendLoader = {
-            let factory = Arc::clone(factory);
-            let install_path = agent.install_path.clone();
-            let manifest = agent.manifest.clone();
-            Arc::new(move || factory.create_for_agent(&install_path, &manifest))
-        };
-        let dyn_backend = DynBackend::new(OnDemandBackend::spawn(
-            &agent.manifest.name,
-            loader,
-            idle_unload,
-        ));
-        let mut coordinator = ExecutionCoordinator::new(
-            agent_id.clone(),
-            agent.manifest.max_concurrent_tasks,
-            event_sender.clone(),
-            dyn_backend,
-        )
-        .with_agent_name(agent.manifest.name.clone());
-        if let Some(ref task_repo) = handles.task_repository {
-            coordinator = coordinator.with_task_repository(
-                Arc::clone(task_repo),
-                apollia_core::ObservabilityConfig::default(),
-            );
-        }
-        match handles
-            .router_handle
-            .register_coordinator(agent_id.clone(), coordinator)
-            .await
-        {
-            Ok(()) => {
-                rewired += 1;
-                tracing::debug!(
-                    agent = %agent.manifest.name,
-                    "agent.rewire.done"
-                );
-            }
-            Err(e) => {
-                tracing::warn!(
-                    agent = %agent.manifest.name,
-                    error = %e,
-                    "agent.rewire.failed"
-                );
-            }
-        }
-    }
-    if rewired > 0 {
-        tracing::info!(count = rewired, "agent.rewire.completed");
+/// An agent is run by the agent executor on the access its definition and
+/// the user's overrides grant it; nothing reaches this backend on that path.
+/// A task that does reach it, sent to a coordinator directly, is answered
+/// `Failed` rather than left without an answer.
+#[derive(Clone)]
+pub(super) struct NoopBackend;
+
+impl ExecutionBackend for NoopBackend {
+    fn execute(
+        &self,
+        task: AIPTask,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
+        Box::pin(async move {
+            Ok(AIPResult {
+                task_id: task.task_id,
+                status: TaskStatus::Failed,
+                output: Vec::new(),
+                error: Some(apollia_core::AIPError {
+                    code: "NO_BACKEND".to_string(),
+                    message: "no execution backend configured for this agent".to_string(),
+                    details: None,
+                }),
+                artifacts: Vec::new(),
+                input_required_data: None,
+            })
+        })
     }
 }
 

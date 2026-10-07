@@ -151,13 +151,14 @@ fn test_override_value_shape_is_checked() {
     ));
 }
 
-// GIVEN a manifest with a system prompt, tools and data sources
-// WHEN its definition is built
+// GIVEN the manifest JSON of a row stored before definitions existed, with a
+// system prompt, tools and data sources
+// WHEN its definition is read
 // THEN the mission is the prompt, the access lists each tool once, and the
-// data sources, files the package carries, check no source
+// data sources, files the agent carried, check no source
 #[test]
-fn test_definition_from_manifest() {
-    let manifest: AgentManifest = serde_json::from_value(json!({
+fn test_definition_from_a_legacy_manifest() {
+    let manifest = json!({
         "name": "notes",
         "version": "1.0.0",
         "description": "Takes notes.",
@@ -165,10 +166,10 @@ fn test_definition_from_manifest() {
         "tools_optional": ["file_write", "file_read"],
         "system_prompt": "You keep the notes tidy.",
         "datasources": ["documents"]
-    }))
-    .unwrap();
+    })
+    .to_string();
 
-    let definition = definition_from_manifest(&manifest);
+    let definition = definition_from_legacy_manifest_json("notes", &manifest);
 
     assert_eq!(
         definition,
@@ -250,19 +251,19 @@ fn test_autonomy_override_value_is_one_of_the_four_tiers() {
 }
 
 #[test]
-fn test_definition_from_manifest_carries_the_declared_autonomy() {
-    // GIVEN a manifest the SDK built with `@agent(autonomy_level="supervised")`
-    let manifest: AgentManifest = serde_json::from_value(json!({
+fn test_definition_from_a_legacy_manifest_carries_the_declared_autonomy() {
+    // GIVEN the manifest JSON of a row that declared a tier
+    let manifest = json!({
         "name": "notes",
         "version": "1.0.0",
         "description": "Takes notes.",
         "tools_required": [],
         "autonomy_level": "supervised"
-    }))
-    .unwrap();
+    })
+    .to_string();
 
-    // WHEN its definition is built and resolved
-    let definition = definition_from_manifest(&manifest);
+    // WHEN its definition is read and resolved
+    let definition = definition_from_legacy_manifest_json("notes", &manifest);
     let mut agent = stored();
     agent.definition = definition.clone();
     let resolved = resolve(&agent, &[], None, AutonomyLevel::Assisted);
@@ -270,6 +271,32 @@ fn test_definition_from_manifest_carries_the_declared_autonomy() {
     // THEN the tier sits among the defaults and is the one the agent runs at
     assert_eq!(definition["defaults"]["autonomy"], json!("supervised"));
     assert_eq!(resolved.autonomy, AutonomyLevel::Supervised);
+}
+
+#[test]
+fn test_the_registry_manifest_of_a_stored_agent_declares_no_access() {
+    // GIVEN a stored agent with a mission, examples, an access and a tier
+    let mut agent = stored();
+    agent.definition = json!({
+        "id": agent.name,
+        "name": "Notes",
+        "mission": "You keep the notes tidy.",
+        "examples": ["File this note"],
+        "defaults": {"access": ["file_write"], "autonomy": "supervised"}
+    });
+
+    // WHEN the registry manifest is built
+    let manifest = manifest_of(&agent);
+
+    // THEN it names the agent, its version, its mission, its examples and
+    // its tier, and serialises without any key naming a tool
+    assert_eq!(manifest.name, agent.name);
+    assert_eq!(manifest.version, agent.version);
+    assert_eq!(manifest.description, "You keep the notes tidy.");
+    assert_eq!(manifest.examples, vec!["File this note".to_string()]);
+    assert_eq!(manifest.autonomy_level, Some(AutonomyLevel::Supervised));
+    let written = serde_json::to_string(&manifest).unwrap();
+    assert!(!written.contains("file_write"), "{written}");
 }
 
 #[test]

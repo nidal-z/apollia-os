@@ -9,7 +9,7 @@ use super::governance::Governance;
 use super::inference::Inference;
 use super::Core;
 use crate::supervisor::bootstrap::{agent_launcher, start_trigger_engine};
-use crate::supervisor::bundled::{auto_load_bundled_agents, validate_installed_packages};
+use crate::supervisor::bundled::validate_installed_packages;
 use crate::supervisor::persistence::open_sidechain_logger;
 
 /// What runs agents outside the chat: batches, workflows and triggers.
@@ -32,7 +32,6 @@ impl Supervisor {
         inference: &Inference,
         stores: &Stores,
         governance: &Governance,
-        agent_loader: &Arc<dyn AgentLoader>,
         agent_runner: &Option<Arc<dyn crate::chat::ChatAgentRunner>>,
     ) -> (
         Option<crate::chat::ChatSessionManagerHandle>,
@@ -69,7 +68,6 @@ impl Supervisor {
                 &chat_db_path,
                 inference.llm_router.clone(),
                 core.tool_registry_handle.clone(),
-                agent_loader.clone(),
                 agent_runner.clone(),
                 core.event_sender.clone(),
                 apollia_core::StepBudgetConfig::chat_default(),
@@ -212,28 +210,17 @@ impl Supervisor {
     }
 }
 
-/// Phases 10.5 to 11, once the runtime is ready: the bundled agents, the
-/// integrity of the installed packages, then the installed agents.
+/// Phases 10.6 to 11, once the runtime is ready: the integrity of the
+/// installed packages, then the stored agents.
 ///
 /// Takes the config pieces rather than `&Supervisor`: building `APIServer`
 /// has already moved `api_config` out of the config.
 pub(super) async fn load_agents_after_ready<
     B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>,
 >(
-    bundled_agents_path: Option<&std::path::Path>,
     package_repository: Option<&apollia_tools::PackageRepository>,
-    agent_loader: &Arc<dyn AgentLoader>,
     ctx: AutoLoadCtx<'_, B>,
 ) {
-    // Phase 10.5: Auto-install bundled agents
-    //
-    // If bundled_agents_path is configured and manifest.json is present,
-    // register each auto_install agent in the DB so Phase 11 picks them up.
-    // Agents already in the DB are skipped. Errors are logged, never fatal.
-    if let Some(repo) = ctx.agent_repository {
-        auto_load_bundled_agents(bundled_agents_path, repo, agent_loader);
-    }
-
     // Phase 10.6: Validate installed package integrity
     //
     // Lightweight check: for each installed package, verify root_path still
@@ -243,13 +230,11 @@ pub(super) async fn load_agents_after_ready<
         validate_installed_packages(pkg_repo, repo);
     }
 
-    // Phase 11: Auto-load installed agents
+    // Phase 11: make the stored agents available
     //
-    // After AllReady, register every enabled agent from the manifest its
-    // store holds, transition it to Active, and give the TaskRouter a
-    // coordinator whose backend imports the agent on its first task.
-    // Nothing is imported here. Errors are logged but never block the
-    // boot (graceful degradation).
+    // After AllReady, register every enabled stored agent and transition it
+    // to Active. An agent is a definition: nothing is imported. Errors are
+    // logged but never block the boot (graceful degradation).
     Supervisor::auto_load_installed_agents(ctx).await;
 }
 

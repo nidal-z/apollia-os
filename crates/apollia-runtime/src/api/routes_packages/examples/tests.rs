@@ -41,11 +41,9 @@ async fn test_examples_route_lists_them_and_installs_none() {
         .list()
         .unwrap()
         .is_empty());
-    assert!(AgentRepository::open(&db)
-        .unwrap()
-        .list()
-        .unwrap()
-        .is_empty());
+    let stored = AgentRepository::open(&db).unwrap().list_stored().unwrap();
+    let names: Vec<&str> = stored.iter().map(|agent| agent.name.as_str()).collect();
+    assert_eq!(names, [apollia_tools::APOLLIA_AGENT_ID]);
 }
 
 #[tokio::test]

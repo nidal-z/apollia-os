@@ -193,20 +193,14 @@ expect_eq "no planner agent row unless asked for" "0" "$base_planner"
 base_planner_trigger=$(sqlite3 "$BASE/.apollia/triggers_def.db" \
   "SELECT COUNT(*) FROM trigger_definitions WHERE id = 'seed-trigger-planner';")
 expect_eq "no planner trigger row unless asked for" "0" "$base_planner_trigger"
-if [ -e "$BASE/.apollia/agents/seed-planner" ]; then
-  ko "no planner package on disk unless asked for"
-else
-  ok "no planner package on disk unless asked for"
-fi
 
 # ---------------------------------------------------------------------------
 # GIVEN APOLLIA_SEED_PLANNER=1
 # WHEN  the seed is built
-# THEN  a fifth agent row exists, orchestrated and with a system prompt (the
-#       backend reads execution_mode and system_prompt from this row, and the
-#       orchestrated engine refuses a manifest without one), its trigger row
-#       targets it, its package is on disk at the path the row names, and the
-#       rest of the fixture is the base one
+# THEN  a fifth agent row exists, with a system prompt (its mission once the
+#       runtime has migrated the row) and an override that makes it plan
+#       always, its trigger row targets it, and the rest of the fixture is the
+#       base one
 # ---------------------------------------------------------------------------
 PLANNED="$WORK/planner"
 if env -u APOLLIA_SEED_OVERLAY APOLLIA_SEED_PLANNER=1 bash "$BUILDER" "$PLANNED" >"$WORK/planner.log" 2>&1; then
@@ -217,23 +211,18 @@ else
 fi
 planned_agents=$(sqlite3 "$PLANNED/.apollia/agents.db" "SELECT COUNT(*) FROM installed_agents;")
 expect_eq "the planner adds one agent row" "5" "$planned_agents"
-planned_orchestrated=$(sqlite3 "$PLANNED/.apollia/agents.db" \
+planned_prompted=$(sqlite3 "$PLANNED/.apollia/agents.db" \
   "SELECT COUNT(*) FROM installed_agents WHERE name = 'seed-planner' AND enabled = 1 \
-   AND manifest_json LIKE '%\"execution_mode\":\"orchestrated\"%' \
    AND manifest_json LIKE '%\"system_prompt\":\"%';")
-expect_eq "the planner row is enabled, orchestrated, with a system prompt" "1" "$planned_orchestrated"
+expect_eq "the planner row is enabled, with a system prompt" "1" "$planned_prompted"
+planned_planning=$(sqlite3 "$PLANNED/.apollia/agents.db" \
+  "SELECT value_json FROM agent_overrides WHERE agent = 'seed-planner' AND field = 'planning';")
+expect_eq "the planner plans always" '"always"' "$planned_planning"
 planned_triggers=$(sqlite3 "$PLANNED/.apollia/triggers_def.db" "SELECT COUNT(*) FROM trigger_definitions;")
 expect_eq "the planner adds one trigger row" "5" "$planned_triggers"
 planned_trigger_agent=$(sqlite3 "$PLANNED/.apollia/triggers_def.db" \
   "SELECT agent || ':' || enabled FROM trigger_definitions WHERE id = 'seed-trigger-planner';")
 expect_eq "the planner trigger targets the enabled planner" "seed-planner:1" "$planned_trigger_agent"
-planned_path=$(sqlite3 "$PLANNED/.apollia/agents.db" \
-  "SELECT install_path FROM installed_agents WHERE name = 'seed-planner';")
-if [ -f "$planned_path" ] && [ "$planned_path" = "$PLANNED/.apollia/agents/seed-planner/agent.py" ]; then
-  ok "the planner row names its agent.py under the seed home"
-else
-  ko "the planner row names its agent.py under the seed home (got '$planned_path')"
-fi
 planned_sessions=$(sqlite3 "$PLANNED/.apollia/chat.db" "SELECT COUNT(*) FROM chat_sessions;")
 expect_eq "the planner opt-in leaves the rest of the fixture alone" "4" "$planned_sessions"
 

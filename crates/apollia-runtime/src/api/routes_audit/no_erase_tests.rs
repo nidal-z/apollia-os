@@ -1,8 +1,6 @@
 //! The journal has no erase function on the API: no route under
 //! `/api/v1/audit` answers `DELETE`.
 
-use std::sync::Arc;
-
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use tower::ServiceExt;
@@ -10,7 +8,7 @@ use utoipa::OpenApi as _;
 
 use crate::api::openapi::ApiDoc;
 use crate::api::server::APIServer;
-use crate::api::test_support::{app_state, StemLoader};
+use crate::api::test_support::app_state;
 
 #[tokio::test]
 async fn test_no_audit_route_answers_delete() {
@@ -43,10 +41,7 @@ async fn test_no_audit_route_answers_delete() {
         assert!(item.delete.is_none(), "{path} documents a DELETE");
 
         // AND WHEN a DELETE is sent to it on the real router
-        let state = app_state(
-            Arc::new(StemLoader { refusal: None }),
-            dir.path().to_path_buf(),
-        );
+        let state = app_state(dir.path().to_path_buf());
         let uri: String = path
             .split('/')
             .map(|segment| {

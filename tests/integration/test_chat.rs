@@ -30,7 +30,6 @@ use apollia_llm::types::{
 };
 use apollia_llm::{CompletionModel, LlmRouter};
 use apollia_runtime::{
-    api::routes_agents::StubAgentLoader,
     api::{APIServer, APIServerConfig, APIServerHandle, AppState},
     chat::ChatSessionManagerHandle,
     coordinator::{DynBackend, ExecutionBackend},
@@ -233,7 +232,6 @@ fn build_chat_app_state(
         &db_path,
         Some(llm_router.clone()),
         tool_registry.clone(),
-        Arc::new(StubAgentLoader),
         None, // no ChatAgentRunner for libre-only tests
         event_sender.clone(),
         budget_config,
@@ -253,7 +251,6 @@ fn build_chat_app_state(
         router_handle,
         registry_handle,
         event_sender,
-        agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
@@ -266,7 +263,6 @@ fn build_chat_app_state(
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: Some(tool_registry),
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),

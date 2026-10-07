@@ -1,19 +1,14 @@
 //! The routes the attached desktop reads for the Model Hub: the installed
 //! models and the recommendation outcome, through the whole router.
 
-use std::sync::Arc;
-
 use axum::http::StatusCode;
 use tempfile::TempDir;
 
-use crate::api::test_support::{app_state, call, StemLoader};
+use crate::api::test_support::{app_state, call};
 use crate::recommendation::RecommendOutcome;
 
 fn state_in(dir: &TempDir) -> crate::api::server::AppState<crate::api::test_support::MockBackend> {
-    app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    )
+    app_state(dir.path().to_path_buf())
 }
 
 #[tokio::test]

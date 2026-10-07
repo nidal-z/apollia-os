@@ -95,10 +95,6 @@ own, and the runtime matches on the one it received.
 
 | Enum | Module | Covers |
 |---|---|---|
-| `AIPBridgeError` | `src/bridge.rs` | dispatch into a loaded agent |
-| `AIPLoaderError` | `src/loader.rs` | importing and instantiating a module |
-| `AIPValidationError` | `src/validator.rs` | manifest and tool-requirement validation |
-| `PackageLoaderError` | `src/package_loader.rs` | agent packages |
 | `ToolProxyError` | `src/context/tool_proxy.rs` | `ctx.tools` invocations |
 | `MemoryInterfaceError` | `src/memory.rs` | `ctx.memory` calls |
 | `PythonProviderError` | `src/python_provider.rs` | loading a workspace context provider written in Python |
@@ -109,18 +105,14 @@ a `PyErr` is captured into a `String` message at the point of failure so no
 
 ---
 
-## 4. Manifest extraction
+## 4. No Python object stands for an agent
 
-The decorator-built manifest is read from the
-class attribute, not by introspecting the methods at every call.
-
-The attribute is `__apollia_manifest__`, built by the `@agent` decorator, and
-the dispatch entry point the bridge requires is `__apollia_dispatch__`: an
-object without it is refused, the legacy `manifest()` plus `run()` pair is
-gone. Read them with `getattr` on a `Bound<'py, PyAny>` and map the failure
-into the module's own error, never `unwrap`.
-
-Validation runs before the agent is marked ready. Fail fast.
+An agent is data: an `[[agents]]` entry of the `apollia.toml` of its package,
+read by `apollia_tools::apollia_manifest` with a strict schema. This crate
+imports no agent module, validates no decorator and dispatches into no agent
+object. What it loads from a package is the Python the manifest declares: its
+tools and its workflows (`src/package_tools/`), each module imported on its
+first call.
 
 ---
 
@@ -164,30 +156,22 @@ When you add a method, update :
 
 ## 7. Lifecycle
 
-Agent lifecycle steps that pass through this crate :
+What passes through this crate for a package :
 
-1. **Load** : `load_agent_module` (`src/loader.rs`) imports the module and
-   returns the agent object. Fail fast into `AIPLoaderError`.
-2. **Validate** : `src/validator.rs` checks that `__apollia_manifest__` and an
-   async `__apollia_dispatch__` are present, that the manifest deserialises,
-   that `version` is semver, and that no `tools_required` entry looks like a
-   typo of a native tool, into `AIPValidationError`. It does **not** check the
-   declared secrets: `grep -in secret src/validator.rs` returns nothing, and
-   `ctx.secrets` gates on the manifest at read time instead. Do not write a
-   rule against a check this step does not perform.
-3. **Dispatch** : `AIPBridge::call_run` (`src/bridge.rs`) invokes the skill,
-   `call_on_plan_complete` the orchestrated post-processing.
+1. **Read** : `PackageTools::read` (`src/package_tools/mod.rs`) lists the tools
+   the store links to each installed package, described by its manifest.
+   Nothing is imported.
+2. **Call** : the first call of a tool imports its module, under the
+   environment of its package; a workflow runs step by step
+   (`src/package_tools/workflows.rs`).
+3. **Stop** : `src/cancel.rs` cancels the asyncio task of a running call when
+   its run is cancelled, at its next await point.
 
-There is no `activate` step and no `unload` step on the bridge: an agent's
-bridge and the objects it holds are released when the runtime drops its
-backend, after `[runtime] agent_idle_unload_secs` without a call
-(`apollia_runtime::on_demand`). The package tools are unloaded on the same
-delay by `PackageTools::unload_idle` (`src/package_tools/mod.rs`), which also
-takes their modules out of `sys.modules`. There is no cancellation path
-through the bridge: it holds no `CancellationToken`, and a running Python
-coroutine is not interrupted from the Rust side. Cancellation is enforced one
-level up, by the budget and the task status, not here. Do not write a rule
-against a step this crate does not have.
+There is no `activate` step. The modules of a package are unloaded after
+`[runtime] agent_idle_unload_secs` without a call by
+`PackageTools::unload_idle` (`src/package_tools/mod.rs`), which also takes
+them out of `sys.modules`. Do not write a rule against a step this crate does
+not have.
 
 These steps are not instrumented with a span family of their own: there is no
 `agent.aip.*` span in the crate. What exists is per-call tracing events on the
@@ -202,7 +186,7 @@ change to `docs/agents/OBSERVABILITY.md` first, then here.
   has no `tests/` directory and no fixture agent tree; do not cite one.
 - A test that touches the interpreter calls
   `pyo3::prepare_freethreaded_python()` first (`src/a2a.rs`, `src/events.rs`,
-  `src/llm.rs`, `src/loader.rs`).
+  `src/llm.rs`).
 - `#[tokio::test]` is used where the code under test is async; keep the GIL
   handling explicit inside it, and never hold the GIL across the `.await`.
 - GIVEN / WHEN / THEN, as everywhere.

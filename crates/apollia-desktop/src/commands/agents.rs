@@ -1,23 +1,20 @@
 //! Tauri IPC commands for agent management.
 //!
 //! Each command delegates to the embedded runtime handles for runtime agents
-//! and to the [`AgentRepository`] for the installed ones. The uninstall and
-//! the update are routes of the runtime. The registry, the uninstall and the
-//! update also serve a desktop attached to a daemon, through the routes of
-//! `/api/v1/agents`.
+//! and to the [`AgentRepository`] for the stored ones. The uninstall is a
+//! route of the runtime. The registry and the uninstall also serve a desktop
+//! attached to a daemon, through the routes of `/api/v1/agents`.
 
 use std::sync::Arc;
 
 use apollia_runtime::api::routes_agents::installed::merge_agent_views;
-use apollia_tools::{AgentRepository, InstalledAgent};
+use apollia_tools::{AgentRepository, StoredAgent};
 use serde::Serialize;
 use tauri::{Manager, State};
 
 use crate::attached::RuntimeLink;
 
-/// The state-changing commands live in `lifecycle`, the agent-to-agent mailbox
-/// view in `messages`.
-pub mod lifecycle;
+/// The agent-to-agent mailbox view lives in `messages`.
 pub mod messages;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,10 +24,6 @@ pub mod messages;
 /// One agent of the machine, installed agents and running ones merged. The
 /// daemon answers the same view, built by the same function.
 pub use apollia_runtime::api::routes_agents::installed::InstalledAgentView as AgentListItem;
-
-/// The answer to an update, with what happened to the live runtime instance
-/// while the agent's module was replaced. The runtime answers it.
-pub use apollia_runtime::api::routes_agents::installed::lifecycle::UpdateAgentResponse;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -45,12 +38,20 @@ fn agent_repository(
         .ok_or_else(|| "agent repository not available".to_string())
 }
 
-/// Every row of `agents.db`, read off the async threads.
-async fn installed_agents(app: &tauri::AppHandle) -> Result<Vec<InstalledAgent>, String> {
+/// Every stored agent of `agents.db` but the Apollia agent, read off the
+/// async threads.
+async fn installed_agents(app: &tauri::AppHandle) -> Result<Vec<StoredAgent>, String> {
     let repo = Arc::clone(agent_repository(app)?.inner());
     tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.list().map_err(|e| e.to_string())
+        repo.list_stored()
+            .map(|agents| {
+                agents
+                    .into_iter()
+                    .filter(|agent| !apollia_tools::is_built_in_agent(&agent.name))
+                    .collect()
+            })
+            .map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))?
@@ -141,7 +142,6 @@ fn ui_status(item: &AgentListItem) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_runtime::api::routes_agents::installed::lifecycle::restart_outcome;
 
     fn item(enabled: bool, installed: bool, runtime_status: Option<&str>) -> AgentListItem {
         AgentListItem {
@@ -153,10 +153,7 @@ mod tests {
             installed_at: installed.then(|| "2026-10-02T10:00:00Z".to_string()),
             description: None,
             tags: vec![],
-            tools_required: vec![],
-            tools_optional: vec![],
             execution_mode: None,
-            install_path: None,
             supports_a2a: false,
             skills: vec![],
             agent_type: None,
@@ -213,10 +210,7 @@ mod tests {
             installed_at: Some("2026-03-17T10:00:00Z".to_string()),
             description: Some("A test agent".to_string()),
             tags: vec!["test".to_string(), "demo".to_string()],
-            tools_required: vec!["bash".to_string()],
-            tools_optional: vec!["file_io".to_string()],
             execution_mode: Some("auto".to_string()),
-            install_path: Some("/home/user/.apollia/agents/hello-agent/agent.py".to_string()),
             supports_a2a: true,
             skills: vec![],
             agent_type: Some("assistant".to_string()),
@@ -240,7 +234,10 @@ mod tests {
         assert_eq!(json["installed_at"], "2026-03-17T10:00:00Z");
         assert_eq!(json["description"], "A test agent");
         assert_eq!(json["tags"], serde_json::json!(["test", "demo"]));
-        assert_eq!(json["tools_required"], serde_json::json!(["bash"]));
+        assert!(
+            json.get("tools_required").is_none(),
+            "no access is declared here"
+        );
         assert_eq!(json["execution_mode"], "auto");
     }
 
@@ -257,10 +254,7 @@ mod tests {
             installed_at: Some("2026-03-17T09:00:00Z".to_string()),
             description: None,
             tags: vec![],
-            tools_required: vec![],
-            tools_optional: vec![],
             execution_mode: Some("direct".to_string()),
-            install_path: Some("/home/user/.apollia/agents/disabled-agent/agent.py".to_string()),
             supports_a2a: false,
             skills: vec![],
             agent_type: None,
@@ -296,10 +290,7 @@ mod tests {
             installed_at: None,
             description: Some("Ephemeral agent".to_string()),
             tags: vec![],
-            tools_required: vec![],
-            tools_optional: vec![],
             execution_mode: Some("auto".to_string()),
-            install_path: None,
             supports_a2a: false,
             skills: vec![],
             agent_type: None,
@@ -317,65 +308,9 @@ mod tests {
         // THEN installed_at is null
         assert!(json["installed_at"].is_null());
         assert_eq!(json["runtime_status"], "active");
-        assert!(json["install_path"].is_null());
-    }
-
-    #[test]
-    fn test_update_agent_response_reports_a_completed_restart() {
-        // GIVEN an update that cycled the running agent
-        let resp = UpdateAgentResponse {
-            name: "mon-agent".to_string(),
-            version: "2.0.0".to_string(),
-            install_path: "/home/user/.apollia/agents/mon-agent/agent.py".to_string(),
-            restart_outcome: restart_outcome::RESTARTED.to_string(),
-            restart_error: None,
-        };
-
-        // WHEN serialized for the window
-        let json = serde_json::to_value(&resp).expect("serialize");
-
-        // THEN the outcome is explicit and no cause is carried
-        assert_eq!(json["restart_outcome"], "restarted");
-        assert!(json["restart_error"].is_null());
-        assert_eq!(json["version"], "2.0.0");
-    }
-
-    #[test]
-    fn test_update_agent_response_keeps_the_restart_cause() {
-        // GIVEN an update whose restart failed after the stop
-        let resp = UpdateAgentResponse {
-            name: "mon-agent".to_string(),
-            version: "2.0.0".to_string(),
-            install_path: "/home/user/.apollia/agents/mon-agent/agent.py".to_string(),
-            restart_outcome: restart_outcome::START_FAILED.to_string(),
-            restart_error: Some("tool resolution failed: missing bash".to_string()),
-        };
-
-        // WHEN serialized for the window
-        let json = serde_json::to_value(&resp).expect("serialize");
-
-        // THEN the raw cause survives the boundary, it is what the operator acts on
-        assert_eq!(json["restart_outcome"], "start_failed");
-        assert_eq!(
-            json["restart_error"],
-            "tool resolution failed: missing bash"
+        assert!(
+            json.get("install_path").is_none(),
+            "an agent has no code to locate"
         );
-    }
-
-    #[test]
-    fn test_restart_outcome_constants_are_distinct() {
-        // GIVEN the four outcomes the window switches on
-        let all = [
-            restart_outcome::NOT_RUNNING,
-            restart_outcome::RESTARTED,
-            restart_outcome::STOP_FAILED,
-            restart_outcome::START_FAILED,
-        ];
-
-        // WHEN collected into a set
-        let unique: std::collections::HashSet<&str> = all.iter().copied().collect();
-
-        // THEN none collapses onto another
-        assert_eq!(unique.len(), all.len());
     }
 }

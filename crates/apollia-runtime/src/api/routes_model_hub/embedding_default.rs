@@ -120,22 +120,16 @@ pub async fn set_embedding_default<B: ExecutionBackend + Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
 
     use axum::http::StatusCode;
 
-    use crate::api::test_support::{app_state, call, StemLoader};
+    use crate::api::test_support::{app_state, call};
 
     #[tokio::test]
     async fn test_the_default_is_absent_then_set_then_read_back() {
         // GIVEN a runtime on an empty data directory
         let tmp = tempfile::tempdir().expect("tempdir");
-        let state = || {
-            app_state(
-                Arc::new(StemLoader { refusal: None }),
-                tmp.path().to_path_buf(),
-            )
-        };
+        let state = || app_state(tmp.path().to_path_buf());
 
         // WHEN the default is read, set to a registry entry, and read again
         let (before_status, before) =
@@ -163,10 +157,7 @@ mod tests {
     async fn test_a_model_outside_the_registry_is_refused() {
         // GIVEN a runtime on an empty data directory
         let tmp = tempfile::tempdir().expect("tempdir");
-        let state = app_state(
-            Arc::new(StemLoader { refusal: None }),
-            tmp.path().to_path_buf(),
-        );
+        let state = app_state(tmp.path().to_path_buf());
 
         // WHEN a chat model is set as the embeddings default
         let (status, body) = call(

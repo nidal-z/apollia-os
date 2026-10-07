@@ -1,28 +1,19 @@
-//! Agent packages installed from a folder: an `agent.toml` and the `.py` it
-//! declares, copied under `<data_dir>/agents/packages/<name>/`.
+//! The installed packages of the machine, as the library shows them.
 //!
-//! The listing, the detail, the preview, the installation and the removal
-//! live here so that the desktop running the runtime in its own process and
-//! the daemon `apollia-os start` serve them alike, under
-//! `/api/v1/agent-packages/` (`crate::api::routes_agent_packages`). The
-//! signed `.apo` archives are [`crate::packages`]'.
-//!
-//! The installation copies the folder, builds one virtualenv per agent that
-//! declares Python dependencies, imports each agent through the
-//! [`AgentLoader`](crate::api::routes_agents::AgentLoader) with that
-//! virtualenv on `sys.path`, records the agents and the package, and writes
-//! the package's triggers. The removal is the one every package takes
-//! ([`crate::packages::uninstall_package`]).
+//! The listing and the detail live here so that the desktop running the
+//! runtime in its own process and the daemon `apollia-os start` serve them
+//! alike, under `/api/v1/agent-packages/`
+//! (`crate::api::routes_agent_packages`). A package is installed from a
+//! signed or unsigned `.apo` archive by [`crate::packages`], and removed by
+//! [`crate::packages::uninstall_package`].
 
 mod content;
-mod install;
 
 #[cfg(test)]
 mod tests;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use apollia_tools::agent_package::{validate_manifest, PackageManifest};
 use apollia_tools::{InstalledPackage, PackageRepository, TrustedKeyRepository};
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +21,6 @@ pub use content::{
     AgentPackageAutomation, AgentPackageContent, AgentPackageCounts, AgentPackageItem,
     AgentPackageRequirement, AgentPackageSignature, AgentPackageTool,
 };
-pub use install::{install, InstallRequest, Installed};
 
 /// Longest package or agent name accepted: it becomes a folder name.
 const MAX_NAME_LEN: usize = 128;
@@ -45,21 +35,6 @@ pub enum AgentPackageError {
     /// A package or agent name that cannot name a folder.
     #[error("invalid name '{0}': empty, too long, or a path")]
     InvalidName(String),
-    /// The `agent.toml` of the folder cannot be read or parsed.
-    #[error("{0}")]
-    Manifest(String),
-    /// The package installs Python dependencies the caller has not confirmed.
-    /// The text is the one the interface parses: `DEPS_CONFIRMATION_REQUIRED`,
-    /// their count, then their list.
-    #[error("DEPS_CONFIRMATION_REQUIRED:{}:{}", .packages.len(), .packages.join(","))]
-    DepsConfirmationRequired {
-        /// The requirements, as the package declares them.
-        packages: Vec<String>,
-    },
-    /// The copy, a virtualenv, or the import of an agent failed; everything
-    /// the installation created has been removed.
-    #[error("{0}")]
-    Install(String),
     /// `agents.db` failed.
     #[error("database error: {0}")]
     Store(String),
@@ -68,42 +43,8 @@ pub enum AgentPackageError {
 /// An agent of a package.
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct AgentPackageAgent {
-    /// Agent name.
+    /// Agent name, as the manifest recorded at installation gives it.
     pub name: String,
-    /// `director`, `worker` or `assistant`.
-    pub role: String,
-    /// Entry point, relative to the package folder.
-    pub entry: String,
-}
-
-/// A trigger a package declares, as the preview shows it.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct AgentPackageTrigger {
-    /// Trigger identifier.
-    pub id: String,
-    /// `cron`, `interval`, `oneshot`, `file_watch` or `webhook`.
-    pub source_type: String,
-    /// The agent it starts.
-    pub agent: String,
-    /// Cron expression (cron triggers).
-    pub schedule: Option<String>,
-    /// Interval (interval triggers).
-    pub every: Option<String>,
-    /// Watched path (file_watch triggers).
-    pub path: Option<String>,
-    /// A webhook without its secret: the user gives one at install.
-    pub needs_config: bool,
-    /// Whether it starts enabled.
-    pub enabled: bool,
-}
-
-/// What the user gives a trigger at install, a webhook secret for now.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct AgentPackageTriggerConfig {
-    /// Trigger identifier.
-    pub id: String,
-    /// HMAC secret of a webhook.
-    pub secret: Option<String>,
 }
 
 /// An installed package in the listing.
@@ -169,102 +110,6 @@ pub struct AgentPackageDetail {
     pub automations: Vec<AgentPackageAutomation>,
 }
 
-/// What a package folder contains, read without writing anything.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct AgentPackagePreview {
-    /// Package name.
-    pub name: String,
-    /// Version.
-    pub version: String,
-    /// Description.
-    pub description: String,
-    /// Author.
-    pub author: String,
-    /// Its agents; empty when the manifest is invalid.
-    pub agents: Vec<AgentPackageAgent>,
-    /// Its triggers; empty when the manifest is invalid.
-    pub triggers: Vec<AgentPackageTrigger>,
-    /// Number of triggers.
-    pub trigger_count: usize,
-    /// The Python dependencies it installs, every agent together.
-    pub pip_packages: Vec<String>,
-    /// The manifest holds its invariants.
-    pub valid: bool,
-    /// Why it does not, when it does not.
-    pub error: Option<String>,
-}
-
-/// What an installation did.
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct AgentPackageInstallReport {
-    /// Package name.
-    pub name: String,
-    /// Installed version.
-    pub version: String,
-    /// Agents recorded.
-    pub agent_count: usize,
-    /// Triggers written.
-    pub trigger_count: usize,
-    /// Triggers refused, one line each.
-    pub trigger_errors: Vec<String>,
-}
-
-/// The `[[triggers]]` of a manifest, read leniently: no semantic validation.
-#[derive(Deserialize)]
-struct RawTriggers {
-    #[serde(default)]
-    triggers: Vec<RawTrigger>,
-}
-
-#[derive(Deserialize)]
-struct RawTrigger {
-    id: String,
-    #[serde(default)]
-    agent: String,
-    #[serde(default = "enabled_by_default")]
-    enabled: bool,
-    #[serde(default)]
-    source: RawSource,
-}
-
-#[derive(Deserialize, Default)]
-struct RawSource {
-    #[serde(rename = "type", default)]
-    kind: String,
-    schedule: Option<String>,
-    every: Option<String>,
-    path: Option<String>,
-    secret: Option<String>,
-}
-
-fn enabled_by_default() -> bool {
-    true
-}
-
-fn trigger_previews(toml_str: &str) -> Vec<AgentPackageTrigger> {
-    let Ok(raw) = toml::from_str::<RawTriggers>(toml_str) else {
-        return Vec::new();
-    };
-    raw.triggers
-        .into_iter()
-        .map(|t| AgentPackageTrigger {
-            needs_config: t.source.kind == "webhook"
-                && t.source.secret.as_deref().unwrap_or("").is_empty(),
-            id: t.id,
-            source_type: if t.source.kind.is_empty() {
-                "cron".to_owned()
-            } else {
-                t.source.kind
-            },
-            agent: t.agent,
-            schedule: t.source.schedule,
-            every: t.source.every,
-            path: t.source.path,
-            enabled: t.enabled,
-        })
-        .collect()
-}
-
 /// Refuses a name that cannot name one folder under the data directory.
 pub(crate) fn check_name(name: &str) -> Result<(), AgentPackageError> {
     let bad = name.is_empty()
@@ -284,11 +129,6 @@ pub(crate) fn open_packages(data_dir: &Path) -> Result<PackageRepository, AgentP
     PackageRepository::open(&db).map_err(|e| AgentPackageError::Store(e.to_string()))
 }
 
-/// Where the installation copies the package `name`.
-pub(crate) fn install_root(data_dir: &Path, name: &str) -> PathBuf {
-    data_dir.join("agents").join("packages").join(name)
-}
-
 fn str_at<'a>(value: &'a serde_json::Value, key: &str) -> &'a str {
     value
         .get(key)
@@ -305,8 +145,6 @@ fn recorded_agents(manifest: &serde_json::Value) -> Vec<AgentPackageAgent> {
                 .iter()
                 .map(|a| AgentPackageAgent {
                     name: str_at(a, "name").to_owned(),
-                    role: str_at(a, "role").to_owned(),
-                    entry: str_at(a, "entry").to_owned(),
                 })
                 .collect()
         })
@@ -452,57 +290,4 @@ pub fn automations_of(
                 .map(|target| AgentPackageAutomation { id, target })
         })
         .collect()
-}
-
-/// What the package folder `root` contains. Nothing is written.
-///
-/// A manifest that parses but breaks an invariant answers a preview marked
-/// invalid, with the reason.
-///
-/// # Errors
-///
-/// [`AgentPackageError::Manifest`] when `agent.toml` cannot be read or parsed.
-pub fn preview(root: &Path) -> Result<AgentPackagePreview, AgentPackageError> {
-    let toml_str = std::fs::read_to_string(root.join("agent.toml"))
-        .map_err(|e| AgentPackageError::Manifest(format!("cannot read agent.toml: {e}")))?;
-    let manifest: PackageManifest = toml::from_str(&toml_str)
-        .map_err(|e| AgentPackageError::Manifest(format!("invalid TOML: {e}")))?;
-
-    if let Err(e) = validate_manifest(&manifest) {
-        return Ok(AgentPackagePreview {
-            name: manifest.package.name,
-            version: manifest.package.version,
-            description: manifest.package.description,
-            author: manifest.package.author,
-            agents: Vec::new(),
-            triggers: Vec::new(),
-            trigger_count: 0,
-            pip_packages: Vec::new(),
-            valid: false,
-            error: Some(e.to_string()),
-        });
-    }
-
-    let triggers = trigger_previews(&toml_str);
-    let agents = manifest
-        .agents
-        .iter()
-        .map(|a| AgentPackageAgent {
-            name: a.name.clone(),
-            role: a.role.clone(),
-            entry: a.entry.clone(),
-        })
-        .collect();
-    Ok(AgentPackagePreview {
-        pip_packages: manifest.all_pip_packages(),
-        name: manifest.package.name,
-        version: manifest.package.version,
-        description: manifest.package.description,
-        author: manifest.package.author,
-        agents,
-        trigger_count: triggers.len(),
-        triggers,
-        valid: true,
-        error: None,
-    })
 }

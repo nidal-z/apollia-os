@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
 use apollia_sources::{CheckedSource, SourceRegistryHandle};
 use apollia_tools::{AgentOrigin, AgentRepository, StoredAgent};
 use axum::http::StatusCode;
 use serde_json::json;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::audit_journal::AuditJournalHandle;
 
 const KEY: &[u8] = b"sources-routes-journal-key-00001";
@@ -15,10 +13,7 @@ const KEY: &[u8] = b"sources-routes-journal-key-00001";
 /// governance that records through it, and one stored agent, `veille`,
 /// declaring no source, when `agent` is set.
 async fn state(dir: &tempfile::TempDir, agent: bool) -> AppState<MockBackend> {
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.source_registry =
         Some(SourceRegistryHandle::open(&dir.path().join("system.db")).unwrap());
     if agent {
@@ -131,10 +126,7 @@ async fn test_a_mailbox_without_reference_and_an_unknown_kind_are_refused() {
 async fn test_without_a_registry_the_routes_answer_503() {
     // GIVEN a runtime holding no source registry
     let dir = tempfile::tempdir().unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN the registry is listed
     let (status, body) = call(state, "GET", "/api/v1/sources", None).await;

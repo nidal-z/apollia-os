@@ -86,7 +86,6 @@ pub mod explain;
 pub mod fuzzy;
 pub mod guide;
 pub mod hooks;
-pub mod inspect;
 pub mod llm;
 pub mod logs;
 pub mod mcp;

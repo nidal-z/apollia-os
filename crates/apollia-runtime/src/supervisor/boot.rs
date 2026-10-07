@@ -37,8 +37,6 @@ impl Supervisor {
     pub async fn start<B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>>(
         mut self,
         backend: B,
-        agent_loader: Arc<dyn AgentLoader>,
-        backend_factory: Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
         agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
     ) -> Result<SupervisorHandles<B>, SupervisorError> {
         let timeout = Duration::from_secs(self.config.startup_timeout_secs);
@@ -162,14 +160,8 @@ impl Supervisor {
         let stores = self.open_stores(&core.event_sender).await?;
 
         // Phase 14: ChatSessionManager.
-        let (chat_manager, a2a_invoker) = self.start_chat(
-            &core,
-            &inference,
-            &stores,
-            &governance,
-            &agent_loader,
-            &agent_runner,
-        );
+        let (chat_manager, a2a_invoker) =
+            self.start_chat(&core, &inference, &stores, &governance, &agent_runner);
         if let Some(chat) = chat_manager.as_ref() {
             chat.follow_config(config_feed.clone()).await;
         }
@@ -178,8 +170,6 @@ impl Supervisor {
         let stt = self.start_stt(&inference, &core.event_sender).await;
 
         // Clone handles before moving into AppState, needed for auto-load.
-        let agent_loader_for_autoload = agent_loader.clone();
-        let backend_factory_for_autoload = backend_factory.clone();
         let backend_for_autoload = backend.clone();
 
         // The agent executor, batches, workflows, then phase 6b: TriggerEngine.
@@ -217,9 +207,7 @@ impl Supervisor {
             &executors,
             &chat_manager,
             servers::StateOwned {
-                agent_loader,
                 backend,
-                backend_factory,
                 batches,
                 a2a_invoker,
                 resilience: shared_resilience_layer,
@@ -256,22 +244,17 @@ impl Supervisor {
         // Non-blocking, the runtime is fully operational regardless of the result.
         emit_onboarding_if_needed(stores.user_memory.as_ref(), &core.event_sender);
 
-        // Phases 10.5 to 11: bundled agents, package integrity, installed agents.
+        // Phases 10.6 to 11: package integrity, then the stored agents.
         agents::load_agents_after_ready(
-            self.config.bundled_agents_path.as_deref(),
             self.config.package_repository.as_ref(),
-            &agent_loader_for_autoload,
             AutoLoadCtx {
-                backend_factory: &backend_factory_for_autoload,
                 base_backend: &backend_for_autoload,
                 registry_handle: &core.registry_handle,
                 router_handle: &core.router_handle,
                 event_sender: &core.event_sender,
                 task_repository: stores.task_repository.as_ref(),
                 agent_repository: self.config.agent_repository.as_ref(),
-                data_dir: &self.config.data_dir,
                 obs_config: &config_feed.observability,
-                idle_unload: Duration::from_secs(self.config.runtime_config.agent_idle_unload_secs),
             },
         )
         .await;

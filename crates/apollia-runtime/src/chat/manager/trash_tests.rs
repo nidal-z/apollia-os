@@ -8,7 +8,6 @@ use apollia_core::{RuntimeEvent, StepBudgetConfig};
 use apollia_mcp::session::LoadingMode;
 use apollia_tools::ToolRegistryHandle;
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::chat::manager::{ChatSessionManagerHandle, CreateSessionParams};
 use crate::chat::repository::{AppendMessageParams, ChatSessionRepository};
 use crate::chat::types::{ChatError, ChatMode, ChatRole};
@@ -24,7 +23,6 @@ fn spawn(
         &dir.path().join("chat.db"),
         Some(Arc::new(apollia_llm::LlmRouter::empty())),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         event_tx.clone(),
         StepBudgetConfig::default(),

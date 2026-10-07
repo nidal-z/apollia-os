@@ -1,7 +1,6 @@
 //! The package routes through the whole router.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use apollia_tools::apo_archive::{build_from_dir, BuildOptions, SigningKeyPair};
 use apollia_tools::{AgentRepository, PackageRepository};
@@ -10,7 +9,7 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::audit_journal::{AuditJournalHandle, JournalEntryKind};
 use crate::governance::{governance_run_id, package_run_id};
 
@@ -71,10 +70,7 @@ pub(super) async fn state(
     dir: &TempDir,
     journal: bool,
 ) -> (AppState<MockBackend>, Option<AuditJournalHandle>) {
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     let handle = if journal {
         let handle =
             AuditJournalHandle::open_with_key_bytes(&dir.path().join("journal.db"), KEY.to_vec())

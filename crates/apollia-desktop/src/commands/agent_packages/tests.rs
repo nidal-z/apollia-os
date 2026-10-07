@@ -8,11 +8,9 @@ use crate::attached::{gate, AttachedClient, LinkMode};
 const TOKEN: &str = "token-of-this-installation";
 
 /// The five commands of the agent packages.
-const PACKAGE_COMMANDS: [&str; 5] = [
+const PACKAGE_COMMANDS: [&str; 3] = [
     "get_agent_package_detail",
-    "install_agent_package",
     "list_agent_packages",
-    "preview_agent_package",
     "uninstall_agent_package",
 ];
 
@@ -170,93 +168,6 @@ async fn test_the_detail_of_a_package_is_read_from_the_daemon() {
     assert_eq!(package.content.tools[0].family, "read");
     assert_eq!(package.content.connections_required[0].kind, "gmail");
     assert_eq!(package.automations[0].id, "daily");
-}
-
-#[tokio::test]
-async fn test_a_folder_is_previewed_by_the_daemon_and_an_unreadable_one_refused() {
-    // GIVEN a daemon that previews one folder and cannot read another
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/v1/agent-packages/preview"))
-        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
-        .and(body_json(json!({ "path": "/pkgs/veille" })))
-        .respond_with(ok(json!({
-            "name": "veille", "version": "1.2.0", "description": "", "author": "",
-            "agents": [], "triggers": [], "trigger_count": 0,
-            "pip_packages": ["httpx>=0.27"], "valid": true, "error": null,
-        })))
-        .expect(1)
-        .mount(&server)
-        .await;
-    Mock::given(method("POST"))
-        .and(path("/api/v1/agent-packages/preview"))
-        .and(body_json(json!({ "path": "/pkgs/none" })))
-        .respond_with(refused(400, "cannot read agent.toml: No such file"))
-        .expect(1)
-        .mount(&server)
-        .await;
-    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
-
-    // WHEN the attached arm previews both
-    let preview_ok = preview(&link, "/pkgs/veille").await.unwrap();
-    let error = preview(&link, "/pkgs/none").await.unwrap_err();
-
-    // THEN the preview is the daemon's, and the refusal its message
-    assert!(preview_ok.valid);
-    assert_eq!(preview_ok.pip_packages, vec!["httpx>=0.27".to_owned()]);
-    assert_eq!(error, "cannot read agent.toml: No such file");
-}
-
-#[tokio::test]
-async fn test_an_install_posts_the_folder_the_secrets_and_the_consent() {
-    // GIVEN a daemon installing a folder with a webhook secret and consent
-    let secret = AgentPackageTriggerConfig {
-        id: "inbound".to_owned(),
-        secret: Some("s3cret".to_owned()),
-    };
-    let (_server, link) = daemon(
-        "POST",
-        "/api/v1/agent-packages/installed",
-        Some(json!({
-            "path": "/pkgs/veille",
-            "trigger_configs": [{ "id": "inbound", "secret": "s3cret" }],
-            "deps_confirmed": true,
-        })),
-        ResponseTemplate::new(201).set_body_json(json!({
-            "name": "veille", "version": "1.2.0", "agent_count": 1,
-            "trigger_count": 2, "trigger_errors": [],
-        })),
-    )
-    .await;
-
-    // WHEN the attached arm installs it
-    let report = install(&link, "/pkgs/veille", &[secret], true)
-        .await
-        .unwrap();
-
-    // THEN the daemon's report comes back
-    assert_eq!(report.agent_count, 1);
-    assert_eq!(report.trigger_count, 2);
-}
-
-#[tokio::test]
-async fn test_unconfirmed_dependencies_come_back_as_the_text_the_dialog_parses() {
-    // GIVEN a daemon refusing an install whose dependencies are not confirmed
-    let (_server, link) = daemon(
-        "POST",
-        "/api/v1/agent-packages/installed",
-        None,
-        refused(428, "DEPS_CONFIRMATION_REQUIRED:1:httpx>=0.27"),
-    )
-    .await;
-
-    // WHEN the attached arm installs without consent
-    let error = install(&link, "/pkgs/veille", &[], false)
-        .await
-        .unwrap_err();
-
-    // THEN the error is the daemon's text, untouched
-    assert_eq!(error, "DEPS_CONFIRMATION_REQUIRED:1:httpx>=0.27");
 }
 
 #[tokio::test]

@@ -171,11 +171,8 @@ def placeholder_for(name: str) -> str:
 
 
 def expand(tokens: list[str], run_dir: Path, home: Path) -> list[str]:
-    agent_dir = home / ".apollia/agents/seed-classifier"
     return [
-        t.replace("@RUN_DIR@", str(run_dir))
-        .replace("@SEED_HOME@", str(home))
-        .replace("@SEED_AGENT_DIR@", str(agent_dir))
+        t.replace("@RUN_DIR@", str(run_dir)).replace("@SEED_HOME@", str(home))
         for t in tokens
     ]
 

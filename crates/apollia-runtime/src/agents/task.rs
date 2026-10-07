@@ -60,8 +60,7 @@ pub enum AgentResolveError {
 }
 
 /// The agent `name` as resolved, when it is stored in `agents.db` under
-/// `data_dir` and runs no code, with its model read from `models`. `None` for
-/// an agent that runs code and for an unknown name.
+/// `data_dir`, with its model read from `models`. `None` for an unknown name.
 ///
 /// # Errors
 ///
@@ -77,13 +76,6 @@ pub fn resolve_without_code(
     }
     let repo = apollia_tools::AgentRepository::open(&path)
         .map_err(|e| AgentResolveError::Agents(e.to_string()))?;
-    let runs_code = repo
-        .get(name)
-        .map_err(|e| AgentResolveError::Agents(e.to_string()))?
-        .is_some();
-    if runs_code {
-        return Ok(None);
-    }
     let model = match models {
         Some(models) => models
             .agent_model(name)
@@ -94,9 +86,9 @@ pub fn resolve_without_code(
         .map_err(|e| AgentResolveError::Agents(e.to_string()))
 }
 
-/// The agent without code `agent`, resolved now from the stores under
-/// `data_dir` as [`resolve_runnable`] reads them, enabled or not; `None` for
-/// an agent that runs code and for an unknown name.
+/// The stored agent `agent`, resolved now from the stores under `data_dir`
+/// as [`resolve_runnable`] reads them, enabled or not; `None` for an unknown
+/// name.
 ///
 /// # Errors
 ///
@@ -119,16 +111,16 @@ pub async fn resolve_stored(
     .map_err(|e| e.to_string())?
 }
 
-/// The enabled agent without code `agent`, resolved now from the stores
-/// under `data_dir`, so that a run reads the overrides and the model in force
-/// when it starts. The stores are opened for the occasion, as the CLI opens
-/// them: no lock is shared. `runner` names what refuses an agent that runs
-/// code or is unknown (`a batch`, `a workflow step`).
+/// The enabled stored agent `agent`, resolved now from the stores under
+/// `data_dir`, so that a run reads the overrides and the model in force when
+/// it starts. The stores are opened for the occasion, as the CLI opens them:
+/// no lock is shared. `runner` names what refuses an unknown agent (`a
+/// batch`, `a workflow step`).
 ///
 /// # Errors
 ///
 /// A message for a store that cannot be read, a disabled agent, or an agent
-/// that is not a stored agent without code.
+/// that is not stored.
 pub async fn resolve_runnable(
     data_dir: std::path::PathBuf,
     agent: &str,
@@ -138,7 +130,7 @@ pub async fn resolve_runnable(
         Some(agent) if agent.enabled => Ok(agent),
         Some(agent) => Err(format!("agent '{}' is disabled", agent.id)),
         None => Err(format!(
-            "agent '{agent}' is not a stored agent without code, which is what {runner} runs"
+            "agent '{agent}' is not a stored agent, which is what {runner} runs"
         )),
     }
 }

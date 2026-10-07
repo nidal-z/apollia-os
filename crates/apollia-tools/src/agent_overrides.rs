@@ -111,10 +111,33 @@ impl AgentRepository {
         Ok(changed > 0)
     }
 
-    // TEST-ONLY: an update of an agent that runs code goes through
-    // `AgentRepository::save`, which replaces the definition and keeps the
-    // overrides the same way; no production path updates a declarative agent
-    // yet.
+    // TEST-ONLY: no production path writes the code columns any more; the
+    // versions that ran an agent's Python did. A test of what becomes of
+    // such a row (adoption by a package, removal of its folder) needs one.
+    /// Stores `agent` as a version that ran its Python stored it: the row
+    /// carries where its code was installed.
+    ///
+    /// # Errors
+    ///
+    /// [`AgentRepositoryError::NameOfAWorkflow`] or
+    /// [`AgentRepositoryError::Sqlite`].
+    pub fn save_as_code_row(
+        &self,
+        agent: &StoredAgent,
+        install_path: &std::path::Path,
+    ) -> Result<(), AgentRepositoryError> {
+        self.save_definition(agent)?;
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let path = install_path.to_string_lossy();
+        conn.execute(
+            "UPDATE agents SET install_path = ?2, source_path = ?2 WHERE name = ?1",
+            params![&agent.name, path.as_ref()],
+        )?;
+        Ok(())
+    }
+
+    // TEST-ONLY: a package update replaces a definition through the install
+    // of the package; no production path replaces one on its own.
     /// Replaces the definition of `name` with the one of `version`, as an
     /// update does. The overrides are kept.
     ///

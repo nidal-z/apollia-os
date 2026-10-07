@@ -14,20 +14,20 @@ class StartAgentRequest:
     """Request body for `POST /api/v1/agents`.
 
     Attributes:
-        agent_path (str): Path to the agent Python module.
+        agent (str): Identifier of the stored agent to make available.
     """
 
-    agent_path: str
+    agent: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        agent_path = self.agent_path
+        agent = self.agent
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "agent_path": agent_path,
+                "agent": agent,
             }
         )
 
@@ -36,10 +36,10 @@ class StartAgentRequest:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        agent_path = d.pop("agent_path")
+        agent = d.pop("agent")
 
         start_agent_request = cls(
-            agent_path=agent_path,
+            agent=agent,
         )
 
         start_agent_request.additional_properties = d

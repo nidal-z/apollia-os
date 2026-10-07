@@ -208,12 +208,11 @@ pub async fn list_task_summaries<B: ExecutionBackend + Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
 
     use axum::http::StatusCode;
 
     use super::*;
-    use crate::api::test_support::{app_state, call, StemLoader};
+    use crate::api::test_support::{app_state, call};
 
     #[test]
     fn test_a_stored_row_is_kept_by_its_agent_name_and_status() {
@@ -250,10 +249,7 @@ mod tests {
     async fn test_the_summaries_route_answers_the_view_without_a_store() {
         // GIVEN a daemon without a task store and no task submitted
         let data = tempfile::tempdir().unwrap();
-        let state = app_state(
-            Arc::new(StemLoader { refusal: None }),
-            data.path().to_path_buf(),
-        );
+        let state = app_state(data.path().to_path_buf());
 
         // WHEN the view is read through the router, filter included
         let (status, body) =

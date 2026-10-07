@@ -143,7 +143,6 @@ fn make_manifest_with_approval(tools: &[&str]) -> AgentManifest {
         "name": "hitl-test-agent",
         "version": "0.1.0",
         "description": "HITL integration test agent",
-        "tools_required": [],
         "tools_requiring_approval": tools_json
     }))
     .expect("manifest must deserialize")

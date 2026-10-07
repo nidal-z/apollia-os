@@ -51,18 +51,6 @@ pub enum RuntimeEvent {
     /// Shutdown requested (SIGTERM or CLI command).
     ShutdownRequested,
 
-    /// Loading an installed agent failed.
-    ///
-    /// An agent is loaded by its first task, not at boot: this is emitted by
-    /// the backend factory when the module of the agent cannot be loaded.
-    /// The task fails, the runtime continues (graceful degradation).
-    AgentLoadFailed {
-        /// Name of the agent that failed to load.
-        name: String,
-        /// Error message detailing the cause of the failure.
-        error: String,
-    },
-
     /// An agent was installed permanently.
     AgentInstalled {
         /// Unique name of the installed agent.

@@ -150,23 +150,23 @@ pub(in crate::commands::agent) fn format_status_snapshot(
     }
 }
 
-/// Load a detailed snapshot of an installed agent from `agents.db`, bypassing
+/// Load a detailed snapshot of a stored agent from `agents.db`, bypassing
 /// the runtime registry. Returned as a JSON value so it can be either pretty-
 /// printed via `format_local_agent_detail` or emitted verbatim with `--json`.
 pub(in crate::commands::agent) fn local_agent_detail(agent_id: &str) -> Option<serde_json::Value> {
     let repo = open_repository()?;
-    let entry = repo.get(agent_id).ok().flatten()?;
+    let entry = repo.stored(agent_id).ok().flatten()?;
+    let manifest = apollia_tools::manifest_of(&entry);
     let body = serde_json::json!({
         "agent_id": null,
         "name": entry.name,
         "version": entry.version,
         "state": if entry.enabled { "stopped" } else { "disabled" },
-        "supports_a2a": entry.manifest.supports_a2a,
-        "skills": entry.manifest.skills,
-        "manifest": entry.manifest,
-        "install_path": entry.install_path,
+        "supports_a2a": manifest.supports_a2a,
+        "skills": manifest.skills,
+        "manifest": manifest,
         "installed_at": entry.installed_at,
-        "_source": "local agents.db (runtime registry has no live entry - agent is disabled or failed to load)",
+        "_source": "local agents.db (runtime registry has no live entry - agent is disabled or stopped)",
     });
     Some(body)
 }
@@ -185,14 +185,9 @@ fn format_local_agent_detail(detail: &serde_json::Value) {
         .get("installed_at")
         .and_then(|v| v.as_str())
         .unwrap_or("?");
-    let install_path = detail
-        .get("install_path")
-        .and_then(|v| v.as_str())
-        .unwrap_or("?");
     println!("  Name         : {name}");
     println!("  Version      : {version}");
     println!("  State        : {state}  (from local agents.db; not running in registry)");
-    println!("  Install path : {install_path}");
     println!("  Installed at : {installed_at}");
     if let Some(manifest) = detail.get("manifest") {
         if let Some(skills) = manifest.get("skills").and_then(|s| s.as_array()) {
@@ -205,47 +200,15 @@ fn format_local_agent_detail(detail: &serde_json::Value) {
                 }
             }
         }
-        if let Some(tools) = manifest.get("tools_required").and_then(|t| t.as_array()) {
-            let names: Vec<&str> = tools.iter().filter_map(|v| v.as_str()).collect();
-            if !names.is_empty() {
-                println!("  Tools (required) : {}", names.join(", "));
-            }
-        }
     }
     note!(
         "  Hint         : run `apollia-os agent enable {name}` then `apollia-os agent start {name}` to load."
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// New commands (install/uninstall/enable/disable/update)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// The agent-code trust statement shown before every install.
-///
-/// Restates the v0.1.0 trust model: agent Python runs in-process with the full
-/// rights of the current user and there is no OS sandbox around agent code, so
-/// only audited agents should be installed.
-pub(in crate::commands::agent) fn trust_banner_text() -> &'static str {
-    "This agent runs Python in-process with the full rights of your user account: \
-     filesystem, network, and credentials in your keyring. There is no OS sandbox \
-     around agent code. Only install agents you have written or audited."
-}
-
-/// Prints the trust banner to stderr before an install proceeds.
-///
-/// Suppressed under `--json` so machine-readable output stays clean, matching the
-/// existing operator-warning convention. The banner is informational, not a
-/// prompt: it never blocks the install.
-pub(in crate::commands::agent) fn print_trust_banner(json: bool) {
-    if !json {
-        eprintln!("Security notice: {}", trust_banner_text());
-    }
-}
-
 /// Build a merged JSON array for `agent list --json`.
 pub(in crate::commands::agent) fn build_list_json(
-    installed: &[InstalledAgent],
+    installed: &[StoredAgent],
     runtime: &Option<serde_json::Value>,
 ) -> serde_json::Value {
     let runtime_agents = runtime
@@ -327,7 +290,7 @@ pub(in crate::commands::agent) fn build_list_json(
 
 /// Format an enriched agent list as a human-readable table.
 pub(in crate::commands::agent) fn format_enriched_agent_list(
-    installed: &[InstalledAgent],
+    installed: &[StoredAgent],
     runtime: &Option<serde_json::Value>,
 ) {
     let runtime_agents = runtime

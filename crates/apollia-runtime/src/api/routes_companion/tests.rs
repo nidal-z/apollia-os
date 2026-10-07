@@ -9,15 +9,12 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, manifest, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, manifest, MockBackend};
 use crate::chat::manager::ChatSessionManagerHandle;
 
 /// A daemon state whose user memory is open over `dir`, the chat absent.
 fn state_with_memory(dir: &TempDir) -> AppState<MockBackend> {
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     let repo = UserMemoryRepository::new(&dir.path().join("user_memory.db")).unwrap();
     state.user_memory = Some(Arc::new(Mutex::new(repo)));
     state
@@ -25,13 +22,11 @@ fn state_with_memory(dir: &TempDir) -> AppState<MockBackend> {
 
 /// The same state with a chat manager over `dir`.
 fn state_with_chat(dir: &TempDir) -> AppState<MockBackend> {
-    let loader = Arc::new(StemLoader { refusal: None });
     let mut state = state_with_memory(dir);
     let manager = ChatSessionManagerHandle::spawn(
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::empty())),
         ToolRegistryHandle::start(),
-        loader,
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),
@@ -80,10 +75,7 @@ async fn test_the_preference_put_over_http_is_read_back() {
 async fn test_a_daemon_without_user_memory_refuses_the_preference_with_its_words() {
     // GIVEN a daemon whose user memory did not open
     let dir = TempDir::new().unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a client reads and writes the preference
     let (read, refused) = call(state.clone(), "GET", "/api/v1/companion/enabled", None).await;

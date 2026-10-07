@@ -6,13 +6,10 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::api::server::{shared_llm_router_from, AppState};
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 fn state_in(dir: &TempDir) -> AppState<MockBackend> {
-    app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    )
+    app_state(dir.path().to_path_buf())
 }
 
 #[tokio::test]

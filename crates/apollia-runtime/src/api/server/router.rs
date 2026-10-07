@@ -79,8 +79,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_a2a::{
         delegate, get_task_sidechains, invoke_by_skill, list_a2a_agents, list_a2a_skills,
     };
-    use crate::api::routes_agents::installed::lifecycle::update_agent;
-    use crate::api::routes_agents::installed::{install_agent, list_installed_agents};
+    use crate::api::routes_agents::installed::list_installed_agents;
     use crate::api::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use crate::api::routes_app_lifecycle::app_lifecycle_router;
     use crate::api::routes_approvals::list_pending_approvals;
@@ -216,11 +215,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         )
         .route(
             "/api/v1/agents/installed",
-            get(list_installed_agents::<B>).post(install_agent::<B>),
-        )
-        .route(
-            "/api/v1/agents/installed/:name",
-            axum::routing::put(update_agent::<B>),
+            get(list_installed_agents::<B>),
         )
         .route(
             "/api/v1/agents/:id",
