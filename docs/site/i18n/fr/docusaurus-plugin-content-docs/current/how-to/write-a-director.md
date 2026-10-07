@@ -1,180 +1,176 @@
 ---
 sidebar_position: 5
-title: Écrire un director (A2A)
+title: Écrire un workflow
 ---
 
-# Écrire un director (A2A)
+# Écrire un workflow
 
-Un director est un agent qui répond en orchestrant des workers. Il expose un
-point d'entrée conversationnel, transmet les skills des workers au modèle sous
-forme d'outils, et laisse une boucle ReAct décider lesquels appeler. Ce guide
-construit un assistant documentaire qui pilote le worker PDF de
-[Écrire un worker](/how-to/write-a-worker).
+Un workflow est une suite d'étapes que vous écrivez en Python et dont vous
+décidez l'ordre. Chaque étape confie un message à un agent, lance un autre
+workflow, pose une question à l'utilisateur ou exécute du Python. Les étapes
+sont déclarées avant le code : le workflow se lit, se lance depuis un
+formulaire et se suit étape par étape sans que personne n'ouvre le module.
 
-## Prérequis
+Écrivez un workflow quand vous connaissez les étapes. Quand elles dépendent de
+ce que le modèle trouve en chemin, confiez la tâche à un agent et laissez-le
+planifier :
+[Faire planifier un agent d'abord](/how-to/run-an-orchestrated-agent).
 
-- Le worker `pdf-quickstart` installé et actif, exposant `pdf.read_text` et
-  `pdf.count_pages`. Vérifiez avec `apollia-os a2a skills`.
-- Un backend LLM configuré (`apollia-os llm status`).
+Ce guide ajoute un workflow à un paquet qui déclare déjà un agent nommé
+`invoice-clerk`. Pour créer un tel paquet, voir
+[Écrire un outil](/how-to/write-a-worker).
 
-## Exposer les workers comme outils, puis `react`
+## Déclarer les entrées et les étapes
 
-Le director est un agent `@on_message`. À l'intérieur du gestionnaire,
-appelez la fonction libre `apollia.react(...)` : donnez-lui un system prompt,
-le message utilisateur, et une liste d'outils. Transformez chaque skill de
-worker en outil avec `await ctx.a2a.skill_as_tool(skill_id)`, une fonction
-asynchrone qui résout le schéma du skill au moment de l'appel.
-
-Créez `document_director.py` :
+Créez `workflows/reminders.py` dans le dossier du paquet :
 
 ```python
-"""Document assistant: drives the PDF worker through apollia.react."""
+"""Workflow of the package invoices: one reminder per late supplier."""
 
-from apollia import agent, on_message, react
-from apollia.types import Ctx, Message
+from typing import Annotated, TypedDict
 
-
-SYSTEM_PROMPT = """\
-You are a document assistant. Answer the user's question about a local PDF
-by using the available tools:
-
-- `a2a__pdf__read_text`: extract the text of a PDF, page by page.
-- `a2a__pdf__count_pages`: count the pages of a PDF.
-
-Reason step by step. When you have enough information, write a concise answer
-and mention the file you inspected.
-"""
+from apollia import LongText, WorkflowCtx, workflow
+from apollia.errors import QuestionDeclined
 
 
-@agent(
-    name="document-director",
-    version="0.1.0",
-    description="Answers questions about local PDF files by orchestrating a worker.",
+class Reminders(TypedDict):
+    month: Annotated[str, "Month to check, for example 2026-09."]
+    tone: Annotated[LongText, "How the reminders should sound."]
+
+
+@workflow(
+    "monthly-reminders",
+    "Find the late invoices of a month and draft one reminder per supplier.",
+    inputs=Reminders,
+    steps=["collect", "confirm", "draft"],
+    action="read_personal",
 )
-class DocumentDirector:
-    @on_message
-    async def chat(
-        self,
-        message: str,
-        history: list[Message],
-        ctx: Ctx,
-    ) -> str:
-        return await react(
-            ctx,
-            system=SYSTEM_PROMPT,
-            user=message,
-            tools=[
-                await ctx.a2a.skill_as_tool("pdf.read_text"),
-                await ctx.a2a.skill_as_tool("pdf.count_pages"),
-            ],
-            max_steps=8,
+async def monthly_reminders(ctx: WorkflowCtx, inputs: Reminders) -> dict[str, str]:
+    async with ctx.step("collect"):
+        late = await ctx.agents.run(
+            "invoice-clerk",
+            f"List the invoices of {inputs['month']} that are late, one per line.",
         )
+
+    async with ctx.step("confirm"):
+        try:
+            answer = await ctx.user.ask(
+                f"Draft reminders for these invoices?\n{late}",
+                options=["Yes", "No"],
+            )
+        except QuestionDeclined:
+            answer = "No"
+        if answer != "Yes":
+            return {"late": late, "reminders": ""}
+
+    async with ctx.step("draft"):
+        reminders = await ctx.agents.run(
+            "invoice-clerk",
+            f"Draft one reminder per supplier.\nTone: {inputs['tone']}\n{late}",
+        )
+
+    return {"late": late, "reminders": reminders}
 ```
 
-`react` est une fonction libre, pas une méthode de `ctx` : vous lui passez
-`ctx` en premier argument. Elle exécute la boucle observer, raisonner, agir
-et renvoie la réponse finale du modèle sous forme de chaîne de caractères. Sa
-signature complète est :
+Ce que prend le décorateur :
 
-```python
-async def react(
-    ctx: Ctx,
-    system: str,
-    user: str,
-    *,
-    tools: list[dict[str, Any]] | None = None,
-    max_steps: int = 15,
-    temperature: float = 0.3,
-    stream: bool = True,
-) -> str
-```
+| Argument | Sens |
+| --- | --- |
+| `name` | Identifiant du workflow, `[a-z0-9_-]+`, unique dans le paquet. Le workflow s'adresse par `<paquet>/<name>`. |
+| `description` | Ce que fait le workflow, affiché sur sa fiche. |
+| `inputs` | Un `TypedDict`. Son schéma est le formulaire de lancement du workflow. |
+| `steps` | Les noms des étapes, dans l'ordre, sans doublon. |
+| `action` | La famille d'action la plus sensible que le workflow accomplit. |
 
-`temperature` est transportée mais reste indicative aujourd'hui :
-`LlmProxy.run_tools` utilise la valeur par défaut du backend. Le
-[contrat SDK / ctx](/reference/sdk) indexe les services `ctx` ; les méthodes
-`skill_as_tool` et les autres méthodes A2A se trouvent sur
-[`ctx.a2a`](/reference/sdk/a2a).
+Remarques sur le contrat :
 
-<!-- claim:a2a-tool-name-is-prefixed-and-encoded -->
-Nommez les outils dans le prompt tels que le modèle les voit. `skill_as_tool` ne
-donne pas le `skill_id` au modèle : elle préfixe `a2a__` et remplace chaque point
-par un double tiret bas, parce que les noms d'outils compatibles OpenAI refusent
-`.` et `:`. Ainsi `pdf.read_text` est proposé sous le nom `a2a__pdf__read_text`,
-et le pont redécode le nom vers le `skill_id` avant la distribution. Un prompt
-qui écrit le `skill_id` brut demande un outil que le modèle n'a jamais reçu.
+- La fonction est `async def` et prend exactement deux paramètres,
+  `(ctx, inputs)`.
+- Chaque étape du corps s'écrit `async with ctx.step("nom"):`. Un nom que le
+  décorateur n'a pas déclaré est refusé par une `AgentConfigError` : la liste
+  que montre la fiche et le code ne peuvent pas diverger.
+- Le runtime enregistre chaque étape quand elle s'ouvre, se ferme ou lève une
+  erreur, avec son exécution.
+- Renvoyez une valeur sérialisable en JSON.
+- Une déclaration qui ne tient pas (un nom hors de l'alphabet, une famille
+  inconnue, une liste d'étapes vide, une entrée d'un type non pris en charge)
+  est refusée à l'import du module.
 
-Si le director référence un skill qu'aucun worker actif n'expose, il échoue
-rapidement à l'exécution avec une erreur de skill inconnu. Installez et
-activez le worker au préalable.
+## Types d'entrée
 
-## Installer et exécuter
+Chaque entrée est l'un des champs que connaît le formulaire de lancement. Tout
+autre type est refusé.
+
+| Champ | Type Python | Ce que reçoit le workflow |
+| --- | --- | --- |
+| Texte | `str` | Une chaîne. |
+| Texte long | `apollia.LongText` | Une chaîne. |
+| Fichier | `apollia.FileInput` | Le chemin absolu du fichier. |
+| Date | `datetime.date` | Une `date`. |
+| Nombre | `int`, `float` | Un nombre. |
+| Oui ou non | `bool` | Un booléen. |
+| Choix | `Literal[...]` | L'une des valeurs listées. |
+| Liste | `list[str]`, `list[int]`, `list[float]` | Une liste. |
+
+Le formulaire suit l'ordre dans lequel le `TypedDict` déclare ses entrées.
+
+## Ce qu'une étape peut faire
+
+Le `ctx` d'un workflow porte quatre choses en plus du journal :
+
+| Appel | Effet |
+| --- | --- |
+| `await ctx.agents.run(agent_id, message)` | Confie `message` à un agent installé comme premier tour d'une conversation neuve, sous les accès de cet agent, et renvoie sa réponse finale. |
+| `await ctx.workflows.run(workflow_id, inputs)` | Lance un autre workflow et renvoie ce qu'il a renvoyé. `workflow_id` vaut `<paquet>/<workflow>`, ou le nom seul d'un workflow du même paquet. Trois niveaux d'imbrication au plus. |
+| `await ctx.user.ask(question, options=..., hint=...)` | Arrête l'exécution sur une question jusqu'à la réponse de l'utilisateur. Voir [Mettre un workflow en pause pour une décision humaine](/how-to/human-in-the-loop). |
+| `ctx.step(name)` | Ouvre une étape déclarée. |
+
+Un agent ou un workflow lancé depuis une étape s'exécute imbriqué dans
+l'exécution : il est arrêté avec elle et puise dans son budget.
+
+`ctx.llm` et `ctx.tools` valent `None` dans un workflow : le modèle et les outils
+se joignent par un agent. Une étape qui a besoin de raisonnement, ou d'un outil,
+confie le message à un agent avec `ctx.agents.run`, et cet agent travaille avec
+les outils qui lui ont été accordés.
+
+## Décrire, construire et exécuter
 
 ```bash
-apollia-os inspect document_director.py
-apollia-os agent install ./document_director.py
-apollia-os agent enable document-director
-apollia-os run document-director "How many pages are in /tmp/report.pdf, and what is it about?"
+python -m apollia describe invoices
+apollia-os package build invoices
+apollia-os package install invoices-1.2.0.apo
 ```
 
-Le modèle décide d'appeler `a2a__pdf__count_pages`, puis
-`a2a__pdf__read_text`, puis
-rédige sa réponse.
+`describe` écrit l'entrée `[[workflows]]` de `apollia.toml` depuis le
+décorateur : nom, module, description, famille d'action, schéma d'entrée et
+étapes.
 
-## Variante : construire la liste d'outils dynamiquement
+Lisez ensuite le workflow tel qu'Apollia le voit, puis lancez-le :
 
-Plutôt que de nommer les skills un par un, découvrez-les et filtrez-les par
-espace de noms :
-
-```python
-all_skills = await ctx.a2a.list_skills()
-tools = [
-    await ctx.a2a.skill_as_tool(s["skill_id"])
-    for s in all_skills
-    if s["skill_id"].startswith("pdf.")
-]
+```bash
+apollia-os workflow show invoices/monthly-reminders
+apollia-os workflow run invoices/monthly-reminders \
+  --input month=2026-09 --input tone="Polite and short." --wait
 ```
 
-Gardez la liste d'outils réduite. Exposer plus d'une dizaine d'outils à la
-fois rend les choix du modèle moins fiables.
+`--input` est répétable, et chaque valeur est lue selon le type que le workflow
+déclare pour elle. Sans `--wait`, la commande affiche un identifiant
+d'exécution et rend la main :
 
-## Variante : appeler un worker directement
-
-Quand vous savez déjà quel skill appeler et n'avez pas besoin que le modèle
-décide, invoquez-le directement avec `ctx.a2a.invoke`. Il renvoie l'enveloppe
-A2A complète : dépliez le dict du skill avec `a2a_result_data` :
-
-```python
-from apollia.utils import a2a_result_data
-
-envelope = await ctx.a2a.invoke("pdf.count_pages", {"path": "/tmp/report.pdf"})
-data = a2a_result_data(envelope)
-page_count = data["page_count"]
+```bash
+apollia-os workflow status <run-id>
+apollia-os workflow logs invoices/monthly-reminders
+apollia-os workflow cancel <run-id>
 ```
 
-Utilisez `react` quand l'enchaînement des appels dépend de résultats
-intermédiaires ; utilisez `invoke` pour une étape fixe et connue à l'avance.
+`workflow status` montre l'exécution, son résultat et chacune de ses étapes.
+`workflow cancel` interrompt l'étape en cours, et les suivantes ne démarrent
+jamais.
 
-## Variante : gérer une boucle bloquée
+## Pour aller plus loin
 
-Si la boucle épuise `max_steps` sans converger, `react` laisse l'erreur
-sous-jacente remonter sous forme de `RuntimeError`. Interceptez-la pour
-dégrader gracieusement le comportement :
-
-```python
-try:
-    return await react(ctx, system=SYSTEM_PROMPT, user=message, tools=tools, max_steps=5)
-except RuntimeError:
-    return "I could not finish the analysis in time. Could you narrow the question?"
-```
-
-`react` ne lève `DomainError("REACT_MAX_STEPS")` que pour un appel mal
-configuré (`max_steps <= 0`), ce qui relève d'une erreur de programmation et
-non d'un résultat d'exécution à intercepter.
-
-## Étapes suivantes
-
-- Laissez le runtime planifier et exécuter le travail multi-étapes à votre
-  place, sans boucle ReAct à écrire vous-même :
-  [Exécuter un agent orchestré](/how-to/run-an-orchestrated-agent).
-- Assemblez le tout à travers plusieurs workers :
-  [Construire un assistant multi-agent](/tutorials/build-a-multi-agent-assistant).
+- Tester le workflow avec un contexte simulé :
+  [Tester vos outils et vos workflows](/how-to/test-your-agents).
+- Lancer le workflow selon un horaire : proposez un déclencheur dans le
+  [manifeste de paquet](/reference/package-manifest#triggers).
+- Chaque sous-commande `workflow` figure dans la [référence CLI](/reference/cli).

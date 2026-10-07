@@ -6,16 +6,16 @@ title: SDK / ctx contract
 
 # SDK / ctx contract
 
-Runtime context passed to every agent handler.
+Runtime context passed to every tool and every workflow.
 
-The attributes below are the whole surface an agent sees, and their reach
+The attributes below are the whole surface the code sees, and their reach
 is not uniform: ``ctx.workspace``, ``ctx.notify`` and ``ctx.stt`` are
 ``None`` on every binary this project ships, and ``ctx.mail`` raises
 outside the desktop application. Each service page states its own reach.
 Use type hints to get IDE autocomplete::
 
-    @skill("foo.bar")
-    async def bar(self, name: str, ctx: Ctx) -> dict:
+    @tool("greet", "Greet a known user.", action="read_personal")
+    async def greet(ctx: Ctx, name: str) -> dict:
         user = await ctx.memory.recall(f"user.{name}")
         ...
 
@@ -26,11 +26,10 @@ Use type hints to get IDE autocomplete::
 | [`ctx.llm`](./llm.md) | `LlmProxy` | ``ctx.llm`` - LLM backend access. |
 | [`ctx.memory`](./memory.md) | `MemoryInterface` | Tri-mode memory: episodic events, semantic key-value, procedural triggers. |
 | [`ctx.tools`](./tools.md) | `ToolProxy` | Tool invocation surface - native registry + MCP routing. |
-| [`ctx.a2a`](./a2a.md) | `A2AInterface` | Inter-agent invocation API. |
 | [`ctx.mail`](./mail.md) | `MailInterface` | Durable, at-least-once inter-agent messaging surface. |
-| [`ctx.datasources`](./datasources.md) | `DatasourcesInterface` | Runtime access to YAML datasources declared in ``@agent(datasources=(...))``. |
+| [`ctx.datasources`](./datasources.md) | `DatasourcesInterface` | Runtime access to the YAML datasources the context was given. |
 | [`ctx.templates`](./templates.md) | `TemplatesInterface` | Runtime Jinja2 template rendering. |
-| [`ctx.secrets`](./secrets.md) | `SecretsInterface` | Read-only access to credentials declared in ``@agent(secrets=(...))``. |
+| [`ctx.secrets`](./secrets.md) | `SecretsInterface` | Read-only access to the credentials the context was granted. |
 | [`ctx.events`](./events.md) | `EventsInterface` | Public typed events for streaming, ReAct observability, error reporting. |
 | [`ctx.logger`](./logger.md) | `Logger` | ctx.logger - structured logging via stdlib ``logging``. |
 | [`ctx.profile`](./profile.md) | `ProfileInterface \| None` | User profile surface. |

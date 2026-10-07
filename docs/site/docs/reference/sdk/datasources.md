@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 5
 title: ctx.datasources
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->
@@ -12,7 +12,7 @@ Service type: `DatasourcesInterface` (from `apollia.context.datasources`).
 
 _Bases: Protocol_
 
-Runtime access to YAML datasources declared in ``@agent(datasources=(...))``.
+Runtime access to the YAML datasources the context was given.
 
 #### `get`
 

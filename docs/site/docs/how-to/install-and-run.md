@@ -249,18 +249,20 @@ descriptor rather than the socket's `0600`.
 
 ## Step 5: run an agent
 
-The repository ships a no-LLM `echo` agent that runs on any machine. Install it,
-enable it so the runtime loads it, then send it a task:
+An agent ships in a package. Write the starting package, build it, install it,
+then send its agent a task:
 
 ```sh
-apollia-os agent install clients/examples/echo_agent.py --skip-tests
-apollia-os agent enable echo
-apollia-os run echo "hello from Apollia"
+apollia-os package new hello
+apollia-os package build hello
+apollia-os package install hello-0.1.0.apo
+apollia-os run hello "hello from Apollia"
 ```
 
-Without the `enable` step, `run` fails with `agent not found: echo` and a hint listing the install, enable and load sequence.
+The agent answers with the model backend configured in step 3: an agent is a
+mission the model carries out, so `run` needs one.
 
-You should see the echoed result. To write your own agent from scratch, follow
+You should see its answer. To write your own agent from scratch, follow
 [Your first agent](/tutorials/your-first-agent).
 
 ## Step 6: stop the daemon

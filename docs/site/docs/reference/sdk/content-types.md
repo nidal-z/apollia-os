@@ -1,5 +1,5 @@
 ---
-sidebar_position: 18
+sidebar_position: 17
 title: Content types and helpers
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->

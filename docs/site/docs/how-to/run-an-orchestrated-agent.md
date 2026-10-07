@@ -1,165 +1,131 @@
 ---
 sidebar_position: 6
-title: Run an orchestrated agent
+title: Make an agent plan first
 ---
 
-# Run an orchestrated agent
+# Make an agent plan first
 
-An orchestrated agent hands the whole loop to the runtime. You provide a system
-prompt and declare the tools it may use; ORIA, Apollia's orchestration engine,
-plans the steps, executes them, observes the results, and replans as needed. You
-write almost no control flow. This guide builds a briefing agent that researches
-a topic and returns a one-page summary.
+An agent can work in two ways. Step by step, it chooses each tool as it goes.
+Plan first, it writes the list of steps of the task before acting, then runs
+them. Planning suits a task that takes several tool calls whose order matters;
+it costs one more model call before anything happens. This guide sets the
+planning mode of an agent, in its package and on your machine.
 
-Use this pattern when the work is multi-step and driven by natural-language
-intent. When you want to keep the loop in your own hands, use a director instead
-([Write a director](/how-to/write-a-director)).
+You write no control flow for this: the agent is data, and planning is one of
+its settings. When you know the steps yourself, write them instead:
+[Write a workflow](/how-to/write-a-director).
 
-## Prerequisites
+## What plan first does
 
-- An LLM backend configured. Orchestrated mode fails immediately without one.
-  Check with `apollia-os llm status`.
+The agent writes a plan: a list of steps, each a tool call or a model call, with
+the steps it depends on. The runtime then:
 
-## Stack `@agent` over `@orchestrated`
+1. checks the plan: unique steps, known dependencies, no cycle, and no more
+   steps than the budget of the run allows;
+2. runs it level by level, the independent read-only steps of a level together;
+3. replans a step that failed, and a result the verification refuses, at the
+   autonomy tiers that verify;
+4. keeps the plan in the plan cache, so the same task of the same agent runs
+   again without planning.
 
-`@orchestrated(system_prompt=...)` is the entry point: it is mutually exclusive
-with `@skill` and `@on_message`. Declare the native tools the agent may use with
-`tools_required=(...)`; ORIA fails fast at boot if a required tool is missing.
+The steps call tools the way the step-by-step loop does: only the tools granted
+to the agent, through the same approvals. Every model call of a step goes to the
+model of the agent.
 
-Create `briefing_agent.py`:
+## The three modes
 
-```python
-"""Briefing assistant. ORIA plans and executes the steps."""
+| `planning` | The agent plans |
+| --- | --- |
+| `never` | Never. It acts step by step. |
+| `auto` | When the task reads as a multi-step one. This is the default. |
+| `always` | Every task. |
 
-from apollia import agent, orchestrated
+In `auto`, the decision involves no model call: the request and the agent are
+scored, and the task is planned when the score reads it as several steps.
 
+## Set it in the package
 
-SYSTEM_PROMPT = """\
-You are a briefing assistant. Given a topic, build a one-page briefing that
-covers:
+The author of a package recommends a mode in the defaults of the agent:
 
-1. Context: two to three sentences on why the topic matters now.
-2. Key facts: five to seven bullet points, each with a source.
-3. Open questions: three questions a decision-maker would ask.
-
-Use the available tools to gather facts:
-- `web_search` to find recent information.
-- `web_read` to retrieve a full article when needed.
-
-Stay grounded. If you cannot verify a fact, say so explicitly in the briefing.
+```toml
+[[agents]]
+id = "briefing"
+name = "Briefing"
+mission = """
+Given a topic, build a one-page briefing: the context in two or three
+sentences, five to seven key facts with their source, and three open
+questions. If you cannot verify a fact, say so in the briefing.
 """
+examples = ["Give me a briefing on the new accounting rules."]
 
-
-@agent(
-    name="briefing",
-    version="0.1.0",
-    description="Synthesize a one-page briefing on any topic.",
-    tools_required=("web_search", "web_read"),
-)
-@orchestrated(system_prompt=SYSTEM_PROMPT)
-class Briefing:
-    pass
+[agents.defaults]
+access = ["web_search", "web_read"]
+planning = "always"
+autonomy = "supervised"
 ```
 
-That is a complete agent. It declares no methods: ORIA runs the loop from the
-system prompt and, by default, concatenates the text of each plan step into the
-final answer. The tool names `web_search` and `web_read` are Apollia's native
-tools; browse the full set in the [tool reference](/reference/native-tools).
+`access` lists the tools the plan may use. `web_search` and `web_read` are
+native tools; the full set is in the [tool reference](/reference/native-tools).
+The other keys of the table are in the
+[package manifest reference](/reference/package-manifest).
 
-## Install and run
+## Change it on your machine
+
+A value of the package is a default. Override it for one agent, and a package
+update keeps your choice:
 
 ```bash
-apollia-os inspect briefing_agent.py
-apollia-os agent install ./briefing_agent.py
-apollia-os agent enable briefing
-apollia-os run briefing "Give me a briefing on Microsoft's Permanent Beta culture."
+apollia-os agent set briefing planning always
+apollia-os agent show briefing
+apollia-os agent reset briefing --field planning
 ```
 
-ORIA observes the prompt and available tools, reasons out a three to six step
-plan, executes it (searching and reading as needed), and returns the assembled
-briefing.
+`agent show` prints the definition as resolved: the defaults of the package,
+then your overrides. `agent reset --field planning` goes back to the default of
+the package.
 
-## Shape the output with `on_plan_complete`
-
-To post-process the step outputs yourself, define an `on_plan_complete` hook. The
-runtime calls it with the step results and the context, and expects a string
-back:
-
-```python
-from apollia.types import Ctx
-
-
-@agent(
-    name="briefing",
-    version="0.1.0",
-    description="Synthesize a one-page briefing on any topic.",
-    tools_required=("web_search", "web_read"),
-)
-@orchestrated(system_prompt=SYSTEM_PROMPT)
-class Briefing:
-    async def on_plan_complete(
-        self,
-        step_results: dict[str, str],
-        ctx: Ctx,
-    ) -> str:
-        sections = []
-        for step_id, text in step_results.items():
-            if "facts" in step_id and text:
-                sections.append(f"- {text}")
-        return "## Key facts\n\n" + "\n".join(sections)
-```
-
-`step_results` maps each step id (for example `step_3_facts`) to that step's text
-output. If you omit the hook, ORIA concatenates the step texts in order.
-
-## Variation: a custom step budget
-
-Every run is bounded by a step budget the runtime enforces and never lets an
-agent bypass. Override the defaults on `@agent`:
-
-```python
-@agent(
-    name="briefing",
-    version="0.1.0",
-    description="Synthesize a one-page briefing on any topic.",
-    tools_required=("web_search", "web_read"),
-    step_budget={"max_steps": 25, "max_tool_calls": 40, "wall_clock_secs": 600},
-)
-@orchestrated(system_prompt=SYSTEM_PROMPT)
-class Briefing:
-    pass
-```
-
-An oversized budget is clamped to the runtime ceiling. See
-[`ctx.budget`](/reference/sdk/budget) for reading the remaining budget from
-inside a run.
-
-## `@orchestrated` versus `apollia.react`
-
-Both drive a multi-step loop. They differ in who holds control.
-
-| Criterion | `@orchestrated` | `apollia.react` |
-|---|---|---|
-| Who drives the loop | ORIA runtime | You, in `@on_message` |
-| Best for | Autonomous multi-step, natural-language intent | A known workflow you want to control |
-| Code volume | Very short | Short |
-| Pre and post processing | Limited to the `on_plan_complete` hook | Free Python before and after `react` |
-| Conditional branches | Hard to express | Natural |
-| Conversational mode | No free-chat mode | Yes, through `@on_message` |
-
-## Configure the backend
-
-Orchestrated runs need an LLM backend. Set a single default:
+## Run it
 
 ```bash
-apollia-os llm backends set-default <name>
+apollia-os run briefing "Give me a briefing on the new accounting rules."
 ```
 
-For multiple backends routed by task, configure `[llm.routing]` in your Apollia
-config. See the [configuration reference](/reference/configuration) and the
-[`llm` CLI commands](/reference/cli).
+The agent plans, runs the plan and answers as it would step by step. A plan
+that cannot be read, a step that still fails after its replans, or a spent
+budget fails the run.
 
-## Next steps
+## The budget bounds the plan
 
-- Combine orchestration and workers into a full assistant:
-  [Build a multi-agent assistant](/tutorials/build-a-multi-agent-assistant).
+A plan cannot hold more steps than the budget of the run, and the runtime
+enforces that budget whatever the agent does. The budget comes from the
+autonomy tier of the agent, the `autonomy` key above or
+`apollia-os agent set briefing autonomy supervised`. See
+[Autonomy tiers](/explanation/autonomy-tiers) for what each tier allows.
+
+## Approving a plan
+
+Plan first has no approval gate of its own: the plan runs once it is checked. In
+a conversation, reviewing a plan before it runs is the plan mode of the
+conversation, described in
+[Approve or reject an action](/operator-help/control/approve-or-reject-an-action).
+When a conversation is in plan mode, the agent does not plan first on top of it.
+
+## The plan cache
+
+A plan is cached under the agent, the version of its definition, its mission and
+the task. A new mission, or a new version of the package, therefore plans again.
+To inspect or empty the cache:
+
+```bash
+apollia-os plan cache stats
+apollia-os plan cache evict --max-age-days 7
+apollia-os plan cache clear
+```
+
+## Related
+
+- [The plan and orchestrated execution model](/explanation/the-plan-model) for
+  the model behind a plan.
+- [Write a workflow](/how-to/write-a-director) when the steps are yours to
+  write.
+- The `agent` and `plan` commands in the [CLI reference](/reference/cli).

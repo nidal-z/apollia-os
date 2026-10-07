@@ -1,169 +1,182 @@
 ---
 sidebar_position: 4
-title: Write a worker
+title: Write a tool
 ---
 
-# Write a worker
+# Write a tool
 
-A worker is a domain expert. It exposes one or more A2A skills that any director
-can call, and it does one thing well. This guide builds a small PDF worker with
-two skills, reading text and counting pages, then invokes it from the command
-line.
+A tool is the Python a package brings to its agents: one `async def` function
+under `@tool`, which an agent calls when its mission needs it. The agent itself
+is not code. It is declared in the `apollia.toml` of the package, with its
+mission and the tools it may reach. This guide writes a package with one agent
+and one tool that counts the pages of a PDF, then runs it.
 
-This is a how-to, not a tutorial. It assumes you have already installed Apollia
-and written [your first agent](/tutorials/your-first-agent).
+This is a how-to. It assumes Apollia is installed and its runtime is running;
+if not, see [Install and run the runtime](/how-to/install-and-run).
 
-## Declare the agent and its skills
+## Start from the template
 
-A worker is an `@agent` class whose entry points are `@skill` methods. Each skill
-is an `async def`, its `skill_id` is dot-namespaced snake case, and its
-parameters (everything except `self` and `ctx`) become the skill's input schema.
+```bash
+apollia-os package new pdf-reader
+```
 
-Create `pdf_worker.py`:
+The command writes a folder that builds as it is:
+
+```text
+pdf-reader/
+  apollia.toml
+  tools/pdf_reader.py
+```
+
+`apollia.toml` declares the package, one agent and one tool. `tools/` holds the
+Python module of the tool.
+
+## Write the function
+
+Replace `tools/pdf_reader.py` with the tool:
 
 ```python
-"""Minimal PDF worker: read text and count pages."""
+"""The tool of the package pdf-reader: count the pages of a PDF."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
-from apollia import DomainError, agent, skill
+from apollia import DomainError, tool
 from apollia.types import Ctx
 
 
-def _ensure_pdf(path: str) -> None:
-    p = Path(path)
-    if not p.exists():
-        raise DomainError("FILE_NOT_FOUND", f"PDF not found: {path}")
-    if p.suffix.lower() != ".pdf":
-        raise DomainError("WRONG_EXTENSION", f"Expected .pdf, got {p.suffix}")
-
-
-@agent(
-    name="pdf-quickstart",
-    version="0.1.0",
-    description="Read text and count pages of PDF files.",
-    packages=("pypdf>=4",),
-    tags=("pdf", "worker"),
-    agent_type="worker",
+@tool(
+    "count_pages",
+    "Count the pages of a PDF file.",
+    action="read_personal",
+    examples=[{"path": "/tmp/report.pdf"}],
 )
-class PdfQuickstart:
-    @skill(
-        "pdf.read_text",
-        description="Extract text from a PDF, page by page.",
-        examples=[{"path": "/tmp/report.pdf"}],
-    )
-    async def read_text(
-        self,
-        path: Annotated[str, "Absolute path to the .pdf file."],
-        ctx: Ctx,
-    ) -> dict:
-        _ensure_pdf(path)
-        from pypdf import PdfReader
+async def count_pages(
+    ctx: Ctx,
+    path: Annotated[str, "Absolute path of the .pdf file."],
+) -> dict[str, Any]:
+    file = Path(path)
+    if not file.exists():
+        raise DomainError("FILE_NOT_FOUND", f"PDF not found: {path}")
+    if file.suffix.lower() != ".pdf":
+        raise DomainError("WRONG_EXTENSION", f"Expected .pdf, got {file.suffix}")
 
-        reader = PdfReader(path)
-        pages = [page.extract_text() or "" for page in reader.pages]
-        return {"text": "\n\n".join(pages), "page_count": len(pages)}
+    from pypdf import PdfReader
 
-    @skill(
-        "pdf.count_pages",
-        description="Count the pages of a PDF file.",
-        examples=[{"path": "/tmp/report.pdf"}],
-    )
-    async def count_pages(
-        self,
-        path: Annotated[str, "Absolute path to the .pdf file."],
-        ctx: Ctx,
-    ) -> dict:
-        _ensure_pdf(path)
-        from pypdf import PdfReader
-
-        return {"page_count": len(PdfReader(path).pages)}
+    pages = len(PdfReader(path).pages)
+    ctx.logger.info("counted %d pages", pages)
+    return {"path": path, "page_count": pages}
 ```
+
+What the decorator takes, and nothing else:
+
+| Argument | Meaning |
+| --- | --- |
+| `name` | Identifier of the tool, `[a-z0-9_-]+`, unique in the package. |
+| `description` | What the tool does. The model reads it to decide when to call the tool, and the sheet of the agent shows it. |
+| `action` | The action family, keyword-only and required: `read`, `read_personal`, `write_or_delete`, `send_external` or `execute_code`. |
+| `examples` | Optional list of sample inputs, each a dict. |
 
 Notes on the contract:
 
-- `@skill("pdf.read_text", ...)` takes the `skill_id` first, then three
-  keyword-only arguments: `description`, `dangerous` (marks the skill as
-  potentially destructive), and `examples`, an optional list of sample payload
-  dicts. That is the whole decorator surface. The
-  [SDK / ctx contract](/reference/sdk) indexes the `ctx` services a skill body
-  uses.
-- Domain parameters come first; `ctx` is the last parameter. Annotate each
-  parameter with `Annotated[type, "description"]` so the generated schema is
-  self-documenting.
-- Return a plain `dict`. The runtime wraps it into a completed result.
-- Raise `DomainError("CODE", "message")` for expected failures. The dispatcher
-  turns it into a typed failed result instead of a crash.
-- `packages=(...)` declares third-party dependencies the worker needs. Workers
-  are stdlib-only by default; declare a package only when you truly need it.
-- End the module with `agent = PdfQuickstart()`, and use absolute imports.
+- The function is `async def`. Anything else is refused when the module is
+  imported, with an `AgentConfigError` that names the tool.
+- The inputs are the parameters of the function, `ctx` excluded. Annotate each
+  one with `Annotated[type, "description"]`: the input schema the model sees is
+  inferred from the signature.
+- Return a value that serialises to JSON, a `dict` in most cases.
+- Raise `DomainError("CODE", "message")` for an expected failure. The call
+  fails, and the agent reads the error and decides what to do next.
+- The action family says what the call does to the world, and every family
+  except `read` makes the tool sensitive. There is no separate flag: declare
+  the family that says what the tool really does. The families are listed in
+  the [package manifest reference](/reference/package-manifest#action-families).
+- Use absolute imports, and `ctx.logger` instead of `print()`.
 
-This worker calls no `ctx` service: it is pure Python plus `pypdf`. Workers reach
-`ctx` only when they need generation, memory, tools, or secrets.
+## What `ctx` gives a tool
 
-## Install and invoke
+A tool runs with a bare context: `ctx.logger`, which reports under the name of
+the agent that called it, and `ctx.agent_name`. It carries no memory and no user
+profile, and `ctx.llm` and `ctx.tools` are `None`: reasoning and calling other
+tools belong to the agent, which runs the loop. A tool does one thing and returns.
 
-Inspect, install, and enable exactly as for any agent:
+## Describe the tool in the manifest
 
-```bash
-apollia-os inspect pdf_worker.py
-apollia-os agent install ./pdf_worker.py
-apollia-os agent enable pdf-quickstart
-```
-
-Then call a skill directly with `a2a invoke`, passing the payload as JSON:
+The manifest describes every tool, so that Apollia knows what a package ships
+without running it. Write the description from the code:
 
 ```bash
-apollia-os a2a invoke pdf.count_pages --args '{"path": "/tmp/some.pdf"}'
+python -m apollia describe pdf-reader
 ```
 
-Add `--json` for the full machine-readable result. To see every skill exposed by
-active workers, run `apollia-os a2a skills`. Every `a2a` subcommand is in the
-[CLI reference](/reference/cli).
+The command imports the modules of the folder and rewrites the `[[tools]]`
+entries of `apollia.toml`: name, module, description, action family and input
+schema. Everything else in the manifest is kept as written. It needs the
+`apollia` SDK, and whatever your modules import at their top level, in the
+Python environment that runs it.
 
-## Variation: an optional parameter
+Then edit the rest of `apollia.toml` by hand. Grant the tool to the agent, and
+declare the dependency:
 
-Because `ctx` is a required parameter, any parameter with a default value must
-come after it:
+```toml
+[[agents]]
+id = "pdf-reader"
+name = "PDF reader"
+mission = """
+Answer questions about the PDF files the user names. Count the pages with
+the tool before you answer; never guess.
+"""
+examples = ["How many pages are in /tmp/report.pdf?"]
+
+[agents.defaults]
+access = ["pkg:pdf-reader/count_pages"]
+autonomy = "assisted"
+
+[pip]
+packages = ["pypdf==4.3.1"]
+```
+
+A tool is granted under the name `pkg:<package>/<tool>`. The same list takes
+native tools by their name and MCP tools as `mcp:<server>/<tool>`. Every table
+and key is in the [package manifest reference](/reference/package-manifest).
+
+## Build, install and run
+
+```bash
+apollia-os package build pdf-reader
+apollia-os package install pdf-reader-0.1.0.apo --confirm-deps
+apollia-os run pdf-reader "How many pages are in /tmp/report.pdf?"
+```
+
+`package build` validates the manifest and writes the archive without running
+any Python. `package install` needs the runtime; `--confirm-deps` accepts the
+Python dependencies the package installs. The agent then answers by calling
+`count_pages`. Because the family is `read_personal`, the call is a sensitive
+one: you are asked before it runs, unless you already authorised it.
+
+## Variation: an optional input
+
+A parameter with a default value is an optional input:
 
 ```python
-async def read_text(
-    self,
-    path: Annotated[str, "Path to the .pdf file."],
+async def count_pages(
     ctx: Ctx,
-    page_range: Annotated[
-        str | None,
-        "1-based page selection, for example '1-5,7'. Omit to read all pages.",
-    ] = None,
-) -> dict:
+    path: Annotated[str, "Absolute path of the .pdf file."],
+    skip_blank: Annotated[bool, "Leave blank pages out of the count."] = False,
+) -> dict[str, Any]:
     ...
 ```
 
-## Variation: more typed errors
-
-Give callers precise codes to branch on:
-
-```python
-if file_too_big(path):
-    raise DomainError("FILE_TOO_LARGE", f"{path} exceeds 100 MB")
-if encrypted(path):
-    raise DomainError("ENCRYPTED", "Cannot read encrypted PDFs")
-```
-
-A caller reads `result["error"]["code"]` and reacts accordingly, rather than
-parsing a message string.
-
-## Test your worker
-
-Apollia ships an isomorphic testing harness, `apollia.testing`, so skills run
-in-process with a mocked `ctx` and no daemon. See
-[Test your agents](/how-to/test-your-agents).
+Run `python -m apollia describe pdf-reader` again after any change to a
+signature or to a decorator, so that the manifest keeps saying what the code
+does. `package build` refuses a folder that defines a tool the manifest does
+not describe.
 
 ## Next steps
 
-- Have an agent call several workers:
-  [Write a director](/how-to/write-a-director).
-- Read the input and output shapes of [`ctx.tools`](/reference/sdk/tools),
-  [`ctx.secrets`](/reference/sdk/secrets), and the other services a richer worker
-  uses.
+- Chain several steps in Python, with agents doing the reasoning:
+  [Write a workflow](/how-to/write-a-director).
+- Unit-test the function with a mocked context:
+  [Test your tools and workflows](/how-to/test-your-agents).
+- Sign and share the archive:
+  [Package and distribute](/how-to/package-and-distribute-an-agent).

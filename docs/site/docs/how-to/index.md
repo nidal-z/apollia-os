@@ -1,7 +1,7 @@
 ---
 sidebar_position: 0
 title: How-to guides
-description: "Task-oriented recipes: install and run the runtime, write agents and workers, test them, embed Apollia, and keep a human in the loop."
+description: "Task-oriented recipes: install and run the runtime, write tools and workflows, test and package them, embed Apollia, and keep a human in the loop."
 ---
 
 # How-to guides
@@ -17,18 +17,18 @@ Task-oriented recipes. Each one solves a single, concrete problem.
 - [Get the most from local inference](/how-to/accelerate-local-inference): how the
   embedded `llama-server` engine serves local GGUF models, and how to feed it.
 
-## Build agents
+## Build packages
 
-- [Write a director](/how-to/write-a-director): an agent that reasons and drives
-  workers.
-- [Write a worker](/how-to/write-a-worker): a single-skill agent exposed over
-  A2A.
-- [Run an orchestrated agent](/how-to/run-an-orchestrated-agent): let the engine
-  plan, gate, and verify a multi-step run.
-- [Test your agents](/how-to/test-your-agents): unit-test skills against a mock
-  context, then integration-test against a live runtime.
-- [Package and distribute an agent](/how-to/package-and-distribute-an-agent):
-  bundle, install, and share an agent.
+- [Write a tool](/how-to/write-a-worker): a Python function an agent calls,
+  declared with `@tool` and granted in the manifest of the package.
+- [Write a workflow](/how-to/write-a-director): steps you write in Python, each
+  handing work to an agent, to another workflow or to the user.
+- [Make an agent plan first](/how-to/run-an-orchestrated-agent): have an agent
+  write the steps of a task before it acts.
+- [Test your tools and workflows](/how-to/test-your-agents): unit-test them
+  against a mock context, then evaluate whole tasks against a live runtime.
+- [Package and distribute](/how-to/package-and-distribute-an-agent): build,
+  sign, install and share a `.apo` archive.
 
 ## Integrate and operate
 
@@ -39,8 +39,8 @@ Task-oriented recipes. Each one solves a single, concrete problem.
 - [Set up a Google OAuth client](/how-to/set-up-a-google-oauth-client): register
   your own client in the Google Cloud console, click by click, so the Gmail,
   Calendar and Drive connector works. Microsoft 365 needs no equivalent.
-- [Keep a human in the loop](/how-to/human-in-the-loop): require approval before
-  a consequential action runs.
+- [Keep a human in the loop](/how-to/human-in-the-loop): stop a workflow on a
+  question, and know what asks for an approval on its own.
 - [Audit and verify a run](/how-to/audit-and-verify): read the
   trail and verify the journal.
 - [Deploy in production](/how-to/deploy-in-production): run Apollia as a managed
