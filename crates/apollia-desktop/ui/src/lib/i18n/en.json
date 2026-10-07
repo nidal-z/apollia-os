@@ -3211,7 +3211,10 @@
       "info_off": "off",
       "info_engines": "Engines",
       "gpu_vram": "Video memory {size} · {backend}",
-      "no_gpu": "No GPU detected: models run on the processor."
+      "no_gpu": "No GPU detected: models run on the processor.",
+      "capacity_title": "What this computer can run",
+      "capacity_value": "{size} for a model",
+      "capacity_help": "This is the memory Apollia can give a model on this computer. The catalogue shows the models that fit in it first, and loading a model is measured against this figure."
     }
   },
   "onboarding": {

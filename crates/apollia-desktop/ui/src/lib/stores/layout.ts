@@ -3,7 +3,7 @@
  *
  * Derives `sidebarState` from the viewport through `window.matchMedia`:
  *   - >= `lg` (1024 px) -> `expanded` or `icon`, per the user preference;
- *     on the chat screen, `icon` until the menu is asked for
+ *     on the chat and connections screens, `icon` until the menu is asked for
  * - `md`-`lg` -> `icon` forced (auto-collapse)
  *   - < `md`          → `drawer` overlay
  *
@@ -12,7 +12,7 @@
  */
 import { derived, get, readable, writable, type Readable } from "svelte/store";
 import { guideVisible } from "$lib/stores/detailSidebar";
-import { currentRoute } from "$lib/stores/navigation";
+import { currentRoute, type Route } from "$lib/stores/navigation";
 
 /** Effective state of the sidebar at a given moment. */
 export type SidebarState = "expanded" | "icon" | "drawer";
@@ -102,10 +102,16 @@ const viewport: Readable<Viewport> = readable<Viewport>(computeViewport(), (set)
 const preference = writable<SidebarPreference>(loadPreference());
 preference.subscribe((p) => savePreference(p));
 
-// The chat already has a sidebar of its own, the list of conversations: the
-// application menu stands back as an icon rail there, until asked for. The
-// choice lasts the session and leaves the preference of the other screens alone.
+// The chat and the connections already have a sidebar of their own, the list
+// of conversations and the list of connections: the application menu stands
+// back as an icon rail there, until asked for. The choice lasts the session
+// and leaves the preference of the other screens alone.
 const chatMenuExpanded = writable(false);
+
+/** Whether the screen of `route` brings a list column of its own. */
+function hasOwnColumn(route: Route): boolean {
+  return route === "chat" || route === "integrations";
+}
 
 const drawerOpenInternal = writable(false);
 
@@ -125,7 +131,7 @@ export const sidebarState: Readable<SidebarState> = derived(
   ([$v, $p, $route, $chatExpanded]) => {
     if ($v === "sm") return "drawer";
     if ($v === "md") return "icon";
-    if ($route === "chat") return $chatExpanded ? "expanded" : "icon";
+    if (hasOwnColumn($route)) return $chatExpanded ? "expanded" : "icon";
     return $p === "collapsed" ? "icon" : "expanded";
   },
 );
@@ -169,7 +175,7 @@ export const layoutActions = {
       // icon-only forced between md and lg - no user preference here.
       return;
     }
-    if (get(currentRoute) === "chat") {
+    if (hasOwnColumn(get(currentRoute))) {
       chatMenuExpanded.update((expanded) => !expanded);
       return;
     }

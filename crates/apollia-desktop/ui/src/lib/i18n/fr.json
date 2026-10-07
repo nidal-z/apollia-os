@@ -3211,7 +3211,10 @@
       "info_off": "coupé",
       "info_engines": "Moteurs",
       "gpu_vram": "Mémoire vidéo {size} · {backend}",
-      "no_gpu": "Aucun GPU détecté : les modèles tournent sur le processeur."
+      "no_gpu": "Aucun GPU détecté : les modèles tournent sur le processeur.",
+      "capacity_title": "Ce que ce poste peut faire tourner",
+      "capacity_value": "{size} pour un modèle",
+      "capacity_help": "C'est la mémoire qu'Apollia peut confier à un modèle sur ce poste. Le catalogue montre d'abord les modèles qui tiennent dedans, et le chargement d'un modèle se mesure à ce chiffre."
     }
   },
   "onboarding": {

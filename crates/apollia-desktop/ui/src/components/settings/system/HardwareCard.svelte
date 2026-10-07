@@ -70,6 +70,14 @@
 {:else if hardware}
   {@const kind = memoryKind(hardware.accelerator)}
   {@const vram = vramGb(hardware.accelerator)}
+  <!-- What the figures below add up to: the room this computer has for a model. -->
+  <div class="mb-4 rounded-xl border border-primary/30 bg-primary/5 px-5 py-4" data-testid="hardware-capacity">
+    <p class="text-overline uppercase text-muted-foreground">{$t("settings.hardware.capacity_title")}</p>
+    <p class="mt-1 text-xl font-semibold tabular-nums text-foreground" data-testid="hardware-capacity-value">
+      {$t("settings.hardware.capacity_value", { values: { size: gb(hardware.total_capacity_gb) } })}
+    </p>
+    <p class="mt-1 max-w-2xl text-body-sm text-muted-foreground">{$t("settings.hardware.capacity_help")}</p>
+  </div>
   <div class="grid gap-4 md:grid-cols-2">
     <SettingsSection title={$t("settings.hardware.processor")} data-testid="hardware-processor">
       {#snippet icon()}<Cpu size={15} strokeWidth={1.75} />{/snippet}
