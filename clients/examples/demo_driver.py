@@ -1,11 +1,15 @@
 """Host-side demo: drive a real Apollia daemon through the generated Python SDK.
 
 Proves the driving contract end to end over TCP + bearer token: read the token
-the daemon generated, open an authenticated client, submit a task to the
-installed `echo` agent, poll for completion, and print the result. No hand-written
+the daemon generated, open an authenticated client, launch the `echo` workflow
+of the installed `echo` package, poll the run to its end, and print the result.
+A workflow runs its steps as written, so no model is involved. No hand-written
 HTTP; every call goes through the generated `apollia_runtime_client`.
 """
 
+# REASON: print-call: this module is the command-line entry point of the demo.
+
+import os
 import pathlib
 import sys
 import time
@@ -16,41 +20,51 @@ sys.path.insert(0, str(_HERE.parents[1] / "python"))
 
 from apollia_runtime_client import AuthenticatedClient
 from apollia_runtime_client.api.health import health_handler
-from apollia_runtime_client.api.tasks import get_task, submit_task
-from apollia_runtime_client.models import SubmitTaskRequest, SubmitTaskRequestInput
+from apollia_runtime_client.api.workflows import get_workflow_run, launch_workflow
+from apollia_runtime_client.models import (
+    WorkflowLaunch,
+    WorkflowLaunchInputs,
+    WorkflowRunDetailView,
+    WorkflowRunView,
+)
 
-BASE_URL = "http://127.0.0.1:7771"
+BASE_URL = f"http://127.0.0.1:{os.environ.get('APOLLIA_TCP_PORT', '7771')}"
 TOKEN = (pathlib.Path.home() / ".apollia" / "api-token").read_text().strip()
-TERMINAL = {"completed", "succeeded", "done", "failed", "error", "cancelled"}
+MESSAGE = "hello from the host SDK"
 
 
 def main() -> int:
     client = AuthenticatedClient(base_url=BASE_URL, token=TOKEN)
 
     health = health_handler.sync(client=client)
-    print(f"[1] GET  /api/v1/health           -> {health.status}")
+    print(f"[1] GET  /api/v1/health                   -> {health.status}")
 
-    body = SubmitTaskRequest(
-        agent_id="echo",
-        input_=SubmitTaskRequestInput.from_dict(
-            {"parts": [{"type": "text", "text": "hello from the host SDK"}]}
-        ),
+    launched = launch_workflow.sync(
+        "echo",
+        "echo",
+        client=client,
+        body=WorkflowLaunch(inputs=WorkflowLaunchInputs.from_dict({"message": MESSAGE})),
     )
-    submitted = submit_task.sync(client=client, body=body)
-    print(f"[2] POST /api/v1/tasks             -> {submitted.task_id} ({submitted.status})")
+    if not isinstance(launched, WorkflowRunView):
+        print(f"[2] POST /api/v1/workflows/echo/echo/runs -> refused: {launched}")
+        print("DEMO FAILED")
+        return 1
+    print(f"[2] POST /api/v1/workflows/echo/echo/runs -> {launched.run_id} ({launched.status})")
 
-    task = submitted
+    run = launched
     for _ in range(120):
-        task = get_task.sync(id=submitted.task_id, client=client)
-        if task.status.lower() in TERMINAL or task.result:
-            break
+        detail = get_workflow_run.sync(launched.run_id, client=client)
+        if isinstance(detail, WorkflowRunDetailView):
+            run = detail.run
+            if run.status != "running":
+                break
         time.sleep(0.5)
 
-    print(f"[3] GET  /api/v1/tasks/{{id}}         -> {task.status}")
-    result = task.result.to_dict() if hasattr(task.result, "to_dict") else task.result
-    print(f"[4] result                         -> {result}")
+    print(f"[3] GET  /api/v1/workflow-runs/{{id}}       -> {run.status}")
+    output = run.output.to_dict() if hasattr(run.output, "to_dict") else run.output
+    print(f"[4] result                                -> {output}")
 
-    ok = task.status.lower() not in {"failed", "error", "cancelled"}
+    ok = run.status == "completed" and output == {"echo": MESSAGE}
     print("DEMO OK" if ok else "DEMO FAILED")
     return 0 if ok else 1
 
