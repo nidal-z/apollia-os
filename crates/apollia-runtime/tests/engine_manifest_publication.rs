@@ -8,7 +8,7 @@
 //! failing test rather than a channel no installed application can read.
 //!
 //! The signed tests need `cargo tauri signer`, the tool that signs in the
-//! release pipeline, and are ignored without it. `just engine-manifest-test`
+//! release pipeline, and are ignored without it. `just test-engine-manifest`
 //! runs them all, and the publication workflow runs that recipe before it
 //! signs anything with the real key.
 //!

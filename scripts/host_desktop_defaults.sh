@@ -2,7 +2,7 @@
 # Host defaults for the desktop build recipes.
 #
 # The recipes used to hardcode the Apple Silicon triple, the Metal STT runner
-# and, through it, the Metal engine. Run anywhere else, `just desktop-build`
+# and, through it, the Metal engine. Run anywhere else, `just build-desktop`
 # downloaded a macOS Python bundle and died extracting it: on Windows tar
 # refused the symlinks the bundle carries, on Linux the bundled `python3.13`
 # answered "cannot execute binary file". Both measured on 2026-09-08, on the

@@ -24,7 +24,7 @@ The package is assembled in the throwaway HOME from ``hitl_e2e_agent.py``:
 package build`` and ``package install`` do the rest.
 
 Needs a built daemon, the ``apollia-os`` binary at ``target/debug`` (``just
-cli-build``) or at ``APOLLIA_E2E_BIN``. Without one the module is skipped and
+build-cli``) or at ``APOLLIA_E2E_BIN``. Without one the module is skipped and
 says it measured nothing. Stdlib only, like every agent.
 """
 
@@ -50,7 +50,7 @@ BINARY = Path(os.environ.get("APOLLIA_E2E_BIN", REPO / "target" / "debug" / "apo
 
 pytestmark = pytest.mark.skipif(
     not BINARY.is_file(),
-    reason=f"no apollia-os binary at {BINARY}: nothing measured, run `just cli-build`",
+    reason=f"no apollia-os binary at {BINARY}: nothing measured, run `just build-cli`",
 )
 
 DEADLINE_SECS = 60.0
