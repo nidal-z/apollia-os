@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
    * ModelPanel - the panel of an installed model, in the detail sidebar of
-   * the AI screen: its name and its two actions, then three tabs, Infos,
-   * Loading and Inference. Everything is automatic by default and the
-   * sections of the last two are folded: nobody has to open them.
+   * the AI screen: its name and its two actions, then its tabs. Infos is
+   * there for everyone; Loading and Inference come with the developer mode.
+   * Everything is automatic by default and the sections of the last two are
+   * folded: nobody has to open them.
    *
    * The settings of the last two tabs are those of a preset of the model.
    * In developer mode, two more sections correct the type of the model and
@@ -34,6 +35,7 @@
   import { startRequest } from "$lib/chat/applyTargetChoice";
   import { aiModelSelection, notifyAiModelsChanged } from "$lib/stores/aiModelPanel";
   import { pendingChatSessionId } from "$lib/stores/chat";
+  import { developerMode } from "$lib/stores/developerMode";
   import { DEVELOPER_SETTING_KEYS, developerSettings } from "$lib/stores/developerSettings";
   import { askModelLoad } from "$lib/stores/modelResidency";
   import { navigateTo } from "$lib/stores/navigation";
@@ -43,7 +45,6 @@
   import ModelLoadTab from "./ModelLoadTab.svelte";
   import ModelPresetBar from "./ModelPresetBar.svelte";
   import {
-    PANEL_TABS,
     chatTargetOf,
     defaultPresetWrite,
     formChanged,
@@ -53,9 +54,11 @@
     initialPreset,
     isLoadSettingsRefusal,
     newPresetWrite,
+    panelTabs,
     presetUpdateWrite,
     presetsOf,
     relaunchWarning,
+    shownPanelTab,
     tabLabelKey,
     type PanelForm,
     type PanelTab,
@@ -69,7 +72,10 @@
     $developerSettings[DEVELOPER_SETTING_KEYS.presetLoadSettings].value,
   );
 
-  let tab = $state<PanelTab>("info");
+  let asked = $state<PanelTab>("info");
+  // Turning the developer mode off while Loading or Inference is open brings
+  // the panel back to Infos.
+  const tab = $derived(shownPanelTab(asked, $developerMode));
   let detail = $state<ModelDetail | null>(null);
   let presets = $state<PresetDetail[]>([]);
   let presetId = $state<number | null>(null);
@@ -82,7 +88,9 @@
   const chosen = $derived(presets.find((p) => p.id === presetId) ?? null);
   const changed = $derived(formChanged(form, baseline));
   const head = $derived(model ? headActions(model, selection?.loaded ?? false) : null);
-  const tabs = $derived(PANEL_TABS.map((key) => ({ key, label: $t(tabLabelKey(key)) })));
+  const tabs = $derived(
+    panelTabs($developerMode).map((key) => ({ key, label: $t(tabLabelKey(key)) })),
+  );
 
   function show(preset: PresetDetail | null): void {
     presetId = preset?.id ?? null;
@@ -118,7 +126,7 @@
     const id = modelId;
     untrack(() => {
       const mine = ++run;
-      tab = "info";
+      asked = "info";
       detail = null;
       presets = [];
       show(null);
@@ -298,7 +306,7 @@
       <TabBar
         items={tabs}
         activeTab={tab}
-        ontabchange={(key) => (tab = key as PanelTab)}
+        ontabchange={(key) => (asked = key as PanelTab)}
         testidPrefix="ai-panel"
         variant="underline"
       />

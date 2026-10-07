@@ -43,6 +43,7 @@
     "ai-panel-load-section-speculative",
     "ai-panel-load-section-speculative-toggle",
     "ai-panel-tab-inference",
+    "ai-panel-tab-info",
     "ai-panel-tab-load",
     "appearance-message-style-block",
     "appearance-message-style-bubble",
@@ -17702,6 +17703,127 @@
       "label": "03b-model-panel-info (developer mode off)"
     },
     {
+      "kind": "expect",
+      "testid": "ai-panel-tab-info"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-tab-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-tab-inference",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-panel-presets",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-row",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "ai-model-settings-btn",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-tab-info"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-tab-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-panel-tab-inference"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b2-model-panel-three-tabs (developer mode on)"
+    },
+    {
       "kind": "click",
       "testid": "ai-panel-tab-load",
       "timeoutMs": 3000
@@ -18000,53 +18122,13 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "click",
-      "testid": "ai-model-row",
-      "timeoutMs": 3000,
-      "nth": 0
-    },
-    {
-      "kind": "waitFor",
-      "testid": "ai-model-panel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "detail-sidebar-collapse",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "ai-model-panel",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "goto",
-      "route": "settings"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "app-main",
       "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
     },
     {
       "kind": "stubInvoke",

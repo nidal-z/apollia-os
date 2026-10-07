@@ -76,7 +76,18 @@ describe("settings navigation column", () => {
     // WHEN they are compared to the store and to the former sections
     // THEN they are exactly the sub-routes, and none of the former ones
     expect([...keys].sort()).toEqual([...SETTINGS_SUB_ROUTES].sort());
-    for (const gone of ["about", "help", "danger", "shortcuts", "observability", "system", "llm"]) {
+    const former = [
+      "about",
+      "help",
+      "danger",
+      "shortcuts",
+      "observability",
+      "system",
+      "llm",
+      "llm-backends",
+      "model-hub",
+    ];
+    for (const gone of former) {
       expect(keys as string[]).not.toContain(gone);
     }
   });

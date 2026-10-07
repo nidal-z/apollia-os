@@ -34,6 +34,7 @@ import {
   isLoadSettingsRefusal,
   loadTabView,
   newPresetWrite,
+  panelTabs,
   overrideOf,
   panelSelection,
   parseField,
@@ -43,6 +44,7 @@ import {
   relaunchWarning,
   sourceToggle,
   sourceView,
+  shownPanelTab,
   tabLabelKey,
   typeChoiceOf,
   typeExplanationKey,
@@ -168,6 +170,35 @@ describe("the panel opens on a model of the list", () => {
     expect(PANEL_TABS).toEqual(["info", "load", "inference"]);
     expect(names(en)).toEqual(["Info", "Loading", "Inference"]);
     expect(names(fr).every((name) => typeof name === "string" && name.trim() !== "")).toBe(true);
+  });
+
+  test("with the developer mode off the panel offers Infos alone, with it on the three tabs", () => {
+    // GIVEN the two modes
+    // WHEN the tabs of the panel are read
+    // THEN Loading and Inference exist with the mode on only, after Infos
+    expect(panelTabs(false)).toEqual(["info"]);
+    expect(panelTabs(true)).toEqual(["info", "load", "inference"]);
+  });
+
+  test("a tab the mode no longer offers falls back to Infos", () => {
+    // GIVEN a panel left on Loading, then on Inference
+    // WHEN the developer mode is on, then turned off
+    // THEN the tab stays with the mode on and Infos is shown with it off
+    expect(shownPanelTab("load", true)).toBe("load");
+    expect(shownPanelTab("inference", true)).toBe("inference");
+    expect(shownPanelTab("load", false)).toBe("info");
+    expect(shownPanelTab("inference", false)).toBe("info");
+    expect(shownPanelTab("info", false)).toBe("info");
+  });
+
+  test("the panel draws its tab bar and its content from the tabs of the mode in force", () => {
+    // GIVEN the source of the panel
+    const src = source("ModelPanel.svelte");
+    // WHEN its tab bar and the tab it shows are read
+    // THEN both follow the developer mode, and the full list is named nowhere
+    expect(src).toMatch(/panelTabs\(\$developerMode\)\.map\(/);
+    expect(src).toMatch(/const tab = \$derived\(shownPanelTab\(asked, \$developerMode\)\)/);
+    expect(src).not.toContain("PANEL_TABS");
   });
 
   test("a row of the list opens the panel by a click and by its gear", () => {
