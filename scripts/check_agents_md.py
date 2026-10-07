@@ -152,7 +152,7 @@ CAMEL_WORD = re.compile(
 # document cites any more, is itself a red. Without that, the list is a way of
 # passing rather than a set of exceptions.
 ILLUSTRATIVE = {
-    "EmailPayload", "EmailResult", "EmailTriage", "MyClass",
+    "EmailPayload", "EmailResult",
 }
 
 # Identifiers that are real and live outside the three source roots: the

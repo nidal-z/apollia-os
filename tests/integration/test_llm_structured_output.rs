@@ -28,28 +28,11 @@ use pyo3::types::PyDict;
 
 use apollia_aip::llm::LlmProxy;
 use apollia_llm::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
-use apollia_llm::{
-    CompletionModel, LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker,
-};
+use apollia_llm::{CompletionModel, LlmRouter, ObservabilityConfig, StepBudgetView};
 
 /// Environment variable naming a live OpenAI-compatible base URL, API prefix
 /// included (`http://127.0.0.1:8899/v1`).
 const LIVE_URL_VAR: &str = "APOLLIA_TEST_LLAMA_URL";
-
-/// Tool invoker the helper requires but no test here reaches: these calls carry
-/// no tools.
-struct NoTools;
-
-#[async_trait::async_trait]
-impl ToolInvoker for NoTools {
-    async fn invoke(
-        &self,
-        tool_name: &str,
-        _arguments: &serde_json::Value,
-    ) -> Result<String, String> {
-        Err(format!("no tool is wired in this test: {tool_name}"))
-    }
-}
 
 /// The live URL, or `None` when the suite must report that it measured nothing.
 fn live_url() -> Option<String> {
@@ -84,11 +67,9 @@ fn live_proxy(url: &str) -> LlmProxy {
     let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
     backends.insert("local".to_string(), Arc::clone(&client));
     let router = Arc::new(LlmRouter::with_backends(backends, "local"));
-    let helper = Arc::new(ToolCallHelper::new(client, Arc::new(NoTools)));
     let budget = Arc::new(StepBudgetView::new(Arc::new(AtomicU32::new(0)), u32::MAX));
     LlmProxy::new(
         router,
-        helper,
         budget,
         Arc::new(ObservabilityConfig::default()),
         None,

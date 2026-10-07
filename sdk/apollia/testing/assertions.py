@@ -7,18 +7,13 @@ directly compatible with ``pytest``.  They inspect both the
 
 Example::
 
-    from apollia.testing import (
-        mock,
-        assert_result_completed,
-        assert_skill_called,
-        assert_tool_called,
-    )
+    from apollia.testing import MockContext, assert_llm_called, assert_tool_called
 
-    agent, ctx = mock(MyAgent)
-    result = await agent.invoke_skill("my.skill", x=1)
-    assert_result_completed(result, contains="done")
-    assert_tool_called(ctx, "bash", times=1)
-    assert_skill_called(ctx, "child.worker")
+    ctx = MockContext()
+    ctx.llm.responses = [{"content": "done"}]
+    await my_workflow(ctx, {"path": "notes.txt"})
+    assert_llm_called(ctx, times=1)
+    assert_tool_called(ctx, "file_read", times=1)
 """
 
 from __future__ import annotations
@@ -100,37 +95,6 @@ def assert_result_input_required(result: dict[str, Any]) -> None:
 # ──────────────────────────────────────────────────────────────────────
 # MockContext interaction assertions
 # ──────────────────────────────────────────────────────────────────────
-
-
-def assert_skill_called(
-    ctx: MockContext,
-    skill_id: str,
-    *,
-    times: int | None = None,
-) -> None:
-    """Verify ``ctx.a2a.invoke(skill_id, ...)`` was called.
-
-    Args:
-        ctx: :class:`MockContext` instance returned by :func:`mock`.
-        skill_id: The fully-qualified skill id (e.g. ``"pdf.read_text"``).
-        times: If provided, assert the exact number of invocations.
-
-    Raises:
-        AssertionError: If the skill was never called (or not the
-            expected number of times when ``times`` is set).
-    """
-    calls = [c for c in ctx.a2a.invoke_calls if c[0] == skill_id]
-    if times is not None:
-        if len(calls) != times:
-            raise AssertionError(
-                f"Expected skill '{skill_id}' to be invoked {times} times, "
-                f"was invoked {len(calls)} times"
-            )
-    elif not calls:
-        all_called = [c[0] for c in ctx.a2a.invoke_calls]
-        raise AssertionError(
-            f"Skill '{skill_id}' was not invoked via ctx.a2a.invoke (invoked skills: {all_called})"
-        )
 
 
 def assert_tool_called(
@@ -307,7 +271,6 @@ __all__ = [
     "assert_result_completed",
     "assert_result_failed",
     "assert_result_input_required",
-    "assert_skill_called",
     "assert_template_rendered",
     "assert_tool_called",
 ]

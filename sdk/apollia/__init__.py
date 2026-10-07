@@ -1,6 +1,5 @@
-"""Apollia SDK - Python toolkit for building Apollia OS agents."""
+"""Apollia SDK - the Python a package brings to Apollia OS: tools and workflows."""
 
-from apollia.agent import agent
 from apollia.errors import (
     AgentConfigError,
     AgentError,
@@ -8,13 +7,8 @@ from apollia.errors import (
     NeedHumanInput,
     PayloadError,
     SchemaError,
-    SkillNotFound,
     StructuredOutputError,
 )
-from apollia.messages import on_message
-from apollia.orchestration import orchestrated
-from apollia.react import react
-from apollia.skills import skill
 from apollia.tool_decorator import tool
 from apollia.types import (
     Ctx,
@@ -57,24 +51,17 @@ __all__ = [
     "NeedHumanInput",
     "PayloadError",
     "SchemaError",
-    "SkillNotFound",
     "StructuredOutputError",
     "TextContent",
     "WorkflowCtx",
     # Version
     "__version__",
-    # Decorators
-    "agent",
     "image_from_bytes",
     "image_from_path",
     "image_from_url",
-    "on_message",
-    "orchestrated",
-    # ReAct utility
-    "react",
-    "skill",
     # Vision helpers
     "text",
+    # Decorators
     "tool",
     "workflow",
 ]

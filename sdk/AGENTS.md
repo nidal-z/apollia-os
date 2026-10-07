@@ -3,8 +3,8 @@
 > Local rules for the Apollia AgentKit SDK. Read after the root `AGENTS.md`
 > and `docs/agents/PYTHON-PATTERNS.md` before editing this subtree.
 
-The SDK is the contract every Apollia agent depends on. A change here
-propagates to every agent in the wild. Stability and clarity are
+The SDK is the contract the Python of every Apollia package depends on. A
+change here propagates to every package in the wild. Stability and clarity are
 non-negotiable.
 
 The authority on what `ctx` guarantees is `sdk/apollia/types.py` together with
@@ -15,12 +15,13 @@ documentation site.
 
 ## 1. Decorator inventory
 
+An agent is data: its mission, its examples and what it may reach are written
+in the `apollia.toml` of a package. No decorator declares an agent, and no
+Python stands for one. The Python of a package brings tools and workflows, and
+the SDK offers exactly two decorators:
+
 | Decorator | Level | Signature | Purpose |
 |---|---|---|---|
-| `@agent` | class | `agent(*, name, version, description, ...)`, keyword-only | declare the agent identity and manifest metadata |
-| `@skill` | async method | `skill(skill_id, *, description="", dangerous=False, examples=None)` | A2A-exposed, LLM-callable capability |
-| `@on_message` | async method | `on_message(fn)`, no arguments | the agent's single conversational handler |
-| `@orchestrated` | class | `orchestrated(*, system_prompt)` | hand the execution loop to ORIA |
 | `@tool` | async function | `tool(name, description, *, action, examples=None)` | a Python tool a package ships, grantable to any agent |
 | `@workflow` | async function | `workflow(name, description, *, inputs, steps, action)` | a workflow with its steps declared ahead, run as `(ctx, inputs)` |
 
@@ -43,74 +44,71 @@ none, so a workflow under test reports nothing.
 `apollia.toml` as `[[tools]]` and `[[workflows]]` descriptors, so reading the
 manifest never runs the code.
 
-Two of those signatures are not what an older reading of this file said.
-`@on_message` takes no `event_kind` and subscribes to nothing: it marks the one
-method that receives `(self, message, history, ctx)` and returns the assistant
-reply. `@orchestrated` decorates the **class**, not a method, and its only
-argument is `system_prompt`.
+The package root publishes nothing else that declares behaviour. There is no
+class decorator, no method decorator, no conversational handler, no
+reasoning-loop helper and no dispatch hook: a module that tries to import one
+fails at import, and `sdk/tests/test_public_api.py` freezes that surface in
+both directions.
 
 Rules :
-- `@agent` and `@orchestrated` wrap the class. `@skill` and `@on_message` wrap
-  async methods. Never wrap a non-async method.
-- At most one `@on_message` per class, and `@orchestrated` is mutually
-  exclusive with both `@skill` and `@on_message`. Validation runs at `@agent`
-  decoration time and raises `AgentConfigError`. Fail fast.
-- Order : `@agent` outermost on the class, then the method decorators. The
-  class attribute `__apollia_manifest__` is built by `@agent`; the bridge
-  additionally requires `__apollia_dispatch__` and refuses an object without
-  it.
+- Both decorators wrap an `async def` function. Never wrap a method, never
+  wrap a non-async function: either raises `AgentConfigError`.
+- One decorator per function. Applying `@tool` or `@workflow` twice to the
+  same function raises `AgentConfigError`.
+- `name` matches `[a-z0-9_-]+` and is unique in the package; `description`
+  is a non-empty string. Validation runs at decoration time. Fail fast.
+- A workflow function takes exactly two positional parameters,
+  `(ctx, inputs)`. A tool takes `ctx` first, then its inputs.
 
 ---
 
 ## 2. The contract minimal
 
 ```python
-from apollia import agent, skill
+from typing import Annotated
+
+from apollia import tool
 from apollia.types import Ctx
 
-from my_agent.schemas import EmailPayload, EmailResult
+from my_package.schemas import EmailPayload, EmailResult
 
-@agent(
-    name="email-triage",
-    version="0.1.0",
-    description="Triages incoming emails into priority buckets.",
+
+@tool(
+    "triage",
+    "Score an email by priority.",
+    action="read",
+    examples=[{
+        "email": {"to": "ops@apollia.fr", "subject": "service down", "body": "..."},
+    }],
 )
-class EmailTriage:
-    @skill(
-        skill_id="triage",
-        description="Score an email by priority.",
-        examples=[{
-            "to": "ops@apollia.fr",
-            "subject": "service down",
-            "body": "...",
-        }],
-    )
-    async def triage(self, ctx: Ctx, payload: EmailPayload) -> EmailResult:
-        ...
+async def triage(
+    ctx: Ctx,
+    email: Annotated[EmailPayload, "the email to score"],
+) -> EmailResult:
+    ...
 ```
 
 Mandatory shape :
-- A module-level `agent` symbol bound to the single instance. **Do not write
-  it by hand.** `@agent` instantiates the class and binds the symbol itself
-  (`sdk/apollia/_internal/module_registry.py`); a hand-written
-  `agent = MyClass()` builds a second instance. None of the tree's
-  `@agent` modules carries the line.
-- Every `@skill` carries at least one realistic `examples=[{...}]` payload.
+- The agent that uses the tool is declared in `apollia.toml` (`[[agents]]`,
+  with its mission and its `access`), never in Python.
+- Every `@tool` carries at least one realistic `examples=[{...}]` payload.
 - Every parameter that is LLM-facing and not a trivial scalar carries
   `Annotated[T, "description"]`.
-- TypedDict canonical schemas live in `<agent>/schemas.py`.
+- TypedDict canonical schemas live in `<package>/schemas.py`.
+- After a change to a decorated function, `python -m apollia describe
+  <folder>` rewrites the descriptors of `apollia.toml`.
 
 ---
 
 ## 3. `Ctx` protocol
 
-`Ctx` is the capability bundle the runtime injects. The skill body
-interacts with the world only through `ctx`. The authoritative type
+`Ctx` is the capability bundle the runtime injects. The body of a tool or
+of a workflow interacts with the world only through `ctx`. The authoritative type
 contract is the `Ctx` Protocol in `sdk/apollia/types.py` plus the
 per-service interface modules in `sdk/apollia/context/*.py`. There are no
 `.pyi` stubs.
 
-`Ctx` exposes the whole Apollia backend through 18 typed services :
+`Ctx` exposes the whole Apollia backend through 17 typed services :
 
 ```python
 @runtime_checkable
@@ -118,7 +116,6 @@ class Ctx(Protocol):
     llm: LlmProxy
     memory: MemoryInterface
     tools: ToolProxy
-    a2a: A2AInterface
     agents: AgentsInterface
     workflows: WorkflowsInterface
     user: UserInterface
@@ -140,7 +137,6 @@ class Ctx(Protocol):
 | `llm` | `LlmProxy` | prompt, stream, `map` over items |
 | `memory` | `MemoryInterface` | agent-initiated recall and write |
 | `tools` | `ToolProxy` | invoke native and MCP tools |
-| `a2a` | `A2AInterface` | synchronous agent-to-agent RPC |
 | `agents` | `AgentsInterface` | `run(agent_id, message)`, bound in a workflow run |
 | `workflows` | `WorkflowsInterface` | `run(workflow_id, inputs)`, bound in a workflow run, three levels deep at most |
 | `user` | `UserInterface` | `ask(question, *, options=None, hint=None)`, bound in a workflow run: the run waits in its step until the user answers, a refusal raises `QuestionDeclined` |
@@ -156,9 +152,10 @@ class Ctx(Protocol):
 | `notify` | `NotifyInterface` | desktop and webhook notifications |
 | `budget` | `BudgetView` | read the remaining step budget |
 
-`ReAct` is intentionally NOT on `Ctx`. It lives as a free function
-`apollia.react(ctx, ...)` so alternative reasoning loops compose without
-subclassing the runtime context.
+There is no synchronous call between agents on `Ctx` other than
+`ctx.agents.run` and `ctx.workflows.run`, and `ctx.llm` offers no loop that
+alternates model calls and tool calls: that loop belongs to an agent, and a
+workflow step that needs one hands the message to an agent.
 
 Adding a service or a method to `Ctx` :
 1. Update the Protocol in `sdk/apollia/types.py` and the interface module
@@ -173,7 +170,7 @@ diverge, the contract wins and the implementation is broken.
 ### `ctx.mail` semantics
 
 `ctx.mail` is the durable, at-least-once inter-agent inbox, distinct from
-`ctx.a2a` (synchronous RPC). Backed by a SQLite mailbox with lease-based
+`ctx.agents.run` (a synchronous run). Backed by a SQLite mailbox with lease-based
 delivery. Interface in `sdk/apollia/context/mail.py` :
 
 | Method | Behavior |
@@ -194,13 +191,13 @@ fields); see `crates/apollia-runtime/AGENTS.md` §6.
 
 ## 4. TypedDict schemas
 
-Schemas live in `<agent>/schemas.py`. The file must NOT contain
+Schemas live in `<package>/schemas.py`. The file must NOT contain
 `from __future__ import annotations`. PEP 563 turns annotations into
 strings and breaks `TypedDict.__required_keys__` that AgentKit reads at
 registration.
 
 ```python
-# my_agent/schemas.py
+# my_package/schemas.py
 # NO `from __future__ import annotations`
 
 from typing import NotRequired, TypedDict, Literal
@@ -222,9 +219,9 @@ Rules :
 - TypedDict inheritance only when you genuinely want field union.
 - `NotRequired[T]` is preferred over `total=False` when most fields are
   required and a few are optional.
-- Validation : `python -m apollia inspect <agent.py> --json` shows the
-  generated schema; check that it carries a description on every parameter and
-  examples on every skill.
+- Validation : `python -m apollia describe <folder>` writes the generated
+  schema into `apollia.toml`; check that it carries a description on every
+  parameter and examples on every tool.
 
 ---
 
@@ -235,12 +232,11 @@ Hierarchy rooted at `AgentError` :
 ```
 AgentError
 ├── DomainError       # business-level failure, retry meaningless
-├── NeedHumanInput    # captured by the dispatcher, returns input_required
+├── NeedHumanInput    # a pause awaiting a human
 ├── QuestionDeclined  # the user declined a question `ctx.user.ask` asked
 ├── PayloadError      # malformed input, fail-fast to caller
 ├── SchemaError       # the declared schema itself is wrong
-├── SkillNotFound     # no skill answers the requested skill_id
-└── AgentConfigError  # the agent is malformed, raised at decoration time
+└── AgentConfigError  # a declaration is malformed, raised at decoration time
 ```
 
 There is no `AgentTimeoutError`: `git grep AgentTimeoutError -- sdk/apollia`
@@ -252,11 +248,11 @@ Rules :
   `AgentError`.
 - `DomainError(message, *, code=...)` is the one that carries a stable `.code`
   the caller can branch on. The others do not take a code; do not promise one.
-- `NeedHumanInput(prompt, context=None)` is the only exception that suspends
-  and resumes the task: the dispatcher turns it into an `AIPResult` with
-  `status == "input_required"` carrying `prompt` and `context`, and the runtime
-  restitutes `context` verbatim on resume. All others terminate the skill
-  invocation.
+- `NeedHumanInput(prompt, context=None)` is the exception a pause rides:
+  `ctx.tools.call` raises it for a call that needs an approval. It carries
+  `prompt` and `context`, and the runtime restitutes `context` verbatim on
+  resume, through `ctx.input_response`. A workflow that wants to ask the user
+  something calls `ctx.user.ask`, which waits inside the step.
 - `QuestionDeclined(question, *, reason=None)` is raised inside a workflow
   step by `ctx.user.ask` when the user refuses to answer. It does not suspend
   anything: the wait already happened inside `ask`. Caught, the workflow goes
@@ -266,12 +262,11 @@ Rules :
 
 ## 6. Datasources and templates
 
-The runtime loads datasources and templates declared in the agent
-TOML (`[datasources]`, `[templates]`). They are exposed read-only via
-the `ctx.datasources` and `ctx.templates` services.
+Datasources and templates are exposed read-only via the
+`ctx.datasources` and `ctx.templates` services.
 
 Rules :
-- Agents never write to datasources. The runtime owns the lifecycle.
+- A tool or a workflow never writes to datasources. The runtime owns the lifecycle.
 - Templates are rendered by `minijinja` on the Rust side
   (`crates/apollia-aip/src/templates.rs`), so the filter set is minijinja's
   built-in one, not a hand-picked list. `ctx.templates.render(name, **context)`
@@ -281,21 +276,20 @@ Rules :
 
 ---
 
-## 7. `@orchestrated` semantics
+## 7. Workflow steps
 
-Marks a skill that ORIA drives step-by-step (LLM in the loop). The
-agent body is a single function; ORIA decides when to call tools, when
-to ask the LLM, when to stop.
+`@workflow(..., steps=[...])` lists the steps ahead, in order, and that list
+is what the card of the workflow shows without running the code. The body
+opens each one with `async with ctx.step("name")`:
 
-`@orchestrated(system_prompt=...)` marks the class. The agent supplies only
-metadata and the system prompt; it may define
-`async on_plan_complete(step_results, ctx)` to post-process the step outputs,
-which defaults to concatenating the step texts.
-
-There is no `cache_plan` argument. ORIA's plan cache is keyed on the agent
-name, the agent version, the sorted tool names and the normalized task text,
-and it is on whenever the engine was given a cache repository; see
-`crates/apollia-oria/AGENTS.md` §4.
+- `ctx.step` refuses a name the decorator did not declare, with an
+  `AgentConfigError` naming the declared ones, so the body cannot drift from
+  the card.
+- A workflow called directly from a step of another validates its steps
+  against its own list, not the caller's.
+- A step calls `ctx.llm`, `ctx.tools`, `ctx.agents.run`, `ctx.workflows.run`,
+  `ctx.user.ask` or plain Python. `ctx.agents`, `ctx.workflows` and
+  `ctx.user` are bound in a workflow run only.
 
 ---
 
@@ -303,12 +297,16 @@ and it is on whenever the engine was given a cache repository; see
 
 - `from __future__ import annotations` in any module with TypedDict.
 - Relative imports (`from .module import X`).
-- Module-level side effects beyond the `agent = MyClass()` instantiation.
+- Module-level side effects. A module of a package is imported by
+  `python -m apollia describe` and by the runtime; importing it does nothing
+  but define its functions.
 - Adding third-party dependencies. The SDK is stdlib-only; the bridge that
   injects `ctx` is Rust, not a Python package the SDK imports.
-- Decorator stacking that breaks the validation (multiple of
-  `@skill` / `@on_message` / `@orchestrated` on one method).
-- `print()` in agent and library code (use `ctx.logger`). The exception is
+- Decorator stacking (`@tool` and `@workflow` on one function, or either
+  applied twice).
+- Any class, decorator or helper that would let Python stand for an agent.
+  An agent is data in `apollia.toml`.
+- `print()` in package and library code (use `ctx.logger`). The exception is
   `sdk/apollia/cli/`, whose whole job is to write to the terminal: those
   modules carry a written `# REASON: print-call:` exemption that
   `scripts/check_python_rules.py` reads, and nothing else may.
@@ -337,11 +335,23 @@ Edit policy :
 ## 10. Testing
 
 - `pytest` with `asyncio_mode = "strict"`.
-- Each new decorator carries unit tests that exercise the validation
-  paths (`AgentConfigError` on conflicting decorators, etc.).
-- `python -m apollia inspect <agent.py> --json` is the local smoke test. It is
-  not run in CI today: no workflow, no `just` recipe and no hook invokes it.
-  Run it by hand on the agent you touched, and do not cite it as a gate.
+- A tool and a workflow are plain `async def` functions: a test builds a
+  `MockContext` (`from apollia.testing import MockContext`), configures its
+  services in place and awaits the function as written. There is no factory
+  and no dispatch between the test and the function, so a raised
+  `DomainError` reaches the test as itself.
+- `MockContext` mirrors every service of `Ctx` but `ctx.mail`;
+  `scripts/check_testing_mocks.py` holds that pairing. Under it a workflow's
+  steps report nothing, and `ctx.step` still refuses an undeclared name.
+- Each decorator carries unit tests that exercise its validation paths
+  (`AgentConfigError` on a non-async function, an unknown action family, an
+  unsupported workflow input, a duplicated step).
+- A change to the public surface changes `sdk/tests/test_public_api.py` in
+  the same commit: it snapshots `apollia.__all__` and the `__all__` of every
+  public submodule exactly.
+- `python -m apollia describe <folder>` is covered by
+  `sdk/tests/test_describe_cli.py` on the fixture package
+  `sdk/tests/fixtures/invoice_pkg`.
 - See `docs/agents/TESTING.md` §6.
 
 ---
@@ -352,7 +362,7 @@ Edit policy :
 |---|---|
 | New decorator | `sdk/README.md`, this file (§1), `docs/site/docs/` |
 | New `Ctx` method | `types.py` + `context/<service>.py` + the decisions chapter |
-| New `AgentError` subclass | this file (§5), `sdk/apollia/_internal/aip_result.py` |
+| New `AgentError` subclass | this file (§5), `sdk/apollia/errors.py` |
 | TypedDict schema convention change | this file (§4), the `#agent-contract` section of the decisions chapter if breaking |
 
 There is no Book and no Wiki corpus in this tree. The two committed
@@ -365,7 +375,7 @@ documentation corpora are `docs/site/` and `docs/agents/`.
 - Need a new decorator : state it in the `#agent-contract` section of
   `docs/site/docs/architecture/08-decisions.md` first. Decorators are
   contract.
-- Need to add a runtime dependency to an agent : state the decision in
+- Need to add a runtime dependency to a package : state the decision in
   `docs/site/docs/architecture/08-decisions.md` first. Each one is a
   sovereignty surface.
 - Need to break compatibility (rename a decorator, change a schema

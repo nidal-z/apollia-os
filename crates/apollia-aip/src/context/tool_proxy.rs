@@ -280,7 +280,7 @@ impl ToolProxy {
         // A2A path: intercept before registry lookup.
         // Accept both `a2a:{skill_id}` (legacy, Anthropic-compatible) and
         // `a2a__{skill_id_with_dots_replaced_by_double_underscore}` (new,
-        // OpenAI-compatible; see `A2AInterface::skill_as_tool`).
+        // OpenAI-compatible).
         if let Some(skill_id) = extract_a2a_skill_id(&tool_name) {
             if let Some(bus) = self.event_bus.as_ref() {
                 let _ = bus.send(started(None, None));

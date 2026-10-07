@@ -97,7 +97,8 @@ pub struct RuntimeContext {
     agent_name: String,
     /// High-level A2A orchestrator; `None` if unavailable in this context.
     ///
-    /// Exposes `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` to Python agents.
+    /// No Python surface exposes it: `ctx.mail` reads the agent directory
+    /// through it.
     a2a_invoker: Option<Arc<A2AInvoker>>,
     /// If `true`, the agent can write into the global user memory (`__user__`)
     /// via `ctx.memory.remember_user()`. Reading the `__user__` namespace is
@@ -152,13 +153,6 @@ pub struct RuntimeContext {
     task_id: Option<String>,
 
     // Nested surfaces
-    /// Consolidated A2A facade: `ctx.a2a`.
-    ///
-    /// Shares the same `Arc<A2AInvoker>` as [`Self::a2a_invoker`]. Always built
-    /// (the agent always sees `ctx.a2a`, but the methods raise `RuntimeError`
-    /// when the invoker is unavailable).
-    a2a_iface: Option<Py<crate::a2a::A2AInterface>>,
-
     /// Typed event-emission surface: `ctx.events`.
     ///
     /// Always built (at worst in silent no-op mode when the bus is absent).
@@ -368,23 +362,6 @@ impl RuntimeContext {
     }
 
     // Getters for the nested surfaces.
-    /// Consolidated A2A facade: `ctx.a2a`.
-    ///
-    /// Always returns an `A2AInterface` (never `None`); the internal methods
-    /// raise `RuntimeError("A2A invoker not available ...")` if the runtime has
-    /// no active invoker. This uniformity spares the agent from branching on
-    /// the presence of `ctx.a2a`.
-    ///
-    /// ctx-attachment: always, `a2a_iface` is built systematically by the production
-    ///     constructor; the methods raise when the invoker is missing.
-    #[getter]
-    fn a2a(&self, py: Python<'_>) -> PyObject {
-        match &self.a2a_iface {
-            Some(p) => p.clone_ref(py).into_any(),
-            None => py.None(),
-        }
-    }
-
     /// Asynchronous inter-agent messaging: `ctx.mail`.
     ///
     /// Built on each access so the caller's current `run_id` (set after
@@ -585,78 +562,9 @@ mod runtime_context_tests {
     use super::*;
 
     use apollia_core::events::RuntimeEvent;
-    use apollia_llm::{ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker};
-    use std::pin::Pin;
+    use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView};
     use std::sync::Arc;
     use tokio::sync::broadcast;
-
-    use apollia_llm::{
-        CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmRouter,
-        StreamChunk, TokenUsage,
-    };
-    use futures::Stream;
-
-    // Mocks for building the ToolCallHelper (never actually called).
-
-    struct NoopModel;
-
-    #[async_trait::async_trait]
-    impl CompletionModel for NoopModel {
-        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
-            Ok(CompletionResponse {
-                engine_timings: None,
-                content: String::new(),
-                tool_calls: vec![],
-                usage: TokenUsage {
-                    prompt_tokens: 0,
-                    completion_tokens: 0,
-                    cost_usd: None,
-                    ..Default::default()
-                },
-                finish_reason: FinishReason::Stop,
-                latency_ms: 0,
-                ttft_ms: None,
-            })
-        }
-
-        async fn stream(
-            &self,
-            _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
-        {
-            Ok(Box::pin(futures::stream::empty()))
-        }
-
-        fn is_available(&self) -> bool {
-            true
-        }
-        fn backend_name(&self) -> &str {
-            "noop"
-        }
-        fn model_id(&self) -> &str {
-            "noop"
-        }
-    }
-
-    struct NoopInvoker;
-
-    #[async_trait::async_trait]
-    impl ToolInvoker for NoopInvoker {
-        async fn invoke(
-            &self,
-            _tool_name: &str,
-            _arguments: &serde_json::Value,
-        ) -> Result<String, String> {
-            Ok(String::new())
-        }
-    }
-
-    fn make_tool_helper() -> Arc<ToolCallHelper> {
-        Arc::new(ToolCallHelper::new(
-            Arc::new(NoopModel),
-            Arc::new(NoopInvoker),
-        ))
-    }
 
     /// `ctx.llm` is `None` if the router has no backend.
     #[tokio::test]
@@ -668,7 +576,6 @@ mod runtime_context_tests {
         let ctx = RuntimeContext::new_with_llm(
             Some(router),
             Arc::new(StepBudgetView::unlimited()),
-            make_tool_helper(),
             Arc::new(ObservabilityConfig::default()),
             tx,
             AgentId::new_v4(),
@@ -694,7 +601,6 @@ mod runtime_context_tests {
         let _ctx = RuntimeContext::new_with_llm(
             Some(router),
             Arc::new(StepBudgetView::unlimited()),
-            make_tool_helper(),
             Arc::new(ObservabilityConfig::default()),
             tx,
             agent_id,
@@ -726,7 +632,6 @@ mod runtime_context_tests {
         let ctx = RuntimeContext::new_with_llm(
             None,
             Arc::new(StepBudgetView::unlimited()),
-            make_tool_helper(),
             Arc::new(ObservabilityConfig::default()),
             tx,
             AgentId::new_v4(),
@@ -775,6 +680,28 @@ mod runtime_context_tests {
         });
     }
 
+    // The context a tool or a workflow receives carries no call between
+    // agents of its own and its `ctx.llm` no tool loop.
+    #[test]
+    fn test_the_context_exposes_neither_a2a_nor_the_tool_loop() {
+        // GIVEN the context of a package tool and the class of `ctx.llm`
+        pyo3::prepare_freethreaded_python();
+        pyo3::Python::with_gil(|py| {
+            let ctx = Py::new(py, RuntimeContext::for_test()).expect("context");
+            let llm = py.get_type::<crate::llm::LlmProxy>();
+
+            // WHEN Python looks the former members up
+            let a2a = ctx.bind(py).hasattr("a2a").expect("hasattr");
+            let tool_loop = llm.hasattr("run_tools").expect("hasattr");
+            let mail = ctx.bind(py).hasattr("mail").expect("hasattr");
+
+            // THEN neither is bound, and `ctx.mail` still is
+            assert!(!a2a, "ctx.a2a is still bound");
+            assert!(!tool_loop, "ctx.llm.run_tools is still bound");
+            assert!(mail, "ctx.mail is no longer bound");
+        });
+    }
+
     // ctx.step_budget returns None when no budget is configured
     #[tokio::test]
     async fn test_step_budget_none_when_not_configured() {
@@ -799,7 +726,6 @@ mod runtime_context_tests {
         let ctx = RuntimeContext::new_with_llm(
             None,
             Arc::new(StepBudgetView::unlimited()),
-            make_tool_helper(),
             Arc::new(ObservabilityConfig::default()),
             tx,
             AgentId::new_v4(),

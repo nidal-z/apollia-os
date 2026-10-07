@@ -9,7 +9,6 @@ from apollia.utils.assertion import (
     build_citation_payload,
 )
 from apollia.utils.formatting import (
-    a2a_result_data,
     aip_result_text,
     format_as_json,
     format_as_markdown,
@@ -32,7 +31,6 @@ __all__ = [
     "Citation",
     "ConfidenceLevel",
     "SourceType",
-    "a2a_result_data",
     "aip_result_text",
     "assert_with_confidence",
     "build_citation_payload",

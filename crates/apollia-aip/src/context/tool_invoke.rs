@@ -21,8 +21,7 @@ use crate::context::tool_proxy::{ToolCallError, ToolExecutor, ToolProxyError};
 /// Extracts the original A2A `skill_id` from a tool name, supporting both
 /// the legacy `"a2a:{skill_id}"` prefix and the new
 /// `"a2a__{skill_id_with_dots_as_double_underscores}"` prefix introduced for
-/// OpenAI compatibility (which rejects `:` in tool names; see
-/// `A2AInterface::skill_as_tool`). Returns `None` if the name doesn't match
+/// OpenAI compatibility (which rejects `:` in tool names). Returns `None` if the name doesn't match
 /// either A2A pattern.
 ///
 /// Examples:
@@ -34,8 +33,7 @@ pub(crate) fn extract_a2a_skill_id(tool_name: &str) -> Option<String> {
         return Some(rest.to_string());
     }
     if let Some(rest) = tool_name.strip_prefix("a2a__") {
-        // Reverse the encoding applied by `A2AInterface::skill_as_tool`:
-        // `.` was replaced by `__`. We restore it here so the invoker
+        // Reverse the encoding of the tool name: `.` was replaced by `__`. We restore it here so the invoker
         // receives the canonical skill_id.
         return Some(rest.replace("__", "."));
     }

@@ -5,14 +5,46 @@ from __future__ import annotations
 
 def test_top_level_decorators_importable() -> None:
     # GIVEN the package root
-    # WHEN the four decorators are read from it
+    # WHEN the two decorators are read from it
     # THEN each is callable, so none is a placeholder or a module
     import apollia
 
-    assert callable(apollia.agent)
-    assert callable(apollia.skill)
-    assert callable(apollia.on_message)
-    assert callable(apollia.orchestrated)
+    assert callable(apollia.tool)
+    assert callable(apollia.workflow)
+
+
+def test_the_former_contract_is_not_published_any_more() -> None:
+    """An agent is data: the package offers no way to write one in Python."""
+    from pathlib import Path
+
+    import apollia
+    from apollia.context.llm import LlmProxy
+    from apollia.types import Ctx
+
+    # GIVEN the package as it is installed
+    root = Path(apollia.__file__).parent
+
+    # WHEN the names and the modules of the former contract are looked up
+    former_names = {"agent", "skill", "on_message", "orchestrated", "react", "SkillNotFound"}
+    former_modules = [
+        "agent.py",
+        "skills.py",
+        "messages.py",
+        "orchestration.py",
+        "react.py",
+        "context/a2a.py",
+        "_internal/manifest.py",
+        "_internal/dispatch.py",
+        "cli/scaffold.py",
+        "cli/inspect.py",
+    ]
+
+    # THEN no name is published, no module is shipped, and the context offers
+    # neither the synchronous call between agents nor the tool loop
+    assert former_names.isdisjoint(apollia.__all__)
+    assert [name for name in former_modules if (root / name).exists()] == []
+    assert "a2a" not in Ctx.__annotations__
+    assert not hasattr(LlmProxy, "run" + "_tools")
 
 
 def test_exceptions_re_exported() -> None:
@@ -26,7 +58,6 @@ def test_exceptions_re_exported() -> None:
         NeedHumanInput,
         PayloadError,
         SchemaError,
-        SkillNotFound,
     )
 
     # All inherit from AgentError.
@@ -34,7 +65,6 @@ def test_exceptions_re_exported() -> None:
     assert issubclass(NeedHumanInput, AgentError)
     assert issubclass(PayloadError, AgentError)
     assert issubclass(SchemaError, AgentError)
-    assert issubclass(SkillNotFound, AgentError)
     assert issubclass(AgentConfigError, AgentError)
 
 
@@ -51,7 +81,7 @@ def test_version_is_string() -> None:
 def test_all_is_exactly_the_published_surface() -> None:
     """``apollia.__all__`` is a contract: additions and removals both fail here.
 
-    An ``issubset`` floor let ``react`` and ``MapItemResult`` ship unlocked
+    An ``issubset`` floor let ``MapItemResult`` ship unlocked
     and would have let any future addition pass in silence. The snapshot is
     exact in both directions on purpose: changing the public surface means
     changing this test in the same commit, visibly.
@@ -61,18 +91,12 @@ def test_all_is_exactly_the_published_surface() -> None:
     # GIVEN the published names, frozen as an exact set
     expected = {
         # Decorators
-        "agent",
-        "skill",
-        "on_message",
-        "orchestrated",
         "tool",
         "workflow",
         "WorkflowCtx",
         # Workflow input types
         "LongText",
         "FileInput",
-        # ReAct utility
-        "react",
         # Exceptions
         "AgentError",
         "AgentConfigError",
@@ -80,7 +104,6 @@ def test_all_is_exactly_the_published_surface() -> None:
         "NeedHumanInput",
         "PayloadError",
         "SchemaError",
-        "SkillNotFound",
         "StructuredOutputError",
         # Ctx Protocol surface
         "Ctx",
@@ -179,7 +202,6 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "PayloadError",
             "QuestionDeclined",
             "SchemaError",
-            "SkillNotFound",
             "StructuredOutputError",
             "ToolApprovalDenied",
         },
@@ -191,7 +213,6 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "QuestionPayload",
         },
         "apollia.types": {
-            "A2AInterface",
             "AIPResult",
             "AgentsInterface",
             "DATE_FORMAT",
@@ -232,7 +253,6 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "text",
         },
         "apollia.testing": {
-            "MockA2A",
             "MockAgents",
             "MockBudget",
             "MockContext",
@@ -257,10 +277,8 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "assert_result_completed",
             "assert_result_failed",
             "assert_result_input_required",
-            "assert_skill_called",
             "assert_template_rendered",
             "assert_tool_called",
-            "mock",
         },
         "apollia.utils": {
             "ActionParseError",
@@ -268,7 +286,6 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "Citation",
             "ConfidenceLevel",
             "SourceType",
-            "a2a_result_data",
             "aip_result_text",
             "assert_with_confidence",
             "build_citation_payload",
@@ -295,11 +312,10 @@ def test_public_submodules_are_exact_snapshots() -> None:
             f"{module_name}: added {sorted(published - names)}, removed {sorted(names - published)}"
         )
 
-    # AND the per-service context modules are exactly the seventeen services
+    # AND the per-service context modules are exactly the services of Ctx
     context = importlib.import_module("apollia.context")
     submodules = {info.name for info in pkgutil.iter_modules(context.__path__)}
     assert submodules == {
-        "a2a",
         "agents",
         "budget",
         "datasources",

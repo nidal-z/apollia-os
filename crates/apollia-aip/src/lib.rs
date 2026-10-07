@@ -12,14 +12,12 @@
 //! - `context`: `RuntimeContext`, the `ctx` a tool or a workflow receives.
 //!
 //! Nested ctx surfaces (additive, non-breaking):
-//! - `a2a`: nested `ctx.a2a` surface (consolidates flat A2A methods).
 //! - `events`: `ctx.events` typed event emission.
 //! - `datasources`: `ctx.datasources` YAML runtime access.
 //! - `templates`: `ctx.templates` Jinja2 runtime rendering.
 //! - `secrets`: `ctx.secrets` read-only credentials gating.
 //! - `budget`: `ctx.budget` step budget view (successor of `step_budget`).
 
-pub mod a2a;
 pub use apollia_tools::{apo_archive, apollia_manifest};
 pub mod budget;
 pub(crate) mod cancel;
@@ -45,7 +43,6 @@ pub mod templates;
 // Public re-exports, consumed by apollia-runtime when wiring
 // RuntimeContext at task start. Keeping these flat at the crate root
 // makes the bridge surface easy to discover.
-pub use a2a::A2AInterface;
 pub use budget::BudgetView;
 pub use datasources::DatasourcesInterface;
 pub use events::EventsInterface;

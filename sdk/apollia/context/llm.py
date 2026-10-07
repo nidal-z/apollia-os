@@ -45,10 +45,12 @@ class LlmResponse(Protocol):
 class LlmProxy(Protocol):
     """``ctx.llm`` - LLM backend access.
 
-    Five methods: :meth:`complete` for single-shot, :meth:`chat` for the
+    Four methods: :meth:`complete` for single-shot, :meth:`chat` for the
     system-plus-user case, :meth:`map` for a batch sharing one prefix,
-    :meth:`stream` for token iteration, :meth:`run_tools` for the built-in
-    tool loop.  Stream cleanup propagates cancellation to the Rust backend.
+    :meth:`stream` for token iteration.  Stream cleanup propagates
+    cancellation to the Rust backend. The loop that alternates model calls and
+    tool calls belongs to an agent: a workflow step that needs one hands the
+    message to an agent with ``ctx.agents.run``.
 
     :meth:`complete` and :meth:`chat` take an optional ``schema``: a JSON
     Schema the answer must satisfy. The call then returns the validated value
@@ -216,31 +218,5 @@ class LlmProxy(Protocol):
                 ctx.events.emit_token(token)
 
         Cancellation propagates to the Rust backend on iterator close.
-        """
-        ...
-
-    async def run_tools(
-        self,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]],
-        max_iterations: int = 5,
-    ) -> str:
-        """Run the built-in tool loop and return the final answer.
-
-        The loop alternates model call and tool call until the model answers
-        without asking for a tool.
-
-        Args:
-            messages: Chat messages, ``{"role", "content"}`` each.
-            tools: Tool descriptors, ``{"name", "description", "parameters"}``
-                each. :meth:`A2AInterface.skill_as_tool` builds one.
-            max_iterations: Guard rail on the number of model calls.
-
-        Returns:
-            The model's final answer, after every tool call has run.
-
-        Raises:
-            RuntimeError: The step budget is exhausted, or ``max_iterations``
-                was reached.
         """
         ...

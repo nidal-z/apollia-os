@@ -16,7 +16,8 @@ async def test_mock_context_wires_all_surfaces():
     assert ctx.tools is not None
     assert ctx.llm is not None
     assert ctx.memory is not None
-    assert ctx.a2a is not None
+    assert ctx.agents is not None
+    assert ctx.workflows is not None
     assert ctx.datasources is not None
     assert ctx.templates is not None
     assert ctx.secrets is not None
