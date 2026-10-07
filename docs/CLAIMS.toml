@@ -1505,22 +1505,6 @@ a feature.
 """
 
 [[claim]]
-id = "a2a-tool-name-is-prefixed-and-encoded"
-scope = "public"
-symbol = "extract_a2a_skill_id"
-status = "wired"
-proof = "crates/apollia-aip/src/context.rs"
-evidence = ""
-note = """
-`skill_as_tool` does not hand the model a `skill_id`. It emits
-`a2a__{skill_id with . replaced by __}`, because OpenAI-compatible tool names
-reject `.` and `:`, and this function reverses the encoding before dispatch. Two
-pages published director prompts that named the raw `skill_id`, which asks the
-model for a tool it was never given. If the decoder loses its caller, the naming
-convention the prompts now follow is no longer the one the bridge accepts.
-"""
-
-[[claim]]
 id = "daemon-binds-tcp-by-default"
 scope = "public"
 symbol = "resolve_tcp_port"

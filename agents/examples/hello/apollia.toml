@@ -1,0 +1,36 @@
+# hello: the smallest package that holds an agent and a Python tool.
+#
+# An agent is data: its mission, its examples and what it may reach are
+# written here. The Python of the package brings one tool (tools/greet.py).
+# Build the archive with `apollia-os package build agents/examples/hello`.
+
+[package]
+name = "hello"
+version = "0.1.0"
+publisher = "Apollia"
+description = "An agent that greets a person by name, with one Python tool."
+sdk = ">=0.2.0-preview"
+
+[[agents]]
+id = "hello"
+name = "Hello"
+mission = """
+Greet the person. When they give a name, call the tool `greet` with that name
+and answer with the greeting it returns, in the language of the person. When
+they give no name, ask for one in a single sentence.
+"""
+examples = [
+    "Say hello to Ada.",
+]
+
+[agents.defaults]
+access = ["pkg:hello/greet"]
+autonomy = "assisted"
+
+# Written by `python -m apollia describe` from the code; edits here are replaced.
+[[tools]]
+name = "greet"
+module = "tools/greet.py"
+description = "Build a greeting for a person, from their name."
+action = "read"
+inputs = { type = "object", properties = { name = { type = "string", description = "The name of the person to greet." } }, additionalProperties = false, required = ["name"] }

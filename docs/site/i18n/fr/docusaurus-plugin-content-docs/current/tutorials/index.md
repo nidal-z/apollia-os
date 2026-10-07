@@ -11,11 +11,12 @@ Commencez ici si vous découvrez Apollia.
 
 ## Leçons
 
-- [Votre premier agent](/tutorials/your-first-agent) : écrivez, installez et
-  exécutez un agent unique à partir d'un fichier vide, avec un seul décorateur
-  et un seul service.
+- [Votre premier agent](/tutorials/your-first-agent) : déclarez un agent dans
+  `apollia.toml`, écrivez un outil Python, puis construisez, installez et
+  exécutez le paquet.
 - [Construire un assistant multi-agents](/tutorials/build-a-multi-agent-assistant) :
-  composez un director et des workers spécialisés qui s'appellent entre eux via A2A.
+  composez deux agents, un outil Python et un workflow qui les enchaîne en un
+  seul paquet.
 - [Piloter Apollia depuis votre produit](/tutorials/drive-apollia-from-your-product) :
   embarquez le runtime et pilotez une exécution depuis une application hôte via
   l'API HTTP.

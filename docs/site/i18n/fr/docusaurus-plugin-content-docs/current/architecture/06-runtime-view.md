@@ -63,7 +63,7 @@ chemin du chat et ne sont pas consultées ici.
 
 Et dans `v0.1.0-preview`, aucun agent n'y déclare quoi que ce soit.
 `tools_requiring_approval` est un champ du schéma de manifeste, mais le
-décorateur `@agent` du SDK ne prend aucun paramètre qui le remplisse, et partout
+`apollia.toml` d'un paquet n'a aucune clé qui le remplisse, et partout
 où le runtime construit lui-même un manifeste il laisse la liste vide. La
 branche est écrite, atteignable par construction, et jamais empruntée par un
 agent livré.
