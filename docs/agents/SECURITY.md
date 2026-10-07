@@ -17,7 +17,7 @@ OS sandbox around agent code: no process-per-agent isolation, no seccomp, no
 namespaces confining the agent itself. A deliberately malicious or buggy agent
 can read the filesystem, open sockets, spawn processes, and read credentials
 from the keyring, regardless of what it declares in its manifest. This is the
-recorded v0.1.0 trust model, and it is deliberate: the audience is
+recorded trust model, and it is deliberate: the audience is
 advanced builders who write or audit their own agents.
 
 What this means in practice:

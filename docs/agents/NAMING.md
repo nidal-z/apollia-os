@@ -225,7 +225,7 @@ Never accents, spaces, or non-ASCII in filenames.
 Branch body : kebab-case description (`feat/agents-md-spec`,
 `fix/oauth-refresh-leak`).
 
-Tags : `vMAJOR.MINOR.PATCH`, strict SemVer (`v0.1.0`, `v0.1.0-preview`).
+Tags : `vMAJOR.MINOR.PATCH`, strict SemVer (`v0.3.0`, `v0.3.0-rc1`).
 
 ### One version for the whole tree
 
@@ -238,16 +238,16 @@ Two deliberate exceptions:
 
 | Where | Value | Why |
 |---|---|---|
-| `crates/apollia-desktop/tauri.conf.json` | `0.1.0-1` | WiX rejects a non-numeric pre-release identifier, and `msi` is a shipped bundle target. `tauri-bundler` maps `0.1.0-1` to the MSI product version `0.1.0.1`; the About screen still reads the pre-release suffix and shows the Preview channel. |
+| `crates/apollia-desktop/tauri.conf.json` | `X.Y.Z-N` on a pre-release | WiX rejects a non-numeric pre-release identifier, and `msi` is a shipped bundle target. `tauri-bundler` maps `X.Y.Z-N` to the MSI product version `X.Y.Z.N`; the About screen still reads the pre-release suffix and shows the Preview channel. |
 | `sdk/apollia/cli/scaffold.py`, README examples | `0.1.0` | Templates for agents the user writes. A freshly scaffolded agent starts its own life at `0.1.0`; it is not an Apollia component. |
 
 The rule covers what ships in this tree. An agent that is not an Apollia
 component carries its own version, and nothing here governs it.
 
-The Python SDK is a third, softer case: PEP 440 normalises `0.1.0-preview` to
-`0.1.0rc0` in the built distribution metadata, so `pip show apollia-sdk` reports
-`0.1.0rc0`. The source string stays `0.1.0-preview`, which is what the tag, the
-changelog and `apollia.__version__` all use.
+The Python SDK is a third, softer case: PEP 440 normalises a `-preview` suffix
+to `rc0` in the built distribution metadata, so a source string `X.Y.Z-preview`
+is reported by `pip show apollia-sdk` as `X.Y.Zrc0`. The source string is what
+the tag, the changelog and `apollia.__version__` all use.
 
 Guards: `the_guide_is_a_declarative_agent_with_its_knowledge_in_the_mission`
 and `the_onboarding_is_a_declarative_agent_granted_its_one_tool` in
