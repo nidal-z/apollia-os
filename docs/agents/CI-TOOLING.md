@@ -141,6 +141,7 @@ Actual structure :
 ├── weekly.yml        # heavy / advisory: e2e, feature-matrix, coverage HTML,
 │                     #   deep-audit, geiger (unsafe surface), loom, miri, kani, fuzz-deep
 ├── release.yml       # tag-triggered: build binaries, attach to release
+├── engines.yml       # manual: sign and publish the engine channel
 └── auto-close-prs.yml
 ```
 
@@ -244,6 +245,31 @@ that escalates the token to `id-token: write` + `attestations: write` (plus the
 `contents: write` needed to publish). Every workflow defaults to
 `permissions: contents: read` at the top level; jobs escalate only what they
 need. Verification commands for consumers live in `SECURITY.md`.
+
+### Engine channel (`engines.yml`)
+
+The engines the application downloads after install (the CUDA `llama-server`,
+Node.js) are not built by `release.yml` and do not follow its tags. `engines.yml`
+is started by hand with a channel and a llama.cpp tag, and runs
+`packaging/build-engine-manifest.py`: every upstream archive is checked against
+its SHA-256 pinned in `packaging/engine-sources.json`, each package is
+repackaged as one zip, and the manifest is signed in the minisign format by
+`cargo tauri signer sign` with the distribution key.
+
+- **Two keys, never mixed.** `APOLLIA_DIST_SIGNING_KEY` signs distribution
+  metadata; `TAURI_SIGNING_PRIVATE_KEY` signs application updates and is not
+  read by this workflow. The script refuses a run where both hold one value.
+- **The trigger is the fence.** The distribution and object-storage secrets sit
+  at repository level, so the workflow runs on `workflow_dispatch` only;
+  `check_ci_workflows.py` (rule `dist-secrets`) refuses a pull-request trigger
+  on any job that names them.
+- **Proved before signed.** `just engine-manifest-test` runs the script on
+  stand-in archives with a throwaway key and hands the output to the engine
+  store; the workflow runs it first, then verifies the real manifest against
+  the public key compiled into the tree before anything is uploaded.
+- **Adding a tag is a commit.** A tag is publishable once its archives are
+  pinned in `engine-sources.json`; `check_download_sums.py` holds every source
+  to an https address and a 64-hex sum.
 
 ---
 

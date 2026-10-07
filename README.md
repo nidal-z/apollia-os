@@ -56,8 +56,8 @@ Three ways in, and most people want the first.
 
 **Install the desktop application.** Installers are attached to each GitHub
 release: a `.dmg` for macOS Apple Silicon, an `.msi` or `.exe` for Windows
-x86-64, an `.AppImage` or `.deb` for Linux x86-64, plus CUDA-engine variants for
-Linux and Windows. No compiler, no checkout, no command line. The step by step,
+x86-64, an `.AppImage` or `.deb` for Linux x86-64: one installer per system.
+No compiler, no checkout, no command line. The step by step,
 including the checksum verification and the first-launch warnings, is in
 [Install the desktop app](https://docs.apollia.fr/how-to/install-the-desktop-app/).
 
@@ -177,14 +177,15 @@ Apollia runs on three operating systems, over the four platform couples the
 release pipeline actually builds (`packaging/artifacts.json` is the contract).
 The local inference engine is the upstream `llama-server` binary, pinned and
 checksum-verified; the release stages the backend upstream publishes for each
-couple, and builds the CUDA engine itself for the two desktop bundles that carry
-one.
+couple. The CUDA engine is in no installer: it is published apart, under a
+signed manifest, and the application downloads it on demand on a machine with
+an NVIDIA card.
 
 | Platform | Local inference | Tool sandbox | Notes |
 |----------|-----------------|--------------|-------|
 | macOS Apple Silicon | Metal | `setrlimit` | Desktop `.dmg` and CLI archive |
-| Linux x86_64 | Vulkan, CPU, plus CUDA in a separate desktop bundle | PID + mount namespaces, `setrlimit` | Strongest isolation of the four |
-| Windows x86_64 | Vulkan, CPU, plus CUDA in a separate desktop bundle | none | `bash_executor` needs a POSIX shell on `PATH` (Git Bash, WSL or MSYS2) |
+| Linux x86_64 | Vulkan, CPU, plus CUDA downloaded on demand by the desktop app | PID + mount namespaces, `setrlimit` | Strongest isolation of the four |
+| Windows x86_64 | Vulkan, CPU, plus CUDA downloaded on demand by the desktop app | none | `bash_executor` needs a POSIX shell on `PATH` (Git Bash, WSL or MSYS2) |
 | Linux aarch64 | CPU | PID + mount namespaces, `setrlimit` | CLI archive only, no desktop bundle |
 
 Not built for 0.1.0: macOS Intel (`x86_64-apple-darwin`), Windows ARM64, and the

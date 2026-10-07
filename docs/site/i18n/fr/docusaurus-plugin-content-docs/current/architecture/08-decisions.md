@@ -1057,6 +1057,24 @@ Les versions sont publiées sur GitHub Releases. L'application de bureau consult
 ce flux uniquement quand l'opérateur le demande, jamais en arrière-plan, et
 rapporte un flux vide comme un flux vide plutôt que comme une erreur.
 
+Il y a un installeur par système. Aucun installeur n'existe en seconde édition
+pour une sorte de carte graphique : une édition par carte faisait choisir un
+téléchargement d'après un matériel que le lecteur ne connaît pas forcément, et
+liait la version d'un moteur à une version de l'application. Les moteurs qu'un
+installeur n'embarque pas, la compilation CUDA de `llama-server` et le Node.js
+qui fait tourner les serveurs d'outils, sont publiés à part, sur leur propre
+canal, sous un manifeste signé au format minisign avec une clé de distribution
+dédiée (voir [Inférence locale](#local-inference)). La chaîne qui les publie
+est distincte de celle qui publie l'application et se lance à la main : elle
+prend des archives amont épinglées par SHA-256, reconditionne chacune en zip, et
+signe le manifeste avec une clé qui ne signe rien d'autre, distincte de la clé
+des mises à jour de l'application. Le registre d'Apollia sert le manifeste et
+les archives, et GitHub Releases en est le miroir. Une application installée
+depuis une ancienne édition CUDA continue de se mettre à jour : le manifeste de
+mise à jour qu'elle demande est toujours publié, en copie du manifeste standard,
+si bien qu'elle passe à l'installeur unique de son système et reçoit le moteur
+CUDA par le canal des moteurs.
+
 ## Vérification {#verification}
 
 Au-delà de la suite de tests, deux classes de propriétés sont vérifiées par la

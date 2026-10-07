@@ -357,8 +357,9 @@ La valeur `runners` contrôle deux choses :
    choisit le premier backend GPU présent dans la liste (`metal`, `cuda`,
    `rocm`, ou `vulkan`) ; si aucun n'est présent, il retombe sur le CPU.
    Définir `APOLLIA_DESKTOP_LLAMA_BACKEND` remplace ce choix et la liste n'est
-   plus consultée, ce qui est la façon dont la chaîne de publication construit
-   un moteur CUDA à côté d'exécuteurs de reconnaissance vocale CPU.
+   plus consultée, ce qui est la façon dont les recettes `just` et la chaîne de
+   publication embarquent un moteur Vulkan sous Windows et Linux quels que
+   soient les exécuteurs de reconnaissance vocale.
 
 `cpu` est toujours inclus comme repli universel. Ajoutez un backend GPU
 correspondant à votre matériel :
@@ -366,7 +367,7 @@ correspondant à votre matériel :
 | Matériel | Valeur `runners` typique | Remarques |
 |---|---|---|
 | Apple Silicon | `cpu metal` | Préréglage par défaut pour macOS |
-| NVIDIA (CUDA 12+) | `cpu cuda` | Sur Windows, LLM et STT utilisent tous deux CUDA. Sur Linux, cette valeur fait échouer le bundle : la release amont épinglée ne publie pas de `llama-server` CUDA Linux, la récupération sort en erreur et le script s'arrête sur `could not bundle llama-server (cuda)`. Compilez-en un et passez `LLAMA_SERVER_DIR`, ce que fait la chaîne de publication pour le paquet `-cuda` Linux |
+| NVIDIA (CUDA 12+) | `cpu cuda` | Compile l'exécuteur de reconnaissance vocale CUDA. Le moteur LLM embarqué reste Vulkan : aucun bundle ne porte de `llama-server` CUDA, sur aucune plateforme, et en demander un (`APOLLIA_DESKTOP_LLAMA_BACKEND=cuda`) arrête le script sur `could not bundle llama-server (cuda)`. L'application installée télécharge le moteur CUDA à la demande depuis le canal des moteurs ; pour embarquer une compilation à vous, passez `LLAMA_SERVER_DIR` |
 | AMD Radeon / Intel Arc | `cpu vulkan` | LLM et STT sur GPU via Vulkan ; le runner STT demande le SDK Vulkan (`VULKAN_SDK`) à la compilation |
 | AMD Pro / Instinct + HIP SDK | `cpu rocm` | LLM et STT sur ROCm là où c'est pris en charge |
 
@@ -389,7 +390,7 @@ Remplacez la cible et/ou les exécuteurs sur n'importe quel préréglage :
 # Windows avec Vulkan pour le LLM (AMD / Intel / repli NVIDIA)
 just release-windows runners="cpu vulkan"
 
-# Windows avec CUDA (NVIDIA)
+# Windows avec l'exécuteur de reconnaissance vocale CUDA (NVIDIA) ; le moteur reste Vulkan
 just release-windows runners="cpu cuda"
 
 # Linux avec Vulkan
@@ -410,9 +411,11 @@ just release-desktop aarch64-apple-darwin "cpu metal"
 
 Le moteur `llama-server` embarqué est récupéré depuis la release llama.cpp
 amont épinglée, qui publie des builds pour macOS (arm64 et x86-64), Linux
-x86-64 (CPU, Vulkan, ROCm), Linux arm64 (CPU) et Windows x86-64 (CPU, CUDA,
+x86-64 (CPU, Vulkan, ROCm), Linux arm64 (CPU) et Windows x86-64 (CPU,
 Vulkan). Pour tout autre couple, compilez llama.cpp vous-même et passez
-`LLAMA_SERVER_DIR=<bin dir>` ; la recette embarque alors votre build.
+`LLAMA_SERVER_DIR=<bin dir>` ; la recette embarque alors votre build. Le
+moteur CUDA n'est jamais embarqué : il est publié sur le canal des moteurs et
+téléchargé par l'application installée.
 
 Sur Windows, exportez `LIBCLANG_PATH` dans le même shell avant de lancer
 l'une de ces recettes (voir les prérequis Windows ci-dessus). Sur Linux, l'exécuteur de reconnaissance vocale a en plus besoin

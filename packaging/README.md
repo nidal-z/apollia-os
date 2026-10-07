@@ -17,6 +17,8 @@ bundle Tauri signé.
 | `artifacts.json` | Contrat de nommage des artefacts de release : lu par `release.yml` (producteur), embarqué par `apollia-os update` (`include_str!`), cité par la page d'installation ; gardé par `scripts/check_release_artifacts.py`. |
 | `fetch-llama-server.sh` | Télécharge le binaire `llama-server` amont pour une plateforme (`uname -s` et `uname -m`) et vérifie sa somme de contrôle. |
 | `llama-server-checksums.txt` | Sommes de contrôle attendues, une par plateforme, lues par le script ci-dessus. |
+| `build-engine-manifest.py` | Produit le canal des moteurs téléchargés après l'installation (`llama-server` CUDA, Node.js) : vérifie chaque archive amont contre son empreinte épinglée, reconditionne chaque paquet en un zip, écrit `engines.json` et le signe au format minisign avec la clé de distribution (`APOLLIA_DIST_SIGNING_KEY`, lue dans l'environnement). Lancé par `.github/workflows/engines.yml` ; `just engine-manifest-test` prouve que le magasin de moteurs accepte ce qu'il écrit. |
+| `engine-sources.json` | Archives amont du canal des moteurs, chacune épinglée par son SHA-256 ; lu par le script ci-dessus, gardé par `scripts/check_download_sums.py`. |
 | `launchers/` | Lanceurs par plateforme empaquetés avec l'application. |
 
 ## Version pinnée
@@ -38,8 +40,9 @@ Mettre à jour manuellement (éditer `fetch-python-standalone.sh`) - pas d'auto-
 | `x86_64-apple-darwin` | macOS Intel | 🔜 Prévu v0.2.0 |
 | `universal-apple-darwin` | macOS universal2 (lipo ARM + Intel) | 🔜 Prévu v0.2.0 |
 
-**Note :** la release v0.1.0 livre les installeurs desktop macOS ARM, Linux
-x86_64 et Windows x86_64, variantes CUDA Linux et Windows comprises, plus les
+**Note :** la release livre les installeurs desktop macOS ARM, Linux
+x86_64 et Windows x86_64, un installeur par système (le moteur CUDA est publié
+à part, voir `build-engine-manifest.py` plus haut), plus les
 **six** bundles CLI de `release.yml`. Six des deux côtés, et pas par
 convention : `artifacts.json` déclare six entrées `cli`, la matrice `FULL` du
 job `setup` de `release.yml` en énumère les six mêmes, et

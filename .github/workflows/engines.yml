@@ -1,0 +1,271 @@
+# Engine channel - publishes the signed engine manifest and its archives.
+#
+# The application downloads some engines after install: the llama-server
+# build for NVIDIA cards, and the Node.js that runs tool servers. It takes
+# them from a channel (`stable` or `preview`) and requests no archive before
+# the manifest signature held for the distribution key compiled into it.
+#
+# This workflow is apart from release.yml on purpose: the version of an engine
+# does not depend on a release of the application. It is started by hand, with
+# the channel and the llama.cpp tag to publish, and never by a push or a pull
+# request. What it may publish is pinned in packaging/engine-sources.json, by
+# SHA-256: a tag whose packages are not pinned there is refused.
+#
+# One run, in order:
+#   1. refuses to start when a secret or a variable is missing;
+#   2. proves on stand-in archives, with a throwaway key, that what the
+#      publication script writes is what the engine store accepts;
+#   3. downloads the pinned upstream archives, refuses any whose digest
+#      differs, repackages each package as one zip, writes the manifest and
+#      signs it (packaging/build-engine-manifest.py);
+#   4. verifies the signed manifest with the public key this tree compiles
+#      into the application, so a secret that drifted from that key stops
+#      here and not on every installed machine;
+#   5. publishes to the registry (Scaleway Object Storage, served as
+#      https://registry.apollia.fr): the archives, then the manifest, then its
+#      signature, then a cache purge of the last two;
+#   6. publishes the same files to the GitHub release `engines-<channel>`,
+#      the fallback mirror.
+#
+# Two keys, never mixed. APOLLIA_DIST_SIGNING_KEY signs what the application
+# downloads after install (this manifest, the model registry index).
+# TAURI_SIGNING_PRIVATE_KEY signs the application updates and is not read
+# here. Both are minisign keys made by `cargo tauri signer generate`; they are
+# distinct on purpose, so that losing one does not hand over the other.
+#
+# The secrets sit at repository level, with no environment to fence them. The
+# fence is the trigger: `workflow_dispatch` alone, which only someone with
+# write access can fire, and no step runs code that came from a pull request.
+# scripts/check_ci_workflows.py holds that (rule `dist-secrets`).
+
+name: Engine channel
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Channel to publish."
+        required: true
+        default: "stable"
+        type: choice
+        options:
+          - "stable"
+          - "preview"
+      tag:
+        description: "llama.cpp tag to publish (for example b10092). Its CUDA packages must be pinned in packaging/engine-sources.json."
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # The only address the application is given. The bucket's own address is
+  # never published, so a policy can replace this one with a mirror.
+  REGISTRY_URL: https://registry.apollia.fr
+  S3_ENDPOINT: https://s3.fr-par.scw.cloud
+
+# One publication per channel at a time: two runs racing would interleave a
+# manifest and the signature of another.
+concurrency:
+  group: engines-${{ inputs.channel }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish the ${{ inputs.channel }} engine channel
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # create and fill the `engines-<channel>` mirror release
+    env:
+      CHANNEL: ${{ inputs.channel }}
+      LLAMA_TAG: ${{ inputs.tag }}
+      OUT: ${{ github.workspace }}/dist/engines-${{ inputs.channel }}
+    steps:
+      # Before anything is built or downloaded: a run that would fail at the
+      # signature, forty minutes in, says so in its first ten seconds.
+      - name: Refuse a run with a missing secret or variable
+        env:
+          APOLLIA_DIST_SIGNING_KEY: ${{ secrets.APOLLIA_DIST_SIGNING_KEY }}
+          APOLLIA_DIST_SIGNING_KEY_PASSWORD: ${{ secrets.APOLLIA_DIST_SIGNING_KEY_PASSWORD }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_REGISTRY_BUCKET: ${{ vars.SCW_REGISTRY_BUCKET }}
+          SCW_REGION: ${{ vars.SCW_REGION }}
+          SCW_EDGE_PIPELINE_ID: ${{ vars.SCW_EDGE_PIPELINE_ID }}
+        run: |
+          missing=0
+          for name in APOLLIA_DIST_SIGNING_KEY APOLLIA_DIST_SIGNING_KEY_PASSWORD \
+                      SCW_ACCESS_KEY SCW_SECRET_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::the repository secret ${name} is not set; nothing can be signed or published"
+              missing=1
+            fi
+          done
+          for name in SCW_REGISTRY_BUCKET SCW_REGION SCW_EDGE_PIPELINE_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::the repository variable ${name} is not set; the registry cannot be reached or its cache purged"
+              missing=1
+            fi
+          done
+          if ! printf '%s' "$LLAMA_TAG" | grep -Eq '^b[0-9]{3,7}$'; then
+            echo "::error::'${LLAMA_TAG}' is not a llama.cpp tag (b followed by digits)"
+            missing=1
+          fi
+          exit "$missing"
+
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      # The pinned build toolchain, as in ci.yml: the store verification below
+      # is compiled from this tree, by the compiler every other gate uses.
+      - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
+        with:
+          toolchain: "1.95.0"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> "$GITHUB_ENV"
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libxdo-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            cmake clang pkg-config
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: engines
+
+      # The signer of the release pipeline, the same tool and the same major
+      # as the desktop jobs of release.yml install.
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      # No secret is in scope here. The script and the store are exercised
+      # end to end on stand-in archives with a key pair generated on the
+      # spot: accepted when intact, refused after one altered byte. This is
+      # the command of `just engine-manifest-test`.
+      - name: Prove the script and the store agree (throwaway key)
+        run: |
+          cargo test -p apollia-runtime --test engine_manifest_publication -- \
+            --include-ignored \
+            --skip test_published_directory_is_signed_by_the_compiled_key
+
+      # The sequence is the publication time in seconds: strictly increasing
+      # from one run to the next without any state to keep, which is all the
+      # store asks of it.
+      - name: Build and sign the manifest
+        env:
+          APOLLIA_DIST_SIGNING_KEY: ${{ secrets.APOLLIA_DIST_SIGNING_KEY }}
+          APOLLIA_DIST_SIGNING_KEY_PASSWORD: ${{ secrets.APOLLIA_DIST_SIGNING_KEY_PASSWORD }}
+        run: |
+          python3 packaging/build-engine-manifest.py \
+            --channel "$CHANNEL" \
+            --sequence "$(date -u +%s)" \
+            --llama-tag "$LLAMA_TAG" \
+            --out "$OUT" \
+            --require llama-server/cuda/windows-x64 \
+            --require llama-server/cuda/linux-x64 \
+            --require nodejs/cpu/macos-arm64 \
+            --require nodejs/cpu/linux-x64 \
+            --require nodejs/cpu/linux-arm64 \
+            --require nodejs/cpu/windows-x64
+          ls -l "$OUT"
+          (cd "$OUT" && sha256sum -- *.zip engines.json engines.json.minisig)
+
+      # The secret and the public key compiled into the application are two
+      # values nothing else ties together. A manifest signed by a key the
+      # application does not carry is refused by every installed copy, so it
+      # is refused here first.
+      - name: The manifest is signed by the key the application trusts
+        env:
+          APOLLIA_ENGINE_MANIFEST_DIR: ${{ env.OUT }}
+          APOLLIA_ENGINE_CHANNEL: ${{ inputs.channel }}
+        run: |
+          cargo test -p apollia-runtime --test engine_manifest_publication -- \
+            --ignored --exact test_published_directory_is_signed_by_the_compiled_key
+
+      # Archives first, so that a manifest never names a file that is not
+      # there yet; then the manifest, then its signature, then the purge of
+      # those two, which are the only objects whose content changes under a
+      # fixed name.
+      - name: Publish to the registry
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.SCW_REGION }}
+          # Recent versions of the client add a checksum that object stores
+          # other than the one it was written for may refuse.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          BUCKET: ${{ vars.SCW_REGISTRY_BUCKET }}
+          PIPELINE_ID: ${{ vars.SCW_EDGE_PIPELINE_ID }}
+        run: |
+          prefix="engines/${CHANNEL}"
+          put() {
+            aws s3 cp "$1" "s3://${BUCKET}/${prefix}/$2" \
+              --endpoint-url "$S3_ENDPOINT" --acl public-read \
+              --content-type "$3" --only-show-errors
+            echo "published ${REGISTRY_URL}/${prefix}/$2"
+          }
+          for archive in "$OUT"/*.zip; do
+            put "$archive" "$(basename "$archive")" application/zip
+          done
+          put "$OUT/engines.json" manifest.json application/json
+          put "$OUT/engines.json.minisig" manifest.json.minisig text/plain
+          python3 - <<'PY'
+          import json, os, sys, urllib.request
+          base = f"{os.environ['REGISTRY_URL']}/engines/{os.environ['CHANNEL']}"
+          body = json.dumps({
+              "pipeline_id": os.environ["PIPELINE_ID"],
+              "assets": [f"{base}/manifest.json", f"{base}/manifest.json.minisig"],
+          }).encode()
+          request = urllib.request.Request(
+              "https://api.scaleway.com/edge-services/v1beta1/purge-requests",
+              data=body,
+              method="POST",
+              headers={
+                  "X-Auth-Token": os.environ["SCW_SECRET_KEY"],
+                  "Content-Type": "application/json",
+              },
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  print(f"cache purge requested: HTTP {response.status}")
+          except Exception as err:  # the publication stands, the cache does not
+              print(f"::error::the registry cache was not purged ({err}); the two "
+                    "files are published and stay stale until the cache expires")
+              sys.exit(1)
+          PY
+
+      # The mirror the application reads when it is given the GitHub address
+      # as its base: `<base>/engines-<channel>/engines.json`, the archives
+      # beside it. A pre-release that is never the latest one: the updater of
+      # the application asks `releases/latest`, and this release must not
+      # answer in its place.
+      - name: Publish to the GitHub mirror
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          release="engines-${CHANNEL}"
+          if ! gh release view "$release" --repo "$REPO" > /dev/null 2>&1; then
+            gh release create "$release" --repo "$REPO" --prerelease --latest=false \
+              --title "Engine channel: ${CHANNEL}" \
+              --notes "Signed manifest and archives of the ${CHANNEL} engine channel. The application verifies the manifest signature before it downloads anything from here."
+          fi
+          gh release upload "$release" --repo "$REPO" --clobber "$OUT"/*.zip
+          gh release upload "$release" --repo "$REPO" --clobber "$OUT/engines.json"
+          gh release upload "$release" --repo "$REPO" --clobber "$OUT/engines.json.minisig"
+          echo "the ${CHANNEL} engine channel now offers llama.cpp ${LLAMA_TAG}"

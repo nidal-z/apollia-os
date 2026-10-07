@@ -8,7 +8,11 @@
 #
 # Usage:
 #   fetch-llama-server.sh <backend> <dest_runners_dir>
-#     backend        : metal | cpu | cuda | vulkan | rocm (matches the GPU build)
+#     backend        : metal | cpu | vulkan | rocm (matches the GPU build)
+#                      `cuda` is not staged here: the engine for NVIDIA cards
+#                      is not bundled, it is published on the engine channel
+#                      by packaging/build-engine-manifest.py and downloaded
+#                      by the application on demand.
 #     dest_runners_dir : the staging `runners/` directory
 #
 # The asset is chosen on `uname -s` AND `uname -m`: an arm64 host never
@@ -150,7 +154,6 @@ case "$(uname -m)" in
     *)               uname_m="$(uname -m)" ;;
 esac
 asset=""
-extra_asset=""
 case "${uname_s}:${uname_m}:${BACKEND}" in
     Darwin:arm64:*)             asset="llama-${LLAMA_CPP_TAG}-bin-macos-arm64.tar.gz" ;;
     Darwin:x64:*)               asset="llama-${LLAMA_CPP_TAG}-bin-macos-x64.tar.gz" ;;
@@ -159,15 +162,14 @@ case "${uname_s}:${uname_m}:${BACKEND}" in
     Linux:x64:rocm)             asset="llama-${LLAMA_CPP_TAG}-bin-ubuntu-rocm-7.2-x64.tar.gz" ;;
     Linux:arm64:cpu)            asset="llama-${LLAMA_CPP_TAG}-bin-ubuntu-arm64.tar.gz" ;;
     MINGW*:x64:cpu | MSYS*:x64:cpu)   asset="llama-${LLAMA_CPP_TAG}-bin-win-cpu-x64.zip" ;;
-    MINGW*:x64:cuda | MSYS*:x64:cuda)
-        asset="llama-${LLAMA_CPP_TAG}-bin-win-cuda-12.4-x64.zip"
-        # The CUDA build dlopens the CUDA runtime; upstream ships it as a
-        # separate archive. Without it the server only starts on machines
-        # that installed the CUDA toolkit themselves, which contradicts the
-        # bundle's "up-to-date GPU driver only" requirement.
-        extra_asset="cudart-llama-bin-win-cuda-12.4-x64.zip"
-        ;;
     MINGW*:x64:vulkan | MSYS*:x64:vulkan) asset="llama-${LLAMA_CPP_TAG}-bin-win-vulkan-x64.zip" ;;
+    *:cuda)
+        echo "==> the CUDA llama-server is not bundled, on any platform: it is" >&2
+        echo "    published on the engine channel and the application downloads it" >&2
+        echo "    on demand. Bundle the Vulkan engine (backend vulkan), or build" >&2
+        echo "    llama.cpp yourself and pass LLAMA_SERVER_DIR=<bin dir>." >&2
+        exit 2
+        ;;
     *)
         echo "==> the pinned llama.cpp release (${LLAMA_CPP_TAG}) publishes no" >&2
         echo "    llama-server asset for ${uname_s}/${uname_m}/${BACKEND}." >&2
@@ -218,14 +220,3 @@ if [ -z "$bin_dir" ] || [ "$bin_dir" = "." ]; then
     exit 1
 fi
 stage_from_dir "$bin_dir"
-
-# The companion archive (Windows CUDA runtime) carries DLLs only: stage them
-# flat next to the server, where the loader resolves them.
-if [ -n "$extra_asset" ]; then
-    fetch_and_verify "$extra_asset"
-    extra_dir="${tmp}/extra"
-    mkdir -p "$extra_dir"
-    (cd "$extra_dir" && unzip -q "${tmp}/${extra_asset}")
-    find "$extra_dir" -type f -name '*.dll' -exec cp {} "$DEST"/ \;
-    echo "==> staged the CUDA runtime DLLs from ${extra_asset}"
-fi
