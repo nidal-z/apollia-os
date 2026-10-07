@@ -17,7 +17,9 @@
   import { getWorkflow } from "$lib/ipc/workflows";
   import ExplainedBadge from "../ai/ExplainedBadge.svelte";
   import ServedCard from "../ai/ServedCard.svelte";
+  import ExamplesMenu from "./ExamplesMenu.svelte";
   import { openBridgeSettings } from "./developerScreen";
+  import { exposedTarget } from "./examples";
   import {
     SERVED_PREFIX,
     copyIdentifier,
@@ -148,15 +150,18 @@
               </span>
             {/snippet}
             {#snippet footer()}
-              <Button
-                variant="ghost"
-                size="sm"
-                onclick={() => void copy(item)}
-                data-testid="developer-exposed-copy"
-              >
-                {#snippet icon()}<Copy size={14} aria-hidden="true" />{/snippet}
-                {$t("dev.developer.models.copy_id")}
-              </Button>
+              <div class="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onclick={() => void copy(item)}
+                  data-testid="developer-exposed-copy"
+                >
+                  {#snippet icon()}<Copy size={14} aria-hidden="true" />{/snippet}
+                  {$t("dev.developer.models.copy_id")}
+                </Button>
+                <ExamplesMenu target={exposedTarget(item.kind, item.identifier, item.inputs)} />
+              </div>
             {/snippet}
           </ServedCard>
         {/each}
