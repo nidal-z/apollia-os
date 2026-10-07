@@ -42,6 +42,8 @@
     setChatSessionSettings,
   } from "$lib/ipc/chatSettings";
   import { APOLLIA_AGENT_ID } from "$lib/chat/chatTargets";
+  import { chatPromptTemplate } from "$lib/stores/chatPromptTemplate";
+  import { developerMode } from "$lib/stores/developerMode";
   import {
     CONTEXT_OVERFLOWS,
     CONTEXT_OVERFLOW_KEYS,
@@ -67,6 +69,7 @@
     type SessionSettingsController,
   } from "./useSessionSettings.svelte";
   import PresetBlock from "./PresetBlock.svelte";
+  import PromptTemplateBlock, { promptTemplateShown } from "./PromptTemplateBlock.svelte";
   import PresetNameDialog from "./PresetNameDialog.svelte";
   import ApplyToAgentDialog from "./ApplyToAgentDialog.svelte";
   import PresetSaveConfirmDialog, {
@@ -211,6 +214,10 @@
 <div class="flex h-full min-h-0 flex-col" data-testid="chat-session-settings">
   <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
     <PresetBlock {controller} disabled={closed} />
+
+    {#if promptTemplateShown($chatPromptTemplate, $developerMode)}
+      <PromptTemplateBlock {session} {controller} />
+    {/if}
 
     <Disclosure open testid="session-instructions">
       {#snippet summary()}

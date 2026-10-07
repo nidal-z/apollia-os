@@ -5333,6 +5333,19 @@
         "prompt_tool": "Quel temps fait-il à Paris ?",
         "prompt_mcp": "Quels outils peux-tu appeler ?"
       }
+    },
+    "chat": {
+      "prompt_template": {
+        "setting_label": "Toujours montrer le gabarit de prompt dans le panneau du chat",
+        "setting_hint": "Allumé, l'onglet Paramètres du panneau d'une conversation montre, sous le preset, le gabarit de prompt que son modèle reçoit.",
+        "title": "Gabarit de prompt",
+        "source_preset": "Celui du preset de la conversation",
+        "source_engine": "Celui que le moteur applique au modèle chargé",
+        "source_unavailable": "Intégré au modèle",
+        "unavailable": "Gabarit intégré au modèle, non lisible ici",
+        "copy": "Copier",
+        "copied": "Copié"
+      }
     }
   },
   "ai": {

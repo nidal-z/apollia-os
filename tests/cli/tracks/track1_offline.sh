@@ -157,6 +157,9 @@ check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --soc
 # runtime, exit 2. The real read is covered by the runtime's route tests.
 check_exit   "chat capabilities (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1
 check_exit   "chat capabilities --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat capabilities s-1 --json
+# The prompt template of a session is read from the runtime as well.
+check_exit   "chat template (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat template s-1
+check_exit   "chat template --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat template s-1 --json
 # The settings and the notes of a conversation are read and written through
 # the runtime: with no runtime, exit 2. A settings document naming a field
 # the settings do not declare is refused before anything is sent, exit 1.

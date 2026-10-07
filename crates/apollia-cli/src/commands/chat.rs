@@ -26,6 +26,7 @@ pub use hygiene::run_hygiene;
 mod capabilities;
 mod hygiene;
 mod settings;
+mod template;
 
 pub use settings::{ChatNotesCommand, ChatSettingsCommand};
 
@@ -98,6 +99,17 @@ pub enum ChatHygieneCommand {
     ///
     /// Reaches the runtime; exits 2 when it is not running.
     Capabilities {
+        /// Session id.
+        session_id: String,
+    },
+
+    /// Show the prompt template the model of a chat session receives: the
+    /// one its preset carries, else the one the local engine reports for the
+    /// loaded model.
+    ///
+    /// Reaches the runtime; exits 2 when it is not running. Never loads a
+    /// model: one that is not loaded has no template to show.
+    Template {
         /// Session id.
         session_id: String,
     },

@@ -161,6 +161,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os chat rename`↴](#apollia-os-chat-rename)
 * [`apollia-os chat export`↴](#apollia-os-chat-export)
 * [`apollia-os chat capabilities`↴](#apollia-os-chat-capabilities)
+* [`apollia-os chat template`↴](#apollia-os-chat-template)
 * [`apollia-os chat settings`↴](#apollia-os-chat-settings)
 * [`apollia-os chat settings get`↴](#apollia-os-chat-settings-get)
 * [`apollia-os chat settings set`↴](#apollia-os-chat-settings-set)
@@ -2580,6 +2581,7 @@ Without a subcommand: launches the REPL (resume with `--resume <id>`, or list re
 * `rename` - Set the user-defined title of a persisted chat session
 * `export` - Export a persisted chat session to a file
 * `capabilities` - Show what the model of a chat session can do: the reasoning setting it offers (none, on or off, or a level) and whether it reads images
+* `template` - Show the prompt template the model of a chat session receives: the one its preset carries, else the one the local engine reports for the loaded model
 * `settings` - Read or replace what one conversation changes from its agent: its request settings, its instructions, the accesses it switches off
 * `notes` - Read or replace the notes kept beside one conversation
 * `config` - Manage the Chat Libre configuration (system prompt, allowed tools, backend)
@@ -2671,6 +2673,20 @@ Show what the model of a chat session can do: the reasoning setting it offers (n
 Reaches the runtime; exits 2 when it is not running.
 
 **Usage:** `apollia-os chat capabilities <SESSION_ID>`
+
+###### **Arguments:**
+
+* `<SESSION_ID>` - Session id
+
+
+
+## `apollia-os chat template`
+
+Show the prompt template the model of a chat session receives: the one its preset carries, else the one the local engine reports for the loaded model.
+
+Reaches the runtime; exits 2 when it is not running. Never loads a model: one that is not loaded has no template to show.
+
+**Usage:** `apollia-os chat template <SESSION_ID>`
 
 ###### **Arguments:**
 

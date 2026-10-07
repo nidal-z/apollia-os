@@ -328,6 +328,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # (the `Authorization` header, the `model` of a completion). The fake
     # server holds a port-0 bind for the whole test, never a port released.
     "crates/apollia-runtime/src/api/routes_llm/servers.rs": 1,
+    # The engine is the subject: the route reads the template a llama-server
+    # reports on `/props`, so the tests stand a local server in for it. The
+    # stand-in holds a port-0 bind for the whole test, and the silent-port
+    # test releases one to obtain a port nothing listens on.
+    "crates/apollia-runtime/src/api/routes_chat/prompt_template/tests.rs": 2,
     "crates/apollia-runtime/src/api/server.rs": 13,
     # The mailbox and the whole-bus event streams never end: each probe reads
     # its first frame under a deadline, which is what fails it rather than a

@@ -876,6 +876,15 @@ mod test_support {
             Arc::new(sup)
         }
 
+        /// A supervisor holding one stand-in chat model, `model`, listed on
+        /// `port`, for tests that put a listener of their own behind it.
+        pub(crate) async fn with_stand_in_on_port(model: &str, port: u16) -> Arc<Self> {
+            let sup = supervisor_with_ceiling(1);
+            let instance = live_instance(&sup, model, port).await;
+            sup.instances.lock().await.push(instance);
+            Arc::new(sup)
+        }
+
         /// A supervisor launching `bin` as its engine, under a ceiling of
         /// `max_loaded`, holding the stand-in chat models `models`.
         pub(crate) async fn with_binary_for_test(

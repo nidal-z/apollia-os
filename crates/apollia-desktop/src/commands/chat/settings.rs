@@ -8,6 +8,7 @@
 //! - `set_chat_session_settings`: `PUT /api/v1/sessions/{id}/settings`;
 //! - `get_chat_session_notes`: `GET /api/v1/sessions/{id}/notes`;
 //! - `set_chat_session_notes`: `PUT /api/v1/sessions/{id}/notes`;
+//! - `get_chat_prompt_template`: `GET /api/v1/sessions/{id}/prompt-template`;
 //!
 //! The runtime validates what it stores: an unknown field, a value out of
 //! bounds or a preset it refuses comes back as the error the panel shows.
@@ -43,6 +44,14 @@ pub(crate) async fn set_settings_on(
         "chat.session.settings_set"
     );
     Ok(stored)
+}
+
+pub(crate) async fn prompt_template_on(
+    link: &RuntimeLink,
+    session_id: &str,
+) -> Result<Value, String> {
+    let path = format!("/api/v1/sessions/{}/prompt-template", segment(session_id));
+    link.get_json(&path).await
 }
 
 pub(crate) async fn notes_on(link: &RuntimeLink, session_id: &str) -> Result<String, String> {
@@ -108,6 +117,17 @@ pub async fn set_chat_session_notes(
     notes: String,
 ) -> Result<String, String> {
     set_notes_on(link.inner(), &session_id, &notes).await
+}
+
+/// The prompt template the model of the conversation `session_id` receives,
+/// and where it comes from: its preset, the engine serving the model, or
+/// nowhere it can be read.
+#[tauri::command]
+pub async fn get_chat_prompt_template(
+    link: State<'_, RuntimeLink>,
+    session_id: String,
+) -> Result<Value, String> {
+    prompt_template_on(link.inner(), &session_id).await
 }
 
 #[cfg(test)]
@@ -255,6 +275,26 @@ mod tests {
         assert!(error.contains("unknown field `system_prompt`"), "{error}");
     }
 
+    #[tokio::test]
+    async fn test_the_prompt_template_of_a_conversation_is_read_from_the_daemon() {
+        // GIVEN a daemon whose engine reports the template of one conversation
+        let server = MockServer::start().await;
+        authorized("GET", "/api/v1/sessions/s-1/prompt-template")
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "source": "engine", "template": "{{ messages }}",
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the panel reads it
+        let read = prompt_template_on(&attached(&server), "s-1").await.unwrap();
+
+        // THEN the answer is the record of the daemon, source and text
+        assert_eq!(read["source"], "engine");
+        assert_eq!(read["template"], "{{ messages }}");
+    }
+
     #[test]
     fn test_the_settings_commands_are_routed_to_a_daemon() {
         // GIVEN the commands of the settings of a conversation
@@ -263,6 +303,7 @@ mod tests {
             "set_chat_session_settings",
             "get_chat_session_notes",
             "set_chat_session_notes",
+            "get_chat_prompt_template",
         ];
 
         // WHEN each passes the gate of an attached window
