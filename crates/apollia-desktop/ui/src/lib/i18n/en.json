@@ -2,12 +2,12 @@
   "errors": {
     "permission": {
       "title": "Permission required",
-      "friendly_message": "Apollia was blocked from this action by a permission or sandbox rule.",
+      "friendly_message": "Apollia was blocked from this action by a permission or isolation rule.",
       "suggested_action": "Review the matching rule in Settings, Permissions, then retry or grant an exception."
     },
     "ipc": {
-      "title": "Backend unavailable",
-      "friendly_message": "The desktop app could not reach the Apollia runtime to complete this action.",
+      "title": "Engine unavailable",
+      "friendly_message": "The desktop app could not reach the Apollia engine to complete this action.",
       "suggested_action": "Wait a moment and retry. If it persists, restart Apollia."
     },
     "validation": {
@@ -113,10 +113,10 @@
       "close_companion": "Close Companion",
       "network": {
         "title": "Companion couldn't connect",
-        "message": "This usually means the local runtime isn't reachable.",
-        "cause_1": "The Apollia runtime is not running",
+        "message": "This usually means the Apollia engine isn't reachable.",
+        "cause_1": "The Apollia engine is not running",
         "cause_2": "A firewall is blocking localhost traffic",
-        "cause_3": "The configured LLM backend is offline"
+        "cause_3": "The configured model provider is offline"
       },
       "permissions": {
         "title": "Permission denied",
@@ -130,7 +130,7 @@
         "message": "The agent didn't respond in time. This often clears up on retry.",
         "cause_1": "The model is loading and not yet warm",
         "cause_2": "Network latency is unusually high",
-        "cause_3": "The runtime is busy with another task"
+        "cause_3": "The Apollia engine is busy with another task"
       },
       "internal": {
         "title": "Companion ran into a problem",
@@ -465,9 +465,9 @@
       "design_dark_mode": "Dark mode"
     },
     "status": {
-      "ok": "Runtime connected · LLM provider available",
-      "no_llm": "Runtime connected · no LLM provider configured",
-      "runtime_down": "Runtime offline - reconnecting"
+      "ok": "Engine connected · LLM provider available",
+      "no_llm": "Engine connected · no LLM provider configured",
+      "runtime_down": "Engine offline - reconnecting"
     },
     "search_aria": "Search and command palette",
     "help_aria": "Help on this screen",
@@ -900,7 +900,7 @@
     },
     "connectors": {
       "figma": {
-        "auth_help": "Figma's remote MCP server (mcp.figma.com) is only open to clients on the Figma MCP Catalog (Claude.ai, Cursor, Windsurf, …). Apollia is on the waitlist - we'll switch to the remote endpoint as soon as we're approved.\n\nIn the meantime, this connector relies on Figma's LOCAL Dev Mode MCP server, bundled with Figma Desktop. Heads up: Dev Mode (and therefore its MCP server) requires a paid Figma plan (Professional or higher). If you're on the free plan, this connector won't work yet - wait for Apollia's approval on the remote Catalog.\n\nIf you have a paid plan:\n\n1. Install Figma Desktop and sign in.\n2. Open any file and toggle Dev Mode.\n3. Enable “Dev Mode MCP Server” in Preferences.\n4. Leave Figma Desktop running - your session provides identity, no OAuth needed."
+        "auth_help": "Figma's remote server (mcp.figma.com) is only open to the clients Figma has approved in its catalog (Claude.ai, Cursor, Windsurf, …). Apollia is on the waitlist - we'll switch to the remote server as soon as we're approved.\n\nIn the meantime, this connector relies on the LOCAL Dev Mode server of Figma, bundled with Figma Desktop. Heads up: Dev Mode (and therefore its local server) requires a paid Figma plan (Professional or higher). If you're on the free plan, this connector won't work yet - wait for Apollia's approval in the remote catalog.\n\nIf you have a paid plan:\n\n1. Install Figma Desktop and sign in.\n2. Open any file and toggle Dev Mode.\n3. In Preferences, enable the local server of Dev Mode.\n4. Leave Figma Desktop running - your session provides identity, no OAuth needed."
       }
     },
     "wizard": {
@@ -956,7 +956,7 @@
       "approval_ask_label": "Ask me every time",
       "approval_ask_desc": "In an agent task, each action requires your confirmation (recommended).",
       "confirm_button": "Add",
-      "no_package_body": "This server has no installable package and no remote endpoint. It cannot be added automatically.",
+      "no_package_body": "This server has no installable package and no remote address. It cannot be added automatically.",
       "connector_not_configured": "This connection is not yet configured in this build of Apollia. See the help above.",
       "preparing": "Getting the connection ready…",
       "component_downloading": "Downloading a required component",
@@ -1007,10 +1007,10 @@
       "section_triggers": "Triggers ({n})",
       "triggers_need_config": "{n} trigger(s) need configuration",
       "section_pip_deps": "Python dependencies ({n})",
-      "deps_auto_one": "{n} pip dependency will be installed automatically (auto-install enabled in Settings → System).",
-      "deps_auto_many": "{n} pip dependencies will be installed automatically (auto-install enabled in Settings → System).",
-      "deps_manual_one": "This package requires installing {n} Python dependency via pip.",
-      "deps_manual_many": "This package requires installing {n} Python dependencies via pip.",
+      "deps_auto_one": "{n} Python dependency will be installed automatically (automatic installation enabled in Settings → System).",
+      "deps_auto_many": "{n} Python dependencies will be installed automatically (automatic installation enabled in Settings → System).",
+      "deps_manual_one": "This package requires installing {n} Python dependency.",
+      "deps_manual_many": "This package requires installing {n} Python dependencies.",
       "deps_confirm_step": "A confirmation step will follow",
       "deps_before_download": "before any download.",
       "change": "← Change",
@@ -1024,7 +1024,7 @@
       "deps_confirm_intro_suffix": "from PyPI into",
       "deps_confirm_no_install": "No installation will be performed without your confirmation.",
       "deps_list_title": "Packages to install",
-      "deps_venv_note": "Packages are installed in a venv isolated per agent. No impact on your system Python.",
+      "deps_venv_note": "Dependencies are installed in a Python environment isolated per agent. No impact on your system Python.",
       "deps_provenance_prefix": "To check provenance, see",
       "back": "← Back",
       "confirm_and_continue": "Confirm and continue",
@@ -1032,13 +1032,13 @@
       "configure_title": "Webhook triggers configuration",
       "configure_intro": "These triggers require an HMAC secret to verify incoming requests. Choose a strong secret (min. 8 characters) and configure it on the webhook side.",
       "preconfigured": "pre-configured",
-      "endpoint": "Endpoint",
+      "endpoint": "Address",
       "copy_url": "Copy URL",
       "secret_label": "HMAC-SHA256 secret",
       "copy_secret": "Copy secret",
       "secret_too_short": "The secret must be at least 32 characters.",
       "installing": "Installing…",
-      "installing_deps": "Downloading pip dependencies and duck-typing",
+      "installing_deps": "Downloading the Python dependencies and checking the agent",
       "installing_files": "Copying files and injecting triggers",
       "done_title": "Package installed!",
       "done_agents_one": "{n} agent",
@@ -1094,7 +1094,7 @@
     "update_restart_stop_failed": "The new file is installed, but {name} could not be stopped: it is still running the previous version.",
     "update_restart_stop_failed_action": "Stop the agent, then start it again to load the new version.",
     "update_restart_start_failed": "{name} was stopped to load the new version and did not start again: it is running nothing right now.",
-    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused.",
+    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what Apollia refused.",
     "automate": "Automate",
     "kicker": "Agents and workflows",
     "kicker_agent": "Agent",
@@ -1308,7 +1308,7 @@
     "reject": "Reject",
     "steps_label": "Steps",
     "error_malformed_plan": "The received plan is incomplete or invalid.",
-    "error_ipc": "Error communicating with the runtime.",
+    "error_ipc": "Error communicating with the Apollia engine.",
     "status_approved": "Plan approved",
     "status_rejected": "Plan rejected",
     "no_steps_placeholder": "No steps defined.",
@@ -1356,7 +1356,7 @@
     "retry_approval": "Retry approval"
   },
   "plan_session": {
-    "tab_journal": "Journal",
+    "tab_journal": "Steps",
     "tab_plan": "Plan",
     "expand": "Expand the plan",
     "collapse": "Collapse the plan",
@@ -1405,7 +1405,7 @@
     "empty_filter_title": "No automations in this status",
     "empty_filter_desc": "Change filter to explore other automations.",
     "filter_show_all": "Show all automations",
-    "subtitle": "Rules that run your assistants automatically.",
+    "subtitle": "Rules that run your agents automatically.",
     "new": "Create an automation",
     "run_now": "Run now",
     "running": "Starting…",
@@ -1414,7 +1414,7 @@
     "resume": "Resume",
     "pause_toast": "Automation paused",
     "resume_toast": "Automation resumed",
-    "target_prefix": "Assistant",
+    "target_prefix": "Agent",
     "paused_hint": "Paused - enable it in the advanced view to run on schedule.",
     "fired_toast": "Automation started - task {taskId}",
     "status": {
@@ -1430,31 +1430,31 @@
     },
     "empty": {
       "title": "No automations yet",
-      "description": "Automations run your assistants on a schedule, when a file changes, or when a webhook fires.",
+      "description": "Automations run your agents on a schedule, when a file changes, or when a webhook fires.",
       "primary": "Create an automation"
     },
     "wizard": {
       "title": "Create an automation",
       "step_describe": "Describe",
       "step_schedule": "Schedule",
-      "step_agent": "Assistant",
+      "step_agent": "Agent",
       "step_preview": "Preview",
       "describe_prompt": "When should the trigger fire?",
-      "describe_hint": "Focus on the WHEN (frequency, time, event). You will pick the assistant that runs it at the Assistant step.",
+      "describe_hint": "Focus on the WHEN (frequency, time, event). You will pick the agent that runs it at the Agent step.",
       "placeholder_1": "E.g. Every morning at 8am",
       "placeholder_2": "E.g. Every Monday at 9am to prep the week",
       "placeholder_3": "E.g. Every 30 minutes",
       "parsing": "Parsing…",
       "fallback_error": "We couldn't understand automatically. Try a simpler phrasing that states a frequency and time.",
-      "schedule_intro": "Check the schedule before moving on. You can refine it in plain language. The target assistant is picked at the next step.",
+      "schedule_intro": "Check the schedule before moving on. You can refine it in plain language. The target agent is picked at the next step.",
       "next_run": "Next run: {when}",
       "needs_clarification": "Please clarify:",
       "refine_label": "Refine in plain language",
       "refine_placeholder": "E.g. actually 9am",
-      "agent_intro": "Pick the assistant that this trigger will launch. A trigger fires one assistant at a time.",
-      "agent_not_matched_hint": "Apollia didn't recognize an assistant in your description - pick one below.",
-      "agent_pick": "Pick an assistant",
-      "agent_select_aria": "Target assistant",
+      "agent_intro": "Pick the agent that this trigger will launch. A trigger fires one agent at a time.",
+      "agent_not_matched_hint": "Apollia didn't recognize an agent in your description - pick one below.",
+      "agent_pick": "Pick an agent",
+      "agent_select_aria": "Target agent",
       "agent_inferred": "Recognized automatically: {agent}",
       "preview_intro": "All set. Activate to start the schedule.",
       "preview_label": "Automation",
@@ -1634,7 +1634,7 @@
   },
   "memory": {
     "empty_title": "No memory data",
-    "empty_subtitle": "Your assistants will store data here.",
+    "empty_subtitle": "Your agents will store data here.",
     "search_placeholder": "Search... (min. 3 characters)",
     "empty_entries": "No memory entries in this namespace.",
     "no_search_results": "No results for this search.",
@@ -2226,7 +2226,7 @@
       "intro": "Apollia OS runs your AI agents locally, on your own machine, with your own models. The topics below cover the essentials to get up and running.",
       "getting_started": "Getting started",
       "topic_model_title": "Configure a model",
-      "topic_model_body": "Download a local GGUF model from the Model Hub, or connect an external backend, so Apollia and your agents can reason.",
+      "topic_model_body": "Download a local model from the Model Hub, or connect an external server, so Apollia and your agents can reason.",
       "topic_model_action": "Open Model Hub",
       "topic_chat_title": "Start a chat",
       "topic_chat_body": "Talk to Apollia in natural language. Ask a question, delegate a task, or pick an agent to handle the work.",
@@ -2307,8 +2307,8 @@
     "observability": {
       "title": "Observability",
       "subtitle": "Control what is captured about agent execution. All captures are local - nothing is uploaded.",
-      "capture_thoughts": "Agent thoughts (ReAct reasoning)",
-      "capture_thoughts_desc": "Persist the LLM 'thought' field at each ReAct turn.",
+      "capture_thoughts": "Agent thoughts (step-by-step reasoning)",
+      "capture_thoughts_desc": "Persist the 'thought' field of the model at each reasoning turn.",
       "capture_tool_args": "Tool call arguments",
       "capture_tool_args_desc": "Persist the args JSON of each tool invocation.",
       "capture_tool_outputs": "Tool call outputs",
@@ -2339,7 +2339,7 @@
       "unit_bytes": "bytes",
       "unit_days": "days",
       "editable_note": "Edit the observability policy captured about agent execution. Everything stays local, nothing is uploaded.",
-      "restart_note": "Changes apply after restarting the app. The runtime does not reload this policy live.",
+      "restart_note": "Changes apply after restarting the app. The engine does not reload this policy live.",
       "kib_display": "{kib} KiB",
       "sensitive_confirm_title": "Enable sensitive capture?",
       "sensitive_confirm_message": "This persists potentially sensitive content (raw prompts and responses) to the local database. It never leaves your machine, but anyone with local access can read it. Enable it only if you need it for debugging.",
@@ -2452,9 +2452,9 @@
     "security": {
       "title": "Security posture",
       "platform": "Platform",
-      "tool_sandbox": "Tool sandbox",
-      "tool_sandbox_namespaces": "Linux namespaces (PID + mount)",
-      "tool_sandbox_none": "No OS sandbox (development mode)",
+      "tool_sandbox": "Tool isolation",
+      "tool_sandbox_namespaces": "Linux process isolation (PID + mount)",
+      "tool_sandbox_none": "No OS isolation (development mode)",
       "rlimits": "Resource limits",
       "rlimits_active": "Active (CPU, memory, file descriptors)",
       "rlimits_inactive": "Not available",
@@ -2566,7 +2566,7 @@
     "stt": {
       "section": {
         "essential_title": "ESSENTIAL",
-        "essential_description": "Backend, language and activation mode.",
+        "essential_description": "Engine, language and activation mode.",
         "advanced_title": "ADVANCED TRIGGERS",
         "advanced_description": "Hotkey, wake word and voice-activity threshold.",
         "performance_title": "PERFORMANCE",
@@ -2624,7 +2624,7 @@
     "stt_disabled": "Disabled",
     "stt_model_not_loaded": "Model not loaded",
     "stt_model_ready_hint": "· loads on first use",
-    "stt_backend": "Backend",
+    "stt_backend": "Engine",
     "stt_model_name": "Active model",
     "stt_metal": "Metal",
     "stt_cuda": "CUDA",
@@ -2676,9 +2676,9 @@
       "refresh_hours_ago": "{n}h ago",
       "cli_working": "Working…",
       "agent_install_section_title": "Agent package installation",
-      "agent_install_section_desc": "Default behavior when installing agent packages that declare Python (pip) dependencies.",
+      "agent_install_section_desc": "Default behavior when installing agent packages that declare Python dependencies.",
       "auto_install_python_deps_label": "Auto-install Python dependencies",
-      "auto_install_python_deps_desc": "When enabled, packages that declare pip dependencies are installed directly, with no confirmation step. Disabled by default so each download from PyPI requires explicit consent.",
+      "auto_install_python_deps_desc": "When enabled, packages that declare Python dependencies are installed directly, with no confirmation step. Disabled by default so each download from PyPI requires explicit consent.",
       "python_interpreter_label": "Python interpreter",
       "python_interpreter_hint_bundled": "Agents run on the interpreter Apollia ships with ({path}), which needs nothing installed on this machine. Name another one by absolute path to use it instead.",
       "python_interpreter_hint_chosen": "Agents run on this interpreter. It has to exist, start, and be a Python 3.{minor}: the bundled standard library cannot be read by another minor version. If it stops being valid, the bundled interpreter takes over.",
@@ -2718,9 +2718,9 @@
       "web_read_title": "Web read",
       "web_read_desc": "Fetches and extracts the readable content of a URL with an anti-SSRF guard.",
       "bash_executor_title": "Bash",
-      "bash_executor_desc": "Runs shell commands in a supervised sandbox.",
+      "bash_executor_desc": "Runs shell commands in a supervised, isolated space.",
       "python_executor_title": "Python",
-      "python_executor_desc": "Runs isolated Python code in the PyO3 runtime.",
+      "python_executor_desc": "Runs isolated Python code inside Apollia.",
       "file_read_title": "File read",
       "file_read_desc": "Reads a file in the agent workspace.",
       "file_write_title": "File write",
@@ -2742,7 +2742,7 @@
       "memory_search_title": "Memory",
       "memory_search_desc": "Searches the agent's episodic/semantic memory.",
       "ask_user_title": "Ask user",
-      "ask_user_desc": "Requests a human response through an HITL dialog.",
+      "ask_user_desc": "Requests a human response through a dialog.",
       "cat_web": "Web & network",
       "cat_exec": "System & code",
       "cat_files": "Files",
@@ -2772,7 +2772,7 @@
     },
     "tool_config": {
       "title": "Configure {name}",
-      "active_backend": "Active backend:",
+      "active_backend": "Active provider:",
       "no_tool_selected": "No tool selected.",
       "no_config": "This tool exposes no specific configuration. Toggle it from the tools list.",
       "field": {
@@ -2781,13 +2781,13 @@
         "max_response_kb": "Max size (KB)"
       },
       "web_search": {
-        "preferred_backend": "Preferred backend",
+        "preferred_backend": "Preferred provider",
         "backend_auto": "Auto (DDG by default, Brave when a key is present)",
         "backend_ddg_only": "DuckDuckGo only",
         "backend_brave_only": "Brave Search only",
         "brave_api_key": "Brave API key",
-        "require_configured": "Require a configured backend",
-        "require_configured_desc": "Error at startup if no valid backend."
+        "require_configured": "Require a configured provider",
+        "require_configured_desc": "Error at startup if no valid provider."
       },
       "web_read": {
         "ssrf_guard": "SSRF guard (reject private/loopback hosts)"
@@ -2912,7 +2912,7 @@
       "aria": "Contract of {name}",
       "retry": "Retry",
       "missing_title": "Contract unavailable",
-      "missing_desc": "This tool is not registered in the runtime, so it exposes no contract.",
+      "missing_desc": "This tool is not registered in Apollia, so it exposes no contract.",
       "permissions": "Required permissions",
       "input_schema": "Input",
       "output_schema": "Output",
@@ -2924,7 +2924,7 @@
       "default_value": "default: {value}",
       "allowed_values": "Allowed values: {values}",
       "kind_native": "Native",
-      "kind_mcp_server": "MCP server",
+      "kind_mcp_server": "Connection",
       "kind_custom": "Python tool"
     },
     "tool_credentials": {
@@ -2971,23 +2971,6 @@
         "unsupported": "This system has no service manager Apollia can use.",
         "no_cli": "The command line bundled with the application was not found.",
         "write_failed": "The service could not be changed: {error}"
-      },
-      "mcp": {
-        "title": "Apollia as an MCP server",
-        "switch_label": "Expose Apollia as an MCP server",
-        "switch_hint": "An MCP client (Claude Desktop, a code editor) calls the checked agents and workflows as tools.",
-        "write_failed": "The MCP server setting could not be saved.",
-        "items_label": "Exposed agents and workflows",
-        "items_hint": "Check what an MCP client may call.",
-        "items_empty": "No agent or workflow installed yet. The ones you install from the Library will appear here, ready to check.",
-        "items_failed": "The agents and workflows could not be read: {error}",
-        "expose_failed": "{name} could not be updated.",
-        "kind_agent": "Agent",
-        "kind_workflow": "Workflow",
-        "config_label": "Paste into the configuration of the MCP client",
-        "copy": "Copy",
-        "copied": "Copied",
-        "copy_failed": "The configuration could not be copied."
       },
       "on_demand": {
         "title": "On-demand loading and idle delay",
@@ -3546,7 +3529,7 @@
     "trigger_config_cron": "Expression: {config}",
     "trigger_config_interval": "Every {config}",
     "trigger_config_file_watch": "Watches: {config}",
-    "trigger_config_webhook": "Endpoint: {config}",
+    "trigger_config_webhook": "Address: {config}",
     "trigger_config_oneshot": "One-time trigger",
     "trigger_enabled": "Active",
     "trigger_last_fired": "Last fired: {date}",
@@ -3561,8 +3544,8 @@
     "show_formatted": "Show formatted"
   },
   "mac_sandbox": {
-    "title": "macOS - tools run without sandbox.",
-    "body": "Linux namespace isolation is not available on macOS. Agent tool calls (bash, file I/O) execute directly in your user session. Only run agents you trust, and review their tool permissions in the manifest."
+    "title": "macOS - tools run without isolation.",
+    "body": "Linux process isolation is not available on macOS. Agent tool calls (bash, file I/O) execute directly in your user session. Only run agents you trust, and review the tool permissions they declare."
   },
   "chat": {
     "title": "Chat",
@@ -3621,7 +3604,7 @@
     },
     "tool_collapse": "collapse",
     "authorize_tool": "Authorize execution of",
-    "authorize_action": "The assistant would like to perform an action",
+    "authorize_action": "The agent would like to perform an action",
     "ask_user_title": "The agent needs some information",
     "ask_user_submit": "Submit",
     "ask_user_skip": "Skip",
@@ -3629,7 +3612,7 @@
     "ask_user_qa_label": "Questions & answers",
     "ask_user_pending": "Pending…",
     "you": "You",
-    "assistant": "Assistant",
+    "assistant": "Apollia",
     "delete_session": "Delete",
     "chips": {
       "thinking": "Think",
@@ -3776,9 +3759,9 @@
       }
     },
     "resources": {
-      "menu_label": "MCP resources",
+      "menu_label": "Resources of your connections",
       "loading": "Loading resources...",
-      "empty": "No MCP resources available",
+      "empty": "No resource available from your connections",
       "unpin": "Unpin resource"
     },
     "commands": {
@@ -3805,8 +3788,8 @@
     "session_actions": "Session actions",
     "delete_confirm_title": "Delete conversation",
     "delete_confirm_message": "This action cannot be undone. All messages will be lost.",
-    "a2a_workers": "Worker agents",
-    "a2a_no_workers": "No worker agents available",
+    "a2a_workers": "Delegated agents",
+    "a2a_no_workers": "No agent available to delegate to",
     "mode_auto": "Auto",
     "scroll_to_bottom": "Jump to latest",
     "exchange_error": "Error: {error}",
@@ -3839,8 +3822,8 @@
       "sources": "Sources"
     },
     "tool_empty_results": "No results.",
-    "a2a_authorize_skill": "Authorize skill",
-    "a2a_via_worker": "via worker agent",
+    "a2a_authorize_skill": "Authorize the capability",
+    "a2a_via_worker": "via the delegated agent",
     "quickpicker": {
       "title": "Start a conversation",
       "prompt_label": "What do you want to do?",
@@ -3852,7 +3835,7 @@
       "empty_agents": "No agents are installed yet. Install one to start delegating work.",
       "install_agent": "Install an agent",
       "docs_link": "Documentation",
-      "error_no_llm": "No language model is configured yet. Open Settings and add an LLM backend (a local GGUF model or a cloud provider) before starting a conversation.",
+      "error_no_llm": "No language model is configured yet. Open Settings and add one (a local model or an external provider) before starting a conversation.",
       "error_generic": "Could not start the conversation: {error}",
       "submit_hint_enter": "Enter to start a free chat"
     },
@@ -3875,8 +3858,8 @@
       "delete": "Delete session"
     },
     "runtime_disconnected": {
-      "lost": "Runtime connection lost - reconnecting…",
-      "reconnecting": "Reconnecting to the runtime (attempt {attempt})…",
+      "lost": "Connection to the Apollia engine lost - reconnecting…",
+      "reconnecting": "Reconnecting to the Apollia engine (attempt {attempt})…",
       "retry": "Retry now"
     },
     "agent_unavailable": {
@@ -3962,7 +3945,7 @@
       "input_label": "Input",
       "output_label": "Output",
       "role_user": "User",
-      "role_assistant": "Assistant",
+      "role_assistant": "Apollia",
       "role_tool": "Tool",
       "role_system": "System"
     },
@@ -4378,8 +4361,8 @@
       "notebook_read": "Reading a Jupyter notebook",
       "notebook_edit": "Editing a Jupyter notebook cell",
       "tool_search": "Searching the index of available external tools",
-      "mcp_resources_list": "Listing the resources exposed by connected MCP servers",
-      "mcp_resources_read": "Reading a resource exposed by a connected MCP server"
+      "mcp_resources_list": "Listing the resources exposed by your connections",
+      "mcp_resources_read": "Reading a resource exposed by one of your connections"
     },
     "output": {
       "web_read_truncated": "{chars_total} characters read (truncated, {duration_ms}ms)"
@@ -4464,7 +4447,7 @@
       "python_executor": {
         "label_operator": "Python scripts",
         "desc_operator": "Run Python code in an isolated environment",
-        "desc_builder": "python_executor - per-agent venv, timeout_secs - SandboxProfile::FileSystem - family execute_code"
+        "desc_builder": "python_executor - per-agent Python environment, timeout_secs - SandboxProfile::FileSystem - family execute_code"
       },
       "http_fetch": {
         "label_operator": "Web requests",
@@ -4474,7 +4457,7 @@
       "web_search": {
         "label_operator": "Web search",
         "desc_operator": "Search the web (DuckDuckGo by default, Brave if an API key is set)",
-        "desc_builder": "web_search - pluggable backends (DDG/Brave), opt-in via [tools].web_search"
+        "desc_builder": "web_search - pluggable providers (DDG/Brave), opt-in via [tools].web_search"
       },
       "web_read": {
         "label_operator": "Read an article",
@@ -4484,7 +4467,7 @@
       "memory_search": {
         "label_operator": "Search memory",
         "desc_operator": "Look up information the agent has saved previously",
-        "desc_builder": "memory_search - FTS5 BM25, namespace-scoped, limit - SandboxProfile::ReadOnly"
+        "desc_builder": "memory_search - FTS5 full-text ranking, scoped per memory space, limit - SandboxProfile::ReadOnly"
       }
     },
     "body": {
@@ -4645,8 +4628,8 @@
   },
   "empty_states": {
     "agents": {
-      "title": "Your first assistant is one install away",
-      "description": "Install a Python agent file or spin one up from a template. Apollia runs it locally, in its own sandbox - no cloud round-trip.",
+      "title": "Your first agent is one install away",
+      "description": "Install a Python agent file or spin one up from a template. Apollia runs it locally, in its own isolated space - no cloud round-trip.",
       "primary_cta": "Install an agent",
       "secondary_cta": "Start from a template"
     },
@@ -4670,7 +4653,7 @@
     },
     "integrations": {
       "title": "Connect your first tool",
-      "description": "Apollia speaks MCP - browse the registry or plug in a custom server to extend your agents with file systems, APIs, and more.",
+      "description": "Browse the registry or plug in a custom server to extend your agents with file systems, APIs, and more.",
       "primary_cta": "Add a connection",
       "secondary_cta": "Browse the registry"
     }
@@ -5332,6 +5315,23 @@
         "prompt": "Hello",
         "prompt_tool": "What is the weather in Paris?",
         "prompt_mcp": "Which tools can you call?"
+      },
+      "mcp": {
+        "title": "Apollia as an MCP server",
+        "switch_label": "Expose Apollia as an MCP server",
+        "switch_hint": "An MCP client (Claude Desktop, a code editor) calls the checked agents and workflows as tools.",
+        "write_failed": "The MCP server setting could not be saved.",
+        "items_label": "Exposed agents and workflows",
+        "items_hint": "Check what an MCP client may call.",
+        "items_empty": "No agent or workflow installed yet. The ones you install from the Library will appear here, ready to check.",
+        "items_failed": "The agents and workflows could not be read: {error}",
+        "expose_failed": "{name} could not be updated.",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "config_label": "Paste into the configuration of the MCP client",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copy_failed": "The configuration could not be copied."
       }
     }
   },
