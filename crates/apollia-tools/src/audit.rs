@@ -88,6 +88,10 @@ pub fn compute_input_hash(params: &serde_json::Value) -> String {
 // SQL schema
 // ---------------------------------------------------------------------------
 
+/// Name the schema layer reports this store under. The file left the
+/// catalogue of the data directory: nothing opens it there any more.
+const AUDIT_DB_FILE: &str = "audit.db";
+
 /// Current schema version of `audit.db`.
 const AUDIT_SCHEMA_VERSION: u32 = 1;
 
@@ -360,7 +364,7 @@ impl AuditTrailHandle {
             // a database written by a newer binary.
             if let Err(e) = apollia_core::schema::open_versioned(
                 &conn,
-                apollia_core::paths::DataFile::Audit.file_name(),
+                AUDIT_DB_FILE,
                 AUDIT_SCHEMA_VERSION,
                 AUDIT_MIGRATIONS,
             ) {

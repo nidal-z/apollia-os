@@ -22,24 +22,6 @@ pub(in crate::supervisor) fn open_trigger_persistence(
     }
 }
 
-/// Open the audit trail (`audit.db`). Returns `None` (logged) on failure.
-pub(in crate::supervisor) async fn open_audit_trail(
-    data_dir: &std::path::Path,
-) -> Option<AuditTrailHandle> {
-    match AuditTrailHandle::open(&data_dir.join(apollia_core::paths::DataFile::Audit.file_name()))
-        .await
-    {
-        Ok(handle) => {
-            info!("supervisor.audit_trail.ready");
-            Some(handle)
-        }
-        Err(e) => {
-            warn!(error = %e, detail = "audit disabled", "supervisor.audit_trail.failed");
-            None
-        }
-    }
-}
-
 /// Open the hash-chained, signed audit journal (`audit_journal.db`).
 ///
 /// The HMAC signing key lives in a local file under the data dir (see

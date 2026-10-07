@@ -143,7 +143,6 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         plan_gates: None,
         notification_config: None,
         tool_registry_handle: Some(tool_registry),
-        audit_trail: None,
         audit_journal: Some(journal.clone()),
         connection_governance: ConnectionGovernance::new(admission, Some(journal.clone())),
         governance: None,

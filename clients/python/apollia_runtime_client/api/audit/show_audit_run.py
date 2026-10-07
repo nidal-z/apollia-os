@@ -67,9 +67,8 @@ def sync_detailed(
 ) -> Response[ApiErrorBody | AuditJournalResponse]:
     """`GET /api/v1/audit/journal/:run_id`, the full journal for a run.
 
-     Unlike `GET /api/v1/audit` (the tool-only audit trail), this returns the
-    hash-chained journal entries including `llm_completion` (the model's
-    prompts/responses). 404 when the run has no entries, 503 when the journal is
+     Returns the hash-chained journal entries, including `llm_completion` (the
+    model's prompts/responses). 404 when the run has no entries, 503 when the journal is
     not configured.
 
     Args:
@@ -101,9 +100,8 @@ def sync(
 ) -> ApiErrorBody | AuditJournalResponse | None:
     """`GET /api/v1/audit/journal/:run_id`, the full journal for a run.
 
-     Unlike `GET /api/v1/audit` (the tool-only audit trail), this returns the
-    hash-chained journal entries including `llm_completion` (the model's
-    prompts/responses). 404 when the run has no entries, 503 when the journal is
+     Returns the hash-chained journal entries, including `llm_completion` (the
+    model's prompts/responses). 404 when the run has no entries, 503 when the journal is
     not configured.
 
     Args:
@@ -130,9 +128,8 @@ async def asyncio_detailed(
 ) -> Response[ApiErrorBody | AuditJournalResponse]:
     """`GET /api/v1/audit/journal/:run_id`, the full journal for a run.
 
-     Unlike `GET /api/v1/audit` (the tool-only audit trail), this returns the
-    hash-chained journal entries including `llm_completion` (the model's
-    prompts/responses). 404 when the run has no entries, 503 when the journal is
+     Returns the hash-chained journal entries, including `llm_completion` (the
+    model's prompts/responses). 404 when the run has no entries, 503 when the journal is
     not configured.
 
     Args:
@@ -162,9 +159,8 @@ async def asyncio(
 ) -> ApiErrorBody | AuditJournalResponse | None:
     """`GET /api/v1/audit/journal/:run_id`, the full journal for a run.
 
-     Unlike `GET /api/v1/audit` (the tool-only audit trail), this returns the
-    hash-chained journal entries including `llm_completion` (the model's
-    prompts/responses). 404 when the run has no entries, 503 when the journal is
+     Returns the hash-chained journal entries, including `llm_completion` (the
+    model's prompts/responses). 404 when the run has no entries, 503 when the journal is
     not configured.
 
     Args:

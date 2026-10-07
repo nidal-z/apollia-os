@@ -1,6 +1,5 @@
 //! The governance of native tools as every surface reads and changes it: the
-//! tools and their configuration, the permission rules, the audit of the
-//! permission decisions.
+//! tools and their configuration, and the permission rules.
 //!
 //! Everything lives in `governance.db` under the data directory. The desktop
 //! running the runtime in its own process calls these functions directly; a
@@ -10,14 +9,9 @@
 
 use std::path::{Path, PathBuf};
 
-use apollia_permissions::{
-    PermissionAuditLog, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
-};
+use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction};
 use apollia_tools::{list_credential_index, GovernanceDb, NativeToolRegistry};
 use serde::{Deserialize, Serialize};
-
-/// How many audit entries a page holds when the caller names no limit.
-pub const DEFAULT_AUDIT_LIMIT: u32 = 100;
 
 /// State of a native tool as displayed by the tools page.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
@@ -68,27 +62,6 @@ pub struct PermissionRuleDto {
     pub created_at: String,
     /// Author of the rule (`None` means a human operator).
     pub created_by: Option<String>,
-}
-
-/// Entry in the immutable audit log of permission decisions.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
-pub struct AuditEntryDto {
-    /// Auto-incremented identifier.
-    pub id: i64,
-    /// Name of the invoked tool.
-    pub tool_name: String,
-    /// First argument extracted from the invocation, when available.
-    pub first_arg: Option<String>,
-    /// Serialized decision (e.g. `"AutoAllowedSafeList"`).
-    pub decision: String,
-    /// Scope of the rule that decided, when relevant.
-    pub scope: Option<String>,
-    /// Identifier of the rule that triggered the decision, when applicable.
-    pub rule_id: Option<i64>,
-    /// Name of the agent behind the invocation, if provided.
-    pub agent: Option<String>,
-    /// Decision date in ISO 8601 format.
-    pub decided_at: String,
 }
 
 /// Why a governance operation did not complete. The display text is what the
@@ -390,45 +363,6 @@ pub async fn revoke_all_rules(
             "permission.rules.revoked"
         );
         Ok(removed)
-    })
-    .await
-}
-
-/// The audit entries of the permission decisions, most recent first,
-/// optionally for one tool, paginated.
-///
-/// # Errors
-///
-/// [`ToolGovernanceError::Storage`] when the log cannot be read.
-pub async fn list_audit(
-    base_dir: PathBuf,
-    tool_name: Option<String>,
-    limit: Option<u32>,
-    offset: Option<u32>,
-) -> Result<Vec<AuditEntryDto>, ToolGovernanceError> {
-    blocking(move || {
-        let db_path = governance_db(&base_dir)?;
-        let log = PermissionAuditLog::new(&db_path).map_err(storage("failed to open audit log"))?;
-        let entries = log
-            .query(
-                tool_name.as_deref(),
-                limit.unwrap_or(DEFAULT_AUDIT_LIMIT),
-                offset.unwrap_or(0),
-            )
-            .map_err(storage("failed to query audit log"))?;
-        Ok(entries
-            .into_iter()
-            .map(|e| AuditEntryDto {
-                id: e.id,
-                tool_name: e.tool_name,
-                first_arg: e.first_arg,
-                decision: e.decision,
-                scope: e.scope,
-                rule_id: e.rule_id,
-                agent: e.agent,
-                decided_at: iso8601(e.decided_at),
-            })
-            .collect())
     })
     .await
 }

@@ -116,8 +116,7 @@ backup already exists, and picks up the narrative overlay from
 Read that line: without the overlay you get the test fixture, and half the
 screens below show a thinner state than what they describe.
 
-`APOLLIA_SEED_PROJECT_ROOT` is what the permission cards and
-the audit trail display. Left unset it is this repository checkout, which means
+`APOLLIA_SEED_PROJECT_ROOT` is what the permission cards display. Left unset it is this repository checkout, which means
 your own machine's path ends up on a published image. Point it at a directory
 that exists (create an empty one if you have none) unless you have decided you
 do not mind.
@@ -308,7 +307,6 @@ is converting, one batch failed on a malformed table and had to be redone.
 | Plan | 6 steps: 3 done (one of them replanned), 1 running, 1 pending, 1 failed |
 | Automations | 2 active, 2 paused; 8 history rows across fired / skipped / error |
 | Timeline (1 h) | ~42 events, every filter chip populated |
-| Audit trail | 10 invocations, 2 failures, each expandable |
 | LLM costs (7 d) | 20 calls, 3 backends, 7 populated days |
 | Memory | 5 namespaces, project one included, all three types present in each |
 | Agents | 4 agents + 1 package, 7 tasks covering every status |
@@ -440,8 +438,6 @@ Row 54 mutates the seed. Shoot it after 52, 53 and 55, or reload the seed.
 
 | # | File | Route and gesture | What must be on screen | Values | Crop | How |
 |---|---|---|---|---|---|---|
-| 77 | `observabilite-consulter-l-audit-trail-1.png` | Observability → **Audit Trail**. | Purpose banner, the Full journal totals card, 4 KPIs, filters, then the table. 10 rows, 2 agents, 2 failures | none | panel | auto |
-| 78 | `observabilite-consulter-l-audit-trail-2.png` | Expand the failed `bash_executor` row. | Arguments, stdout and stderr sections, all three populated | expand the row whose stderr mentions page 187 | panel | auto |
 | 79 | `observabilite-consulter-l-historique-des-taches-1.png` | Observability → **Timeline**. | Scope selector on **All activity**, KPI strip, filter bar, events grouped by day. ~42 events in the default 1 h window, every chip populated | keep the default **1 h** window, do not switch the scope | panel | auto |
 | 80 | `observabilite-lire-le-digest-quotidien-1.png` | Home, operator mode. | Three cards in a grid, Decisions waiting spanning two columns on the left. Both projects active | none | page | auto |
 | 81 | `observabilite-surveiller-les-couts-llm-1.png` | Observability → **LLM Costs**. | Period selector, 4 KPIs, the stacked bars, the backend legend. 3 backends, 7 populated days | keep the default **7 d** period | panel | auto |

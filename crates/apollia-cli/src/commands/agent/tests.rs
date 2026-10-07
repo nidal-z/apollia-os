@@ -1,4 +1,3 @@
-use super::display::format_audit_event_row;
 use super::*;
 use std::path::Path;
 
@@ -304,45 +303,17 @@ fn test_format_a2a_agent_list_skills_read_from_id_field() {
 }
 
 #[test]
-fn test_format_audit_event_row_uses_real_keys() {
-    // GIVEN an audit event with the real JSON shape from GET /agents/:id/logs
-    let event = serde_json::json!({
-        "started_at": "2026-07-01T15:05:32Z",
-        "tool_name": "mcp:filesystem/list_criteria",
-        "success": true,
-        "duration_ms": 13,
-        "task_id": "dcd2713a-0000-4000-8000-000000000000",
-    });
+fn test_agent_logs_reads_the_actions_of_the_agent_in_the_journal() {
+    // GIVEN an agent whose name needs encoding, and a number of lines asked for
+    // WHEN the page `agent logs` reads is built
+    let uri = super::lifecycle::agent_logs_uri("mail sorter", 20);
 
-    // WHEN the row is formatted
-    let row = format_audit_event_row(&event);
-
-    // THEN the real values render (no stray `?` placeholders)
-    assert!(!row.contains('?'), "row still has `?` placeholders: {row}");
-    assert!(row.contains("2026-07-01T15:05:32Z"));
-    assert!(row.contains("mcp:filesystem/list_criteria"));
-    assert!(row.contains("ok"));
-    assert!(row.contains("13ms"));
-    assert!(row.contains("task=dcd2713a-0000-4000-8000-000000000000"));
-}
-
-#[test]
-fn test_format_audit_event_row_failed_uses_error_code() {
-    // GIVEN a failed audit event carrying an error_code and no duration
-    let event = serde_json::json!({
-        "started_at": "2026-07-01T15:06:00Z",
-        "tool_name": "mcp:filesystem/write",
-        "success": false,
-        "error_code": "PERMISSION_DENIED",
-        "task_id": "abc",
-    });
-
-    // WHEN the row is formatted
-    let row = format_audit_event_row(&event);
-
-    // THEN the error code is surfaced as the outcome
-    assert!(row.contains("PERMISSION_DENIED"), "row: {row}");
-    assert!(row.contains("task=abc"));
+    // THEN it is a page of the audit journal, narrowed to the actions of that
+    // agent, of the size asked for
+    assert_eq!(
+        uri,
+        "/api/v1/audit/journal?limit=20&offset=0&agents=mail%20sorter&nature=action"
+    );
 }
 
 /// Identifiers of the agents the packages of this repository declare, under

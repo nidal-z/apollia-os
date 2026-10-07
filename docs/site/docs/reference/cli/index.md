@@ -61,9 +61,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os tools approvals`↴](#apollia-os-tools-approvals)
 * [`apollia-os tools approvals pending`↴](#apollia-os-tools-approvals-pending)
 * [`apollia-os audit`↴](#apollia-os-audit)
-* [`apollia-os audit list`↴](#apollia-os-audit-list)
 * [`apollia-os audit journal`↴](#apollia-os-audit-journal)
-* [`apollia-os audit stats`↴](#apollia-os-audit-stats)
 * [`apollia-os audit export`↴](#apollia-os-audit-export)
 * [`apollia-os audit verify`↴](#apollia-os-audit-verify)
 * [`apollia-os audit anchor`↴](#apollia-os-audit-anchor)
@@ -148,7 +146,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os permissions`↴](#apollia-os-permissions)
 * [`apollia-os permissions list`↴](#apollia-os-permissions-list)
 * [`apollia-os permissions revoke`↴](#apollia-os-permissions-revoke)
-* [`apollia-os permissions audit`↴](#apollia-os-permissions-audit)
 * [`apollia-os permissions add`↴](#apollia-os-permissions-add)
 * [`apollia-os chat`↴](#apollia-os-chat)
 * [`apollia-os chat list`↴](#apollia-os-chat-list)
@@ -350,7 +347,7 @@ Apollia OS CLI binary (apollia-os)
 * `config` - Global apollia.toml management (get, set, validate, edit, show)
 * `profile` - User profile management (show, set, forget, reset, export, import)
 * `trace` - Print the event-sourced trace of a task
-* `digest` - Aggregated activity overview (tasks + LLM costs + audit stats)
+* `digest` - Aggregated activity overview (tasks + LLM costs)
 * `completions` - Generate a shell completion script (bash, zsh, fish, powershell, ...)
 * `guide` - Short, task-oriented help by theme (chat, governance, audit, ...)
 * `do` - Map a natural-language request to a command (local model), then run it
@@ -1114,9 +1111,7 @@ Audit trail (list, stats, export, verify, show, replay)
 
 ###### **Subcommands:**
 
-* `list` - List recent audit events (default)
 * `journal` - Browse the hash-chained journal across every run, newest first
-* `stats` - Display audit statistics
 * `export` - Export the hash-chained journal to a file, as CSV or JSON
 * `verify` - Verify the audit journal's hash chains and signatures
 * `anchor` - Print the exportable head anchor of the global chain
@@ -1125,25 +1120,11 @@ Audit trail (list, stats, export, verify, show, replay)
 
 
 
-## `apollia-os audit list`
-
-List recent audit events (default)
-
-**Usage:** `apollia-os audit list [OPTIONS]`
-
-###### **Options:**
-
-* `--limit <LIMIT>` - Maximum number of events to display
-
-  Default value: `20`
-
-
-
 ## `apollia-os audit journal`
 
 Browse the hash-chained journal across every run, newest first.
 
-Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing. Each entry is printed as its summary: when, who, what, on what, with which result, and never the content of a call. The filters add up, and `--limit` and `--offset` count the entries that pass them.
+Unlike `audit show RUN` (one run), this reads the chained journal without needing a run id up front, so the audited register is reachable by browsing. Each entry is printed as its summary: when, who, what, on what, with which result, and never the content of a call. The filters add up, and `--limit` and `--offset` count the entries that pass them.
 
 **Usage:** `apollia-os audit journal [OPTIONS]`
 
@@ -1161,14 +1142,6 @@ Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), 
 * `--result <RESULT>` - Keep this result: success, failure, refused. Repeat it for several
 * `--since <DATE>` - Start of the period, included: YYYY-MM-DD (UTC) or an RFC 3339 instant
 * `--until <DATE>` - End of the period, excluded: YYYY-MM-DD (UTC) or an RFC 3339 instant
-
-
-
-## `apollia-os audit stats`
-
-Display audit statistics
-
-**Usage:** `apollia-os audit stats`
 
 
 
@@ -1243,7 +1216,7 @@ Compares the replayed run against its captured trace across every category: LLM 
 
 Show a run's full journal, including the model's LLM completions.
 
-Unlike `audit list` (the tool-only audit trail), this reads the hash-chained journal so the captured reasoning (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
+Reads the hash-chained journal, so the captured reasoning (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
 
 **Usage:** `apollia-os audit show <RUN_OR_TASK>`
 
@@ -2400,7 +2373,6 @@ Permission rule management (list, revoke, audit)
 
 * `list` - List persisted rules, for one agent and for every agent
 * `revoke` - Revoke a rule by identifier, or every matching rule with `--all`
-* `audit` - Show the permission decision history
 * `add` - Add a persisted permission rule for a tool + optional argument prefix
 
 
@@ -2433,21 +2405,6 @@ Revoke a rule by identifier, or every matching rule with `--all`
 * `--all` - Revoke every rule matching `--scope`
 * `--scope <SCOPE>` - Scope targeted by `--all`: `agent` or `global`
 * `--yes` - Skip the interactive confirmation (useful for scripts)
-
-
-
-## `apollia-os permissions audit`
-
-Show the permission decision history
-
-**Usage:** `apollia-os permissions audit [OPTIONS]`
-
-###### **Options:**
-
-* `--tool <TOOL>` - Filter by tool name
-* `--limit <LIMIT>` - Maximum number of entries to display
-
-  Default value: `50`
 
 
 
@@ -4661,7 +4618,7 @@ Print the event-sourced trace of a task
 
 ## `apollia-os digest`
 
-Aggregated activity overview (tasks + LLM costs + audit stats)
+Aggregated activity overview (tasks + LLM costs)
 
 **Usage:** `apollia-os digest [OPTIONS]`
 

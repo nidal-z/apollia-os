@@ -17,7 +17,7 @@ into a real read path, and `TIMEOUTS` overrides the per-leaf deadline.
 
 Values come from the committed fixture at tests/cli/seed (2 projects, 4 chat
 sessions, 4 agents, 4 triggers, 2 MCP servers, 3 LLM backends, 5 memory
-namespaces, 5 tasks, 4 audit runs, 3 transcriptions). Changing the seed changes
+namespaces, 5 tasks, 3 transcriptions). Changing the seed changes
 what these identifiers resolve to.
 
 Stdlib only, no import of the sweep engine: this file is data plus its reasons.

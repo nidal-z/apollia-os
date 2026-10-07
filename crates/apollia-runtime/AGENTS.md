@@ -40,7 +40,6 @@ Hosted from other crates, started by this one :
 |---|---|---|---|---|
 | `TriggerEngine` | cron + filewatch + webhook -> task spawn | two mpsc | 256 events, 64 commands | `crates/apollia-triggers/src/engine.rs` |
 | `NotificationEngine` | desktop notify + webhook | mpsc | 8 | `crates/apollia-notifications/src/engine.rs` |
-| `AuditTrailHandle` | append-only tool-invocation ledger | mpsc | 1024 | `crates/apollia-tools/src/audit.rs` |
 | `LlmRouter` | backend selection per agent | none; a plain struct, called synchronously | n/a | `crates/apollia-llm/src/router.rs` |
 
 Capacities are sized for the steady state. Burst absorption relies on
@@ -215,7 +214,7 @@ SQLite + `rusqlite` + FTS5. WAL journal mode.
 Databases : one file per subsystem under `~/.apollia/`, catalogued by
 `apollia_core::paths::DataFile`, whose `file_name()` is the single source for
 the names. There is no `runtime.db`. The catalogue holds `agents.db`,
-`artifacts.db`, `audit.db`, `audit_journal.db`, `chat.db`, `governance.db`,
+`artifacts.db`, `audit_journal.db`, `chat.db`, `governance.db`,
 `hitl.db`, `llm_calls.db`, `mailbox.db`, `mcp.db`,
 `notifications.db`, `plan_cache.db`, `plans.db`, `projects.db`,
 `runtime_events.db`, `sidechains.db`, `stt_transcriptions.db`, `system.db`,

@@ -9,39 +9,23 @@ This guide covers the accountability workflow around an agent run: read what was
 recorded and verify its integrity. It assumes you have run at least one task or
 chat session against a daemon.
 
-The runtime keeps **two separate registers**, and each command below reads one of
-them:
-
-| Register | What it holds | Commands that read it |
-|---|---|---|
-| the tool-invocation trail | a flat SQLite table of tool calls: what ran, a hash of its inputs, whether it succeeded, how long it took. No hash chain, no signature. Updates and deletions are both refused by a trigger | `audit list`, `audit stats` |
-| the hash-chained journal | run-scoped entries chained twice, to the previous entry of the run and to the previous entry of any run, signed as they are appended, with an exportable head anchor | `audit journal`, `audit export`, `audit show`, `audit verify`, `audit anchor`, `audit replay` |
+The runtime keeps **one register**: the hash-chained journal. Its entries are
+run-scoped, chained twice (to the previous entry of the run and to the previous
+entry of any run), signed as they are appended, and the chain has an exportable
+head anchor. Every command below reads it: `audit journal`, `audit export`,
+`audit show`, `audit verify`, `audit anchor` and `audit replay`.
 
 For the reasoning behind this model and how it maps to regulatory requirements,
 see [The accountability model](/explanation/accountability-model).
 
-One command in that second list does less than its name suggests. `audit replay`
+One command in that list does less than its name suggests. `audit replay`
 re-derives a run from its own captured trace, consuming the recorded model
 responses and tool outputs in `step_ordinal` order; it does not re-run the live
 agent, because the journal never captured the original prompt. It answers whether
 a trace is complete and self-consistent, not whether today's code would behave
 the same way.
 
-## Read the audit trail
-
-`audit list` and `audit stats` read the tool-invocation trail, so what they show
-is the flat record of tool calls, not the chained journal. List recent events:
-
-```sh
-apollia-os audit list --limit 20
-apollia-os audit stats
-```
-
-The endpoint behind `audit list` serves at most 500 events per request, and this
-command does not page past that ceiling: `--limit 2000` returns the newest 500
-events, presented as the whole answer and with no warning. Over the API the
-route takes an `offset` that walks past the ceiling, as in
-`GET /api/v1/audit?limit=500&offset=500`.
+## Read the journal
 
 To read a single run's entries from the hash-chained journal, including the
 captured model completions, resolve it by run identifier or by a task identifier
@@ -132,16 +116,14 @@ The same export is available over the HTTP API for a host integration, as
 the audit operations in the
 [HTTP API reference](/reference/api/apollia-os-runtime-api).
 
-Two things are worth knowing before you rely on either register. A tool call made
-in a **chat** session does not reach the tool-invocation trail: that trail is
-written from an agent's `ctx.tools`, and the chat path does not go through it, so
-`audit list` will not show the call. It does reach the
+One thing is worth knowing before you rely on the journal. A tool call made in a
+**chat** session reaches the
 hash-chained journal: the chat loop emits every tool output and every model
 completion as a run-scoped event, and the journal subscriber turns them into
 chained entries. Read them with `audit show` on the run, or with `audit journal`.
 Both are stored verbatim, which is what makes a chat auditable and also what puts
-its content on disk. And the trail is written fire-and-forget, so a record is
-dropped, with a warning in the logs, when its channel is saturated.
+its content on disk. And the journal is appended to without blocking the run: an
+entry is dropped, with a warning in the logs, when its channel is saturated.
 
 ## Verify a run's integrity
 
@@ -182,7 +164,7 @@ authentic. Neither form can defend against a holder of the signing key who
 re-signs a shorter chain; storing the exported anchor off-machine is what covers
 that, and `audit anchor` prints it.
 
-Add `--json` to `audit list`, `audit show`, `audit stats` and `audit verify` for
+Add `--json` to `audit journal`, `audit show` and `audit verify` for
 machine-readable output. `audit export` writes the format `--format` names.
 `--json` is a global flag, so `audit export --json` is accepted too, but it
 changes nothing about the file: it switches what the command prints once the

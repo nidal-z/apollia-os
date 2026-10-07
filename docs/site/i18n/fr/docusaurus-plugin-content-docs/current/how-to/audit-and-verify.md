@@ -10,18 +10,17 @@ d'agent : lire ce qui a été enregistré et vérifier son intégrité. Il suppo
 que vous avez déjà exécuté au moins une tâche ou une session de chat face à un
 daemon.
 
-Le runtime tient **deux registres distincts**, et chaque commande ci-dessous en
-lit un seul :
-
-| Registre | Ce qu'il contient | Commandes qui le lisent |
-|---|---|---|
-| la piste d'invocations d'outils | une table SQLite plate des appels d'outils : ce qui a été exécuté, une empreinte de ses entrées, son succès, sa durée. Ni chaînage par hachage, ni signature. Les mises à jour comme les suppressions sont refusées par un déclencheur | `audit list`, `audit stats` |
-| le journal chaîné par hachage | des entrées rattachées à une exécution, chaînées deux fois, à l'entrée précédente de leur exécution et à l'entrée précédente de n'importe quelle exécution, signées au moment de l'ajout, avec une ancre de tête exportable | `audit journal`, `audit export`, `audit show`, `audit verify`, `audit anchor`, `audit replay` |
+Le runtime tient **un seul registre** : le journal chaîné par hachage. Ses
+entrées sont rattachées à une exécution, chaînées deux fois (à l'entrée
+précédente de leur exécution et à l'entrée précédente de n'importe quelle
+exécution), signées au moment de l'ajout, et la chaîne a une ancre de tête
+exportable. Chaque commande ci-dessous le lit : `audit journal`, `audit export`,
+`audit show`, `audit verify`, `audit anchor` et `audit replay`.
 
 Pour comprendre la logique de ce modèle et son lien avec les exigences
 réglementaires, voir [Le modèle de responsabilisation](/explanation/accountability-model).
 
-Une commande de cette seconde liste fait moins que son nom ne le laisse croire.
+Une commande de cette liste fait moins que son nom ne le laisse croire.
 `audit replay` redérive une exécution depuis sa propre trace capturée, en
 consommant les réponses du modèle et les sorties d'outils enregistrées dans
 l'ordre de `step_ordinal` ; elle ne rejoue pas l'agent réel, parce que le journal
@@ -30,22 +29,6 @@ une trace est complète et cohérente avec elle-même, pas si le code d'aujourd'
 se comporterait pareil.
 
 ## Lire le journal d'audit
-
-`audit list` et `audit stats` lisent la piste d'invocations d'outils : ce
-qu'elles affichent est l'enregistrement plat des appels d'outils, pas le journal
-chaîné. Lister les événements récents :
-
-```sh
-apollia-os audit list --limit 20
-apollia-os audit stats
-```
-
-Le point de terminaison derrière `audit list` ne sert au maximum que 500
-événements par requête, et cette commande ne parcourt pas les pages au-delà :
-`--limit 2000` rend les 500 événements les plus récents, présentés comme la
-réponse entière et sans aucun avertissement. Par l'API, la route prend un
-`offset` qui passe ce plafond, comme dans
-`GET /api/v1/audit?limit=500&offset=500`.
 
 Pour lire les entrées d'une exécution donnée dans le journal chaîné par
 hachage, y compris les complétions du modèle capturées, résolvez-la par un
@@ -144,18 +127,16 @@ la forme `GET /api/v1/audit/export?format=csv&detail=true&agents=<agent>,<agent>
 voir les opérations d'audit dans la
 [référence de l'API HTTP](/reference/api/apollia-os-runtime-api).
 
-Deux choses méritent d'être connues avant de s'appuyer sur l'un ou l'autre
-registre. Un appel d'outil effectué dans une session de **chat** n'atteint pas la
-piste d'invocations d'outils : cette piste est écrite depuis le `ctx.tools` d'un
-agent, et le chemin du chat n'y passe pas, donc `audit list` ne montrera pas
-cet appel. Il atteint en revanche le journal chaîné par hachage :
+Une chose mérite d'être connue avant de s'appuyer sur le journal. Un appel
+d'outil effectué dans une session de **chat** atteint le journal chaîné par
+hachage :
 la boucle de chat émet chaque sortie d'outil et chaque complétion du modèle comme
 un événement rattaché à une exécution, et le souscripteur du journal en fait des
 entrées chaînées. Lisez-les avec `audit show` sur l'exécution, ou avec `audit
 journal`. Les deux sont stockées telles quelles, ce qui rend un chat auditable et
-met aussi son contenu sur le disque. Et la piste est écrite en pose-et-oublie :
-un enregistrement est jeté, avec un avertissement dans les logs, lorsque son
-canal est saturé.
+met aussi son contenu sur le disque. Et le journal est alimenté sans bloquer
+l'exécution : une entrée est jetée, avec un avertissement dans les logs,
+lorsque son canal est saturé.
 
 ## Vérifier l'intégrité d'une exécution
 
@@ -200,8 +181,7 @@ entrées d'une exécution. Aucune des deux ne protège d'un détenteur de la cle
 signature qui resignerait une chaîne plus courte : c'est l'ancre exportée et
 conservée hors machine qui couvre ce cas, et `audit anchor` l'affiche.
 
-Ajoutez `--json` à `audit list`, `audit show`, `audit stats` et `audit
-verify` pour obtenir une sortie exploitable par une machine. `audit export`
+Ajoutez `--json` à `audit journal`, `audit show` et `audit verify` pour obtenir une sortie exploitable par une machine. `audit export`
 écrit le format que nomme `--format`. `--json` est une option globale, donc
 `audit export --json` est accepté aussi, mais cela ne change rien au fichier :
 cela modifie ce que la commande affiche une fois le fichier écrit, et la forme

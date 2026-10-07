@@ -1606,61 +1606,6 @@
         }
       }
     },
-    "/api/v1/audit": {
-      "get": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "`GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first.",
-        "operationId": "list_audit",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Maximum number of events to return (default 20, capped at 500)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "description": "Number of events to skip, most recent first (default 0). Page through the trail by advancing it.",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Recent tool invocations",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditListResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Audit trail not configured",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/audit/anchor": {
       "get": {
         "tags": [
@@ -1850,7 +1795,7 @@
           "audit"
         ],
         "summary": "`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal\nacross every run, each entry with its summary.",
-        "description": "This is the only read of the journal that does not need a run id up front:\n`GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,\nand `GET /api/v1/audit` answers the separate tool-invocation trail. The\nfilters are applied before paging, so `limit` and `offset` count matching\nentries. 400 on a filter value that cannot be read, 503 when the journal is\nnot configured.",
+        "description": "This is the only read of the journal that does not need a run id up front:\n`GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows.\nThe filters are applied before paging, so `limit` and `offset` count\nmatching entries. 400 on a filter value that cannot be read, 503 when the journal is\nnot configured.",
         "operationId": "list_audit_journal",
         "parameters": [
           {
@@ -1970,7 +1915,7 @@
           "audit"
         ],
         "summary": "`GET /api/v1/audit/journal/:run_id`, the full journal for a run.",
-        "description": "Unlike `GET /api/v1/audit` (the tool-only audit trail), this returns the\nhash-chained journal entries including `llm_completion` (the model's\nprompts/responses). 404 when the run has no entries, 503 when the journal is\nnot configured.",
+        "description": "Returns the hash-chained journal entries, including `llm_completion` (the\nmodel's prompts/responses). 404 when the run has no entries, 503 when the journal is\nnot configured.",
         "operationId": "show_audit_run",
         "parameters": [
           {
@@ -2136,37 +2081,6 @@
           },
           "503": {
             "description": "Audit journal not configured",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/audit/stats": {
-      "get": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "`GET /api/v1/audit/stats`, aggregate counts for the audit trail.",
-        "operationId": "get_audit_stats",
-        "responses": {
-          "200": {
-            "description": "Aggregate audit counts",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditStatsResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Audit trail not configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -4557,83 +4471,6 @@
           },
           "500": {
             "description": "The directory cannot be removed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/governance/audit": {
-      "get": {
-        "tags": [
-          "governance"
-        ],
-        "summary": "`GET /api/v1/governance/audit`: the permission decisions, most recent first.",
-        "operationId": "list_governance_audit",
-        "parameters": [
-          {
-            "name": "tool_name",
-            "in": "query",
-            "description": "Tool name to filter on.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Page size, 100 when absent.",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "description": "Entries to skip.",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "minimum": 0
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The audit entries",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AuditEntryDto"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "The governance database refused the read",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorBody"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "The runtime has no data directory",
             "content": {
               "application/json": {
                 "schema": {
@@ -17112,7 +16949,7 @@
           "tasks"
         ],
         "summary": "`GET /api/v1/tasks/{id}/timeline`: full timeline for a task.",
-        "description": "Aggregates data from 5 SQLite sources (hitl.db, plans.db, llm.db, audit.db)\ninto a unified timeline sorted by timestamp ascending. Returns 404 when the\ntask is unknown to all sources.",
+        "description": "Aggregates data from 4 SQLite sources (hitl.db, plans.db, llm.db, audit_journal.db)\ninto a unified timeline sorted by timestamp ascending. Returns 404 when the\ntask is unknown to all sources.",
         "operationId": "get_task_timeline",
         "parameters": [
           {
@@ -19949,153 +19786,6 @@
           }
         }
       },
-      "AuditEntryDto": {
-        "type": "object",
-        "description": "Entry in the immutable audit log of permission decisions.",
-        "required": [
-          "id",
-          "tool_name",
-          "decision",
-          "decided_at"
-        ],
-        "properties": {
-          "agent": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Name of the agent behind the invocation, if provided."
-          },
-          "decided_at": {
-            "type": "string",
-            "description": "Decision date in ISO 8601 format."
-          },
-          "decision": {
-            "type": "string",
-            "description": "Serialized decision (e.g. `\"AutoAllowedSafeList\"`)."
-          },
-          "first_arg": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "First argument extracted from the invocation, when available."
-          },
-          "id": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Auto-incremented identifier."
-          },
-          "rule_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Identifier of the rule that triggered the decision, when applicable."
-          },
-          "scope": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Scope of the rule that decided, when relevant."
-          },
-          "tool_name": {
-            "type": "string",
-            "description": "Name of the invoked tool."
-          }
-        }
-      },
-      "AuditEventResponse": {
-        "type": "object",
-        "description": "A single audit event as returned by the API.",
-        "required": [
-          "id",
-          "agent_id",
-          "task_id",
-          "tool_name",
-          "input_hash",
-          "sandbox_profile",
-          "started_at",
-          "success"
-        ],
-        "properties": {
-          "agent_id": {
-            "type": "string"
-          },
-          "args_json": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Arguments JSON complets de l'invocation."
-          },
-          "duration_ms": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "minimum": 0
-          },
-          "error_code": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "exit_code": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "id": {
-            "type": "string"
-          },
-          "input_hash": {
-            "type": "string"
-          },
-          "run_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Stable run identifier this invocation belongs to (the key `audit verify`\nuses). `null` for invocations recorded before run_id tracking (kept in the\npayload unconditionally so the schema is stable for automation)."
-          },
-          "sandbox_profile": {
-            "type": "string"
-          },
-          "started_at": {
-            "type": "string"
-          },
-          "stderr": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Error output of the tool, possibly truncated."
-          },
-          "stdout": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Standard output of the tool, possibly truncated."
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "task_id": {
-            "type": "string"
-          },
-          "tool_name": {
-            "type": "string"
-          }
-        }
-      },
       "AuditJournalEntryDetailResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/audit/journal/:run_id/entries/:seq`.",
@@ -20149,52 +19839,6 @@
           "run_id": {
             "type": "string",
             "description": "The run whose journal entries these are."
-          }
-        }
-      },
-      "AuditListResponse": {
-        "type": "object",
-        "description": "Response body for `GET /api/v1/audit`.",
-        "required": [
-          "events",
-          "count"
-        ],
-        "properties": {
-          "count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "events": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AuditEventResponse"
-            }
-          }
-        }
-      },
-      "AuditStatsResponse": {
-        "type": "object",
-        "description": "Response body for `GET /api/v1/audit/stats`.",
-        "required": [
-          "total_events",
-          "unique_tools",
-          "unique_agents"
-        ],
-        "properties": {
-          "total_events": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "unique_agents": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
-          },
-          "unique_tools": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
           }
         }
       },
@@ -30286,7 +29930,7 @@
                   "null"
                 ],
                 "format": "int64",
-                "description": "Process exit code (bash, python)."
+                "description": "Process exit code (bash, python). The journal keeps none, so a\ncall read from it carries `success` instead."
               },
               "input_preview": {
                 "type": [
@@ -30301,6 +29945,13 @@
                   "null"
                 ],
                 "description": "Output preview (stdout + stderr), truncated to 500 chars."
+              },
+              "success": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Whether the call succeeded. Absent while the call has not ended."
               },
               "timestamp": {
                 "type": "string",

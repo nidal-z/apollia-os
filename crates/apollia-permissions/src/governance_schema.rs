@@ -1,7 +1,7 @@
 //! Versioned schema of `governance.db`, shared by every store in the file.
 //!
 //! `governance.db` gathers the runtime governance tables: `permission_rules`,
-//! `permission_audit`, `family_consents`, `governance_upgrades` and
+//! `family_consents`, `governance_upgrades` and
 //! `journal_outbox` (owned by this crate), plus `tools` and
 //! `tool_credentials` (owned by `apollia-tools`, whose `GovernanceDb` reuses
 //! this list). Since v3 `tool_credentials` is an index of the credentials,
@@ -9,24 +9,25 @@
 //! file wait in `tool_credentials_legacy` until `apollia-tools` moves them. The legacy `chat_libre_config` table that v1 creates is read
 //! once by [`crate::chat_config_upgrade`], then dropped by the runtime once
 //! carried over to the Apollia agent. `PRAGMA user_version` belongs to
-//! the database file, not to a table, so the three openers
-//! ([`crate::prefix_rule_engine::PrefixRuleEngine`],
-//! [`crate::audit_log::PermissionAuditLog`], and `GovernanceDb`) share one
-//! migration list: whichever opens first brings the whole file to the current
-//! version, and each refuses a file written by a newer binary.
+//! the database file, not to a table, so the openers
+//! ([`crate::prefix_rule_engine::PrefixRuleEngine`], the stores of this crate
+//! and `GovernanceDb`) share one migration list: whichever opens first brings
+//! the whole file to the current version, and each refuses a file written by a
+//! newer binary.
 
 use rusqlite::Connection;
 
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `governance.db`.
-pub const GOVERNANCE_SCHEMA_VERSION: u32 = 4;
+pub const GOVERNANCE_SCHEMA_VERSION: u32 = 5;
 
 /// Numbered migration steps of `governance.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`GOVERNANCE_SCHEMA_VERSION`].
-pub const GOVERNANCE_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
+pub const GOVERNANCE_MIGRATIONS: &[Migration] =
+    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
 
 /// Name, in `governance_upgrades`, of the data upgrade that moves the
 /// encrypted tool credentials of `tool_credentials_legacy` into the secret
@@ -40,7 +41,8 @@ pub const TOOL_CREDENTIALS_UPGRADE: &str = "tool_credentials_secret_store";
 /// written before the versioned layer is at `user_version = 0` whatever
 /// columns it carries, so this step must accept a fresh file, the legacy
 /// shape, and every intermediate one, and bring each of them to the same
-/// state.
+/// state. It leaves alone the decision table such a file may carry: v5
+/// removes it, so this step neither creates nor completes it.
 fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS permission_rules (
@@ -56,18 +58,6 @@ fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
             expires_at   INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_rules_tool ON permission_rules(tool_name);
-
-        CREATE TABLE IF NOT EXISTS permission_audit (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            tool_name   TEXT NOT NULL,
-            first_arg   TEXT,
-            decision    TEXT NOT NULL,
-            decided_at  INTEGER NOT NULL,
-            scope       TEXT,
-            rule_id     INTEGER,
-            agent       TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_audit_tool ON permission_audit(tool_name, decided_at);
 
         CREATE TABLE IF NOT EXISTS tools (
             name        TEXT PRIMARY KEY,
@@ -114,29 +104,12 @@ fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn,
         "ALTER TABLE permission_rules ADD COLUMN expires_at INTEGER",
     )?;
-    add_column_if_missing(conn, "ALTER TABLE permission_audit ADD COLUMN scope TEXT")?;
-    add_column_if_missing(
-        conn,
-        "ALTER TABLE permission_audit ADD COLUMN rule_id INTEGER",
-    )?;
-    add_column_if_missing(conn, "ALTER TABLE permission_audit ADD COLUMN agent TEXT")?;
 
     // This index references the migrated columns, so it can only exist after
     // the legacy file has received them.
     conn.execute_batch(
         "CREATE INDEX IF NOT EXISTS idx_rules_scope_project
              ON permission_rules(scope, project_path);",
-    )?;
-
-    conn.execute_batch(
-        "CREATE TRIGGER IF NOT EXISTS no_update_audit
-         BEFORE UPDATE ON permission_audit BEGIN
-             SELECT RAISE(ABORT, 'permission_audit is append-only');
-         END;
-         CREATE TRIGGER IF NOT EXISTS no_delete_audit
-         BEFORE DELETE ON permission_audit BEGIN
-             SELECT RAISE(ABORT, 'permission_audit is append-only');
-         END;",
     )
 }
 
@@ -237,9 +210,25 @@ fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
     )
 }
 
+/// v5: the `permission_audit` table goes, with its index and its two
+/// append-only triggers.
+///
+/// Nothing ever wrote a decision to it: the decisions are recorded in the
+/// signed audit journal, which is the one register. The triggers go first, so
+/// the table is dropped whatever rows an older file holds, and each statement
+/// is guarded, so a file that never had the table passes through unchanged.
+fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "DROP TRIGGER IF EXISTS no_update_audit;
+         DROP TRIGGER IF EXISTS no_delete_audit;
+         DROP INDEX IF EXISTS idx_audit_tool;
+         DROP TABLE IF EXISTS permission_audit;",
+    )
+}
+
 /// Opens the file's schema at the current version, or refuses it.
 ///
-/// Shared entry point for the three `governance.db` openers.
+/// Shared entry point for the `governance.db` openers.
 ///
 /// # Errors
 ///
@@ -261,13 +250,14 @@ mod tests {
 
     /// Pre-versioning `governance.db` schema, frozen as the legacy
     /// `permissions.db` shape a published binary wrote (`user_version = 0`,
-    /// no scope / project_path / agent_id / expires_at on the rules, no
-    /// scope / rule_id / agent on the audit rows).
+    /// no scope / project_path / agent_id / expires_at on the rules, and the
+    /// decision table that v5 removes).
     const GOVERNANCE_V0_SQL: &str = include_str!("../tests/fixtures/schemas/governance_v0.sql");
 
     // GIVEN a legacy permissions.db copied to governance.db, with rows
     // WHEN opening it through the versioned layer
-    // THEN the rows survive, the missing columns are added and the version is stamped
+    // THEN the rules survive, the missing columns are added, the decision
+    // table of the legacy shape is gone and the version is stamped
     #[test]
     fn test_governance_db_old_format_migrates_and_keeps_rows() {
         let conn = Connection::open_in_memory().unwrap();
@@ -288,6 +278,7 @@ mod tests {
             .unwrap();
         assert_eq!(tool, "shell_command");
         assert_eq!(scope, "global");
+        assert!(!has_object(&conn, "permission_audit"));
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
@@ -390,6 +381,83 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM journal_outbox", [], |row| row.get(0))
             .unwrap();
         assert_eq!((rules, waiting), (1, 0));
+    }
+
+    /// Whether `name` is still an object (table, index or trigger) of the file.
+    fn has_object(conn: &Connection, name: &str) -> bool {
+        conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE name = ?1",
+            [name],
+            |row| row.get(0),
+        )
+        .unwrap()
+    }
+
+    // GIVEN a v4 file as a published binary wrote it, holding a rule, the
+    // decision table with a row, its index and its append-only triggers
+    // WHEN it is opened through the versioned layer
+    // THEN the table, the index and both triggers are gone, and the rule stays
+    #[test]
+    fn test_governance_v5_drops_the_decision_table_and_keeps_the_rules() {
+        let conn = Connection::open_in_memory().unwrap();
+        for step in &GOVERNANCE_MIGRATIONS[..4] {
+            step(&conn).unwrap();
+        }
+        conn.execute_batch(
+            "CREATE TABLE permission_audit (
+                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                 tool_name   TEXT NOT NULL,
+                 first_arg   TEXT,
+                 decision    TEXT NOT NULL,
+                 decided_at  INTEGER NOT NULL,
+                 scope       TEXT,
+                 rule_id     INTEGER,
+                 agent       TEXT
+             );
+             CREATE INDEX idx_audit_tool ON permission_audit(tool_name, decided_at);
+             CREATE TRIGGER no_update_audit BEFORE UPDATE ON permission_audit BEGIN
+                 SELECT RAISE(ABORT, 'permission_audit is append-only');
+             END;
+             CREATE TRIGGER no_delete_audit BEFORE DELETE ON permission_audit BEGIN
+                 SELECT RAISE(ABORT, 'permission_audit is append-only');
+             END;
+             INSERT INTO permission_audit (tool_name, decision, decided_at)
+                 VALUES ('web_fetch', 'NeedsApproval', 1);
+             INSERT INTO permission_rules (tool_name, action, created_at)
+                 VALUES ('web_fetch', 'allow', 1);",
+        )
+        .unwrap();
+        conn.pragma_update(None, "user_version", 4).unwrap();
+
+        open_governance_schema(&conn).unwrap();
+
+        for gone in [
+            "permission_audit",
+            "idx_audit_tool",
+            "no_update_audit",
+            "no_delete_audit",
+        ] {
+            assert!(!has_object(&conn, gone), "{gone} must be gone");
+        }
+        let rules: i64 = conn
+            .query_row("SELECT COUNT(*) FROM permission_rules", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(rules, 1);
+    }
+
+    // GIVEN a file that never had the decision table
+    // WHEN it is opened through the versioned layer, and v5 is replayed
+    // THEN the table is absent and the replay fails on nothing
+    #[test]
+    fn test_governance_fresh_file_has_no_decision_table() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        open_governance_schema(&conn).unwrap();
+        migrate_v5(&conn).unwrap();
+
+        assert!(!has_object(&conn, "permission_audit"));
     }
 
     // GIVEN a database stamped by a newer binary

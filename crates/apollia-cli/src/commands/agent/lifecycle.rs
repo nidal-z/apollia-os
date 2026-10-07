@@ -281,12 +281,11 @@ pub(in crate::commands::agent) async fn run_messages(
 /// `apollia-os agent logs <id> [--last N] [--follow]`: display recent
 /// activity for an agent.
 ///
-/// Until a dedicated agent stderr persistence layer ships (v0.1.1+), the
-/// runtime does not expose `/api/v1/agents/:id/logs`. We fall back to the
-/// audit trail: every tool invocation attributed to `<agent_id>` is fetched
-/// from `GET /api/v1/audit?limit=…` and rendered as one timestamped line per
-/// event. This gives operators the "what did this agent do recently?" view
-/// that `agent logs` should answer.
+/// The runtime keeps no log channel per agent. The command reads the audit
+/// journal instead: the actions that name `<agent_id>` and the runs of its
+/// tasks, from `GET /api/v1/audit/journal?agents=...&nature=action`, each
+/// printed as its summary. This is the "what did this agent do recently?"
+/// view that `agent logs` answers.
 ///
 /// With `--follow`, opens the SSE stream at
 /// `GET /api/v1/agents/{id}/logs/stream` (server-side route; when absent,
@@ -310,7 +309,7 @@ pub(in crate::commands::agent) async fn run_logs(
         return run_logs_follow(client, agent_id, json).await;
     }
 
-    // Validate the agent exists before falling back to the audit trail, so a
+    // Validate the agent exists before reading the audit journal, so a
     // typo'd name reports not-found (exit 1) like the rest of the `agent`
     // family rather than silently printing "no recent activity" with exit 0.
     match client.get_agent(agent_id).await {
@@ -325,17 +324,13 @@ pub(in crate::commands::agent) async fn run_logs(
         Err(e) => return handle_error(e, json),
     }
 
-    // Fetch a generous slice of recent audit events. We cap at 500
-    // (runtime hard limit) and client-side filter on agent_id, then keep
-    // the last `last` matches. This is O(500) per call, fine for an
-    // interactive CLI; a dedicated route would be faster but is out of
-    // scope.
-    let fetch_limit = 500u32;
-    let uri = format!("/api/v1/audit?limit={fetch_limit}");
+    // The journal narrows the page to what names the agent and to the runs of
+    // its tasks, so the `last` entries asked for are the last of that agent.
+    let uri = agent_logs_uri(agent_id, last);
     let resp = match client.get(&uri).await {
         Ok(r) if r.status < 400 => r,
         Ok(r) => {
-            let msg = format!("HTTP {} from /audit: {}", r.status, r.body);
+            let msg = format!("HTTP {} from the audit journal: {}", r.status, r.body);
             return print_compact_error_and_exit(&msg, json);
         }
         Err(e) => return handle_error(e, json),
@@ -343,49 +338,48 @@ pub(in crate::commands::agent) async fn run_logs(
     let body: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
         Err(e) => {
-            return print_compact_error_and_exit(&format!("invalid audit JSON: {e}"), json);
+            return print_compact_error_and_exit(&format!("invalid journal JSON: {e}"), json);
         }
     };
 
     let empty: Vec<serde_json::Value> = Vec::new();
-    let events: Vec<&serde_json::Value> = body
-        .get("events")
+    let events = body
+        .get("entries")
         .and_then(|v| v.as_array())
-        .unwrap_or(&empty)
-        .iter()
-        .filter(|e| {
-            e.get("agent_id")
-                .and_then(|v| v.as_str())
-                .map(|s| s == agent_id)
-                .unwrap_or(false)
-        })
-        .take(last as usize)
-        .collect();
+        .unwrap_or(&empty);
 
     if json {
-        let array: Vec<serde_json::Value> = events.iter().map(|e| (*e).clone()).collect();
         let out = serde_json::json!({
             "agent_id": agent_id,
-            "events": array,
-            "source": "audit-trail (no dedicated agent log channel yet)",
+            "events": events,
+            "source": "audit journal",
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
         return exit_codes::SUCCESS;
     }
 
     if events.is_empty() {
-        println!("(no recent activity for {agent_id} in the audit trail)");
+        println!("(no recent activity for {agent_id} in the audit journal)");
         return exit_codes::SUCCESS;
     }
 
     println!(
-        "  Recent audit events for {agent_id} ({} of last {fetch_limit}):",
+        "  Recent actions of {agent_id} in the audit journal ({}):",
         events.len()
     );
-    for e in &events {
-        print_audit_event_row(e);
+    for e in events {
+        println!("  {}", crate::commands::audit::journal_summary_line(e));
     }
     exit_codes::SUCCESS
+}
+
+/// The page of the audit journal `agent logs` reads: the last `last` actions
+/// that name `agent_id` or belong to the runs of its tasks.
+pub(in crate::commands::agent) fn agent_logs_uri(agent_id: &str, last: u32) -> String {
+    format!(
+        "/api/v1/audit/journal?limit={last}&offset=0&agents={}&nature=action",
+        crate::commands::model::urlencode(agent_id)
+    )
 }
 
 /// `apollia-os agent logs <id> --follow`: live stream placeholder.

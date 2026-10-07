@@ -1,4 +1,4 @@
-// ─── Global timeline, session meta-layer, audit trail ───
+// ─── Global timeline, session meta-layer ───
 
 /** Event of the global timeline. */
 export interface GlobalTimelineEvent {
@@ -27,21 +27,6 @@ export interface SessionEvent {
   label: string;
   correlation_id: string | null;
   payload_json: unknown;
-}
-
-/** Entry of the audit trail. */
-export interface AuditTrailEntry {
-  id: string;
-  tool_name: string;
-  agent_id: string;
-  /** Readable agent name resolved from the registry (for instance "standup-scribe"). */
-  agent_name: string;
-  timestamp: string;
-  duration_ms: number | null;
-  exit_code: number | null;
-  args_json: string | null;
-  stdout: string | null;
-  stderr: string | null;
 }
 
 /** Daily cost entry per backend. */

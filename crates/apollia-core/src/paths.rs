@@ -42,8 +42,6 @@ pub enum DataFile {
     Agents,
     /// Chat artifacts produced by sessions.
     Artifacts,
-    /// Tool-invocation audit log.
-    Audit,
     /// Hash-chained audit journal.
     AuditJournal,
     /// Chat sessions, messages and approvals.
@@ -87,10 +85,9 @@ impl DataFile {
     ///
     /// The seed fixture (`tests/cli/seed/schemas/`) carries one schema per
     /// entry, and `scripts/check_data_layout.py` holds the two lists equal.
-    pub const ALL: [DataFile; 21] = [
+    pub const ALL: [DataFile; 20] = [
         DataFile::Agents,
         DataFile::Artifacts,
-        DataFile::Audit,
         DataFile::AuditJournal,
         DataFile::Chat,
         DataFile::Governance,
@@ -117,7 +114,6 @@ impl DataFile {
         match self {
             DataFile::Agents => "agents.db",
             DataFile::Artifacts => "artifacts.db",
-            DataFile::Audit => "audit.db",
             DataFile::AuditJournal => "audit_journal.db",
             DataFile::Chat => "chat.db",
             DataFile::Governance => "governance.db",

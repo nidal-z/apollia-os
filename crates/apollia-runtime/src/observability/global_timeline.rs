@@ -8,7 +8,7 @@
 //! desktop calls in both of its modes.
 //!
 //! Scanned sources:
-//! - `audit.db tool_invocations` → tool
+//! - `audit_journal.db`, the tool calls of the journal → tool
 //! - `llm_calls.db llm_calls` → llm
 //! - `hitl.db tasks` (transitions_json) → task
 //! - `hitl.db task_approvals` → hitl
@@ -27,8 +27,8 @@ use crate::registry::AgentRegistryHandle;
 mod scanners;
 
 use scanners::{
-    scan_audit_db, scan_chat_approvals, scan_chat_sessions, scan_hitl_approvals, scan_hitl_tasks,
-    scan_llm_calls_db, scan_runtime_events, scan_trigger_history,
+    scan_chat_approvals, scan_chat_sessions, scan_hitl_approvals, scan_hitl_tasks,
+    scan_journal_tool_calls, scan_llm_calls_db, scan_runtime_events, scan_trigger_history,
 };
 
 /// Global timeline event for display.
@@ -84,7 +84,7 @@ pub async fn read_global_timeline(
 
     let mut events = tokio::task::spawn_blocking(move || {
         let mut events = Vec::<GlobalTimelineEvent>::new();
-        scan_audit_db(&data_dir, &cutoff_str, &agent_labels, &mut events);
+        scan_journal_tool_calls(&data_dir, &cutoff_str, &agent_labels, &mut events);
         scan_llm_calls_db(&data_dir, &cutoff_str, &agent_labels, &mut events);
         scan_hitl_tasks(&data_dir, &cutoff_str, &mut events);
         scan_hitl_approvals(&data_dir, &cutoff_str, &mut events);

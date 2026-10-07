@@ -50,7 +50,7 @@ An empty section is the normal state on a fresh installation: it means no tool h
 ## Verification
 
 - The contract panel of `file_write` shows an input schema listing the fields the tool expects.
-- The technical identifier shown under the panel title is the one you find in the **Tool** column of the [audit trail](../observabilite/read-the-audit-trail.md).
+- The technical identifier shown under the panel title is the one you find in the entries of the [Activity log](../observabilite/read-the-audit-trail.md).
 
 ## If it does not work
 

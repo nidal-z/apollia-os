@@ -74,11 +74,10 @@ pratique est
 
 Le budget d'étapes est appliqué par le runtime autour de chaque agent, et non
 implémenté par chaque agent individuellement, et il borne chaque appel d'outil
-quel que soit le chemin sur lequel il s'exécute. L'enregistrement, lui, est plus
-étroit : un appel d'outil qu'un agent effectue via `ctx.tools` est écrit dans la
-piste d'invocations d'outils et, par ses événements rattachés à l'exécution, dans
-le journal chaîné par hachage, alors qu'un appel d'outil effectué dans une
-session de chat n'atteint ni l'un ni l'autre. Le palier d'autonomie atteint une
+quel que soit le chemin sur lequel il s'exécute. L'enregistrement va dans un seul
+registre : un appel d'outil qu'une exécution annonce est écrit, par ses
+événements rattachés à l'exécution, dans le journal chaîné par hachage. Le
+palier d'autonomie atteint une
 exécution orchestrée de la même façon que le budget, par le moteur qui la
 planifie et l'exécute.
 

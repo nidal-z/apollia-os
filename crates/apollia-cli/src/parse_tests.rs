@@ -1035,30 +1035,6 @@ fn test_cli_parses_permissions_revoke_one_with_yes() {
     assert!(yes);
 }
 
-#[test]
-fn test_cli_parses_permissions_audit_filtered() {
-    // GIVEN "apollia-os permissions audit --tool bash --limit 5"
-    // WHEN the top-level parser reads it
-    let cli = parse(&[
-        "apollia-os",
-        "permissions",
-        "audit",
-        "--tool",
-        "bash",
-        "--limit",
-        "5",
-    ]);
-    // THEN the tool filter is carried and the limit overrides its default of 50
-    let Commands::Permissions {
-        command: PermissionsCommand::Audit { tool, limit },
-    } = cli.command
-    else {
-        panic!("expected permissions audit");
-    };
-    assert_eq!(tool.as_deref(), Some("bash"));
-    assert_eq!(limit, 5);
-}
-
 // ─── chat config ─────────────────────────────────────────────────────────────
 
 #[test]

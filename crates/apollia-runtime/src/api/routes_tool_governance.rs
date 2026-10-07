@@ -1,7 +1,6 @@
 //! The governance of native tools over HTTP, under `/api/v1/governance`: the
 //! tools with their flag and configuration, the permission rules and their
-//! revocation, the audit of the permission decisions, and whether governance
-//! fails closed.
+//! revocation, and whether governance fails closed.
 //!
 //! Only the desktop running the runtime in its own process could read or
 //! change them. These routes serve the functions of [`crate::tool_governance`]
@@ -18,9 +17,9 @@ use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::tool_governance::{
-    get_tool_config, list_audit, list_permission_rules, list_tools, revoke_all_rules,
-    revoke_permission_rule, set_tool_config, set_tool_enabled, AuditEntryDto, PermissionRuleDto,
-    PermissionRuleFilter, ToolGovernanceError, ToolStatusDto,
+    get_tool_config, list_permission_rules, list_tools, revoke_all_rules, revoke_permission_rule,
+    set_tool_config, set_tool_enabled, PermissionRuleDto, PermissionRuleFilter,
+    ToolGovernanceError, ToolStatusDto,
 };
 
 type ApiError = (StatusCode, Json<ApiErrorBody>);
@@ -61,18 +60,6 @@ pub struct RevokedRules {
     pub removed: u32,
 }
 
-/// Query of `GET /api/v1/governance/audit`.
-#[derive(Debug, Default, Deserialize, Serialize, utoipa::IntoParams)]
-#[into_params(parameter_in = Query)]
-pub struct AuditQuery {
-    /// Tool name to filter on.
-    pub tool_name: Option<String>,
-    /// Page size, 100 when absent.
-    pub limit: Option<u32>,
-    /// Entries to skip.
-    pub offset: Option<u32>,
-}
-
 /// Answer of `GET /api/v1/governance/state`.
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct GovernanceStateBody {
@@ -108,7 +95,6 @@ pub fn tool_governance_router<B: ExecutionBackend + Clone>() -> Router<AppState<
             "/api/v1/governance/rules/revoke-all",
             post(revoke_all_governance_rules::<B>),
         )
-        .route("/api/v1/governance/audit", get(list_governance_audit::<B>))
         .route("/api/v1/governance/state", get(get_governance_state::<B>))
 }
 
@@ -293,33 +279,6 @@ pub(crate) async fn revoke_all_governance_rules<B: ExecutionBackend + Clone>(
         .await
         .map_err(refusal)?;
     Ok(Json(RevokedRules { removed }))
-}
-
-/// `GET /api/v1/governance/audit`: the permission decisions, most recent first.
-#[utoipa::path(
-    get,
-    path = "/api/v1/governance/audit",
-    tag = "governance",
-    params(AuditQuery),
-    responses(
-        (status = 200, description = "The audit entries", body = Vec<AuditEntryDto>),
-        (status = 500, description = "The governance database refused the read", body = ApiErrorBody),
-        (status = 503, description = "The runtime has no data directory", body = ApiErrorBody),
-    )
-)]
-pub(crate) async fn list_governance_audit<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    Query(query): Query<AuditQuery>,
-) -> Result<Json<Vec<AuditEntryDto>>, ApiError> {
-    list_audit(
-        state.data_dir.clone(),
-        query.tool_name,
-        query.limit,
-        query.offset,
-    )
-    .await
-    .map(Json)
-    .map_err(refusal)
 }
 
 /// `GET /api/v1/governance/state`: whether governance fails closed, and why,

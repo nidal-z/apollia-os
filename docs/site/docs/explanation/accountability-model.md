@@ -75,12 +75,11 @@ once, always for this agent, or refuse with an optional reason the agent reads.
 An "always" is granted to one agent for one family of actions, never to a tool
 name, a project or a session.
 
-The decision itself is not written down. The permission decision log exists as a
-table, append-only and enforced by triggers, but nothing in the shipped runtime
-inserts a row into it: `apollia-os permissions audit` and the desktop **Recent
-audit** panel read an empty table. What the record does keep is the call the
-decision let through, since the chat loop captures the tool call and its output
-into the signed journal.
+The decision itself is written down: the answer to a consent prompt, a refusal
+by the organisation policy and a refusal by a rule each become an entry of the
+signed journal, naming the agent, the tool and its family of action, never the
+argument of the call. The journal also keeps the call the decision let through,
+since the chat loop captures the tool call and its output.
 
 Which surface can answer a request depends on the kind. An approval keyed by tool
 name is answerable over the HTTP API, with `POST /api/v1/sessions/:id/authorize`,

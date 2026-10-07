@@ -36,7 +36,7 @@ Open **Settings, Permissions**. Four sections:
 - **Rules**: the persistent rules, created through the approval prompts, by the onboarding agent, or by hand. Filterable by scope (All, This project, Chat agent, Everywhere) and by tool. The rule's author is shown on each row but is not a filter.
 - **Active sessions**: permissions valid only for the current chat session.
 - **Apollia Chat**: the rules that apply to the free chat specifically.
-- **Recent audit**: a read-only tail of the `permission_audit` table. Nothing in the runtime writes to that table in `v0.1.0-preview`, so the section stays empty however many approvals you answer. The record of what actually ran is the **Audit Trail** tab of the **Observability** page.
+- The decisions themselves are not listed on this screen: every consent answered and every refusal is an entry of the **Activity log**.
 
 A **Revoke** button on each rule. To revoke every rule of a scope at once, the **Revoke all** button asks you to pick the scope and shows how many rules it would remove, then Cancel or Revoke. It asks for no typed confirmation.
 

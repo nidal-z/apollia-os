@@ -91,6 +91,18 @@ async fn run_exchange(state: GovernanceState, answer: Option<ToolDecision>) -> V
     let journal = AuditJournalHandle::open(&dir.path().join("audit_journal.db"))
         .await
         .expect("journal");
+    let entries = run_exchange_into(&journal, state, answer).await;
+    journal.shutdown().await;
+    entries
+}
+
+/// Runs the same exchange against `journal`, which stays open so the caller
+/// can verify it.
+async fn run_exchange_into(
+    journal: &AuditJournalHandle,
+    state: GovernanceState,
+    answer: Option<ToolDecision>,
+) -> Vec<JournalEntry> {
     let governance = GovernanceHandle::detached(state, Some(journal.clone()));
     let model: Arc<dyn CompletionModel> = Arc::new(OneCallThenText {
         iteration: AtomicU32::new(0),
@@ -148,13 +160,11 @@ async fn run_exchange(state: GovernanceState, answer: Option<ToolDecision>) -> V
         .expect("the exchange completes");
     operator.await.expect("operator joins");
     tool_registry.shutdown().await;
-    let entries = journal
+    journal
         .query_run(&governance_run_id(
             crate::chat::manager::APOLLIA_CHAT_AGENT_ID,
         ))
-        .await;
-    journal.shutdown().await;
-    entries
+        .await
 }
 
 /// Asserts that no entry carries the call's argument, the tool's output, or
@@ -249,4 +259,52 @@ async fn test_policy_refusal_is_journaled_without_content() {
     assert_eq!(kinds, vec![JournalEntryKind::PolicyRefused]);
     assert_eq!(entries[0].payload["access_id"], TOOL);
     assert_no_content(&entries);
+}
+
+// The signed journal is where a decision is read: each of the three answers
+// lands there signed, and the journal as a whole still verifies.
+#[tokio::test]
+async fn test_each_answer_reaches_the_signed_journal_and_the_chain_holds() {
+    // GIVEN a journal signed with a key
+    let dir = tempfile::tempdir().expect("tempdir");
+    let journal = AuditJournalHandle::open_with_key_bytes(
+        &dir.path().join("audit_journal.db"),
+        b"0123456789abcdef0123456789abcdef".to_vec(),
+    )
+    .await
+    .expect("signed journal");
+
+    // WHEN the operator answers once, always, then refuses, on three calls
+    let mut answers = Vec::new();
+    for decision in [
+        ToolDecision::Accept,
+        ToolDecision::AlwaysAccept,
+        ToolDecision::Refuse {
+            reason: Some(REASON.into()),
+        },
+    ] {
+        let entries = run_exchange_into(&journal, GovernanceState::default(), Some(decision)).await;
+        answers = entries
+            .into_iter()
+            .filter(|e| e.kind == JournalEntryKind::ConsentAnswered)
+            .collect();
+    }
+
+    // THEN the journal holds the three answers, in the order they were given
+    let given: Vec<&str> = answers
+        .iter()
+        .map(|e| e.payload["answer"].as_str().unwrap_or_default())
+        .collect();
+    assert_eq!(given, vec!["once", "always", "refuse"]);
+    // AND each one is signed
+    for entry in &answers {
+        assert!(entry.signature.is_some(), "unsigned: {entry:?}");
+        assert!(entry.signing_key_id.is_some(), "no key id: {entry:?}");
+    }
+    // AND the whole journal verifies, signatures included
+    let report = journal.verify_journal().await.expect("verification runs");
+    assert!(report.ok, "{report:?}");
+    assert!(report.head_matches_state, "{report:?}");
+    assert!(report.entries_checked >= 3, "{report:?}");
+    journal.shutdown().await;
 }

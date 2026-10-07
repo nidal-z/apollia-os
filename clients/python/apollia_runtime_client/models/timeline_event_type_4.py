@@ -22,9 +22,11 @@ class TimelineEventType4:
         truncated (bool): `true` if the data was truncated.
         type_ (TimelineEventType4Type):
         duration_ms (int | None | Unset): Duration in milliseconds.
-        exit_code (int | None | Unset): Process exit code (bash, python).
+        exit_code (int | None | Unset): Process exit code (bash, python). The journal keeps none, so a
+            call read from it carries `success` instead.
         input_preview (None | str | Unset): Input preview (args_json), truncated to 300 chars.
         output_preview (None | str | Unset): Output preview (stdout + stderr), truncated to 500 chars.
+        success (bool | None | Unset): Whether the call succeeded. Absent while the call has not ended.
     """
 
     timestamp: str
@@ -35,6 +37,7 @@ class TimelineEventType4:
     exit_code: int | None | Unset = UNSET
     input_preview: None | str | Unset = UNSET
     output_preview: None | str | Unset = UNSET
+    success: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -70,6 +73,12 @@ class TimelineEventType4:
         else:
             output_preview = self.output_preview
 
+        success: bool | None | Unset
+        if isinstance(self.success, Unset):
+            success = UNSET
+        else:
+            success = self.success
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -88,6 +97,8 @@ class TimelineEventType4:
             field_dict["input_preview"] = input_preview
         if output_preview is not UNSET:
             field_dict["output_preview"] = output_preview
+        if success is not UNSET:
+            field_dict["success"] = success
 
         return field_dict
 
@@ -138,6 +149,15 @@ class TimelineEventType4:
 
         output_preview = _parse_output_preview(d.pop("output_preview", UNSET))
 
+        def _parse_success(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        success = _parse_success(d.pop("success", UNSET))
+
         timeline_event_type_4 = cls(
             timestamp=timestamp,
             tool_name=tool_name,
@@ -147,6 +167,7 @@ class TimelineEventType4:
             exit_code=exit_code,
             input_preview=input_preview,
             output_preview=output_preview,
+            success=success,
         )
 
         timeline_event_type_4.additional_properties = d

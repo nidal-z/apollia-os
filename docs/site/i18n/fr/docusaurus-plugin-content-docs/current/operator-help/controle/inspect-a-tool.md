@@ -50,7 +50,7 @@ Une section vide est l'état normal sur une installation neuve : elle signifie q
 ## Vérification
 
 - Le panneau de contrat de `file_write` affiche un schéma d'entrée qui liste les champs attendus par l'outil.
-- L'identifiant technique affiché sous le titre du panneau est celui que vous retrouvez dans la colonne **Outil** de la [piste d'audit](../observabilite/read-the-audit-trail.md).
+- L'identifiant technique affiché sous le titre du panneau est celui que vous retrouvez dans les entrées du [Journal](../observabilite/read-the-audit-trail.md).
 
 ## Si ça ne marche pas
 

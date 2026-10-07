@@ -337,7 +337,6 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         plan_gates: None,
         notification_config: None,
         tool_registry_handle: None,
-        audit_trail: None,
         audit_journal: None,
         connection_governance: Default::default(),
         governance: None,

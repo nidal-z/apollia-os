@@ -22,7 +22,6 @@ async fn test_no_audit_route_answers_delete() {
         .collect();
     let paths: Vec<&str> = audit.iter().map(|(path, _)| path.as_str()).collect();
     for expected in [
-        "/api/v1/audit",
         "/api/v1/audit/journal",
         "/api/v1/audit/export",
         "/api/v1/audit/verify",

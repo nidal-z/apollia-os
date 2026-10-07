@@ -1,21 +1,19 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 //! End-to-end integration tests of the permission governance flows.
 //!
-//! They exercise the scope-aware `PrefixRuleEngine` and the `permission_audit`
-//! table through their public surfaces, checking the critical invariants:
+//! They exercise the scope-aware `PrefixRuleEngine` through its public
+//! surface, checking the critical invariants:
 //!
 //! - `Agent` rules apply only to their agent;
 //! - `Global` rules apply to every agent;
 //! - expired rules are ignored by evaluation;
-//! - revoking by identifier removes the rule from evaluation;
-//! - the audit table is strictly append-only at the SQLite level.
+//! - revoking by identifier removes the rule from evaluation.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use apollia_permissions::{
-    PermissionAuditLog, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,
+    PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,
 };
-use rusqlite::{params, Connection};
 use tempfile::TempDir;
 
 fn now_secs() -> i64 {
@@ -144,34 +142,4 @@ async fn test_revoke_removes_from_check() {
         .check_with_scope("bash_executor", Some("git push"), &global_ctx())
         .expect("check after revoke");
     assert_eq!(after, None);
-}
-
-#[tokio::test]
-async fn test_audit_trigger_blocks_modification() {
-    // GIVEN one row in the audit table of a migrated governance database
-    let tmp = TempDir::new().expect("tempdir");
-    let db_path = tmp.path().join("governance.db");
-    let log = PermissionAuditLog::new(&db_path).expect("audit log init");
-    let raw = Connection::open(&db_path).expect("raw open");
-    raw.execute(
-        "INSERT INTO permission_audit (tool_name, first_arg, decision, decided_at) \
-         VALUES (?, ?, ?, ?)",
-        params!["bash_executor", "git status", "NeedsApproval", now_secs()],
-    )
-    .expect("insert audit row");
-    assert_eq!(log.query(None, 10, 0).expect("query").len(), 1);
-
-    // WHEN an update and a delete are attempted
-    let update = raw.execute("UPDATE permission_audit SET decision = 'tampered'", []);
-    let delete = raw.execute("DELETE FROM permission_audit", []);
-
-    // THEN both are refused by the append-only triggers
-    assert!(
-        update.is_err(),
-        "UPDATE must be blocked by the append-only trigger"
-    );
-    assert!(
-        delete.is_err(),
-        "DELETE must be blocked by the append-only trigger"
-    );
 }

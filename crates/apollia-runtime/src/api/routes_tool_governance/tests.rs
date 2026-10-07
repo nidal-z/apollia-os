@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use apollia_permissions::{PermissionAuditLog, PermissionScope, PrefixRule, PrefixRuleEngine};
+use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine};
 use apollia_tools::{GovernanceDb, GOVERNANCE_DB_FILENAME};
 use axum::http::StatusCode;
 use tempfile::TempDir;
@@ -298,58 +298,6 @@ async fn test_revoke_all_of_an_unknown_scope_is_refused() {
     // THEN 400, and the rule is still there
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     assert_eq!(left.as_array().unwrap().len(), 1);
-}
-
-#[tokio::test]
-async fn test_the_audit_is_listed_most_recent_first_and_filtered_by_tool() {
-    // GIVEN two permission decisions on two tools
-    let dir = TempDir::new().unwrap();
-    GovernanceDb::open(dir.path()).unwrap();
-    let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
-    PermissionAuditLog::new(&db_path).unwrap();
-    let conn = rusqlite::Connection::open(&db_path).unwrap();
-    for (tool, at) in [("bash_executor", 100_i64), ("file_read", 200_i64)] {
-        conn.execute(
-            "INSERT INTO permission_audit (tool_name, first_arg, decision, decided_at) \
-             VALUES (?1, 'x', 'AutoAllowedSafeList', ?2)",
-            rusqlite::params![tool, at],
-        )
-        .unwrap();
-    }
-    let state = state_in(&dir);
-
-    // WHEN a client lists the audit, then the shell tool's page
-    let (status, all) = call(state.clone(), "GET", "/api/v1/governance/audit", None).await;
-    let (_, bash) = call(
-        state,
-        "GET",
-        "/api/v1/governance/audit?tool_name=bash_executor&limit=10&offset=0",
-        None,
-    )
-    .await;
-
-    // THEN the newest decision comes first, and the filter keeps one
-    assert_eq!(status, StatusCode::OK, "{all}");
-    let all = all.as_array().unwrap();
-    assert_eq!(all.len(), 2);
-    assert_eq!(all[0]["tool_name"], "file_read");
-    assert_eq!(bash.as_array().unwrap().len(), 1);
-}
-
-#[tokio::test]
-async fn test_the_audit_is_refused_without_a_data_directory() {
-    // GIVEN a runtime started without a data directory
-    // WHEN a client reads the audit
-    let (status, body) = call(
-        state_without_data_dir(),
-        "GET",
-        "/api/v1/governance/audit",
-        None,
-    )
-    .await;
-
-    // THEN 503
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
 }
 
 #[tokio::test]

@@ -26,7 +26,7 @@ use apollia_notifications::{
     NotificationConfig, NotificationConfigRepository, NotificationEngineHandle,
 };
 use apollia_oria::plan_cache::PlanCacheRepository;
-use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
+use apollia_tools::{TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle};
 
 use crate::mailbox::AgentMailboxHandle;
@@ -176,11 +176,6 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` in production, populated by the Supervisor at startup.
     /// `None` in tests, the `/api/v1/tools` routes return 503 when `None`.
     pub tool_registry_handle: Option<ToolRegistryHandle>,
-    /// Handle to the AuditTrail actor, exposes tool invocations via REST.
-    ///
-    /// `Some` in production, opened by the Supervisor from `~/.apollia/audit.db`.
-    /// `None` in tests, the `/api/v1/audit` routes return 503 when `None`.
-    pub audit_trail: Option<AuditTrailHandle>,
     /// Handle to the hash-chained audit journal actor, exposes `audit verify`.
     ///
     /// `Some` in production, opened by the Supervisor from
@@ -385,7 +380,6 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             plan_gates: self.plan_gates.clone(),
             notification_config: self.notification_config.clone(),
             tool_registry_handle: self.tool_registry_handle.clone(),
-            audit_trail: self.audit_trail.clone(),
             audit_journal: self.audit_journal.clone(),
             connection_governance: self.connection_governance.clone(),
             governance: self.governance.clone(),
@@ -833,7 +827,6 @@ mod tests {
             plan_gates: None,
             notification_config: None,
             tool_registry_handle: None,
-            audit_trail: None,
             audit_journal: None,
             connection_governance: Default::default(),
             governance: None,

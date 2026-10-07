@@ -112,7 +112,6 @@ impl Supervisor {
             plan_gates: stores.plan_gates.clone(),
             notification_config: stores.notification_config.clone(),
             tool_registry_handle: Some(core.tool_registry_handle.clone()),
-            audit_trail: governance.audit_trail.clone(),
             audit_journal: governance.audit_journal.clone(),
             connection_governance: governance.connection.clone(),
             governance: Some(governance.handle.clone()),

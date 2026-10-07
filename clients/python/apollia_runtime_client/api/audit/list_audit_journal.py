@@ -102,10 +102,9 @@ def sync_detailed(
     across every run, each entry with its summary.
 
      This is the only read of the journal that does not need a run id up front:
-    `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-    and `GET /api/v1/audit` answers the separate tool-invocation trail. The
-    filters are applied before paging, so `limit` and `offset` count matching
-    entries. 400 on a filter value that cannot be read, 503 when the journal is
+    `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows.
+    The filters are applied before paging, so `limit` and `offset` count
+    matching entries. 400 on a filter value that cannot be read, 503 when the journal is
     not configured.
 
     Args:
@@ -160,10 +159,9 @@ def sync(
     across every run, each entry with its summary.
 
      This is the only read of the journal that does not need a run id up front:
-    `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-    and `GET /api/v1/audit` answers the separate tool-invocation trail. The
-    filters are applied before paging, so `limit` and `offset` count matching
-    entries. 400 on a filter value that cannot be read, 503 when the journal is
+    `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows.
+    The filters are applied before paging, so `limit` and `offset` count
+    matching entries. 400 on a filter value that cannot be read, 503 when the journal is
     not configured.
 
     Args:
@@ -213,10 +211,9 @@ async def asyncio_detailed(
     across every run, each entry with its summary.
 
      This is the only read of the journal that does not need a run id up front:
-    `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-    and `GET /api/v1/audit` answers the separate tool-invocation trail. The
-    filters are applied before paging, so `limit` and `offset` count matching
-    entries. 400 on a filter value that cannot be read, 503 when the journal is
+    `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows.
+    The filters are applied before paging, so `limit` and `offset` count
+    matching entries. 400 on a filter value that cannot be read, 503 when the journal is
     not configured.
 
     Args:
@@ -269,10 +266,9 @@ async def asyncio(
     across every run, each entry with its summary.
 
      This is the only read of the journal that does not need a run id up front:
-    `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows,
-    and `GET /api/v1/audit` answers the separate tool-invocation trail. The
-    filters are applied before paging, so `limit` and `offset` count matching
-    entries. 400 on a filter value that cannot be read, 503 when the journal is
+    `GET /api/v1/audit/journal/{run_id}` answers a run the caller already knows.
+    The filters are applied before paging, so `limit` and `offset` count
+    matching entries. 400 on a filter value that cannot be read, 503 when the journal is
     not configured.
 
     Args:

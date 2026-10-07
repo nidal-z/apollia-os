@@ -213,10 +213,11 @@ Live in the shipped runtime :
 
 Details and rationale in `docs/agents/SECURITY.md`.
 
-The `permission_audit` table of `governance.db` is SQLite, append-only, no
-deletes, enforced by two triggers. Nothing in the shipped runtime writes to it;
-the approval decisions an operator takes on the chat path are recorded in
-`chat_approval_log` instead.
+The permission decisions are entries of the signed audit journal
+(`audit_journal.db`): a consent answered, a refusal by the policy, a refusal by
+a rule. `governance.db` holds the rules and the standing consents, not the
+decisions; the `permission_audit` table an older file carries is dropped when
+the file is opened.
 
 Source : `crates/apollia-permissions/`.
 

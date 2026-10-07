@@ -247,7 +247,7 @@ async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
         Err(crate::client::ClientError::ConnectionRefused) => {
             // Daemon-off is exit 2 (RUNTIME_ERROR), distinct from generic CLI
             // errors (exit 1). Aligns with tools describe / llm status /
-            // audit list / etc.
+            // audit journal / etc.
             crate::output::emit_error(
                 json,
                 exit_codes::RUNTIME_ERROR,

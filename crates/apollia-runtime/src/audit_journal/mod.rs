@@ -5,9 +5,9 @@
 //! and is detectable on recomputation. Append-only is also enforced at the
 //! storage layer by SQLite triggers that abort any `UPDATE` or `DELETE`.
 //!
-//! The journal is distinct from the flat tool-invocation audit trail in
-//! `apollia_tools::audit`: that one records tool calls without chaining; this
-//! one provides tamper-evidence over the lifecycle of a run.
+//! The journal is the one audit register of the runtime: it provides
+//! tamper-evidence over the lifecycle of a run, and the timelines read their
+//! tool calls from it through [`tool_calls`].
 
 pub mod actor;
 pub mod anchor;
@@ -25,6 +25,7 @@ mod proofs;
 pub mod signer;
 pub mod subscriber;
 pub mod summary;
+pub mod tool_calls;
 pub mod verify;
 
 pub use actor::PurgeOutcome;

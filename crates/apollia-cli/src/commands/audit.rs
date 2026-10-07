@@ -1,7 +1,7 @@
-//! `apollia-os audit` subcommands: query audit trail via the runtime API.
+//! `apollia-os audit` subcommands: read the hash-chained audit journal via
+//! the runtime API.
 //!
-//! Provides `list` and `stats` on the audit trail, and `journal`, `export`,
-//! `show`, `verify`, `anchor` and `replay` on the hash-chained audit journal.
+//! Provides `journal`, `export`, `show`, `verify`, `anchor` and `replay`.
 
 use std::path::PathBuf;
 
@@ -13,31 +13,23 @@ use crate::exit_codes;
 mod export;
 mod journal;
 mod replay;
-mod report;
 mod verify;
 
 pub use export::JournalExportFormat;
 use export::{run_export, JournalExport};
+pub(in crate::commands) use journal::summary_line as journal_summary_line;
 use journal::{run_journal, run_show, JournalPage};
 use replay::{run_anchor, run_replay};
-use report::{run_list, run_stats};
 use verify::{run_verify, run_verify_journal};
 
 /// Audit subcommands: `apollia-os audit <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum AuditCommand {
-    /// List recent audit events (default).
-    #[command(name = "list")]
-    List {
-        /// Maximum number of events to display.
-        #[arg(long, default_value = "20")]
-        limit: u32,
-    },
     /// Browse the hash-chained journal across every run, newest first.
     ///
-    /// Unlike `audit list` (the tool-invocation trail) and `audit show RUN`
-    /// (one run), this reads the chained journal without needing a run id up
-    /// front, so the audited register is reachable by browsing. Each entry is
+    /// Unlike `audit show RUN` (one run), this reads the chained journal
+    /// without needing a run id up front, so the audited register is reachable
+    /// by browsing. Each entry is
     /// printed as its summary: when, who, what, on what, with which result,
     /// and never the content of a call. The filters add up, and `--limit` and
     /// `--offset` count the entries that pass them.
@@ -73,8 +65,6 @@ pub enum AuditCommand {
         #[arg(long, value_name = "DATE")]
         until: Option<String>,
     },
-    /// Display audit statistics.
-    Stats,
     /// Export the hash-chained journal to a file, as CSV or JSON.
     ///
     /// The file holds every entry that passes the filters, newest first, each
@@ -152,9 +142,8 @@ pub enum AuditCommand {
     },
     /// Show a run's full journal, including the model's LLM completions.
     ///
-    /// Unlike `audit list` (the tool-only audit trail), this reads the
-    /// hash-chained journal so the captured reasoning (prompts/responses) is
-    /// readable. Accepts a run_id or a task_id (resolved to its run_id).
+    /// Reads the hash-chained journal, so the captured reasoning
+    /// (prompts/responses) is readable. Accepts a run_id or a task_id (resolved to its run_id).
     #[command(name = "show")]
     Show {
         /// Run identifier, or a task_id that maps to one.
@@ -171,7 +160,6 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
     let client = RuntimeClient::new(socket_path);
 
     match cmd {
-        AuditCommand::List { limit } => run_list(&client, *limit, json).await,
         AuditCommand::Journal {
             limit,
             offset,
@@ -194,7 +182,6 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
             };
             run_journal(&client, &page, json).await
         }
-        AuditCommand::Stats => run_stats(&client, json).await,
         AuditCommand::Export {
             format,
             detail,
@@ -260,39 +247,6 @@ mod tests {
     struct TestCli {
         #[command(subcommand)]
         cmd: AuditCommand,
-    }
-
-    #[test]
-    fn parses_list_default_limit() {
-        // GIVEN "audit list", with no --limit
-        // WHEN clap parses the argument line
-        let cli = TestCli::parse_from(["x", "list"]);
-        // THEN the limit falls back to twenty
-        match cli.cmd {
-            AuditCommand::List { limit } => assert_eq!(limit, 20),
-            other => panic!("unexpected: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn parses_list_with_limit() {
-        // GIVEN the same listing carrying --limit 100
-        // WHEN clap parses the argument line
-        let cli = TestCli::parse_from(["x", "list", "--limit", "100"]);
-        // THEN the limit given wins over the default
-        match cli.cmd {
-            AuditCommand::List { limit } => assert_eq!(limit, 100),
-            other => panic!("unexpected: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn parses_stats() {
-        // GIVEN "audit stats"
-        // WHEN clap parses the argument line
-        let cli = TestCli::parse_from(["x", "stats"]);
-        // THEN the stats subcommand is selected
-        assert!(matches!(cli.cmd, AuditCommand::Stats));
     }
 
     #[test]

@@ -9,8 +9,10 @@
 --                          <- permission_rules WHERE scope='agent' AND agent_id='apollia:chat'
 --   * authorizations-revoke-all / -dialog / -confirm
 --                          (the confirmation is enabled once a rule exists)
---   * permission_audit is no longer read by the desktop; its rows stay for
---                          the command line
+--   * permission_audit is the decision table of an older file: nothing reads
+--                          it, and the first open of the file drops it. Its
+--                          rows stay here so the suite sees that migration
+--                          run on a table that holds data
 --   * brave-api-key-delete / -test / -test-result (tools page, web_search)
 --                          <- tool_credentials (web_search / brave.api_key)
 --
@@ -31,10 +33,9 @@ VALUES
   (3, 'web_search', NULL, 'allow', 1782864000, 'apollia:chat', 'agent', NULL, NULL, 'apollia:chat'),
   (4, 'http_fetch', NULL, 'deny', 1782864000, 'operator', 'global', NULL, NULL, NULL);
 
--- Permission audit log (append-only; INSERT only, UPDATE/DELETE blocked by
--- triggers). Ordered by decided_at DESC in the UI, so the offsets make ordering
--- deterministic (web_search row is newest). decision strings mirror
--- decision_to_str() variants; both allow and deny outcomes are represented.
+-- Decision table of an older file (append-only there: UPDATE and DELETE were
+-- blocked by triggers). The current schema has no such table; these rows exist
+-- to be dropped by the migration.
 INSERT INTO permission_audit
   (id, tool_name, first_arg, decision, decided_at, scope, rule_id, agent)
 VALUES

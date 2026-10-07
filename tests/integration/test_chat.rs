@@ -264,7 +264,6 @@ fn build_chat_app_state(
         pending_approvals: None,
         notification_config: None,
         tool_registry_handle: Some(tool_registry),
-        audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
         config_reload: None,
         llm_call_repository: None,

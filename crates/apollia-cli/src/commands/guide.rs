@@ -30,7 +30,7 @@ const TOPICS: &[(&str, &str)] = &[
     (
         "audit",
         "Inspect and verify what happened.\n\n\
-         apollia-os audit list           recent audited runs\n\
+         apollia-os audit journal        the journal, newest first\n\
          apollia-os audit verify <run>   check the signed hash chain\n\
          apollia-os trace <task_id>      event-sourced trace of a task\n\
          apollia-os digest --since 7d    activity + cost overview",

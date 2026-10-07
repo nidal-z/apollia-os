@@ -129,7 +129,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::observability::audit::get_llm_daily_costs,
         commands::observability::mailbox::list_mailbox_messages,
         commands::observability::plan_cache::get_plan_cache_stats,
-        commands::observability::audit::get_tool_audit_trail,
         commands::observability::audit::get_active_hooks,
         commands::trace::get_task_trace,
         commands::updates::check_for_update,
@@ -350,7 +349,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::memory::maintenance::memory_export_namespace,
         commands::memory::maintenance::memory_import_namespace,
         // Observability
-        commands::observability::audit::get_audit_stats,
         // Updates
         // The notice of the migration of the former projects
         commands::project_migration::get_project_migration_report,

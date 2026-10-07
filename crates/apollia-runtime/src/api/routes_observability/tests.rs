@@ -3,32 +3,32 @@ use tempfile::TempDir;
 
 use crate::api::server::AppState;
 use crate::api::test_support::{app_state, call, MockBackend};
+use crate::audit_journal::tool_calls::test_support::{seed_calls, SeededCall};
 
 fn state_in(dir: &TempDir) -> AppState<MockBackend> {
     app_state(dir.path().to_path_buf())
 }
 
-/// Seeds `audit.db` with one tool invocation started a minute ago.
-fn seed_audit(dir: &TempDir) {
-    let path = dir
-        .path()
-        .join(apollia_core::paths::DataFile::Audit.file_name());
-    let conn = rusqlite::Connection::open(path).unwrap();
-    conn.execute_batch(
-        "CREATE TABLE tool_invocations (
-            id TEXT, agent_id TEXT, task_id TEXT, tool_name TEXT, started_at TEXT,
-            duration_ms INTEGER, exit_code INTEGER, success INTEGER, error_code TEXT
-        );",
-    )
-    .unwrap();
+/// Writes to the journal one tool call started a minute ago.
+async fn seed_journal(dir: &TempDir) {
     let started = (chrono::Utc::now() - chrono::Duration::minutes(1))
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
-    conn.execute(
-        "INSERT INTO tool_invocations VALUES ('inv-1','scribe','t-1','file_io',?1,42,0,1,NULL)",
-        [started],
+    seed_calls(
+        &dir.path()
+            .join(apollia_core::paths::DataFile::AuditJournal.file_name()),
+        &[SeededCall {
+            run_id: "run-1",
+            task_id: "t-1",
+            agent_id: "scribe",
+            tool_name: "file_io",
+            tool_call_id: "c0",
+            started_at: &started,
+            arguments: serde_json::json!({}),
+            end: Some((true, 42, "done")),
+        }],
     )
-    .unwrap();
+    .await;
 }
 
 /// Seeds `mailbox.db` with two messages of increasing `seq`.
@@ -53,9 +53,9 @@ fn seed_mailbox(dir: &TempDir) {
 
 #[tokio::test]
 async fn test_the_timeline_of_a_window_is_read_from_the_data_directory() {
-    // GIVEN a daemon whose audit store holds one tool call of the last minute
+    // GIVEN a daemon whose journal holds one tool call of the last minute
     let dir = TempDir::new().unwrap();
-    seed_audit(&dir);
+    seed_journal(&dir).await;
 
     // WHEN a client reads the timeline of the last thirty minutes
     let (status, events) = call(
@@ -72,7 +72,9 @@ async fn test_the_timeline_of_a_window_is_read_from_the_data_directory() {
     assert_eq!(events.len(), 1, "{events:?}");
     assert_eq!(events[0]["event_type"], "tool");
     assert_eq!(events[0]["summary"], "[scribe] Tool: file_io (42ms)");
-    assert_eq!(events[0]["detail"]["id"], "inv-1");
+    assert_eq!(events[0]["detail"]["source"], "audit_journal.db");
+    assert_eq!(events[0]["detail"]["run_id"], "run-1");
+    assert_eq!(events[0]["detail"]["success"], true);
 }
 
 #[tokio::test]

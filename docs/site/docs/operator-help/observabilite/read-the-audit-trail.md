@@ -8,54 +8,40 @@ sidebar_position: 2
 
 > For operators who want to find out precisely who did what, and when - typically for an internal control or a post-incident investigation.
 
+The audit trail is the **Activity log**: one journal, signed and chained, that holds every action of the agents and every change of access. The Observability screen no longer carries a separate Audit Trail tab.
+
 ## Prerequisites
 
-- At least one sensitive action (file write, command, tool call) has been executed by an installed agent.
+- At least one action (a tool call, a consent answered, an access granted) has taken place.
 - You roughly know the period or the agent to investigate.
 
 ## Steps
 
-1. In the sidebar, click **Observability**, then the **Audit Trail** tab.
+1. In the sidebar, click **Activity log**. The entries are grouped by day, newest first, each one written as a sentence: when, which agent, what happened, on which target, with which result.
 
-2. At the top of the tab, a **purple callout** recalls what the audit trail is for: internal control, post-incident investigation, compliance, checking an agent's scope of action. The tab records the **tool invocations of an installed agent**. A tool called from a conversation is not written here: the chat path does not write to the trail, and its calls show in the conversation itself.
+2. Narrow the list with the filters above it:
+   - **Agent** - the work of one agent.
+   - **Family** - one family of action (read, read personal data, write or delete, send outside, run code).
+   - **Nature** - **Actions**, **Access changes** or **Policy**.
+   - **Result** - what succeeded, what failed, what was refused.
+   - **Period** - **Today**, **Last 7 days**, **Last 30 days** or **The whole journal**.
 
-3. Under the callout, a **Full journal** card gives three totals counted over the whole trail: **Recorded invocations**, **Distinct tools**, **Distinct agents**. These do not move with the filters, and they do not stop at the rows loaded below: they answer "what does the journal hold", where the indicators of the next step answer "what am I looking at right now". If those totals cannot be read, the card shows one line saying so and the table below is unaffected.
+   **Clear the filters** brings the whole journal back. The line above the list says how many entries are shown and how many filters are active.
 
-4. Just below, **four key indicators** (KPI) update according to the filters: **Entries shown**, **Distinct tools**, **Failures** (red if > 0), **Avg duration**.
-   ![Audit Trail tab - purpose banner at the top, 4 KPIs, filters, then the table](/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
+3. Click an entry to open its detail in the detail panel. For a tool call, the detail holds the arguments and the output when the run captured them.
 
-5. The table lists every traced tool invocation, newest first. **Five columns**:
-   - **Timestamp** (date + local time)
-   - **Tool** (technical name in monospace: `bash`, `file_write`, `mcp:notion.search`, and so on)
-   - **Agent** (readable name; failing that, the raw identifier if the agent is no longer registered)
-   - **Duration** (`850ms`, `2.1s`, or `1m 30s` past the minute, or `-` if not measured)
-   - **Status** - an **OK** badge (green, ✓) or **Error** (red, ✕). The status is derived from the exit code *and* from the presence of stderr; an MCP tool with no exit code counts as OK if it finished without an error.
+4. At the bottom of the list, **Show older entries** extends it.
 
-6. Narrow the search with the two selectors above the table:
-   - **Tool** - isolates the invocations of one specific tool (the list is built from the loaded entries).
-   - **Agent** - isolates the work of a single agent.
+5. **Verify integrity** recomputes the chain and the signatures, and says whether the journal is intact or where it was altered.
 
-7. Click a row to expand its detail. Depending on what was captured, three sections can appear:
-   - **Arguments** - JSON sent to the tool, formatted.
-   - **stdout** - standard output.
-   - **stderr** - error output, shown in red.
-
-   If the invocation produced nothing capturable (read-only MCP tools, tools with no standard I/O…), a *"No details available"* message appears.
-   ![expanded row showing the Arguments / stdout / stderr sections](/img/operator-help/observabilite-consulter-l-audit-trail-2.png)
-
-8. At the bottom of the table, the **Load more** button extends the list by 50 more entries.
-
-   > **Export and verification happen on the command line**, not from the
-   > interface. See the next section.
+6. **Export** writes the entries that match the filters in force, as **CSV** or as **PDF**. Including the detail adds the parameters of each action, which may hold personal data.
 
 ## Export and verify on the command line
 
-The interface shows the journal; the command line is what lets you extract it and
-prove it has not been modified.
+The same journal is read from the command line:
 
 ```sh
-apollia-os audit list --limit 200        # browse
-apollia-os audit stats                   # count
+apollia-os audit journal --limit 200     # browse
 apollia-os audit export --format csv --output journal.csv
 apollia-os audit verify                  # verify the whole chain
 apollia-os audit verify <RUN_ID>         # verify one run
@@ -64,8 +50,7 @@ apollia-os audit anchor                  # print the head anchor
 
 **`verify`** recomputes the hash chain and checks the signatures. With no
 argument it walks the entire journal; with a run identifier it is limited to that
-run. This is what separates a journal from a plain list: an entry modified after
-the fact breaks the chain and shows.
+run. An entry modified after the fact breaks the chain and shows.
 
 **`anchor`** prints the head anchor of the global chain. Keeping it off the
 machine is the only defence against a truncation of the end of the journal by
@@ -73,20 +58,20 @@ someone who obtained the signing key. That key is a local file, readable by the
 account running Apollia: the exported anchor is therefore the real protection,
 not an advanced precaution.
 
-**`export`** writes the journal as JSON. It stops at `--limit`, 10000 by default,
-and warns on the error output when it reaches that ceiling.
+**`export`** writes the entries that pass the filters, newest first, as CSV or
+JSON.
 
 Details of these commands in
 [Audit and verify a run](/how-to/audit-and-verify).
 
 ## Verification
 
-You find in the table the actions you know you approved recently, with the correct status (OK in green, Error in red). The KPIs at the top reflect the current selection: if you filter by agent, the **Entries shown** counter drops accordingly.
+You find in the list the actions you know took place recently, with the correct result. If you filter by agent, the count above the list drops accordingly.
 
 ## If it does not work
 
-- **An expected action is missing**: check the **Tool** and **Agent** filters - an active filter can hide the row. Click **Load more** if the default window (50 entries) does not reach far enough back.
-- **A row detail shows nothing**: the invocation probably comes from a tool with no stdout/stderr capture (MCP tool, internal API call). The row stays traced but its inputs and outputs do not.
-- **The table is empty**: no installed agent has run a tool yet. A conversation does not feed this table, however many tools it calls. Start an agent on a task that uses tools (bash, file_write, and so on).
+- **An expected action is missing**: check the filters - an active filter can hide the entry. Widen the **Period**, or click **Show older entries**.
+- **The detail of a tool call shows no arguments**: no model response of the run carries that call, as for a tool called by the code of a workflow.
+- **The list is empty**: nothing has been journaled yet. Ask an agent for a task that uses a tool.
 
 > **Technical reference:** [Apollia reference](/reference)

@@ -128,7 +128,7 @@ impl Supervisor {
             trigger_def_repo: Arc::new(std::sync::Mutex::new(triggers.repository)),
         };
 
-        // Phases 8 to 8d: audit trail and journal, upgrades, connections.
+        // Phases 8 to 8d: audit journal, upgrades, connections.
         let governance = self
             .open_governance(
                 &core.tool_registry_handle,
@@ -267,7 +267,6 @@ impl Supervisor {
             api_handle,
             llm_router: inference.llm_router,
             trigger_engine: executors.trigger_engine,
-            audit_trail: governance.audit_trail,
             connection_governance: governance.connection,
             governance: governance.handle,
             audit_journal: governance.audit_journal,

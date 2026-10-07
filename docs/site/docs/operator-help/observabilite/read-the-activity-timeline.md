@@ -19,7 +19,7 @@ sidebar_position: 1
 | A **snapshot of right now**: what is waiting for your decision, what has just been delivered, what is running | **Home**, the screen Apollia opens on (section below). |
 | The history of **one specific agent** (statuses, durations, task input/output) | **My Assistants → Logs** - see [View an agent's logs](../agents/view-an-agent-logs.md). |
 | A **specific event** (an LLM call, a tool run, an approval) over a time window | **Observability → Timeline** (this page). |
-| A **tool invocation** with its inputs and outputs | **Observability → Audit Trail** - see [Read the audit trail](read-the-audit-trail.md). |
+| A **tool invocation** with its inputs and outputs | **Activity log** - see [Read the audit trail](read-the-audit-trail.md). |
 
 ## Home, for the present moment
 

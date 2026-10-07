@@ -14,7 +14,7 @@ use std::time::Duration;
 use apollia_core::{HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
-use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository};
+use apollia_tools::{AgentRepository, TaskRepository};
 
 use crate::api::{APIServerConfig, APIServerHandle};
 use crate::coordinator::{DynBackend, ExecutionBackend};
@@ -53,8 +53,6 @@ pub struct RuntimeHandle {
     pub llm_router: Option<Arc<LlmRouter>>,
     /// Handle to the TriggerEngine.
     pub trigger_engine: TriggerEngineHandle,
-    /// Optional handle to the AuditTrail.
-    pub audit_trail: Option<AuditTrailHandle>,
     /// Admission policy and journal of connection events. The desktop admits
     /// and journals a native account through it, the HTTP routes the rest.
     pub connection_governance: crate::governance::ConnectionGovernance,
@@ -561,7 +559,6 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         api_handle: Arc::new(handles.api_handle),
         llm_router: handles.llm_router,
         trigger_engine: handles.trigger_engine,
-        audit_trail: handles.audit_trail,
         connection_governance: handles.connection_governance,
         governance: handles.governance,
         audit_journal: handles.audit_journal,

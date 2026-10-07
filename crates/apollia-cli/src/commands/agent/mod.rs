@@ -27,8 +27,7 @@ pub(in crate::commands::agent) use definition::{
 };
 pub(in crate::commands::agent) use display::{
     build_list_json, format_a2a_agent_list, format_agent_detail, format_enriched_agent_list,
-    format_status_snapshot, handle_error, local_agent_detail, print_audit_event_row,
-    run_info_local_fallback,
+    format_status_snapshot, handle_error, local_agent_detail, run_info_local_fallback,
 };
 pub(in crate::commands::agent) use export::{run_export, ExportChoices};
 pub(in crate::commands::agent) use lifecycle::{

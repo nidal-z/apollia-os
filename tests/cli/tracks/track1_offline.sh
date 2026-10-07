@@ -199,7 +199,10 @@ section "A.6 permissions"
 check_content "permissions list has bash_executor" "bash_executor" "$BIN" permissions list
 check_content "permissions list has http_fetch deny" "http_fetch"  "$BIN" permissions list
 check_json    "permissions list --json"             "$BIN" permissions list --json
-check         "permissions audit (seeded rows)"     "$BIN" permissions audit --limit 10
+# The seed is an older file: it carries the decision table, with five rows. The
+# first command that opens it migrates it, and the table is gone.
+check_content "governance.db: the decision table is gone once opened" '^0$' e2e_sqlite "$DATA/governance.db" "SELECT COUNT(*) FROM sqlite_master WHERE name = 'permission_audit';"
+check_content "governance.db: the rules outlive the migration" '^4$' e2e_sqlite "$DATA/governance.db" "SELECT COUNT(*) FROM permission_rules;"
 check         "permissions add web_search global"   "$BIN" permissions add --tool web_search_e2e --scope global
 check_content "permissions list shows the new rule" "web_search_e2e" "$BIN" permissions list
 check_exit    "permissions add --scope project refused → 1" 1 "$BIN" permissions add --tool file_write --scope project
@@ -478,8 +481,8 @@ check_json_field "policy show --json: none" "d['state']" "none" "$BIN" policy sh
 section "A.13 exit-code contract (daemon off)"
 OFFSOCK="$RUN_TMP/off.sock"
 check_exit   "status (off) → 2"        2  "$BIN" --socket "$OFFSOCK" status
-check_exit   "audit list (off) → 2"    2  "$BIN" --socket "$OFFSOCK" audit list
-check_exit   "audit stats (off) → 2"   2  "$BIN" --socket "$OFFSOCK" audit stats
+check_exit   "audit journal (off) → 2" 2  "$BIN" --socket "$OFFSOCK" audit journal
+check_exit   "audit verify (off) → 2"  2  "$BIN" --socket "$OFFSOCK" audit verify
 # The usage error of an unknown flag is exit 2 as well, so the message is read
 # too: every filter is parsed, and the refusal is the runtime being off.
 check_exit   "audit journal, every filter (off) → 2" 2 "$BIN" --socket "$OFFSOCK" audit journal --agent flux-quotes --family read --family send_external --nature action --result refused --since 2026-10-01 --until 2026-10-04

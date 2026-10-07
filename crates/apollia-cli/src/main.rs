@@ -421,7 +421,7 @@ enum Commands {
         format: String,
     },
 
-    /// Aggregated activity overview (tasks + LLM costs + audit stats).
+    /// Aggregated activity overview (tasks + LLM costs).
     Digest {
         /// Time window: 24h, 7d, or 30d.
         #[arg(long, default_value = "24h")]
@@ -756,7 +756,6 @@ mod tests {
 
     use super::*;
     use commands::agent::AgentCommand;
-    use commands::audit::AuditCommand;
     use commands::hooks::HooksCommand;
     use commands::llm::LlmCommand;
     use commands::memory::MemoryCommand;
@@ -1552,39 +1551,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_audit_list_default() {
-        // GIVEN "apollia-os audit list"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "audit", "list"]);
-        // THEN Commands::Audit { command: AuditCommand::List { limit: 20 } }
-        match &cli.command {
-            Commands::Audit { command } => {
-                match command {
-                    AuditCommand::List { limit } => assert_eq!(*limit, 20),
-                    other => panic!("expected AuditCommand::List, got {other:?}"),
-                }
-                assert!(!cli.json);
-            }
-            other => panic!("expected Commands::Audit, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_audit_list_custom_limit() {
-        // GIVEN "apollia-os audit list --limit 50"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "audit", "list", "--limit", "50"]);
-        // THEN Commands::Audit { command: AuditCommand::List { limit: 50 } }
-        match &cli.command {
-            Commands::Audit { command } => match command {
-                AuditCommand::List { limit } => assert_eq!(*limit, 50),
-                other => panic!("expected AuditCommand::List, got {other:?}"),
-            },
-            other => panic!("expected Commands::Audit, got {other:?}"),
-        }
-    }
-
-    #[test]
     fn test_cli_parses_hooks_list_default() {
         // GIVEN "apollia-os hooks list"
         let cli = parse(&["apollia-os", "hooks", "list"]);
@@ -1642,20 +1608,6 @@ mod tests {
                 HooksCommand::List { dry_run } => assert!(dry_run),
             },
             other => panic!("expected Commands::Hooks, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_audit_stats() {
-        // GIVEN "apollia-os audit stats"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "audit", "stats"]);
-        // THEN Commands::Audit { command: AuditCommand::Stats }
-        match &cli.command {
-            Commands::Audit { command } => {
-                assert!(matches!(command, AuditCommand::Stats));
-            }
-            other => panic!("expected Commands::Audit, got {other:?}"),
         }
     }
 

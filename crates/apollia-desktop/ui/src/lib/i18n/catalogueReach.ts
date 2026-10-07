@@ -141,12 +141,6 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "lib/notifications/event-labels.ts",
   },
   {
-    pattern: new RegExp(
-      `^observability\\.plan_mutation\\.(field|kind)\\.${SEG}$`,
-    ),
-    builtBy: "components/observability/PlanMutationRow.svelte",
-  },
-  {
     pattern: new RegExp(`^project_migration\\.reason\\.${SEG}$`),
     builtBy: "components/projectMigration/ProjectMigrationNotice.svelte",
   },

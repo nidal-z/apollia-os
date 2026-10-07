@@ -21,7 +21,6 @@
     "danger-card-factory-reset",
     "global-event-task.completed",
     "mcp-detail-tab-overview",
-    "observability-tab-audit-trail",
     "observability-tab-llm-costs",
     "observability-tab-timeline",
     "period-7d",
@@ -1551,62 +1550,6 @@
       "kind": "waitFor",
       "testid": "observability-tabbar",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "observability-tab-audit-trail",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-purpose",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-stats",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "observabilite-consulter-l-audit-trail-1"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "audit-trail-table",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "audit-row-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "observabilite-consulter-l-audit-trail-2"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "audit-row-",
-      "nth": 0,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
     },
     {
       "kind": "click",
