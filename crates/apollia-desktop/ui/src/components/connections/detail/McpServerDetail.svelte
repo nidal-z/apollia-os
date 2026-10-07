@@ -2,7 +2,7 @@
   /**
    * McpServerDetail - self-contained detail pane for an installed MCP server.
    *
-   * Owns the lazy detail fetch and the test / reconnect / disconnect / approval
+   * Owns the lazy detail fetch and the test / reconnect / disconnect
    * flows (via `$lib/ipc/connections`), keeping the route orchestrator thin. The
    * header status reflects live health via the `server` prop plus a local test
    * verdict override, cleared on the next `McpServerHealthChanged` event.
@@ -21,7 +21,6 @@
   import { messageOf } from "$lib/connections/errors";
   import {
     getMcpServerDetail,
-    setMcpServerApproval,
     testMcpLiveServer,
     restartMcpServer,
     deleteMcpSecret,
@@ -33,7 +32,7 @@
     McpHealth,
     ConnectorEnrichmentView,
   } from "$lib/types";
-  import type { ApprovalLevel, McpTab, TestState } from "../shared/types";
+  import type { McpTab, TestState } from "../shared/types";
 
   interface Props {
     server: McpServerStatusView;
@@ -55,9 +54,6 @@
   let mcpDetail = $state<McpServerDetailView | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
-  let approvalLevel = $state<ApprovalLevel>("ask");
-  let approvalPending = $state(false);
-  let approvalError = $state<string | null>(null);
   let testState = $state<TestState>("idle");
   let testToolCount = $state(0);
   let testDetail = $state<string | null>(null);
@@ -79,10 +75,6 @@
       : null,
   );
 
-  function deriveApprovalLevel(requiresApproval: boolean): ApprovalLevel {
-    return requiresApproval ? "ask" : "auto";
-  }
-
   // The detail comes back after a round-trip to the runtime, and the sidebar
   // stays clickable meanwhile: without this guard the answer for the server the
   // operator just left lands under the name of the one just picked.
@@ -96,7 +88,6 @@
       const detail = await getMcpServerDetail(name);
       if (!ticket.current) return;
       mcpDetail = detail;
-      approvalLevel = deriveApprovalLevel(detail.config.requires_approval);
     } catch (err: unknown) {
       if (!ticket.current) return;
       error = messageOf(err);
@@ -110,7 +101,7 @@
     const name = server.name;
     mcpDetail = null; testState = "idle"; testDetail = null; testError = null;
     reconnectError = null; confirmDisconnect = false; disconnectError = null;
-    approvalError = null; localHealth = null;
+    localHealth = null;
     void fetchDetail(name);
   });
 
@@ -118,27 +109,6 @@
     void server.health;
     localHealth = null;
   });
-
-  async function handleApprovalChange(newLevel: ApprovalLevel): Promise<void> {
-    if (!mcpDetail) return;
-    approvalLevel = newLevel;
-    approvalPending = true;
-    approvalError = null;
-    const requiresApproval = newLevel === "ask";
-    try {
-      await setMcpServerApproval(server.name, requiresApproval);
-      mcpDetail = {
-        ...mcpDetail,
-        config: { ...mcpDetail.config, requires_approval: requiresApproval },
-        status: { ...mcpDetail.status, requires_approval: requiresApproval },
-      };
-    } catch (err: unknown) {
-      approvalError = messageOf(err);
-      approvalLevel = deriveApprovalLevel(mcpDetail.config.requires_approval);
-    } finally {
-      approvalPending = false;
-    }
-  }
 
   async function handleTest(): Promise<void> {
     testState = "testing";
@@ -172,7 +142,6 @@
       const updated = await restartMcpServer(server.name);
       if (mcpDetail) mcpDetail = { ...mcpDetail, status: updated };
       localHealth = updated.health;
-      approvalLevel = deriveApprovalLevel(updated.requires_approval);
       onchanged();
     } catch (err: unknown) {
       reconnectError = messageOf(err);
@@ -254,13 +223,9 @@
     {:else}
       <McpSettingsTab
         serverName={server.name}
-        {approvalLevel}
-        {approvalPending}
-        {approvalError}
         {confirmDisconnect}
         {disconnecting}
         {disconnectError}
-        onapprovalchange={handleApprovalChange}
         onsaved={() => void fetchDetail(server.name)}
         onrequestdisconnect={() => (confirmDisconnect = true)}
         oncanceldisconnect={() => {

@@ -6,8 +6,8 @@
 //!
 //! - **`add`**: append new entries (e.g. self-hosted internal MCP servers).
 //! - **`disable`**: hide entries by `package_identifier`.
-//! - **`override`**: deep-merge fields on existing entries (e.g. flip
-//!   `default_requires_approval`).
+//! - **`override`**: deep-merge fields on existing entries (e.g. move one
+//!   to another `category`).
 //!
 //! Errors parsing the override file are logged but never fatal; the catalog
 //! falls back to the embedded set.
@@ -167,7 +167,6 @@ mod tests {
             "category": "internal",
             "icon_name": "building",
             "trust_level": "custom",
-            "default_requires_approval": true,
             "cost_model": { "kind": "free" }
         }))
         .expect("custom entry");
@@ -187,24 +186,27 @@ mod tests {
     }
 
     #[test]
-    fn test_override_flips_default_requires_approval() {
-        // GIVEN an override turning approval off for one catalogue entry
+    fn test_override_changes_a_field_and_reads_past_a_retired_one() {
+        // GIVEN an override that moves one catalogue entry to another
+        //       category, written when an entry still carried an approval
+        //       default
         let base = load_builtin_enrichments();
         let mut overrides = McpOverrides::default();
         overrides.override_.insert(
             "io.github.github/github-mcp-server".into(),
-            serde_json::json!({ "default_requires_approval": false }),
+            serde_json::json!({ "category": "internal", "default_requires_approval": false }),
         );
 
         // WHEN the overrides are applied
         let after = apply_overrides(base, &overrides);
 
-        // THEN that entry no longer requires approval by default
+        // THEN the entry is kept, in its new category: the retired key is
+        //      read past, it does not drop the entry
         let github = after
             .iter()
             .find(|e| e.package_identifier == "io.github.github/github-mcp-server")
             .expect("github");
-        assert!(!github.default_requires_approval);
+        assert_eq!(github.category, "internal");
     }
 
     #[test]
@@ -240,7 +242,7 @@ mod tests {
             r#"{
                 "disable": ["@anthropic/mcp-server-puppeteer"],
                 "override": {
-                    "io.github.github/github-mcp-server": { "default_requires_approval": false }
+                    "io.github.github/github-mcp-server": { "category": "internal" }
                 }
             }"#,
         )

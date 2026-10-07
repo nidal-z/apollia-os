@@ -50,7 +50,6 @@ async fn test_config_unresolved_env_var_fails() {
         env: HashMap::from([("KEY".to_string(), format!("${{{var_name}}}"))]),
         transport: "stdio".to_string(),
         url: None,
-        requires_approval: false,
         init_timeout_secs: 10,
         call_timeout_secs: 10,
         max_response_bytes: 8 * 1024 * 1024,

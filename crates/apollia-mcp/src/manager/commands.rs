@@ -1,12 +1,11 @@
 //! The manager actor's command handlers.
 //!
 //! Split out of `manager.rs`: the actor loop stays in the parent, the arm of
-//! each `McpCommand` (server lifecycle, tool calls, approvals, resources)
+//! each `McpCommand` (server lifecycle, tool calls, resources)
 //! lives here.
 
 use apollia_core::{McpHealth, RuntimeEvent};
 
-use crate::approvals::{McpApprovalError, PendingApprovalEntry};
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
 use crate::health::OpOutcome;
 use crate::manager::views::{
@@ -300,26 +299,16 @@ impl McpClientManager {
         Ok(result)
     }
     /// Resolve a [`McpCommand::CallTool`] command.
-    ///
-    /// Returns `Some(result)` to be forwarded to the caller, or `None` when a
-    /// pending-approval reply has already been sent by this method.
     pub(super) async fn handle_call_tool(
         &mut self,
         server_name: String,
         tool_name: String,
         arguments: Option<serde_json::Value>,
-    ) -> Option<Result<ToolCallResult, McpSessionError>> {
+    ) -> Result<ToolCallResult, McpSessionError> {
         if self.reloading.contains(&server_name) {
-            return Some(Err(McpSessionError::ServerReloading {
+            return Err(McpSessionError::ServerReloading {
                 server: server_name,
-            }));
-        }
-
-        // Approval gate first; its immutable borrow is fully released before the
-        // await below.
-        if let Some(pending) = self.register_pending_approval(&server_name, &tool_name, &arguments)
-        {
-            return pending;
+            });
         }
 
         // In deferred mode, warm the schema cache on first use. This mutable
@@ -347,16 +336,16 @@ impl McpClientManager {
             let session = match self.sessions.get(&server_name) {
                 Some(session) => session,
                 None => {
-                    return Some(Err(McpSessionError::ServerExited {
+                    return Err(McpSessionError::ServerExited {
                         server: server_name,
-                    }));
+                    });
                 }
             };
             session.call_tool(&tool_name, arguments).await
         };
 
         self.record_call_outcome(&server_name, &result);
-        Some(result)
+        result
     }
     /// Classify a tool-call outcome and update the session's health, emitting
     /// [`RuntimeEvent::McpServerHealthChanged`] only when the state changes.
@@ -400,47 +389,6 @@ impl McpClientManager {
         }
         tracing::info!(server = %name, "mcp.health_changed");
     }
-    /// If the session requires approval and the call is not yet approved, register
-    /// a pending approval and return the wrapped reply (`Some(Some(Err(..)))` =
-    /// reply with PendingApproval; `Some(None)` = reply already swallowed on
-    /// registration failure path). Returns `None` when no gating applies and the
-    /// call should proceed.
-    pub(super) fn register_pending_approval(
-        &self,
-        server_name: &str,
-        tool_name: &str,
-        arguments: &Option<serde_json::Value>,
-    ) -> Option<Option<Result<ToolCallResult, McpSessionError>>> {
-        let session = self.sessions.get(server_name)?;
-        if !session.requires_approval() {
-            return None;
-        }
-        let store = self.approvals.as_ref()?;
-        if store.is_approved(server_name, tool_name) {
-            return None;
-        }
-
-        let args = arguments
-            .as_ref()
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
-        match store.register(server_name, tool_name, &args) {
-            Ok(approval_id) => Some(Some(Err(McpSessionError::PendingApproval {
-                server: server_name.to_string(),
-                tool: tool_name.to_string(),
-                approval_id,
-            }))),
-            Err(e) => {
-                tracing::error!(
-                    server = %server_name,
-                    tool   = %tool_name,
-                    error  = %e,
-                    "mcp.approval.register.failed"
-                );
-                None
-            }
-        }
-    }
     /// Resolve a [`McpCommand::RestartServer`] command.
     pub(super) async fn handle_restart_server(
         &mut self,
@@ -470,74 +418,6 @@ impl McpClientManager {
         let status = build_status(&server_name, &new_session, None);
         self.sessions.insert(server_name, new_session);
         Ok(status)
-    }
-    /// Toggle the per-tool approval requirement for a live session.
-    pub(super) fn handle_set_approval(
-        &mut self,
-        server_name: String,
-        requires_approval: bool,
-    ) -> Result<(), McpSessionError> {
-        match self.sessions.get_mut(&server_name) {
-            Some(session) => {
-                session.set_requires_approval(requires_approval);
-                tracing::info!(
-                    server = %server_name,
-                    requires_approval = %requires_approval,
-                    "mcp.server.approval.updated"
-                );
-                Ok(())
-            }
-            None => Err(McpSessionError::ServerExited {
-                server: server_name,
-            }),
-        }
-    }
-    /// Approve tool access via the configured approval store (no-op if none).
-    pub(super) fn handle_approve_tool_access(
-        &self,
-        server_name: &str,
-        tool_name: &str,
-    ) -> Result<(), McpApprovalError> {
-        match &self.approvals {
-            Some(store) => store.approve(server_name, tool_name),
-            None => {
-                tracing::warn!(
-                    server = %server_name,
-                    tool   = %tool_name,
-                    reason = "no approval store is configured",
-                    "mcp.tool.approve.ignored"
-                );
-                Ok(())
-            }
-        }
-    }
-    /// Revoke tool access via the configured approval store (no-op if none).
-    pub(super) fn handle_revoke_tool_access(
-        &self,
-        server_name: &str,
-        tool_name: &str,
-    ) -> Result<(), McpApprovalError> {
-        match &self.approvals {
-            Some(store) => store.revoke(server_name, tool_name),
-            None => {
-                tracing::warn!(
-                    server = %server_name,
-                    tool   = %tool_name,
-                    reason = "no approval store is configured",
-                    "mcp.tool.revoke.ignored"
-                );
-                Ok(())
-            }
-        }
-    }
-    /// List pending tool approvals from the store (empty if none configured).
-    pub(super) fn handle_list_pending_approvals(
-        &self,
-    ) -> Result<Vec<PendingApprovalEntry>, McpApprovalError> {
-        match &self.approvals {
-            Some(store) => store.list_pending(),
-            None => Ok(Vec::new()),
-        }
     }
     /// Aggregate `resources/list` across every connected session.
     ///

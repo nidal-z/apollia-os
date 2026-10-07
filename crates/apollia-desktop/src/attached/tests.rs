@@ -482,7 +482,7 @@ async fn test_a_route_command_reaches_the_daemon_with_each_verb_and_the_token() 
         ("GET", "/api/v1/mcp/servers"),
         ("POST", "/api/v1/triggers"),
         ("PUT", "/api/v1/notifications/channels/c-1"),
-        ("PATCH", "/api/v1/mcp/servers/fs/approval"),
+        ("PATCH", "/api/v1/llm/servers/local"),
         ("DELETE", "/api/v1/llm/backends/local"),
     ] {
         Mock::given(method(verb))
@@ -505,7 +505,7 @@ async fn test_a_route_command_reaches_the_daemon_with_each_verb_and_the_token() 
         link.put_json("/api/v1/notifications/channels/c-1", &body)
             .await
             .unwrap(),
-        link.patch_json("/api/v1/mcp/servers/fs/approval", &body)
+        link.patch_json("/api/v1/llm/servers/local", &body)
             .await
             .unwrap(),
         link.delete_json("/api/v1/llm/backends/local")

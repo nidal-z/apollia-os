@@ -43,14 +43,14 @@ pub enum McpRepoError {
 }
 
 /// Current schema version of `mcp.db`.
-const MCP_SCHEMA_VERSION: u32 = 4;
+const MCP_SCHEMA_VERSION: u32 = 5;
 
 /// Numbered migration steps of `mcp.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`MCP_SCHEMA_VERSION`].
 const MCP_MIGRATIONS: &[apollia_core::schema::Migration] =
-    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
+    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -121,6 +121,19 @@ fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
     )
 }
 
+/// v5: a server no longer carries an approval flag of its own. Whether a call
+/// may run is decided on the action family of the tool, so the column that
+/// held the flag goes; what it held is not carried anywhere.
+fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let present = conn
+        .prepare("SELECT 1 FROM pragma_table_info('mcp_servers') WHERE name = 'requires_approval'")?
+        .exists([])?;
+    if present {
+        conn.execute_batch("ALTER TABLE mcp_servers DROP COLUMN requires_approval")?;
+    }
+    Ok(())
+}
+
 /// SQLite-backed repository for [`McpServerConfig`] entries.
 ///
 /// Each instance owns a single `rusqlite::Connection`. The connection is
@@ -171,18 +184,17 @@ impl McpServerRepository {
         self.conn.execute(
             "INSERT INTO mcp_servers
                 (name, command, args_json, env_json, transport, url,
-                 requires_approval, init_timeout_secs, call_timeout_secs,
+                 init_timeout_secs, call_timeout_secs,
                  max_response_bytes, max_tools, tags_json, tool_families_json,
                  provenance, official, selection_entry, enabled, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
-                     ?15, ?16, 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+                     ?14, ?15, 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
              ON CONFLICT(name) DO UPDATE SET
                 command            = excluded.command,
                 args_json          = excluded.args_json,
                 env_json           = excluded.env_json,
                 transport          = excluded.transport,
                 url                = excluded.url,
-                requires_approval  = excluded.requires_approval,
                 init_timeout_secs  = excluded.init_timeout_secs,
                 call_timeout_secs  = excluded.call_timeout_secs,
                 max_response_bytes = excluded.max_response_bytes,
@@ -204,7 +216,6 @@ impl McpServerRepository {
                 env_json,
                 config.transport,
                 config.url,
-                config.requires_approval as i64,
                 config.init_timeout_secs as i64,
                 config.call_timeout_secs as i64,
                 config.max_response_bytes as i64,
@@ -223,7 +234,7 @@ impl McpServerRepository {
     pub fn list(&self) -> Result<Vec<McpServerConfig>, McpRepoError> {
         let mut stmt = self.conn.prepare(
             "SELECT name, command, args_json, env_json, transport, url,
-                    requires_approval, init_timeout_secs, call_timeout_secs,
+                    init_timeout_secs, call_timeout_secs,
                     tags_json, max_response_bytes, max_tools, tool_families_json,
                     provenance, official, selection_entry
              FROM mcp_servers
@@ -238,7 +249,7 @@ impl McpServerRepository {
     pub fn find_by_name(&self, name: &str) -> Result<Option<McpServerConfig>, McpRepoError> {
         let mut stmt = self.conn.prepare(
             "SELECT name, command, args_json, env_json, transport, url,
-                    requires_approval, init_timeout_secs, call_timeout_secs,
+                    init_timeout_secs, call_timeout_secs,
                     tags_json, max_response_bytes, max_tools, tool_families_json,
                     provenance, official, selection_entry
              FROM mcp_servers
@@ -370,21 +381,20 @@ fn json_column<T: serde::de::DeserializeOwned>(index: usize, raw: &str) -> rusql
 fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let args_json: String = row.get(2)?;
     let env_json: String = row.get(3)?;
-    let tags_json: String = row.get(9)?;
-    let requires_approval: i64 = row.get(6)?;
-    let init_timeout_secs: i64 = row.get(7)?;
-    let call_timeout_secs: i64 = row.get(8)?;
-    let max_response_bytes: i64 = row.get(10)?;
-    let max_tools: i64 = row.get(11)?;
+    let tags_json: String = row.get(8)?;
+    let init_timeout_secs: i64 = row.get(6)?;
+    let call_timeout_secs: i64 = row.get(7)?;
+    let max_response_bytes: i64 = row.get(9)?;
+    let max_tools: i64 = row.get(10)?;
 
     let args: Vec<String> = json_column(2, &args_json)?;
     let env: HashMap<String, String> = json_column(3, &env_json)?;
-    let tags: Vec<String> = json_column(9, &tags_json)?;
-    let tool_families_json: String = row.get(12)?;
-    let tool_families = json_column(12, &tool_families_json)?;
-    let provenance: Option<String> = row.get(13)?;
-    let official: i64 = row.get(14)?;
-    let entry: Option<String> = row.get(15)?;
+    let tags: Vec<String> = json_column(8, &tags_json)?;
+    let tool_families_json: String = row.get(11)?;
+    let tool_families = json_column(11, &tool_families_json)?;
+    let provenance: Option<String> = row.get(12)?;
+    let official: i64 = row.get(13)?;
+    let entry: Option<String> = row.get(14)?;
     let origin = provenance
         .as_deref()
         .and_then(Provenance::parse)
@@ -402,7 +412,6 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
         env,
         transport: row.get(4)?,
         url: row.get(5)?,
-        requires_approval: requires_approval != 0,
         init_timeout_secs: init_timeout_secs as u64,
         call_timeout_secs: call_timeout_secs as u64,
         max_response_bytes: max_response_bytes as u64,
@@ -428,7 +437,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: 8 * 1024 * 1024,
@@ -571,7 +579,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: 8 * 1024 * 1024,
@@ -630,7 +637,6 @@ mod tests {
             env: HashMap::from([("NOTION_KEY".to_string(), "tok_123".to_string())]),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: true,
             init_timeout_secs: 45,
             call_timeout_secs: 90,
             max_response_bytes: 4 * 1024 * 1024,
@@ -656,7 +662,6 @@ mod tests {
         assert_eq!(found.name, "notion");
         assert_eq!(found.args, vec!["-y", "@notionhq/notion-mcp-server"]);
         assert_eq!(found.env["NOTION_KEY"], "tok_123");
-        assert!(found.requires_approval);
         assert_eq!(found.init_timeout_secs, 45);
         assert_eq!(found.call_timeout_secs, 90);
         assert_eq!(found.max_response_bytes, 4 * 1024 * 1024);
@@ -741,6 +746,61 @@ mod tests {
         // THEN the pre-existing row reads back with the default max_tools
         let found = repo.find_by_name("legacy").unwrap().unwrap();
         assert_eq!(found.max_tools, 256);
+    }
+
+    #[test]
+    fn test_the_approval_column_of_an_older_file_is_dropped_and_its_rows_kept() {
+        // GIVEN a db from before the versioned layer, holding a server that
+        //       was flagged as requiring approval
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("mcp.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE mcp_servers (
+                    name               TEXT PRIMARY KEY,
+                    command            TEXT NOT NULL DEFAULT '',
+                    args_json          TEXT NOT NULL DEFAULT '[]',
+                    env_json           TEXT NOT NULL DEFAULT '{}',
+                    transport          TEXT NOT NULL DEFAULT 'stdio',
+                    url                TEXT,
+                    requires_approval  INTEGER NOT NULL DEFAULT 0,
+                    init_timeout_secs  INTEGER NOT NULL DEFAULT 30,
+                    call_timeout_secs  INTEGER NOT NULL DEFAULT 60,
+                    tags_json          TEXT NOT NULL DEFAULT '[]',
+                    enabled            INTEGER NOT NULL DEFAULT 1,
+                    created_at         TEXT NOT NULL DEFAULT '2026-01-01T00:00:00Z',
+                    updated_at         TEXT NOT NULL DEFAULT '2026-01-01T00:00:00Z'
+                );",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO mcp_servers (name, command, requires_approval, call_timeout_secs)
+                 VALUES ('crm', 'uvx', 1, 75)",
+                [],
+            )
+            .unwrap();
+        }
+
+        // WHEN the repository opens the db
+        let repo = McpServerRepository::open(&path).unwrap();
+
+        // THEN the row reads back whole, the column is gone, and a save
+        //      writes the server again
+        let found = repo.find_by_name("crm").unwrap().unwrap();
+        assert_eq!(found.command, "uvx");
+        assert_eq!(found.call_timeout_secs, 75);
+        let columns: Vec<String> = repo
+            .conn
+            .prepare("SELECT name FROM pragma_table_info('mcp_servers')")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert!(!columns.iter().any(|c| c == "requires_approval"));
+        repo.save(&found).unwrap();
+        assert_eq!(repo.list().unwrap().len(), 1);
     }
 
     #[test]

@@ -108,7 +108,6 @@ fn test_mcp_config_default_is_deferred_limit_20() {
     // THEN the loading mode is deferred and the search cap is 20
     assert_eq!(cfg.tool_loading, McpToolLoading::Deferred);
     assert_eq!(cfg.tool_search_limit, 20);
-    assert_eq!(cfg.approval_ttl_hours, 24);
 }
 
 #[test]

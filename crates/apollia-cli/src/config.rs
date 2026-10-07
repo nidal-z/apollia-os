@@ -428,13 +428,15 @@ events = ["task.completed"]
 
     // GIVEN apollia.toml contains [mcp] plus two sections that nothing reads
     // WHEN parse_apollia_toml is called
-    // THEN [mcp] is deserialized and the inert sections are filtered out
+    // THEN [mcp] is deserialized, and the withdrawn key and the inert sections
+    //      are filtered out
     #[test]
     fn test_mcp_deserialized_and_inert_sections_filtered() {
         // GIVEN a file mixing a live section with two inert ones
         let toml = r#"
 [mcp]
 approval_ttl_hours = 48
+tool_search_limit = 48
 
 [permissions]
 db_path = "~/.apollia/governance.db"
@@ -448,7 +450,11 @@ max_sessions = 100
         let config = parse_apollia_toml(file.path()).expect("parse should succeed");
 
         // THEN the live section is honoured
-        assert_eq!(config.mcp.approval_ttl_hours, 48);
+        assert_eq!(config.mcp.tool_search_limit, 48);
+
+        // AND the key that used to set how long an MCP approval lasted is a
+        // withdrawn key: the file that still carries it loads.
+        assert!(apollia_core::config::keys::withdrawn_covering("mcp.approval_ttl_hours").is_some());
 
         // AND the inert section is a withdrawn key of the registry, so no
         // caller can mistake it for a setting that does something.

@@ -96,7 +96,6 @@ fn mock_server(name: &str) -> McpServerConfig {
         env: HashMap::new(),
         transport: "stdio".to_string(),
         url: None,
-        requires_approval: false,
         init_timeout_secs: 10,
         call_timeout_secs: 10,
         max_response_bytes: 8 * 1024 * 1024,
@@ -123,10 +122,9 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         .await
         .unwrap();
     let tool_registry = ToolRegistryHandle::start();
-    let manager =
-        McpClientManagerHandle::start(vec![], &tool_registry, None, None, LoadingMode::Eager)
-            .await
-            .unwrap();
+    let manager = McpClientManagerHandle::start(vec![], &tool_registry, None, LoadingMode::Eager)
+        .await
+        .unwrap();
 
     let (event_tx, _) = EventBus::new();
     let registry_handle = AgentRegistry::spawn(event_tx.clone());

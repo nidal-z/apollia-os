@@ -2523,7 +2523,7 @@ def check_panic_sweep_scope() -> None:
         "crates/apollia-runtime/src/audit_journal/subscriber.rs",
         "crates/apollia-desktop/src/main.rs",
         "crates/apollia-core/src/budget.rs",
-        "crates/apollia-mcp/src/approvals.rs",
+        "crates/apollia-mcp/src/server_repository.rs",
     ]
     present = [path for path in kept if path in paths]
     case(

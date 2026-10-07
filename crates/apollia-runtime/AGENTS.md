@@ -216,7 +216,7 @@ Databases : one file per subsystem under `~/.apollia/`, catalogued by
 `apollia_core::paths::DataFile`, whose `file_name()` is the single source for
 the names. There is no `runtime.db`. The catalogue holds `agents.db`,
 `artifacts.db`, `audit.db`, `audit_journal.db`, `chat.db`, `governance.db`,
-`hitl.db`, `llm_calls.db`, `mailbox.db`, `mcp.db`, `mcp_approvals.db`,
+`hitl.db`, `llm_calls.db`, `mailbox.db`, `mcp.db`,
 `notifications.db`, `plan_cache.db`, `plans.db`, `projects.db`,
 `runtime_events.db`, `sidechains.db`, `stt_transcriptions.db`, `system.db`,
 `triggers.db`, `triggers_def.db` and `user_memory.db`. Per-agent memory lives

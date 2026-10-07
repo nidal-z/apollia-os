@@ -8,13 +8,7 @@
 //!
 //! The [`discovery`] module adds opt-in mDNS-based service discovery for
 //! locating MCP servers on the local network without manual configuration.
-//!
-//! The [`approvals`] module implements the SQLite-backed HITL approval gate
-//! for MCP tool calls. Use [`approvals::McpApprovalStore`] directly from CLI
-//! commands (`set-approval`, `revoke-approval`, `list-pending`) and inject it
-//! into [`manager::McpClientManagerHandle`] via `start_with_approvals`.
 
-pub mod approvals;
 pub mod classify;
 pub mod config;
 pub mod discovery;
@@ -33,11 +27,9 @@ pub mod server;
 pub mod server_repository;
 pub mod server_types;
 pub mod session;
-pub mod task_approval;
 pub mod tool_search;
 pub mod transport;
 
-pub use approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
 pub use discovery::{DiscoveredServer, DiscoveryError};
 pub use origin::{ConnectionOrigin, Provenance};
 pub use server::{

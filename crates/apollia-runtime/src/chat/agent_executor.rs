@@ -445,6 +445,8 @@ pub mod plan_first;
 #[cfg(test)]
 mod governance_tests;
 #[cfg(test)]
+mod mcp_governance_tests;
+#[cfg(test)]
 mod session_tests;
 #[cfg(test)]
 mod tests;

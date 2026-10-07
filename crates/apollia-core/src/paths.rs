@@ -56,10 +56,8 @@ pub enum DataFile {
     LlmCalls,
     /// Inter-agent mailbox.
     Mailbox,
-    /// MCP server registry and approvals cache.
+    /// MCP server registry.
     Mcp,
-    /// MCP tool-approval decisions.
-    McpApprovals,
     /// Notification channels and delivery log.
     Notifications,
     /// ORIA plan cache.
@@ -89,7 +87,7 @@ impl DataFile {
     ///
     /// The seed fixture (`tests/cli/seed/schemas/`) carries one schema per
     /// entry, and `scripts/check_data_layout.py` holds the two lists equal.
-    pub const ALL: [DataFile; 22] = [
+    pub const ALL: [DataFile; 21] = [
         DataFile::Agents,
         DataFile::Artifacts,
         DataFile::Audit,
@@ -100,7 +98,6 @@ impl DataFile {
         DataFile::LlmCalls,
         DataFile::Mailbox,
         DataFile::Mcp,
-        DataFile::McpApprovals,
         DataFile::Notifications,
         DataFile::PlanCache,
         DataFile::Plans,
@@ -128,7 +125,6 @@ impl DataFile {
             DataFile::LlmCalls => "llm_calls.db",
             DataFile::Mailbox => "mailbox.db",
             DataFile::Mcp => "mcp.db",
-            DataFile::McpApprovals => "mcp_approvals.db",
             DataFile::Notifications => "notifications.db",
             DataFile::PlanCache => "plan_cache.db",
             DataFile::Plans => "plans.db",

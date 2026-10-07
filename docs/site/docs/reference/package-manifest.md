@@ -149,7 +149,6 @@ The keys, defaults and meaning are those of a server in `mcp.toml`.
 | `env` | table | empty | Environment of the server process; `${VAR}` placeholders are allowed. |
 | `transport` | string | `stdio` | `stdio`, `streamable-http` or `sse`. |
 | `url` | string | none | Server URL for a network transport. |
-| `requires_approval` | boolean | `false` | Marks the server as one whose calls need an approval. |
 | `init_timeout_secs` | integer | `30` | Timeout of the `initialize` handshake. |
 | `call_timeout_secs` | integer | `60` | Timeout of one `tools/call`. |
 | `max_response_bytes` | integer | `8388608` | Cap on one server response. |
@@ -265,7 +264,6 @@ reason = "Reminders are sent from the user's mailbox."
 name = "ledger"
 command = "uvx"
 args = ["ledger-mcp"]
-requires_approval = true
 
 [pip]
 packages = ["pypdf==4.3.1"]

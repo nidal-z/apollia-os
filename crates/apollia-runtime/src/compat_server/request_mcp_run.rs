@@ -205,7 +205,6 @@ impl RequestMcp {
             env: std::collections::HashMap::new(),
             transport: "streamable-http".to_owned(),
             url: Some(server.url.to_string()),
-            requires_approval: false,
             init_timeout_secs: INIT_TIMEOUT_SECS,
             call_timeout_secs: CALL_TIMEOUT_SECS,
             max_response_bytes: 8 * 1024 * 1024,

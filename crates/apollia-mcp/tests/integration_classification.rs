@@ -22,7 +22,6 @@ fn annotated_server_config(name: &str) -> McpServerConfig {
         env: HashMap::new(),
         transport: "stdio".to_string(),
         url: None,
-        requires_approval: false,
         init_timeout_secs: 10,
         call_timeout_secs: 10,
         max_response_bytes: 8 * 1024 * 1024,
@@ -46,7 +45,7 @@ async fn test_each_tool_is_published_with_the_family_its_hints_give() {
     // GIVEN a server announcing a read-only tool, a destructive tool and a
     //       tool with no hint, on a connection without an account
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
         .await
         .unwrap();
 
@@ -86,7 +85,7 @@ async fn test_the_selection_classification_wins_over_the_hints() {
     // GIVEN the same server, whose selection entry classifies two of its
     //       three tools
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
         .await
         .unwrap();
     let mut config = annotated_server_config("curated");

@@ -77,7 +77,6 @@ describe("connector install - one identifier for the secret and the config", () 
         url: "https://example.invalid/mcp",
         transport: "streamable-http",
         env: { Authorization: "${APOLLIA_SECRET:Authorization}" },
-        requires_approval: true,
         tags: [],
       } as unknown as McpServerConfigInput;
 
@@ -114,7 +113,6 @@ describe("connector install - one identifier for the secret and the config", () 
         name: deriveServerName(server),
         env: { API_KEY: "${APOLLIA_SECRET:API_KEY}" },
         transport: "stdio",
-        requires_approval: true,
         tags: [],
       } as unknown as McpServerConfigInput;
 
@@ -142,7 +140,6 @@ describe("connector install - one identifier for the secret and the config", () 
         name: deriveServerName(server),
         env: {},
         transport: "stdio",
-        requires_approval: true,
         tags: [],
       } as unknown as McpServerConfigInput;
 
@@ -164,7 +161,6 @@ describe("connector install - one identifier for the secret and the config", () 
       name: deriveServerName(server),
       env: {},
       transport: "stdio",
-      requires_approval: true,
       tags: [],
     } as unknown as McpServerConfigInput;
 

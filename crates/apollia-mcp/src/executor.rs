@@ -9,15 +9,9 @@
 //! Supervisor) that need to decompose a `"mcp:{server}/{tool}"` identifier into its
 //! constituent parts before constructing an executor.
 //!
-//! ## Approval gate
-//!
-//! On the task path, call [`McpToolExecutor::with_task_approval`] (or build the
-//! set with [`build_task_tool_executors`]). A call to a server declared
-//! `requires_approval`, or to a tool the agent lists as requiring approval, then
-//! pauses the task on an `approbation` payload and runs once the task resumes
-//! with that call approved; see [`crate::task_approval`]. Without it, no call is
-//! gated: the chat path, which has its own approval flow, builds its executors
-//! that way.
+//! An executor decides nothing about whether a call may run: that is the
+//! decision of governance, taken on the action family of the tool before the
+//! call reaches it.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -38,10 +32,9 @@ use crate::protocol::extract_text_parts;
 /// returned by [`ToolExecutor::name`], enabling exact-match routing in the
 /// [`ToolDispatcher`].
 ///
-/// Construct via [`McpToolExecutor::new`]. Chain
-/// [`McpToolExecutor::with_task_approval`] on the task path to gate calls that
-/// need a human. Use [`McpToolExecutor::parse_tool_name`] to split a composite
-/// name before calling the constructor.
+/// Construct via [`McpToolExecutor::new`]. Use
+/// [`McpToolExecutor::parse_tool_name`] to split a composite name before
+/// calling the constructor.
 ///
 /// [`ToolDispatcher`]: apollia_tools::executor::ToolDispatcher
 pub struct McpToolExecutor {
@@ -50,21 +43,12 @@ pub struct McpToolExecutor {
     full_name: String,
     server_name: String,
     tool_name: String,
-    /// The approval state of the task this executor serves. `None` means no
-    /// call is gated.
-    task_approval: Option<crate::task_approval::TaskApproval>,
-    /// Tools the agent's manifest lists as requiring approval, gated like a
-    /// server declared `requires_approval`.
-    tools_requiring_approval: Vec<String>,
 }
 
 impl McpToolExecutor {
     /// Create a new executor bound to `server_name` and `tool_name`.
     ///
     /// The resulting [`ToolExecutor::name`] will be `"mcp:{server_name}/{tool_name}"`.
-    /// No call is gated until [`with_task_approval`] is chained.
-    ///
-    /// [`with_task_approval`]: McpToolExecutor::with_task_approval
     pub fn new(
         mcp_manager: McpClientManagerHandle,
         server_name: impl Into<String>,
@@ -78,24 +62,7 @@ impl McpToolExecutor {
             full_name,
             server_name,
             tool_name,
-            task_approval: None,
-            tools_requiring_approval: Vec::new(),
         }
-    }
-
-    /// Gate this executor's calls through the task's approval state.
-    ///
-    /// `tools_requiring_approval` is the agent manifest's list, passed verbatim;
-    /// the gate checks whether this executor's full name appears in it, beside
-    /// the server-level `requires_approval` flag.
-    pub fn with_task_approval(
-        mut self,
-        approval: crate::task_approval::TaskApproval,
-        tools_requiring_approval: Vec<String>,
-    ) -> Self {
-        self.task_approval = Some(approval);
-        self.tools_requiring_approval = tools_requiring_approval;
-        self
     }
 
     /// Parse `"mcp:{server}/{tool}"` into `(server_name, tool_name)`.
@@ -112,45 +79,6 @@ impl McpToolExecutor {
         }
         Some((server, tool))
     }
-
-    /// Apply the approval gate to one call.
-    ///
-    /// Returns `Ok(())` when the call may run, and the typed error that becomes
-    /// a pause or a refusal otherwise.
-    async fn check_task_approval(
-        &self,
-        approval: &crate::task_approval::TaskApproval,
-        input: &Value,
-    ) -> Result<(), ToolExecutionError> {
-        let server_requires = self
-            .mcp_manager
-            .server_requires_approval(&self.server_name)
-            .await;
-        let agent_requires = self.tools_requiring_approval.contains(&self.full_name);
-        if !server_requires && !agent_requires {
-            return Ok(());
-        }
-
-        let gesture = format!("{}/{}", self.server_name, self.tool_name);
-        match crate::task_approval::decide(&gesture, input, approval) {
-            crate::task_approval::GateDecision::Run => {
-                tracing::info!(tool = %self.full_name, "mcp.tool.call.approved");
-                Ok(())
-            }
-            crate::task_approval::GateDecision::Require { prompt, payload } => {
-                tracing::info!(tool = %self.full_name, "mcp.tool.call.approval_required");
-                Err(ToolExecutionError::ApprovalRequired {
-                    gesture,
-                    prompt,
-                    payload,
-                })
-            }
-            crate::task_approval::GateDecision::Deny { reason } => {
-                tracing::info!(tool = %self.full_name, "mcp.tool.call.declined");
-                Err(ToolExecutionError::ApprovalDenied { gesture, reason })
-            }
-        }
-    }
 }
 
 // ─── ToolExecutor impl ───────────────────────────────────────────────────────
@@ -163,33 +91,20 @@ impl ToolExecutor for McpToolExecutor {
 
     /// Execute the bound MCP tool with `input` as the argument payload.
     ///
-    /// When an approval gate is configured (via [`with_task_approval`]), a call
-    /// that needs a human is refused with a typed error before it reaches the
-    /// MCP session, and runs once the task is resumed with it approved.
-    ///
     /// Routes the call through [`McpClientManagerHandle::call_tool`] and
     /// converts the [`ToolCallResult`] with [`tool_output`].
     ///
     /// # Errors
     ///
-    /// - [`ToolExecutionError::ApprovalRequired`] when the call needs an approval
-    ///   the task has not received.
-    /// - [`ToolExecutionError::ApprovalDenied`] when the task was resumed with
-    ///   this call declined.
     /// - [`ToolExecutionError::ExecutionFailed`] when the MCP session returns an
     ///   error, or when the `ToolCallResult` itself carries `is_error = true`.
     ///
-    /// [`with_task_approval`]: McpToolExecutor::with_task_approval
     /// [`ToolCallResult`]: crate::protocol::ToolCallResult
     fn execute(
         &self,
         input: Value,
     ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
         Box::pin(async move {
-            if let Some(approval) = &self.task_approval {
-                self.check_task_approval(approval, &input).await?;
-            }
-
             let result = self
                 .mcp_manager
                 .call_tool(&self.server_name, &self.tool_name, Some(input))
@@ -247,30 +162,6 @@ pub(crate) fn tool_output(result: &crate::protocol::ToolCallResult) -> Value {
 pub async fn build_agent_tool_executors(
     handle: &McpClientManagerHandle,
 ) -> Vec<Box<dyn ToolExecutor>> {
-    build_executors(handle, None, Vec::new()).await
-}
-
-// TEST-ONLY: the task backend of a Python agent built its MCP executors
-// with it; production builds them with `build_agent_tool_executors`.
-/// Build the agent-facing MCP executors for one task on the task path, gated
-/// through that task's approval state.
-///
-/// Same set as [`build_agent_tool_executors`]. Every tool executor shares
-/// `approval`, so an approval received on resume is consumed by the one call it
-/// approved, whichever executor makes it.
-pub async fn build_task_tool_executors(
-    handle: &McpClientManagerHandle,
-    approval: crate::task_approval::TaskApproval,
-    tools_requiring_approval: Vec<String>,
-) -> Vec<Box<dyn ToolExecutor>> {
-    build_executors(handle, Some(approval), tools_requiring_approval).await
-}
-
-async fn build_executors(
-    handle: &McpClientManagerHandle,
-    approval: Option<crate::task_approval::TaskApproval>,
-    tools_requiring_approval: Vec<String>,
-) -> Vec<Box<dyn ToolExecutor>> {
     let mut execs: Vec<Box<dyn ToolExecutor>> =
         crate::mcp_resources::build_mcp_resource_executors(&Some(handle.clone()));
     for status in handle.status().await {
@@ -281,13 +172,11 @@ async fn build_executors(
             continue;
         };
         for tool in detail.tools {
-            let executor =
-                McpToolExecutor::new(handle.clone(), status.name.clone(), tool.local_name);
-            let executor = match approval.as_ref() {
-                Some(a) => executor.with_task_approval(a.clone(), tools_requiring_approval.clone()),
-                None => executor,
-            };
-            execs.push(Box::new(executor));
+            execs.push(Box::new(McpToolExecutor::new(
+                handle.clone(),
+                status.name.clone(),
+                tool.local_name,
+            )));
         }
     }
     execs
@@ -463,40 +352,15 @@ mod tests {
         assert_eq!(result, "");
     }
 
-    #[test]
-    fn server_requires_approval_config_flag_readable() {
-        // GIVEN a server config with requires_approval=true
-        let config = crate::config::McpServerConfig {
-            format_version: 1,
-            name: "notion".to_string(),
-            command: "npx".to_string(),
-            args: vec![],
-            env: std::collections::HashMap::new(),
-            transport: "stdio".to_string(),
-            url: None,
-            requires_approval: true,
-            init_timeout_secs: 30,
-            call_timeout_secs: 60,
-            max_response_bytes: 8 * 1024 * 1024,
-            max_tools: 256,
-            tags: vec![],
-            tool_families: Default::default(),
-            origin: None,
-        };
-        // WHEN / THEN the flag is set
-        assert!(config.requires_approval);
-    }
-
     #[tokio::test]
     async fn build_agent_tool_executors_no_servers_yields_only_resource_tools() {
         // GIVEN a manager with no connected servers
         use crate::session::LoadingMode;
         use apollia_tools::registry::ToolRegistryHandle;
         let registry = ToolRegistryHandle::start();
-        let handle =
-            McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
-                .await
-                .expect("manager start failed");
+        let handle = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
+            .await
+            .expect("manager start failed");
 
         // WHEN we assemble the agent executors
         let execs = build_agent_tool_executors(&handle).await;

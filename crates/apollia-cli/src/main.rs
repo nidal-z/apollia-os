@@ -291,7 +291,7 @@ enum Commands {
         command: Option<commands::chat::ChatHygieneCommand>,
     },
 
-    /// MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server).
+    /// MCP server management (list, add, remove, show, test, restart, update, raw-config, server).
     Mcp {
         /// MCP subcommand.
         #[command(subcommand)]
@@ -503,7 +503,7 @@ fn init_tracing(cli: &Cli) {
     };
 
     // Route diagnostics to stderr so they never corrupt stdout payloads
-    // (notably `--json`): in-process commands (e.g. `mcp set-approval`) emit
+    // (notably `--json`): in-process commands (e.g. `mcp secret set`) emit
     // runtime `tracing` events that would otherwise interleave with the JSON.
     // ANSI styling follows the terminal, not just `--no-color`: a piped stderr
     // receives plain text, so `--json` runs stay free of escape sequences.

@@ -112,7 +112,6 @@ export interface ConnectorConfigInputs {
   oauthResolved: boolean;
   envValues: Record<string, string>;
   argValues: Record<number, string>;
-  approvalLevel: "auto" | "ask";
 }
 
 /**
@@ -138,7 +137,6 @@ export function buildConnectorConfig(
     oauthResolved,
     envValues,
     argValues,
-    approvalLevel,
   } = inputs;
   const safeName = deriveServerName(server);
   if (connectionMode === "remote" && remote) {
@@ -174,7 +172,6 @@ export function buildConnectorConfig(
       url: remote.url,
       transport: remote.type,
       env,
-      requires_approval: approvalLevel === "ask",
       tags: [],
       origin: { provenance: "registry", official: isOfficial(server) },
     };
@@ -207,7 +204,6 @@ export function buildConnectorConfig(
       args: [...launcher.prefixArgs, packageSpec(launcher.command, pkg), ...extraArgs],
       env,
       transport: pkg.transport?.type ?? "stdio",
-      requires_approval: approvalLevel === "ask",
       tags: [],
       origin: { provenance: "registry", official: isOfficial(server) },
     };

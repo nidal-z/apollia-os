@@ -135,9 +135,14 @@ no question. This is why the family a tool declares has to say what the tool
 really does: see [Write a tool](/how-to/write-a-worker).
 
 <!-- claim:mcp-requires-approval-gates-task-path -->
-An MCP server declared as requiring approval (`requires_approval`) adds no pause
-of its own when an agent calls one of its tools. What asks before the call is
-the rule above: the governance of the run, by action family.
+An MCP server carries no approval setting of its own. A tool it publishes is
+decided like any other tool, on its action family: the one the curated selection
+gives it, else the one its own annotations declare, else none, and a tool nobody
+classified is treated as sensitive. When an agent calls a tool whose family is
+sensitive, the run asks first, with three answers: once, always for this agent,
+or refuse. "Always" is a standing consent of that agent for that family, kept
+until it is withdrawn; an organisation policy, when there is one, comes before
+all of it.
 
 ## What a tool cannot do
 

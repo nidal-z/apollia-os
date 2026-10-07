@@ -244,7 +244,6 @@ Client MCP : approbations, chargement des outils, et le pont qui sert les agents
 
 | Clé | Type | Défaut | Rôle |
 | --- | --- | --- | --- |
-| `mcp.approval_ttl_hours` | entier | `24` | Heures pendant lesquelles l'approbation d'un outil MCP reste valide ; 0 n'expire jamais (0 à 8760). La politique de l'organisation peut l'imposer. |
 | `mcp.tool_loading` | l'une de eager, deferred | `"deferred"` | Charger tous les schémas d'outils MCP d'emblée, ou au premier usage. La politique de l'organisation peut l'imposer. |
 | `mcp.tool_search_limit` | entier | `20` | Résultats rendus par l'outil tool_search (1 à 500). La politique de l'organisation peut l'imposer. |
 | `mcp.server_enabled` | booléen | `false` | Laisser un client MCP atteindre les agents et workflows marqués exposés, par apollia-os mcp server. La politique de l'organisation peut l'imposer. |
@@ -370,6 +369,7 @@ Acceptées dans un fichier écrit pour une version antérieure, avec un avertiss
 | Clé | À la place |
 | --- | --- |
 | `llm.vertex` | Le client Google Vertex AI a été retiré ; déclarez plutôt un serveur compatible OpenAI. |
+| `mcp.approval_ttl_hours` | Un outil MCP se décide sur sa famille d'action, et un consentement permanent dure jusqu'à son retrait ; retirez la clé. |
 | `memory` | Rien ne la lit ; retirez la section. |
 | `budget` | Rien ne la lit ; retirez la section. |
 | `a2a` | Rien ne la lit ; retirez la section. |

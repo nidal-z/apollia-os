@@ -40,12 +40,6 @@ Returns:
     sends a structured result, so an object never has to be parsed
     back from ``content``.
 
-Raises:
-    NeedHumanInput: The call needs an approval, the server is
-        declared ``requires_approval``. Left uncaught, the task
-        pauses on it and keeps the context the run was resumed with.
-    ToolApprovalDenied: The task was resumed with this call declined.
-
 #### `list_tools`
 
 ```python

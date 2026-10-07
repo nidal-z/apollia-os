@@ -139,10 +139,14 @@ d'emblée, sans question. C'est pourquoi la famille que déclare un outil doit
 dire ce qu'il fait réellement : voir [Écrire un outil](/how-to/write-a-worker).
 
 <!-- claim:mcp-requires-approval-gates-task-path -->
-Un serveur MCP déclaré comme exigeant une approbation (`requires_approval`)
-n'ajoute aucune pause qui lui soit propre quand un agent appelle l'un de ses
-outils. Ce qui sollicite avant l'appel est la règle ci-dessus : la gouvernance
-de l'exécution, par famille d'action.
+Un serveur MCP ne porte aucun réglage d'approbation qui lui soit propre. Un outil
+qu'il publie se décide comme tout autre outil, sur sa famille d'action : celle que
+lui donne la sélection, sinon celle que déclarent ses propres annotations, sinon
+aucune, et un outil que personne n'a classé est traité comme sensible. Quand un
+agent appelle un outil dont la famille est sensible, l'exécution demande d'abord,
+avec trois réponses : une fois, toujours pour cet agent, ou refuser. « Toujours »
+est un consentement permanent de cet agent pour cette famille, gardé jusqu'à son
+retrait ; une politique d'organisation, quand il y en a une, passe avant tout cela.
 
 ## Ce qu'un outil ne peut pas faire
 
