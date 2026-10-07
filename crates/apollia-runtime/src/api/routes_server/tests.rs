@@ -1,11 +1,10 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::compat_server::tests::{
     file_enabled, free_port, held_port, listens, settings_file, spawn_server, spawn_server_under,
 };
@@ -15,10 +14,7 @@ use crate::compat_server::tests::{
 fn daemon_with_server(content: &str) -> (TempDir, PathBuf, u16, AppState<MockBackend>) {
     let port = free_port();
     let (dir, path) = settings_file(&content.replace("{port}", &port.to_string()));
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.compat_server = Some(spawn_server(&path, &state.event_sender));
     (dir, path, port, state)
 }
@@ -122,10 +118,7 @@ async fn test_a_taken_port_is_refused_as_a_conflict_and_the_state_keeps_the_reas
 async fn test_a_runtime_without_a_compatible_server_answers_503() {
     // GIVEN a daemon state with no compatible server
     let dir = TempDir::new().unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a client reads its state
     let (status, body) = call(state, "GET", "/api/v1/server", None).await;

@@ -15,11 +15,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
 use apollia_core::{
-    HitlConfig, LlmBackendRepository, PendingApprovals, ProcessState, RuntimeConfig, RuntimeEvent,
+    HitlConfig, LlmBackendRepository, PendingApprovals, RuntimeConfig, RuntimeEvent,
     SttConfigRepository, SttConfigRow,
 };
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
@@ -33,10 +32,9 @@ use apollia_notifications::{
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle, TriggerPersistence};
 
-use crate::api::routes_agents::AgentLoader;
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
 use crate::audit_journal::{AuditJournalHandle, AuditJournalSubscriber};
-use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
+use crate::coordinator::ExecutionBackend;
 use crate::eventbus::{EventBus, EventBusSender};
 use crate::registry::{AgentRegistry, AgentRegistryHandle};
 use crate::router::TaskRouterHandle;
@@ -98,8 +96,8 @@ pub struct SupervisorConfig {
     pub obs_config: apollia_core::ObservabilityConfig,
     /// Repository of installed agents.
     ///
-    /// `Some` enables auto-load at boot: `enabled` agents are loaded via
-    /// `AgentLoader`, validated, and registered in `AgentRegistry`.
+    /// `Some` enables auto-load at boot: every enabled stored agent is
+    /// registered in `AgentRegistry`.
     /// `None` disables auto-load (compatibility with existing tests).
     pub agent_repository: Option<AgentRepository>,
     /// Repository of installed packages.
@@ -107,13 +105,6 @@ pub struct SupervisorConfig {
     /// `Some` runs package integrity validation at boot.
     /// `None` disables that validation (backward compatibility).
     pub package_repository: Option<apollia_tools::PackageRepository>,
-    /// Bundled agents directory (e.g. `agents/bundled/`).
-    ///
-    /// When `Some`, `auto_load_bundled_agents` runs at boot to register the
-    /// agents declared in `manifest.json`. When `None`, or when `manifest.json`
-    /// is absent, auto-install is silently skipped.
-    pub bundled_agents_path: Option<std::path::PathBuf>,
-
     /// Native tools configuration (the `[tools]` section of `apollia.toml`).
     ///
     /// Propagated by `EmbeddedConfig::apply_toml` into `SupervisorConfig` then
@@ -167,35 +158,6 @@ pub struct SupervisorConfig {
     /// daemon). `None`: the supervisor builds them from this configuration.
     /// Given to the configuration reloader when `config_path` is set.
     pub config_channels: Option<crate::config_reload::ConfigChannels>,
-}
-
-impl SupervisorConfig {
-    /// Returns the bundled agents directory, or `None` when it is not configured.
-    pub fn bundled_agents_dir(&self) -> Option<&std::path::Path> {
-        self.bundled_agents_path.as_deref()
-    }
-}
-
-/// Manifest of the bundled agents shipped with the runtime.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BundledManifest {
-    /// Manifest format version (e.g. `"1.0.0"`).
-    pub version: String,
-    /// List of bundled agents.
-    pub bundled_agents: Vec<BundledAgentEntry>,
-}
-
-/// Entry for a single agent in the bundled manifest.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BundledAgentEntry {
-    /// Unique agent name (must match `manifest().name` in the Python file).
-    pub name: String,
-    /// Source filename relative to the bundled directory (e.g. `"excel-worker.py"`).
-    pub file: String,
-    /// When `true`, the agent is installed automatically on first boot.
-    pub auto_install: bool,
-    /// Short description of the agent.
-    pub description: String,
 }
 
 /// Handles returned after successful startup.
@@ -375,7 +337,6 @@ pub struct Supervisor {
 /// (`api_config` is consumed by value), which would forbid a later `&self`
 /// borrow; threading the needed config fields here keeps the helpers callable.
 struct AutoLoadCtx<'a, B: ExecutionBackend> {
-    backend_factory: &'a Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
     base_backend: &'a B,
     registry_handle: &'a AgentRegistryHandle,
     router_handle: &'a TaskRouterHandle<B>,
@@ -383,11 +344,7 @@ struct AutoLoadCtx<'a, B: ExecutionBackend> {
     task_repository: Option<&'a Arc<TaskRepository>>,
     /// Repository of installed agents (`None` disables auto-load).
     agent_repository: Option<&'a AgentRepository>,
-    /// Data directory, used to locate per-agent venvs.
-    data_dir: &'a std::path::Path,
     /// Observability config wired into each agent's coordinator, read at
     /// each submission.
     obs_config: &'a crate::config_reload::Live<apollia_core::ObservabilityConfig>,
-    /// How long an agent stays loaded after its last call.
-    idle_unload: std::time::Duration,
 }

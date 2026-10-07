@@ -25,7 +25,6 @@ use apollia_notifications::{
     NotificationChannelRow, NotificationConfigRepository, NotificationLogRow,
 };
 use apollia_runtime::{
-    api::routes_agents::StubAgentLoader,
     api::{APIServer, APIServerConfig, APIServerHandle, AppState},
     coordinator::ExecutionBackend,
     eventbus::EventBus,
@@ -127,7 +126,6 @@ async fn build_app_state_with_repos(
         router_handle,
         registry_handle,
         event_sender,
-        agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
@@ -140,7 +138,6 @@ async fn build_app_state_with_repos(
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
-        backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: ObservabilityConfig::default(),

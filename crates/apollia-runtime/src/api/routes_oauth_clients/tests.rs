@@ -1,17 +1,12 @@
-use std::sync::Arc;
-
 use axum::http::StatusCode;
 use serde_json::json;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MemorySecrets, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MemorySecrets, MockBackend};
 
 fn state_with(dir: &TempDir, secrets: &MemorySecrets) -> AppState<MockBackend> {
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.secret_store = secrets.opener();
     state
 }

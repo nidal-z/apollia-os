@@ -20,7 +20,6 @@ use apollia_tools::{
 use super::*;
 use crate::a2a::{A2AInvoker, A2aDelegateResult, A2aError};
 use crate::agents::task::{AgentRunOutcome, AgentTaskLauncher};
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::routes_llm::tests::{test_app_state_no_llm, MockBackend};
 use crate::chat::types::ToolDecision;
 use crate::chat::ChatSessionManagerHandle;
@@ -256,12 +255,9 @@ async fn fixture() -> Fixture {
         "name": "excel-worker",
         "version": "0.1.0",
         "description": "Reads spreadsheets.",
-        "tools_required": [],
-        "tools_optional": [],
         "supports_streaming": false,
         "supports_a2a": true,
         "max_concurrent_tasks": 1,
-        "dangerous_tools_allowed": false,
         "tags": [],
         "execution_mode": "direct",
         "skills": [{
@@ -298,7 +294,6 @@ async fn fixture() -> Fixture {
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::with_backends(backends, "scripted"))),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),

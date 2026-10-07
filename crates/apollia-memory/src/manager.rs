@@ -308,6 +308,8 @@ impl MemoryManager {
     ///
     /// Returns immediately when `auto_purge = false` without touching the database.
     /// Errors are logged as warnings and never propagated (fire-and-forget).
+    // TEST-ONLY: nothing in production starts this purge pass: a purge at
+    // startup is not wired. The tests below hold what it would do.
     pub fn start_auto_purge(&mut self, config: &MemoryConfig, namespace: &str) {
         if !config.auto_purge {
             return;

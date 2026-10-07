@@ -91,7 +91,6 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 |---|---|
 | `AgentDegraded` | champs nommés |
 | `AgentInstalled` | champs nommés |
-| `AgentLoadFailed` | champs nommés |
 | `AgentMessageAcked` | champs nommés |
 | `AgentMessageDelivered` | champs nommés |
 | `AgentMessageDropped` | champs nommés |
@@ -160,6 +159,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | `LlmModelLoading` | champs nommés |
 | `LlmModelReady` | champs nommés |
 | `LlmModelReloaded` | champs nommés |
+| `LlmModelUnloaded` | champs nommés |
 | `LlmResponseCaptured` | champs nommés |
 | `MetaLlmBudgetExceeded` | champs nommés |
 | `TokenBudgetUpdated` | champs nommés |
@@ -222,6 +222,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | `ConfigReloaded` | champs nommés |
 | `ContextCompacted` | champs nommés |
 | `FileModifiedSinceRead` | champs nommés |
+| `GovernanceFailClosed` | champs nommés |
 | `McpServerHealthChanged` | champs nommés |
 | `McpServerReloaded` | champs nommés |
 | `ShutdownRequested` | aucune |

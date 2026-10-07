@@ -15,7 +15,6 @@ use apollia_llm::LlmRouter;
 use apollia_mcp::session::LoadingMode;
 use apollia_tools::ToolRegistryHandle;
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::chat::manager::{ChatSessionManagerHandle, Continuation, ContinuationRefusal};
 use crate::chat::repository::{AppendMessageParams, ChatSessionRepository};
 use crate::chat::types::{ChatError, ChatMode, ChatRole};
@@ -130,7 +129,6 @@ async fn runtime(
         &db,
         Some(Arc::new(LlmRouter::with_backends(backends, "default"))),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         event_tx.clone(),
         StepBudgetConfig::default(),

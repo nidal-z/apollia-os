@@ -10,7 +10,7 @@ use axum::http::StatusCode;
 use serde_json::{json, Value};
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::test_support::poll_until_async;
 use crate::workflows::{
     BoxFuture, QuestionAsked, UserReply, WorkflowCall, WorkflowDescriptor, WorkflowHandle,
@@ -87,10 +87,7 @@ async fn fixture() -> Fixture {
     let (bus, _) = tokio::sync::broadcast::channel(64);
     let engine = WorkflowHandle::spawn(repository, bus, StepBudgetConfig::default(), None);
     engine.set_host(Arc::new(Host)).await.unwrap();
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.workflows = Some(engine.clone());
     Fixture {
         _dir: dir,

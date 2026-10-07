@@ -39,8 +39,8 @@ const TOPICS: &[(&str, &str)] = &[
         "agents",
         "Install, run, and manage agents.\n\n\
          apollia-os agent list           installed agents\n\
-         apollia-os agent create <name>  scaffold from a template\n\
-         apollia-os agent install <path> install an agent or bundle\n\
+         apollia-os package new <name>   start a package: an agent and a tool\n\
+         apollia-os package install <file.apo>  install a package\n\
          apollia-os agent show <id>      details for one agent\n\
          apollia-os run <agent> <input>  submit a task (add --stream)",
     ),

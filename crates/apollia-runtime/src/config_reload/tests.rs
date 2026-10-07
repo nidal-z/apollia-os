@@ -2,7 +2,6 @@
 //! restart, and what a change on disk does.
 
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Duration;
 
 use apollia_core::config::writer::fingerprint;
@@ -14,7 +13,7 @@ use tempfile::TempDir;
 
 use super::{ConfigChannels, ConfigFeed, ConfigReloadHandle};
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 
 /// A runtime started on an `apollia.toml`, following it.
 pub(crate) struct Rig {
@@ -30,10 +29,7 @@ impl Rig {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("apollia.toml");
         std::fs::write(&path, text).unwrap();
-        let mut state = app_state(
-            Arc::new(StemLoader { refusal: None }),
-            dir.path().to_path_buf(),
-        );
+        let mut state = app_state(dir.path().to_path_buf());
         state.config_path = Some(path.clone());
         let channels = ConfigChannels::new(&validate(text).unwrap_or_default());
         let reload = ConfigReloadHandle::spawn(

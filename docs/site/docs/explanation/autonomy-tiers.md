@@ -76,12 +76,12 @@ The four tiers declare 100, 200, 300 and 500 reasoning steps, and that table is
 real. What reads it is the chat path, and free chat runs at the default tier and
 never varies.
 
-<!-- claim:tier-budget-capped-at-thirty-on-agent-paths -->
-An agent run does not read that table at all. Both execution paths take the
-budget the agent's manifest declares and cap it against a fixed runtime ceiling
-of 30 reasoning steps, 60 tool calls and 600 seconds of wall clock. So raising
-the tier widens what an agent may attempt well before it changes what the agent
-actually gets, and it never removes the hard edge. The mechanics of the
+<!-- claim:agent-run-budget-is-its-tier-capped-by-the-ceiling -->
+An agent run reads that table too. It takes the budget of the tier the agent
+runs at and caps it against a fixed runtime ceiling of 100 reasoning steps, 200
+tool calls and 1200 seconds of wall clock. So raising the tier widens what an
+agent may attempt well before it changes what the agent actually gets, and it
+never removes the hard edge. The mechanics of the
 verification loop belong to the
 [plan and orchestrated execution model](/explanation/the-plan-model), and the
 safeguards it runs under belong to the

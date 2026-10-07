@@ -110,6 +110,8 @@ impl TriggerDefinition {
     /// Validates that the agent name is non-empty.
     ///
     /// Returns [`TriggerDefinitionError::EmptyAgent`] if `agent` is an empty string.
+    // TEST-ONLY: nothing in production calls this check on its own; its test
+    // holds the refusal of an empty agent name.
     pub fn validate_agent(agent: &str) -> Result<(), TriggerDefinitionError> {
         if agent.is_empty() {
             Err(TriggerDefinitionError::EmptyAgent)

@@ -24,7 +24,6 @@
   } from "$lib/stores/packagePreview";
   import { openBatch } from "$lib/stores/batchView";
   import { pendingSheet, takePendingSheet } from "$lib/stores/agentOpen";
-  import { ErrorBanner } from "$lib/components/operator";
   import { reportError } from "$lib/errors/reportError";
   import { createChatSession } from "$lib/ipc/agents";
   import {
@@ -39,7 +38,6 @@
   import { APOLLIA_AGENT_ID } from "../components/agents/sheet/agentSheet";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
-  import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
   import AgentsOverview from "../components/agents/AgentsOverview.svelte";
   import ExampleTrialDialog from "../components/agents/ExampleTrialDialog.svelte";
   import BatchLaunchDialog from "../components/batch/BatchLaunchDialog.svelte";
@@ -69,9 +67,6 @@
     | { kind: "agent"; name: string }
     | { kind: "workflow"; id: string; name: string; launch: boolean };
 
-  // The update failure lives on the controller (`actions.updateError`): the
-  // button that triggers it sits in the detail header, two components down,
-  // while the banner belongs here.
   const actions = createAgentActions();
 
   // ── Selection + local UI state ───────────────────────────────────────
@@ -83,7 +78,6 @@
   let examples = $state<ExamplePackage[]>([]);
 
   let uninstallConfirmName = $state<string | null>(null);
-  let installPackageOpen = $state(false);
   let logsAgentId = $state<string | null>(null);
   let logsOpen = $state(false);
 
@@ -139,7 +133,7 @@
   // nothing, which is why it is mounted with the route.
   $effect(() => {
     const openInstall = () => {
-      installPackageOpen = true;
+      void pickPackageFile();
     };
     window.addEventListener("apollia:agents:create", openInstall);
     return () => {
@@ -235,9 +229,6 @@
   function selectAgent(name: string): void {
     view = { kind: "agent", name };
     if (uninstallConfirmName !== name) uninstallConfirmName = null;
-    // A rejected module belongs to the agent it was picked for. Moving away
-    // from that agent leaves a banner naming nothing on screen.
-    actions.clearUpdateError();
   }
 
   /**
@@ -255,13 +246,11 @@
   function selectApolliaChat(): void {
     view = { kind: "apollia" };
     uninstallConfirmName = null;
-    actions.clearUpdateError();
   }
 
   function openCreation(): void {
     view = { kind: "create" };
     uninstallConfirmName = null;
-    actions.clearUpdateError();
   }
 
   function openWorkflow(id: string, name: string, launch: boolean): void {
@@ -271,7 +260,6 @@
   function backToList(): void {
     view = { kind: "list" };
     uninstallConfirmName = null;
-    actions.clearUpdateError();
   }
 
   // Another screen asked for a sheet (the content of a package in the
@@ -338,25 +326,6 @@
 <div class="flex h-full min-h-0 w-full flex-col" data-testid="agents-page" data-view={view.kind}>
   <div class="px-8 pt-3">
     <MacSandboxBanner />
-    {#if actions.updateError}
-      <ErrorBanner class="mt-3" data-testid="agent-update-error">
-        <p class="font-medium">{actions.updateError.friendly_message}</p>
-        <p class="text-caption opacity-90">{actions.updateError.suggested_action}</p>
-        {#if actions.updateError.detail}
-          <details class="mt-2">
-            <summary
-              class="cursor-pointer text-caption opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-              data-testid="agent-update-error-details"
-            >
-              {$t("errors.show_details")}
-            </summary>
-            <p class="mt-1.5 break-all font-mono text-code-sm opacity-80">
-              {actions.updateError.detail}
-            </p>
-          </details>
-        {/if}
-      </ErrorBanner>
-    {/if}
   </div>
 
   <div class="min-h-0 flex-1 overflow-y-auto">
@@ -431,10 +400,4 @@
   file={trialBatch?.workbook ?? null}
   onclose={() => (trialBatch = null)}
   onlaunched={(batch) => openBatch(batch.batchId, "launch")}
-/>
-
-<InstallPackageDialog
-  open={installPackageOpen}
-  onclose={() => (installPackageOpen = false)}
-  oninstalled={() => void refreshWorkflows()}
 />

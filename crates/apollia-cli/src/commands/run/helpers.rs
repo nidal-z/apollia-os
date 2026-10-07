@@ -77,8 +77,8 @@ pub(super) fn handle_submit_error(err: ClientError, agent_id: &str, json: bool) 
         ClientError::ServerError { status: 404, body } => {
             let hint = format!(
                 "{body}\n\
-                 Hint: install + enable + load the agent first:\n\
-                 \t apollia-os agent install <path>   # if it's not yet installed\n\
+                 Hint: install or enable the agent first:\n\
+                 \t apollia-os package install <file.apo>   # if it's not yet installed\n\
                  \t apollia-os agent enable {agent_id} # if it's disabled\n\
                  \t apollia-os agent list             # to see current state"
             );

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use futures::StreamExt;
@@ -7,7 +5,7 @@ use tempfile::TempDir;
 use tower::ServiceExt;
 
 use crate::api::server::{APIServer, AppState};
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::audit_journal::{AuditJournalHandle, JournalEntryDraft, JournalEntryKind};
 use crate::compat_server::tests::{settings_file, spawn_server};
 use crate::compat_server::{ServerLogLevel, ServerLogsHandle};
@@ -15,10 +13,7 @@ use crate::compat_server::{ServerLogLevel, ServerLogsHandle};
 /// A daemon whose compatible server is off, its logs empty.
 fn daemon() -> (TempDir, AppState<MockBackend>) {
     let (dir, path) = settings_file("[server]\n");
-    let mut state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let mut state = app_state(dir.path().to_path_buf());
     state.compat_server = Some(spawn_server(&path, &state.event_sender));
     (dir, state)
 }
@@ -133,10 +128,7 @@ async fn test_clearing_the_logs_empties_them_and_leaves_the_journal_unchanged() 
 async fn test_the_logs_routes_answer_503_without_a_compatible_server() {
     // GIVEN a daemon built without a compatible server
     let dir = TempDir::new().unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a client clears the logs
     let (status, _) = call(state, "DELETE", "/api/v1/server/logs", None).await;

@@ -49,17 +49,20 @@ profile is still in `~/.apollia.before-seed` at that point.
   can play the reasoning list instead of waiting for a model to take enough
   steps.
 - `files/` : on-disk artifacts copied verbatim into `<SEED_HOME>/.apollia/` :
-  - `agents/<name>/` (+ `packages/`) : installed-agent dirs (manifest + agent.py).
+  - `agents/packages/<name>/` : the folder of each installed package, an
+    `apollia.toml` and the Python tools it declares. An agent is data, a row
+    of `agents.db`: it has no folder and no Python. `agents/apollia-guide/`
+    keeps the knowledge files of the guide.
   - `memory/<namespace>.db` : one memory DB per namespace (file-scoped store).
     The file stem IS the namespace, and a project namespace carries a colon,
     which no Windows checkout can hold, so those file names store it percent
     encoded (`%3A`) and the builder decodes them into the throwaway HOME.
   - `models/*.gguf` : tiny placeholder GGUFs (the scanner stats name+size only).
-  - `fixtures/<package>/` : agent packages the install dialog previews or
-    installs from a picker the automaton answers (`seed-deps-pack` declares a
-    pip dependency that resolves nowhere and a webhook trigger without a
-    secret, `seed-plain-pack` installs with no dependency). Never installed by the builder, so the package counts
-    the books and the CLI suite assert do not move.
+  - `fixtures/<package>/` : package folders to build with
+    `apollia-os package build` (`seed-plain-pack` has no dependency,
+    `seed-deps-pack` declares a pip dependency that resolves nowhere). Never
+    installed by the builder, so the package counts the books and the CLI
+    suite assert do not move.
   - `mcp-stub-server.py` : a stdlib stdio MCP server the seeded rows spawn (the
     connections sidebar only lists servers whose handshake succeeds at boot).
   - `mcp-registry.json` : the MCP registry cache, a `RegistryServer` array as
@@ -71,11 +74,10 @@ profile is still in `~/.apollia.before-seed` at that point.
     rewritten to the same path), and `io.apollia/seed-failing`, whose launcher
     is `/usr/bin/false`, so a connection test fails at once.
   - `apollia.toml` : pins the chat file-tool workspace to the repo.
-- `planner/` : the opt-in orchestrated planner, applied only under
+- `planner/` : the opt-in planner, applied only under
   `APOLLIA_SEED_PLANNER=1`: `fragments/agents.sql` and
-  `fragments/triggers_def.sql` (one row each, replayed after the base fragment
-  of the same database), `files/agents/seed-planner/` (the package). See the
-  Planner section.
+  `fragments/triggers_def.sql` (replayed after the base fragment of the same
+  database). See the Planner section.
 - `build-seed.sh` : assembles the ecosystem (schema then fragment per DB, apply
   the planner opt-in, apply the overlay, copy files, rewrite `install_path` /
   package `root_path` / the MCP stub path in `mcp.db` and in
@@ -83,7 +85,7 @@ profile is still in `~/.apollia.before-seed` at that point.
 - `self-test.sh` : a few seconds, sqlite3 and python3. Asserts the base row counts CI
   depends on, that an overlay is applied when asked for and never otherwise,
   that a missing overlay stops the build, that the planner opt-in is absent
-  from the base build and present, orchestrated and on disk when asked for, that every memory file stem resolves
+  from the base build and present, planning always, when asked for, that every memory file stem resolves
   to its own rows, that the registry cache names the stub at a path that
   exists, and that the paths a seed names exist. That last one is
   checked in both directions: on the seed just built, which must pass, and on a
@@ -100,7 +102,7 @@ profile is still in `~/.apollia.before-seed` at that point.
 | Variable | Default | Effect |
 |---|---|---|
 | `APOLLIA_SEED_OVERLAY` | unset | Directory of extra `schemas/`, `fragments/` and `files/` applied on top of the checked-in seed. Set but missing is a hard error. |
-| `APOLLIA_SEED_PLANNER` | unset | `1` adds the orchestrated `seed-planner` agent and its `seed-trigger-planner` trigger (see Planner). Any other value is a hard error. |
+| `APOLLIA_SEED_PLANNER` | unset | `1` adds the `seed-planner` agent, which plans always, and its `seed-trigger-planner` trigger (see Planner). Any other value is a hard error. |
 | `APOLLIA_SEED_PROJECT_ROOT` | this checkout | What `__APOLLIA_SEED_WORKSPACE__` expands to: the path the seeded project, provider and permission rows display. |
 | `APOLLIA_SEED_HOME_ALIAS` | `SEED_HOME` | What `__APOLLIA_SEED_HOME__` expands to. `load.sh` sets it, because it builds into a staging directory and moves the result elsewhere. |
 
@@ -146,49 +148,42 @@ which is not a test concern.
 
 ## Planner (opt-in)
 
-The base fixture has no agent whose `execution_mode` is `orchestrated`, and
-that is the only kind the desktop routes through `ORIAEngine::execute`
-(`crates/apollia-desktop/src/backend/runner.rs`), the one path that emits the
-run-keyed `PlanApprovalRequired` and renders the operator and builder plan
-review cards (`PlanModeHost`). The CLI suite and the `-det` books assert four
-agents and four triggers, so the fixture cannot grow. The planner is therefore
-an opt-in, on the model of the overlay:
+The base fixture has no agent that plans every task before acting on it. The
+CLI suite and the `-det` books assert four agents and four triggers, so the
+fixture cannot grow. The planner is therefore an opt-in, on the model of the
+overlay:
 
 ```sh
 APOLLIA_SEED_PLANNER=1 bash tests/cli/seed/build-seed.sh /path/to/throwaway-home
-APOLLIA_SEED_PLANNER=1 just desktop-dev-automation-seeded-llama scripts/automation/plan-gate-llm.json <model.gguf>
 ```
 
 What it adds, and nothing else:
 
-- `installed_agents`: `seed-planner`, enabled, `execution_mode = "orchestrated"`,
-  with the `system_prompt` the orchestrated engine requires. The backend reads
-  both from this row (`bootstrap.rs` hands `agent.manifest` to the factory),
-  and the loader validates `files/agents/seed-planner/agent.py`, which carries
-  the same values through `@orchestrated`. The prompt pins the plan shape the
-  `plan-gate-llm` book relies on: three linear reasoning steps, no tool.
+- `installed_agents`: `seed-planner`, enabled, with a `system_prompt` that
+  becomes its mission once the runtime has migrated the row. The prompt pins
+  the plan shape: three linear reasoning steps, no tool.
+- `agent_overrides`: `planning = always` on `seed-planner`, so each of its
+  runs writes a plan first.
 - `trigger_definitions`: `seed-trigger-planner`, enabled, cron on one instant a
   year, bound to `seed-planner`. The desktop fires it from
   `automation-run-now-seed-trigger-planner` with no picker. Its
-  `input_template` carries `{{fired_at}}` on purpose: the ORIA plan cache keys
-  on the task text, and a cache hit executes the cached plan without opening
-  the gate (`crates/apollia-oria/src/engine/plan_cache_ops.rs`), so two fires
-  must never share a text.
-- `agents/seed-planner/`: `agent.py` and `manifest.toml`.
+  `input_template` carries `{{fired_at}}` on purpose: the plan cache keys on
+  the task text, and a cache hit executes the cached plan without planning
+  again, so two fires must never share a text.
 
 It needs a model: the planner is an LLM call, so only a `-seeded-llama` recipe
-reaches the gate. The `just` recipes strip `APOLLIA_SEED_OVERLAY` and pass
-everything else through, which is how the switch reaches the builder.
+reaches it. The `just` recipes strip `APOLLIA_SEED_OVERLAY` and pass everything
+else through, which is how the switch reaches the builder.
 
 ## What is seeded (per subsystem, traced to the real read-path)
 
 | DB / files | Rows | Unblocks |
 |---|---|---|
 | projects.db | 2 projects + 3 providers + 1 doc | the former projects, migrated into sources at the first boot of the runtime, which then removes the file |
-| triggers_def.db + triggers.db | 4 triggers (active x2, paused x2) + history; + `seed-trigger-planner` under `APOLLIA_SEED_PLANNER=1` | automation rows, filters, delete/history; the run-now that opens the plan gate |
+| triggers_def.db + triggers.db | 4 triggers (active x2, paused x2) + history; + `seed-trigger-planner` under `APOLLIA_SEED_PLANNER=1` | automation rows, filters, delete/history; the run-now of the planner |
 | governance.db | 4 permission rules (all scopes) + 5 audit + 1 credential | permissions count/list/audit/revoke-all, brave credential |
 | chat.db | 4 sessions + messages + 3 tool auths + 1 plan | session list, session-auths, plan tab |
-| agents.db + agents/ | 4 agents (incl apollia-chat) + 1 package; + `seed-planner` under `APOLLIA_SEED_PLANNER=1` | agent rows, detail, package rows; the plan gate |
+| agents.db + agents/ | 4 agents (incl apollia-chat) + 1 package; + `seed-planner` under `APOLLIA_SEED_PLANNER=1` | agent rows, detail, package rows; an agent that plans always |
 | user_memory + memory/*.db | 5 namespaces, 3 types each | namespace items, category chips, type tabs, entries |
 | system.db | 3 llm backends (1 default) + stt config + 1 folder connection (the checkout, granted to the Apollia agent in agents.db) | llm cards, set-default, stt form; the folder the chat's file tools reach |
 | llm_calls.db | 5 recent calls (3 backends) | llm-stats-table, observability llm-costs |

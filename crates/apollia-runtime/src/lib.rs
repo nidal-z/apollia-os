@@ -50,7 +50,6 @@ pub mod memory_view;
 pub mod mlx_engine;
 pub mod oauth_clients;
 pub mod observability;
-pub mod on_demand;
 pub mod onboarding;
 pub mod package_tools;
 pub mod packages;
@@ -116,10 +115,3 @@ pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};
 
 // Custom slash commands
 pub use commands::{CommandRegistry, CustomCommand};
-
-// Community agent registry
-pub use agents::registry_remote::{
-    check_git_available, find_agent_file, git_clone, install_agent, install_from_dir,
-    parse_install_source, read_manifest_file, update_registry, AgentInstallSource, RegistryEntry,
-    RemoteInstallError, TempInstallDir,
-};

@@ -44,11 +44,13 @@ adaptation.
 Apollia solves infrastructure, not modeling. If the solution requires
 rewriting the agent, it generates as much work as it saves.
 
-**How.** One decorator. `@agent` on the class, one `@skill` or one
-`@on_message` async method, and the adaptation is done. The decorators are the
-contract, not sugar over one: `crates/apollia-aip/src/bridge.rs` refuses any
-object without `__apollia_dispatch__`, and the `manifest()` plus `run()` duck
-typing this section used to describe was removed with it. See
+**How.** One manifest. An agent is an `[[agents]]` entry of the `apollia.toml`
+of its package: a mission, examples, what it may reach. The Python a package
+brings is a tool or a workflow, an async function under a decorator. The
+runtime reads the manifest with a strict schema
+(`crates/apollia-tools/src/apollia_manifest/mod.rs`) and no Python object
+stands for an agent: the bridge that looked for a dispatch hook on a class is
+gone, with the `manifest()` plus `run()` duck typing before it. See
 `sdk/AGENTS.md`.
 
 ### 4. Fail fast

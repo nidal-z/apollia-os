@@ -8,7 +8,7 @@ use apollia_runtime::governance::{
     GovernanceError, GovernanceEvent, InstallSubject,
 };
 use apollia_tools::apo_archive::{ApoArchive, SignatureState};
-use apollia_tools::{AgentOrigin, InstalledAgent, OverrideField};
+use apollia_tools::{AgentOrigin, OverrideField, StoredAgent};
 
 use super::*;
 
@@ -56,24 +56,21 @@ fn agents(dir: &Path) -> AgentRepository {
 }
 
 /// The row an earlier desktop wrote for the guide: Python code at `version`.
-fn code_guide(dir: &Path, version: &str) -> InstalledAgent {
+fn code_guide(dir: &Path, version: &str) -> (StoredAgent, std::path::PathBuf) {
     let path = dir.join("agents/apollia-guide/agent.py");
-    InstalledAgent {
+    let agent = StoredAgent {
         name: GUIDE.into(),
+        origin: AgentOrigin::Package,
+        package: None,
         version: version.into(),
-        install_path: path.clone(),
-        source_path: path,
-        manifest: serde_json::from_value(serde_json::json!({
-            "name": GUIDE,
-            "version": version,
-            "description": "Coach.",
-            "tools_required": []
-        }))
-        .unwrap(),
+        definition: serde_json::json!({
+            "id": GUIDE, "name": GUIDE, "mission": "Coach.", "defaults": {},
+        }),
         enabled: true,
         installed_at: "2026-09-01T00:00:00Z".into(),
         updated_at: "2026-09-01T00:00:00Z".into(),
-    }
+    };
+    (agent, path)
 }
 
 #[test]
@@ -153,7 +150,8 @@ async fn a_guide_installed_as_code_becomes_the_package_agent_and_stays_disabled(
     // older version, with its mission overridden and disabled by the user
     let dir = tempfile::tempdir().unwrap();
     let repo = agents(dir.path());
-    repo.save(&code_guide(dir.path(), "0.1.0")).unwrap();
+    let (guide, code) = code_guide(dir.path(), "0.1.0");
+    repo.save_as_code_row(&guide, &code).unwrap();
     repo.set_override(GUIDE, OverrideField::Mission, &serde_json::json!("Mine."))
         .unwrap();
     repo.set_enabled(GUIDE, false).unwrap();
@@ -174,7 +172,11 @@ async fn a_guide_installed_as_code_becomes_the_package_agent_and_stays_disabled(
         matches!(outcome, EmbeddedOutcome::Installed(_)),
         "{outcome:?}"
     );
-    assert!(repo.get(GUIDE).unwrap().is_none(), "no code is loaded");
+    assert_eq!(
+        repo.legacy_install_path(GUIDE).unwrap(),
+        None,
+        "no code is left"
+    );
     let stored = repo.stored(GUIDE).unwrap().unwrap();
     assert_eq!(stored.origin, AgentOrigin::Package);
     assert_eq!(stored.package.as_deref(), Some(GUIDE));
@@ -235,24 +237,21 @@ async fn a_newer_guide_is_not_downgraded_and_the_current_one_is_left_alone() {
 
 /// The row an earlier desktop wrote for the onboarding: Python code at
 /// `version`.
-fn code_onboarding(dir: &Path, version: &str) -> InstalledAgent {
+fn code_onboarding(dir: &Path, version: &str) -> (StoredAgent, std::path::PathBuf) {
     let path = dir.join("agents/onboarding-agent/agent.py");
-    InstalledAgent {
+    let agent = StoredAgent {
         name: ONBOARDING.into(),
+        origin: AgentOrigin::Package,
+        package: None,
         version: version.into(),
-        install_path: path.clone(),
-        source_path: path,
-        manifest: serde_json::from_value(serde_json::json!({
-            "name": ONBOARDING,
-            "version": version,
-            "description": "Onboarding.",
-            "tools_required": []
-        }))
-        .unwrap(),
+        definition: serde_json::json!({
+            "id": ONBOARDING, "name": ONBOARDING, "mission": "Onboards.", "defaults": {},
+        }),
         enabled: true,
         installed_at: "2026-09-01T00:00:00Z".into(),
         updated_at: "2026-09-01T00:00:00Z".into(),
-    }
+    };
+    (agent, path)
 }
 
 #[test]
@@ -308,7 +307,8 @@ async fn an_onboarding_installed_as_code_becomes_the_package_agent_and_its_tool_
     // disabled by the user
     let dir = tempfile::tempdir().unwrap();
     let repo = agents(dir.path());
-    repo.save(&code_onboarding(dir.path(), "0.1.0")).unwrap();
+    let (onboarding, code) = code_onboarding(dir.path(), "0.1.0");
+    repo.save_as_code_row(&onboarding, &code).unwrap();
     repo.set_enabled(ONBOARDING, false).unwrap();
     let governance = StrictGovernance::default();
 
@@ -327,7 +327,11 @@ async fn an_onboarding_installed_as_code_becomes_the_package_agent_and_its_tool_
         matches!(outcome, EmbeddedOutcome::Installed(_)),
         "{outcome:?}"
     );
-    assert!(repo.get(ONBOARDING).unwrap().is_none(), "no code is loaded");
+    assert_eq!(
+        repo.legacy_install_path(ONBOARDING).unwrap(),
+        None,
+        "no code is left"
+    );
     let stored = repo.stored(ONBOARDING).unwrap().unwrap();
     assert_eq!(stored.origin, AgentOrigin::Package);
     assert_eq!(stored.package.as_deref(), Some(ONBOARDING));

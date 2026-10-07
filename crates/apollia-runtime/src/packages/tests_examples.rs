@@ -85,7 +85,9 @@ fn test_an_example_is_proposed_and_not_installed() {
     assert!(!example.requires[0].present);
     assert_eq!(example.installed_version, None);
     assert!(env.packages.list().unwrap().is_empty());
-    assert!(env.agents.list().unwrap().is_empty());
+    let stored = env.agents.list_stored().unwrap();
+    let names: Vec<&str> = stored.iter().map(|agent| agent.name.as_str()).collect();
+    assert_eq!(names, [apollia_tools::APOLLIA_AGENT_ID]);
 }
 
 #[test]

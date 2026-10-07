@@ -206,13 +206,7 @@ export interface paths {
          */
         get: operations["list_agent_packages"];
         put?: never;
-        /**
-         * `POST /api/v1/agent-packages/installed`: install a package folder.
-         * @description Python dependencies need `deps_confirmed`; without it the answer is a
-         *     `428` whose message is `DEPS_CONFIRMATION_REQUIRED:<count>:<list>`. The
-         *     agents installed take tasks at once, and the triggers written are loaded.
-         */
-        post: operations["install_agent_package"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -247,27 +241,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/agent-packages/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * `POST /api/v1/agent-packages/preview`: what the package folder contains,
-         *     its agents, its triggers and its Python dependencies. Nothing is written;
-         *     a manifest that breaks an invariant answers a preview marked invalid.
-         */
-        post: operations["preview_agent_package"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/agents": {
         parameters: {
             query?: never;
@@ -285,18 +258,18 @@ export interface paths {
         put?: never;
         /**
          * Handler for `POST /api/v1/agents`.
-         * @description Loads the Python agent module via [`AgentLoader`], validates
-         *     AIP duck typing, registers the agent with its real manifest, transitions
-         *     to Active (or Degraded if optional tools are missing), and creates an
-         *     [`ExecutionCoordinator`] registered with the [`TaskRouter`].
-         *
-         *     Tool resolution is delegated to [`apollia_tools::resolve`] which handles
-         *     the `a2a:` prefix correctly (A2A dependencies live in the ToolProxy
-         *     allowed_tools list, not in the ToolRegistry, and must not trigger
-         *     DEGRADED). A missing `tools_required` entry returns 400 Bad Request.
+         * @description Makes a stored agent available: it is registered from the definition
+         *     `agents.db` holds, moved to Active, and given an [`ExecutionCoordinator`]
+         *     in the [`TaskRouter`]. An agent is data: nothing is imported, and what it
+         *     may reach is read from its resolved access when a run starts.
          *
          *     Returns 201 Created with the agent_id and state.
-         *     Returns 400 Bad Request if the Python module is invalid.
+         *     Returns 404 Not Found when no stored agent carries the identifier.
+         *     Returns 409 Conflict for a disabled agent, an agent already available,
+         *     and the Apollia agent, which is always there.
+         *
+         *     [`ExecutionCoordinator`]: crate::coordinator::ExecutionCoordinator
+         *     [`TaskRouter`]: crate::router::TaskRouter
          */
         post: operations["start_agent"];
         delete?: never;
@@ -315,35 +288,6 @@ export interface paths {
         /** Handler for `GET /api/v1/agents/installed`. */
         get: operations["list_installed_agents"];
         put?: never;
-        /**
-         * Handler for `POST /api/v1/agents/installed`.
-         * @description Emits `RuntimeEvent::AgentInstalled` once the agent is recorded.
-         */
-        post: operations["install_agent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/agents/installed/{name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Handler for `PUT /api/v1/agents/installed/{name}`.
-         * @description Validates the new module, replaces the installed one, records the new
-         *     version, and cycles the runtime instance when there is one. The cycle is the
-         *     point of the route: the interpreter holds the module it imported at start
-         *     time, so without the stop and the start the window would report a new
-         *     version while the old one keeps answering. Emits
-         *     `RuntimeEvent::AgentInstalled` once the runtime has settled.
-         */
-        put: operations["update_agent"];
         post?: never;
         delete?: never;
         options?: never;
@@ -6509,12 +6453,8 @@ export interface components {
         AgentOriginDto: "package" | "interface";
         /** @description An agent of a package. */
         AgentPackageAgent: {
-            /** @description Entry point, relative to the package folder. */
-            entry: string;
-            /** @description Agent name. */
+            /** @description Agent name, as the manifest recorded at installation gives it. */
             name: string;
-            /** @description `director`, `worker` or `assistant`. */
-            role: string;
         };
         /**
          * @description An automation that starts an agent or a workflow of a package: it goes
@@ -6584,28 +6524,6 @@ export interface components {
             /** @description Installed version. */
             version: string;
         };
-        /** @description Body of `POST /api/v1/agent-packages/installed`. */
-        AgentPackageInstallBody: {
-            /** @description The user accepted the Python dependencies the package installs. */
-            deps_confirmed?: boolean;
-            /** @description The package folder on this machine, the one holding `agent.toml`. */
-            path: string;
-            /** @description What the user gave each trigger, a webhook secret for now. */
-            trigger_configs?: components["schemas"]["AgentPackageTriggerConfig"][];
-        };
-        /** @description What an installation did. */
-        AgentPackageInstallReport: {
-            /** @description Agents recorded. */
-            agent_count: number;
-            /** @description Package name. */
-            name: string;
-            /** @description Triggers written. */
-            trigger_count: number;
-            /** @description Triggers refused, one line each. */
-            trigger_errors: string[];
-            /** @description Installed version. */
-            version: string;
-        };
         /** @description An agent or a workflow of a package. */
         AgentPackageItem: {
             /** @description What it is for, in one line; empty when the manifest does not say. */
@@ -6639,34 +6557,6 @@ export interface components {
             signature: components["schemas"]["AgentPackageSignature"];
             /** @description Installed version. */
             version: string;
-        };
-        /** @description What a package folder contains, read without writing anything. */
-        AgentPackagePreview: {
-            /** @description Its agents; empty when the manifest is invalid. */
-            agents: components["schemas"]["AgentPackageAgent"][];
-            /** @description Author. */
-            author: string;
-            /** @description Description. */
-            description: string;
-            /** @description Why it does not, when it does not. */
-            error?: string | null;
-            /** @description Package name. */
-            name: string;
-            /** @description The Python dependencies it installs, every agent together. */
-            pip_packages: string[];
-            /** @description Number of triggers. */
-            trigger_count: number;
-            /** @description Its triggers; empty when the manifest is invalid. */
-            triggers: components["schemas"]["AgentPackageTrigger"][];
-            /** @description The manifest holds its invariants. */
-            valid: boolean;
-            /** @description Version. */
-            version: string;
-        };
-        /** @description Body of `POST /api/v1/agent-packages/preview`. */
-        AgentPackagePreviewBody: {
-            /** @description The package folder on this machine, the one holding `agent.toml`. */
-            path: string;
         };
         /**
          * @description A connection a package requires. It belongs to the user and stays when
@@ -6705,32 +6595,6 @@ export interface components {
             family: string;
             /** @description Tool name inside its package. */
             name: string;
-        };
-        /** @description A trigger a package declares, as the preview shows it. */
-        AgentPackageTrigger: {
-            /** @description The agent it starts. */
-            agent: string;
-            /** @description Whether it starts enabled. */
-            enabled: boolean;
-            /** @description Interval (interval triggers). */
-            every?: string | null;
-            /** @description Trigger identifier. */
-            id: string;
-            /** @description A webhook without its secret: the user gives one at install. */
-            needs_config: boolean;
-            /** @description Watched path (file_watch triggers). */
-            path?: string | null;
-            /** @description Cron expression (cron triggers). */
-            schedule?: string | null;
-            /** @description `cron`, `interval`, `oneshot`, `file_watch` or `webhook`. */
-            source_type: string;
-        };
-        /** @description What the user gives a trigger at install, a webhook secret for now. */
-        AgentPackageTriggerConfig: {
-            /** @description Trigger identifier. */
-            id: string;
-            /** @description HMAC secret of a webhook. */
-            secret?: string | null;
         };
         /** @description Answer of `DELETE /api/v1/agent-packages/installed/{name}`. */
         AgentPackageUninstalled: {
@@ -8564,20 +8428,6 @@ export interface components {
          * @enum {string}
          */
         InputKind: "text" | "long_text" | "file" | "date" | "integer" | "number" | "boolean" | "choice" | "list" | "other";
-        /** @description Request body for `POST /api/v1/agents/installed`. */
-        InstallAgentRequest: {
-            /** @description Path of the Python module on this machine. */
-            path: string;
-        };
-        /** @description Response body for an install. */
-        InstallAgentResponse: {
-            /** @description Install path on disk. */
-            install_path: string;
-            /** @description Unique name of the installed agent. */
-            name: string;
-            /** @description Semver version of the agent. */
-            version: string;
-        };
         /** @description Why the package cannot be installed as it is. */
         InstallRefusal: {
             /** @enum {string} */
@@ -8631,30 +8481,25 @@ export interface components {
             /** @description Workflows installed. */
             workflows: string[];
         };
-        /** @description One agent of the machine: installed, running, or both. */
+        /** @description One agent of the machine: stored, registered, or both. */
         InstalledAgentView: {
             /** @description Name of the Python class of the agent. */
             agent_class?: string | null;
             /** @description Semantic role: `"worker"`, `"assistant"`, `"system"`, or `None`. */
             agent_type?: string | null;
-            /** @description Description from the manifest. */
+            /** @description What the agent is for. */
             description?: string | null;
-            /** @description Whether the agent loads at boot. */
+            /** @description Whether the agent is made available at boot. */
             enabled: boolean;
             /** @description Prompt examples of typical uses. */
             examples: string[];
             /** @description Execution mode (`"auto"`, `"direct"`, `"orchestrated"`). */
             execution_mode?: string | null;
-            /** @description Runtime identifier, `None` when installed but not started. */
+            /** @description Runtime identifier, `None` when stored but not registered. */
             id?: string | null;
             /**
-             * @description Install path on disk, `None` for an agent started without being
-             *     installed.
-             */
-            install_path?: string | null;
-            /**
-             * @description Install timestamp (RFC 3339), `None` for an agent started without
-             *     being installed.
+             * @description Install timestamp (RFC 3339), `None` for an agent registered without
+             *     being stored.
              */
             installed_at?: string | null;
             /** @description What the agent does not do. */
@@ -8678,10 +8523,6 @@ export interface components {
             supports_a2a: boolean;
             /** @description Free-form tags for routing and discovery. */
             tags: string[];
-            /** @description Tools the agent uses when present. */
-            tools_optional: string[];
-            /** @description Tools the agent requires. */
-            tools_required: string[];
             /** @description Semver version. */
             version: string;
         };
@@ -11222,8 +11063,8 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/agents`. */
         StartAgentRequest: {
-            /** @description Path to the agent Python module. */
-            agent_path: string;
+            /** @description Identifier of the stored agent to make available. */
+            agent: string;
         };
         /** @description Body of `POST /api/v1/connectors/oauth/start`. */
         StartConsentBody: {
@@ -11908,29 +11749,6 @@ export interface components {
          * @enum {string}
          */
         UnreadReasonDto: "ocr_unavailable" | "not_read";
-        /** @description Request body for `PUT /api/v1/agents/installed/{name}`. */
-        UpdateAgentRequest: {
-            /** @description Path of the new Python module on this machine. */
-            path: string;
-        };
-        /**
-         * @description Response to an agent update.
-         *
-         *     Distinct from the install answer because an update has an outcome an
-         *     install cannot have: a runtime instance that had to be cycled.
-         */
-        UpdateAgentResponse: {
-            /** @description Install path on disk. */
-            install_path: string;
-            /** @description Unique name of the updated agent. */
-            name: string;
-            /** @description Raw cause when the stop or the start failed, `None` otherwise. */
-            restart_error?: string | null;
-            /** @description One of the [`restart_outcome`] constants. */
-            restart_outcome: string;
-            /** @description Semver version read from the new module's manifest. */
-            version: string;
-        };
         /** @description The fields of an artifact a change may replace; an absent one is kept. */
         UpdateArtifactRequest: {
             /** @description New content. */
@@ -12835,66 +12653,6 @@ export interface operations {
             };
         };
     };
-    install_agent_package: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgentPackageInstallBody"];
-            };
-        };
-        responses: {
-            /** @description Installed */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentPackageInstallReport"];
-                };
-            };
-            /** @description Invalid manifest, or a name that is a path */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The copy, a virtualenv or an agent import failed; nothing is left */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The Python dependencies are not confirmed */
-            428: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description agents.db refused a row */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     get_agent_package: {
         parameters: {
             query?: never;
@@ -13013,39 +12771,6 @@ export interface operations {
             };
         };
     };
-    preview_agent_package: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgentPackagePreviewBody"];
-            };
-        };
-        responses: {
-            /** @description The preview */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentPackagePreview"];
-                };
-            };
-            /** @description agent.toml cannot be read or parsed */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
     list_agents: {
         parameters: {
             query?: {
@@ -13091,7 +12816,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Agent started */
+            /** @description Agent available */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -13100,8 +12825,26 @@ export interface operations {
                     "application/json": components["schemas"]["AgentResponse"];
                 };
             };
-            /** @description Invalid agent module */
-            400: {
+            /** @description No stored agent carries this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Agent disabled, already available, or built into Apollia */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description agents.db cannot be read */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13120,7 +12863,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Installed agents with their runtime state, then agents started without being installed */
+            /** @description Stored agents with their runtime state, then agents registered without being stored */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13130,102 +12873,6 @@ export interface operations {
                 };
             };
             /** @description agents.db or the registry cannot be read */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    install_agent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InstallAgentRequest"];
-            };
-        };
-        responses: {
-            /** @description Agent installed */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstallAgentResponse"];
-                };
-            };
-            /** @description File absent or module refused */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The install cannot be written */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-        };
-    };
-    update_agent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Name of the installed agent */
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateAgentRequest"];
-            };
-        };
-        responses: {
-            /** @description Agent updated, with what happened to its running instance */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UpdateAgentResponse"];
-                };
-            };
-            /** @description File absent or module refused */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description No installed agent of that name */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiErrorBody"];
-                };
-            };
-            /** @description The update cannot be written */
             500: {
                 headers: {
                     [name: string]: unknown;

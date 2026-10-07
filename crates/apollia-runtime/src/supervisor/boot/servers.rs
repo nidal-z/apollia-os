@@ -12,9 +12,7 @@ use crate::supervisor::bootstrap::{flatten_api_start, rollback_startup_actors};
 
 /// What `AppState` takes by value rather than sharing with the handles.
 pub(super) struct StateOwned<B: ExecutionBackend + Clone> {
-    pub(super) agent_loader: Arc<dyn AgentLoader>,
     pub(super) backend: B,
-    pub(super) backend_factory: Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
     pub(super) batches: Option<crate::batch::BatchHandle>,
     pub(super) a2a_invoker: Arc<crate::a2a::A2AInvoker>,
     pub(super) resilience: Arc<std::sync::Mutex<apollia_oria::ResilienceLayer>>,
@@ -105,7 +103,6 @@ impl Supervisor {
             router_handle: core.router_handle.clone(),
             registry_handle: core.registry_handle.clone(),
             event_sender: core.event_sender.clone(),
-            agent_loader: owned.agent_loader,
             backend: owned.backend,
             llm_router: shared_llm_router.clone(),
             trigger_engine: Some(executors.trigger_engine.clone()),
@@ -114,7 +111,6 @@ impl Supervisor {
             pending_approvals: stores.pending_approvals.clone(),
             plan_gates: stores.plan_gates.clone(),
             notification_config: stores.notification_config.clone(),
-            backend_factory: owned.backend_factory,
             tool_registry_handle: Some(core.tool_registry_handle.clone()),
             audit_trail: governance.audit_trail.clone(),
             audit_journal: governance.audit_journal.clone(),

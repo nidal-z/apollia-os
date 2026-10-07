@@ -87,9 +87,6 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "agent_status_snapshot",
     "list_agents",
     "uninstall_agent",
-    // Agents: the update, restart included, over
-    // `PUT /api/v1/agents/installed/{name}`.
-    "update_agent",
     // Tasks: the list and the detail.
     "get_task_timeline",
     "list_tasks",
@@ -145,13 +142,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "test_mcp_live_server",
     "node_runtime_state",
     "update_mcp_server_config",
-    // Agent packages installed from a folder, over
-    // `/api/v1/agent-packages/`. The preview and the install name the folder
-    // the window picked; the daemon listens on this machine and reads it.
+    // The installed packages, over `/api/v1/agent-packages/`.
     "get_agent_package_detail",
-    "install_agent_package",
     "list_agent_packages",
-    "preview_agent_package",
     "uninstall_agent_package",
     // Connections, the folders added as connections, and the mailbox
     // connection: the providers known from the address, and the addition,
@@ -582,10 +575,6 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "take_opened_package_files",
         "hands over the package files the system opened in this window",
-    ),
-    (
-        "get_api_port",
-        "reads the port this window resolved at startup, the daemon's when attached",
     ),
     (
         "list_audio_input_devices",

@@ -23,14 +23,6 @@ export async function uninstallCli(): Promise<void> {
   return invoke<void>("uninstall_cli");
 }
 
-/**
- * The port of the native API this window serves or attaches to, resolved at
- * startup from `[api].port` or from the port a serving daemon recorded.
- */
-export async function getApiPort(): Promise<number> {
-  return invoke<number>("get_api_port");
-}
-
 /** Reveal a session-scoped path in the platform file manager. */
 export async function revealSessionPath(
   sessionId: string,

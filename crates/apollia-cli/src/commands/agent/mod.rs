@@ -1,21 +1,13 @@
 //! `apollia-os agent` subcommands: manage agents via the runtime API and local persistence.
 //!
 //! Provides `list`, `start`, `stop`, `show`, `set`, `reset`, `uninstall`
-//! (runtime-dependent) and `install`, `enable`, `disable`, `update` (local).
+//! (runtime-dependent) and `enable`, `disable` (local). An agent arrives with
+//! a package: see `apollia-os package`.
 
 use std::path::{Path, PathBuf};
 
-use apollia_aip::package_loader::{load_manifest_only, PackageLoaderError};
-use apollia_runtime::agents::registry_remote::{self, parse_install_source, AgentInstallSource};
-use apollia_runtime::api::routes_agents::AgentLoader;
-use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
-use apollia_triggers::{
-    definition_repository::TriggerDefinitionRepository, parse_triggers_from_toml_str, OnBusy,
-    OnBusyPolicy, TriggerDefinitionRow, TriggerSourceConfig,
-};
+use apollia_tools::{AgentRepository, PackageRepository, StoredAgent};
 use clap::Subcommand;
-
-use crate::community::{validate_community_agent, AgentValidationError};
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
@@ -23,12 +15,9 @@ use crate::exit_codes;
 mod definition;
 mod display;
 mod export;
-mod install;
 mod lifecycle;
 mod package;
-mod scaffold;
 mod uninstall;
-mod validate;
 
 #[cfg(test)]
 mod tests;
@@ -39,19 +28,16 @@ pub(in crate::commands::agent) use definition::{
 pub(in crate::commands::agent) use display::{
     build_list_json, format_a2a_agent_list, format_agent_detail, format_enriched_agent_list,
     format_status_snapshot, handle_error, local_agent_detail, print_audit_event_row,
-    print_trust_banner, run_info_local_fallback,
+    run_info_local_fallback,
 };
 pub(in crate::commands::agent) use export::{run_export, ExportChoices};
-pub(in crate::commands::agent) use install::run_install;
 pub(in crate::commands::agent) use lifecycle::{
     run_info, run_list, run_logs, run_messages, run_start, run_status, run_stop,
 };
 pub(in crate::commands::agent) use package::{
-    run_disable, run_enable, run_package_info, run_package_list, run_repair, run_update,
+    run_disable, run_enable, run_package_info, run_package_list,
 };
-pub(in crate::commands::agent) use scaffold::run_new;
 pub(in crate::commands::agent) use uninstall::{run_package_uninstall, run_uninstall, Erase};
-pub(in crate::commands::agent) use validate::run_validate;
 
 /// Agent subcommands: `apollia-os agent <verb>`.
 #[derive(Debug, Subcommand)]
@@ -66,10 +52,13 @@ pub enum AgentCommand {
         #[arg(long)]
         definitions: bool,
     },
-    /// Start (register) a new agent from a Python module path.
+    /// Make a stored agent available again, after `agent stop`.
+    ///
+    /// An agent is available as soon as it is installed and enabled; this is
+    /// only needed for one that was stopped.
     Start {
-        /// Path to the agent Python module.
-        path: String,
+        /// Agent identifier.
+        agent_id: String,
     },
     /// Stop (shutdown) a running agent.
     Stop {
@@ -152,20 +141,6 @@ pub enum AgentCommand {
         #[arg(long, value_name = "N", default_value = "20")]
         limit: u32,
     },
-    /// Install an agent permanently from a local path or a Git URL.
-    ///
-    /// Accepts a local filesystem path (e.g. `./agents/my-agent.py`) or a Git
-    /// remote URL (e.g. `https://github.com/user/my-agent.git`).  An optional
-    /// `#<tag>` suffix pins the clone to a specific tag or branch
-    /// (e.g. `https://github.com/user/my-agent.git#v1.2.0`).
-    Install {
-        /// Local path to a Python module or a Git URL (with optional #tag).
-        source: String,
-
-        /// Skip the agent test suite (not recommended, reduces validation coverage).
-        #[arg(long)]
-        skip_tests: bool,
-    },
     /// Uninstall an agent installed on its own, through the runtime.
     ///
     /// Removes its definition, its overrides, its model, its triggers, its
@@ -198,23 +173,7 @@ pub enum AgentCommand {
         /// Agent name.
         name: String,
     },
-    /// Update an installed agent with a new Python module.
-    Update {
-        /// Agent name.
-        name: String,
-        /// Path to the new Python module.
-        path: PathBuf,
-    },
-    /// Create a new agent from an SDK template.
-    Create {
-        /// Agent name in kebab-case (e.g. my-agent).
-        name: String,
-
-        /// Template type: react, conversational, or orchestrated.
-        #[arg(long, default_value = "react")]
-        r#type: String,
-    },
-    /// Manage agent packages (multi-agent bundles described by agent.toml).
+    /// List, show and uninstall the installed packages.
     Package {
         #[command(subcommand)]
         cmd: PackageCommand,
@@ -231,21 +190,6 @@ pub enum AgentCommand {
         /// Not implemented: refuses with an error naming `--last` instead.
         #[arg(long)]
         follow: bool,
-    },
-    /// Validate an agent manifest without installing or starting the agent.
-    Validate {
-        /// Path to the Python agent module.
-        path: PathBuf,
-    },
-    /// Re-provision an installed agent's per-agent Python venv from its manifest.
-    ///
-    /// Reads `~/.apollia/agents/packages/<name>/agent.toml` (or the single-file
-    /// agent's manifest), then re-runs `setup_venv` with the declared `packages`
-    /// list. Useful when an agent was installed before per-agent venv
-    /// provisioning landed, or when a venv was deleted by hand.
-    Repair {
-        /// Installed agent name (as declared in the manifest).
-        name: String,
     },
 }
 
@@ -296,7 +240,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
             definitions: true, ..
         } => run_list_definitions(&client, json).await,
         AgentCommand::List { supports_a2a, .. } => run_list(&client, *supports_a2a, json).await,
-        AgentCommand::Start { path } => run_start(&client, path, json).await,
+        AgentCommand::Start { agent_id } => run_start(&client, agent_id, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
         AgentCommand::Show { agent_id } => run_info(&client, agent_id, json).await,
         AgentCommand::Set {
@@ -326,9 +270,6 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Messages { agent_id, limit } => {
             run_messages(&client, agent_id, *limit, json).await
         }
-        AgentCommand::Install { source, skip_tests } => {
-            run_install(source, &client, json, *skip_tests).await
-        }
         AgentCommand::Uninstall {
             name,
             clear_memory,
@@ -343,8 +284,6 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         }
         AgentCommand::Enable { name } => run_enable(&client, name, json).await,
         AgentCommand::Disable { name } => run_disable(&client, name, json).await,
-        AgentCommand::Update { name, path } => run_update(name, path, json),
-        AgentCommand::Create { name, r#type } => run_new(name, r#type, json),
         AgentCommand::Package { cmd } => match cmd {
             PackageCommand::List => run_package_list(json),
             PackageCommand::Show { name } => run_package_info(name, json),
@@ -366,8 +305,6 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
             last,
             follow,
         } => run_logs(&client, agent_id, *last, *follow, json).await,
-        AgentCommand::Validate { path } => run_validate(path, json),
-        AgentCommand::Repair { name } => run_repair(name, json).await,
     }
 }
 
@@ -413,6 +350,17 @@ fn open_repository_or_create(data_dir: &Path) -> Result<AgentRepository, String>
 }
 
 /// Try to open the agent repository (returns `None` if file or DB unavailable).
+/// The stored agents of the local store, the Apollia agent left out: it is
+/// the built-in chat, never started, stopped nor uninstalled.
+fn stored_agents() -> Vec<StoredAgent> {
+    open_repository()
+        .and_then(|repo| repo.list_stored().ok())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|agent| !apollia_tools::is_built_in_agent(&agent.name))
+        .collect()
+}
+
 fn open_repository() -> Option<AgentRepository> {
     let data_dir = apollia_data_dir();
     let db_path = apollia_core::paths::DataFile::Agents.path(&data_dir);
@@ -420,31 +368,6 @@ fn open_repository() -> Option<AgentRepository> {
         return None;
     }
     AgentRepository::open(&db_path).ok()
-}
-
-/// Real agent loader using PyO3 AIPLoader + validate_agent.
-///
-/// Loads a Python module, validates AIP duck typing, and returns the manifest.
-struct CliAgentLoader;
-
-impl AgentLoader for CliAgentLoader {
-    fn load_and_validate(&self, path: &Path) -> Result<apollia_core::AgentManifest, String> {
-        // Share the community validation helper so `apollia-os agent
-        // validate` benefits from the same sys.path injection as
-        // `agent install`: per-agent venv + enclosing package root +
-        // workspace SDK fallback.
-        let extras = crate::community::validation_sys_paths(path);
-        let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
-            .map_err(|e| e.to_string())?;
-        let validated =
-            apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
-        Ok(validated.manifest)
-    }
-}
-
-/// Current timestamp in RFC 3339 format.
-fn now_rfc3339() -> String {
-    chrono::Utc::now().to_rfc3339()
 }
 
 /// Print an error message (human or JSON) and return `GENERAL_ERROR`.

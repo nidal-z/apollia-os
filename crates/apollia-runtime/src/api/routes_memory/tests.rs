@@ -10,9 +10,8 @@ use apollia_tools::ToolRegistryHandle;
 use axum::http::StatusCode;
 use tempfile::TempDir;
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MockBackend};
 use crate::chat::ChatSessionManagerHandle;
 
 /// A daemon rooted at `dir`, whose memory holds the namespace `agent-x` with
@@ -32,10 +31,7 @@ fn state_with_memory(dir: &TempDir) -> AppState<MockBackend> {
             None,
         )
         .unwrap();
-    app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    )
+    app_state(dir.path().to_path_buf())
 }
 
 fn with_chat(mut state: AppState<MockBackend>, dir: &TempDir) -> AppState<MockBackend> {
@@ -43,7 +39,6 @@ fn with_chat(mut state: AppState<MockBackend>, dir: &TempDir) -> AppState<MockBa
         &dir.path().join("chat.db"),
         Some(Arc::new(LlmRouter::empty())),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         state.event_sender.clone(),
         StepBudgetConfig::default(),
@@ -132,10 +127,7 @@ async fn test_a_memory_directory_that_cannot_be_read_is_refused_with_500() {
     // GIVEN a daemon whose memory directory is a file, so it cannot be listed
     let dir = TempDir::new().unwrap();
     std::fs::write(dir.path().join("memory"), b"not a directory").unwrap();
-    let state = app_state(
-        Arc::new(StemLoader { refusal: None }),
-        dir.path().to_path_buf(),
-    );
+    let state = app_state(dir.path().to_path_buf());
 
     // WHEN a client lists the namespaces
     let (listed, refusal) = call(state, "GET", "/api/v1/memory/namespaces", None).await;

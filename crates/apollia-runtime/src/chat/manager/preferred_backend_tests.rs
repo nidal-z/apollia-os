@@ -14,7 +14,6 @@ use apollia_llm::LlmRouter;
 use apollia_mcp::session::LoadingMode;
 use apollia_tools::ToolRegistryHandle;
 
-use crate::api::routes_agents::StubAgentLoader;
 use crate::chat::manager::{ChatSessionManagerHandle, CreateSessionParams};
 use crate::chat::types::{ChatMode, SessionConfigUpdate};
 use crate::test_support::poll_until;
@@ -68,7 +67,6 @@ fn spawn(dir: &tempfile::TempDir, router: Arc<LlmRouter>) -> ChatSessionManagerH
         &dir.path().join("chat.db"),
         Some(router),
         ToolRegistryHandle::start(),
-        Arc::new(StubAgentLoader),
         None,
         event_tx.clone(),
         StepBudgetConfig::default(),

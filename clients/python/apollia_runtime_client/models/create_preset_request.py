@@ -26,7 +26,8 @@ class CreatePresetRequest:
         model_source (ModelSourceDto): Where a model runs.
         name (str): Name, unique among the presets of the model.
         is_model_default (bool | Unset): Make it the default preset of its model (default: `false`).
-        load (CreatePresetRequestLoad | Unset): Load settings, written only while models.preset_load_settings is on. Never a system prompt.
+        load (CreatePresetRequestLoad | Unset): Load settings, written only while models.preset_load_settings is on.
+            Never a system prompt.
         request (CreatePresetRequestRequest | Unset): Request settings. Unknown fields, a system prompt among them, are
             refused.
     """

@@ -194,6 +194,9 @@ impl LlmRouter {
         }
     }
 
+    // TEST-ONLY: the runners of the Python agent path resolved the planner
+    // model with it; the agent executor routes on the model of the run with
+    // `LlmRouter::route`.
     /// The reasoning backend of one orchestrated run of the agent `binding`
     /// names: its own model when reachable; the default when that model is
     /// not available (said as [`Self::resolve_agent_model`] says it); and
@@ -309,6 +312,8 @@ impl AgentModelBinding {
         self
     }
 
+    // TEST-ONLY: the runners of the Python agent path read the package level
+    // from the manifest of the agent; nothing in production sets it now.
     /// The request settings the agent's package declares, the package level
     /// of [`Self::request_defaults`].
     #[must_use]

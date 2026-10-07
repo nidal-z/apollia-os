@@ -101,11 +101,10 @@ pub(in crate::commands::agent) async fn run_enable(
         Err(e) => return print_error_and_exit(&e, json),
     };
 
-    // Look up install_path BEFORE flipping the flag so we can short-circuit
-    // when the agent is unknown (operator typo) without persisting a stale
-    // `enabled=true` row.
-    let install_path = match repo.get(name) {
-        Ok(Some(entry)) => entry.install_path.to_string_lossy().to_string(),
+    // Check the agent is stored BEFORE flipping the flag, so an operator
+    // typo is refused without touching the store.
+    match repo.stored(name) {
+        Ok(Some(_)) => {}
         Ok(None) => {
             return print_error_and_exit(
                 &format!("Agent '{name}' not found in installed agents"),
@@ -113,11 +112,11 @@ pub(in crate::commands::agent) async fn run_enable(
             );
         }
         Err(e) => return print_error_and_exit(&format!("repository read failed: {e}"), json),
-    };
+    }
 
     match repo.set_enabled(name, true) {
         Ok(()) => {
-            let load_outcome = match client.start_agent(&install_path).await {
+            let load_outcome = match client.start_agent(name).await {
                 Ok(_) => "loaded",
                 Err(ClientError::ServerError { status: 409, .. }) => "already-loaded",
                 Err(ClientError::ConnectionRefused) => "runtime-offline",
@@ -226,233 +225,3 @@ pub(in crate::commands::agent) async fn run_disable(
         Err(e) => print_error_and_exit(&format!("database error: {e}"), json),
     }
 }
-
-/// `apollia-os agent update <name> <path>`: update an installed agent.
-pub(in crate::commands::agent) fn run_update(name: &str, source_path: &Path, json: bool) -> i32 {
-    let data_dir = apollia_data_dir();
-    let repo = match open_repository_or_create(&data_dir) {
-        Ok(r) => r,
-        Err(e) => return print_error_and_exit(&e, json),
-    };
-
-    // Check the agent exists.
-    let existing = match repo.get(name) {
-        Ok(Some(a)) => a,
-        Ok(None) => {
-            return print_error_and_exit(
-                &format!("Agent '{name}' not found in installed agents"),
-                json,
-            );
-        }
-        Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
-    };
-
-    // Validate source file exists.
-    if !source_path.exists() {
-        return print_error_and_exit(&format!("file not found: {}", source_path.display()), json);
-    }
-
-    let canonical = match source_path.canonicalize() {
-        Ok(p) => p,
-        Err(e) => {
-            return print_error_and_exit(
-                &format!("cannot resolve path {}: {e}", source_path.display()),
-                json,
-            );
-        }
-    };
-
-    // Load and validate the new Python module.
-    let loader = CliAgentLoader;
-    let manifest = match loader.load_and_validate(&canonical) {
-        Ok(m) => m,
-        Err(e) => {
-            return print_error_and_exit(&format!("failed to load agent: {e}"), json);
-        }
-    };
-
-    // Copy new file to install location.
-    if let Err(e) = std::fs::copy(&canonical, &existing.install_path) {
-        return print_error_and_exit(
-            &format!(
-                "cannot copy {} to {}: {e}",
-                canonical.display(),
-                existing.install_path.display()
-            ),
-            json,
-        );
-    }
-
-    // Update repository entry.
-    let updated = InstalledAgent {
-        name: existing.name.clone(),
-        version: manifest.version.clone(),
-        install_path: existing.install_path,
-        source_path: canonical,
-        manifest,
-        enabled: existing.enabled,
-        installed_at: existing.installed_at,
-        updated_at: now_rfc3339(),
-    };
-
-    if let Err(e) = repo.save(&updated) {
-        return print_error_and_exit(&format!("failed to update database: {e}"), json);
-    }
-
-    if json {
-        let output = serde_json::json!({
-            "name": updated.name,
-            "version": updated.version,
-        });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).unwrap_or_default()
-        );
-    } else {
-        println!("Agent '{}' updated to v{}", updated.name, updated.version);
-    }
-
-    exit_codes::SUCCESS
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Scaffolding (agent new)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// `apollia-os agent repair <name>`: re-provision an installed agent's venv.
-///
-/// Looks the agent up in the package repository, parses the `manifest_json`
-/// stored for its owning package, finds the matching agent entry, then runs
-/// `PythonExecutor::setup_venv` against the declared `packages` list. Idempotent:
-/// safe to run on already-provisioned venvs (pip is a no-op when satisfied).
-pub(in crate::commands::agent) async fn run_repair(name: &str, json: bool) -> i32 {
-    let data_dir = apollia_data_dir();
-    let pkg_repo = match open_package_repository_or_create(&data_dir) {
-        Ok(r) => r,
-        Err(e) => return print_error_and_exit(&e, json),
-    };
-
-    // Find the package owning this agent: list packages, parse each manifest,
-    // and match by agent name. The repository stores the resolved manifest JSON
-    // alongside the package row so we do not need to re-parse agent.toml from disk.
-    let packages = match pkg_repo.list() {
-        Ok(p) => p,
-        Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
-    };
-
-    let (package_name, declared) = match find_agent_package_deps(&packages, name) {
-        Some(f) => f,
-        None => {
-            return print_error_and_exit(
-                &format!(
-                    "agent '{name}' not found in any installed package\n\
-                     Hint: run `apollia-os agent list` to see installed agents."
-                ),
-                json,
-            );
-        }
-    };
-
-    if declared.is_empty() {
-        if json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&serde_json::json!({
-                    "agent": name,
-                    "package": package_name,
-                    "venv_provisioned": false,
-                    "reason": "no pip dependencies declared in manifest",
-                }))
-                .unwrap_or_default()
-            );
-        } else {
-            println!("Agent '{name}' (package {package_name}) declares no pip packages.");
-            println!("Nothing to repair.");
-        }
-        return exit_codes::SUCCESS;
-    }
-
-    let venv_base = data_dir.join("venvs");
-    let executor =
-        match apollia_tools::tools::python_executor::PythonExecutor::new(name, &venv_base) {
-            Ok(e) => e,
-            Err(e) => {
-                return print_error_and_exit(&format!("could not init venv: {e}"), json);
-            }
-        };
-
-    if !json {
-        println!(
-            "Provisioning venv for '{name}' ({} package(s))…",
-            declared.len()
-        );
-    }
-
-    if let Err(e) = executor.setup_venv(&declared).await {
-        return print_error_and_exit(&format!("venv provisioning failed: {e}"), json);
-    }
-
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&serde_json::json!({
-                "agent": name,
-                "package": package_name,
-                "venv_provisioned": true,
-                "packages": declared,
-            }))
-            .unwrap_or_default()
-        );
-    } else {
-        println!(
-            "OK venv for '{name}' provisioned at {}",
-            venv_base.join(name).display()
-        );
-        note!("    Packages installed:");
-        for p in &declared {
-            println!("      - {p}");
-        }
-        note!();
-        note!("Restart the runtime to pick up the new venv:");
-        println!("    apollia-os stop && apollia-os start");
-    }
-    exit_codes::SUCCESS
-}
-
-/// Locate the package owning `agent_name` and return its `(package_name,
-/// declared_pip_packages)`. Returns `None` when no installed package
-/// declares an agent with that name.
-fn find_agent_package_deps(
-    packages: &[InstalledPackage],
-    agent_name: &str,
-) -> Option<(String, Vec<String>)> {
-    for pkg in packages {
-        let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&pkg.manifest_json) else {
-            continue;
-        };
-        let Some(agents) = manifest.get("agents").and_then(|v| v.as_array()) else {
-            continue;
-        };
-        let Some(entry) = agents
-            .iter()
-            .find(|e| e.get("name").and_then(|v| v.as_str()) == Some(agent_name))
-        else {
-            continue;
-        };
-        let pkgs: Vec<String> = entry
-            .get("packages")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|s| s.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
-        return Some((pkg.name.clone(), pkgs));
-    }
-    None
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────────────────

@@ -41,9 +41,6 @@ fn test_save_definition_round_trips() {
     assert_eq!(stored.definition["mission"], "Extract the totals.");
     // The stored agents are this one and Apollia, which every file holds.
     assert_eq!(repo.list_stored().unwrap().len(), 2);
-    // A declarative agent runs no code: it is not an installed Python agent.
-    assert!(repo.get("invoices").unwrap().is_none());
-    assert!(repo.list().unwrap().is_empty());
 }
 
 // GIVEN an agent with an overridden mission and access
@@ -175,70 +172,27 @@ fn test_delete_removes_overrides() {
     assert!(repo.overrides("invoices").unwrap().is_empty());
 }
 
-// GIVEN a Python agent whose access the user overrode
-// WHEN the agent is saved again with a newer version, as `agent update` does
-// THEN the definition follows the new manifest and the override is kept
-#[test]
-fn test_saving_a_python_agent_again_keeps_overrides() {
-    let repo = AgentRepository::open(Path::new(":memory:")).unwrap();
-    let agent = |version: &str, tools: &[&str]| crate::InstalledAgent {
-        name: "notes".into(),
-        version: version.into(),
-        install_path: "/a/notes/agent.py".into(),
-        source_path: "/src/notes.py".into(),
-        manifest: serde_json::from_value(json!({
-            "name": "notes",
-            "version": version,
-            "description": "Takes notes.",
-            "tools_required": tools
-        }))
-        .unwrap(),
-        enabled: true,
-        installed_at: "2026-10-01T00:00:00Z".into(),
-        updated_at: "2026-10-01T00:00:00Z".into(),
-    };
-    repo.save(&agent("1.0.0", &["file_read"])).unwrap();
-    repo.set_override("notes", OverrideField::Access, &json!(["web_fetch"]))
-        .unwrap();
-
-    repo.save(&agent("1.1.0", &["file_read", "file_write"]))
-        .unwrap();
-
-    let resolved = repo
-        .resolved("notes", None, AutonomyLevel::Assisted)
-        .unwrap()
-        .unwrap();
-    assert_eq!(resolved.version, "1.1.0");
-    assert_eq!(
-        resolved.definition["defaults"]["access"],
-        json!(["file_read", "file_write"])
-    );
-    assert_eq!(resolved.access, vec!["web_fetch"]);
-}
-
-// GIVEN a Python agent the user disabled and whose mission they overrode
-// WHEN a package adopts it as one of its declarative agents
-// THEN it runs no code any more, belongs to the package, and keeps both the
-// override and the disabled state; adopting it again changes nothing
+// GIVEN a row written when an agent ran code, which the user disabled and
+// whose mission they overrode
+// WHEN a package adopts it as one of its agents
+// THEN its code columns are cleared, it belongs to the package, and it keeps
+// both the override and the disabled state; adopting it again changes nothing
 #[test]
 fn test_adopt_into_package_drops_the_code_and_keeps_the_user_state() {
     let repo = AgentRepository::open(Path::new(":memory:")).unwrap();
-    repo.save(&crate::InstalledAgent {
-        name: "guide".into(),
-        version: "0.2.0".into(),
-        install_path: "/a/guide/agent.py".into(),
-        source_path: "/a/guide/agent.py".into(),
-        manifest: serde_json::from_value(json!({
-            "name": "guide",
-            "version": "0.2.0",
-            "description": "Helps.",
-            "tools_required": []
-        }))
-        .unwrap(),
-        enabled: true,
-        installed_at: "2026-10-01T00:00:00Z".into(),
-        updated_at: "2026-10-01T00:00:00Z".into(),
-    })
+    repo.save_as_code_row(
+        &StoredAgent {
+            name: "guide".into(),
+            origin: AgentOrigin::Package,
+            package: None,
+            version: "0.2.0".into(),
+            definition: json!({"id": "guide", "name": "guide", "mission": "Helps.", "defaults": {}}),
+            enabled: true,
+            installed_at: "2026-10-01T00:00:00Z".into(),
+            updated_at: "2026-10-01T00:00:00Z".into(),
+        },
+        Path::new("/a/guide/agent.py"),
+    )
     .unwrap();
     repo.set_override("guide", OverrideField::Mission, &json!("Mine."))
         .unwrap();
@@ -249,7 +203,11 @@ fn test_adopt_into_package_drops_the_code_and_keeps_the_user_state() {
 
     assert!(adopted);
     assert!(!again, "an agent without code is left alone");
-    assert!(repo.get("guide").unwrap().is_none(), "no code any more");
+    assert_eq!(
+        repo.legacy_install_path("guide").unwrap(),
+        None,
+        "no code any more"
+    );
     let stored = repo.stored("guide").unwrap().unwrap();
     assert_eq!(stored.origin, AgentOrigin::Package);
     assert_eq!(stored.package.as_deref(), Some("guide-pkg"));

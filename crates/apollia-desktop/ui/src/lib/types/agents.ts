@@ -85,16 +85,10 @@ export interface AgentListItem {
   description: string | null;
   /** Free tags for routing and discovery. */
   tags: string[];
-  /** Tools the agent requires. */
-  tools_required: string[];
-  /** Optional tools of the agent. */
-  tools_optional: string[];
   /** ORIA execution mode. */
   execution_mode: "direct" | "orchestrated" | "auto" | null;
   /** Weighted score for ranking and dispatch (from the Observer weighted scoring). */
   weighted_score?: number;
-  /** Install path on disk (`null` for runtime-only agents). */
-  install_path: string | null;
   /** Whether the agent supports inter-agent communication (A2A). */
   supports_a2a: boolean;
   /** Declared A2A skills (empty when supports_a2a is false). */
@@ -134,38 +128,4 @@ export interface AgentSkillView {
   id: string;
   name: string;
   description: string;
-}
-
-/** Response of an agent install or update. */
-export interface InstallAgentResponse {
-  name: string;
-  version: string;
-  install_path: string;
-}
-
-/** Result of creating an agent from an SDK template. */
-export interface CreateAgentResult {
-  /** Name of the created agent. */
-  name: string;
-  /** Template type used. */
-  template_type: string;
-  /** Path of the directory created on disk. */
-  path: string;
-}
-
-/** Type of SDK agent template. */
-export type AgentTemplateType = "react" | "conversational" | "orchestrated";
-
-/** Definition of an agent template, for the creation dialog. */
-export interface TemplateDefinition {
-  /** Identifier of the template type. */
-  type: AgentTemplateType;
-  /** Displayed title. */
-  title: string;
-  /** Description courte. */
-  description: string;
-  /** Lucide icon name. */
-  icon: string;
-  /** CSS colour or gradient for the border. */
-  color: string;
 }
