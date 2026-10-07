@@ -9,17 +9,18 @@ Termes clés utilisés dans cette section et dans le reste de la documentation.
 
 | Terme | Signification |
 |---|---|
-| **Agent** | Un processus Python qui raisonne et agit de façon autonome dans une boucle ReAct, sous la gouvernance du runtime. Il expose, par typage structurel, une `manifest()` et un `run()` asynchrone. |
-| **Worker** | Un agent qui expose un ou plusieurs skills typés que d'autres agents peuvent appeler. L'expert de domaine au sein d'une équipe. |
-| **Director** | Un agent qui orchestre des workers en appelant leurs skills. |
-| **Skill** | Une capacité typée et invocable qu'un agent expose, déclarée avec le décorateur `@skill` et adressée par un `skill_id`. |
+| **Agent** | Une mission, des exemples et les outils qu'il peut atteindre, écrits comme une donnée : une entrée `[[agents]]` du `apollia.toml` d'un paquet, ou un agent créé dans l'application. Le moteur intégré au runtime l'exécute dans une boucle ReAct, sous la gouvernance du runtime. Aucun Python ne représente un agent. |
+| **Paquet** | Un dossier qui porte un `apollia.toml` à sa racine, distribué sous la forme d'une archive `.apo` : toute combinaison d'agents, d'outils et de workflows. Un paquet sans agent est valide. |
+| **Outil** | Ce qu'un agent peut se voir accorder et appeler : un outil natif du runtime, un outil MCP (`mcp:<server>/<tool>`), ou un outil Python d'un paquet (`pkg:<package>/<tool>`), une fonction `async` sous le décorateur `@tool`. |
+| **Workflow** | Une fonction Python `async` d'un paquet sous le décorateur `@workflow`, dont les étapes sont déclarées d'avance et qui peut exécuter des agents, exécuter d'autres workflows et poser une question à l'utilisateur. Adressé par `<package>/<workflow>`. |
+| **Skill** | Une capacité typée et invocable adressée par un `skill_id` sur le chemin A2A. Aucun décorateur du SDK n'en déclare : le Python d'un paquet apporte des outils et des workflows. |
 | **A2A** | Invocation agent-à-agent : un agent qui appelle le skill d'un autre agent via son `skill_id`, avec des garde-fous de profondeur, d'auto-appel, de délai d'expiration et d'échéance de chaîne. |
 | **ORIA** | Le moteur d'exécution autonome (`apollia-oria`) : la boucle ReAct, le planificateur, le budget, la résilience, la vérification et la gestion du contexte. |
 | **Direct vs orchestré** | Les deux modes d'exécution d'ORIA. Le mode direct exécute une seule boucle d'agent ; le mode orchestré planifie et pilote des étapes d'outils gouvernées, avec vérification et re-planification. |
 | **ReAct** | La boucle « raisonner puis agir » qu'exécute un agent : réfléchir, appeler un outil, observer, recommencer. |
 | **StepBudget** | Le plafond non contournable d'étapes de raisonnement, d'appels d'outils et de temps réel que le runtime impose à chaque exécution. |
-| **ctx** | Le contexte runtime transmis à chaque gestionnaire d'agent, exposant quinze services typés. Le contrat est `sdk/apollia/types.py`. Voir la [référence du SDK](/reference/sdk). |
-| **AgentKit** | Le SDK Python (`apollia`) : les décorateurs, schémas, harnais et fonctions utilitaires contre lesquels un auteur écrit son code. |
+| **ctx** | Le contexte runtime transmis à chaque outil et à chaque workflow d'un paquet, exposant dix-sept services typés. Le contrat est `sdk/apollia/types.py`. Voir la [référence du SDK](/reference/sdk). |
+| **AgentKit** | Le SDK Python (`apollia`) : les deux décorateurs, les schémas, les doublures de test et les fonctions utilitaires contre lesquels s'écrit le Python d'un paquet. |
 | **MCP** | Model Context Protocol. Apollia est un client MCP qui découvre et appelle des outils externes, et peut exposer un serveur MCP entrant limité. |
 | **Palier d'autonomie** | Le réglage propre à une exécution qui gouverne la porte du plan et la passe de vérification après exécution. Il ne gouverne aucune permission ni aucune approbation : il change la distance qu'une exécution parcourt sans surveillance, pas ce qu'un agent peut toucher. |
 | **HITL** | Humain dans la boucle : une approbation qu'une personne doit trancher avant l'exécution d'une action à conséquences. La décision est enregistrée. |
