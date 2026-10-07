@@ -33,11 +33,22 @@
     hintKey: "settings.chat.token_count_hint",
   } as const;
 
+  /**
+   * The prompt template row: a display preference of the developer mode,
+   * kept beside the theme.
+   */
+  export const CHAT_PROMPT_TEMPLATE_ROW = {
+    testId: "chat-show-prompt-template",
+    labelKey: "dev.chat.prompt_template.setting_label",
+    hintKey: "dev.chat.prompt_template.setting_hint",
+  } as const;
+
   /** A row of the Conversations block. */
   export type ChatConversationRow =
     | { kind: "behaviour"; row: ChatBehaviourRow }
     | { kind: "trash" }
     | { kind: "token_count" }
+    | { kind: "prompt_template" }
     | { kind: "plan_mode" };
 
   /**
@@ -88,10 +99,23 @@
     { kind: "plan_mode" },
   ];
 
+  /**
+   * The rows of the Conversations block as the page shows them: in developer
+   * mode the prompt template row follows the token count; otherwise it is
+   * not part of the page.
+   */
+  export function conversationRows(developerMode: boolean): readonly ChatConversationRow[] {
+    if (!developerMode) return CHAT_CONVERSATION_ROWS;
+    return CHAT_CONVERSATION_ROWS.flatMap((row): ChatConversationRow[] =>
+      row.kind === "token_count" ? [row, { kind: "prompt_template" }] : [row],
+    );
+  }
+
   /** The `data-testid` of a row of the Conversations block. */
   export function conversationRowTestId(row: ChatConversationRow): string {
     if (row.kind === "behaviour") return row.row.testId;
     if (row.kind === "trash") return CHAT_TRASH_ROW.testId;
+    if (row.kind === "prompt_template") return CHAT_PROMPT_TEMPLATE_ROW.testId;
     return row.kind === "token_count" ? CHAT_TOKEN_COUNT_ROW.testId : "plan-mode-default-toggle";
   }
 
@@ -158,6 +182,8 @@
   import { chatSendKey } from "$lib/stores/chatSendKey";
   import { chatTrashEnabled } from "$lib/stores/chatTrash";
   import { chatTokenCount } from "$lib/stores/chatTokenCount";
+  import { chatPromptTemplate } from "$lib/stores/chatPromptTemplate";
+  import { developerMode } from "$lib/stores/developerMode";
   import {
     chatBehaviours,
     hydrateChatBehaviours,
@@ -204,7 +230,7 @@
 <SettingsSubPage route="chat" data-testid="chat-settings-section">
   <SettingsSection title={$t(CHAT_SETTINGS_BLOCKS[0])} bodyLayout="flush">
     {#snippet icon()}<MessageSquare size={15} strokeWidth={1.75} />{/snippet}
-    {#each CHAT_CONVERSATION_ROWS as entry (conversationRowTestId(entry))}
+    {#each conversationRows($developerMode) as entry (conversationRowTestId(entry))}
       {#if entry.kind === "behaviour"}
         {@const held = $chatBehaviours[entry.row.key]}
         <div class="border-b border-border/60 py-1.5">
@@ -227,6 +253,17 @@
             checked={$chatTokenCount}
             onChange={(next) => chatTokenCount.set(next)}
             data-testid={CHAT_TOKEN_COUNT_ROW.testId}
+          />
+        </div>
+      {:else if entry.kind === "prompt_template"}
+        <div class="border-b border-border/60 py-1.5">
+          <SettingsToggle
+            id={`${CHAT_PROMPT_TEMPLATE_ROW.testId}-switch`}
+            label={$t(CHAT_PROMPT_TEMPLATE_ROW.labelKey)}
+            description={$t(CHAT_PROMPT_TEMPLATE_ROW.hintKey)}
+            checked={$chatPromptTemplate}
+            onChange={(next) => chatPromptTemplate.set(next)}
+            data-testid={CHAT_PROMPT_TEMPLATE_ROW.testId}
           />
         </div>
       {:else if entry.kind === "trash"}

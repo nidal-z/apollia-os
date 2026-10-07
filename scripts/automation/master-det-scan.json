@@ -3312,6 +3312,128 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-chat",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-show-prompt-template",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-show-prompt-template-switch",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-settings-tab",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-prompt-template-unavailable",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-prompt-template-source"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35b-inspector-prompt-template-builtin (developer mode: no engine runs, the template is the one built into the model)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_chat_prompt_template",
+      "resolve": {
+        "source": "engine",
+        "template": "{%- for message in messages %}{{ message.content }}{%- endfor %}"
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-settings-tab",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-prompt-template-text",
+      "contains": "message.content",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-prompt-template-unavailable",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "session-prompt-template-copy",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "35c-inspector-prompt-template-engine"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-chat",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-show-prompt-template",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-show-prompt-template-switch",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "settings-nav-developer",
       "timeoutMs": 3000
     },

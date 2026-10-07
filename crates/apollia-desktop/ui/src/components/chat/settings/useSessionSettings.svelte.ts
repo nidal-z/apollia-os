@@ -59,6 +59,12 @@ export interface SessionSettingsController {
   readonly presets: SessionPreset[];
   /** The preset the conversation chose. */
   readonly preset: SessionPreset | null;
+  /**
+   * The preset the runtime holds for the conversation: what the last read or
+   * the last accepted write answered, behind `settings` while a write is on
+   * its way.
+   */
+  readonly storedPreset: number | undefined;
   /** The settings changed over the preset. */
   readonly modified: PresetField[];
   /** Why the last write was refused. */
@@ -96,6 +102,7 @@ export function createSessionSettings(
   let sessionId = $state<string | null>(null);
   let loading = $state(false);
   let settings = $state.raw<SessionSettings>({});
+  let storedPreset = $state<number | undefined>(undefined);
   let model = $state<SessionModel | null>(null);
   let reasoning = $state<"none" | "toggle" | "levels" | null>(null);
   let allPresets = $state.raw<SessionPreset[]>([]);
@@ -119,6 +126,7 @@ export function createSessionSettings(
     queue = queue.then(async () => {
       try {
         const stored = await effects.setSettings(id, next);
+        if (sessionId === id) storedPreset = stored?.preset;
         if (sessionId === id && settings === next) settings = stored;
       } catch (e: unknown) {
         if (sessionId === id) {
@@ -165,6 +173,7 @@ export function createSessionSettings(
     get reasoning() { return reasoning; },
     get presets() { return presets; },
     get preset() { return preset; },
+    get storedPreset() { return storedPreset; },
     get modified() { return modified; },
     get error() { return error; },
     get notes() { return notes; },
@@ -176,6 +185,7 @@ export function createSessionSettings(
       loading = true;
       error = null;
       settings = {};
+      storedPreset = undefined;
       notes = "";
       storedNotes = "";
       model = null;
@@ -187,7 +197,10 @@ export function createSessionSettings(
         effects.capabilities(id),
       ]);
       if (sessionId !== id) return;
-      if (read.status === "fulfilled") settings = read.value ?? {};
+      if (read.status === "fulfilled") {
+        settings = read.value ?? {};
+        storedPreset = settings.preset;
+      }
       else error = messageOf(read.reason);
       if (text.status === "fulfilled") {
         notes = text.value ?? "";

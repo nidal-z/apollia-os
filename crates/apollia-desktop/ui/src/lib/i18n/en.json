@@ -5311,6 +5311,19 @@
         "prompt_tool": "What is the weather in Paris?",
         "prompt_mcp": "Which tools can you call?"
       }
+    },
+    "chat": {
+      "prompt_template": {
+        "setting_label": "Always show the prompt template in the chat panel",
+        "setting_hint": "On, the Settings tab of the panel of a conversation shows, under the preset, the prompt template its model receives.",
+        "title": "Prompt template",
+        "source_preset": "The one of the preset of the conversation",
+        "source_engine": "The one the engine applies to the loaded model",
+        "source_unavailable": "Built into the model",
+        "unavailable": "Template built into the model, not readable here",
+        "copy": "Copy",
+        "copied": "Copied"
+      }
     }
   },
   "ai": {

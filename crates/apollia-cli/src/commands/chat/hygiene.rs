@@ -48,7 +48,8 @@ pub(super) fn emit_chat_error(msg: String, json: bool) {
 }
 
 /// Entry point for `chat <subcommand>`. `chat config`, `chat capabilities`,
-/// `chat settings` and `chat notes` reach the runtime, through `socket`.
+/// `chat template`, `chat settings` and `chat notes` reach the runtime,
+/// through `socket`.
 pub async fn run_hygiene(
     cmd: &ChatHygieneCommand,
     socket: Option<std::path::PathBuf>,
@@ -74,6 +75,9 @@ pub async fn run_hygiene(
         } => run_chat_export(session_id, output.as_deref(), format, db.as_deref(), json),
         ChatHygieneCommand::Capabilities { session_id } => {
             super::capabilities::run(session_id, socket, json).await
+        }
+        ChatHygieneCommand::Template { session_id } => {
+            super::template::run(session_id, socket, json).await
         }
         ChatHygieneCommand::Settings { command } => {
             super::settings::run_settings(command, socket, json).await

@@ -4,6 +4,7 @@
   "dynamicTestids": [
     "quickpicker-agent-seed-classifier",
     "settings-nav-developer",
+    "settings-nav-chat",
     "settings-nav-appearance"
   ],
   "steps": [
@@ -2183,6 +2184,121 @@
     },
     {
       "kind": "click",
+      "testid": "settings-nav-chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-show-prompt-template",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-show-prompt-template-switch"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-settings-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-prompt-template-unavailable",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-prompt-template-source"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35b-inspector-prompt-template-builtin (developer mode: no engine runs, the template is the one built into the model)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_chat_prompt_template",
+      "resolve": {
+        "source": "engine",
+        "template": "{%- for message in messages %}{{ message.content }}{%- endfor %}"
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-settings-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-prompt-template-text",
+      "contains": "message.content",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-prompt-template-unavailable",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "session-prompt-template-copy"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35c-inspector-prompt-template-engine"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-show-prompt-template",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-show-prompt-template-switch"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testid": "settings-nav-developer"
     },
     {
@@ -3752,6 +3868,7 @@
     "The folders are played on a folder the block itself creates and deletes: New folder opens on its name, typed in place; a seeded conversation is moved into it through the row menu (Move to), the folder is folded and unfolded, the conversation is taken out (No folder), put back, and the folder is deleted with the conversation still in it, which puts it back out of any folder. No folder is left and no conversation is removed, so the seed reads the same before and after. The search is played in between on two seeded words: sovereign is in the title of seed-session-1 (the Titles section), explicit only in its second message (the In the messages section, with its excerpt; the index of the messages is built from the seeded rows when the runtime first opens chat.db). Dragging a conversation onto a folder is not played: the runner has no drag step. Written against the source and validated statically; not yet through a runtime round.",
     "The loading window is opened and cancelled through stubbed IPC, since no engine runs in the deterministic run: list_chat_targets is resolved with one local language model shaped like ChatTargets (commands/chat/targets.rs; installed entries as the model index lists them, path a seed file), list_loaded_models with an engine and nothing resident (routes_llm/loaded.rs), list_model_pins with PinsResponse (routes_llm/residency.rs), get_last_loaded_model with LastLoadedModelResponse and estimate_model_load with LoadEstimateResponse (routes_llm/load.rs, camelCase). The memory figures are asserted by presence, not by text: their rendering follows the locale, and they render only once the estimate answered. Four more openings replay the window on other answers of the same stub: an estimate the guardrail refuses (the refusal, then 'Load anyway' whose confirmation is cancelled once and confirmed once against a load_model that rejects, so the error shows and nothing loads), a model that takes no setting and cannot be sized (LoadEstimateResponse of an MLX model without memory), an estimate that rejects, and reload_last_loaded_model rejecting, which opens the window with its reason. Nothing is loaded: each window is cancelled, after which the selector still shows no target and the reload line names the stubbed last model; the stubs are cleared before the walk goes on.",
     "chat-model-eject is only asserted in the open conversation: no model is resident in the deterministic run, so the button is rendered disabled and an eject has nothing to unload.",
-    "The split-screen block (labels 40a to 40e) plays on the conversation the picker just created: a second pane is opened and filled by a deep link to seed-session-2 (goto with sessionId lands in the active pane), one draft is typed per composer and cleared, the load guardrail refuses a model in the first pane through an estimate_model_load stub that imitates a LoadEstimate (lib/types/llm.ts, verdict refused) with the list_chat_targets, list_loaded_models and list_model_pins stubs of the selector block, the narrow layout is reached at 900 px and left before any other step, and every pane it opened is closed before the block ends, so the step after it finds one pane again."
+    "The split-screen block (labels 40a to 40e) plays on the conversation the picker just created: a second pane is opened and filled by a deep link to seed-session-2 (goto with sessionId lands in the active pane), one draft is typed per composer and cleared, the load guardrail refuses a model in the first pane through an estimate_model_load stub that imitates a LoadEstimate (lib/types/llm.ts, verdict refused) with the list_chat_targets, list_loaded_models and list_model_pins stubs of the selector block, the narrow layout is reached at 900 px and left before any other step, and every pane it opened is closed before the block ends, so the step after it finds one pane again.",
+    "The prompt template block of the Settings tab (labels 35b and 35c) is played inside the developer-mode block, since both the row of Settings > Chat (chat-show-prompt-template) and the block exist in developer mode only. The preference is a browser-storage switch, turned on before and off after so the rest of the book finds the tab as before. No engine runs in the deterministic run, so seed-session-2 reads the real answer of the runtime, a template built into the model and not readable (session-prompt-template-unavailable). The text and its Copy button are then played on seed-session-1 through a get_chat_prompt_template stub that imitates SessionPromptTemplate (crates/apollia-runtime/src/api/routes_chat/prompt_template.rs: source, template), armed before the conversation opens because the block reads once per conversation, model, preset and resident models; the stub is cleared before the block ends. Written against the source and validated statically; not yet through a runtime round."
   ]
 }

@@ -152,6 +152,24 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// The prompt template the model of a session receives, via
+    /// `GET /api/v1/sessions/:id/prompt-template`.
+    pub async fn get_session_prompt_template(
+        &self,
+        session_id: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/sessions/{session_id}/prompt-template"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// What a conversation changes from its agent, via
     /// `GET /api/v1/sessions/:id/settings`.
     pub async fn get_session_settings(

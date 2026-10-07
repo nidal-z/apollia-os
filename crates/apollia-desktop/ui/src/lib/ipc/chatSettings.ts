@@ -4,7 +4,7 @@
  * Thin wrappers over the commands of
  * `crates/apollia-desktop/src/commands/chat/settings.rs`, each of which calls
  * one runtime route: the settings of a conversation read and replaced, its
- * notes read and replaced, a preset created. The runtime validates what it
+ * notes read and replaced, its prompt template read, a preset created. The runtime validates what it
  * stores and a refusal rejects with its text.
  */
 import { invoke } from "@tauri-apps/api/core";
@@ -31,6 +31,14 @@ export function getChatSessionNotes(sessionId: string): Promise<string> {
 /** Replaces the notes of the conversation; answers them as stored. */
 export function setChatSessionNotes(sessionId: string, notes: string): Promise<string> {
   return invoke<string>("set_chat_session_notes", { sessionId, notes });
+}
+
+/**
+ * The prompt template the model of the conversation receives and where it
+ * comes from: its preset, the engine serving the model, or nowhere readable.
+ */
+export function getChatPromptTemplate(sessionId: string): Promise<unknown> {
+  return invoke<unknown>("get_chat_prompt_template", { sessionId });
 }
 
 /** Creates a preset of a model; answers it with its identifier. */
