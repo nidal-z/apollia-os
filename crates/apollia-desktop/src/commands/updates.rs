@@ -104,9 +104,11 @@ pub struct UpdateCheckResult {
 /// The preview counterpart of a stable manifest endpoint, or `None` when the
 /// endpoint does not have the shape of a stable manifest.
 ///
-/// The CUDA bundles are built pointing at `latest-cuda.json`, so the preview
-/// endpoint is derived from the one the bundle carries rather than written
-/// once: each variant keeps asking for its own engine on either channel.
+/// A bundle installed from a former CUDA edition points at
+/// `latest-cuda.json`, so the preview endpoint is derived from the one the
+/// bundle carries rather than written once: such a bundle keeps asking its
+/// own manifest on either channel, and the release publishes it as a copy of
+/// the standard one.
 fn preview_endpoint(stable: &str) -> Option<String> {
     let (head, file) = stable.split_once(STABLE_PATH)?;
     let (stem, extension) = file.rsplit_once('.')?;

@@ -21,7 +21,12 @@
     "vX.Y.Z-rc.N. Its release publishes the manifests of `manifests` instead of",
     "the stable ones, and .github/workflows/preview-channel.yml copies them to",
     "the fixed `release` once the trial version is published. The desktop app",
-    "derives each preview endpoint from its stable one by the same suffix."
+    "derives each preview endpoint from its stable one by the same suffix.",
+    "`manifest_aliases` maps a manifest no bundle is built for any more to the",
+    "manifest it is published as a copy of. `latest-cuda.json` is what the",
+    "installers that bundled a CUDA engine ask; they are no longer produced,",
+    "and the copies still installed update through it to the one installer of",
+    "their system, which gets the CUDA engine from the engine channel."
   ],
   "repo": "Apollia-OS/apollia-os",
   "updater_manifest": "latest.json",
@@ -134,40 +139,15 @@
         "artifact": "Apollia-OS_{version}_x64-setup.exe",
         "signature": "Apollia-OS_{version}_x64-setup.exe.sig"
       }
-    },
-    {
-      "platform": "linux-x86_64-cuda",
-      "job": "desktop-linux-cuda",
-      "os": "linux",
-      "arch": "x86_64",
-      "triple": "x86_64-unknown-linux-gnu",
-      "installers": [
-        "Apollia-OS_{version}_amd64-cuda.deb"
-      ],
-      "manifest": "latest-cuda.json",
-      "updater": null
-    },
-    {
-      "platform": "windows-x86_64-cuda",
-      "job": "desktop-windows-cuda",
-      "os": "windows",
-      "arch": "x86_64",
-      "triple": "x86_64-pc-windows-msvc",
-      "installers": [
-        "Apollia-OS_{version}_x64_en-US-cuda.msi",
-        "Apollia-OS_{version}_x64-setup-cuda.exe"
-      ],
-      "manifest": "latest-cuda.json",
-      "updater": {
-        "artifact": "Apollia-OS_{version}_x64-setup-cuda.exe",
-        "signature": "Apollia-OS_{version}_x64-setup-cuda.exe.sig"
-      }
     }
   ],
   "updater_manifests": [
     "latest.json",
     "latest-cuda.json"
   ],
+  "manifest_aliases": {
+    "latest-cuda.json": "latest.json"
+  },
   "preview": {
     "tag": "^v(\\d+\\.\\d+\\.\\d+)-rc\\.(\\d+)$",
     "release": "preview",

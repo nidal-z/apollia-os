@@ -63,6 +63,19 @@ test:
 test-python:
     PYO3_PYTHON="$(command -v python3)" cargo test --workspace --features python-tests
 
+# The engine channel is written by a Python script and read by the Rust engine
+# store, and the two meet only in the published files. This runs the script on
+# stand-in archives, signs with a key pair generated on the spot, and hands the
+# result to the store: accepted intact, refused after one altered byte. The
+# signed half needs `cargo tauri signer` and is ignored by a plain `cargo
+# test`; engines.yml runs the same command before it signs with the real key.
+# The one test left out judges a real publication directory and has its own
+# step there.
+
+# Prove the engine manifest script writes what the engine store accepts
+engine-manifest-test:
+    cargo test -p apollia-runtime --test engine_manifest_publication -- --include-ignored --skip test_published_directory_is_signed_by_the_compiled_key
+
 # `--no-default-features` was written into three release presets and compiled
 # nowhere: `cargo check -p apollia-cli --no-default-features` did not even
 # build, because a `match` arm behind the crate's own `cloud` feature vanished

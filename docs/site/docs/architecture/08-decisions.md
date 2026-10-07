@@ -975,6 +975,23 @@ Releases are published on GitHub Releases. The desktop app checks that feed only
 when the operator asks, never in the background, and reports an empty feed as an
 empty feed rather than as an error.
 
+There is one installer per system. No installer exists in a second edition for
+one kind of graphics card: an edition per card made the reader choose a download
+from hardware they may not know, and tied the version of an engine to a release
+of the application. The engines an installer does not embed, the CUDA build of
+`llama-server` and the Node.js that runs tool servers, are published apart, on
+their own channel, under a manifest signed in the minisign format with a
+dedicated distribution key (see [Local inference](#local-inference)). The
+pipeline that publishes them is separate from the one that publishes the
+application and is started by hand: it takes upstream archives pinned by
+SHA-256, repackages each as zip, and signs the manifest with a key that signs
+nothing else, distinct from the key of the application updates. The registry
+of Apollia serves the manifest and the archives, and GitHub Releases mirrors
+them. An application installed from a former CUDA edition keeps updating: the
+update manifest it asks is still published, as a copy of the standard one, so
+it moves to the one installer of its system and gets the CUDA engine from the
+engine channel.
+
 ## Verification {#verification}
 
 Beyond the test suite, two classes of property are checked by machine rather
