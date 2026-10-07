@@ -29,6 +29,7 @@ import Sidebar, {
   visibleSidebarRoutes,
 } from "./Sidebar.svelte";
 import { developerMode } from "$lib/stores/developerMode";
+import { currentRoute } from "$lib/stores/navigation";
 import { invoke } from "@tauri-apps/api/core";
 import type { PendingDecision, PendingKind } from "$lib/ipc/pendingDecisions";
 import { refreshPendingDecisions } from "$lib/stores/pendingDecisions";
@@ -55,6 +56,9 @@ async function renderSidebar(on: boolean, language: "en" | "fr" = "en"): Promise
   locale.set(language);
   await waitLocale(language);
   developerMode.set(on);
+  // The whole menu is what these cases read; the chat, where it stands back
+  // as a rail, has its own case.
+  currentRoute.set("agents");
   return renderToString(Sidebar).body;
 }
 
@@ -387,5 +391,21 @@ describe("Sidebar - the count of what waits for the user", () => {
       expect(source).not.toContain(former);
     }
     expect(source).toContain("$toReviewCount");
+  });
+});
+
+describe("Sidebar - the menu on the chat screen", () => {
+  test("on the chat, the menu stands back as a rail and keeps every entry", async () => {
+    // GIVEN the whole menu, drawn on another screen
+    const whole = await renderSidebar(false);
+
+    // WHEN the chat is the screen shown
+    currentRoute.set("chat");
+    const rail = renderToString(Sidebar).body;
+
+    // THEN the same entries are drawn, in the narrow column of the rail
+    expect(drawnRoutes(rail)).toEqual(drawnRoutes(whole));
+    expect(whole).not.toContain("w-16 flex-shrink-0");
+    expect(rail).toContain("w-16 flex-shrink-0");
   });
 });

@@ -2,7 +2,8 @@
  * Layout store - the source of truth for the sidebar and companion state.
  *
  * Derives `sidebarState` from the viewport through `window.matchMedia`:
- *   - >= `lg` (1024 px) -> `expanded` or `icon`, per the user preference
+ *   - >= `lg` (1024 px) -> `expanded` or `icon`, per the user preference;
+ *     on the chat screen, `icon` until the menu is asked for
  * - `md`-`lg` -> `icon` forced (auto-collapse)
  *   - < `md`          → `drawer` overlay
  *
@@ -11,6 +12,7 @@
  */
 import { derived, get, readable, writable, type Readable } from "svelte/store";
 import { guideVisible } from "$lib/stores/detailSidebar";
+import { currentRoute } from "$lib/stores/navigation";
 
 /** Effective state of the sidebar at a given moment. */
 export type SidebarState = "expanded" | "icon" | "drawer";
@@ -100,6 +102,11 @@ const viewport: Readable<Viewport> = readable<Viewport>(computeViewport(), (set)
 const preference = writable<SidebarPreference>(loadPreference());
 preference.subscribe((p) => savePreference(p));
 
+// The chat already has a sidebar of its own, the list of conversations: the
+// application menu stands back as an icon rail there, until asked for. The
+// choice lasts the session and leaves the preference of the other screens alone.
+const chatMenuExpanded = writable(false);
+
 const drawerOpenInternal = writable(false);
 
 // Persist drawer open state under sm - `hidden` when closed, `open` when open.
@@ -114,10 +121,11 @@ drawerOpenInternal.subscribe((open) => {
  * Mobile first: any viewport under `md` forces `drawer`.
  */
 export const sidebarState: Readable<SidebarState> = derived(
-  [viewport, preference],
-  ([$v, $p]) => {
+  [viewport, preference, currentRoute, chatMenuExpanded],
+  ([$v, $p, $route, $chatExpanded]) => {
     if ($v === "sm") return "drawer";
     if ($v === "md") return "icon";
+    if ($route === "chat") return $chatExpanded ? "expanded" : "icon";
     return $p === "collapsed" ? "icon" : "expanded";
   },
 );
@@ -159,6 +167,10 @@ export const layoutActions = {
     }
     if (v === "md") {
       // icon-only forced between md and lg - no user preference here.
+      return;
+    }
+    if (get(currentRoute) === "chat") {
+      chatMenuExpanded.update((expanded) => !expanded);
       return;
     }
     preference.update((p) => (p === "expanded" ? "collapsed" : "expanded"));

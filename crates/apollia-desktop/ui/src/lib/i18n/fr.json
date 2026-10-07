@@ -3505,7 +3505,6 @@
     },
     "mode_agent": "Chat Agent",
     "mode_libre": "Chat Libre",
-    "status_active": "Active",
     "status_closed": "Fermée",
     "message_count": "{n, plural, =0 {aucun message} one {# message} other {# messages}}",
     "input_placeholder": "Tapez votre message...",
@@ -5612,13 +5611,22 @@
         "note": "Lu à la source à votre demande ; rien n'est gardé après fermeture.",
         "error": "Le README n'a pas pu être lu : {detail}"
       },
-      "card_empty": "Choisissez un modèle à gauche pour lire sa fiche.",
       "too_large": {
         "title": "Télécharger une variante trop grande ?",
         "message": "Cette variante pèse {size} Go, alors que ce poste peut donner environ {capacity} Go à un modèle. Elle risque de ne pas se charger. La variante recommandée, quand il y en a une, est celle qui tient.",
         "message_unknown": "Cette variante pèse {size} Go et dépasse la mémoire que ce poste peut donner à un modèle. Elle risque de ne pas se charger.",
         "confirm": "Télécharger quand même"
-      }
+      },
+      "gallery_subtitle": "Choisissez ce que vous voulez faire : Apollia montre d'abord ce qui tient sur ce poste.",
+      "usage": {
+        "language": "Discuter et rédiger",
+        "embeddings": "Chercher dans mes documents",
+        "dictation": "Dicter"
+      },
+      "group_fits": "Tient sur ce poste",
+      "group_heavier": "Demande plus de mémoire",
+      "back_to_gallery": "Retour au catalogue",
+      "min_memory": "dès {size} Go de mémoire"
     },
     "panel": {
       "sidebar_tab": "Modèle",

@@ -122,7 +122,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.shortcut_group.chat", // Chat
   "chat.shortcut_group.messages", // Messages
   "chat.shortcut_group.navigation", // Navigation
-  "chat.status_active", // Active
   "chat.target_selector.group_agents", // Agents
   "chat.title", // Chat
   "commandPalette.groups.actions", // Actions
