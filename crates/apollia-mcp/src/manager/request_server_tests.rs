@@ -46,7 +46,6 @@ fn config(url: &str) -> McpServerConfig {
         env: std::collections::HashMap::new(),
         transport: "streamable-http".to_owned(),
         url: Some(url.to_owned()),
-        requires_approval: false,
         init_timeout_secs: 5,
         call_timeout_secs: 5,
         max_response_bytes: 8 * 1024 * 1024,
@@ -77,7 +76,7 @@ async fn test_a_request_server_is_unclassified_and_leaves_the_registry_with_its_
     let addr = start_server(Router::new().fallback(answer)).await;
     let url = format!("http://{addr}/mcp");
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
         .await
         .expect("manager");
 

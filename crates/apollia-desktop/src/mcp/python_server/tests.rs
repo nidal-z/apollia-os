@@ -36,7 +36,6 @@ fn curated(
         "trust_level": "community_verified",
         "auth_help_url": null,
         "auth_help_text": null,
-        "default_requires_approval": false,
         "package_registry_type": "pypi",
         "package_runtime_hint": "uvx",
         "package_version": version,

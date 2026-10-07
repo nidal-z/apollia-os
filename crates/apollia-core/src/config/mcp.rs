@@ -29,23 +29,13 @@ pub enum McpToolLoading {
 
 /// MCP module configuration (`[mcp]` section in `apollia.toml`).
 ///
-/// Controls the MCP-layer behaviors exposed by the runtime: the TTL of the HITL
-/// approvals persisted in SQLite, the tool loading strategy, and the
-/// `tool_search` result cap, and whether Apollia may serve its exposed agents
-/// and workflows to an MCP client. Every field has a sane default via
+/// Controls the MCP-layer behaviors exposed by the runtime: the tool loading
+/// strategy, the `tool_search` result cap, and whether Apollia may serve its
+/// exposed agents and workflows to an MCP client. Every field has a sane default via
 /// [`Default`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct McpConfig {
-    /// Validity duration of MCP HITL approvals, in hours.
-    ///
-    /// When an operator runs `apollia-os mcp set-approval`, the `mcp_approvals`
-    /// entry is created with `expires_at = now + approval_ttl_hours`. A value of
-    /// `0` disables expiration (permanent approval).
-    /// Default: 24. Bounds: [0, 8760] (0 h to 1 year).
-    #[serde(default = "default_approval_ttl_hours")]
-    pub approval_ttl_hours: u64,
-
     /// Tool schema loading strategy for all MCP servers.
     ///
     /// `"deferred"` (default): only tool names and descriptions are loaded at
@@ -77,7 +67,6 @@ pub struct McpConfig {
 impl Default for McpConfig {
     fn default() -> Self {
         Self {
-            approval_ttl_hours: default_approval_ttl_hours(),
             tool_loading: McpToolLoading::default(),
             tool_search_limit: default_tool_search_limit(),
             server_enabled: false,
@@ -88,15 +77,8 @@ impl Default for McpConfig {
 impl McpConfig {
     /// Validates the MCP configuration bounds at startup (fail-fast).
     ///
-    /// - `approval_ttl_hours`: must be in [0, 8760].
     /// - `tool_search_limit`: must be in [1, 500].
     pub fn validate(&self) -> Result<(), ConfigError> {
-        validate_bounds(
-            "mcp.approval_ttl_hours",
-            self.approval_ttl_hours,
-            0_u64,
-            8760_u64,
-        )?;
         validate_bounds(
             "mcp.tool_search_limit",
             self.tool_search_limit,
@@ -105,10 +87,6 @@ impl McpConfig {
         )?;
         Ok(())
     }
-}
-
-fn default_approval_ttl_hours() -> u64 {
-    24
 }
 
 fn default_tool_search_limit() -> usize {

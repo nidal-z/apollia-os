@@ -10,7 +10,6 @@ use tokio::sync::{mpsc, oneshot};
 use apollia_core::{EventBusSender, RuntimeEvent};
 use apollia_tools::registry::ToolRegistryHandle;
 
-use crate::approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
 use crate::manager::views::{
     log_session_start_error, register_session_tools_in_registry, ServerHints,
@@ -38,10 +37,6 @@ impl McpClientManagerHandle {
     /// published on every successful hot reload. When `None`, reloads still work but
     /// no event is emitted.
     ///
-    /// `approvals` is optional: when `Some`, the HITL approval gate is active and
-    /// every tool call to a server with `requires_approval = true` is checked against
-    /// the store before forwarding to the session. When `None`, the gate is disabled.
-    ///
     /// `loading_mode` selects the schema loading strategy for every session: in
     /// [`LoadingMode::Eager`] all tool schemas are fetched at boot and registered;
     /// in [`LoadingMode::Deferred`] only a lightweight index is kept and no
@@ -50,7 +45,6 @@ impl McpClientManagerHandle {
         configs: Vec<McpServerConfig>,
         tool_registry: &ToolRegistryHandle,
         event_bus: Option<EventBusSender>,
-        approvals: Option<McpApprovalStore>,
         loading_mode: LoadingMode,
     ) -> Result<Self, McpSessionError> {
         let (tx, rx) = mpsc::channel(32);
@@ -109,7 +103,6 @@ impl McpClientManagerHandle {
             request_servers: HashSet::new(),
             event_bus,
             last_call_at: HashMap::new(),
-            approvals,
             loading_mode,
         };
         tokio::spawn(actor.run());
@@ -226,26 +219,6 @@ impl McpClientManagerHandle {
         reply_rx.await.map_err(|_| McpSessionError::ServerExited {
             server: server_name.unwrap_or("?").to_string(),
         })?
-    }
-    /// Check whether a server requires HITL approval for all its tools.
-    ///
-    /// Returns `true` when the server's `requires_approval` flag is set in `mcp.toml`.
-    /// Returns `false` when no session with that name is connected, or the actor has
-    /// already shut down.
-    pub async fn server_requires_approval(&self, server_name: &str) -> bool {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(McpCommand::ServerRequiresApproval {
-                server_name: server_name.to_string(),
-                reply: reply_tx,
-            })
-            .await
-            .is_err()
-        {
-            return false;
-        }
-        reply_rx.await.unwrap_or(false)
     }
     /// Return detailed information (status, tools, redacted config) for a single server.
     ///
@@ -412,104 +385,6 @@ impl McpClientManagerHandle {
         reply_rx.await.map_err(|_| McpSessionError::ServerExited {
             server: server_name.to_string(),
         })?
-    }
-    /// Update the `requires_approval` flag for the named server in-memory.
-    ///
-    /// The change is applied immediately; callers are responsible for persisting
-    /// the new value to the [`crate::McpServerRepository`].
-    /// Returns [`McpSessionError::ServerExited`] when no session with `server_name`
-    /// is connected, or when the actor has already shut down.
-    pub async fn set_server_approval(
-        &self,
-        server_name: &str,
-        requires_approval: bool,
-    ) -> Result<(), McpSessionError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(McpCommand::SetApproval {
-                server_name: server_name.to_string(),
-                requires_approval,
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| McpSessionError::ServerExited {
-                server: server_name.to_string(),
-            })?;
-        reply_rx.await.map_err(|_| McpSessionError::ServerExited {
-            server: server_name.to_string(),
-        })?
-    }
-    /// Approve `(server_name, tool_name)` in the HITL store with the configured TTL.
-    ///
-    /// After approval, subsequent calls to the tool on that server bypass the
-    /// HITL suspension gate until the approval expires.
-    ///
-    /// Returns [`McpApprovalError`] when the store is not configured (`None`) or
-    /// when the SQLite write fails.
-    pub async fn approve_tool(
-        &self,
-        server_name: &str,
-        tool_name: &str,
-    ) -> Result<(), McpApprovalError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(McpCommand::ApproveToolAccess {
-                server_name: server_name.to_string(),
-                tool_name: tool_name.to_string(),
-                reply: reply_tx,
-            })
-            .await
-            .is_err()
-        {
-            return Err(McpApprovalError::Db(rusqlite::Error::InvalidQuery));
-        }
-        reply_rx
-            .await
-            .unwrap_or(Err(McpApprovalError::Db(rusqlite::Error::InvalidQuery)))
-    }
-    /// Revoke a previously granted tool approval.
-    ///
-    /// Returns [`McpApprovalError`] when the store is not configured or the
-    /// SQLite delete fails.
-    pub async fn revoke_tool(
-        &self,
-        server_name: &str,
-        tool_name: &str,
-    ) -> Result<(), McpApprovalError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(McpCommand::RevokeToolAccess {
-                server_name: server_name.to_string(),
-                tool_name: tool_name.to_string(),
-                reply: reply_tx,
-            })
-            .await
-            .is_err()
-        {
-            return Err(McpApprovalError::Db(rusqlite::Error::InvalidQuery));
-        }
-        reply_rx
-            .await
-            .unwrap_or(Err(McpApprovalError::Db(rusqlite::Error::InvalidQuery)))
-    }
-    /// Return all pending approval requests from the HITL store.
-    ///
-    /// Returns an empty `Vec` when the approval store is not configured.
-    pub async fn list_pending_approvals(
-        &self,
-    ) -> Result<Vec<PendingApprovalEntry>, McpApprovalError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        if self
-            .tx
-            .send(McpCommand::ListPendingApprovals { reply: reply_tx })
-            .await
-            .is_err()
-        {
-            return Ok(Vec::new());
-        }
-        reply_rx.await.unwrap_or(Ok(Vec::new()))
     }
     /// Hot-reload a named MCP server without restarting the runtime.
     ///

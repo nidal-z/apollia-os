@@ -72,8 +72,11 @@ check         "mcp show filesystem"                "${Q[@]}" mcp show filesystem
 check_content "mcp show reports connected" "connected|healthy|yes" "${Q[@]}" mcp show filesystem
 check         "mcp test filesystem"                "${Q[@]}" mcp test filesystem
 check         "mcp raw-config filesystem"          "${Q[@]}" mcp raw-config filesystem
-check         "mcp update filesystem"              "${Q[@]}" mcp update filesystem --require-approval true
-check_content "mcp update persisted requires_approval" "requires_approval.*true|true" "${Q[@]}" mcp raw-config filesystem
+# The update writes back the command the server already runs: the patch is
+# accepted and persisted, and the stub keeps answering.
+MCP_FS_COMMAND="$("${Q[@]}" mcp raw-config filesystem --json | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['command'])" 2>/dev/null || true)"
+check         "mcp update filesystem"              "${Q[@]}" mcp update filesystem --command "$MCP_FS_COMMAND"
+check_json_field "mcp update persisted the command" "d['command'] != ''" "True" "${Q[@]}" mcp raw-config filesystem --json
 check         "mcp restart filesystem"             "${Q[@]}" mcp restart filesystem
 check         "mcp remove notes --confirm"         "${Q[@]}" mcp remove notes --confirm
 check_exit    "mcp show removed server → 1"  1     "${Q[@]}" mcp show notes

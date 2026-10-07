@@ -175,9 +175,6 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os chat config authorizations revoke`↴](#apollia-os-chat-config-authorizations-revoke)
 * [`apollia-os mcp`↴](#apollia-os-mcp)
 * [`apollia-os mcp list`↴](#apollia-os-mcp-list)
-* [`apollia-os mcp set-approval`↴](#apollia-os-mcp-set-approval)
-* [`apollia-os mcp list-pending`↴](#apollia-os-mcp-list-pending)
-* [`apollia-os mcp revoke-approval`↴](#apollia-os-mcp-revoke-approval)
 * [`apollia-os mcp add`↴](#apollia-os-mcp-add)
 * [`apollia-os mcp remove`↴](#apollia-os-mcp-remove)
 * [`apollia-os mcp show`↴](#apollia-os-mcp-show)
@@ -334,7 +331,7 @@ Apollia OS CLI binary (apollia-os)
 * `onboard` - Launch onboarding or re-onboarding on a specific topic
 * `permissions` - Permission rule management (list, revoke, audit)
 * `chat` - Interactive chat REPL + persisted session hygiene (list, delete, rename, export)
-* `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
+* `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, server)
 * `update` - Check for and install updates from GitHub Releases
 * `package` - Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
 * `policy` - Organisation policy: create the key, write, sign, verify, show
@@ -2829,16 +2826,13 @@ Revoke a single in-memory session authorization (requires runtime route)
 
 ## `apollia-os mcp`
 
-MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
+MCP server management (list, add, remove, show, test, restart, update, raw-config, server)
 
 **Usage:** `apollia-os mcp <COMMAND>`
 
 ###### **Subcommands:**
 
 * `list` - List configured and, optionally, discovered MCP servers
-* `set-approval` - Approve all calls to a tool on a server, persisted with the configured TTL
-* `list-pending` - List all pending HITL approval requests awaiting human decision
-* `revoke-approval` - Revoke a previously granted tool approval
 * `add` - Register a new MCP server with the runtime (persisted in the config)
 * `remove` - Remove an MCP server from the runtime
 * `show` - Show the details of an MCP server
@@ -2868,62 +2862,6 @@ List configured and, optionally, discovered MCP servers
 
 
 
-## `apollia-os mcp set-approval`
-
-Approve all calls to a tool on a server, persisted with the configured TTL.
-
-After approval, calls to `<tool>` on `<server>` bypass the HITL suspension gate until the approval expires (default TTL: 24 h, configurable in apollia.toml).
-
-**Usage:** `apollia-os mcp set-approval [OPTIONS] <SERVER> <TOOL>`
-
-###### **Arguments:**
-
-* `<SERVER>` - MCP server name (as declared in mcp.toml)
-* `<TOOL>` - Tool name to approve
-
-###### **Options:**
-
-* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--ttl-hours <HOURS>` - Override the TTL for this approval, in hours (0 = never expires)
-
-  Default value: `24`
-* `--json` - Output machine-readable JSON
-
-
-
-## `apollia-os mcp list-pending`
-
-List all pending HITL approval requests awaiting human decision
-
-**Usage:** `apollia-os mcp list-pending [OPTIONS]`
-
-###### **Options:**
-
-* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--json` - Output machine-readable JSON
-
-
-
-## `apollia-os mcp revoke-approval`
-
-Revoke a previously granted tool approval.
-
-After revocation, calls to `<tool>` on `<server>` will be suspended again until a new approval is granted with `set-approval`.
-
-**Usage:** `apollia-os mcp revoke-approval [OPTIONS] <SERVER> <TOOL>`
-
-###### **Arguments:**
-
-* `<SERVER>` - MCP server name (as declared in mcp.toml)
-* `<TOOL>` - Tool name to revoke
-
-###### **Options:**
-
-* `--db <PATH>` - Path to the approvals database (default: `~/.apollia/mcp_approvals.db`)
-* `--json` - Output machine-readable JSON
-
-
-
 ## `apollia-os mcp add`
 
 Register a new MCP server with the runtime (persisted in the config)
@@ -2943,7 +2881,6 @@ Register a new MCP server with the runtime (persisted in the config)
 
   Possible values: `stdio`, `streamable-http`, `sse`
 
-* `--require-approval` - Require HITL approval for every tool call an agent task makes
 
 
 
@@ -3003,7 +2940,7 @@ Restart an MCP server
 
 Update the raw configuration of an existing MCP server.
 
-At least one of `--command`, `--arg`, `--url`, or `--require-approval` must be supplied. Fields that are omitted keep their previous value.
+At least one of `--command`, `--arg` or `--url` must be supplied. Fields that are omitted keep their previous value.
 
 **Usage:** `apollia-os mcp update [OPTIONS] <NAME>`
 
@@ -3016,10 +2953,6 @@ At least one of `--command`, `--arg`, `--url`, or `--require-approval` must be s
 * `--command <COMMAND>` - New stdio command (stdio transport)
 * `--arg <ARG>` - New argument list for the command, one `--arg` per argument. Given once or more, it replaces the stored list whole
 * `--url <URL>` - New HTTP/SSE URL
-* `--require-approval <BOOL>` - Enable / disable the HITL approval lock
-
-  Possible values: `true`, `false`
-
 
 
 

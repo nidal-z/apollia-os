@@ -337,7 +337,6 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::mcp::discovery::fetch_mcp_curated,
         commands::mcp::store_mcp_secret,
         commands::mcp::delete_mcp_secret,
-        commands::mcp::set_mcp_server_approval,
         commands::plan_mode::submit_plan_decision,
         commands::plan_mode::get_plan_mode_default,
         commands::plan_mode::set_plan_mode,

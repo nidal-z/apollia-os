@@ -287,15 +287,11 @@ else
     _fail "connector revoke (absent account) → 0 (idempotent)" "expected 0 got $revoke_rc | out: ${revoke_out:0:300}" "$revoke_rc"
 fi
 
-# ── A.9 mcp (offline: list + approvals/secret/oauth; add/remove need runtime) ─
+# ── A.9 mcp (offline: list + secret/oauth; add/remove need runtime) ───────────
 section "A.9 mcp"
 MCFG="$SCRATCH/mcp.toml"
 check        "mcp list (empty mcp.toml)"             "$BIN" mcp list --config "$MCFG"
 check_json   "mcp list --json"                       "$BIN" mcp list --config "$MCFG" --json
-MAPPR="$SCRATCH/mcp_approvals.db"
-check        "mcp set-approval"                      "$BIN" mcp set-approval code-tools bash_exec --db "$MAPPR" --ttl-hours 1
-check        "mcp list-pending --db"                 "$BIN" mcp list-pending --db "$MAPPR"
-check        "mcp revoke-approval"                   "$BIN" mcp revoke-approval code-tools bash_exec --db "$MAPPR"
 check        "mcp secret set"                        "$BIN" mcp secret set notion NOTION_API_KEY "stub-value-e2e"
 check_exit   "mcp secret set empty value"  1         "$BIN" mcp secret set notion NOTION_API_KEY ""
 check        "mcp secret delete"                     "$BIN" mcp secret delete notion NOTION_API_KEY --confirm

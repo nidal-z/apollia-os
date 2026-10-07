@@ -293,7 +293,6 @@ async fn fixture(setup: Setup) -> Fixture {
         Vec::new(),
         &tool_registry,
         Some(state.event_sender.clone()),
-        None,
         LoadingMode::Eager,
     )
     .await

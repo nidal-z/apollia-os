@@ -122,10 +122,6 @@ DEAD_RATCHET: dict[str, str] = {
     "default_input@apollia-stt": (
         "convenience wrapper over `AudioCapture::open(None)`; every caller names a device or resolves one first."
     ),
-    "approve_tool@apollia-mcp": (
-        "the only way into the HITL approval path, and nothing calls it; the guard read it as "
-        "live while a tracing sentence of `handle_approve_tool_access` named it."
-    ),
     "delete_draft@apollia-connectors": "same chain as `list_drafts`.",
     "from_backend_configs@apollia-llm": (
         "a thin forward to `from_backend_configs_with_override`, which is the one every caller uses."
@@ -135,9 +131,6 @@ DEAD_RATCHET: dict[str, str] = {
     ),
     "list_drafts@apollia-connectors": (
         "Gmail draft management is exposed by the client and by no connector action, so no agent and no route can reach it."
-    ),
-    "revoke_tool@apollia-mcp": (
-        "same dead path as `approve_tool`, on the other half of the pair."
     ),
     "run_task_with_alternatives@apollia-oria": (
         "plan alternatives were retired from the product with the CLI's --alternatives; this method, its event and its types go together, a removal that reaches apollia-core and the memory schema."
@@ -166,7 +159,7 @@ TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "from_profile@apollia-prompts", "from_repository@apollia-llm", "from_risk_score@apollia-tools",
     "get_choice@apollia-memory", "get_covered_topics@apollia-memory", "get_last_onboarding_session@apollia-memory",
     "get_onboarding_skipped@apollia-memory", "get_state@apollia-triggers", "global_tracker_clear@apollia-memory",
-    "handle_budget_update@apollia-notifications", "in_memory@apollia-mcp",
+    "handle_budget_update@apollia-notifications",
     "is_enabled@apollia-tools", "language_footer@apollia-prompts",
     "list_entries@apollia-memory", "list_extras@apollia-memory", "load_step_provenance@apollia-oria",
     "log_plan_choice@apollia-memory", "maybe_purge@apollia-memory", "new_for_test@apollia-runtime",

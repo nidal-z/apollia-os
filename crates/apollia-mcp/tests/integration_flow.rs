@@ -18,7 +18,6 @@ fn mock_server_config(name: &str) -> McpServerConfig {
         env: HashMap::new(),
         transport: "stdio".to_string(),
         url: None,
-        requires_approval: false,
         init_timeout_secs: 10,
         call_timeout_secs: 10,
         max_response_bytes: 8 * 1024 * 1024,
@@ -34,7 +33,7 @@ fn mock_server_config(name: &str) -> McpServerConfig {
 async fn test_add_server_hot() {
     // GIVEN a manager started with no initial servers
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
         .await
         .unwrap();
     assert_eq!(manager.status().await.len(), 0);
@@ -67,7 +66,6 @@ async fn test_remove_server() {
         vec![mock_server_config("to-remove")],
         &registry,
         None,
-        None,
         LoadingMode::Eager,
     )
     .await
@@ -98,7 +96,7 @@ async fn test_remove_server() {
 async fn test_connection_no_side_effect() {
     // GIVEN a manager started with no initial servers
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
         .await
         .unwrap();
 
@@ -142,7 +140,7 @@ async fn test_deferred_manager_indexes_without_registering() {
     let mut config = mock_server_config("notion");
     config.tags = vec!["productivity".to_string()];
     let manager =
-        McpClientManagerHandle::start(vec![config], &registry, None, None, LoadingMode::Deferred)
+        McpClientManagerHandle::start(vec![config], &registry, None, LoadingMode::Deferred)
             .await
             .unwrap();
 
@@ -176,7 +174,6 @@ async fn test_eager_manager_registers_and_index_empty() {
         vec![mock_server_config("notion")],
         &registry,
         None,
-        None,
         LoadingMode::Eager,
     )
     .await
@@ -201,7 +198,6 @@ async fn test_deferred_manager_tool_call_succeeds() {
     let manager = McpClientManagerHandle::start(
         vec![mock_server_config("calc")],
         &registry,
-        None,
         None,
         LoadingMode::Deferred,
     )
@@ -240,7 +236,7 @@ async fn test_connection_reports_the_server_protocol_version() {
     // which is neither the version Apollia sends nor the one the other mocks
     // answer
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
         .await
         .unwrap();
 
@@ -263,7 +259,7 @@ async fn test_connection_reports_the_server_protocol_version() {
 async fn test_connection_version_follows_the_server_not_a_constant() {
     // GIVEN a manager and the default mock, which answers "2024-11-05"
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, LoadingMode::Eager)
         .await
         .unwrap();
 
@@ -296,7 +292,6 @@ async fn test_live_server_probe_runs_in_deferred_mode() {
     let manager = McpClientManagerHandle::start(
         vec![mock_server_config("probe-deferred")],
         &registry,
-        None,
         None,
         LoadingMode::Deferred,
     )
@@ -335,7 +330,6 @@ async fn test_live_server_probe_skips_an_unknown_tool() {
     let manager = McpClientManagerHandle::start(
         vec![mock_server_config("probe-unknown")],
         &registry,
-        None,
         None,
         LoadingMode::Deferred,
     )
@@ -377,7 +371,6 @@ async fn test_reload_event_names_tools_in_deferred_mode() {
         vec![mock_server_config("reload-deferred")],
         &registry,
         Some(bus),
-        None,
         LoadingMode::Deferred,
     )
     .await

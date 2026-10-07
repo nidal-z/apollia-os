@@ -465,7 +465,6 @@ from .session_prompt_template import SessionPromptTemplate
 from .session_settings import SessionSettings
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
-from .set_approval_body import SetApprovalBody
 from .set_credential_body import SetCredentialBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
@@ -1073,7 +1072,6 @@ __all__ = (
     "SessionSettings",
     "SessionWorkspace",
     "SetAgentModelRequest",
-    "SetApprovalBody",
     "SetCredentialBody",
     "SetDefaultModelRequest",
     "SetDefaultResponse",

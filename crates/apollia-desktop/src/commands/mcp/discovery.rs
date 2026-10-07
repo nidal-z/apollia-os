@@ -238,7 +238,6 @@ pub async fn fetch_mcp_registry(
                         .as_ref()
                         .and_then(|m| m.get("en").cloned()),
                     auth_help_i18n_key: enrichment.auth_help_i18n_key.clone(),
-                    default_requires_approval: enrichment.default_requires_approval,
                     oauth_pre_registered_client_id_env: enrichment
                         .oauth_pre_registered_client_id_env
                         .clone(),
@@ -380,7 +379,6 @@ pub async fn fetch_mcp_curated(
                     .as_ref()
                     .and_then(|m| m.get("en").cloned()),
                 auth_help_i18n_key: enrichment.auth_help_i18n_key.clone(),
-                default_requires_approval: enrichment.default_requires_approval,
                 oauth_pre_registered_client_id_env: enrichment
                     .oauth_pre_registered_client_id_env
                     .clone(),

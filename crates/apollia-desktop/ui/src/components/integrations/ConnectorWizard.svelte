@@ -266,7 +266,6 @@
     );
   }
 
-  // The approval level is not chosen while adding: it belongs to governance.
   const configInputs = $derived<ConnectorConfigInputs>({
     server,
     connectionMode,
@@ -275,7 +274,6 @@
     oauthResolved: probeMode === "oauth" && oauthAccount !== null,
     envValues,
     argValues,
-    approvalLevel: "ask",
   });
 
   const builtConfig = $derived(buildConnectorConfig(configInputs, false));
@@ -313,7 +311,6 @@
       url: remote.url,
       transport: remote.type,
       env: {},
-      requires_approval: false,
       tags: [],
     };
   }

@@ -90,7 +90,6 @@ fn mcp_server(name: &str) -> McpServerConfig {
         env: HashMap::new(),
         transport: "stdio".to_owned(),
         url: None,
-        requires_approval: false,
         init_timeout_secs: 30,
         call_timeout_secs: 60,
         tags: vec![],

@@ -1,4 +1,4 @@
-//! `apollia-os mcp` subcommands: MCP server management, discovery, and HITL approvals.
+//! `apollia-os mcp` subcommands: MCP server management and discovery.
 //!
 //! The `add`, `remove`, `get`, `test`, and `restart` sub-commands talk to the
 //! runtime over the Unix socket. The others operate on the local config.
@@ -10,12 +10,10 @@ use clap::Subcommand;
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
-mod approvals;
 mod listing;
 mod secrets;
 mod servers;
 
-use approvals::{run_list_pending, run_revoke_approval, run_set_approval};
 use listing::run_list;
 use secrets::run_secret;
 use servers::{
@@ -44,61 +42,6 @@ pub enum McpCommand {
         json: bool,
     },
 
-    /// Approve all calls to a tool on a server, persisted with the configured TTL.
-    ///
-    /// After approval, calls to `<tool>` on `<server>` bypass the HITL suspension
-    /// gate until the approval expires (default TTL: 24 h, configurable in apollia.toml).
-    SetApproval {
-        /// MCP server name (as declared in mcp.toml).
-        server: String,
-
-        /// Tool name to approve.
-        tool: String,
-
-        /// Path to the approvals database (default: `~/.apollia/mcp_approvals.db`).
-        #[arg(long, value_name = "PATH")]
-        db: Option<PathBuf>,
-
-        /// Override the TTL for this approval, in hours (0 = never expires).
-        #[arg(long, value_name = "HOURS", default_value_t = 24)]
-        ttl_hours: u64,
-
-        /// Output machine-readable JSON.
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// List all pending HITL approval requests awaiting human decision.
-    ListPending {
-        /// Path to the approvals database (default: `~/.apollia/mcp_approvals.db`).
-        #[arg(long, value_name = "PATH")]
-        db: Option<PathBuf>,
-
-        /// Output machine-readable JSON.
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Revoke a previously granted tool approval.
-    ///
-    /// After revocation, calls to `<tool>` on `<server>` will be suspended again
-    /// until a new approval is granted with `set-approval`.
-    RevokeApproval {
-        /// MCP server name (as declared in mcp.toml).
-        server: String,
-
-        /// Tool name to revoke.
-        tool: String,
-
-        /// Path to the approvals database (default: `~/.apollia/mcp_approvals.db`).
-        #[arg(long, value_name = "PATH")]
-        db: Option<PathBuf>,
-
-        /// Output machine-readable JSON.
-        #[arg(long)]
-        json: bool,
-    },
-
     /// Register a new MCP server with the runtime (persisted in the config).
     Add {
         /// Unique server name.
@@ -116,9 +59,6 @@ pub enum McpCommand {
         /// Transport. Defaults to `streamable-http` with `--url`, `stdio` otherwise.
         #[arg(long, value_parser = ["stdio", "streamable-http", "sse"])]
         transport: Option<String>,
-        /// Require HITL approval for every tool call an agent task makes.
-        #[arg(long)]
-        require_approval: bool,
     },
 
     /// Remove an MCP server from the runtime.
@@ -150,8 +90,7 @@ pub enum McpCommand {
 
     /// Update the raw configuration of an existing MCP server.
     ///
-    /// At least one of `--command`, `--arg`, `--url`, or `--require-approval`
-    /// must be supplied. Fields that are omitted keep their previous value.
+    /// At least one of `--command`, `--arg` or `--url` must be supplied. Fields that are omitted keep their previous value.
     Update {
         /// Server name.
         name: String,
@@ -165,9 +104,6 @@ pub enum McpCommand {
         /// New HTTP/SSE URL.
         #[arg(long)]
         url: Option<String>,
-        /// Enable / disable the HITL approval lock.
-        #[arg(long, value_name = "BOOL")]
-        require_approval: Option<bool>,
     },
 
     /// Show the raw persisted configuration of an MCP server.
@@ -252,10 +188,6 @@ pub enum McpCommandError {
     /// The mDNS discovery scan failed.
     #[error("mDNS discovery error: {0}")]
     Discovery(#[from] apollia_mcp::DiscoveryError),
-
-    /// The approval database could not be opened or written.
-    #[error("approval store error: {0}")]
-    Approval(#[from] apollia_mcp::McpApprovalError),
 }
 
 /// Entry point for `apollia-os mcp <subcommand>`.
@@ -279,63 +211,12 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             }
         }
 
-        McpCommand::SetApproval {
-            server,
-            tool,
-            db,
-            ttl_hours,
-            json: cmd_json,
-        } => {
-            let use_json = json || *cmd_json;
-            match run_set_approval(server, tool, db.as_deref(), *ttl_hours, use_json) {
-                Ok(output) => {
-                    println!("{output}");
-                    exit_codes::SUCCESS
-                }
-                Err(e) => {
-                    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string())
-                }
-            }
-        }
-
-        McpCommand::ListPending { db, json: cmd_json } => {
-            let use_json = json || *cmd_json;
-            match run_list_pending(db.as_deref(), use_json) {
-                Ok(output) => {
-                    println!("{}", output.trim_end());
-                    exit_codes::SUCCESS
-                }
-                Err(e) => {
-                    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string())
-                }
-            }
-        }
-
-        McpCommand::RevokeApproval {
-            server,
-            tool,
-            db,
-            json: cmd_json,
-        } => {
-            let use_json = json || *cmd_json;
-            match run_revoke_approval(server, tool, db.as_deref(), use_json) {
-                Ok(output) => {
-                    println!("{output}");
-                    exit_codes::SUCCESS
-                }
-                Err(e) => {
-                    crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string())
-                }
-            }
-        }
-
         McpCommand::Add {
             name,
             command,
             args,
             url,
             transport,
-            require_approval,
         } => {
             let client = make_runtime_client(socket);
             run_add(
@@ -346,7 +227,6 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
                     args,
                     url: url.as_deref(),
                     transport: transport.as_deref(),
-                    require_approval: *require_approval,
                 },
                 json,
             )
@@ -378,7 +258,6 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             command,
             args,
             url,
-            require_approval,
         } => {
             let client = make_runtime_client(socket);
             run_update_server(
@@ -388,7 +267,6 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
                     command: command.as_deref(),
                     args,
                     url: url.as_deref(),
-                    require_approval: *require_approval,
                 },
                 json,
             )
@@ -437,10 +315,9 @@ fn handle_client_error(err: ClientError, json: bool) -> i32 {
 mod tests {
     use clap::Parser;
 
-    use super::approvals::{resolve_approvals_db_path, resolve_config_path};
+    use super::listing::resolve_config_path;
     use super::secrets::{mcp_secret_key, run_secret_set};
     use super::*;
-    use apollia_mcp::approvals::McpApprovalStore;
 
     #[derive(Debug, Parser)]
     struct TestCli {
@@ -471,22 +348,20 @@ mod tests {
                 args,
                 url,
                 transport,
-                require_approval,
             } => {
                 assert_eq!(name, "code-tools");
                 assert_eq!(command.as_deref(), Some("npx"));
                 assert_eq!(args, &["-y", "@modelcontextprotocol/server-filesystem"]);
                 assert!(url.is_none());
                 assert!(transport.is_none());
-                assert!(!require_approval);
             }
             other => panic!("expected Add, got {other:?}"),
         }
     }
 
     #[test]
-    fn test_mcp_add_with_url_and_approval_parses() {
-        // GIVEN "add my-server --url http://localhost:8080 --require-approval"
+    fn test_mcp_add_with_url_parses() {
+        // GIVEN "add my-server --url http://localhost:8080"
         // WHEN
         let cli = TestCli::parse_from([
             "apollia-os",
@@ -494,17 +369,11 @@ mod tests {
             "my-server",
             "--url",
             "http://localhost:8080",
-            "--require-approval",
         ]);
-        // THEN require_approval = true, url set
+        // THEN the url is set
         match &cli.command {
-            McpCommand::Add {
-                url,
-                require_approval,
-                ..
-            } => {
+            McpCommand::Add { url, .. } => {
                 assert_eq!(url.as_deref(), Some("http://localhost:8080"));
-                assert!(require_approval);
             }
             other => panic!("expected Add, got {other:?}"),
         }
@@ -520,7 +389,6 @@ mod tests {
             args: &args,
             url: None,
             transport: None,
-            require_approval: true,
         };
         let remote = servers::ServerSpec {
             name: "remote",
@@ -528,7 +396,6 @@ mod tests {
             args: &[],
             url: Some("https://mcp.example.com/mcp"),
             transport: None,
-            require_approval: false,
         };
 
         // WHEN the request bodies are built
@@ -542,7 +409,6 @@ mod tests {
             serde_json::json!(["server.py", "--verbose"])
         );
         assert!(stdio_body.get("transport").is_none());
-        assert_eq!(stdio_body["requires_approval"], true);
         // THEN the URL body is streamable-http and carries no argument list
         assert_eq!(remote_body["transport"], "streamable-http");
         assert!(remote_body.get("args").is_none());
@@ -557,7 +423,6 @@ mod tests {
             args: &[],
             url: Some("http://localhost:9000/sse"),
             transport: Some("sse"),
-            require_approval: false,
         };
 
         // WHEN the request body is built
@@ -659,30 +524,11 @@ mod tests {
                 command,
                 args,
                 url,
-                require_approval,
             } => {
                 assert_eq!(name, "code-tools");
                 assert!(command.is_none());
                 assert!(args.is_empty());
                 assert_eq!(url.as_deref(), Some("http://localhost:9090"));
-                assert!(require_approval.is_none());
-            }
-            other => panic!("expected Update, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_mcp_update_require_approval_flag() {
-        // GIVEN an update carrying --require-approval true
-        let cli =
-            TestCli::parse_from(["apollia-os", "update", "srv", "--require-approval", "true"]);
-        // WHEN clap parses the argument line
-        // THEN the flag is captured as a boolean, not as a string
-        match &cli.command {
-            McpCommand::Update {
-                require_approval, ..
-            } => {
-                assert_eq!(*require_approval, Some(true));
             }
             other => panic!("expected Update, got {other:?}"),
         }
@@ -720,88 +566,6 @@ mod tests {
             result.to_string_lossy().ends_with(".apollia/mcp.toml"),
             "unexpected path: {result:?}"
         );
-    }
-
-    #[test]
-    fn test_resolve_approvals_db_path_with_override() {
-        // GIVEN an explicit path override
-        let p = std::path::Path::new("/tmp/my_approvals.db");
-        // WHEN
-        let result = resolve_approvals_db_path(Some(p));
-        // THEN the override is returned verbatim
-        assert_eq!(result, PathBuf::from("/tmp/my_approvals.db"));
-    }
-
-    #[test]
-    fn test_resolve_approvals_db_path_default_ends_with_db() {
-        // GIVEN no override
-        // WHEN
-        let result = resolve_approvals_db_path(None);
-        // THEN path ends with .apollia/mcp_approvals.db
-        assert!(
-            result
-                .to_string_lossy()
-                .ends_with(".apollia/mcp_approvals.db"),
-            "unexpected path: {result:?}"
-        );
-    }
-
-    // ── set-approval / revoke round-trip ─────────────────────────────────────
-
-    #[test]
-    fn test_set_approval_then_revoke_round_trip() {
-        // GIVEN a temp db
-        let tmp = tempfile::NamedTempFile::new().expect("tmp file");
-        // WHEN approved
-        let out = run_set_approval("code-tools", "bash_exec", Some(tmp.path()), 24, false)
-            .expect("set-approval must succeed");
-        assert!(out.contains("Approved"));
-        // AND revoked
-        let out = run_revoke_approval("code-tools", "bash_exec", Some(tmp.path()), false)
-            .expect("revoke must succeed");
-        assert!(out.contains("Revoked"));
-        // THEN is_approved returns false
-        let store = McpApprovalStore::open(tmp.path(), 24).expect("store");
-        assert!(!store.is_approved("code-tools", "bash_exec"));
-    }
-
-    #[test]
-    fn test_set_approval_json_output() {
-        // GIVEN a temp db
-        let tmp = tempfile::NamedTempFile::new().expect("tmp file");
-        // WHEN
-        let out =
-            run_set_approval("srv", "tool", Some(tmp.path()), 24, true).expect("set-approval json");
-        // THEN JSON is valid and approved=true
-        let v: serde_json::Value = serde_json::from_str(&out).expect("valid json");
-        assert_eq!(v["approved"], true);
-        assert_eq!(v["server"], "srv");
-        assert_eq!(v["tool"], "tool");
-    }
-
-    #[test]
-    fn test_list_pending_empty() {
-        // GIVEN a fresh db
-        let tmp = tempfile::NamedTempFile::new().expect("tmp file");
-        // WHEN
-        let out = run_list_pending(Some(tmp.path()), false).expect("list-pending");
-        // THEN shows empty message
-        assert!(out.contains("No pending"));
-    }
-
-    #[test]
-    fn test_list_pending_with_entry() {
-        // GIVEN a db with one registered pending request
-        let tmp = tempfile::NamedTempFile::new().expect("tmp file");
-        let store = McpApprovalStore::open(tmp.path(), 24).expect("store");
-        store
-            .register("code-tools", "bash_exec", &serde_json::json!({}))
-            .expect("register");
-        // WHEN
-        let out = run_list_pending(Some(tmp.path()), false).expect("list-pending");
-        // THEN the entry appears
-        assert!(out.contains("code-tools"));
-        assert!(out.contains("bash_exec"));
     }
 
     #[test]

@@ -302,8 +302,6 @@ pub struct ConnectorEnrichmentView {
     /// explanations in the bundled FR/EN catalogs instead of duplicating them
     /// in `enrichments.json`. Used today for Figma's catalog-gating notice.
     pub auth_help_i18n_key: Option<String>,
-    /// Default value for the `requires_approval` flag on the created server.
-    pub default_requires_approval: bool,
     /// Env var name carrying a pre-registered OAuth client id.
     /// Set for providers that require manual dev-portal registration (Figma).
     /// `None` for providers that support CIMD or anonymous DCR.
@@ -346,7 +344,6 @@ pub fn list_mcp_enrichments() -> Vec<EnrichmentEntry> {
                 auth_help_url: e.auth_help_url,
                 auth_help_text: e.auth_help_text.and_then(|m| m.get("en").cloned()),
                 auth_help_i18n_key: e.auth_help_i18n_key,
-                default_requires_approval: e.default_requires_approval,
                 oauth_pre_registered_client_id_env: e.oauth_pre_registered_client_id_env,
                 examples: e.examples,
             },

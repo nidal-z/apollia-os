@@ -93,8 +93,6 @@ The options on a headless machine are to run a Secret Service implementation (`g
 <!-- claim:tool-invocations-is-the-execution-record -->
 Every tool execution is logged in `~/.apollia/audit.db`, table `tool_invocations`: agent, task, run, tool name, a hash of the input, the sandbox profile, duration and exit code. It records what ran, not who approved it. Read it from the **Observability** page in the sidebar, **Audit Trail** tab.
 
-MCP approvals (durable HITL acceptances) are stored separately in `~/.apollia/mcp_approvals.db`.
-
 ### Common errors in file mode
 
 - **The account cannot be saved on Linux**: the Secret Service daemon is not available. See the headless Linux section above: there is no workaround in `v0.1.0-preview`.

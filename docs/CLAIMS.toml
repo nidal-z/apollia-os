@@ -1563,27 +1563,24 @@ caller would satisfy a symbol-only check and leave the sentence false.
 [[claim]]
 id = "mcp-requires-approval-gates-task-path"
 scope = "public"
-symbol = "build_task_tool_executors"
-status = "not-wired"
-proof = "crates/apollia-runtime/src/chat/manager/dispatcher.rs"
-evidence = "apollia_mcp::executor::build_agent_tool_executors("
+symbol = "classify_mcp_tool"
+status = "wired"
+proof = "crates/apollia-mcp/src/manager/views.rs"
+evidence = "ServerHints::Read => classify_mcp_tool("
 note = """
-The gate of a server declared `requires_approval` lived on the task path of a
-Python agent: its runners built their MCP executors through
-`build_task_tool_executors`, which pauses the task on an approval. Those
-runners are gone with the contract they served, and that builder has no
-production caller left.
+An MCP server used to carry an approval flag, and the task path of a Python
+agent paused on it. Both are gone: the flag, its store, its routes and its
+commands were removed, and the runners of that path went with the contract
+they served.
 
-An agent now runs through the agent executor, whose dispatcher builds the MCP
-executors through `build_agent_tool_executors`, the evidence above. What asks
-before a call there is the governance of the run: a tool whose family is
-sensitive is asked for unless the user authorised it. The `requires_approval`
-flag of a server adds no pause of its own on that path.
+What decides a call now is the action family of the tool, given once when the
+tool is registered, the evidence above, from the curated selection, then from
+the annotations of the server, and left unclassified otherwise. Governance
+asks on that family before the call runs, with the three answers of a consent
+prompt.
 
-The paragraph this identifier anchors still describes the pause of the former
-task path, with `ctx.tools.call` and `ToolApprovalDenied`. It has to be
-revisited with the page that carries it; until then this entry says what the
-code does.
+The identifier keeps its historical name so the anchor of the page stays
+stable; the paragraph it anchors says what the code does.
 """
 
 [[claim]]
@@ -1594,11 +1591,11 @@ status = "wired"
 proof = "crates/apollia-mcp/src/manager/views.rs"
 evidence = "dangerous: false,"
 note = """
-An MCP tool descriptor used to carry its server's `requires_approval` as
+An MCP tool descriptor used to carry the approval flag of its server as
 `dangerous`, and install-time resolution refuses a `dangerous` tool unless the
 manifest sets `dangerous_tools_allowed`, which the SDK decorator does not
 expose. Under eager loading an agent requiring a tool of a gated server was
 refused with a 400, while one requiring a tool of an ungated server installed.
-The page says such an agent installs and the approval is held per call; that
-holds while the registered descriptor is not `dangerous`.
+The flag is gone; the page says such an agent installs and the question is
+asked per call, which holds while the registered descriptor is not `dangerous`.
 """

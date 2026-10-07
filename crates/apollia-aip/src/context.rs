@@ -1057,7 +1057,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 10,
             call_timeout_secs: 10,
             max_response_bytes: 8 * 1024 * 1024,
@@ -1066,15 +1065,10 @@ mod tests {
             tool_families: Default::default(),
             origin: None,
         };
-        let manager = McpClientManagerHandle::start(
-            vec![mcp_config],
-            &registry,
-            None,
-            None,
-            LoadingMode::Eager,
-        )
-        .await
-        .expect("mcp manager start failed");
+        let manager =
+            McpClientManagerHandle::start(vec![mcp_config], &registry, None, LoadingMode::Eager)
+                .await
+                .expect("mcp manager start failed");
 
         // AND a ToolProxy backed by the runtime's own MCP executor assembly
         let execs = build_agent_tool_executors(&manager).await;

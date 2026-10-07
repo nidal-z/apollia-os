@@ -30,7 +30,7 @@ the same commit as the command.
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel`, `pause` |
 | maintenance | `clear`, `evict`, `purge`, `forget` |
 | report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `approvals`, `messages`, `skills`, `accounts`, `accesses`, `capabilities`, `template`, `hardware`, `recommend`, `schema`, `keys`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
-| action | `run`, `build`, `new`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `set-approval`, `revoke-approval`, `list-pending`, `decide`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| action | `run`, `build`, `new`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `decide`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed

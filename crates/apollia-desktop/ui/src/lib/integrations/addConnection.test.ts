@@ -43,7 +43,6 @@ function config(over: Partial<McpServerConfigInput> = {}): McpServerConfigInput 
     url: "https://mcp.notion.com/mcp",
     env: {},
     transport: "streamable-http",
-    requires_approval: true,
     tags: [],
     ...over,
   };

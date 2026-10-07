@@ -191,24 +191,19 @@ argument 'requires_approval'` à l'import, si bien que l'agent ne se charge jama
 l'outillage d'inspection et n'insère aucune pause.
 
 <!-- claim:mcp-requires-approval-gates-task-path -->
-Un serveur MCP déclaré comme exigeant une approbation (`requires_approval`), ou un
-outil MCP que le manifeste de l'agent liste dans `tools_requiring_approval`, soumet
-ses appels à une porte sur le chemin des tâches. Un appel depuis `ctx.tools.call`
-met la tâche en pause sur une approbation dont le `geste` est `<serveur>/<outil>` et
-dont le `detail` liste les arguments. Approuvé, l'appel s'exécute une fois à la
-reprise ; refusé, `ctx.tools.call` lève `apollia.errors.ToolApprovalDenied`. Une
-pause levée ainsi garde le `context` avec lequel l'exécution a repris : un skill
-repris depuis sa propre pause relit son état quand il reprend depuis celle-ci ; à
-une première exécution, ce contexte est vide. Interceptez le `NeedHumanInput` et
-relevez-le avec votre propre `context` pour faire traverser autre chose.
-L'approbation ne couvre que cet appel, avec ces arguments. Un agent exécuté depuis
-une session de chat agent passe par la même porte ; l'assistant du chat libre n'y
-passe pas, il demande avant tout appel d'outil qu'on ne lui a pas autorisé.
+Un serveur MCP ne porte aucun réglage d'approbation qui lui soit propre. Un outil
+qu'il publie se décide comme tout autre outil, sur sa famille d'action : celle que
+lui donne la sélection, sinon celle que déclarent ses propres annotations, sinon
+aucune, et un outil que personne n'a classé est traité comme sensible. Quand un
+agent appelle un outil dont la famille est sensible, l'exécution demande d'abord,
+avec trois réponses : une fois, toujours pour cet agent, ou refuser. « Toujours »
+est un consentement permanent de cet agent pour cette famille, gardé jusqu'à son
+retrait ; une politique d'organisation, quand il y en a une, passe avant tout cela.
 
 <!-- claim:mcp-gated-tool-does-not-block-install -->
-Déclarer un tel outil dans `tools_required` ne demande rien de plus : l'agent
-s'installe, et l'approbation est tenue appel par appel à l'exécution. Le
-`dangerous_tools_allowed` du manifeste n'y joue aucun rôle.
+Accorder un tel outil à un agent ne demande rien de plus : l'agent s'installe, et
+la question est posée appel par appel à l'exécution. Le `dangerous_tools_allowed`
+du manifeste n'y joue aucun rôle.
 
 ## Voir aussi
 

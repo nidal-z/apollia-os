@@ -152,10 +152,6 @@ pub struct McpServerConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 
-    /// When `true`, every tool call to this server requires HITL approval before execution.
-    #[serde(default)]
-    pub requires_approval: bool,
-
     /// Timeout for the MCP `initialize` handshake, in seconds.
     #[serde(default = "default_init_timeout")]
     pub init_timeout_secs: u64,
@@ -721,6 +717,28 @@ mod tests {
     }
 
     #[test]
+    fn test_a_file_written_with_the_retired_approval_key_still_loads() {
+        // GIVEN an mcp.toml written when a server carried an approval flag
+        let toml_content = r#"
+            [[servers]]
+            name = "crm"
+            command = "uvx"
+            args = ["crm-mcp"]
+            transport = "stdio"
+            requires_approval = true
+        "#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        // WHEN
+        let config = McpConfig::load(file.path()).unwrap();
+        // THEN the server loads, the key is read past and written back nowhere
+        assert_eq!(config.servers.len(), 1);
+        assert_eq!(config.servers[0].name, "crm");
+        let written = toml::to_string(&config.servers[0]).unwrap();
+        assert!(!written.contains("approval"), "{written}");
+    }
+
+    #[test]
     fn test_missing_file_returns_empty_config() {
         // GIVEN a path pointing to a non-existent file
         let path = Path::new("/tmp/nonexistent-mcp-toml-12345.toml");
@@ -761,7 +779,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -791,7 +808,6 @@ mod tests {
             env: HashMap::from([("API_KEY".to_string(), "${TEST_MCP_KEY_327}".to_string())]),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -823,7 +839,6 @@ mod tests {
             env: HashMap::from([("KEY".to_string(), "${TOTALLY_MISSING_VAR_327}".to_string())]),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -850,7 +865,6 @@ mod tests {
             env: HashMap::new(),
             transport: "http".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -883,7 +897,6 @@ mod tests {
             )]),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -913,7 +926,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -940,7 +952,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -968,7 +979,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -997,7 +1007,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -1032,7 +1041,6 @@ mod tests {
                 env: HashMap::new(),
                 transport: "stdio".to_string(),
                 url: None,
-                requires_approval: false,
                 init_timeout_secs: 30,
                 call_timeout_secs: 60,
                 max_response_bytes: default_max_response_bytes(),
@@ -1096,7 +1104,6 @@ mod tests {
             env,
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -1269,7 +1276,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 0,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -1296,7 +1302,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 301,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -1323,7 +1328,6 @@ mod tests {
             env: HashMap::new(),
             transport: "stdio".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 0,
             max_response_bytes: default_max_response_bytes(),
@@ -1350,7 +1354,6 @@ mod tests {
             env: HashMap::new(),
             transport: "streamable-http".to_string(),
             url: Some("localhost:8080".to_string()),
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -1377,7 +1380,6 @@ mod tests {
             env: HashMap::new(),
             transport: "streamable-http".to_string(),
             url: Some("http://localhost:8080/mcp".to_string()),
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -1401,7 +1403,6 @@ mod tests {
             env: HashMap::new(),
             transport: "streamable-http".to_string(),
             url: Some("https://mcp.notion.ai/mcp".to_string()),
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -1425,7 +1426,6 @@ mod tests {
             env: HashMap::new(),
             transport: "streamable-http".to_string(),
             url: None,
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),
@@ -1452,7 +1452,6 @@ mod tests {
             env: HashMap::new(),
             transport: "sse".to_string(),
             url: Some("https://mcp.brave.com/sse".to_string()),
-            requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
             max_response_bytes: default_max_response_bytes(),

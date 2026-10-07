@@ -7,7 +7,6 @@ use apollia_mcp::discovery;
 
 use crate::client::{ClientError, RuntimeClient};
 
-use super::approvals::resolve_config_path;
 use super::McpCommandError;
 
 // ─── list ────────────────────────────────────────────────────────────────────
@@ -295,11 +294,6 @@ pub(super) fn push_configured_servers(out: &mut String, config: &McpConfig, tty:
     }
     out.push_str("Configured MCP servers:\n");
     for s in &config.servers {
-        let approval = if s.requires_approval {
-            " [approval]"
-        } else {
-            ""
-        };
         let cmd = if s.command.is_empty() {
             s.url.as_deref().unwrap_or("").to_string()
         } else {
@@ -307,14 +301,11 @@ pub(super) fn push_configured_servers(out: &mut String, config: &McpConfig, tty:
         };
         if tty {
             out.push_str(&format!(
-                "  \x1b[1m{}\x1b[0m    {}    {}{}\n",
-                s.name, s.transport, cmd, approval
+                "  \x1b[1m{}\x1b[0m    {}    {}\n",
+                s.name, s.transport, cmd
             ));
         } else {
-            out.push_str(&format!(
-                "  {}    {}    {}{}\n",
-                s.name, s.transport, cmd, approval
-            ));
+            out.push_str(&format!("  {}    {}    {}\n", s.name, s.transport, cmd));
         }
     }
 }
@@ -371,6 +362,21 @@ pub(super) async fn format_list_human(
     push_discovered_servers(&mut out, &discovered, tty);
 
     Ok(out)
+}
+
+/// Returns the effective path to `mcp.toml`.
+///
+/// Uses the caller-supplied path when present; otherwise falls back to
+/// `~/.apollia/mcp.toml` (or `.apollia/mcp.toml` relative to the current
+/// directory when the home directory cannot be determined).
+pub(super) fn resolve_config_path(override_path: Option<&std::path::Path>) -> std::path::PathBuf {
+    if let Some(p) = override_path {
+        return p.to_path_buf();
+    }
+    apollia_core::paths::home_dir()
+        .map(apollia_core::paths::data_dir_under)
+        .unwrap_or_else(|| std::path::PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
+        .join("mcp.toml")
 }
 
 #[cfg(test)]

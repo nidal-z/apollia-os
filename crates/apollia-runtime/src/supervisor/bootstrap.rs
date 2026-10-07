@@ -275,7 +275,6 @@ pub(in crate::supervisor) async fn start_mcp_manager(
         server_configs,
         tool_registry_handle,
         Some(event_sender.clone()),
-        None,
         loading_mode,
     )
     .await

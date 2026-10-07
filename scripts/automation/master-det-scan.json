@@ -9836,7 +9836,6 @@
         },
         "transport": "streamable-http",
         "url": "https://mcp.example.test/mcp",
-        "requires_approval": false,
         "init_timeout_secs": 30,
         "call_timeout_secs": 60,
         "tags": []
@@ -9928,7 +9927,6 @@
           },
           "transport": "streamable-http",
           "url": "https://mcp.example.test/v2/mcp",
-          "requires_approval": false,
           "init_timeout_secs": 30,
           "call_timeout_secs": 60,
           "tags": []
@@ -10347,23 +10345,8 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "custom-mcp-approval-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "setChecked",
-      "testid": "custom-mcp-approval-toggle",
-      "checked": false
-    },
-    {
       "kind": "screenshot",
       "label": "14-custom-mcp-stdio"
-    },
-    {
-      "kind": "setChecked",
-      "testid": "custom-mcp-approval-toggle",
-      "checked": true
     },
     {
       "kind": "selectOption",
