@@ -143,8 +143,8 @@
       <table class="w-full text-sm">
         <thead class="bg-muted text-xs text-muted-foreground">
           <tr>
+            <th class="w-full px-4 py-2 text-left font-medium">{$t("ai.installed.col_name")}</th>
             <th class="px-3 py-2 text-left font-medium">{$t("ai.installed.col_params")}</th>
-            <th class="px-3 py-2 text-left font-medium">{$t("ai.installed.col_name")}</th>
             <th class="px-3 py-2 text-left font-medium">{$t("ai.installed.col_size")}</th>
             <th class="px-3 py-2 text-left font-medium">{$t("ai.installed.col_modified")}</th>
             <th class="px-3 py-2 text-right font-medium">{$t("ai.installed.col_actions")}</th>
@@ -184,16 +184,7 @@
                 data-testid="ai-model-row"
                 data-model-id={model.id}
               >
-                <td class="px-3 py-2">
-                  {#if model.parameters}
-                    <ExplainedBadge
-                      label={params ? $t(params.unitKey, { values: { n: params.value } }) : model.parameters}
-                      explanation={$t("ai.installed.params_explanation")}
-                      testid="ai-model-params"
-                    />
-                  {/if}
-                </td>
-                <td class="px-3 py-2">
+                <td class="px-4 py-2.5 font-medium">
                   <div class="flex flex-wrap items-center gap-1.5">
                     {#if model.pinned_at}
                       <Tooltip content={$t("ai.installed.pinned_explanation")}>
@@ -245,6 +236,15 @@
                       />
                     {/if}
                   </div>
+                </td>
+                <td class="whitespace-nowrap px-3 py-2">
+                  {#if model.parameters}
+                    <ExplainedBadge
+                      label={params ? $t(params.unitKey, { values: { n: params.value } }) : model.parameters}
+                      explanation={$t("ai.installed.params_explanation")}
+                      testid="ai-model-params"
+                    />
+                  {/if}
                 </td>
                 <td class="whitespace-nowrap px-3 py-2 text-foreground">
                   {$t("ai.installed.size", { values: { size: gigabytes(model.size_bytes, lang) } })}

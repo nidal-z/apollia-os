@@ -360,35 +360,37 @@
   });
 </script>
 
-<div class="flex h-full min-h-0 w-full" data-testid="llm-page">
+<div class="flex h-full min-h-0 w-full flex-col" data-testid="llm-page">
   <nav
-    class="flex w-56 shrink-0 flex-col gap-0.5 border-r border-border p-3"
+    class="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-2 border-b border-border px-6 py-3"
     aria-label={$t("ai.categories_label")}
     data-testid="ai-categories"
   >
-    <p class="px-2 pb-2 text-xs text-muted-foreground">{$t("ai.column_title")}</p>
-    {#each CATEGORY_FILTERS as entry (entry)}
-      <button
-        type="button"
-        class={cn(
-          "flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-          filter === entry && serversView === null
-            ? "bg-muted font-medium text-foreground"
-            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-        )}
-        aria-current={filter === entry && serversView === null ? "page" : undefined}
-        onclick={() => {
-          filter = entry;
-          serversView = null;
-        }}
-        data-testid="ai-category-{entry}"
-      >
-        <span>{$t(categoryLabelKey(entry))}</span>
-        <span class="text-xs tabular-nums text-muted-foreground" data-testid="ai-category-count-{entry}">
-          {categoryCount(installed, entry)}
-        </span>
-      </button>
-    {/each}
+    <div class="flex flex-wrap items-center gap-1">
+      <p class="pr-1 text-overline uppercase text-muted-foreground">{$t("ai.column_title")}</p>
+      {#each CATEGORY_FILTERS as entry (entry)}
+        <button
+          type="button"
+          class={cn(
+            "flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+            filter === entry && serversView === null
+              ? "border-primary/40 bg-primary/5 font-medium text-foreground"
+              : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          )}
+          aria-current={filter === entry && serversView === null ? "page" : undefined}
+          onclick={() => {
+            filter = entry;
+            serversView = null;
+          }}
+          data-testid="ai-category-{entry}"
+        >
+          <span>{$t(categoryLabelKey(entry))}</span>
+          <span class="text-xs tabular-nums text-muted-foreground" data-testid="ai-category-count-{entry}">
+            {categoryCount(installed, entry)}
+          </span>
+        </button>
+      {/each}
+    </div>
     <ServersNav
       servers={$servers.servers}
       models={$servers.models}
