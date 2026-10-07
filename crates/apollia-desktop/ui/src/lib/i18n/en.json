@@ -66,7 +66,6 @@
     "confirm": "Confirm",
     "save": "Save",
     "close": "Close",
-    "submitting": "Submitting...",
     "retry": "Retry",
     "continue": "Continue",
     "refresh": "Refresh",
@@ -3614,7 +3613,6 @@
       "interrupted": "Interrupted"
     },
     "config_title": "Configuration",
-    "config_save": "Apply",
     "config": {
       "profile_label": "Conversation profile",
       "profile_default": "Default profile ({name})",
@@ -3801,9 +3799,6 @@
     "journal_empty": "Live agent activity.",
     "conversations_aria": "Conversations",
     "past_session": "Past session",
-    "use_preferences": "Use my preferences",
-    "inject_user_memory": "Inject user memory",
-    "memory_section": "Memory",
     "recording_hotkey_hint": "{hotkey} to stop · Esc to cancel",
     "rename_session": "Rename",
     "rename_placeholder": "Conversation name…",
@@ -4113,6 +4108,28 @@
       "refusal_title": "{name} was not loaded in this pane",
       "refusal_body": "Not enough memory with the models already loaded: estimate {estimated} GB for {budget} GB (guardrails \"{level}\"). Pick a model already loaded, close a pane, or load anyway after confirming.",
       "refusal_choose": "Pick another model"
+    },
+    "integrations": {
+      "profile_title": "Profile",
+      "profile_switch_assistant": "Apollia knows my profile",
+      "profile_switch_assistant_help": "Added to the conversation; the context gauge shows it.",
+      "profile_switch_agent": "The agent may read my profile",
+      "profile_switch_agent_help": "The agent reads it at its own initiative, and each reading is recorded.",
+      "accesses_title": "What the agent reaches in this conversation",
+      "filter_placeholder": "Filter the accesses",
+      "group_tools": "Tools",
+      "group_connections": "Connections",
+      "group_workflows": "Workflows",
+      "group_agents": "Other agents",
+      "badge_off": "off here",
+      "badge_not_granted": "not granted",
+      "badge_proposed": "proposed",
+      "note_not_granted": "Not granted to this agent. Switching it on proposes it for this conversation only.",
+      "note_proposed": "Each call asks for your consent.",
+      "none_match": "No access matches this filter.",
+      "none": "No access to show for this agent.",
+      "no_conversation": "Open a conversation to see what its agent can use.",
+      "switch_label": "Use \"{name}\" in this conversation"
     },
     "session_panel": {
       "integrations": "Integrations",
@@ -4469,10 +4486,6 @@
         "desc_operator": "Look up information the agent has saved previously",
         "desc_builder": "memory_search - FTS5 BM25, namespace-scoped, limit - SandboxProfile::ReadOnly"
       }
-    },
-    "select": {
-      "title_operator": "Capabilities",
-      "title_builder": "Available tools"
     },
     "body": {
       "search_label": "Search",

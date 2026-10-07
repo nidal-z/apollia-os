@@ -43,7 +43,7 @@ l'exécution, pas un contrôle entre les étapes, et `assisted` ne la lance pas.
 > exécution d'agent**, et c'est la garantie qui compte : rien n'injecte de
 > mémoire dans le prompt d'un agent. L'assistant conversationnel intégré est un
 > autre chemin : à tous les paliers, il reçoit le profil de la conversation tant
-> que l'interrupteur « Utiliser mes préférences » de cette conversation est
+> que l'interrupteur « Apollia connaît mon profil » de cette conversation est
 > allumé. Un agent ne peut pas atteindre ce code.
 
 ## Étapes - Appliquer un palier pour une exécution

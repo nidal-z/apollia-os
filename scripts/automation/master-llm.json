@@ -298,24 +298,25 @@
       "timeoutMs": 10000
     },
     {
-      "kind": "expect",
-      "testidPrefix": "config-tool-"
+      "kind": "waitFor",
+      "testid": "session-access-row",
+      "timeoutMs": 10000
     },
     {
       "kind": "click",
-      "testidPrefix": "config-tool-"
+      "testid": "session-access-switch"
     },
     {
       "kind": "screenshot",
-      "label": "11-config-tool-toggle"
+      "label": "11-session-access-switched"
     },
     {
       "kind": "click",
-      "testidPrefix": "config-group-toggle-"
+      "testid": "session-access-switch"
     },
     {
       "kind": "screenshot",
-      "label": "12-config-group-toggle"
+      "label": "12-session-access-restored"
     },
     {
       "kind": "expect",

@@ -123,6 +123,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.planMode.phaseLabel", // Phase
   "chat.quickpicker.agents_section", // Agents
   "chat.quickpicker.docs_link", // Documentation
+  "chat.integrations.group_workflows", // Workflows
   "chat.session_settings.preset.title", // Preset
   "chat.shortcut_group.chat", // Chat
   "chat.shortcut_group.messages", // Messages

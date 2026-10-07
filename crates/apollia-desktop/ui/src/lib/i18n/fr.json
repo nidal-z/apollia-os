@@ -66,7 +66,6 @@
     "confirm": "Confirmer",
     "save": "Enregistrer",
     "close": "Fermer",
-    "submitting": "Envoi en cours...",
     "retry": "Réessayer",
     "continue": "Continuer",
     "refresh": "Actualiser",
@@ -3614,7 +3613,6 @@
       "interrupted": "Interrompu"
     },
     "config_title": "Configuration",
-    "config_save": "Appliquer",
     "config": {
       "profile_label": "Profil de la conversation",
       "profile_default": "Profil par défaut ({name})",
@@ -3801,9 +3799,6 @@
     "journal_empty": "Activité de l'agent en direct.",
     "conversations_aria": "Conversations",
     "past_session": "Session passée",
-    "use_preferences": "Utiliser mes préférences",
-    "inject_user_memory": "Injecter la mémoire utilisateur",
-    "memory_section": "Mémoire",
     "recording_hotkey_hint": "{hotkey} pour arrêter · Esc pour annuler",
     "rename_session": "Renommer",
     "rename_placeholder": "Nom de la conversation…",
@@ -4113,6 +4108,28 @@
       "refusal_title": "{name} n'a pas été chargé dans ce volet",
       "refusal_body": "Mémoire insuffisante avec les modèles déjà chargés : estimation {estimated} Go pour {budget} Go (garde-fous « {level} »). Choisissez un modèle déjà chargé, fermez un volet, ou chargez quand même après confirmation.",
       "refusal_choose": "Choisir un autre modèle"
+    },
+    "integrations": {
+      "profile_title": "Profil",
+      "profile_switch_assistant": "Apollia connaît mon profil",
+      "profile_switch_assistant_help": "Ajouté à la conversation ; la jauge de contexte l'indique.",
+      "profile_switch_agent": "L'agent peut lire mon profil",
+      "profile_switch_agent_help": "L'agent le lit à son initiative, et chaque lecture est tracée.",
+      "accesses_title": "Accès de l'agent dans cette conversation",
+      "filter_placeholder": "Filtrer les accès",
+      "group_tools": "Outils",
+      "group_connections": "Connexions",
+      "group_workflows": "Workflows",
+      "group_agents": "Autres agents",
+      "badge_off": "coupé ici",
+      "badge_not_granted": "non accordé",
+      "badge_proposed": "proposé",
+      "note_not_granted": "Non accordé à cet agent. L'activer le propose pour cette conversation seulement.",
+      "note_proposed": "Chaque appel demande votre accord.",
+      "none_match": "Aucun accès ne correspond à ce filtre.",
+      "none": "Aucun accès à montrer pour cet agent.",
+      "no_conversation": "Ouvrez une conversation pour voir ce que son agent peut utiliser.",
+      "switch_label": "Utiliser « {name} » dans cette conversation"
     },
     "session_panel": {
       "integrations": "Intégrations",
@@ -4469,10 +4486,6 @@
         "desc_operator": "Retrouver des informations que l'agent a sauvegardées précédemment",
         "desc_builder": "memory_search - FTS5 BM25, cloisonné par namespace, limit - SandboxProfile::ReadOnly"
       }
-    },
-    "select": {
-      "title_operator": "Capacités",
-      "title_builder": "Outils disponibles"
     },
     "body": {
       "search_label": "Recherche",
