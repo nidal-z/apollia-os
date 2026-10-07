@@ -76,8 +76,8 @@ source build, described below.
 
 ## Quickstart from source
 
-This sequence takes you from a clean clone to a running agent. The demo `echo`
-agent needs no model, so it runs on any machine. Run every command from the
+This sequence takes you from a clean clone to a workflow run. The demo `echo`
+package needs no model, so it runs on any machine. Run every command from the
 repository root.
 
 **Prerequisites:** a Rust toolchain (stable), Python 3.13 available as `python3`
@@ -117,21 +117,34 @@ apollia-os start --port 7771
 export PATH="$PWD/target/release:$PATH"
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-# 5. Install, enable, and run the no-LLM demo agent.
-apollia-os agent install clients/examples/echo_agent.py --skip-tests
-apollia-os agent enable echo
-apollia-os run echo "hello from Apollia"
+# 5. Build and install the demo package: one workflow, no agent, no model.
+apollia-os package build clients/examples/echo
+apollia-os package install echo-0.1.0.apo
 
-# 6. Stop the runtime (graceful drain).
+# 6. Restart the runtime: it reads the workflows of the installed packages
+#    when it starts. Stop it here, then start it again in the first terminal
+#    with the command of step 4.
+apollia-os stop
+
+# 7. Run the workflow and follow it to its end.
+apollia-os workflow run echo/echo --input message="hello from Apollia" --wait
+
+# 8. Stop the runtime (graceful drain).
 apollia-os stop
 ```
 
-Expected output for step 5's `run` (the task id is a fresh UUID each time):
+Expected output for step 7 (the run id and the timestamps are fresh each time):
 
 ```
-  -> Task 6f2a1c8e-... submitted to echo
-echo: hello from Apollia
-  * Completed in 0.2s
+Run        : 96e20c50-...
+Workflow   : echo/echo
+Status     : completed
+Started    : 2026-10-07T12:03:57.612Z
+Ended      : 2026-10-07T12:03:57.665Z
+Output     : {"echo":"hello from Apollia"}
+
+  #    STEP                     STATUS       STARTED                    ENDED
+  0    echo                     completed    2026-10-07T12:03:57.663Z   2026-10-07T12:03:57.664Z
 ```
 
 macOS note: PyO3 must find the right interpreter at build time. If your default
