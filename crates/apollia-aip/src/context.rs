@@ -90,8 +90,8 @@ pub struct RuntimeContext {
     /// Optional recipient allowlist for `ctx.mail.send`. `None` means any
     /// registered agent (once `supports_mailbox` is true).
     mailbox_allowlist: Option<Vec<String>>,
-    /// Whether `ctx.mail.send` is gated behind human approval (opt-in via the
-    /// manifest `tools_requiring_approval` containing `mailbox:send`).
+    /// Whether `ctx.mail.send` is gated behind human approval, as the host
+    /// sets it for the run.
     mailbox_send_requires_approval: bool,
     /// Name of the agent owning this context.
     agent_name: String,
@@ -1632,7 +1632,6 @@ mod tool_proxy_a2a_tests {
             supports_mailbox: false,
             mailbox_allowlist: None,
             system_prompt: None,
-            tools_requiring_approval: vec![],
             model: None,
             packages: vec![],
             memory_config: None,

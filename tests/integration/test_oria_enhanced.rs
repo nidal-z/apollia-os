@@ -117,7 +117,6 @@ fn make_manifest(
         skills: vec![],
         execution_mode: execution_mode.to_owned(),
         system_prompt: None,
-        tools_requiring_approval: vec![],
         model: None,
         packages: vec![],
         memory_config: None,

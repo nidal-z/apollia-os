@@ -1,5 +1,6 @@
 //! Plan first through the agent executor: when it engages, the plan cache,
-//! the tools a step may call, and the stop.
+//! the tools a step may call, the decision governance takes on each call of a
+//! step, and the stop.
 //!
 //! The first test is the characterization of the plan cache that pinned the
 //! ORIA engine, aimed at the executor with the same assertions.
@@ -23,10 +24,16 @@ use crate::chat::agent_executor::{
     AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, RunInput, SessionWiring,
 };
 use crate::chat::types::{PendingChatApprovals, ToolDecision};
+use crate::governance::{GovernanceHandle, GovernanceState, PolicyRefusals};
 
 const PLAN_JSON: &str = r#"{"steps":[
     {"step_id":"s1","description":"read the input","tool_hint":"file_io","depends_on":[]},
     {"step_id":"s2","description":"run the check","tool_hint":"bash_executor","depends_on":["s1"]}
+]}"#;
+
+/// A plan of one step, which writes.
+const WRITE_PLAN_JSON: &str = r#"{"steps":[
+    {"step_id":"s1","description":"write the report","tool_hint":"file_write","depends_on":[]}
 ]}"#;
 
 /// Answers every completion with the same plan and counts the calls.
@@ -137,12 +144,73 @@ impl Harness {
     }
 }
 
-fn harness(
+/// Governance in developer mode with an allow rule on an empty prefix for
+/// each code executor, so the single simple command of a step runs unasked.
+fn code_runs() -> GovernanceHandle {
+    let rules = apollia_permissions::CODE_EXECUTOR_TOOLS
+        .iter()
+        .enumerate()
+        .map(|(i, tool)| apollia_permissions::PrefixRule {
+            id: i as i64 + 1,
+            tool_name: (*tool).to_owned(),
+            arg_prefix: Some(String::new()),
+            action: apollia_permissions::RuleAction::Allow,
+            scope: apollia_permissions::PermissionScope::Global,
+            ..apollia_permissions::PrefixRule::default()
+        })
+        .collect();
+    GovernanceHandle::detached(
+        GovernanceState {
+            rules,
+            developer_mode: true,
+            ..GovernanceState::default()
+        },
+        None,
+    )
+}
+
+/// Governance that holds nothing: reading runs, everything sensitive asks.
+fn empty_governance() -> GovernanceHandle {
+    GovernanceHandle::detached(GovernanceState::default(), None)
+}
+
+/// Registers `name` in `family`, with an open schema.
+async fn describe(registry: &ToolRegistryHandle, name: &str, family: apollia_tools::ActionFamily) {
+    let mut descriptor = crate::connectors_bridge::google_tool_descriptors()[0].clone();
+    descriptor.name = name.to_owned();
+    descriptor.family = family;
+    descriptor.is_read_only = family == apollia_tools::ActionFamily::Read;
+    descriptor.input_schema = serde_json::json!({ "type": "object" });
+    registry.register(descriptor).await.expect("register tool");
+}
+
+/// A harness whose code executor runs unasked: see [`code_runs`].
+async fn harness(
     spec: AgentRunSpec,
     plan: &'static str,
     plan_cache: Option<Arc<Mutex<PlanCacheRepository>>>,
     cancel: CancellationToken,
 ) -> Harness {
+    harness_under(spec, plan, plan_cache, cancel, code_runs()).await
+}
+
+/// A harness whose tool calls are decided by `governance`. `file_io` reads,
+/// `file_write` writes, `bash_executor` runs code.
+async fn harness_under(
+    spec: AgentRunSpec,
+    plan: &'static str,
+    plan_cache: Option<Arc<Mutex<PlanCacheRepository>>>,
+    cancel: CancellationToken,
+    governance: GovernanceHandle,
+) -> Harness {
+    let tool_registry = ToolRegistryHandle::start();
+    describe(&tool_registry, "file_io", apollia_tools::ActionFamily::Read).await;
+    describe(
+        &tool_registry,
+        "file_write",
+        apollia_tools::ActionFamily::WriteOrDelete,
+    )
+    .await;
     let model = CountingPlanModel::new(plan);
     let mut backends: std::collections::HashMap<String, Arc<dyn CompletionModel>> =
         std::collections::HashMap::new();
@@ -153,7 +221,7 @@ fn harness(
         spec,
         AgentExecutorDeps {
             llm_router: Arc::new(LlmRouter::with_backends(backends, "planner")),
-            tool_registry: ToolRegistryHandle::start(),
+            tool_registry,
             tool_invoker: Arc::new(EchoInvoker {
                 called: Arc::clone(&called),
             }),
@@ -163,7 +231,10 @@ fn harness(
             plan_cache,
         },
         ApolliaContext::default(),
-        SessionWiring::default(),
+        SessionWiring {
+            governance: Some(governance),
+            ..SessionWiring::default()
+        },
         &ceiling(),
         cancel,
     );
@@ -230,7 +301,8 @@ async fn test_orchestrated_second_identical_task_is_served_by_the_plan_cache() {
         PLAN_JSON,
         Some(Arc::new(Mutex::new(repo))),
         CancellationToken::new(),
-    );
+    )
+    .await;
     let approvals = PendingChatApprovals::new();
     let first = run(&h.executor, "check the input", &both_tools(), &approvals).await;
     let first_events = drain(&mut h.events);
@@ -285,7 +357,8 @@ async fn test_a_planned_run_calls_its_steps_tools_in_order_and_answers_their_out
         PLAN_JSON,
         None,
         CancellationToken::new(),
-    );
+    )
+    .await;
 
     // WHEN it runs a task
     let response = run(
@@ -318,7 +391,8 @@ async fn test_a_step_on_a_tool_the_agent_is_not_granted_never_reaches_the_tool()
         PLAN_JSON,
         None,
         CancellationToken::new(),
-    );
+    )
+    .await;
 
     // WHEN its plan reaches the bash_executor step
     let result = run(
@@ -337,16 +411,21 @@ async fn test_a_step_on_a_tool_the_agent_is_not_granted_never_reaches_the_tool()
 }
 
 #[tokio::test]
-async fn test_a_step_on_a_tool_not_pre_authorized_waits_for_the_human() {
-    // GIVEN an agent that always plans, nothing pre-authorized
-    let h = harness(
+async fn test_a_step_that_runs_code_waits_for_the_human_and_a_read_does_not() {
+    // GIVEN an agent that always plans, under a governance that holds
+    // nothing: reading a file runs, running code asks
+    let h = harness_under(
         spec(PlanningMode::Always, &["file_io", "bash_executor"]),
         PLAN_JSON,
         None,
         CancellationToken::new(),
-    );
+        empty_governance(),
+    )
+    .await;
     let approvals = PendingChatApprovals::new();
     let answering = approvals.clone();
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&asked);
     let mut events = h.bus.subscribe();
     let human = tokio::spawn(async move {
         loop {
@@ -364,24 +443,34 @@ async fn test_a_step_on_a_tool_not_pre_authorized_waits_for_the_human() {
             } = event
             {
                 let key = format!("{session_id}::{message_id}::{tool_call_id}");
-                let decision = if tool_name == "file_io" {
-                    ToolDecision::Accept
-                } else {
+                seen.lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(tool_name);
+                answering.resolve(
+                    &key,
                     ToolDecision::Refuse {
                         reason: Some("not now".into()),
-                    }
-                };
-                answering.resolve(&key, decision);
+                    },
+                );
             }
         }
     });
 
-    // WHEN the task runs, the human accepting file_io and refusing bash_executor
+    // WHEN the task runs, the human refusing bash_executor
     let result = run(&h.executor, "check the input", &HashSet::new(), &approvals).await;
     human.abort();
+    let asked = asked
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
 
-    // THEN file_io ran after its approval, bash_executor never ran, and the run
-    // ends on the refusal
+    // THEN file_io ran unasked, bash_executor never ran, and the run ends on
+    // the refusal
+    assert!(!asked.is_empty(), "running code asks");
+    assert!(
+        asked.iter().all(|tool| tool == "bash_executor"),
+        "a read asks nobody: {asked:?}"
+    );
     assert!(result.is_err());
     let called = h.called();
     assert!(called.contains(&"file_io".to_string()), "{called:?}");
@@ -398,7 +487,8 @@ async fn test_a_stopped_planned_run_ends_paused_without_calling_a_tool() {
         PLAN_JSON,
         None,
         cancel,
-    );
+    )
+    .await;
 
     // WHEN it runs
     let response = run(
@@ -425,17 +515,17 @@ async fn test_planning_mode_decides_when_a_run_plans_first() {
                 folder, then compare each total with the bank statement, then list \
                 every gap with its supplier, then draft a reminder for each late \
                 supplier, and finally write a summary of what was found and done.";
-    let modes = |mode| {
+    let modes = |mode| async move {
         let mut agent = spec(mode, &["file_io"]);
         agent.mission = "Keep the ledger.".into();
-        let h = harness(agent, PLAN_JSON, None, CancellationToken::new());
+        let h = harness(agent, PLAN_JSON, None, CancellationToken::new()).await;
         (h.executor.plans_first(short), h.executor.plans_first(long))
     };
 
     // WHEN each mode decides for both
-    let never = modes(PlanningMode::Never);
-    let auto = modes(PlanningMode::Auto);
-    let always = modes(PlanningMode::Always);
+    let never = modes(PlanningMode::Never).await;
+    let auto = modes(PlanningMode::Auto).await;
+    let always = modes(PlanningMode::Always).await;
 
     // THEN never and always hold whatever the request, auto plans the long one
     assert_eq!(never, (false, false));
@@ -478,4 +568,183 @@ async fn test_a_conversation_in_plan_mode_never_plans_first() {
 
     // THEN the plan mode of the conversation is the plan, not plan first
     assert!(!plans_first);
+}
+
+/// What one run of the single writing step produced under a governance: the
+/// answers each approval offered, whether the write ran, and the result.
+struct GovernedWrite {
+    offered: Vec<Vec<String>>,
+    ran: bool,
+    result: Result<crate::chat::builtin_agent::ChatAgentResponse, crate::chat::types::ChatError>,
+}
+
+/// Runs the plan of one writing step for `parity-agent` under `governance`,
+/// a human giving `answer` to every approval raised.
+async fn governed_write(governance: GovernanceHandle, answer: ToolDecision) -> GovernedWrite {
+    let h = harness_under(
+        spec(PlanningMode::Always, &["file_write"]),
+        WRITE_PLAN_JSON,
+        None,
+        CancellationToken::new(),
+        governance,
+    )
+    .await;
+    let approvals = PendingChatApprovals::new();
+    let answering = approvals.clone();
+    let offered = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&offered);
+    let called = Arc::clone(&h.called);
+    let ran_early = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let early = Arc::clone(&ran_early);
+    let mut events = h.bus.subscribe();
+    let human = tokio::spawn(async move {
+        loop {
+            let event = match events.recv().await {
+                Ok(event) => event,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            };
+            if let RuntimeEvent::ChatApprovalRequired {
+                session_id,
+                message_id,
+                tool_call_id,
+                answers,
+                ..
+            } = event
+            {
+                if !called
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_empty()
+                {
+                    early.store(true, Ordering::SeqCst);
+                }
+                seen.lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(answers);
+                let key = format!("{session_id}::{message_id}::{tool_call_id}");
+                answering.resolve(&key, answer.clone());
+            }
+        }
+    });
+    let result = run(&h.executor, "write the report", &HashSet::new(), &approvals).await;
+    human.abort();
+    assert!(
+        !ran_early.load(Ordering::SeqCst),
+        "the write ran before its answer"
+    );
+    let offered = offered
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    GovernedWrite {
+        offered,
+        ran: h.called().contains(&"file_write".to_string()),
+        result,
+    }
+}
+
+#[tokio::test]
+async fn test_a_sensitive_step_nobody_consented_to_asks_with_the_three_answers() {
+    // GIVEN a governance that holds no consent for the agent
+    // WHEN the writing step of its plan is reached and the human answers once
+    let run = governed_write(empty_governance(), ToolDecision::Accept).await;
+
+    // THEN governance asked, offering once, always and refuse, and the write
+    // ran after the answer
+    assert_eq!(run.offered, vec![vec!["once", "always", "refuse"]]);
+    assert!(run.ran);
+    assert!(run.result.is_ok(), "{:?}", run.result.err());
+}
+
+#[tokio::test]
+async fn test_a_sensitive_step_the_human_refuses_never_runs() {
+    // GIVEN a governance that holds no consent for the agent
+    // WHEN the human refuses each time the writing step asks
+    let run = governed_write(empty_governance(), ToolDecision::refuse()).await;
+
+    // THEN the write was asked about, never ran, and the run fails
+    assert!(!run.offered.is_empty());
+    assert!(!run.ran);
+    assert!(run.result.is_err());
+}
+
+#[tokio::test]
+async fn test_a_sensitive_step_runs_unasked_on_a_standing_consent_of_its_family() {
+    // GIVEN the agent holding the standing consent of the family that writes
+    let governance = GovernanceHandle::detached(
+        GovernanceState {
+            consents: HashSet::from([(
+                "parity-agent".to_string(),
+                apollia_permissions::ConsentFamily::WriteOrDelete,
+            )]),
+            ..GovernanceState::default()
+        },
+        None,
+    );
+
+    // WHEN the writing step of its plan is reached
+    let run = governed_write(governance, ToolDecision::refuse()).await;
+
+    // THEN nobody was asked and the write ran
+    assert!(run.offered.is_empty(), "{:?}", run.offered);
+    assert!(run.ran);
+    assert!(run.result.is_ok(), "{:?}", run.result.err());
+}
+
+#[tokio::test]
+async fn test_a_step_the_policy_refuses_never_runs_and_asks_nobody() {
+    // GIVEN an organisation policy that refuses the tool, and an agent that
+    // holds the standing consent of its family
+    let governance = GovernanceHandle::detached(
+        GovernanceState {
+            policy: PolicyRefusals {
+                denied: HashSet::from(["file_write".to_string()]),
+                ..PolicyRefusals::default()
+            },
+            consents: HashSet::from([(
+                "parity-agent".to_string(),
+                apollia_permissions::ConsentFamily::WriteOrDelete,
+            )]),
+            ..GovernanceState::default()
+        },
+        None,
+    );
+
+    // WHEN the writing step of its plan is reached
+    let run = governed_write(governance, ToolDecision::Accept).await;
+
+    // THEN the policy decides: nobody is asked, the write never runs, the run
+    // fails
+    assert!(run.offered.is_empty(), "{:?}", run.offered);
+    assert!(!run.ran);
+    assert!(run.result.is_err());
+}
+
+#[tokio::test]
+async fn test_a_step_a_deny_rule_matches_never_runs_and_asks_nobody() {
+    // GIVEN a fine rule that denies the tool to every agent
+    let governance = GovernanceHandle::detached(
+        GovernanceState {
+            rules: vec![apollia_permissions::PrefixRule {
+                id: 7,
+                tool_name: "file_write".into(),
+                arg_prefix: None,
+                action: apollia_permissions::RuleAction::Deny,
+                scope: apollia_permissions::PermissionScope::Global,
+                ..apollia_permissions::PrefixRule::default()
+            }],
+            ..GovernanceState::default()
+        },
+        None,
+    );
+
+    // WHEN the writing step of its plan is reached
+    let run = governed_write(governance, ToolDecision::Accept).await;
+
+    // THEN the rule decides: nobody is asked, the write never runs, the run
+    // fails
+    assert!(run.offered.is_empty(), "{:?}", run.offered);
+    assert!(!run.ran);
+    assert!(run.result.is_err());
 }

@@ -26,9 +26,9 @@ sequenceDiagram
     Op->>ORIA: submit task
     ORIA->>ORIA: plan (reasoner, GBNF args)
     loop each step, budget checked
-        alt tool listed in the manifest as requiring approval
-            ORIA->>Human: suspend, TaskInputRequired
-            Human-->>ORIA: decision (budget does not advance while waiting)
+        alt governance asks about the call
+            ORIA->>Human: wait, ChatApprovalRequired
+            Human-->>ORIA: once, always or refuse (budget does not advance while waiting)
         end
         ORIA->>Tool: invoke (circuit breaker, retry with backoff)
         Tool-->>ORIA: result
@@ -47,25 +47,19 @@ the agent. The critic runs; running an agent's declared shell checks under
 governance is a later step. See [the execution model](/architecture/decisions#execution-model)
 (verification and critic).
 
-<!-- claim:orchestrated-approval-from-manifest -->
+<!-- claim:plan-step-decided-by-governance -->
 
-Read the approval branch precisely, because it is narrower than it looks. On
-this path the only thing that makes a step stop for a human is the agent's own
-manifest listing that tool under `tools_requiring_approval`. There is no policy
-evaluation, no operator-side rule, and nothing the runtime decides on its own:
-an agent that declares nothing runs every step unattended. The prefix rules and
-the approval prompts described in the next scenario belong to the chat path and
-are not consulted here.
+Read the approval branch precisely. A step of a plan holds no approval of its
+own, and an agent declares none: its manifest has no key for it. Each tool call
+of a step is decided where it is made, by the same decision as a call of the
+chat path. The organisation policy and a deny rule refuse it. A tool that only
+reads runs. Anything sensitive runs on a standing consent of the agent for the
+family of the tool, and asks otherwise, with the answers once, always and
+refuse. A refused call fails its step, and the tool never runs.
 
-And in `v0.1.0-preview` no agent declares anything there.
-`tools_requiring_approval` is a field of the manifest schema, but the
-`apollia.toml` of a package has no key that fills it, and every place the runtime
-builds a manifest itself leaves the list empty. The branch is written, reachable
-by construction, and never taken by a shipped agent.
-
-The suspension is a plain await, so the step budget does not advance while a
-human thinks. If the runtime was built without an approvals registry, the step
-runs anyway and logs a warning: the gate degrades open, not closed.
+The wait is a plain await, so the step budget does not advance while a human
+thinks. There is no open position: when governance cannot read what it decides
+from, it refuses every sensitive call instead of letting it run.
 
 ## Scenario B: chat with plan-mode
 

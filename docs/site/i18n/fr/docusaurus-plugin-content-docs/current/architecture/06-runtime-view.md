@@ -28,9 +28,9 @@ sequenceDiagram
     Op->>ORIA: submit task
     ORIA->>ORIA: plan (reasoner, GBNF args)
     loop each step, budget checked
-        alt tool listed in the manifest as requiring approval
-            ORIA->>Human: suspend, TaskInputRequired
-            Human-->>ORIA: decision (budget does not advance while waiting)
+        alt governance asks about the call
+            ORIA->>Human: wait, ChatApprovalRequired
+            Human-->>ORIA: once, always or refuse (budget does not advance while waiting)
         end
         ORIA->>Tool: invoke (circuit breaker, retry with backoff)
         Tool-->>ORIA: result
@@ -50,28 +50,22 @@ vérifications shell déclarées par l'agent sous gouvernance est une étape
 ultérieure. Voir [le modèle d'exécution](/architecture/decisions#execution-model) (vérification et
 critique).
 
-<!-- claim:orchestrated-approval-from-manifest -->
+<!-- claim:plan-step-decided-by-governance -->
 
-Lisez la branche d'approbation avec précision, car elle est plus étroite qu'il
-n'y paraît. Sur ce chemin, la seule chose qui fait qu'une étape s'arrête pour un
-humain est que le manifeste de l'agent lui-même liste cet outil sous
-`tools_requiring_approval`. Il n'y a ni évaluation de politique, ni règle côté
-opérateur, ni quoi que ce soit que le runtime décide de lui-même : un agent qui
-ne déclare rien exécute chaque étape sans surveillance. Les règles de préfixe et
-les invites d'approbation décrites dans le scénario suivant appartiennent au
-chemin du chat et ne sont pas consultées ici.
+Lisez la branche d'approbation avec précision. Une étape d'un plan ne porte
+aucune approbation qui lui soit propre, et un agent n'en déclare aucune : son
+manifeste n'a pas de clé pour cela. Chaque appel d'outil d'une étape est décidé
+là où il est fait, par la même décision qu'un appel du chemin du chat. La
+politique de l'organisation et une règle de refus le refusent. Un outil qui ne
+fait que lire s'exécute. Tout ce qui est sensible s'exécute sur un consentement
+permanent de l'agent pour la famille de l'outil, et demande sinon, avec les
+réponses une fois, toujours et refuser. Un appel refusé fait échouer son étape,
+et l'outil ne s'exécute jamais.
 
-Et dans `v0.1.0-preview`, aucun agent n'y déclare quoi que ce soit.
-`tools_requiring_approval` est un champ du schéma de manifeste, mais le
-`apollia.toml` d'un paquet n'a aucune clé qui le remplisse, et partout
-où le runtime construit lui-même un manifeste il laisse la liste vide. La
-branche est écrite, atteignable par construction, et jamais empruntée par un
-agent livré.
-
-La suspension est un simple await, si bien que le budget d'étape n'avance pas
-pendant qu'un humain réfléchit. Si le runtime a été compilé sans registre
-d'approbations, l'étape s'exécute quand même et journalise un avertissement :
-la barrière se dégrade en position ouverte, et non fermée.
+L'attente est un simple await, si bien que le budget d'étape n'avance pas
+pendant qu'un humain réfléchit. Il n'y a pas de position ouverte : quand la
+gouvernance ne peut pas lire ce dont elle décide, elle refuse tout appel
+sensible au lieu de le laisser s'exécuter.
 
 ## Scénario B : chat avec plan-mode
 

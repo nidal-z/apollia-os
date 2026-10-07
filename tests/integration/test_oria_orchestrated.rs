@@ -634,7 +634,6 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 max_concurrent_tasks: 1,
                 tags: vec![],
                 skills: vec![],
-                tools_requiring_approval: vec![],
                 model: None,
                 packages: vec![],
                 memory_config: None,

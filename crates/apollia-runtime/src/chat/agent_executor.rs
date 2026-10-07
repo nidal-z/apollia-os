@@ -296,6 +296,13 @@ impl AgentExecutor {
             workspace_path: wiring.workspace_path.clone(),
             tool_output_dir: wiring.tool_output_dir.clone(),
             runtime_ceiling: runtime_ceiling.clone(),
+            governance: wiring.governance.clone().unwrap_or_else(|| {
+                crate::governance::GovernanceHandle::detached(
+                    crate::governance::GovernanceState::default(),
+                    None,
+                )
+            }),
+            unattended: wiring.unattended,
         };
         let plan_mode = wiring.plan_mode;
         let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {

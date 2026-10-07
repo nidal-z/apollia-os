@@ -108,7 +108,6 @@ fn test_manifest(name: &str) -> AgentManifest {
         skills: vec![],
         execution_mode: "auto".to_string(),
         system_prompt: None,
-        tools_requiring_approval: vec![],
         model: None,
         packages: vec![],
         memory_config: None,

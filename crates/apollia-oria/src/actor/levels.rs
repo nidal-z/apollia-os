@@ -268,15 +268,9 @@ impl ActorLoop {
 
         let all_read_only = steps.len() > 1
             && steps.iter().all(|s| {
-                s.tool_hint.as_deref().is_some_and(|t| {
-                    t != "llm"
-                        && tool_proxy.is_tool_read_only(t)
-                        && !self
-                            .manifest
-                            .tools_requiring_approval
-                            .iter()
-                            .any(|a| a == t)
-                })
+                s.tool_hint
+                    .as_deref()
+                    .is_some_and(|t| t != "llm" && tool_proxy.is_tool_read_only(t))
             });
 
         // Pre-compute per-call data to avoid lifetime issues with the async stream.
@@ -354,15 +348,9 @@ impl ActorLoop {
     ) -> bool {
         level_steps.len() > 1
             && level_steps.iter().all(|s| {
-                s.tool_hint.as_deref().is_some_and(|t| {
-                    t != "llm"
-                        && tool_proxy.is_tool_read_only(t)
-                        && !self
-                            .manifest
-                            .tools_requiring_approval
-                            .iter()
-                            .any(|a| a == t)
-                })
+                s.tool_hint
+                    .as_deref()
+                    .is_some_and(|t| t != "llm" && tool_proxy.is_tool_read_only(t))
             })
     }
 }
