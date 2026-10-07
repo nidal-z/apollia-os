@@ -1,5 +1,6 @@
 //! The documentation embedded in the application: its tree, one page at a
-//! time, and the images a page shows.
+//! time, the images a page shows, and the OpenAPI document its HTTP reference
+//! is rendered from.
 //!
 //! The archive is compiled into this binary ([`crate::embedded_docs`]), so
 //! everything here is read with no network and no runtime: the commands serve
@@ -87,6 +88,31 @@ pub async fn get_documentation_image(path: String) -> Result<tauri::ipc::Respons
             );
             error.to_string()
         })
+}
+
+/// The OpenAPI document of the archive, as JSON text.
+fn openapi() -> Result<String, DocsError> {
+    EmbeddedDocs::embedded()?.openapi()
+}
+
+/// Reads the OpenAPI document of the embedded documentation: the published
+/// contract of the native API, which the reader renders as the HTTP
+/// reference. The answer is the document itself, handed over as the JSON it
+/// already is rather than parsed and written again.
+///
+/// # Errors
+///
+/// The message of a [`DocsError`] when the archive cannot be read.
+#[tauri::command]
+pub async fn get_documentation_openapi() -> Result<tauri::ipc::Response, String> {
+    openapi().map(tauri::ipc::Response::new).map_err(|error| {
+        tracing::event!(
+            tracing::Level::WARN,
+            error = %error,
+            "documentation.openapi.read.failed"
+        );
+        error.to_string()
+    })
 }
 
 #[cfg(test)]
@@ -239,5 +265,23 @@ mod tests {
                 format!("no documentation image at {path}")
             );
         }
+    }
+
+    #[test]
+    fn test_the_openapi_document_is_the_published_contract() {
+        // GIVEN the OpenAPI document the clients are generated from
+        let file =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../clients/openapi.json");
+        let expected = std::fs::read_to_string(file).unwrap();
+
+        // WHEN the archive is asked for its OpenAPI document
+        let read = openapi().unwrap();
+
+        // THEN it answers the same text, which is JSON with its paths
+        assert_eq!(read, expected);
+        let document: serde_json::Value = serde_json::from_str(&read).unwrap();
+        assert!(document["paths"]
+            .as_object()
+            .is_some_and(|paths| !paths.is_empty()));
     }
 }

@@ -2,7 +2,7 @@
 // tree it reads it from, and the gestures of the pane.
 //
 // Everything it shows comes from the archive compiled into the application,
-// through three calls to the shell; the only address it ever opens is the
+// through four calls to the shell; the only address it ever opens is the
 // public site, in the browser, when the user asks for it. The reader is a
 // store so the tree of the column and the pane read the same page, and it
 // takes its calls as arguments so Vitest plays it without a shell.
@@ -11,11 +11,13 @@ import { get, writable, type Readable } from "svelte/store";
 import {
   getDocumentationImage,
   getDocumentationManifest,
+  getDocumentationOpenapi,
   getDocumentationPage,
   type DocumentationManifest,
   type DocumentationPage,
 } from "$lib/ipc/documentation";
 import { openExternalUrl } from "$lib/utils/externalLink";
+import { t } from "svelte-i18n";
 import {
   categoryIndex,
   firstRoute,
@@ -27,6 +29,17 @@ import {
   webAddress,
   type PreparedPage,
 } from "./documentation";
+import {
+  buildHttpReference,
+  referencePageAt,
+  withHttpReference,
+  type HttpReference,
+  type ReferencePage,
+} from "./httpReference";
+
+/** The i18n keys of what the tree calls the HTTP reference and its overview. */
+export const REFERENCE_CATEGORY_KEY = "dev.developer.docs.reference.title";
+export const REFERENCE_OVERVIEW_KEY = "dev.developer.docs.reference.overview";
 
 /** What the reader needs from outside, replaceable in tests. */
 export interface DocumentationReaderDeps {
@@ -36,6 +49,10 @@ export interface DocumentationReaderDeps {
   page: (route: string, language: string) => Promise<DocumentationPage>;
   /** Reads an image of the archive. */
   image: (path: string) => Promise<ArrayBuffer>;
+  /** Reads the OpenAPI document of the archive. */
+  openapi: () => Promise<unknown>;
+  /** The text of an i18n key, in the language of the interface. */
+  label: (key: string) => string;
   /** Opens an address in the browser of the system. */
   openUrl: (url: string) => Promise<void> | void;
   /** Writes text to the clipboard. */
@@ -59,6 +76,8 @@ export interface DocumentationReaderState {
   page: DocumentationPage | null;
   /** The page ready to render, `null` while reading. */
   view: PreparedPage | null;
+  /** The page of the HTTP reference shown, `null` on any other page. */
+  reference: ReferencePage | null;
   /** The heading to bring into view once the page is rendered. */
   anchor: string | null;
   /** Set when the tree or the page could not be read. */
@@ -75,6 +94,7 @@ const EMPTY: DocumentationReaderState = {
   route: null,
   page: null,
   view: null,
+  reference: null,
   anchor: null,
   failed: false,
   fallback: false,
@@ -105,7 +125,16 @@ export function createDocumentationReader(deps: DocumentationReaderDeps): Docume
   // An image is read once: the archive is fixed for the life of the
   // application, and what the addresses hold is bounded by its images.
   const images = new Map<string, Promise<string | null>>();
+  // The OpenAPI document is read once, for the same reason. A document that
+  // cannot be read leaves the documentation without its HTTP reference.
+  let contract: Promise<HttpReference | null> | null = null;
+  let httpReference: HttpReference | null = null;
   let reading = 0;
+
+  function readContract(): Promise<HttpReference | null> {
+    contract ??= deps.openapi().then(buildHttpReference, () => null);
+    return contract;
+  }
 
   async function open(route: string, anchor: string | null = null): Promise<void> {
     const { manifest, language } = get(store);
@@ -117,12 +146,18 @@ export function createDocumentationReader(deps: DocumentationReaderDeps): Docume
       anchor,
       page: null,
       view: null,
+      reference: null,
       failed: false,
       fallback: false,
       copy: "idle",
     }));
 
     const title = manifest.navigation[route]?.title ?? "";
+    const reference = referencePageAt(httpReference, route);
+    if (reference !== null) {
+      store.update((s) => ({ ...s, reference, view: { title, body: "" } }));
+      return;
+    }
     if (!hasSource(manifest, route)) {
       const known = manifest.navigation[route] !== undefined;
       store.update((s) => ({
@@ -148,8 +183,16 @@ export function createDocumentationReader(deps: DocumentationReaderDeps): Docume
     const turn = ++reading;
     store.update((s) => ({ ...s, language, failed: false }));
     try {
-      const manifest = await deps.manifest(language);
+      const [read, reference] = await Promise.all([deps.manifest(language), readContract()]);
       if (turn !== reading) return;
+      httpReference = reference;
+      const manifest =
+        reference === null
+          ? read
+          : withHttpReference(read, reference, {
+              category: deps.label(REFERENCE_CATEGORY_KEY),
+              overview: deps.label(REFERENCE_OVERVIEW_KEY),
+            });
       store.update((s) => ({ ...s, manifest }));
       const route = before.route ?? firstRoute(manifest.tree);
       if (route !== null) await open(route);
@@ -219,6 +262,8 @@ export const documentationReader = createDocumentationReader({
   manifest: getDocumentationManifest,
   page: getDocumentationPage,
   image: getDocumentationImage,
+  openapi: getDocumentationOpenapi,
+  label: (key) => get(t)(key),
   openUrl: openExternalUrl,
   writeClipboard: (text) => navigator.clipboard.writeText(text),
   objectUrl: (bytes, type) => URL.createObjectURL(new Blob([bytes], { type })),

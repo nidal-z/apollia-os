@@ -502,6 +502,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "reads an image of the documentation archive compiled into this application",
     ),
     (
+        "get_documentation_openapi",
+        "reads the OpenAPI document of the documentation archive compiled into this application",
+    ),
+    (
         "get_system_info",
         "describes this application, its version, and the machine that carries the window",
     ),

@@ -143,6 +143,9 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "dev.developer.docs.admonition.danger", // Danger
   "dev.developer.docs.admonition.info", // Info
   "dev.developer.docs.admonition.note", // Note
+  "dev.developer.docs.reference.column.description", // Description
+  "dev.developer.docs.reference.column.type", // Type
+  "dev.developer.docs.reference.where.cookie", // cookie
   "dev.developer.views.documentation", // Documentation
   "dev.journal.arguments", // Arguments
   "guide.doc.breadcrumb", // Documentation

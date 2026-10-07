@@ -86,3 +86,11 @@ export function getDocumentationManifest(language: string): Promise<Documentatio
 export function getDocumentationImage(path: string): Promise<ArrayBuffer> {
   return invoke<ArrayBuffer>("get_documentation_image", { path });
 }
+
+/**
+ * Reads the OpenAPI document of the archive: the published contract of the
+ * native API, which the reader renders as the HTTP reference.
+ */
+export function getDocumentationOpenapi(): Promise<unknown> {
+  return invoke<unknown>("get_documentation_openapi");
+}
