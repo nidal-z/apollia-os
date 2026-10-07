@@ -28,6 +28,8 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.capabilities.group_gforms", // Google Forms
   "connections.capabilities.group_gmail", // Gmail
   "connections.capabilities.group_gsheets", // Google Sheets
+  "dev.developer.examples.javascript", // JavaScript
+  "dev.developer.examples.python", // Python
   "connections.capabilities.group_gslides", // Google Slides
   "connections.capabilities.group_gtasks", // Google Tasks
   "connections.capabilities.group_onedrive", // OneDrive

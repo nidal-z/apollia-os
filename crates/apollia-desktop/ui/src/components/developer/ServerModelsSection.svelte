@@ -24,6 +24,7 @@
   import LoadedModelCard from "../ai/LoadedModelCard.svelte";
   import { gigabytes } from "../ai/aiModels";
   import { canUnload, isKeptInMemory } from "../ai/loadedModels";
+  import ExamplesMenu from "./ExamplesMenu.svelte";
   import {
     copyIdentifier,
     detailAsk,
@@ -138,15 +139,20 @@
               </Button>
             {/snippet}
             {#snippet footer()}
-              <Button
-                variant="ghost"
-                size="sm"
-                onclick={() => void copy(item)}
-                data-testid="developer-model-copy"
-              >
-                {#snippet icon()}<Copy size={14} aria-hidden="true" />{/snippet}
-                {$t("dev.developer.models.copy_id")}
-              </Button>
+              <div class="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onclick={() => void copy(item)}
+                  data-testid="developer-model-copy"
+                >
+                  {#snippet icon()}<Copy size={14} aria-hidden="true" />{/snippet}
+                  {$t("dev.developer.models.copy_id")}
+                </Button>
+                <ExamplesMenu
+                  target={{ kind: servedModelKind(item), identifier: servedModelId(item) }}
+                />
+              </div>
               <Tooltip content={$t("dev.developer.models.detail_unavailable")} disabled={opens}>
                 {#snippet trigger(props)}
                   <span {...props} class="inline-flex">

@@ -2,7 +2,7 @@
   "name": "developer-det (the Developer screen: reached with the developer mode on, its three panes, the local server started, its address copied, stopped, a start refused for a taken port, the server settings opened and CORS switched, a port that is not one, a port another program holds, the warning of a server on the local network without a token, the window of the tokens with one created, shown once and revoked, the model picker, the cards of the loaded models and of the exposed agents and workflows, an eject, the documentation read from its tree with its breadcrumb, previous and next, copy and the public site, a diagram left as code, the link back to the settings, the logs read, filtered, cleared, folded and detached)",
   "stopOnError": false,
   "notes": [
-    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, ServerSettingsPanel.svelte, ServerSettingRow.svelte, ServerTokensDialog.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte, ServerModelsSection.svelte, ExposedItemsSection.svelte, SupportedEndpoints.svelte, components/ai/LoadedModelCard.svelte, and components/developer/localServer.ts, serverSettings.ts, serverTokens.ts and servedItems.ts.",
+    "Code-verified against routes/Developer.svelte, components/developer/DeveloperColumn.svelte, ServerBar.svelte, LoadModelButton.svelte, ServerSettingsPanel.svelte, ServerSettingRow.svelte, ServerTokensDialog.svelte, LocalServerPane.svelte, DocumentationPane.svelte, LogsPane.svelte, ServerModelsSection.svelte, ExposedItemsSection.svelte, SupportedEndpoints.svelte, ExamplesMenu.svelte, components/ai/LoadedModelCard.svelte, and components/developer/localServer.ts, serverSettings.ts, serverTokens.ts, servedItems.ts and examples.ts.",
     "The start and the stop are real: they reach the compatible server of the runtime of the seeded home, on the port of its [server] section (7772 unless the seed says otherwise). A machine where another program holds that port shows the taken-port error on the first start and reds the steps that wait for the address; that is the machine, not the product.",
     "The taken-port state is stubbed: start_local_server rejects with the LocalServerRefusal of crates/apollia-desktop/src/commands/local_server.rs (kind port_in_use). A field renamed there drifts here silently. The stub is cleared before the next start, which is real and clears the error.",
     "The copy button is clicked, not asserted: the clipboard of the webview may refuse a write that no user gesture started, and the copy itself is held by the Vitest suite.",
@@ -22,10 +22,19 @@
     "The taken port of the settings and the server on the local network are stubbed: start_local_server and restart_local_server answer the LocalServerView or the LocalServerRefusal of crates/apollia-desktop/src/commands/local_server.rs, so no listener is opened on the network of the machine playing the book and [server] serve_on_lan is never written. What is written for real, and written back: port 7773 then 7772, require_auth on then off. A field renamed in that view drifts here silently.",
     "The tokens are real: the book creates one token named Automation book in the system.db of the seeded home through the token routes of the runtime, reads the count of active tokens go to 1 in the settings, revokes it and reads the count come back to 0. The window is opened with the server stopped, so no listener is involved. The rows take their test ids from the identifiers the runtime gives (developer-server-token-row-<id>, with -revoke for the button), so the book clicks the last match of the prefix, which is the revoke button of the last row.",
     "The unreadable list of tokens is stubbed once: list_server_tokens rejects with the text of an API error, the form the shell gives a failed GET. The copy of the token is clicked, not asserted, for the reason given for the address. The value of the token is never read into the report: the book only waits for its apo_ prefix, then for the value to be gone once the window was closed and opened again.",
-    "The id of a failure under the name of a token ends with the kind of the failure (developer-server-tokens-error-<kind>, components/developer/serverTokens.ts), so the one the book waits for is declared dynamic here."
+    "The id of a failure under the name of a token ends with the kind of the failure (developer-server-tokens-error-<kind>, components/developer/serverTokens.ts), so the one the book waits for is declared dynamic here.",
+    "The examples menu is opened on the first card, the stubbed model, with the server stopped: the examples are written for the address the state of the server reports, which a stopped server still has. Its entries and its copy buttons take their test ids from the list of examples in components/developer/examples.ts (developer-example-entry-<name>, developer-example-copy-<name>) and the choice of the SDK from its two names, so they are declared dynamic here. The copy buttons are clicked, not asserted, for the reason given for the address. The example with an MCP server provided by the request is reached by switching [server] allow_request_mcp on for real, in the apollia.toml of the seeded home, then off again; no request is ever sent."
   ],
   "dynamicTestids": [
     "ai-capability-tools",
+    "developer-example-copy-curl-simple",
+    "developer-example-entry-curl-mcp",
+    "developer-example-entry-curl-simple",
+    "developer-example-entry-curl-tool",
+    "developer-example-entry-javascript",
+    "developer-example-entry-python",
+    "developer-example-sdk-anthropic",
+    "developer-example-sdk-openai",
     "developer-exposed-card-brouillon",
     "developer-exposed-card-factures_relance",
     "developer-exposed-card-qualifier-demandes",
@@ -36,6 +45,7 @@
     "developer-docs-entry-operator-help-installation-install-on-macos",
     "developer-server-error-port_in_use",
     "developer-server-setting-allow-request-mcp",
+    "developer-server-setting-allow-request-mcp-control",
     "developer-server-setting-cors",
     "developer-server-setting-cors-control",
     "developer-server-setting-cors-help",
@@ -1325,6 +1335,201 @@
     {
       "kind": "click",
       "testid": "developer-model-copy"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-examples-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-examples-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-examples-title",
+      "contains": "microsoft/phi-3-mini"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-example-preview-title"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-example-preview",
+      "contains": "/v1/chat/completions"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-example-entry-curl-mcp"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-entry-curl-tool"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-example-preview",
+      "timeoutMs": 4000,
+      "contains": "get_weather"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-entry-python"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-example-sdk-anthropic",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-example-preview",
+      "contains": "from openai import OpenAI"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-sdk-anthropic"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-example-preview",
+      "timeoutMs": 4000,
+      "contains": "from anthropic import Anthropic"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-entry-javascript"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-example-preview",
+      "timeoutMs": 4000,
+      "contains": "@anthropic-ai/sdk"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-sdk-openai"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-example-preview",
+      "timeoutMs": 4000,
+      "contains": "import OpenAI"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-entry-curl-simple"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-example-preview",
+      "timeoutMs": 4000,
+      "contains": "curl http"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-copy-curl-simple"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-preview-copy"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-developer-examples-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-examples-open"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-examples-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-setting-allow-request-mcp-control",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-examples-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-examples-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-example-entry-curl-mcp"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-example-preview",
+      "timeoutMs": 4000,
+      "contains": "/v1/responses"
+    },
+    {
+      "kind": "expect",
+      "testid": "developer-example-mcp-note",
+      "contains": "approval_pending"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-developer-examples-request-mcp"
+    },
+    {
+      "kind": "click",
+      "testid": "developer-examples-open"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-examples-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "developer-server-setting-allow-request-mcp-control",
+      "checked": false
+    },
+    {
+      "kind": "click",
+      "testid": "developer-server-settings-open"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "developer-server-settings",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",

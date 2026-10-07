@@ -5175,6 +5175,29 @@
           "caution": "Caution",
           "danger": "Danger"
         }
+      },
+      "examples": {
+        "open": "Examples",
+        "title": "Examples to copy · {identifier}",
+        "curl_simple": "Simple cURL",
+        "curl_mcp": "cURL with an MCP server provided by the request",
+        "curl_tool": "cURL with a tool call",
+        "python": "Python",
+        "javascript": "JavaScript",
+        "sdk_choice": "Choice of the SDK",
+        "sdk_openai": "OpenAI SDK",
+        "sdk_anthropic": "Anthropic SDK",
+        "preview": "Preview: {name}",
+        "copy_entry": "Copy the example {name}",
+        "copied": "Example copied.",
+        "copy_failed": "The example could not be copied.",
+        "reason_models_only": "For models only: an agent or a workflow refuses the tools field and calls its own tools only.",
+        "reason_chat_only": "For models of type llm only: an embeddings model holds no conversation.",
+        "reason_mcp_off": "Turn on \"Allow MCP servers provided by the request\" in the Server settings to see this example.",
+        "mcp_note": "Replace the address with the one of your MCP server. Until a rule allows the tool the model calls, the expected answer is 409 approval_pending, which names that tool: set the rule, then send the request again.",
+        "prompt": "Hello",
+        "prompt_tool": "What is the weather in Paris?",
+        "prompt_mcp": "Which tools can you call?"
       }
     }
   },

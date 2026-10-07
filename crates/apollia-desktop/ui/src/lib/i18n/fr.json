@@ -5175,6 +5175,29 @@
           "caution": "Attention",
           "danger": "Danger"
         }
+      },
+      "examples": {
+        "open": "Exemples",
+        "title": "Exemples à copier · {identifier}",
+        "curl_simple": "cURL simple",
+        "curl_mcp": "cURL avec un MCP fourni par la requête",
+        "curl_tool": "cURL avec un appel d'outil",
+        "python": "Python",
+        "javascript": "JavaScript",
+        "sdk_choice": "Choix du SDK",
+        "sdk_openai": "SDK OpenAI",
+        "sdk_anthropic": "SDK Anthropic",
+        "preview": "Aperçu : {name}",
+        "copy_entry": "Copier l'exemple {name}",
+        "copied": "Exemple copié.",
+        "copy_failed": "L'exemple n'a pas pu être copié.",
+        "reason_models_only": "Réservé aux modèles : un agent ou un workflow refuse le champ tools et n'appelle que ses propres outils.",
+        "reason_chat_only": "Réservé aux modèles de type llm : un modèle d'embeddings ne mène pas de conversation.",
+        "reason_mcp_off": "Allumez « Autoriser les MCP fournis par la requête » dans les Réglages du serveur pour voir cet exemple.",
+        "mcp_note": "Remplacez l'adresse par celle de votre serveur MCP. Tant qu'aucune règle n'autorise l'outil que le modèle appelle, la réponse attendue est 409 approval_pending, qui nomme cet outil : posez la règle, puis renvoyez la requête.",
+        "prompt": "Bonjour",
+        "prompt_tool": "Quel temps fait-il à Paris ?",
+        "prompt_mcp": "Quels outils peux-tu appeler ?"
       }
     }
   },
