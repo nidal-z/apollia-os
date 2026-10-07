@@ -30,6 +30,7 @@ class EnginesResponse:
             build than the installed one exists. Empty until a manifest verified.
         dictation (DictationEngine | None | Unset):
         manifest_sequence (int | None | Unset): Sequence of the last verified manifest of that channel, if any.
+        nvidia_card (None | str | Unset): Name of the NVIDIA card detected, when there is one.
     """
 
     channel: EngineChannel
@@ -38,6 +39,7 @@ class EnginesResponse:
     updates: list[VariantUpdate]
     dictation: DictationEngine | None | Unset = UNSET
     manifest_sequence: int | None | Unset = UNSET
+    nvidia_card: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -71,6 +73,12 @@ class EnginesResponse:
         else:
             manifest_sequence = self.manifest_sequence
 
+        nvidia_card: None | str | Unset
+        if isinstance(self.nvidia_card, Unset):
+            nvidia_card = UNSET
+        else:
+            nvidia_card = self.nvidia_card
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -85,6 +93,8 @@ class EnginesResponse:
             field_dict["dictation"] = dictation
         if manifest_sequence is not UNSET:
             field_dict["manifest_sequence"] = manifest_sequence
+        if nvidia_card is not UNSET:
+            field_dict["nvidia_card"] = nvidia_card
 
         return field_dict
 
@@ -139,6 +149,15 @@ class EnginesResponse:
 
         manifest_sequence = _parse_manifest_sequence(d.pop("manifest_sequence", UNSET))
 
+        def _parse_nvidia_card(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        nvidia_card = _parse_nvidia_card(d.pop("nvidia_card", UNSET))
+
         engines_response = cls(
             channel=channel,
             cuda_proposable=cuda_proposable,
@@ -146,6 +165,7 @@ class EnginesResponse:
             updates=updates,
             dictation=dictation,
             manifest_sequence=manifest_sequence,
+            nvidia_card=nvidia_card,
         )
 
         engines_response.additional_properties = d

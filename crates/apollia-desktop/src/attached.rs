@@ -464,6 +464,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // `/api/v1/engines/check`, and the resources the machine is using over
     // `/api/v1/llm/hardware/usage`.
     "check_engine_updates",
+    // The followed installation of an engine, over
+    // `/api/v1/engines/installation`: its state, the verified download of a
+    // variant, the import of a folder of the daemon's machine, and the
+    // cancellation of the download.
+    "dismiss_engine_installation",
+    "get_engine_installation",
+    "import_engine_folder",
+    "start_engine_installation",
     "get_observability_config",
     "get_python_interpreter",
     "get_resource_usage",

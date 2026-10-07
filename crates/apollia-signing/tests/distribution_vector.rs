@@ -62,11 +62,12 @@ fn test_verify_minisign_one_content_byte_changed_is_rejected() {
     // WHEN the signature is verified
     let result = verify_minisign(&content, &signature, &public_key);
 
-    // THEN it is rejected
+    // THEN it is rejected, and not as the signature of another key
     assert!(
         matches!(result, Err(DistributionError::Rejected { .. })),
         "{result:?}"
     );
+    assert!(!result.is_err_and(|e| e.is_unknown_key()));
 }
 
 #[test]
@@ -79,11 +80,12 @@ fn test_verify_minisign_other_key_is_rejected() {
     // WHEN the signature is verified with it
     let result = verify_minisign(content.as_bytes(), &signature, &other_key);
 
-    // THEN it is rejected
+    // THEN it is rejected as the signature of another key
     assert!(
         matches!(result, Err(DistributionError::Rejected { .. })),
         "{result:?}"
     );
+    assert!(result.is_err_and(|e| e.is_unknown_key()));
 }
 
 #[test]

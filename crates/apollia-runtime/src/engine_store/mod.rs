@@ -40,6 +40,9 @@
 //!   ends in `.zip`, the only archive format read. An upstream build shipped
 //!   as `.tar.gz` (macOS, Linux) is repackaged as zip by the pipeline that
 //!   publishes the manifest, and `sha256` is the digest of that zip.
+//! - `released`, optional on a package, is the day its build was published,
+//!   `YYYY-MM-DD`. It is kept in the record of the installed package, so an
+//!   interface can name a build by its day rather than by its tag.
 //! - `sequence` strictly identifies a manifest within its channel. The store
 //!   remembers the highest one it accepted per channel and refuses a lower
 //!   one, so an old manifest cannot bring back an old engine.
@@ -74,6 +77,7 @@
 mod archive;
 pub mod auto_update;
 mod fetch;
+pub mod install_job;
 mod installed;
 mod manifest;
 pub mod node;
@@ -85,8 +89,8 @@ pub mod version;
 use std::path::PathBuf;
 
 pub use fetch::{
-    import_from_dir, install_package, install_package_with_progress, refresh_manifest, updates,
-    VariantUpdate, MANIFEST_FILE, SIGNATURE_FILE,
+    import_from_dir, import_from_dir_with_progress, install_package, install_package_with_progress,
+    refresh_manifest, updates, VariantUpdate, MANIFEST_FILE, SIGNATURE_FILE,
 };
 pub use installed::{
     find_binary, installed_packages, newest_installed, package_dir, preferred_llama_server,
@@ -216,6 +220,62 @@ pub enum EngineStoreError {
         #[source]
         source: std::io::Error,
     },
+}
+
+/// Why the store refused, as a stable word an interface can branch on. The
+/// sentence of the error says the same to a reader.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = EngineRefusalCode)]
+pub enum RefusalCode {
+    /// This build carries no distribution key.
+    NoTrustedKey,
+    /// The signature does not hold for the content: the manifest was altered.
+    SignatureInvalid,
+    /// The signature was made by another key than the distribution key.
+    SignatureUnknownKey,
+    /// No signature beside the manifest.
+    SignatureMissing,
+    /// The manifest is malformed or of another channel.
+    ManifestInvalid,
+    /// The manifest is older than one already accepted.
+    Rollback,
+    /// No package for this request and this platform.
+    PackageNotFound,
+    /// The archive does not match the signed digest or size.
+    DigestMismatch,
+    /// The archive is malformed or unsafe.
+    ArchiveInvalid,
+    /// The mirror could not be reached or answered an error.
+    Network,
+    /// A file of the store or of the disk could not be read or written.
+    Storage,
+}
+
+impl EngineStoreError {
+    /// The stable word of this refusal.
+    #[must_use]
+    pub fn code(&self) -> RefusalCode {
+        match self {
+            Self::NoTrustedKey => RefusalCode::NoTrustedKey,
+            Self::Signature { source } if source.is_unknown_key() => {
+                RefusalCode::SignatureUnknownKey
+            }
+            Self::Signature { .. } => RefusalCode::SignatureInvalid,
+            Self::MissingSignature { .. } => RefusalCode::SignatureMissing,
+            Self::ManifestInvalid { .. } | Self::ChannelMismatch { .. } => {
+                RefusalCode::ManifestInvalid
+            }
+            Self::Rollback { .. } => RefusalCode::Rollback,
+            Self::PackageNotFound { .. } => RefusalCode::PackageNotFound,
+            Self::DigestMismatch { .. } | Self::TooLarge { .. } => RefusalCode::DigestMismatch,
+            Self::Archive { .. } => RefusalCode::ArchiveInvalid,
+            Self::HttpStatus { .. } | Self::Transport { .. } | Self::InvalidUrl { .. } => {
+                RefusalCode::Network
+            }
+            Self::StoreFile { .. } | Self::Io { .. } => RefusalCode::Storage,
+        }
+    }
 }
 
 /// Where the store lives under a data directory.

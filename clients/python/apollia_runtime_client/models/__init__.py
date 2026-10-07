@@ -178,8 +178,22 @@ from .engine_check_response import EngineCheckResponse
 from .engine_entry import EngineEntry
 from .engine_import_request import EngineImportRequest
 from .engine_install_request import EngineInstallRequest
+from .engine_installation_kind import EngineInstallationKind
+from .engine_installation_state_type_0 import EngineInstallationStateType0
+from .engine_installation_state_type_0_state import EngineInstallationStateType0State
+from .engine_installation_state_type_1 import EngineInstallationStateType1
+from .engine_installation_state_type_1_state import EngineInstallationStateType1State
+from .engine_installation_state_type_2 import EngineInstallationStateType2
+from .engine_installation_state_type_2_state import EngineInstallationStateType2State
+from .engine_installation_state_type_3 import EngineInstallationStateType3
+from .engine_installation_state_type_3_state import EngineInstallationStateType3State
+from .engine_installation_state_type_4 import EngineInstallationStateType4
+from .engine_installation_state_type_4_state import EngineInstallationStateType4State
+from .engine_installation_state_type_5 import EngineInstallationStateType5
+from .engine_installation_state_type_5_state import EngineInstallationStateType5State
 from .engine_installed_response import EngineInstalledResponse
 from .engine_name import EngineName
+from .engine_refusal_code import EngineRefusalCode
 from .engine_settings_body import EngineSettingsBody
 from .engine_source import EngineSource
 from .engine_variant import EngineVariant
@@ -783,9 +797,23 @@ __all__ = (
     "EngineCheckResponse",
     "EngineEntry",
     "EngineImportRequest",
+    "EngineInstallationKind",
+    "EngineInstallationStateType0",
+    "EngineInstallationStateType0State",
+    "EngineInstallationStateType1",
+    "EngineInstallationStateType1State",
+    "EngineInstallationStateType2",
+    "EngineInstallationStateType2State",
+    "EngineInstallationStateType3",
+    "EngineInstallationStateType3State",
+    "EngineInstallationStateType4",
+    "EngineInstallationStateType4State",
+    "EngineInstallationStateType5",
+    "EngineInstallationStateType5State",
     "EngineInstalledResponse",
     "EngineInstallRequest",
     "EngineName",
+    "EngineRefusalCode",
     "EngineSettingsBody",
     "EngineSource",
     "EnginesResponse",

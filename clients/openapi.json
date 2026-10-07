@@ -4500,6 +4500,102 @@
         }
       }
     },
+    "/api/v1/engines/installation": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "engine_installation_state",
+        "responses": {
+          "200": {
+            "description": "Where the installation stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstallationState"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "start_engine_installation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The installation started, the one already running, or the refusal that kept it from starting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstallationState"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "dismiss_engine_installation",
+        "responses": {
+          "200": {
+            "description": "The download cancelled or the outcome forgotten; a verification or an extraction is left to end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstallationState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/installation/import": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "start_engine_import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The import started, the installation already running, or the refusal that kept it from starting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstallationState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/engines/nodejs": {
       "get": {
         "tags": [
@@ -21795,8 +21891,8 @@
           "summarize_middle",
           "sliding_window",
           "stop_at_limit"
-          ]
-        },
+        ]
+      },
       "Continuation": {
         "type": "object",
         "description": "Whether the last answer of a conversation can be continued.",
@@ -23148,6 +23244,164 @@
           }
         }
       },
+      "EngineInstallationKind": {
+        "type": "string",
+        "description": "What an installation is, for the one who asked.",
+        "enum": [
+          "install",
+          "update",
+          "import"
+        ]
+      },
+      "EngineInstallationState": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Nothing running, and no outcome waiting to be read.",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "idle"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The manifest signature is being verified. No archive was requested.",
+            "required": [
+              "kind",
+              "state"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What is being done."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "verifying"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The signature held and the archive is arriving.",
+            "required": [
+              "kind",
+              "received",
+              "total",
+              "state"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What is being done."
+              },
+              "received": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Bytes of the archive received so far.",
+                "minimum": 0
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "downloading"
+                ]
+              },
+              "total": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Size of the archive the verified manifest states.",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The signature held and the archives of the directory are being\ncompared to their digests and extracted.",
+            "required": [
+              "kind",
+              "state"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What is being done."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "installing"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Verified and installed. The next model load takes it.",
+            "required": [
+              "kind",
+              "state"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What was done."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "installed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Refused or failed. Nothing was installed.",
+            "required": [
+              "kind",
+              "code",
+              "error",
+              "archive_requested",
+              "state"
+            ],
+            "properties": {
+              "archive_requested": {
+                "type": "boolean",
+                "description": "True when an archive had been requested from the mirror: false\nmeans the refusal came before any download."
+              },
+              "code": {
+                "$ref": "#/components/schemas/EngineRefusalCode",
+                "description": "Why, as a stable word."
+              },
+              "error": {
+                "type": "string",
+                "description": "Why, readable as is."
+              },
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What was being done."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Where the installation of a store stands."
+      },
       "EngineInstalledResponse": {
         "type": "object",
         "description": "Engines installed by a request.",
@@ -23171,6 +23425,23 @@
           "llama-server",
           "vllm-mlx",
           "nodejs"
+        ]
+      },
+      "EngineRefusalCode": {
+        "type": "string",
+        "description": "Why the store refused, as a stable word an interface can branch on. The\nsentence of the error says the same to a reader.",
+        "enum": [
+          "no_trusted_key",
+          "signature_invalid",
+          "signature_unknown_key",
+          "signature_missing",
+          "manifest_invalid",
+          "rollback",
+          "package_not_found",
+          "digest_mismatch",
+          "archive_invalid",
+          "network",
+          "storage"
         ]
       },
       "EngineSettingsBody": {
@@ -23254,6 +23525,13 @@
             "format": "int64",
             "description": "Sequence of the last verified manifest of that channel, if any.",
             "minimum": 0
+          },
+          "nvidia_card": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the NVIDIA card detected, when there is one."
           },
           "updates": {
             "type": "array",
@@ -31844,12 +32122,20 @@
           "engine",
           "variant",
           "latest_tag",
-          "update_available"
+          "update_available",
+          "size"
         ],
         "properties": {
           "engine": {
             "$ref": "#/components/schemas/EngineName",
             "description": "Engine."
+          },
+          "installed_released": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Day the installed build was published, when its manifest stated it."
           },
           "installed_tag": {
             "type": [
@@ -31858,9 +32144,22 @@
             ],
             "description": "Newest tag installed here, if any."
           },
+          "latest_released": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Day the newest build was published, `YYYY-MM-DD`, when the manifest\nstates it."
+          },
           "latest_tag": {
             "type": "string",
             "description": "Newest tag the verified manifest offers."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes of the archive of the newest build, as the verified\nmanifest states it: what installing or updating downloads.",
+            "minimum": 0
           },
           "update_available": {
             "type": "boolean",

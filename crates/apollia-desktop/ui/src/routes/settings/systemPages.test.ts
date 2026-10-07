@@ -87,6 +87,7 @@ const ENGINES: EnginesResponse = {
   manifest_sequence: null,
   updates: [],
   cuda_proposable: false,
+  nvidia_card: null,
   dictation: { path: "/app/Contents/Resources/runners/apollia-runner-metal", version: "1.7.6" },
 };
 
