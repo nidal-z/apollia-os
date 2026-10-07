@@ -63,6 +63,7 @@ pub mod plan_mode;
 pub mod project_migration;
 pub mod recommend;
 pub mod server_logs;
+pub mod server_tokens;
 pub mod sources;
 pub mod stt;
 pub mod tasks;

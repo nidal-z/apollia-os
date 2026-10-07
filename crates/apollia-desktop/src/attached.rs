@@ -176,6 +176,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "restart_local_server",
     "start_local_server",
     "stop_local_server",
+    // The tokens of the local server, over `/api/v1/server/tokens`.
+    "create_server_token",
+    "list_server_tokens",
+    "revoke_server_token",
     // The logs of the local server: the stream of `/api/v1/server/logs` at a
     // level, its end, and the route that empties them.
     "clear_server_logs",
