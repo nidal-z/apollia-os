@@ -152,12 +152,12 @@ describe("the Settings tab shows the prompt template when asked, in developer mo
       chatPromptTemplate.set(false);
       developerMode.set(false);
 
-      // THEN the block is there only when both are on, under the preset
+      // THEN the block is there only when both are on, above the instructions
       expect(promptTemplateShown(setting, developer)).toBe(shown);
       const block = html.indexOf('data-testid="session-prompt-template"');
       expect(block > -1).toBe(shown);
       if (shown) {
-        expect(block).toBeGreaterThan(html.indexOf('id="session-preset-select"'));
+        expect(block).toBeGreaterThan(html.indexOf('data-testid="session-settings-scope"'));
         expect(block).toBeLessThan(html.indexOf('data-testid="session-instructions"'));
       } else {
         expect(html).not.toContain("session-prompt-template");

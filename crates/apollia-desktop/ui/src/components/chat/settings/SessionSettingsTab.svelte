@@ -221,7 +221,15 @@
 
 <div class="flex h-full min-h-0 flex-col" data-testid="chat-session-settings">
   <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-    <PresetBlock {controller} disabled={closed} />
+    <!-- What the gestures below reach: this conversation, and its agent only
+         once they are applied to it. -->
+    <p class="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground" data-testid="session-settings-scope">
+      {#if session?.mode === "agent" && session.agent_name}
+        {$t("chat.session_settings.scope_agent", { values: { name: session.agent_name } })}
+      {:else}
+        {$t("chat.session_settings.scope_free")}
+      {/if}
+    </p>
 
     {#if promptTemplateShown($chatPromptTemplate, $developerMode)}
       <PromptTemplateBlock {session} {controller} />
@@ -520,6 +528,8 @@
         </p>
       </div>
     </Disclosure>
+
+    <PresetBlock {controller} disabled={closed} />
 
     {#if controller.error}
       <p

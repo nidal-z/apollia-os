@@ -4066,7 +4066,9 @@
         "mission_unchanged": "The agent's mission, unchanged",
         "confirm": "Apply",
         "done": "Settings applied to the agent {agent}"
-      }
+      },
+      "scope_agent": "These settings hold for this conversation. {name} keeps its own until you apply them to it.",
+      "scope_free": "These settings hold for this conversation only."
     }
   },
   "transcriptions": {

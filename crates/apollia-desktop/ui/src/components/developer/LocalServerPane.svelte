@@ -27,8 +27,8 @@
   >
     <h2 id="developer-server-title" class="sr-only">{$t("dev.developer.views.server")}</h2>
     <ServerBar />
-    <ServerModelsSection />
     <ExposedItemsSection />
+    <ServerModelsSection />
     <div class="mt-auto">
       <SupportedEndpoints {onpage} />
     </div>

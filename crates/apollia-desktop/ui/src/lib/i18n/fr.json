@@ -4066,7 +4066,9 @@
         "mission_unchanged": "Mission de l'agent, inchangée",
         "confirm": "Appliquer",
         "done": "Réglages appliqués à l'agent {agent}"
-      }
+      },
+      "scope_agent": "Ces réglages valent pour cette conversation. {name} garde les siens tant que vous ne les lui appliquez pas.",
+      "scope_free": "Ces réglages valent pour cette conversation seulement."
     }
   },
   "transcriptions": {

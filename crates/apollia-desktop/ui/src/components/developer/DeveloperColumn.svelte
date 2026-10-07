@@ -9,7 +9,6 @@
   import { cn } from "$lib/utils";
   import { developerMode } from "$lib/stores/developerMode";
   import { openSettingsWindow } from "$lib/stores/settingsWindow";
-  import DocumentationTree from "./DocumentationTree.svelte";
   import { DEVELOPER_VIEWS, openBridgeSettings, type DeveloperView } from "./developerScreen";
 
   interface Props {
@@ -25,21 +24,21 @@
 </script>
 
 {#if $developerMode}
-  <aside
-    class="flex w-60 shrink-0 flex-col border-r border-border"
+  <header
+    class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-6 py-3"
     data-testid="developer-column"
   >
-    <h1 class="px-4 pb-2 pt-4 text-sm font-semibold text-foreground">{$t("nav.developer")}</h1>
-    <nav class="flex flex-col gap-0.5 px-2" aria-label={$t("nav.developer")}>
+    <h1 class="text-sm font-semibold text-foreground">{$t("nav.developer")}</h1>
+    <nav class="flex items-center gap-1" aria-label={$t("nav.developer")}>
       {#each DEVELOPER_VIEWS as entry (entry.view)}
         {@const EntryIcon = ICONS[entry.view]}
         <button
           type="button"
           class={cn(
-            "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+            "flex items-center gap-2 rounded-full border px-3 py-1 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
             view === entry.view
-              ? "bg-muted font-medium text-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              ? "border-primary/40 bg-primary/5 font-medium text-foreground"
+              : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
           aria-current={view === entry.view ? "page" : undefined}
           onclick={() => onview(entry.view)}
@@ -50,13 +49,8 @@
         </button>
       {/each}
     </nav>
-    <div class="mx-2 mt-2 border-t border-border" aria-hidden="true"></div>
-    <DocumentationTree
-      active={view === "documentation"}
-      onopen={() => onview("documentation")}
-    />
-    <div class="flex flex-col items-start gap-1 p-4">
-      <p class="text-xs text-muted-foreground">{$t("dev.developer.settings_hint")}</p>
+    <div class="ml-auto flex items-center gap-2">
+      <p class="hidden text-xs text-muted-foreground lg:block">{$t("dev.developer.settings_hint")}</p>
       <button
         type="button"
         class="rounded-sm text-xs text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
@@ -66,5 +60,5 @@
         {$t("dev.developer.settings_link")}
       </button>
     </div>
-  </aside>
+  </header>
 {/if}
