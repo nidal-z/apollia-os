@@ -25,6 +25,9 @@ class SessionSettings:
                 of the accesses of the agent only those it names are kept, and those
                 it names that the agent does not hold are proposed: each of their
                 calls asks for consent.
+            preserve_thinking (bool | None | Unset): Whether the reasoning of the earlier answers goes back to the model
+                at each turn, for a model that reads it. It takes room in the
+                context; left out, it is not sent.
             preset (int | None | Unset): Preset chosen for the conversation, a preset of its model. It takes
                 the place of the agent's preset.
             profile_access (bool | None | Unset): For an installed agent, whether it may read the user profile in this
@@ -43,6 +46,7 @@ class SessionSettings:
     instructions: None | str | Unset = UNSET
     max_tokens: int | None | Unset = UNSET
     only_accesses: list[str] | Unset = UNSET
+    preserve_thinking: bool | None | Unset = UNSET
     preset: int | None | Unset = UNSET
     profile_access: bool | None | Unset = UNSET
     proposed_accesses: list[str] | Unset = UNSET
@@ -78,6 +82,12 @@ class SessionSettings:
         only_accesses: list[str] | Unset = UNSET
         if not isinstance(self.only_accesses, Unset):
             only_accesses = self.only_accesses
+
+        preserve_thinking: bool | None | Unset
+        if isinstance(self.preserve_thinking, Unset):
+            preserve_thinking = UNSET
+        else:
+            preserve_thinking = self.preserve_thinking
 
         preset: int | None | Unset
         if isinstance(self.preset, Unset):
@@ -126,6 +136,8 @@ class SessionSettings:
             field_dict["max_tokens"] = max_tokens
         if only_accesses is not UNSET:
             field_dict["only_accesses"] = only_accesses
+        if preserve_thinking is not UNSET:
+            field_dict["preserve_thinking"] = preserve_thinking
         if preset is not UNSET:
             field_dict["preset"] = preset
         if profile_access is not UNSET:
@@ -184,6 +196,15 @@ class SessionSettings:
 
         only_accesses = cast(list[str], d.pop("only_accesses", UNSET))
 
+        def _parse_preserve_thinking(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        preserve_thinking = _parse_preserve_thinking(d.pop("preserve_thinking", UNSET))
+
         def _parse_preset(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -237,6 +258,7 @@ class SessionSettings:
             instructions=instructions,
             max_tokens=max_tokens,
             only_accesses=only_accesses,
+            preserve_thinking=preserve_thinking,
             preset=preset,
             profile_access=profile_access,
             proposed_accesses=proposed_accesses,

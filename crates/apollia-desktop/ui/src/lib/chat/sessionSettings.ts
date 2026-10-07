@@ -38,6 +38,8 @@ export interface SessionSettings {
   preset?: number;
   thinking?: boolean;
   reasoning_effort?: ReasoningEffort;
+  /** The reasoning of the earlier answers goes back to the model; left out, it does not. */
+  preserve_thinking?: boolean;
   temperature?: number;
   max_tokens?: number;
   context_overflow?: ContextOverflow;

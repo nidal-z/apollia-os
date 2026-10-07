@@ -11,6 +11,14 @@
 
   /** Where the slider stands while no temperature is set anywhere. */
   export const TEMPERATURE_SLIDER_REST = 0.8;
+
+  /**
+   * What the conversation stores for the switch that keeps the reasoning of
+   * the earlier answers: on is stored, off leaves the field out.
+   */
+  export function keptReasoning(on: boolean): true | undefined {
+    return on ? true : undefined;
+  }
 </script>
 
 <script lang="ts">
@@ -311,6 +319,22 @@
               </Select>
             </div>
           {/if}
+          <div class="flex items-center justify-between gap-3">
+            <label for="session-preserve-thinking" class="text-xs text-foreground">
+              {$t("chat.session_settings.reasoning.preserve_thinking")}
+            </label>
+            <Toggle
+              id="session-preserve-thinking"
+              size="sm"
+              checked={settings.preserve_thinking ?? false}
+              onchange={(on) => void controller.set("preserve_thinking", keptReasoning(on))}
+              disabled={closed}
+              data-testid="session-preserve-thinking"
+            />
+          </div>
+          <p class="text-micro text-muted-foreground" data-testid="session-preserve-thinking-help">
+            {$t("chat.session_settings.reasoning.preserve_thinking_help")}
+          </p>
           <p class="text-micro text-muted-foreground">
             {$t("chat.session_settings.reasoning.scope")}
           </p>

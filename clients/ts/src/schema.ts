@@ -10702,6 +10702,12 @@ export interface components {
              */
             only_accesses?: string[];
             /**
+             * @description Whether the reasoning of the earlier answers goes back to the model
+             *     at each turn, for a model that reads it. It takes room in the
+             *     context; left out, it is not sent.
+             */
+            preserve_thinking?: boolean | null;
+            /**
              * Format: int64
              * @description Preset chosen for the conversation, a preset of its model. It takes
              *     the place of the agent's preset.

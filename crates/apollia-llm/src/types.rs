@@ -9,6 +9,10 @@ use std::pin::Pin;
 
 use futures::Stream;
 
+mod message;
+
+pub use message::ChatMessage;
+
 /// Unified trait for any LLM backend: local via sidecar runner or cloud HTTP.
 ///
 /// Implemented by `RunnerLlmBackend` (apollia-runtime sidecar),
@@ -100,18 +104,20 @@ pub trait CompletionModel: Send + Sync {
 /// `pub(crate)` so both live in one place without an apollia-llm -> apollia-oria
 /// dependency.
 pub(crate) fn message_char_len(msg: &ChatMessage) -> usize {
-    match &msg.content {
-        MessageContent::Text(s) => s.len(),
-        MessageContent::TextWithImages { text, .. } => text.len(),
-        MessageContent::ToolResult { content, .. } => content.len(),
-        MessageContent::WithToolCalls { text, tool_calls } => {
-            text.len()
-                + tool_calls
-                    .iter()
-                    .map(|tc| tc.arguments.to_string().len())
-                    .sum::<usize>()
+    let reasoning = msg.reasoning.as_ref().map_or(0, String::len);
+    reasoning
+        + match &msg.content {
+            MessageContent::Text(s) => s.len(),
+            MessageContent::TextWithImages { text, .. } => text.len(),
+            MessageContent::ToolResult { content, .. } => content.len(),
+            MessageContent::WithToolCalls { text, tool_calls } => {
+                text.len()
+                    + tool_calls
+                        .iter()
+                        .map(|tc| tc.arguments.to_string().len())
+                        .sum::<usize>()
+            }
         }
-    }
 }
 
 /// Unified inference request for all backends.
@@ -191,6 +197,12 @@ pub struct CompletionRequest {
     /// `reasoning_effort`. `None` (default) sends nothing and leaves the
     /// template's own default.
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// Whether the reasoning of the earlier answers goes back to the model.
+    /// `Some(true)` sends each earlier assistant message with the reasoning it
+    /// carries and tells the chat template to keep it (`preserve_thinking`).
+    /// `None` (default) and `Some(false)` send neither, and the earlier
+    /// answers travel as their content alone.
+    pub preserve_thinking: Option<bool>,
     /// The conversation turn the call is made for, when there is one.
     ///
     /// Read by the router to stamp the call it publishes; never sent to a
@@ -325,71 +337,6 @@ pub enum FinishReason {
     Length,
     /// The backend returned an error.
     Error,
-}
-
-/// A message in a multi-turn conversation history.
-#[derive(Debug, Clone)]
-pub struct ChatMessage {
-    /// Role of the message sender.
-    pub role: Role,
-    /// Message content (text, tool result, or text + tool calls).
-    pub content: MessageContent,
-    /// Prompt-caching marker, ignored by every current backend (see
-    /// [`CacheControl`]).
-    pub cache_control: Option<CacheControl>,
-}
-
-impl ChatMessage {
-    /// Build a system message (global behavior instructions).
-    pub fn system(text: impl Into<String>) -> Self {
-        Self {
-            role: Role::System,
-            content: MessageContent::Text(text.into()),
-            cache_control: None,
-        }
-    }
-
-    /// Build a user message.
-    pub fn user(text: impl Into<String>) -> Self {
-        Self {
-            role: Role::User,
-            content: MessageContent::Text(text.into()),
-            cache_control: None,
-        }
-    }
-
-    /// Build an assistant message with no tool calls.
-    pub fn assistant(text: impl Into<String>) -> Self {
-        Self {
-            role: Role::Assistant,
-            content: MessageContent::Text(text.into()),
-            cache_control: None,
-        }
-    }
-
-    /// Build an assistant message that includes tool calls.
-    pub fn assistant_with_calls(text: &str, calls: &[ToolCall]) -> Self {
-        Self {
-            role: Role::Assistant,
-            content: MessageContent::WithToolCalls {
-                text: text.to_owned(),
-                tool_calls: calls.to_vec(),
-            },
-            cache_control: None,
-        }
-    }
-
-    /// Build a message carrying the result of a tool call.
-    pub fn tool_result(call_id: &str, content: &str) -> Self {
-        Self {
-            role: Role::Tool,
-            content: MessageContent::ToolResult {
-                tool_call_id: call_id.to_owned(),
-                content: content.to_owned(),
-            },
-            cache_control: None,
-        }
-    }
 }
 
 /// Role of a `ChatMessage` sender.

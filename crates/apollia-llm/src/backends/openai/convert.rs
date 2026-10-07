@@ -356,7 +356,8 @@ pub(super) fn with_structured_output(
 /// rather than a setting this crate dropped without a word.
 ///
 /// The reasoning settings travel the same way, in `chat_template_kwargs` (see
-/// [`chat_template_kwargs`]).
+/// [`chat_template_kwargs`]), and so does the reasoning of the earlier answers
+/// (see [`with_earlier_reasoning`]).
 pub(super) fn with_sampling_extensions(
     mut body: serde_json::Value,
     req: &crate::types::CompletionRequest,
@@ -374,8 +375,42 @@ pub(super) fn with_sampling_extensions(
         if let Some(kwargs) = chat_template_kwargs(req) {
             map.insert("chat_template_kwargs".to_string(), kwargs);
         }
+        if req.preserve_thinking == Some(true) {
+            with_earlier_reasoning(map, &req.messages);
+        }
     }
     body
+}
+
+/// Write the reasoning each assistant message carries onto the message built
+/// from it, as `reasoning_content`.
+///
+/// The typed builder has no such field, so it is added to the serialized
+/// body. [`build_messages`] builds one message per message, in order, which
+/// is what lets the two lists be read side by side. `reasoning_content` is
+/// the name the chat templates read on an assistant message, and the one
+/// llama-server and vllm-mlx pass through to them.
+fn with_earlier_reasoning(
+    body: &mut serde_json::Map<String, serde_json::Value>,
+    messages: &[crate::types::ChatMessage],
+) {
+    let Some(built) = body
+        .get_mut("messages")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    for (built, message) in built.iter_mut().zip(messages) {
+        let reasoning = message.reasoning.as_deref().filter(|r| !r.is_empty());
+        if let (Role::Assistant, Some(reasoning), Some(fields)) =
+            (&message.role, reasoning, built.as_object_mut())
+        {
+            fields.insert(
+                "reasoning_content".to_string(),
+                serde_json::json!(reasoning),
+            );
+        }
+    }
 }
 
 /// The `chat_template_kwargs` object that carries the reasoning settings a
@@ -386,7 +421,8 @@ pub(super) fn with_sampling_extensions(
 /// `reasoning_effort` is not a request field of its own) and vllm-mlx 0.5.0
 /// (`ChatCompletionRequest.chat_template_kwargs`, merged into the template
 /// arguments). Each variable is written only when fixed, so the template keeps
-/// its own default otherwise, and nothing is ever added to a message.
+/// its own default otherwise. `preserve_thinking` is written only when it is
+/// on: a request that does not keep the earlier reasoning says nothing.
 fn chat_template_kwargs(req: &crate::types::CompletionRequest) -> Option<serde_json::Value> {
     let mut kwargs = serde_json::Map::new();
     if let Some(thinking) = req.thinking {
@@ -399,6 +435,12 @@ fn chat_template_kwargs(req: &crate::types::CompletionRequest) -> Option<serde_j
         kwargs.insert(
             crate::capabilities::REASONING_EFFORT_VARIABLE.to_string(),
             serde_json::json!(effort.as_str()),
+        );
+    }
+    if req.preserve_thinking == Some(true) {
+        kwargs.insert(
+            crate::capabilities::PRESERVE_THINKING_VARIABLE.to_string(),
+            serde_json::json!(true),
         );
     }
     (!kwargs.is_empty()).then_some(serde_json::Value::Object(kwargs))
@@ -588,6 +630,73 @@ mod tests {
         );
     }
 
+    /// The body of the second turn of a conversation whose first answer was
+    /// reasoned, with `preserve_thinking` as given.
+    fn second_turn_body(preserve_thinking: Option<bool>) -> serde_json::Value {
+        let req = CompletionRequest {
+            messages: vec![
+                ChatMessage::user("what is 17 times 3?"),
+                ChatMessage::assistant("51").with_reasoning("17 times 3 is 30 plus 21."),
+                ChatMessage::user("and times 2?"),
+            ],
+            thinking: Some(true),
+            preserve_thinking,
+            ..Default::default()
+        };
+        let messages = build_messages(&req.messages).expect("valid messages");
+        let request = CreateChatCompletionRequestArgs::default()
+            .model("test-model")
+            .messages(messages)
+            .build()
+            .expect("a buildable request");
+        let body = serde_json::to_value(request).expect("a serializable request");
+        with_sampling_extensions(body, &req)
+    }
+
+    #[test]
+    fn kept_reasoning_travels_with_the_earlier_answer_and_the_template_is_told() {
+        // GIVEN a second turn whose conversation keeps the earlier reasoning
+        // WHEN its body is built
+        let body = second_turn_body(Some(true));
+
+        // THEN the earlier answer carries its reasoning beside its content,
+        // the user messages carry none, and the template variable is on next
+        // to the reasoning switch
+        assert_eq!(body["messages"][1]["content"], json!("51"));
+        assert_eq!(
+            body["messages"][1]["reasoning_content"],
+            json!("17 times 3 is 30 plus 21.")
+        );
+        assert!(body["messages"][0].get("reasoning_content").is_none());
+        assert!(body["messages"][2].get("reasoning_content").is_none());
+        assert_eq!(
+            body["chat_template_kwargs"],
+            json!({"enable_thinking": true, "preserve_thinking": true})
+        );
+    }
+
+    #[test]
+    fn reasoning_that_is_not_kept_is_not_sent_and_the_variable_is_not_emitted() {
+        // GIVEN the same second turn, with the setting left out and switched off
+        for preserve_thinking in [None, Some(false)] {
+            // WHEN its body is built
+            let body = second_turn_body(preserve_thinking);
+
+            // THEN the earlier answer travels as its content alone and the
+            // template variable is absent, off included
+            assert_eq!(body["messages"][1]["content"], json!("51"));
+            assert!(
+                body["messages"][1].get("reasoning_content").is_none(),
+                "{body}"
+            );
+            assert_eq!(
+                body["chat_template_kwargs"],
+                json!({"enable_thinking": true}),
+                "{preserve_thinking:?}"
+            );
+        }
+    }
+
     #[test]
     fn a_user_message_with_two_images_carries_two_image_parts_after_the_text() {
         // GIVEN a user message with text and two images, PNG then JPEG
@@ -640,6 +749,7 @@ mod tests {
                 )],
             },
             cache_control: None,
+            reasoning: None,
         };
 
         // WHEN the messages are built

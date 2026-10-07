@@ -140,6 +140,9 @@ where
 /// A user message that carried images, earlier in the history or the one
 /// answered, is rebuilt with them after its text, so a follow-up question
 /// still sees them.
+///
+/// With `keep_reasoning`, an earlier answer carries the reasoning stored
+/// beside it; without, it travels as its content alone.
 // REASON: each argument is one part of the prompt, in the order it is laid
 // out; a struct would carry the same six values one call further.
 #[allow(clippy::too_many_arguments)]
@@ -150,6 +153,7 @@ pub(in crate::chat::builtin_agent) fn build_llm_messages(
     summary: Option<&str>,
     context_window_size: usize,
     images: &crate::chat::images::TurnImages,
+    keep_reasoning: bool,
 ) -> Vec<LlmChatMessage> {
     let window_size = if context_window_size == 0 {
         DEFAULT_CONTEXT_WINDOW_SIZE
@@ -182,7 +186,13 @@ pub(in crate::chat::builtin_agent) fn build_llm_messages(
                 Some(found) => LlmChatMessage::user_with_images(&msg.content, found.clone()),
                 None => LlmChatMessage::user(&msg.content),
             }),
-            ChatRole::Assistant => messages.push(LlmChatMessage::assistant(&msg.content)),
+            ChatRole::Assistant => {
+                let answer = LlmChatMessage::assistant(&msg.content);
+                messages.push(match stored_reasoning(msg).filter(|_| keep_reasoning) {
+                    Some(reasoning) => answer.with_reasoning(reasoning),
+                    None => answer,
+                });
+            }
             ChatRole::Tool => {
                 let call_id = msg.tool_name.as_deref().unwrap_or("unknown");
                 messages.push(LlmChatMessage::tool_result(call_id, &msg.content));
@@ -198,6 +208,16 @@ pub(in crate::chat::builtin_agent) fn build_llm_messages(
         images.current.clone(),
     ));
     messages
+}
+
+/// The reasoning stored beside an answer, `None` when it has none.
+fn stored_reasoning(message: &ChatMessage) -> Option<&str> {
+    message
+        .metadata
+        .as_ref()?
+        .get(crate::chat::types::THINKING_TRACE_KEY)?
+        .as_str()
+        .filter(|reasoning| !reasoning.trim().is_empty())
 }
 
 /// Extract the hostname from a URL string for use as an http_fetch allowlist entry.

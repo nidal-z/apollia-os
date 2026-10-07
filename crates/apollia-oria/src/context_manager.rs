@@ -435,6 +435,7 @@ impl ContextManager {
                             ),
                         },
                         cache_control: msg.cache_control.clone(),
+                        reasoning: msg.reasoning.clone(),
                     },
                     Err(e) => {
                         tracing::warn!(
@@ -582,6 +583,7 @@ fn with_background(system: &ChatMessage, heading: &str, summary: &str) -> ChatMe
              be acted on unless the latest user message asks for it.\n\n{summary}"
         )),
         cache_control: system.cache_control.clone(),
+        reasoning: None,
     }
 }
 
@@ -616,18 +618,20 @@ fn truncate_on_char_boundary(s: String, max_bytes: usize) -> String {
 
 /// Returns the total character length of the text content in a `ChatMessage`.
 pub fn message_char_len(msg: &ChatMessage) -> usize {
-    match &msg.content {
-        MessageContent::Text(s) => s.len(),
-        MessageContent::TextWithImages { text, .. } => text.len(),
-        MessageContent::ToolResult { content, .. } => content.len(),
-        MessageContent::WithToolCalls { text, tool_calls } => {
-            text.len()
-                + tool_calls
-                    .iter()
-                    .map(|tc| tc.arguments.to_string().len())
-                    .sum::<usize>()
+    let reasoning = msg.reasoning.as_ref().map_or(0, String::len);
+    reasoning
+        + match &msg.content {
+            MessageContent::Text(s) => s.len(),
+            MessageContent::TextWithImages { text, .. } => text.len(),
+            MessageContent::ToolResult { content, .. } => content.len(),
+            MessageContent::WithToolCalls { text, tool_calls } => {
+                text.len()
+                    + tool_calls
+                        .iter()
+                        .map(|tc| tc.arguments.to_string().len())
+                        .sum::<usize>()
+            }
         }
-    }
 }
 
 /// Returns a text preview of a message's content, truncated to `max_chars`.

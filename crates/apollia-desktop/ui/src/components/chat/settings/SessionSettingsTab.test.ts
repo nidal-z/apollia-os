@@ -36,7 +36,7 @@ import type { SessionSettings } from "$lib/chat/sessionSettings";
 import type { ChatSessionDetail } from "$lib/types";
 import ChatSessionPanel from "../ChatSessionPanel.svelte";
 import { presetErrorKey } from "./PresetBlock.svelte";
-import SessionSettingsTab, { notesExcerpt } from "./SessionSettingsTab.svelte";
+import SessionSettingsTab, { keptReasoning, notesExcerpt } from "./SessionSettingsTab.svelte";
 import { createSessionSettings, type SessionSettingsEffects } from "./useSessionSettings.svelte";
 
 function session(over: Partial<ChatSessionDetail> = {}): ChatSessionDetail {
@@ -208,6 +208,66 @@ describe("the Settings tab of a conversation", () => {
     expect(tagOf(of(levels), "session-reasoning-effort")).not.toBeNull();
     expect(tagOf(of(levels), "session-thinking")).toBeNull();
     expect(tagOf(of(none), "session-reasoning")).toBeNull();
+  });
+
+  test("keeping the earlier reasoning is offered with the reasoning block, and only with it", async () => {
+    // GIVEN a model that switches reasoning and keeps the earlier one, a
+    // model with levels that does not, and a model with no reasoning
+    const toggle = await loaded({ preserve_thinking: true }, "toggle");
+    const levels = await loaded({}, "levels");
+    const none = await loaded({ preserve_thinking: true }, "none");
+    const of = (controller: typeof toggle) =>
+      renderToString(SessionSettingsTab, { props: { session: session(), controller } }).body;
+
+    // WHEN the tab renders for each
+    // THEN the first two show the switch at the stored value, with the
+    // sentence that says what it costs, and the third shows neither
+    expect(tagOf(of(toggle), "session-preserve-thinking")).toContain('aria-checked="true"');
+    expect(tagOf(of(levels), "session-preserve-thinking")).toContain('aria-checked="false"');
+    expect(of(toggle)).toContain(get(t)("chat.session_settings.reasoning.preserve_thinking"));
+    expect(tagOf(of(levels), "session-preserve-thinking-help")).not.toBeNull();
+    expect(tagOf(of(none), "session-preserve-thinking")).toBeNull();
+    expect(tagOf(of(none), "session-preserve-thinking-help")).toBeNull();
+    expect(
+      get(t)("chat.session_settings.reasoning.preserve_thinking", { locale: "fr" }),
+    ).toMatch(/^Garder le raisonnement/);
+    expect(get(t)("chat.session_settings.reasoning.preserve_thinking", { locale: "en" })).toBe(
+      "Keep the reasoning of earlier answers",
+    );
+    for (const locale of ["fr", "en"]) {
+      expect(
+        get(t)("chat.session_settings.reasoning.preserve_thinking_help", { locale }),
+      ).toMatch(/context/);
+    }
+  });
+
+  test("the switch that keeps the earlier reasoning writes the settings of the conversation", async () => {
+    // GIVEN the tab of a conversation that set a temperature, and its source
+    const written: SessionSettings[] = [];
+    const controller = createSessionSettings({
+      getSettings: async () => ({ temperature: 0.4 }),
+      setSettings: async (_id, next) => {
+        written.push(next);
+        return next;
+      },
+      getNotes: async () => "",
+      setNotes: async (_id, notes) => notes,
+      listPresets: async () => [],
+      createPreset: async (draft) => ({ ...draft, id: 9, is_model_default: false }),
+      capabilities: async () => ({ model: "qwen3-8b", local: true, reasoning_profile: "toggle" }),
+    });
+    await controller.load("s-1");
+    const tab = source("./SessionSettingsTab.svelte");
+
+    // WHEN the switch is turned on, then off, as the tab writes it
+    await controller.set("preserve_thinking", keptReasoning(true));
+    await controller.set("preserve_thinking", keptReasoning(false));
+
+    // THEN the tab hands the switch to the settings of the conversation: on
+    // is stored beside what was set, off leaves the field out again
+    expect(tab).toContain('controller.set("preserve_thinking", keptReasoning(on))');
+    expect(written).toEqual([{ temperature: 0.4, preserve_thinking: true }, { temperature: 0.4 }]);
+    expect(controller.settings).toEqual({ temperature: 0.4 });
   });
 
   test("the answer block is closed and sums up its three settings", async () => {

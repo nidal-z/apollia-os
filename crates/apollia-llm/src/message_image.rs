@@ -72,6 +72,7 @@ impl crate::types::ChatMessage {
             role: crate::types::Role::User,
             content,
             cache_control: None,
+            reasoning: None,
         }
     }
 }

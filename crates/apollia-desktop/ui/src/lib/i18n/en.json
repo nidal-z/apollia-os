@@ -4082,6 +4082,8 @@
         "effort_low": "Low",
         "effort_medium": "Medium",
         "effort_high": "High",
+        "preserve_thinking": "Keep the reasoning of earlier answers",
+        "preserve_thinking_help": "The reasoning of earlier answers is sent back to the model with each message: it keeps its train of thought, and the context fills up faster.",
         "scope": "Holds for this conversation only."
       },
       "response": {

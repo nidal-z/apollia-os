@@ -1170,6 +1170,7 @@ fn test_build_llm_messages() {
         None,
         DEFAULT_CONTEXT_WINDOW_SIZE,
         &crate::chat::images::TurnImages::default(),
+        false,
     );
 
     // THEN 5 messages in order: system, h1 (user), h2 (assistant), h3 (user), current user
@@ -1386,6 +1387,7 @@ fn test_default_system_prompt_used_when_empty() {
         None,
         DEFAULT_CONTEXT_WINDOW_SIZE,
         &crate::chat::images::TurnImages::default(),
+        false,
     );
 
     // THEN first message is the empty string we passed (caller decides default)
@@ -2056,7 +2058,15 @@ fn test_history_user_messages_are_rebuilt_with_their_images() {
     turn.history.insert(history[0].id.clone(), images.clone());
 
     // WHEN the messages of the follow-up turn are built
-    let messages = build_llm_messages("system", &history, "and the second?", None, 20, &turn);
+    let messages = build_llm_messages(
+        "system",
+        &history,
+        "and the second?",
+        None,
+        20,
+        &turn,
+        false,
+    );
 
     // THEN the first user message carries its images after its text, and the
     // follow-up stays text alone
@@ -2089,6 +2099,7 @@ fn test_context_window_short_conversation_includes_all() {
         None,
         20,
         &crate::chat::images::TurnImages::default(),
+        false,
     );
 
     // THEN all 10 history messages are included (+ system + user = 12)
@@ -2111,6 +2122,7 @@ fn test_context_window_long_conversation_with_summary() {
         Some(summary),
         20,
         &crate::chat::images::TurnImages::default(),
+        false,
     );
 
     // THEN: system + summary + 20 windowed messages + user = 23
@@ -2142,6 +2154,7 @@ fn test_context_window_long_conversation_without_summary() {
         None,
         20,
         &crate::chat::images::TurnImages::default(),
+        false,
     );
 
     // THEN: system + 20 windowed messages + user = 22 (no summary message)
