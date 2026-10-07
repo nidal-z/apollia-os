@@ -27,6 +27,7 @@ pub mod config;
 pub mod connections;
 pub mod documentation;
 pub mod embeddings;
+pub mod engine_installation;
 pub mod example_dataset;
 pub mod hardware_window;
 pub mod hf_token;

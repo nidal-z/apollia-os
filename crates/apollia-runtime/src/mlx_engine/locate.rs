@@ -290,6 +290,7 @@ mod tests {
             platform: "macos-arm64".to_owned(),
             sha256: "0".repeat(64),
             source: crate::engine_store::Source::Downloaded,
+            released: None,
             path: PathBuf::new(),
         };
         std::fs::write(

@@ -5001,6 +5001,9 @@
           "enable": "Activer la surcharge",
           "empty": "Aucun autre fichier de poids de ce modèle n'est présent sur ce poste."
         }
+      },
+      "engine": {
+        "refusal_detail": "Détail du refus : {detail}"
       }
     },
     "developer": {
@@ -5617,6 +5620,98 @@
           "on": "activé",
           "off": "désactivé"
         }
+      }
+    },
+    "engine": {
+      "megabytes": "{n} Mo",
+      "version_day": "version du {day}",
+      "version_number": "version {tag}",
+      "download_weight": "{size} à télécharger. Sa signature est vérifiée avant tout téléchargement.",
+      "signature_promise": "Sa signature est vérifiée avant tout téléchargement.",
+      "folder_picker_title": "Dossier du moteur à importer",
+      "proposal": {
+        "title": "Accélérer avec votre carte NVIDIA",
+        "body": "{card} détectée. Le moteur accéléré l'utilise pour que vos modèles répondent nettement plus vite.",
+        "body_unnamed": "Carte NVIDIA détectée. Le moteur accéléré l'utilise pour que vos modèles répondent nettement plus vite."
+      },
+      "update": {
+        "title": "Nouvelle version du moteur disponible",
+        "body": "Moteur accéléré NVIDIA, {latest}. Vous utilisez la {installed}.",
+        "body_latest": "Moteur accéléré NVIDIA, {latest}."
+      },
+      "progress": {
+        "install_title": "Installation du moteur accéléré",
+        "install_body": "Vous pouvez continuer à utiliser Apollia pendant l'installation.",
+        "update_title": "Mise à jour du moteur accéléré",
+        "update_title_version": "Mise à jour du moteur accéléré, {version}",
+        "update_body": "Le moteur actuel reste utilisé jusqu'à la fin de la mise à jour.",
+        "import_title": "Import du moteur accéléré",
+        "import_body": "Le dossier choisi est vérifié avant toute installation."
+      },
+      "step": {
+        "signature": "Vérification de la signature",
+        "signature_done": "Signature vérifiée",
+        "signature_key": "clé d'Apollia",
+        "refused": "refusée",
+        "download": "Téléchargement",
+        "download_pending": "{size}, après la vérification",
+        "after_verification": "après la vérification",
+        "download_progress": "{received} sur {total}",
+        "not_started": "non lancé",
+        "installation": "Installation"
+      },
+      "eta": {
+        "minutes": "environ {n} min",
+        "under_minute": "moins d'une minute"
+      },
+      "installed": {
+        "title": "Moteur accéléré installé",
+        "body": "Le prochain chargement d'un modèle utilisera votre carte NVIDIA.",
+        "update_title": "Moteur accéléré mis à jour",
+        "update_body": "Le prochain chargement d'un modèle utilisera la nouvelle version.",
+        "body_loaded": "Le prochain chargement d'un modèle l'utilisera. Les modèles déjà chargés gardent le moteur actuel : rechargez-les pour en profiter.",
+        "reloaded_toast": "{count, plural, one {# modèle rechargé avec le moteur accéléré.} other {# modèles rechargés avec le moteur accéléré.}}",
+        "reload_busy_toast": "{count, plural, one {# modèle répond en ce moment et garde le moteur actuel. Rechargez-le quand sa réponse sera terminée.} other {# modèles répondent en ce moment et gardent le moteur actuel. Rechargez-les quand leurs réponses seront terminées.}}"
+      },
+      "refusal": {
+        "title": {
+          "install": "Installation arrêtée : {cause}",
+          "update": "Mise à jour arrêtée : {cause}",
+          "import": "Import refusé : {cause}"
+        },
+        "cause": {
+          "list_altered": "liste des fichiers modifiée",
+          "unknown_key": "signature d'une clé inconnue",
+          "older_version": "version plus ancienne",
+          "signature_missing": "signature absente",
+          "signature_invalid": "signature invalide",
+          "archive_altered": "archive modifiée",
+          "network": "serveur injoignable",
+          "other": "moteur introuvable ou illisible"
+        },
+        "body": {
+          "list_altered": "La liste des fichiers publiée pour ce moteur a été modifiée après sa signature : elle n'a pas pu être authentifiée.",
+          "unknown_key": "La liste des fichiers publiée pour ce moteur est signée par une clé qui n'est pas celle d'Apollia.",
+          "older_version": "La liste des fichiers proposée est plus ancienne que celle déjà acceptée sur ce poste : revenir en arrière est refusé.",
+          "signature_missing": "Le dossier choisi ne contient pas la signature du moteur.",
+          "signature_invalid": "La signature du dossier ne provient pas d'Apollia ou ne correspond pas à ses fichiers.",
+          "archive_altered": "L'empreinte de l'archive ne correspond pas à celle qui a été signée : le fichier a été modifié ou abîmé pendant la copie.",
+          "network": "Le serveur qui publie le moteur n'a pas répondu. Vérifiez la connexion, ou importez le moteur depuis un dossier.",
+          "other": "Aucun moteur utilisable sur ce poste n'a été trouvé, ou ses fichiers n'ont pas pu être lus."
+        },
+        "nothing_downloaded": "Aucun fichier n'a été téléchargé.",
+        "nothing_installed": "Rien n'a été installé.",
+        "current_kept": "Le moteur actuel reste utilisé."
+      },
+      "action": {
+        "later": "Plus tard",
+        "import": "Importer depuis un dossier",
+        "accelerate": "Accélérer",
+        "update": "Mettre à jour",
+        "cancel": "Annuler",
+        "close": "Fermer",
+        "other_folder": "Choisir un autre dossier",
+        "reload": "Recharger les modèles"
       }
     }
   },

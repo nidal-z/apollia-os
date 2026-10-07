@@ -12,6 +12,10 @@
 //! update of the chosen engines when `[engines] auto_update` is on.
 //! - `POST /api/v1/engines/install`  , download, verify and install one variant
 //! - `POST /api/v1/engines/import`   , install from a directory on a disk
+//! - `GET  /api/v1/engines/installation` , where the followed installation stands
+//! - `POST /api/v1/engines/installation` , start downloading one variant and answer at once
+//! - `POST /api/v1/engines/installation/import` , start importing a directory and answer at once
+//! - `DELETE /api/v1/engines/installation` , cancel the download or forget the outcome
 //! - `GET  /api/v1/engines/nodejs`   , where Node.js stands: absent, downloading, ready, failed
 //! - `POST /api/v1/engines/nodejs`   , start installing Node.js unless it is there or on its way
 
@@ -78,6 +82,8 @@ pub struct EnginesResponse {
     pub updates: Vec<VariantUpdate>,
     /// True when an NVIDIA card is detected and no CUDA engine is installed.
     pub cuda_proposable: bool,
+    /// Name of the NVIDIA card detected, when there is one.
+    pub nvidia_card: Option<String>,
     /// The dictation engine, when a runner is in reach.
     pub dictation: Option<DictationEngine>,
 }
@@ -297,7 +303,7 @@ fn embedded_engines() -> Vec<EngineEntry> {
 fn engines_view(
     data_dir: &Path,
     embedded: Vec<EngineEntry>,
-    nvidia_detected: bool,
+    nvidia_card: Option<String>,
 ) -> Result<EnginesResponse, EngineStoreError> {
     let root = engine_store::store_root(data_dir);
     let settings = EngineStoreSettings::load(&root)?;
@@ -319,7 +325,8 @@ fn engines_view(
         channel: settings.channel,
         manifest_sequence: manifest.map(|m| m.sequence),
         updates,
-        cuda_proposable: nvidia_detected && !has_cuda,
+        cuda_proposable: nvidia_card.is_some() && !has_cuda,
+        nvidia_card,
         dictation: None,
     })
 }
@@ -337,14 +344,13 @@ pub async fn list_engines<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<EnginesResponse>, ApiError> {
     let data_dir = state.data_dir.clone();
-    let nvidia = tokio::task::spawn_blocking(|| {
-        matches!(
-            apollia_llm::hardware::detect().accelerator,
-            apollia_llm::AcceleratorProfile::Cuda { .. }
-        )
-    })
-    .await
-    .unwrap_or(false);
+    let nvidia =
+        tokio::task::spawn_blocking(|| match apollia_llm::hardware::detect().accelerator {
+            apollia_llm::AcceleratorProfile::Cuda { device_name, .. } => Some(device_name),
+            _ => None,
+        })
+        .await
+        .unwrap_or(None);
     let embedded = embedded_engines();
     let mut view = engines_view(&data_dir, embedded, nvidia).map_err(store_err)?;
     view.engines = with_versions(view.engines).await;
@@ -551,10 +557,22 @@ pub fn engines_router<B: ExecutionBackend + Clone + 'static>() -> Router<AppStat
         .route("/api/v1/engines/install", post(install_engine::<B>))
         .route("/api/v1/engines/import", post(import_engines::<B>))
         .route(
+            "/api/v1/engines/installation",
+            get(installation::engine_installation_state::<B>)
+                .post(installation::start_engine_installation::<B>)
+                .delete(installation::dismiss_engine_installation::<B>),
+        )
+        .route(
+            "/api/v1/engines/installation/import",
+            post(installation::start_engine_import::<B>),
+        )
+        .route(
             "/api/v1/engines/nodejs",
             get(node_runtime_state::<B>).post(ensure_node_runtime::<B>),
         )
 }
+
+pub mod installation;
 
 #[cfg(test)]
 mod tests;

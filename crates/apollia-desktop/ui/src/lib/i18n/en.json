@@ -5001,6 +5001,9 @@
           "enable": "Enable override",
           "empty": "No other weights file of this model is on this computer."
         }
+      },
+      "engine": {
+        "refusal_detail": "Refusal detail: {detail}"
       }
     },
     "developer": {
@@ -5617,6 +5620,98 @@
           "on": "on",
           "off": "off"
         }
+      }
+    },
+    "engine": {
+      "megabytes": "{n} MB",
+      "version_day": "version of {day}",
+      "version_number": "build {tag}",
+      "download_weight": "{size} to download. Its signature is verified before any download.",
+      "signature_promise": "Its signature is verified before any download.",
+      "folder_picker_title": "Folder of the engine to import",
+      "proposal": {
+        "title": "Speed up with your NVIDIA card",
+        "body": "{card} detected. The accelerated engine uses it so your models answer markedly faster.",
+        "body_unnamed": "NVIDIA card detected. The accelerated engine uses it so your models answer markedly faster."
+      },
+      "update": {
+        "title": "New engine version available",
+        "body": "NVIDIA accelerated engine, {latest}. You are using the {installed}.",
+        "body_latest": "NVIDIA accelerated engine, {latest}."
+      },
+      "progress": {
+        "install_title": "Installing the accelerated engine",
+        "install_body": "You can keep using Apollia during the installation.",
+        "update_title": "Updating the accelerated engine",
+        "update_title_version": "Updating the accelerated engine, {version}",
+        "update_body": "The current engine stays in use until the update ends.",
+        "import_title": "Importing the accelerated engine",
+        "import_body": "The chosen folder is verified before anything is installed."
+      },
+      "step": {
+        "signature": "Signature verification",
+        "signature_done": "Signature verified",
+        "signature_key": "Apollia key",
+        "refused": "refused",
+        "download": "Download",
+        "download_pending": "{size}, after the verification",
+        "after_verification": "after the verification",
+        "download_progress": "{received} of {total}",
+        "not_started": "not started",
+        "installation": "Installing"
+      },
+      "eta": {
+        "minutes": "about {n} min",
+        "under_minute": "less than a minute"
+      },
+      "installed": {
+        "title": "Accelerated engine installed",
+        "body": "The next model load will use your NVIDIA card.",
+        "update_title": "Accelerated engine updated",
+        "update_body": "The next model load will use the new version.",
+        "body_loaded": "The next model load will use it. Models already loaded keep the current engine: reload them to benefit.",
+        "reloaded_toast": "{count, plural, one {# model reloaded with the accelerated engine.} other {# models reloaded with the accelerated engine.}}",
+        "reload_busy_toast": "{count, plural, one {# model is answering right now and keeps the current engine. Reload it once its answer ends.} other {# models are answering right now and keep the current engine. Reload them once their answers end.}}"
+      },
+      "refusal": {
+        "title": {
+          "install": "Installation stopped: {cause}",
+          "update": "Update stopped: {cause}",
+          "import": "Import refused: {cause}"
+        },
+        "cause": {
+          "list_altered": "file list altered",
+          "unknown_key": "signature from an unknown key",
+          "older_version": "older version",
+          "signature_missing": "signature missing",
+          "signature_invalid": "signature invalid",
+          "archive_altered": "archive altered",
+          "network": "server unreachable",
+          "other": "engine not found or unreadable"
+        },
+        "body": {
+          "list_altered": "The file list published for this engine was altered after it was signed: it could not be authenticated.",
+          "unknown_key": "The file list published for this engine is signed by a key that is not Apollia's.",
+          "older_version": "The file list offered is older than the one this computer already accepted: going back is refused.",
+          "signature_missing": "The chosen folder does not hold the signature of the engine.",
+          "signature_invalid": "The signature of the folder does not come from Apollia or does not match its files.",
+          "archive_altered": "The digest of the archive does not match the one that was signed: the file was altered or damaged during the copy.",
+          "network": "The server that publishes the engine did not answer. Check the connection, or import the engine from a folder.",
+          "other": "No engine usable on this computer was found, or its files could not be read."
+        },
+        "nothing_downloaded": "No file was downloaded.",
+        "nothing_installed": "Nothing was installed.",
+        "current_kept": "The current engine stays in use."
+      },
+      "action": {
+        "later": "Later",
+        "import": "Import from a folder",
+        "accelerate": "Speed up",
+        "update": "Update",
+        "cancel": "Cancel",
+        "close": "Close",
+        "other_folder": "Choose another folder",
+        "reload": "Reload the models"
       }
     }
   },

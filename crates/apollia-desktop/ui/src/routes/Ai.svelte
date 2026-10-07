@@ -6,8 +6,10 @@
    * The column also lists the servers: choosing one, or adding one, replaces
    * the models of this computer by that server in the content. "Discover
    * models" opens the discovery window over the screen. A click on a model,
-   * loaded or installed, opens its panel in the detail sidebar; the
-   * management of the engines stays in Settings until the screen takes them.
+   * loaded or installed, opens its panel in the detail sidebar. On a
+   * computer with an NVIDIA card, a card at the head of the content proposes
+   * the accelerated engine and its new versions; the list of the engines
+   * stays in Settings.
    */
   import { onDestroy, onMount, untrack } from "svelte";
   import { get } from "svelte/store";
@@ -36,6 +38,9 @@
   import { addToast } from "$lib/components/ui/toast";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { cn } from "$lib/utils";
+  import AcceleratedEngineCard from "../components/ai/AcceleratedEngineCard.svelte";
+  import { cardView } from "../components/ai/acceleratedEngine";
+  import { acceleratedEngine } from "../components/ai/acceleratedEngineLive";
   import LoadedModelsSection from "../components/ai/LoadedModelsSection.svelte";
   import InstalledModelsSection from "../components/ai/InstalledModelsSection.svelte";
   import DiscoverWindow from "../components/ai/DiscoverWindow.svelte";
@@ -79,6 +84,9 @@
   /** Identifier of the model whose panel is open, if any. */
   let openId = $state<string | null>(null);
 
+  /** What the card of the accelerated engine shows, `null` for no card. */
+  const engineCard = $derived(cardView($acceleratedEngine));
+
   const loadedPaths = $derived(new Set((loaded?.models ?? []).map((m) => m.modelPath)));
   const panelShown = $derived($detailSidebar.open && $detailSidebar.tab === "model");
 
@@ -117,6 +125,28 @@
   }
 
   onDestroy(closePanel);
+  // An installed card is read once: it is gone at the next visit.
+  onDestroy(() => void acceleratedEngine.leave());
+
+  /** Reloads the models in memory so they take the engine just installed. */
+  async function reloadForEngine(): Promise<void> {
+    const outcome = await acceleratedEngine.reloadModels();
+    if (!outcome) return;
+    const tr = get(t);
+    if (outcome.reloaded > 0) {
+      addToast(
+        tr("ai.engine.installed.reloaded_toast", { values: { count: outcome.reloaded } }),
+        "success",
+      );
+    }
+    if (outcome.busy > 0) {
+      addToast(
+        tr("ai.engine.installed.reload_busy_toast", { values: { count: outcome.busy } }),
+        "warning",
+      );
+    }
+    await loadLoaded();
+  }
 
   async function loadInstalled(): Promise<void> {
     try {
@@ -326,6 +356,7 @@
   onMount(() => {
     void refresh();
     void servers.refresh();
+    void acceleratedEngine.refresh();
   });
 </script>
 
@@ -376,6 +407,18 @@
     {#if serversView !== null}
       <ServersSection {servers} view={serversView} onview={(view) => (serversView = view)} />
     {:else}
+      {#if engineCard}
+        <AcceleratedEngineCard
+          view={engineCard}
+          busy={$acceleratedEngine.busy}
+          onaccelerate={() => void acceleratedEngine.accelerate()}
+          onimport={() => void acceleratedEngine.importFromFolder()}
+          onlater={acceleratedEngine.later}
+          oncancel={() => void acceleratedEngine.cancel()}
+          onclose={() => void acceleratedEngine.close()}
+          onreload={() => void reloadForEngine()}
+        />
+      {/if}
       <LoadedModelsSection
         view={loaded}
         error={loadedError}

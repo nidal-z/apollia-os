@@ -118,6 +118,11 @@ pub struct Package {
     pub url: String,
     /// Lowercase hex SHA-256 of the archive.
     pub sha256: String,
+    /// Day the build was published, `YYYY-MM-DD`. Optional: a manifest that
+    /// does not state it is read all the same, and the tag then names the
+    /// build.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub released: Option<String>,
 }
 
 /// A manifest of one channel.
@@ -190,7 +195,32 @@ fn check_package(package: &Package) -> Result<(), EngineStoreError> {
     if archive_kind(&package.url).is_none() {
         return Err(invalid(format!("unsupported archive {:?}", package.url)));
     }
+    if let Some(day) = &package.released {
+        if !is_calendar_day(day) {
+            return Err(invalid(format!(
+                "release day {day:?} of {} is not YYYY-MM-DD",
+                package.tag
+            )));
+        }
+    }
     Ok(())
+}
+
+/// True for a `YYYY-MM-DD` day with a month from 01 to 12 and a day from 01
+/// to 31.
+fn is_calendar_day(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return false;
+    }
+    let number = |range: std::ops::Range<usize>| text.get(range)?.parse::<u32>().ok();
+    let digits = bytes
+        .iter()
+        .enumerate()
+        .all(|(i, b)| i == 4 || i == 7 || b.is_ascii_digit());
+    digits
+        && number(5..7).is_some_and(|m| (1..=12).contains(&m))
+        && number(8..10).is_some_and(|d| (1..=31).contains(&d))
 }
 
 /// A name that can be used as one directory component.

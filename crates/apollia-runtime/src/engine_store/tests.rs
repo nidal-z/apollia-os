@@ -20,6 +20,7 @@ use axum::Router;
 use super::*;
 
 mod auto_update;
+mod install_job;
 
 fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(
@@ -46,6 +47,8 @@ fn store(dir: &Path, platform: &str) -> EngineStore {
 struct Fake {
     files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     hits: Arc<Mutex<Vec<String>>>,
+    /// A path whose answer never comes, once requested.
+    stalled: Arc<Mutex<Option<String>>>,
 }
 
 impl Fake {
@@ -81,6 +84,10 @@ impl Fake {
 
 async fn serve(State(fake): State<Fake>, uri: Uri) -> (StatusCode, Vec<u8>) {
     fake.hits.lock().unwrap().push(uri.path().to_owned());
+    let stalled = fake.stalled.lock().unwrap().clone();
+    if stalled.as_deref() == Some(uri.path()) {
+        std::future::pending::<()>().await;
+    }
     match fake.files.lock().unwrap().get(uri.path()) {
         Some(bytes) => (StatusCode::OK, bytes.clone()),
         None => (StatusCode::NOT_FOUND, Vec::new()),

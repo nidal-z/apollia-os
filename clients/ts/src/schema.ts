@@ -1424,6 +1424,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/engines/installation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["engine_installation_state"];
+        put?: never;
+        post: operations["start_engine_installation"];
+        delete: operations["dismiss_engine_installation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/installation/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["start_engine_import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/engines/nodejs": {
         parameters: {
             query?: never;
@@ -8019,6 +8051,60 @@ export interface components {
             /** @description Variant to install; its newest build on the channel is taken. */
             variant: components["schemas"]["EngineVariant"];
         };
+        /**
+         * @description What an installation is, for the one who asked.
+         * @enum {string}
+         */
+        EngineInstallationKind: "install" | "update" | "import";
+        /** @description Where the installation of a store stands. */
+        EngineInstallationState: {
+            /** @enum {string} */
+            state: "idle";
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "verifying";
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /**
+             * Format: int64
+             * @description Bytes of the archive received so far.
+             */
+            received: number;
+            /** @enum {string} */
+            state: "downloading";
+            /**
+             * Format: int64
+             * @description Size of the archive the verified manifest states.
+             */
+            total: number;
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "installing";
+        } | {
+            /** @description What was done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "installed";
+        } | {
+            /**
+             * @description True when an archive had been requested from the mirror: false
+             *     means the refusal came before any download.
+             */
+            archive_requested: boolean;
+            /** @description Why, as a stable word. */
+            code: components["schemas"]["EngineRefusalCode"];
+            /** @description Why, readable as is. */
+            error: string;
+            /** @description What was being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "failed";
+        };
         /** @description Engines installed by a request. */
         EngineInstalledResponse: {
             /** @description What was installed. */
@@ -8029,6 +8115,12 @@ export interface components {
          * @enum {string}
          */
         EngineName: "llama-server" | "vllm-mlx" | "nodejs";
+        /**
+         * @description Why the store refused, as a stable word an interface can branch on. The
+         *     sentence of the error says the same to a reader.
+         * @enum {string}
+         */
+        EngineRefusalCode: "no_trusted_key" | "signature_invalid" | "signature_unknown_key" | "signature_missing" | "manifest_invalid" | "rollback" | "package_not_found" | "digest_mismatch" | "archive_invalid" | "network" | "storage";
         /** @description Body of the settings routes. */
         EngineSettingsBody: {
             /** @description Base address manifests and archives are fetched from. */
@@ -8060,6 +8152,8 @@ export interface components {
              * @description Sequence of the last verified manifest of that channel, if any.
              */
             manifest_sequence?: number | null;
+            /** @description Name of the NVIDIA card detected, when there is one. */
+            nvidia_card?: string | null;
             /**
              * @description Per variant offered by that manifest for this platform, whether a newer
              *     build than the installed one exists. Empty until a manifest verified.
@@ -12001,10 +12095,23 @@ export interface components {
         VariantUpdate: {
             /** @description Engine. */
             engine: components["schemas"]["EngineName"];
+            /** @description Day the installed build was published, when its manifest stated it. */
+            installed_released?: string | null;
             /** @description Newest tag installed here, if any. */
             installed_tag?: string | null;
+            /**
+             * @description Day the newest build was published, `YYYY-MM-DD`, when the manifest
+             *     states it.
+             */
+            latest_released?: string | null;
             /** @description Newest tag the verified manifest offers. */
             latest_tag: string;
+            /**
+             * Format: int64
+             * @description Size in bytes of the archive of the newest build, as the verified
+             *     manifest states it: what installing or updating downloads.
+             */
+            size: number;
             /** @description True when a tag is installed and the manifest offers a newer one. */
             update_available: boolean;
             /** @description Variant. */
@@ -15744,6 +15851,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    engine_installation_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where the installation stands */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    start_engine_installation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description The installation started, the one already running, or the refusal that kept it from starting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    dismiss_engine_installation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The download cancelled or the outcome forgotten; a verification or an extraction is left to end */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    start_engine_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineImportRequest"];
+            };
+        };
+        responses: {
+            /** @description The import started, the installation already running, or the refusal that kept it from starting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
                 };
             };
         };
