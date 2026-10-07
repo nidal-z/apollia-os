@@ -118,13 +118,6 @@ pub struct AgentManifest {
     /// Ignored for other modes.
     #[serde(default)]
     pub system_prompt: Option<String>,
-    /// Tools requiring human approval before execution in Orchestrated mode.
-    ///
-    /// Declared by the agent in its `manifest()`. The runtime refuses to run a step
-    /// using these tools without explicit approval.
-    /// Empty by default: no tool requires approval.
-    #[serde(default)]
-    pub tools_requiring_approval: Vec<String>,
     /// Model defaults the agent's package declares (`@agent(model=...)` in the
     /// SDK, `[agents.defaults.model]` in `apollia.toml`). Its `request` is the
     /// package level of the request settings: above the model's own defaults,
@@ -328,7 +321,6 @@ mod tests {
             supports_mailbox: false,
             mailbox_allowlist: None,
             system_prompt: None,
-            tools_requiring_approval: vec![],
             model: None,
             packages: vec![],
             memory_config: None,
@@ -371,7 +363,6 @@ mod tests {
             supports_mailbox: false,
             mailbox_allowlist: None,
             system_prompt: None,
-            tools_requiring_approval: vec![],
             model: None,
             packages: vec![],
             memory_config: None,
@@ -390,31 +381,6 @@ mod tests {
         assert_eq!(manifest.max_concurrent_tasks, 1);
         assert!(!manifest.supports_streaming);
         assert!(manifest.memory_namespace.is_none());
-    }
-
-    #[test]
-    fn test_tools_requiring_approval_default_empty() {
-        // GIVEN a manifest JSON without the tools_requiring_approval field
-        let json = r#"{"name":"test","version":"0.1.0","description":"desc"}"#;
-        // WHEN deserialized
-        let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
-        // THEN tools_requiring_approval is empty
-        assert!(manifest.tools_requiring_approval.is_empty());
-    }
-
-    #[test]
-    fn test_tools_requiring_approval_parsed() {
-        // GIVEN a manifest JSON with tools_requiring_approval
-        let json = r#"{
-            "name":"test","version":"0.1.0","description":"desc","tools_requiring_approval":["smtp","http_client"]
-        }"#;
-        // WHEN deserialized
-        let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
-        // THEN the list is parsed correctly
-        assert_eq!(
-            manifest.tools_requiring_approval,
-            vec!["smtp", "http_client"]
-        );
     }
 
     #[test]
@@ -473,6 +439,7 @@ mod tests {
             ("dangerous_tools_allowed", serde_json::json!(false)),
             ("network_allowlist", serde_json::json!(null)),
             ("llm_backend", serde_json::json!("local-code")),
+            ("tools_requiring_approval", serde_json::json!(["smtp"])),
             ("descriptoin", serde_json::json!("typo")),
         ];
 
@@ -491,53 +458,6 @@ mod tests {
             let error = result.expect_err(key).to_string();
             assert!(error.contains(key), "{key}: {error}");
         }
-    }
-
-    #[test]
-    fn test_tools_requiring_approval_roundtrip() {
-        // GIVEN an AgentManifest with tools_requiring_approval
-        let manifest = AgentManifest {
-            autonomy_level: None,
-            format_version: default_format_version(),
-            name: "roundtrip-agent".into(),
-            version: "1.0.0".into(),
-            description: "test".into(),
-            supports_streaming: false,
-            supports_a2a: false,
-            memory_namespace: None,
-            shared_memory_namespaces: vec![],
-            max_concurrent_tasks: 1,
-            step_budget: None,
-            tags: vec![],
-            skills: vec![],
-            execution_mode: "auto".into(),
-            supports_mailbox: false,
-            mailbox_allowlist: None,
-            system_prompt: None,
-            tools_requiring_approval: vec!["smtp".into(), "bash_executor".into()],
-            model: None,
-            packages: vec![],
-            memory_config: None,
-            agent_type: None,
-            examples: vec![],
-            limitations: vec![],
-            setup_notes: None,
-            agent_class: None,
-            user_memory_write: false,
-            datasources: vec![],
-            templates: vec![],
-            secrets: vec![],
-            check_commands: vec![],
-        };
-        // WHEN serde roundtrip JSON
-        let json = serde_json::to_string(&manifest).expect("serialize must succeed");
-        let restored: AgentManifest =
-            serde_json::from_str(&json).expect("deserialize must succeed");
-        // THEN no loss
-        assert_eq!(
-            restored.tools_requiring_approval,
-            vec!["smtp", "bash_executor"]
-        );
     }
 
     #[test]

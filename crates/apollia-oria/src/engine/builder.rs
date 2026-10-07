@@ -123,6 +123,9 @@ impl ORIAEngine {
     /// Required for `execute_direct()` to suspend the task in `input_required` status
     /// and wait for the human decision through a oneshot channel.
     /// Shared between the `ORIAEngine` and the REST routes via `AppState`.
+    // TEST-ONLY: production builds the engine for the plan-first path, which
+    // never takes the direct path; its tool calls are decided by governance
+    // in the tool proxy of the run.
     pub fn with_pending_approvals(mut self, pending: Arc<PendingApprovals>) -> Self {
         self.pending_approvals = Some(pending);
         self

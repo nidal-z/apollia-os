@@ -7,7 +7,7 @@
 //! await ctx.profile.set("name", "Ada")
 //! ctx.profile.get("role")
 //! ctx.profile.all()
-//! ctx.profile.has("agents.hitl")
+//! ctx.profile.has("role")
 //! ```
 //!
 //! The profile served is resolved at each call: the profile the user

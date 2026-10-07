@@ -120,6 +120,12 @@ BASELINE: dict[str, str] = {
     "with_secrets@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
     "with_task_id@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
     "with_templates@apollia-aip": "unwired: the context of a Python agent took it; no agent is Python any more, and the context of a tool or a workflow of a package is built without it. It goes with the context services of that contract.",
+    "with_pending_approvals@apollia-oria": "unwired: it feeds the pause of the "
+    "direct path, where an agent raises a request for input. The engine is built "
+    "by the plan-first path of the agent executor alone, which never takes the "
+    "direct path and whose tool calls are decided by governance in its tool "
+    "proxy. The step gate of the actor shared the name and hid this until it "
+    "was removed. It goes with the direct path.",
     "with_pending_plan_gates@apollia-oria": "unwired: the engine is built by the "
     "plan-first path of the agent executor, which runs with the plan gate off "
     "(`with_plan_gate_override(Some(false))`); the registry of pending gates was "

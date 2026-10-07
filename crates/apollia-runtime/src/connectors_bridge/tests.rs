@@ -303,3 +303,68 @@ fn every_connector_descriptor_is_classified() {
         );
     }
 }
+
+/// The decision governance takes on one call of the connector tool `id`, for
+/// an agent holding `consents`.
+fn decision_on(
+    id: &str,
+    consents: &[apollia_permissions::ConsentFamily],
+) -> crate::governance::AccessDecision {
+    let state = crate::governance::GovernanceState {
+        consents: consents
+            .iter()
+            .map(|family| ("clerk".to_owned(), *family))
+            .collect(),
+        ..crate::governance::GovernanceState::default()
+    };
+    crate::governance::decide(
+        &state,
+        &crate::governance::AccessCall {
+            agent_id: "clerk",
+            access_id: id,
+            argument: None,
+            family: connector_descriptor(id).family,
+            unattended: false,
+            granted_for_run: false,
+        },
+        0,
+    )
+}
+
+#[test]
+fn the_class_of_an_operation_classifies_and_governance_decides() {
+    // GIVEN an operation classed as auto-approved and one classed as always
+    // requiring an approval
+    let read = connector_operation("gcal.list_events");
+    let write = connector_operation("gcal.create_event");
+    assert_eq!(read.approval, ApprovalPolicy::AutoApprove);
+    assert_eq!(write.approval, ApprovalPolicy::AlwaysRequireApproval);
+
+    // WHEN governance decides a call of each, for an agent holding no consent,
+    // then for an agent holding the standing consent of the write family
+    let read_alone = decision_on(read.id, &[]);
+    let write_alone = decision_on(write.id, &[]);
+    let write_consented = decision_on(
+        write.id,
+        &[apollia_permissions::ConsentFamily::WriteOrDelete],
+    );
+
+    // THEN the class approves nothing and requires nothing: the auto-approved
+    // read asks like any read of personal data, and the write runs unasked
+    // once the agent holds the consent of its family
+    assert!(
+        matches!(
+            read_alone,
+            crate::governance::AccessDecision::AskUser { .. }
+        ),
+        "{read_alone:?}"
+    );
+    assert!(
+        matches!(
+            write_alone,
+            crate::governance::AccessDecision::AskUser { .. }
+        ),
+        "{write_alone:?}"
+    );
+    assert!(write_consented.is_allowed(), "{write_consented:?}");
+}

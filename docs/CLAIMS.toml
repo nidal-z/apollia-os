@@ -911,17 +911,17 @@ nothing consults and the documented thresholds become fiction.
 # ── Tool-call governance, the real path ──────────────────────────────────────
 
 [[claim]]
-id = "orchestrated-approval-from-manifest"
+id = "plan-step-decided-by-governance"
 scope = "public"
-symbol = "tools_requiring_approval"
+symbol = "GrantedToolProxy::step_call_consent"
 status = "wired"
-proof = "crates/apollia-oria/src/actor.rs"
+proof = "crates/apollia-runtime/src/chat/agent_executor/plan_first/proxy.rs"
 evidence = ""
 note = """
-On the orchestrated path the manifest field is the whole gate. Documenting a
-policy layer here would repeat the drift this pass removed: the corpus described
-a policy aggregate in front of tool calls that no shipped binary ran. If this
-lookup disappears, every step executes unattended and nothing else in the build
+A step of a plan holds no approval of its own: the tool proxy of the run asks
+governance about each call before it reaches the tool, and that one call is the
+whole gate. If the proxy stops making it, every step of a plan runs its tool
+with no policy, no rule and no consent consulted, and nothing else in the build
 notices.
 """
 
