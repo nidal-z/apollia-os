@@ -2,13 +2,16 @@
   /**
    * The documentation pane of the developer screen: a page of the archive
    * compiled into the application, with its breadcrumb, the page before and
-   * the page after, "Copy as Markdown" and "View on the web".
+   * the page after, "Copy as Markdown" and "View on the web". A page of the
+   * HTTP reference is generated from the OpenAPI document: it has no source
+   * to copy, and says so in place of the copy button.
    */
   import { t } from "svelte-i18n";
-  import { ArrowLeft, ArrowRight, ChevronRight, Copy, ExternalLink } from "lucide-svelte";
+  import { ArrowLeft, ArrowRight, ChevronRight, CircleHelp, Copy, ExternalLink } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { MarkdownContent } from "$lib/components/ui/markdown";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { Tooltip } from "$lib/components/ui/tooltip";
   import { developerMode } from "$lib/stores/developerMode";
   import {
     ADMONITION_LABELS,
@@ -26,12 +29,14 @@
     revealAnchor,
   } from "./documentationDecor";
   import { documentationReader } from "./documentationReader";
+  import HttpReferencePage from "./HttpReferencePage.svelte";
   import "./documentation-prose.css";
 
   const manifest = $derived($documentationReader.manifest);
   const route = $derived($documentationReader.route);
   const page = $derived($documentationReader.page);
   const view = $derived($documentationReader.view);
+  const reference = $derived($documentationReader.reference);
   const anchor = $derived($documentationReader.anchor);
   const failed = $derived($documentationReader.failed);
   const fallback = $derived($documentationReader.fallback);
@@ -102,16 +107,29 @@
           </ol>
         </nav>
         <div class="flex shrink-0 items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === null}
-            onclick={() => void documentationReader.copyMarkdown()}
-            data-testid="developer-docs-copy"
-          >
-            <Copy size={14} aria-hidden="true" />
-            {$t(copy === "copied" ? "dev.developer.docs.copied" : "dev.developer.docs.copy_markdown")}
-          </Button>
+          {#if reference}
+            <Tooltip
+              content={$t("dev.developer.docs.reference.copy_absent")}
+              side="bottom"
+              class="max-w-xs"
+              triggerLabel={$t("dev.developer.docs.reference.copy_absent")}
+              triggerTestid="developer-docs-copy-absent"
+              triggerClass="shrink-0 cursor-help rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <CircleHelp class="h-4 w-4" aria-hidden="true" />
+            </Tooltip>
+          {:else}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === null}
+              onclick={() => void documentationReader.copyMarkdown()}
+              data-testid="developer-docs-copy"
+            >
+              <Copy size={14} aria-hidden="true" />
+              {$t(copy === "copied" ? "dev.developer.docs.copied" : "dev.developer.docs.copy_markdown")}
+            </Button>
+          {/if}
           <Button
             variant="outline"
             size="sm"
@@ -164,6 +182,8 @@
         <p class="text-body-sm text-muted-foreground" data-testid="developer-docs-error">
           {$t("dev.developer.docs.error")}
         </p>
+      {:else if reference}
+        <HttpReferencePage page={reference} onopen={open} />
       {:else if view}
         {#if fallback}
           <p class="text-caption text-muted-foreground" role="note" data-testid="developer-docs-fallback">

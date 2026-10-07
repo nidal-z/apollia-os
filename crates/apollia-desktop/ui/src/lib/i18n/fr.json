@@ -5174,6 +5174,43 @@
           "warning": "Attention",
           "caution": "Attention",
           "danger": "Danger"
+        },
+        "reference": {
+          "title": "Référence HTTP",
+          "overview": "Vue d'ensemble",
+          "copy_absent": "Page générée depuis la référence de l'API : aucune source Markdown à copier.",
+          "generated": "Page générée depuis la référence publiée de l'API.",
+          "totals": "{operations} opérations en {groups} groupes, version {version}.",
+          "operations": "{count, plural, one {# opération} other {# opérations}}",
+          "parameters": "Paramètres",
+          "no_parameters": "Aucun paramètre.",
+          "body_required": "Corps, requis :",
+          "body_optional": "Corps, facultatif :",
+          "responses": "Réponses",
+          "yes": "oui",
+          "no": "non",
+          "column": {
+            "name": "Nom",
+            "where": "Où",
+            "type": "Type",
+            "required": "Requis",
+            "description": "Description"
+          },
+          "where": {
+            "path": "chemin",
+            "query": "requête",
+            "header": "en-tête",
+            "cookie": "cookie",
+            "body": "corps"
+          },
+          "method": {
+            "get": "Lit, sans rien modifier.",
+            "post": "Crée une ressource ou lance une action.",
+            "put": "Remplace ce qui existe.",
+            "patch": "Modifie une partie de ce qui existe.",
+            "delete": "Supprime.",
+            "other": "Interroge le point d'accès, sans rien modifier."
+          }
         }
       },
       "examples": {

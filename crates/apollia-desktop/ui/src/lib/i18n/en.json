@@ -5174,6 +5174,43 @@
           "warning": "Warning",
           "caution": "Caution",
           "danger": "Danger"
+        },
+        "reference": {
+          "title": "HTTP reference",
+          "overview": "Overview",
+          "copy_absent": "Page generated from the API reference: there is no Markdown source to copy.",
+          "generated": "Page generated from the published API reference.",
+          "totals": "{operations} operations in {groups} groups, version {version}.",
+          "operations": "{count, plural, one {# operation} other {# operations}}",
+          "parameters": "Parameters",
+          "no_parameters": "No parameter.",
+          "body_required": "Body, required:",
+          "body_optional": "Body, optional:",
+          "responses": "Responses",
+          "yes": "yes",
+          "no": "no",
+          "column": {
+            "name": "Name",
+            "where": "In",
+            "type": "Type",
+            "required": "Required",
+            "description": "Description"
+          },
+          "where": {
+            "path": "path",
+            "query": "query",
+            "header": "header",
+            "cookie": "cookie",
+            "body": "body"
+          },
+          "method": {
+            "get": "Reads, and changes nothing.",
+            "post": "Creates a resource or starts an action.",
+            "put": "Replaces what exists.",
+            "patch": "Changes part of what exists.",
+            "delete": "Deletes.",
+            "other": "Queries the endpoint, and changes nothing."
+          }
         }
       },
       "examples": {

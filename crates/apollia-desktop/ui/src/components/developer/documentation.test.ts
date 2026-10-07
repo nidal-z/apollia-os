@@ -208,6 +208,8 @@ function fakeShell(sources: Record<string, string> = {}) {
       if (file.includes("missing")) throw new Error("no documentation image");
       return new ArrayBuffer(4);
     },
+    openapi: async () => null,
+    label: (key) => key,
     openUrl: (url) => {
       calls.opened.push(url);
     },

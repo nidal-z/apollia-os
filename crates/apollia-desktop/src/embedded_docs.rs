@@ -4,8 +4,9 @@
 //! Markdown sources in both languages, the images, the OpenAPI document, and a
 //! manifest that carries the sidebar tree, the routes, the titles, previous and
 //! next, the languages of each page and the public address. This module opens
-//! that archive and answers three questions: the manifest in a language, the
-//! source of a page by route and language, and an image by its site path.
+//! that archive and answers four questions: the manifest in a language, the
+//! source of a page by route and language, an image by its site path, and the
+//! OpenAPI document.
 //!
 //! The language is the application's. A page without a French mirror is served
 //! in English and marked as a fallback; the generated references (HTTP API,
@@ -337,6 +338,19 @@ impl<'a> EmbeddedDocs<'a> {
             Err(DocsError::MissingEntry { .. }) => Err(unknown()),
             read => read,
         }
+    }
+
+    /// The OpenAPI document the HTTP reference is rendered from, as the
+    /// archive holds it: the JSON text of the published contract.
+    ///
+    /// # Errors
+    ///
+    /// A [`DocsError`] when the entry the manifest names is absent, cannot be
+    /// read, or is not text.
+    pub(crate) fn openapi(&self) -> Result<String, DocsError> {
+        let name = self.manifest.openapi.clone();
+        let raw = read_entry(self.bytes, &name)?;
+        String::from_utf8(raw).map_err(|_| DocsError::NotText { name })
     }
 
     fn locale_view(&self, language: &str) -> Result<&LocaleView, DocsError> {

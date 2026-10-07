@@ -206,9 +206,9 @@ export function knownRoute(manifest: DocumentationManifest, path: string): strin
  *
  * A page writes its links three ways: from the root of the site
  * (`/how-to/x`), to a source file next to its own (`./x.md`), or to a full
- * address. The first two open in the pane when the archive holds the page;
- * a page of the site the archive does not hold (the HTTP reference the site
- * generates when it is built) opens on the public site.
+ * address. The first two open in the pane when the reader holds the page;
+ * a page of the site it does not hold (the page the site generates for one
+ * operation of the HTTP reference) opens on the public site.
  */
 export function resolveLink(
   manifest: DocumentationManifest,
