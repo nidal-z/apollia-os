@@ -5,16 +5,25 @@ title: Ask the model for structured output
 
 # Ask the model for structured output
 
-An agent that needs a value, not a paragraph, passes a JSON Schema to
+Code that needs a value, not a paragraph, passes a JSON Schema to
 `ctx.llm.complete` or `ctx.llm.chat`. The call then constrains what the model may
 emit, checks what came back against the same schema, and hands you the validated
 value as a plain Python object. There is nothing to parse and no regular
 expression to maintain.
 
+## Where `ctx.llm` is reachable
+
+`ctx.llm` is a service the runtime may leave unattached, and it is then `None`:
+the [`ctx.llm` reference](/reference/sdk/llm) says so. On the binaries shipped
+today it is not attached to the context of a tool or of a workflow, where the
+model is reached through an agent, with `ctx.agents.run`. This page describes
+the contract of the call where the service is attached, which is also what
+`MockContext` serves in a unit test.
+
 ## Pass a schema, receive a value
 
 ```python
-from apollia import agent, skill
+from apollia.types import Ctx
 
 REPORT = {
     "type": "object",
@@ -26,16 +35,13 @@ REPORT = {
 }
 
 
-@agent(name="reporter", version="1.0.0", description="Summarizes into a record")
-class Reporter:
-    @skill(id="summarize")
-    async def summarize(self, payload, ctx):
-        report = await ctx.llm.complete(
-            [{"role": "user", "content": payload["text"]}],
-            schema=REPORT,
-        )
-        # `report` is a dict, already checked against REPORT.
-        return {"title": report["title"], "count": report["count"]}
+async def summarize(ctx: Ctx, text: str) -> dict[str, object]:
+    report = await ctx.llm.complete(
+        [{"role": "user", "content": text}],
+        schema=REPORT,
+    )
+    # `report` is a dict, already checked against REPORT.
+    return {"title": report["title"], "count": report["count"]}
 ```
 
 Without `schema` the call returns an `LlmResponse` and `response.content` is a
@@ -94,16 +100,16 @@ except StructuredOutputError as e:
 - `response_invalid`: the answer came back and the schema refuses it.
 
 Nothing is retried for you. Whether a second attempt is worth its tokens depends
-on the agent, and the runtime does not get to decide that.
+on the caller, and the runtime does not get to decide that.
 
 ## What it costs
 
 A constrained call is one call to the model, so it charges one step against the
-agent's `StepBudget`, exactly like an unconstrained one. The audit trail records
+`StepBudget` of the run, exactly like an unconstrained one. The audit trail records
 that generation was constrained and a fingerprint of the schema; the schema
 itself is never written to the journal.
 
 ## Next steps
 
 - [`ctx.llm` reference](/reference/sdk/llm)
-- [Write a worker](/how-to/write-a-worker)
+- [Write a workflow](/how-to/write-a-director)

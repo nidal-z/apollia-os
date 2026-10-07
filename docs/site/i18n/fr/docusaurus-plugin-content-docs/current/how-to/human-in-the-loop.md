@@ -1,218 +1,164 @@
 ---
 sidebar_position: 10
-title: Mettre un agent en pause pour une décision humaine
+title: Mettre un workflow en pause pour une décision humaine
 ---
 
-# Mettre un agent en pause pour une décision humaine
+# Mettre un workflow en pause pour une décision humaine
 
-Parfois un agent ne doit pas décider seul : une action sensible exige un
-feu vert, une règle manque, une valeur est incertaine. Apollia permet à
-l'auteur de mettre en pause une tâche en cours d'exécution et d'exiger une
-décision humaine avant qu'elle ne continue. Ce guide couvre la primitive
-côté auteur, `NeedHumanInput`, et la façon dont la pause est résolue.
+Parfois une exécution ne doit pas décider seule : une règle manque, une valeur
+est incertaine, une étape lourde de conséquences exige un feu vert. Un workflow
+s'arrête sur une question avec `ctx.user.ask`, attend la réponse, et continue
+avec elle. Ce guide couvre cet appel, la façon dont la question reçoit sa
+réponse, et ce qui sollicite un humain sans aucun code de votre part.
 
-Ceci est le point de vue de l'auteur. Pour le point de vue de l'opérateur
-qui approuve ou rejette depuis l'application desktop, voir l'aide
-opérateur. Pour la façon dont les paliers d'autonomie évoluent quand une
-approbation est requise, voir [Paliers d'autonomie](/explanation/autonomy-tiers).
+Ceci est le côté auteur. Pour la vue de l'utilisateur dans l'application de
+bureau, voir
+[Approuver ou refuser une action](/operator-help/control/approve-or-reject-an-action).
 
-## Lever `NeedHumanInput` pour mettre en pause
+## Poser une question depuis une étape
 
-À l'intérieur d'un skill, levez `NeedHumanInput` quand une personne doit
-trancher. Elle prend un `prompt` affiché à l'humain et un dict `context`
-optionnel, persisté et restauré autour de la pause.
+Dans une étape, `await ctx.user.ask(...)` arrête l'exécution jusqu'à la réponse
+de l'utilisateur :
 
 ```python
-from apollia import agent, skill, NeedHumanInput
-from apollia.types import Ctx
+from typing import TypedDict
+
+from apollia import WorkflowCtx, workflow
+from apollia.errors import QuestionDeclined
+
+RULES = {"ACME": "suppliers"}
 
 
-@agent(name="invoice-router", version="0.1.0", description="Route invoices.")
-class InvoiceRouter:
-    @skill("invoice.route", description="Decide where to file an invoice.")
-    async def route(self, vendor: str, amount: float, ctx: Ctx) -> dict:
-        folder = await self._lookup_rule(vendor, ctx)
+class Routing(TypedDict):
+    vendor: str
+    amount: float
+
+
+@workflow(
+    "route-invoice",
+    "Decide where an invoice is filed, asking when no rule covers the vendor.",
+    inputs=Routing,
+    steps=["lookup", "decide"],
+    action="read",
+)
+async def route_invoice(ctx: WorkflowCtx, inputs: Routing) -> dict[str, str]:
+    async with ctx.step("lookup"):
+        folder = RULES.get(inputs["vendor"])
+
+    async with ctx.step("decide"):
         if folder is None:
-            raise NeedHumanInput(
-                prompt=f"No rule for {vendor} ({amount:.2f}). Approve filing under 'to-review'?",
-                context={"vendor": vendor, "amount": amount},
-            )
-        return {"folder": folder}
+            try:
+                folder = await ctx.user.ask(
+                    f"No rule for {inputs['vendor']} ({inputs['amount']:.2f}). "
+                    "Where should it be filed?",
+                    options=["to-review", "suppliers", "rejected"],
+                    hint="Another folder",
+                )
+            except QuestionDeclined as declined:
+                ctx.logger.info("no folder chosen: %s", declined.reason)
+                folder = "to-review"
+
+    return {"folder": folder}
 ```
 
-Le constructeur est `NeedHumanInput(prompt: str, context: dict | None = None, *,
-payload: dict | None = None)`. C'est une sous-classe d'`AgentError`, importée
-depuis la racine du paquet (`from apollia import NeedHumanInput`).
+La signature est `ask(question, *, options=None, hint=None)` et l'appel renvoie
+la réponse sous forme de chaîne :
 
-## Poser une question typée ou demander une approbation
+| Argument | Sens |
+| --- | --- |
+| `question` | Ce qui est demandé, tel que l'utilisateur le lit. |
+| `options` | Les choix proposés, 20 au plus. |
+| `hint` | Un texte d'invite pour la réponse libre. |
 
-Un prompt seul reçoit un oui ou un non. Un `payload` type la pause : l'opérateur
-se voit proposer les réponses que vous attendez, et votre skill en reçoit une.
-Il existe deux formes, toutes deux déclarées en `TypedDict` dans `apollia.hitl`.
+L'utilisateur peut toujours donner une réponse libre à la place d'un choix.
+Vérifiez la réponse avant de brancher dessus : c'est l'une des `options` ou
+n'importe quel texte.
 
-Une question porte un `genre` parmi `choix`, `source`, `seuil`, `definition` et
-`confirmation`, la `question` elle-même, et en option des `propositions` (chacune
-avec un `id` et un `libelle`), `autre` (texte libre accepté), `portee` et
-`memoire` :
+## Ce que fait l'attente
 
-```python
-from apollia import NeedHumanInput
-from apollia.hitl import QuestionPayload
+L'exécution attend dans l'étape qui a posé la question. La question figure parmi
+les décisions en attente de l'utilisateur, avec l'exécution, le workflow et
+l'étape d'où elle vient. L'attente dure jusqu'à la réponse de l'utilisateur ou
+l'arrêt de l'exécution :
 
-question: QuestionPayload = {
-    "genre": "choix",
-    "question": "Which list should be purged?",
-    "propositions": [
-        {"id": "leads", "libelle": "Leads"},
-        {"id": "clients", "libelle": "Clients"},
-    ],
-}
-raise NeedHumanInput("Which list should be purged?", payload=question)
-```
+- l'attente consomme le temps réel du budget de l'exécution ;
+- arrêter l'exécution met fin à l'attente ;
+- une exécution en attente quand le runtime s'arrête est mise en échec au
+  démarrage suivant, comme toute exécution interrompue.
 
-Une approbation nomme un `geste`, un `risque` parmi `low`, `medium` et `critical`,
-et en option des lignes de `detail` et un `delai` en secondes :
-
-```python
-from apollia.hitl import ApprovalPayload
-
-approval: ApprovalPayload = {
-    "genre": "approbation",
-    "geste": "crm/purge",
-    "risque": "critical",
-    "detail": ["list: clients"],
-}
-raise NeedHumanInput("Purge the list?", {"list": "clients"}, payload=approval)
-```
-
-Le runtime vérifie le payload au moment où le skill se met en pause. Un payload
-qui ne se lit pas, un `genre` inconnu, une `question` vide, deux propositions de
-même `id`, fait échouer la tâche avec le code `INVALID_INPUT_PAYLOAD`. Il n'est
-jamais enregistré ni affiché.
-
-`AIPResult.input_required(prompt, context, payload=...)` renvoyé par un skill met
-la tâche en pause de la même façon.
-
-## Ce que la pause déclenche
-
-Quand un skill lève `NeedHumanInput`, le dispatcher la transforme en un résultat
-de statut `input_required` qui porte le `prompt`, le `context` et le `payload`. Le
-runtime suspend la tâche, persiste son état et la présente à l'opérateur. La tâche
-attend : une minute ou une semaine, l'état reste en place jusqu'à la réponse d'un
-humain.
-
-Rédigez un prompt clair. Sa qualité conditionne celle de la décision.
+Rédigez une question claire. Sa qualité fait la qualité de la décision.
 
 - Faible : `"Continue?"`
-- Mieux : `"No rule for 'Acme Corp' (1240.00). Approve filing under 'to-review'?"`
+- Mieux : `"No rule for Acme Corp (1240.00). Where should it be filed?"`
 
-Ne mettez dans `context` ni secret ni donnée personnelle inutile. Il est
-sérialisé, stocké et affiché dans l'interface.
+Gardez les secrets et les données personnelles superflues hors d'une question :
+elle est stockée et affichée.
 
-## Résoudre la pause
+## Répondre à la question
 
-Un opérateur voit les tâches en attente et y répond. Depuis la CLI :
+En ligne de commande, listez ce qui attend, puis répondez à un élément par son
+identifiant :
 
 ```sh
-# Lister les tâches en attente d'une décision humaine
-apollia-os task list --pending-approval
-
-# Approuver, ou rejeter avec une raison
-apollia-os task resume <task-id> --approve
-apollia-os task resume <task-id> --reject --reason "file it manually this quarter"
-
-# Lister les approbations encore en attente d'une décision
-apollia-os task approvals
+apollia-os approvals pending
+apollia-os approvals decide <id> answer --value "suppliers"
+apollia-os approvals decide <id> refuse --reason "file it by hand this quarter"
 ```
 
-Par l'API, `GET /api/v1/tasks?status=input_required` liste chaque tâche en attente
-avec son `agent`, son `skill`, sa date `created_at`, son `prompt` et son `payload` ;
-`GET /api/v1/approvals/pending` liste les mêmes pauses avec leur `agent_name`, leur
-`skill_id`, leur `prompt`, leur `context`, leur `payload` et leur `suspended_at`. Et
-`POST /api/v1/tasks/{id}/resume` prend `{"approved", "reason", "answer"}`. La
-réponse `answer` est vérifiée contre le payload en attente :
+`answer` remet `--value` à l'exécution, qui continue : `ask` la renvoie.
+`refuse` décline la question : `ask` lève `QuestionDeclined`, qui porte la
+`question` et la `reason`.
 
-- un `choix`, une `source` ou une `definition` prend l'`id` d'une proposition, ou
-  du texte libre quand `autre` est activé ;
-- un `seuil` prend un nombre, une `confirmation` un booléen, ou l'`id` d'une
-  proposition ;
-- une approbation ne prend pas d'`answer` : `approved` est la décision ;
-- une question approuvée exige une `answer`, une question refusée non.
+## Quand l'utilisateur décline
 
-Une réponse qui ne correspond pas est refusée en `422` avec le code
-`INVALID_ANSWER`, et la tâche reste en pause : l'opérateur peut répondre à nouveau.
+`QuestionDeclined` est à vous d'attraper. Attrapée, le workflow continue sans la
+réponse, comme l'exemple le fait avec un dossier par défaut. Laissée sans
+traitement, l'étape qui a posé la question échoue, et l'exécution avec elle.
 
-Une pause sans payload garde son comportement : la rejeter termine la tâche,
-l'approuver la laisse continuer.
+## Tester les deux branches
 
-## Ce que votre skill reçoit à la reprise
+Sous `MockContext`, `ctx.user` est un simulacre : `answers` associe une question
+à sa réponse, et `declined` associe une question à un motif et fait lever `ask`.
+Voir [Tester vos outils et vos workflows](/how-to/test-your-agents).
 
-Une tâche reprise exécute à nouveau votre skill depuis le début. Deux attributs
-lui disent où il en est :
+## Ce qui sollicite sans code
 
-- `ctx.is_resumed` vaut `True` lors d'une reprise ;
-- `ctx.input_response` vaut `None` au premier passage, et sinon un dict avec
-  `approved`, `reason`, `answer`, `payload` (la pause à laquelle on répond) et
-  `context` (celui que vous avez passé en vous mettant en pause).
+Deux pauses ne demandent aucun code dans un paquet.
 
-```python
-@skill("list.purge")
-async def purge(self, ctx: Ctx) -> dict:
-    response = ctx.input_response
-    if response is None:
-        raise NeedHumanInput("Which list should be purged?", payload=question)
-    if response["payload"]["genre"] == "choix":
-        chosen = response["answer"]
-        raise NeedHumanInput(f"Purge {chosen}?", {"list": chosen}, payload=approval)
-    if not response["approved"]:
-        return {"purged": None, "reason": response["reason"]}
-    return {"purged": response["context"]["list"]}
-```
+Un agent en conversation interroge l'utilisateur par l'outil natif `ask_user`.
+C'est le pendant de `ctx.user.ask` pour un agent : le modèle décide de poser la
+question, et la réponse revient comme résultat de l'outil.
 
-Un skill peut se mettre en pause autant de fois que nécessaire. Chaque reprise ne
-rend que la réponse à la dernière pause : faites porter ce qu'une pause précédente
-a appris par le `context` de la suivante, comme ci-dessus.
-
-Une pause refusée qui porte un payload reprend le skill avec `approved` à `False`,
-pour que le skill décide de ce que signifie un refus. Gardez idempotente la
-condition qui déclenche une pause, puisque le skill est repris depuis le début.
-
-Pour tester la branche de reprise sans runtime, `MockContext.resume_with(...)` met
-un contexte simulé dans l'état d'une tâche reprise.
-
-## Il n'existe pas de forme déclarative sur `@skill`
-
-Lever `NeedHumanInput` est la seule porte qu'un agent ouvre depuis son propre code.
-Le décorateur ne prend aucun argument d'approbation : ses paramètres sont
-`skill_id`, `description`, `dangerous` et `examples`, et passer
-`requires_approval=True` lève `TypeError: skill() got an unexpected keyword
-argument 'requires_approval'` à l'import, si bien que l'agent ne se charge jamais.
-`dangerous=True` est une métadonnée du manifeste : elle signale le skill à
-l'outillage d'inspection et n'insère aucune pause.
+Un appel d'outil sensible demande une approbation. Chaque outil déclare une
+famille d'action, et toute famille sauf `read` est sensible : avant qu'un tel
+appel ne s'exécute, l'utilisateur est sollicité, sauf s'il l'a déjà autorisé. La
+même commande `approvals decide` y répond, avec `once` pour cet appel, `always`
+pour cet appel et tous les suivants du même agent dans la même famille, ou
+`refuse`. Une politique d'organisation ou une règle de refus rejette l'appel
+d'emblée, sans question. C'est pourquoi la famille que déclare un outil doit
+dire ce qu'il fait réellement : voir [Écrire un outil](/how-to/write-a-worker).
 
 <!-- claim:mcp-requires-approval-gates-task-path -->
-Un serveur MCP déclaré comme exigeant une approbation (`requires_approval`), ou un
-outil MCP que le manifeste de l'agent liste dans `tools_requiring_approval`, soumet
-ses appels à une porte sur le chemin des tâches. Un appel depuis `ctx.tools.call`
-met la tâche en pause sur une approbation dont le `geste` est `<serveur>/<outil>` et
-dont le `detail` liste les arguments. Approuvé, l'appel s'exécute une fois à la
-reprise ; refusé, `ctx.tools.call` lève `apollia.errors.ToolApprovalDenied`. Une
-pause levée ainsi garde le `context` avec lequel l'exécution a repris : un skill
-repris depuis sa propre pause relit son état quand il reprend depuis celle-ci ; à
-une première exécution, ce contexte est vide. Interceptez le `NeedHumanInput` et
-relevez-le avec votre propre `context` pour faire traverser autre chose.
-L'approbation ne couvre que cet appel, avec ces arguments. Un agent exécuté depuis
-une session de chat agent passe par la même porte ; l'assistant du chat libre n'y
-passe pas, il demande avant tout appel d'outil qu'on ne lui a pas autorisé.
+Un serveur MCP déclaré comme exigeant une approbation (`requires_approval`)
+n'ajoute aucune pause qui lui soit propre quand un agent appelle l'un de ses
+outils. Ce qui sollicite avant l'appel est la règle ci-dessus : la gouvernance
+de l'exécution, par famille d'action.
 
-<!-- claim:mcp-gated-tool-does-not-block-install -->
-Déclarer un tel outil dans `tools_required` ne demande rien de plus : l'agent
-s'installe, et l'approbation est tenue appel par appel à l'exécution. Le
-`dangerous_tools_allowed` du manifeste n'y joue aucun rôle.
+## Ce qu'un outil ne peut pas faire
+
+`ctx.user` n'est lié que dans l'exécution d'un workflow. Un outil ne met rien en
+pause : quand il lui manque quelque chose, il renvoie ce qu'il a trouvé ou lève
+une `DomainError`, et l'agent qui l'a appelé décide s'il interroge l'utilisateur.
+
+`NeedHumanInput`, `ctx.is_resumed` et `ctx.input_response` appartiennent à une
+tâche qui se met en pause et qui est rejouée depuis le début à sa reprise. Ni un
+outil ni un workflow ne sont repris ainsi : levée là, `NeedHumanInput` fait
+échouer l'appel ou l'exécution comme toute autre exception.
 
 ## Voir aussi
 
-- [Paliers d'autonomie](/explanation/autonomy-tiers) pour la façon dont les
-  approbations requises s'articulent avec le modèle d'autonomie.
-- Les commandes `task` dans la [référence CLI](/reference/cli).
-- Le [contrat SDK / ctx](/reference/sdk) pour les surfaces qu'utilise un skill.
+- [Paliers d'autonomie](/explanation/autonomy-tiers) pour la place des
+  approbations dans le modèle d'autonomie.
+- Les commandes `approvals` dans la [référence CLI](/reference/cli).
+- [Écrire un workflow](/how-to/write-a-director) pour les étapes où se loge une
+  question.

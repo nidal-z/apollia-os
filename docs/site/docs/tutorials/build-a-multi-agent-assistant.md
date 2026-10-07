@@ -543,7 +543,7 @@ class MeetingDirector:
 
 `emit_thought` streams a reasoning step to any observer through
 [`ctx.events`](/reference/sdk/events). The seven `skill_as_tool` calls turn each
-worker skill into a tool the model can pick; [`ctx.a2a`](/reference/sdk/a2a)
+worker skill into a tool the model can pick; `ctx.a2a`
 resolves each schema at call time.
 
 <!-- claim:a2a-tool-name-is-prefixed-and-encoded -->

@@ -1,112 +1,126 @@
 ---
 sidebar_position: 9.5
-title: Testez vos agents
+title: Tester vos outils et vos workflows
 ---
 
-# Testez vos agents
+# Tester vos outils et vos workflows
 
-Apollia propose deux niveaux de test. Les tests unitaires exercent un seul skill ou
-message en local (in-process) avec un contexte simulé, donc ils s'exécutent en
-quelques millisecondes, sans daemon ni modèle. Les evals de suite exécutent des
-tâches complètes contre un daemon actif et notent les résultats, y compris avec un
-juge LLM. Utilisez les tests unitaires pour la logique et les contrats, les evals
-pour le comportement de bout en bout et le suivi des régressions.
+Apollia propose deux niveaux de test. Les tests unitaires exercent un outil ou
+un workflow en local avec un contexte simulé : ils s'exécutent en quelques
+millisecondes, sans runtime ni modèle. Les évaluations de suite exécutent des
+tâches complètes contre un runtime actif et notent les résultats. Utilisez les
+tests unitaires pour la logique et les contrats, les évaluations pour le
+comportement de bout en bout et le suivi des régressions.
 
-Ceci est un guide pratique. Il suppose que vous avez déjà écrit un agent ; si ce
-n'est pas le cas, consultez [Écrire un worker](/how-to/write-a-worker).
+Ceci est un guide pratique. Il suppose que vous avez déjà écrit un outil ou un
+workflow ; sinon, voir [Écrire un outil](/how-to/write-a-worker) et
+[Écrire un workflow](/how-to/write-a-director).
 
 ## Tests unitaires avec `apollia.testing`
 
-Le harnais `apollia.testing` fait passer un skill ou un message par le même
-chemin de dispatch que celui utilisé par le runtime, mais en local et face à un
-`ctx` simulé. `mock(YourAgent)` retourne l'instance de l'agent ainsi qu'un
-`MockContext` dont les 14 surfaces de service sont toutes simulées. Vous mettez
-en file d'attente ce que les services doivent retourner, invoquez un skill, puis
-vérifiez le résultat ainsi que les appels effectués par l'agent.
+Un outil et un workflow sont de simples fonctions `async def`, et un test les
+attend telles qu'elles sont écrites. `MockContext` est le `ctx` qu'elles
+reçoivent : il simule chaque service du contrat sauf `ctx.mail`. Vous réglez ce
+que renvoient les services, vous attendez la fonction, et vous vérifiez le
+résultat et les appels qu'elle a faits.
 
-Le contrat `Ctx` complet compte 15 services : la surface mail (`ctx.mail`) n'est
-pas simulée. Un agent qui utilise `ctx.mail` a besoin d'un test d'intégration
-contre un runtime réel plutôt que d'un test unitaire avec `MockContext`.
+## Tester un outil
 
-Prenons un skill qui résume un texte avec le LLM et écrit le résumé dans un
-fichier :
-
-```python
-from apollia import agent, skill
-from apollia.types import Ctx
-
-
-@agent(name="summarizer", version="0.1.0", description="Summarize and save text.")
-class Summarizer:
-    @skill("doc.summarize", description="Summarize text and write it to a file.")
-    async def summarize(self, text: str, out_path: str, ctx: Ctx) -> dict:
-        response = await ctx.llm.complete(
-            messages=[{"role": "user", "content": f"Summarize:\n{text}"}],
-        )
-        await ctx.tools.call("file_write", {"path": out_path, "content": response.content})
-        return {"summary": response.content, "path": out_path}
-```
-
-Un test unitaire correspondant, sous forme GIVEN / WHEN / THEN :
+Prenez l'outil de [Écrire un outil](/how-to/write-a-worker), qui compte les pages
+d'un PDF et lève une erreur typée quand le fichier manque :
 
 ```python
 import pytest
 
-from apollia.testing import (
-    mock,
-    assert_result_completed,
-    assert_llm_called,
-    assert_tool_called,
-)
-from summarizer import Summarizer
+from apollia import DomainError
+from apollia.testing import MockContext
+from tools.pdf_reader import count_pages
 
 
 @pytest.mark.asyncio
-async def test_summarize_writes_file():
-    # GIVEN un agent simulé avec une réponse LLM préenregistrée et un outil fichier simulé
-    agent, ctx = mock(Summarizer)
-    ctx.llm.responses = [{"content": "A short summary."}]
-    ctx.tools.responses = {"file_write": {"ok": True}}
+async def test_count_pages_refuses_a_missing_file():
+    # GIVEN a mocked context and a path that does not exist
+    ctx = MockContext()
 
-    # WHEN le skill s'exécute
-    result = await agent.invoke_skill(
-        "doc.summarize", text="a long document", out_path="/tmp/out.txt"
-    )
+    # WHEN the tool runs
+    with pytest.raises(DomainError) as raised:
+        await count_pages(ctx, path="/nowhere/report.pdf")
 
-    # THEN il se termine, et il a utilisé le LLM puis l'outil fichier
-    assert_result_completed(result)
-    assert result["output"][0]["data"]["summary"] == "A short summary."
-    assert_llm_called(ctx, times=1)
-    assert_tool_called(ctx, "file_write", times=1)
+    # THEN it fails with the code a caller can branch on
+    assert raised.value.code == "FILE_NOT_FOUND"
 ```
 
-L'argument `contains=` d'`assert_result_completed` ne lit que les parties de
-texte. Un skill qui retourne un `dict` est converti en une unique partie `data`,
-son texte est donc vide et `contains=` échouerait toujours. Faites porter
-l'assertion sur `result["output"]` pour un skill qui retourne un dict, et gardez
-`contains=` pour un skill qui retourne une chaîne.
+`@tool` renvoie la fonction qu'il décore : le test l'appelle donc avec `ctx` et
+les entrées en arguments nommés, comme le fait le runtime.
 
-Points clés du harnais :
+## Tester un workflow
 
-- `agent, ctx = mock(YourAgent)` construit l'instance ainsi qu'un `MockContext`.
-- Pilotez un skill avec `await agent.invoke_skill(skill_id, **kwargs)`, ou un
-  gestionnaire conversationnel avec `await agent.invoke_message(message, history=...)`.
-  Les deux retournent le même dict `AIPResult` que celui produit par le runtime.
-- Mettez en file les réponses du LLM dans `ctx.llm.responses` (une liste FIFO) ;
-  chaque appel à `complete` ou `chat` en dépile la suivante. Simulez les outils
-  avec `ctx.tools.responses`, indexé par nom d'outil. `ctx.memory` enregistre et
-  rappelle des éléments en mémoire.
-- Vérifiez le résultat avec `assert_result_completed(result, contains=...)`,
-  `assert_result_failed(result, code=...)` et
-  `assert_result_input_required(result)`. Vérifiez ce que l'agent a fait avec
-  `assert_llm_called`, `assert_tool_called`, `assert_skill_called`,
-  `assert_memory_recorded`, `assert_template_rendered`, `assert_emitted_token`
-  et `assert_emitted_thought`.
+Un workflow confie ses étapes à des agents, à d'autres workflows et à
+l'utilisateur. Sous `MockContext`, chacun d'eux est un simulacre que vous
+réglez, et les étapes ne rapportent rien. Prenez le workflow de
+[Écrire un workflow](/how-to/write-a-director) :
 
-Comme le harnais réutilise les fonctions de dispatch de production, la
-validation des payloads, l'injection de `ctx`, la coercition des valeurs de
-retour et la gestion des erreurs typées se comportent exactement comme sous le
-daemon. Exécutez ces tests avec `pytest`, comme n'importe quel test Python.
+```python
+import pytest
+
+from apollia.testing import MockContext
+from workflows.reminders import monthly_reminders
+
+INPUTS = {"month": "2026-09", "tone": "Polite and short."}
+LATE = "ACME, invoice 42, due 2026-09-10"
+
+
+@pytest.mark.asyncio
+async def test_reminders_are_drafted_once_confirmed():
+    # GIVEN an agent that lists one late invoice and a user who says yes
+    ctx = MockContext()
+    ctx.agents.answers = {"invoice-clerk": LATE}
+    ctx.user.answers = {f"Draft reminders for these invoices?\n{LATE}": "Yes"}
+
+    # WHEN the workflow runs
+    result = await monthly_reminders(ctx, INPUTS)
+
+    # THEN the agent ran twice, to collect and to draft, and the user was asked
+    assert [agent for agent, _ in ctx.agents.run_calls] == ["invoice-clerk"] * 2
+    assert len(ctx.user.ask_calls) == 1
+    assert result["late"] == LATE
+
+
+@pytest.mark.asyncio
+async def test_nothing_is_drafted_when_the_user_declines():
+    # GIVEN a user who declines the question
+    ctx = MockContext()
+    ctx.agents.answers = {"invoice-clerk": LATE}
+    ctx.user.declined = {f"Draft reminders for these invoices?\n{LATE}": None}
+
+    # WHEN the workflow runs
+    result = await monthly_reminders(ctx, INPUTS)
+
+    # THEN the run stops after the question, with no reminder
+    assert len(ctx.agents.run_calls) == 1
+    assert result["reminders"] == ""
+```
+
+Ce que prend et ce qu'enregistre chaque simulacre :
+
+| Service | Régler | Relire |
+| --- | --- | --- |
+| `ctx.agents` | `answers`, un dictionnaire d'identifiant d'agent vers sa réponse. Un agent sans réponse renvoie une chaîne vide. | `run_calls`, une liste de `(agent_id, message)`. |
+| `ctx.workflows` | `results`, un dictionnaire d'identifiant de workflow vers son résultat. Un workflow sans résultat renvoie `None`. | `run_calls`, une liste de `(workflow_id, inputs)`. |
+| `ctx.user` | `answers`, un dictionnaire de question vers sa réponse ; `declined`, un dictionnaire de question vers un motif, qui fait lever `QuestionDeclined` à `ask`. | `ask_calls`, une liste de `(question, options, hint)`. |
+| `ctx.llm` | `responses`, une liste FIFO de `{"content": ...}` ; chaque appel dépile la suivante. | `assert_llm_called(ctx, times=...)`. |
+| `ctx.tools` | `responses`, un dictionnaire de nom d'outil vers son résultat. | `assert_tool_called(ctx, name, times=...)`. |
+| `ctx.memory` | Enregistre et rappelle en mémoire vive. | `assert_memory_recorded(ctx, ...)`. |
+
+Les décorateurs se comportent sous un test comme sous le runtime : une étape que
+le décorateur n'a pas déclarée est refusée, et une entrée de date donnée sous la
+forme `YYYY-MM-DD` est lue comme une `date`. Lancez ces tests avec `pytest`,
+comme n'importe quels tests Python.
+
+`MockContext` simule plus de services que le runtime n'en attache aujourd'hui à
+un outil ou à un workflow : `ctx.llm` et `ctx.tools` y valent `None`. Un test qui
+passe par eux prouve la logique de votre fonction, pas que le service est
+joignable là où la fonction s'exécute.
 
 ## Evals de suite avec `apollia-os eval run`
 
@@ -158,8 +172,9 @@ vous en servez pas comme critère de blocage.
 
 La forme de suite ci-dessus est illustrative ; le dépôt ne fournit pas de suite
 prête à l'emploi à copier. Chaque option est documentée dans la [référence
-CLI](/reference/cli), et les formes de service contre lesquelles votre agent
-effectue ses assertions figurent dans le [contrat SDK / ctx](/reference/sdk).
+CLI](/reference/cli), chaque champ d'une suite dans le
+[schéma de suite d'évaluation](/reference/eval-suites), et les formes de service
+figurent dans le [contrat SDK / ctx](/reference/sdk).
 
 ## Que choisir
 
@@ -168,6 +183,6 @@ effectue ses assertions figurent dans le [contrat SDK / ctx](/reference/sdk).
 - Comportement de bout en bout, qualité et suivi des régressions entre les
   exécutions : evals.
 
-La plupart des agents ont besoin des deux : des tests unitaires rapides en CI
-à chaque changement, et une suite d'evals exécutée contre un daemon avant une
+La plupart des paquets ont besoin des deux : des tests unitaires rapides en CI
+à chaque changement, et une suite d'evals exécutée contre un runtime avant une
 release.
