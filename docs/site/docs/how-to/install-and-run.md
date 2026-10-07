@@ -322,8 +322,8 @@ The `runners` value controls two things:
    first GPU backend in the list (`metal`, `cuda`, `rocm`, or `vulkan`); if
    none is present it falls back to CPU. Setting
    `APOLLIA_DESKTOP_LLAMA_BACKEND` overrides that choice and the list is not
-   consulted, which is how the release pipeline builds a CUDA engine next to
-   CPU speech-to-text runners.
+   consulted, which is how the `just` recipes and the release pipeline bundle
+   a Vulkan engine on Windows and Linux whatever the speech-to-text runners.
 
 `cpu` is always included as a universal fallback. Add one GPU backend that
 matches your hardware:
@@ -331,7 +331,7 @@ matches your hardware:
 | Hardware | Typical `runners` value | Notes |
 |---|---|---|
 | Apple Silicon | `cpu metal` | Default macOS preset |
-| NVIDIA (CUDA 12+) | `cpu cuda` | On Windows, LLM and STT both use CUDA. On Linux this value fails the bundle: the pinned upstream release ships no Linux CUDA `llama-server`, the fetch exits and the script stops on `could not bundle llama-server (cuda)`. Build one and pass `LLAMA_SERVER_DIR`, which is what the release pipeline does for the Linux `-cuda` bundle |
+| NVIDIA (CUDA 12+) | `cpu cuda` | Builds the CUDA speech-to-text runner. The bundled LLM engine stays Vulkan: no bundle carries a CUDA `llama-server`, on any platform, and asking for one (`APOLLIA_DESKTOP_LLAMA_BACKEND=cuda`) stops the script on `could not bundle llama-server (cuda)`. The installed application downloads the CUDA engine on demand from the engine channel; to bundle a build of your own, pass `LLAMA_SERVER_DIR` |
 | AMD Radeon / Intel Arc | `cpu vulkan` | LLM and STT on GPU through Vulkan; the STT runner needs the Vulkan SDK (`VULKAN_SDK`) at build time |
 | AMD Pro / Instinct + HIP SDK | `cpu rocm` | LLM and STT on ROCm where supported |
 
@@ -354,7 +354,7 @@ Override the target and/or runners on any preset:
 # Windows with Vulkan LLM (AMD / Intel / fallback NVIDIA)
 just release-windows runners="cpu vulkan"
 
-# Windows with CUDA (NVIDIA)
+# Windows with the CUDA speech-to-text runner (NVIDIA); the engine stays Vulkan
 just release-windows runners="cpu cuda"
 
 # Linux with Vulkan
@@ -374,9 +374,11 @@ just release-desktop aarch64-apple-darwin "cpu metal"
 
 The bundled `llama-server` engine is fetched from the pinned upstream
 llama.cpp release, which publishes builds for macOS (arm64 and x86-64), Linux
-x86-64 (CPU, Vulkan, ROCm), Linux arm64 (CPU) and Windows x86-64 (CPU, CUDA,
+x86-64 (CPU, Vulkan, ROCm), Linux arm64 (CPU) and Windows x86-64 (CPU,
 Vulkan). For any other couple, build llama.cpp yourself and pass
-`LLAMA_SERVER_DIR=<bin dir>`; the recipe then bundles your build.
+`LLAMA_SERVER_DIR=<bin dir>`; the recipe then bundles your build. The CUDA
+engine is never bundled: it is published on the engine channel and downloaded
+by the installed application.
 
 On Windows, export `LIBCLANG_PATH` in the same shell before running any of
 these recipes (see the Windows prerequisites above). On Linux, the speech-to-text runner additionally needs `clang` and

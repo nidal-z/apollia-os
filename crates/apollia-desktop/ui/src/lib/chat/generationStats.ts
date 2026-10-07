@@ -150,6 +150,34 @@ function formatNumber(value: number, loc: string, fractionDigits: number): strin
 }
 
 /** Seconds with two fraction digits: a first token is often under a second. */
+/**
+ * The answer the "last message only" setting shows figures under: the last
+ * message of the thread that carries figures, so they stay in place while the
+ * next question is typed and sent.
+ */
+export function lastAnswerId(
+  messages: readonly {
+    id: string;
+    role: string;
+    metadata?: Record<string, unknown> | null;
+  }[],
+): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (m.role !== "user" && readGeneration(m.metadata) !== null) return m.id;
+  }
+  return null;
+}
+
+/** Whether an answer shows its generation figures under the Appearance setting. */
+export function showsGenerationInfo(input: {
+  scope: "last" | "all";
+  messageId: string;
+  lastAnswerId: string | null;
+}): boolean {
+  return input.scope === "all" || input.messageId === input.lastAnswerId;
+}
+
 export function formatFirstTokenSeconds(ms: number, loc: string): string {
   return formatNumber(ms / 1000, loc, 2);
 }

@@ -18,6 +18,10 @@ class CreateSessionRequest:
     Attributes:
         mode (str): Session mode: `"libre"` or `"agent"`.
         agent_name (None | str | Unset): Agent name (required when `mode == "agent"`).
+        limited_to_tools (bool | Unset): Limit the conversation to `tools`: of the accesses of its agent only
+            they are offered, and those the agent does not hold are proposed,
+            each of their calls asking for consent. Read back as
+            `settings.only_accesses`. Refused when `tools` is empty.
         model (None | str | Unset): The model of the session: the identifier of a language model of the
             model index, `<server>/<model>` for a model of a declared server, or
             the name of a backend. Absent keeps the model of the agent.
@@ -29,6 +33,7 @@ class CreateSessionRequest:
 
     mode: str
     agent_name: None | str | Unset = UNSET
+    limited_to_tools: bool | Unset = UNSET
     model: None | str | Unset = UNSET
     system_prompt: None | str | Unset = UNSET
     tools: list[str] | Unset = UNSET
@@ -42,6 +47,8 @@ class CreateSessionRequest:
             agent_name = UNSET
         else:
             agent_name = self.agent_name
+
+        limited_to_tools = self.limited_to_tools
 
         model: None | str | Unset
         if isinstance(self.model, Unset):
@@ -68,6 +75,8 @@ class CreateSessionRequest:
         )
         if agent_name is not UNSET:
             field_dict["agent_name"] = agent_name
+        if limited_to_tools is not UNSET:
+            field_dict["limited_to_tools"] = limited_to_tools
         if model is not UNSET:
             field_dict["model"] = model
         if system_prompt is not UNSET:
@@ -90,6 +99,8 @@ class CreateSessionRequest:
             return cast(None | str | Unset, data)
 
         agent_name = _parse_agent_name(d.pop("agent_name", UNSET))
+
+        limited_to_tools = d.pop("limited_to_tools", UNSET)
 
         def _parse_model(data: object) -> None | str | Unset:
             if data is None:
@@ -114,6 +125,7 @@ class CreateSessionRequest:
         create_session_request = cls(
             mode=mode,
             agent_name=agent_name,
+            limited_to_tools=limited_to_tools,
             model=model,
             system_prompt=system_prompt,
             tools=tools,

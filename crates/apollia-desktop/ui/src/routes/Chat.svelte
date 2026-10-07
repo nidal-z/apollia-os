@@ -3,23 +3,19 @@
   import { t, locale } from "svelte-i18n";
   import { Plus, Search, Trash2 } from "lucide-svelte";
   import { connectionStatus, refreshChatSessionsViaIpc } from "$lib/stores/sse";
-  import {
-    activeChatSessions,
-    closedChatSessions,
-    pendingChatSessionId,
-    openNewChatRequested,
-  } from "$lib/stores/chat";
+  import { pendingChatSessionId, openNewChatRequested } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary } from "$lib/types";
   import { renameChatSession } from "$lib/ipc/chat";
   import { removeConversation } from "$lib/stores/chatTrash";
-  import ChatConversation from "../components/chat/ChatConversation.svelte";
-  import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
-  import QuickPicker from "../components/chat/QuickPicker.svelte";
-  import ChatConfigPanelBody from "../components/chat/ChatConfigPanelBody.svelte";
+  import ChatPanes from "../components/chat/ChatPanes.svelte";
+  import { activeSessionId, chatPanes } from "$lib/stores/chatPanes";
+  import ChatIntegrationsTab from "../components/chat/ChatIntegrationsTab.svelte";
+  import SessionSettingsTab from "../components/chat/settings/SessionSettingsTab.svelte";
   import {
     decoratedSessions,
+    sessionActivityAt,
     markSessionRead,
     sessionSort,
     sidebarDensity,
@@ -30,7 +26,6 @@
   import ConversationTrash from "../components/chat/ConversationTrash.svelte";
   import {
     toggleSessionsSidebar,
-    openSessionsDrawer,
     closeSessionsDrawer,
     chatViewport,
     sessionsDrawerOpen,
@@ -50,6 +45,12 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { registerShortcuts } from "$lib/stores/shortcuts";
   import { requestChatTargetSelector } from "$lib/stores/chatTargetSelector";
+  import { showReloadLast } from "$lib/chat/modelLoad";
+  import { emptyConversationToReopen, regenerateChord } from "$lib/chat/chatBehaviours";
+  import { chatRegenerateShortcut, chatSingleEmpty } from "$lib/stores/chatBehaviours";
+  import { requestRegenerateLast } from "$lib/stores/chatRegenerate";
+  import { lastLoadedModel, loadedModels, requestReloadLast } from "$lib/stores/modelResidency";
+  import ModelLoadDialog from "../components/chat/ModelLoadDialog.svelte";
   import CommandPalette from "../components/chat/CommandPalette.svelte";
 
   // Operator design-system primitives - V3 Chat Refonte v2.
@@ -64,7 +65,9 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
 
-  let selectedSessionId = $state<string | null>(null);
+  // The conversation of the active pane: the list, the shortcuts and the
+  // right panel act on it.
+  const selectedSessionId = $derived($activeSessionId);
   let showNewChatPicker = $state(false);
   let sessionSearchQuery = $state("");
   // The left rail shows the trash in place of the list while this is on.
@@ -72,13 +75,13 @@
   // The journal follows the developer mode: the technical reading when it
   // is on, the plain one otherwise. There is no per-screen switch.
   const journalMode = $derived<JournalMode>($developerMode ? "builder" : "operator");
-  let railTab = $state<"journal" | "plan" | "config">("journal");
+  let railTab = $state<"journal" | "plan" | "integrations" | "settings">("journal");
 
-  // Open the inspector on the Config tab (from a row "..." action or the header
-  // gear). The config panel reads the active session via `currentSession`.
+  // Open the inspector on the Settings tab (from a row "..." action or the
+  // header gear). The tab reads the active session via `currentSession`.
   function openConfig(sessionId?: string): void {
     if (sessionId && sessionId !== selectedSessionId) navigateToSession(sessionId);
-    railTab = "config";
+    railTab = "settings";
     contextDrawerOpen.set(true);
   }
 
@@ -126,6 +129,27 @@
       keys: [MOD_LABEL, "L"],
       allowInTextarea: true,
       run: () => requestChatTargetSelector(),
+    },
+    {
+      id: "chat.reload_last_model",
+      chord: { code: "KeyR", modifiers: ["mod"] },
+      group: "chat.shortcut_group.chat",
+      descriptionKey: "chat.shortcut.reload_last_model",
+      keys: [MOD_LABEL, "R"],
+      allowInTextarea: true,
+      // One chord, two meanings: with no model in memory it loads the last
+      // one again; otherwise, when Settings > Chat asks for it, it
+      // regenerates the last answer of the conversation shown.
+      run: () => {
+        const action = regenerateChord({
+          reloadShown: showReloadLast($loadedModels, $lastLoadedModel),
+          enabled: $chatRegenerateShortcut,
+          conversationOpen: selectedSessionId !== null,
+        });
+        if (action === "reload") requestReloadLast();
+        else if (action === "regenerate" && selectedSessionId) requestRegenerateLast(selectedSessionId);
+        return action !== null;
+      },
     },
     {
       id: "chat.search",
@@ -183,7 +207,7 @@
 
   onMount(() => {
     const unsub = pendingChatSessionId.subscribe((id) => {
-      if (id) { selectedSessionId = id; pendingChatSessionId.set(null); }
+      if (id) { chatPanes.show(id); pendingChatSessionId.set(null); }
     });
     const uninstall = installChatShortcuts(SHORTCUT_BINDINGS);
     const unregisterHelp = registerShortcuts(SHORTCUT_BINDINGS.map(describeBinding));
@@ -198,6 +222,17 @@
   // preset prop yet. We accept and
   // ignore it so the palette wiring stays forward-compatible.
   function openNewChatPicker(_preset?: { templateId?: string; agentName?: string }) {
+    // One empty conversation at a time: the one that exists opens again, and
+    // its agent or model is chosen from the top bar.
+    const empty = emptyConversationToReopen(
+      $decoratedSessions,
+      $sessionActivityAt,
+      $chatSingleEmpty,
+    );
+    if (empty !== null) {
+      navigateToSession(empty);
+      return;
+    }
     showNewChatPicker = true;
   }
 
@@ -217,7 +252,7 @@
   }
 
   function openSessionFromPalette(id: string): void {
-    selectedSessionId = id;
+    chatPanes.show(id);
     markSessionRead(id);
   }
 
@@ -230,16 +265,15 @@
   }
 
   function handleSessionCreated(session: ChatSessionSummary): void {
-    selectedSessionId = session.id;
+    chatPanes.show(session.id);
     showNewChatPicker = false;
   }
 
   function navigateToSession(sessionId: string) {
     showNewChatPicker = false;
-    selectedSessionId = sessionId;
+    chatPanes.show(sessionId);
     markSessionRead(sessionId);
   }
-  function closeConversation() { selectedSessionId = null; }
 
   async function handleDeleteSession(sessionId: string): Promise<void> {
     // To the trash when the choice of Settings > Chat is on, for good otherwise.
@@ -250,7 +284,8 @@
       return;
     }
     chatSessions.update((sessions) => sessions.filter((s) => s.id !== sessionId));
-    if (selectedSessionId === sessionId) selectedSessionId = null;
+    // The pane that showed it closes, and gives back the model it held.
+    chatPanes.forget(sessionId);
   }
 
   async function handleRenameSession(sessionId: string, newTitle: string): Promise<void> {
@@ -543,72 +578,16 @@
     {/if}
   </aside>
 
-  <!-- ── Center: thread + composer ─────────────────────────────────────── -->
-  <main class="relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
-    {#if showNewChatPicker}
-      <!-- Picker fills the column and scrolls internally; mutually exclusive
-           with the active conversation so they never stack. -->
-      <div
-        class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
-        data-testid="new-chat-picker"
-      >
-        <QuickPicker
-          oncreated={handleSessionCreated}
-          onclose={closeNewChatPicker}
-        />
-      </div>
-    {:else if $connectionStatus === "connecting" && !selectedSessionId}
-      <div class="flex flex-1 items-center justify-center">
-        <div class="flex flex-col items-center gap-3 text-muted-foreground">
-          <Skeleton variant="text" class="h-3 w-32" />
-          <Skeleton variant="text" class="h-3 w-24" />
-        </div>
-      </div>
-    {:else if selectedSessionId}
-      <!--
-        ChatConversation owns the message thread, SSE subscriptions,
-        composer, slash commands, mention handling, and the markdown/code
-        rendering pipeline. We drop it directly into the center column so
-        all that wiring is preserved verbatim.
-      -->
-      <div class="flex h-full min-h-0 flex-1 flex-col">
-        <ChatConversation
-          sessionId={selectedSessionId}
-          onclose={closeConversation}
-          onsessionsopen={openSessionsDrawer}
-          oncontextopen={toggleContextDrawer}
-          onconfigtoggle={() => openConfig()}
-          ondelete={handleDeleteSession}
-          onnewChat={() => { closeConversation(); openNewChatPicker(); }}
-          onopensession={navigateToSession}
-        />
-      </div>
-    {:else if $activeChatSessions.length === 0 && $closedChatSessions.length === 0}
-      <div class="flex flex-1 items-center justify-center px-6 py-10">
-        <EmptySessionsState onnewChat={() => openNewChatPicker()} />
-      </div>
-    {:else}
-      <!-- No session selected but list is non-empty: prompt the user. -->
-      <div class="flex flex-1 items-center justify-center px-6 py-10">
-        <div class="max-w-sm text-center">
-          <h3
-            class="mb-3 text-heading-lg font-semibold tracking-[-0.3px] text-foreground"
-          >
-            {$t("chat.subtitle")}
-          </h3>
-          <p class="mb-5 text-body-sm text-muted-foreground">
-            {$t("chat.select_or_start")}
-          </p>
-          <div class="inline-flex">
-            <Button variant="primary-solid" size="sm" onclick={() => openNewChatPicker()}>
-              {#snippet icon()}<Plus size={12} />{/snippet}
-              {$t("chat.new_chat")}
-            </Button>
-          </div>
-        </div>
-      </div>
-    {/if}
-  </main>
+  <!-- ── Center: the panes, each with its thread and its composer ────── -->
+  <ChatPanes
+    narrow={!panesInline}
+    showPicker={showNewChatPicker}
+    oncreated={handleSessionCreated}
+    onpickerclose={closeNewChatPicker}
+    onnewchat={() => openNewChatPicker()}
+    onconfig={() => openConfig()}
+    ondelete={handleDeleteSession}
+  />
 
   <!-- ── Inspector (on-demand): live journal / plan. Closed by default at every
        width so the conversation stays the hero; opens inline (docked) at lg and
@@ -651,26 +630,38 @@
         <button
           type="button"
           role="tab"
-          aria-selected={railTab === "config"}
-          class="rounded px-2 py-0.5 transition-colors {railTab === 'config'
+          aria-selected={railTab === "integrations"}
+          class="rounded px-2 py-0.5 transition-colors {railTab === 'integrations'
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:text-foreground'}"
-          onclick={() => (railTab = "config")}
-          data-testid="chat-inspector-config-tab"
+          onclick={() => (railTab = "integrations")}
+          data-testid="chat-inspector-integrations-tab"
         >
-          {$t("chat.config_title")}
+          {$t("chat.session_panel.integrations")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={railTab === "settings"}
+          class="rounded px-2 py-0.5 transition-colors {railTab === 'settings'
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:text-foreground'}"
+          onclick={() => (railTab = "settings")}
+          data-testid="chat-inspector-settings-tab"
+        >
+          {$t("chat.session_panel.settings")}
         </button>
       </div>
     </div>
 
-    {#if railTab === "config"}
-      <div class="min-h-0 flex-1 overflow-y-auto" data-testid="chat-inspector-config">
+    {#if railTab === "integrations" || railTab === "settings"}
+      <div class="min-h-0 flex-1 overflow-hidden" data-testid="chat-inspector-session">
         {#if $currentSession && $currentSession.id === selectedSessionId}
-          <ChatConfigPanelBody
-            session={$currentSession}
-            showHeader={false}
-            onupdated={() => {}}
-          />
+          {#if railTab === "integrations"}
+            <ChatIntegrationsTab session={$currentSession} onupdated={() => {}} />
+          {:else}
+            <SessionSettingsTab session={$currentSession} />
+          {/if}
         {:else}
           <div class="px-4 py-6 text-center text-caption text-muted-foreground">
             {$t("chat.subtitle")}
@@ -699,4 +690,5 @@
 
   </aside>
   {/if}
+  <ModelLoadDialog />
 </div>

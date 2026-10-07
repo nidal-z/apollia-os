@@ -37,9 +37,9 @@ jobs:
             const body = [
               "Thanks for opening this pull request.",
               "",
-              "Apollia OS is currently a single-maintainer preview.",
-              "Pull requests are auto-closed by policy so external contributors do not",
-              "get stuck waiting for a review that will not come.",
+              "Apollia OS does not accept external pull requests at this stage, and",
+              "closes them by policy so nobody waits on a review that will not come.",
+              "The policy and its reasons: https://github.com/" + owner + "/" + repo + "/blob/main/CONTRIBUTING.md",
               "",
               "If you have a concrete bug or feature idea, please open an issue instead:",
               "  - Bug: https://github.com/" + owner + "/" + repo + "/issues/new?template=bug_report.yml",

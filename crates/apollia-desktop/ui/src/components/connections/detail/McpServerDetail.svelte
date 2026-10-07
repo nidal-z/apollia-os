@@ -46,9 +46,11 @@
     onchanged: () => void;
     /** Clear selection + reload (post disconnect). */
     ondisconnected: () => void;
+    /** "Try" the connection, named as its page shows it. */
+    ontry?: (name: string) => void;
   }
 
-  let { server, enrichment, remote = false, tab, ontabchange, onchanged, ondisconnected }: Props = $props();
+  let { server, enrichment, remote = false, tab, ontabchange, onchanged, ondisconnected, ontry }: Props = $props();
 
   let mcpDetail = $state<McpServerDetailView | null>(null);
   let loading = $state(false);
@@ -217,6 +219,7 @@
     {reconnecting}
     ontest={handleTest}
     onreconnect={handleReconnect}
+    ontry={ontry ? () => ontry(label) : undefined}
   />
 
   <div class="px-8 pt-3.5">

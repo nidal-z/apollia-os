@@ -272,6 +272,42 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// Create a conversation limited to the accesses `params.tools` names:
+    /// of what its agent holds only they are offered, and those the agent
+    /// does not hold are proposed, each of their calls asking. The limit is
+    /// a setting of the conversation, in place before its identifier is
+    /// known to anyone; a conversation whose limit cannot be stored is
+    /// deleted rather than left unlimited.
+    ///
+    /// # Errors
+    ///
+    /// [`ChatError::InvalidSettings`] when no access is named or one is
+    /// blank, and what [`Self::create_session`] returns.
+    pub async fn create_limited_session(
+        &self,
+        params: CreateSessionParams,
+    ) -> Result<SessionInfo, ChatError> {
+        let settings = SessionSettings {
+            instructions: params.system_prompt.clone(),
+            only_accesses: params.tools.clone(),
+            ..SessionSettings::default()
+        }
+        .checked()?;
+        if !settings.is_limited() {
+            return Err(ChatError::InvalidSettings(
+                crate::chat::session_settings::SessionSettingsError::Accesses(
+                    "a limited conversation names at least one access".into(),
+                ),
+            ));
+        }
+        let info = self.create_session(params).await?;
+        if let Err(error) = self.set_session_settings(info.id.clone(), settings).await {
+            let _ = self.delete_session(info.id.clone()).await;
+            return Err(error);
+        }
+        Ok(info)
+    }
+
     /// Send a user message.
     pub async fn send_message(
         &self,

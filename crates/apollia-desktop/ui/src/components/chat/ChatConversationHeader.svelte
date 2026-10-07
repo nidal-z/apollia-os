@@ -10,6 +10,8 @@
    */
   import { tick } from "svelte";
   import { t } from "svelte-i18n";
+  import { doubleClickRenames } from "$lib/chat/chatBehaviours";
+  import { chatDoubleClickRename } from "$lib/stores/chatBehaviours";
   import {
     X,
     Bot,
@@ -18,6 +20,7 @@
     Menu,
     PanelRight,
     MoreHorizontal,
+    Columns2,
     Edit3,
     Trash2,
     Clock,
@@ -32,7 +35,8 @@
   } from "$lib/types";
   import A2AWorkerBadge from "./A2AWorkerBadge.svelte";
   import ChatTargetSelector from "./ChatTargetSelector.svelte";
-  import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
+  import type { ChatTarget, ConversationTarget, ModelTarget } from "$lib/chat/chatTargets";
+  import { MAX_PANES } from "$lib/chat/chatPanes";
   import PlanModeChip from "./PlanModeChip.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
@@ -69,6 +73,14 @@
     /** Called with the agent or the model chosen in the selector; the
      *  selector is shown only when it is given. */
     ontargetpick?: (target: ChatTarget) => void;
+    /** Whether the chat shortcut opens this selector: the header of the active pane. */
+    active?: boolean;
+    /** Asked before the loading window opens; see `ChatTargetSelector`. */
+    loadgate?: (target: ModelTarget) => Promise<boolean>;
+    /** Opens one more pane beside this one; the button shows when it is given. */
+    onsplit?: () => void;
+    /** Whether one more pane fits. */
+    canSplit?: boolean;
   }
 
   let {
@@ -91,6 +103,10 @@
     renameTrigger = 0,
     target = null,
     ontargetpick,
+    active = true,
+    loadgate,
+    onsplit,
+    canSplit = true,
   }: Props = $props();
 
   // Open the inline title editor when the parent bumps `renameTrigger` (/rename).
@@ -243,7 +259,9 @@
       {:else}
         <button
           type="button"
-          ondblclick={startEdit}
+          ondblclick={() => {
+            if (doubleClickRenames($chatDoubleClickRename, true)) startEdit();
+          }}
           class="group flex min-w-0 items-center gap-1 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-muted/40"
           aria-label={$t("chat.rename_session")}
           data-testid="chat-header-title"
@@ -264,6 +282,9 @@
           conversation={target}
           onpick={ontargetpick}
           disabled={sessionStatus !== "active"}
+          ejectable
+          listens={active}
+          {loadgate}
         />
       </div>
     {/if}
@@ -314,6 +335,21 @@
           data-testid="chat-open-context-button"
         >
           <PanelRight size={14} />
+        </button>
+      {/if}
+      {#if onsplit}
+        <button
+          type="button"
+          onclick={onsplit}
+          disabled={!canSplit}
+          class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:text-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          aria-label={$t("chat.panes.split")}
+          title={canSplit
+            ? $t("chat.panes.split")
+            : $t("chat.panes.split_full", { values: { max: MAX_PANES } })}
+          data-testid="chat-split-button"
+        >
+          <Columns2 size={14} />
         </button>
       {/if}
       {#if !hideConfig}

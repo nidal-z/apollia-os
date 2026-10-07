@@ -33,7 +33,6 @@ pub const MAX_NEXT_STEPS: usize = 3;
 /// Allowed navigation routes, a mirror of the frontend allowlist. Any suggestion
 /// referencing a route not in this list is silently dropped.
 const ALLOWED_ROUTES: &[&str] = &[
-    "/dashboard",
     "/agents",
     "/chat",
     "/automations",

@@ -3,9 +3,9 @@
 Thank you for your interest in Apollia OS. Please read this short page
 before opening anything.
 
-Apollia OS is currently a **single-maintainer preview**.
-The contribution model reflects that. The short version: **issues yes,
-pull requests no**.
+Apollia OS is maintained by the Apollia team. The short version of the
+contribution model: **issues are welcome, external pull requests are closed**.
+[GOVERNANCE.md](GOVERNANCE.md) says who decides and how.
 
 ## Reporting a bug
 
@@ -22,16 +22,17 @@ Include:
 
 Good reproduction steps are the single most valuable thing you can give.
 
+A build that fails on your machine goes through the
+[build failure template](https://github.com/Apollia-OS/apollia-os/issues/new?template=build_failure.yml),
+which asks for the toolchain, the interpreter and the output the build stopped
+on.
+
 ## Requesting a feature
 
 Open an issue using the
 [feature request template](https://github.com/Apollia-OS/apollia-os/issues/new?template=feature_request.yml).
-
-A build that fails on your machine goes through the
-[build failure template](https://github.com/Apollia-OS/apollia-os/issues/new?template=build_failure.yml),
-which asks for the preset, the toolchain and the output the build stopped on.
 Describe the problem you are trying to solve, not just the solution you have
-in mind. The maintainer may refine the shape before any work happens.
+in mind. The maintainers may refine the shape before any work happens.
 
 ## Asking a question
 
@@ -45,30 +46,40 @@ for them.
 
 Please report security vulnerabilities **privately** through
 [GitHub Security Advisories](https://github.com/Apollia-OS/apollia-os/security/advisories/new)
-rather than as a public issue. The maintainer will respond and coordinate
-disclosure.
+rather than as a public issue. [SECURITY.md](SECURITY.md) gives the scope and
+the response timeline.
 
 ## What happens to a pull request
 
-External contributions are not open for the `v0.1.x` line. Accepting one
-implies a commitment to maintain it, and the project does not make that
-commitment today.
+External pull requests are not accepted at this stage. Accepting one implies a
+commitment to maintain it, and the project does not make that commitment
+today.
 
 The policy is enforced by a workflow rather than left to a case-by-case
 decision, so nobody waits on a review that will not come. On a pull request
 from outside the project, it posts a comment pointing back to the issue
 templates, applies the `wontfix-policy` label, and closes the pull request.
 
-Open an issue instead. Accepted ideas are implemented on the project's side,
-with credit in the changelog where applicable.
+Open an issue instead. Accepted ideas are implemented by the Apollia team,
+with credit in the [changelog](CHANGELOG.md) where applicable.
+
+## Build and test
+
+Building from source is the way to reproduce a defect on the current tree or
+to confirm a fix. The [README](README.md#quickstart-from-source) takes a clean
+clone to a running agent. Beyond that:
+
+- [AGENTS.md](AGENTS.md) lists the build, lint and test commands, scoped and
+  workspace-wide, and the rules the code follows.
+- The `justfile` at the root holds the project recipes; `just --list` prints
+  them.
 
 ## Supporting the project
 
 Code contributions are not accepted, but you can still help Apollia OS grow.
 If you want to back the work financially, see the
-[Support section of the README](README.md#support-apollia-os) (Patreon, GitHub
-Sponsors, Ko-fi). Funding is the most direct way to influence what gets built
-next.
+[Support section of the README](README.md#support-apollia-os): Patreon, Ko-fi,
+and the [support page](https://apollia.fr/soutenir).
 
 ## Code of Conduct
 

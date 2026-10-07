@@ -15,6 +15,8 @@ export interface ChatSessionSummary {
   created_at: string;
   closed_at: string | null;
   title: string | null;
+  /** Tokens the model generated across the answers of the session. */
+  output_tokens?: number;
 }
 
 /** Full detail of one chat session, with its messages. */
@@ -76,6 +78,28 @@ export interface ChatModelCapabilities {
   vision: boolean;
   /** Image formats its engine decodes, empty without vision. */
   image_formats: string[];
+}
+
+/** A level of reasoning, for a model that reads one. */
+export type ReasoningEffort = "low" | "medium" | "high";
+
+/**
+ * What a conversation changes from its agent. A field left out is inherited;
+ * the runtime refuses a field it does not declare, so a write sends back
+ * every field that was read.
+ */
+export interface SessionSettings {
+  preset?: number;
+  /** Reasoning on or off, for a model that reads it. */
+  thinking?: boolean;
+  reasoning_effort?: ReasoningEffort;
+  temperature?: number;
+  max_tokens?: number;
+  context_overflow?: "summarize_middle" | "sliding_window" | "stop_at_limit";
+  instructions?: string;
+  disabled_accesses?: string[];
+  proposed_accesses?: string[];
+  profile_access?: boolean;
 }
 
 /** One stored image of a conversation, its media type and base64 bytes. */
@@ -163,6 +187,9 @@ export interface CreateSessionRequest {
   agent_name?: string;
   system_prompt?: string;
   tools?: string[];
+  /** Limits the conversation to `tools`: nothing else of its agent is
+   * offered, and a tool the agent does not hold asks at each call. */
+  limited_to_tools?: boolean;
   /** The model of the session: the index identifier of a local language
    * model, or `<server>/<model>`. Absent keeps the agent's model. */
   model?: string;

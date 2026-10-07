@@ -15,6 +15,7 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { contextDrawerOpen } from "$lib/stores/chatLayout";
   import { chatDensity, chatFullWidth } from "$lib/stores/chatAppearance";
+  import { lastAnswerId } from "$lib/chat/generationStats";
   import MessageGroup from "./MessageGroup.svelte";
   import StreamingMessage from "./StreamingMessage.svelte";
   import A2ADelegationCard from "./A2ADelegationCard.svelte";
@@ -27,6 +28,7 @@
   import type { A2ADelegation } from "./useA2ADelegation.svelte";
   import type { ConversationScroll } from "./useConversationScroll.svelte";
   import type { LiveToolCall } from "./liveToolChain";
+  import { firstTaskIntro } from "../onboarding/firstTaskLive";
   import { liveApprovalCall } from "./liveApprovalCall";
 
   interface Props {
@@ -90,6 +92,9 @@
     onregenerate,
     onedit,
   }: Props = $props();
+
+  // The answer "last message only" keeps its generation figures under.
+  const lastAnswer = $derived(lastAnswerId(messageGroups.flatMap((g) => g.messages)));
 </script>
 
 <div class="relative flex-1 min-h-0">
@@ -107,10 +112,30 @@
   data-testid="chat-messages-list"
 >
   {#if empty && !isStreaming && !isProcessing}
-    <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
-      <MessageSquare size={28} />
-      <p class="text-xs">{$t("chat.first_message_placeholder")}</p>
-    </div>
+    {#if $firstTaskIntro?.sessionId === sessionId}
+      <!-- The conversation the first launch closed on says what it is. -->
+      <div
+        class="flex h-full flex-col items-center justify-center gap-3 text-center"
+        data-testid="first-task-intro"
+      >
+        <span class="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <MessageSquare size={18} />
+        </span>
+        <p class="m-0 text-body-sm font-medium text-foreground" data-testid="first-task-intro-title">
+          {$t("onboarding.first_task.intro_title", { values: { name: $firstTaskIntro.agentName } })}
+        </p>
+        {#if $firstTaskIntro.prefilled}
+          <p class="m-0 max-w-xs text-caption text-muted-foreground" data-testid="first-task-intro-body">
+            {$t("onboarding.first_task.intro_body")}
+          </p>
+        {/if}
+      </div>
+    {:else}
+      <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
+        <MessageSquare size={28} />
+        <p class="text-xs">{$t("chat.first_message_placeholder")}</p>
+      </div>
+    {/if}
   {:else}
     <!-- SummarizedMessagesBanner moved to ContextDrawer's Memory tab
          - no longer rendered inline in the message list. -->
@@ -128,6 +153,7 @@
           agentName={sessionAgentName}
           variant={$chatDensity === "compact" ? "compact" : "default"}
           busy={isProcessing || isStreaming}
+          lastAnswerId={lastAnswer}
           {onregenerate}
           {onedit}
         />
@@ -262,6 +288,13 @@
       </div>
     {/if}
   {/if}
+  <!-- The room under a short answer that lets the sent message reach the top. -->
+  <div
+    class="!mt-0 shrink-0"
+    style:height="{scroll.sendSpace}px"
+    aria-hidden="true"
+    data-chat-send-spacer
+  ></div>
 </div>
 <ScrollToBottomButton
   visible={scroll.showJump}

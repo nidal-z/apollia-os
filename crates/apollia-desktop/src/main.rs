@@ -18,21 +18,6 @@ mod attached;
 mod bootstrap;
 mod bundled_packages;
 mod commands;
-// REASON: this module is the content side of the in-app documentation reader.
-// The two Tauri commands that read the manifest and a page are registered by
-// the reader itself, together with the screen that calls them, because a
-// command without a caller fails `scripts/check_tauri_ipc_callers.py`. Until
-// then only the tests reach the module.
-// TODO(once the documentation reader registers its manifest and page commands
-// and a screen calls them): remove this attribute; the expectation turns red
-// on that day and forces the removal.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "reached only by its tests until the documentation reader registers its commands"
-    )
-)]
 mod embedded_docs;
 mod events;
 mod file_log;
@@ -310,7 +295,6 @@ fn main() {
             tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()),
         ) as commands::model_hub::SharedDownloadManager)
         .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
-        .manage(commands::llm::LlmPingCache::default())
         // Route the macOS app-menu / Cmd+Q "Quit" (id `MENU_QUIT_APP`) to the
         // shared graceful quit. Without this, the default native quit is
         // swallowed by the window `CloseRequested` handler below.

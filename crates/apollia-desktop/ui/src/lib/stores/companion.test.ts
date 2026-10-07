@@ -1,10 +1,14 @@
-import { vi, describe, test, expect, beforeEach } from "vitest";
+import { vi, describe, test, expect, beforeAll, beforeEach } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(""),
 }));
 
 import { get } from "svelte/store";
+import { locale, t, waitLocale } from "svelte-i18n";
+import "$lib/i18n";
+import en from "$lib/i18n/en.json";
+import fr from "$lib/i18n/fr.json";
 import { invoke } from "@tauri-apps/api/core";
 import { companionStore } from "$lib/stores/companion";
 import { detailSidebar, guideVisible } from "$lib/stores/detailSidebar";
@@ -16,6 +20,12 @@ function onScreen(route: string): GuideContext {
 }
 
 const mockedInvoke = vi.mocked(invoke);
+
+// The context text is a catalogue entry, read in the language of the interface.
+beforeAll(async () => {
+  locale.set("en");
+  await waitLocale();
+});
 
 beforeEach(() => {
   companionStore.reset();
@@ -87,29 +97,44 @@ describe("companionStore - openCompanion", () => {
 // ── updateContext ─────────────────────────────────────────────────────────────
 
 describe("companionStore - updateContext", () => {
-  test("stores fetched context text and updates currentRoute", async () => {
-    // GIVEN
-    mockedInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "get_companion_context") return Promise.resolve("You are on the Agents page.");
-      return Promise.resolve(null);
-    });
-
-    // WHEN
+  test("stores the catalogue text of the route and updates currentRoute", async () => {
+    // GIVEN the interface in English
+    // WHEN the guide is given the Agents screen
     await companionStore.updateContext(onScreen("agents"));
 
-    // THEN
+    // THEN the context is the catalogue text of that screen, with the action
+    // the guide may offer and the route it opens
     const state = get(companionStore);
-    expect(state.currentContext).toBe("You are on the Agents page.");
+    expect(state.currentContext).toContain(get(t)("guide.context.agents.text"));
+    expect(state.currentContext).toContain("(/chat)");
     expect(state.currentRoute).toBe("agents");
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  test("the context text follows the language of the interface", async () => {
+    // GIVEN the Journal screen described in English
+    await companionStore.updateContext(onScreen("journal"));
+    const english = get(companionStore).currentContext;
+
+    // WHEN the interface switches to French and the context is handed again
+    locale.set("fr");
+    await waitLocale();
+    await companionStore.updateContext(onScreen("journal"));
+    const french = get(companionStore).currentContext;
+    locale.set("en");
+    await waitLocale();
+
+    // THEN the same screen is described in French
+    expect(english).toContain(en.guide.context.journal.text);
+    expect(french).toContain(fr.guide.context.journal.text);
+    expect(fr.guide.context.journal.text).not.toBe(en.guide.context.journal.text);
   });
 
   test("a declared sub-screen and its object reach the guide's instructions", async () => {
-    // GIVEN an active session and the route text of the Agents screen
+    // GIVEN an active session
     mockedInvoke.mockImplementation((cmd: string) => {
       if (cmd === "create_companion_session")
         return Promise.resolve({ session_id: "sess-2" });
-      if (cmd === "get_companion_context")
-        return Promise.resolve("Agents context.");
       return Promise.resolve(null);
     });
     await companionStore.createSession("agents");
@@ -121,16 +146,13 @@ describe("companionStore - updateContext", () => {
       object: { id: "agent-7", name: "Qualify requests" },
     });
 
-    // THEN the route text is looked up by route, and the instructions sent to
-    // the session name the sub-screen and the agent
-    expect(mockedInvoke).toHaveBeenCalledWith("get_companion_context", {
-      route: "agents",
-    });
+    // THEN the instructions sent to the session carry the text of the sheet,
+    // and name the sub-screen and the agent
     const call = mockedInvoke.mock.calls.find(
       ([cmd]) => cmd === "update_chat_session",
     );
     const update = (call?.[1] as { update: { system_prompt: string } }).update;
-    expect(update.system_prompt).toContain("Agents context.");
+    expect(update.system_prompt).toContain("You are reading the sheet of Qualify requests.");
     expect(update.system_prompt).toContain("agents.fiche");
     expect(update.system_prompt).toContain('"Qualify requests" (id: agent-7)');
     const state = get(companionStore);
@@ -143,8 +165,6 @@ describe("companionStore - updateContext", () => {
     mockedInvoke.mockImplementation((cmd: string) => {
       if (cmd === "create_companion_session")
         return Promise.resolve({ session_id: "abc123" });
-      if (cmd === "get_companion_context")
-        return Promise.resolve("Context text.");
       return Promise.resolve(null);
     });
     await companionStore.createSession("agents");
@@ -162,14 +182,12 @@ describe("companionStore - updateContext", () => {
     mockedInvoke.mockImplementation((cmd: string) => {
       if (cmd === "create_companion_session")
         return Promise.resolve({ session_id: "sess-1" });
-      if (cmd === "get_companion_context")
-        return Promise.resolve("Tasks context.");
       return Promise.resolve(null);
     });
     await companionStore.createSession("agents");
 
     // WHEN context is updated
-    await companionStore.updateContext(onScreen("tasks"));
+    await companionStore.updateContext(onScreen("journal"));
 
     // THEN update_chat_session IPC is called with the new context as system
     // prompt, under the argument key Tauri actually reads. Tauri camel-cases
@@ -178,7 +196,11 @@ describe("companionStore - updateContext", () => {
     // carrying no `rename_all`.
     expect(mockedInvoke).toHaveBeenCalledWith("update_chat_session", {
       sessionId: "sess-1",
-      update: { system_prompt: "Tasks context.", tools: null, llm_backend: null },
+      update: {
+        system_prompt: get(companionStore).currentContext,
+        tools: null,
+        llm_backend: null,
+      },
     });
   });
 
@@ -187,8 +209,6 @@ describe("companionStore - updateContext", () => {
     mockedInvoke.mockImplementation((cmd: string) => {
       if (cmd === "create_companion_session")
         return Promise.resolve({ session_id: "sess-1" });
-      if (cmd === "get_companion_context")
-        return Promise.resolve("Agents context.");
       return Promise.resolve(null);
     });
     await companionStore.createSession("tasks");

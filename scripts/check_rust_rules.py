@@ -128,7 +128,6 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-auth/src/mcp_oauth_orchestrator.rs": 3,
     "crates/apollia-core/src/pending_approvals.rs": 1,
     "crates/apollia-desktop/src/commands/agents.rs": 1,
-    "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/stt.rs": 2,
     "crates/apollia-desktop/src/main.rs": 3,
@@ -190,7 +189,6 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
 # lock and is red.
 ARC_MUTEX_ALIASES: set[str] = {
     "crates/apollia-auth/src/callback.rs::ResultCell",
-    "crates/apollia-desktop/src/commands/llm.rs::LlmPingCache",
     "crates/apollia-desktop/src/commands/model_hub.rs::SharedDownloadManager",
     "crates/apollia-desktop/src/commands/stt.rs::SttFlowState",
     "crates/apollia-desktop/src/main.rs::SharedLlmRouter",
@@ -320,6 +318,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # (the `Authorization` header, the `model` of a completion). The fake
     # server holds a port-0 bind for the whole test, never a port released.
     "crates/apollia-runtime/src/api/routes_llm/servers.rs": 1,
+    # The engine is the subject: the route reads the template a llama-server
+    # reports on `/props`, so the tests stand a local server in for it. The
+    # stand-in holds a port-0 bind for the whole test, and the silent-port
+    # test releases one to obtain a port nothing listens on.
+    "crates/apollia-runtime/src/api/routes_chat/prompt_template/tests.rs": 2,
     "crates/apollia-runtime/src/api/server.rs": 13,
     # The mailbox and the whole-bus event streams never end: each probe reads
     # its first frame under a deadline, which is what fails it rather than a

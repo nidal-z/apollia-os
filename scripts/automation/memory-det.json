@@ -9,7 +9,7 @@
     "memory-purge-confirm-confirm is played after the cancel path, on scope episodic older than 3650 days: the seeded rows are dated 2026-07-01, so purge_memory removes 0 rows and the toast memory-purge-done carries that count. The result is identical on a replayed seed HOME.",
     "The success toasts of export, import and purge carry data-testid values (memory-export-done, memory-import-done, memory-purge-done) handed to addToast as object keys, which the validator's literal pool never sees in NamespaceDataActions.svelte, so the book proves the three outcomes by DOM state instead: the import and purge dialogs close only on success and stay open on failure, and a successful merge import proves the export wrote a parseable file.",
     "memory-import-path is an <input>, whose picked path lives in its value, not in its text: the runner's expect/contains reads text, so the path is proven by what follows the pick instead (the replace warning, the confirm dialog, the merged import).",
-    "Memory is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute) and the sidebar has no nav-memory, so the book asserts dashboard-page there, walks the screen only after developer-mode-on, and turns the mode off again at the end to leave the session as it found it."
+    "Memory is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute) and the sidebar has no nav-memory, so the book asserts chat-page there, walks the screen only after developer-mode-on, and turns the mode off again at the end to leave the session as it found it."
   ],
   "dynamicTestids": [
     "memory-type-tab-all",
@@ -74,7 +74,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -829,7 +829,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {

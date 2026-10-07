@@ -52,8 +52,6 @@ writes them:
 | macOS (Apple Silicon) | `Apollia-OS_0.2.0-1_aarch64.dmg` |
 | Linux (x86-64) | `Apollia-OS_0.2.0-1_amd64.AppImage`, `Apollia-OS_0.2.0-1_amd64.deb` |
 | Windows (x86-64) | `Apollia-OS_0.2.0-1_x64_en-US.msi`, `Apollia-OS_0.2.0-1_x64-setup.exe` |
-| Linux (x86-64), CUDA engine | `Apollia-OS_0.2.0-1_amd64-cuda.deb` |
-| Windows (x86-64), CUDA engine | `Apollia-OS_0.2.0-1_x64_en-US-cuda.msi`, `Apollia-OS_0.2.0-1_x64-setup-cuda.exe` |
 <!-- release-artifacts:end -->
 
 Each release also attaches a `SHA256SUMS` file. To confirm your download is
@@ -155,7 +153,7 @@ onboarding flow (choosing a model backend, granting permissions). You can start
 with a cloud backend or point the app at a local model file you already have. To
 <!-- claim:desktop-downloads-models-in-app -->
 run fully local inference, download a GGUF from within the app: onboarding offers
-it, and Settings, Model Hub does the same afterwards. Dropping a `.gguf` file
+it, and the AI screen, Discover models, does the same afterwards. Dropping a `.gguf` file
 into `~/.apollia/models/` by hand also works, before or after onboarding.
 
 ## The Python interpreter agents run on

@@ -5,7 +5,7 @@
   "Code-verified against routes/Library.svelte, components/library/LibraryPackageRow.svelte, LibraryPackageDetail.svelte, LibraryContentGroup.svelte, LibraryUninstallDialog.svelte and lib/library/libraryState.ts.",
   "Sections 1 and 2 read the real store: the packages of the seed, and the two packages the desktop ships and installs at boot, which the list shows as one entry, first, with no update nor uninstall gesture. Row 0 is that entry as long as the desktop ships a package.",
   "Sections 3 to 5 stub list_agent_packages and get_agent_package_detail, so the book holds a signed package of every kind whatever the seed installs. The stubbed values imitate AgentPackageListItem and AgentPackageDetail of crates/apollia-runtime/src/agent_packages.rs, and UninstallReport of crates/apollia-runtime/src/packages/uninstall.rs: a field renamed there drifts here silently.",
-  "The list is read when the route mounts, so each new list stub is followed by a round trip through the dashboard.",
+  "The list is read when the route mounts, so each new list stub is followed by a round trip through the chat.",
   "uninstall_agent_package is always stubbed: nothing is uninstalled, and the book leaves the store as it found it. The real uninstallation is held by the runtime tests.",
   "plugin:dialog|open resolves null, a cancelled chooser, so neither Update nor Install opens the package preview; the preview opened as an update is played by the Playwright spec tests/library/library.spec.ts.",
   "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run."
@@ -326,7 +326,7 @@
   },
   {
    "kind": "goto",
-   "route": "dashboard"
+   "route": "chat"
   },
   {
    "kind": "goto",
@@ -629,7 +629,7 @@
   },
   {
    "kind": "goto",
-   "route": "dashboard"
+   "route": "chat"
   },
   {
    "kind": "goto",
@@ -689,7 +689,7 @@
   },
   {
    "kind": "goto",
-   "route": "dashboard"
+   "route": "chat"
   },
   {
    "kind": "goto",

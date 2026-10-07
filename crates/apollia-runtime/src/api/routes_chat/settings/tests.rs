@@ -298,3 +298,50 @@ async fn test_a_fork_starts_from_the_settings_of_its_parent_and_from_empty_notes
     );
     assert_eq!(notes, json!({ "notes": "" }));
 }
+
+#[tokio::test]
+async fn test_a_conversation_created_limited_to_its_tools_reads_the_limit_back() {
+    // GIVEN the chat routes
+    let dir = tempfile::tempdir().unwrap();
+    let router = APIServer::build_router_for_test(chat_state(&dir));
+
+    // WHEN a conversation is created limited to two tools, then one limited
+    // to none
+    let (created, session) = call(
+        &router,
+        "POST",
+        "/api/v1/sessions",
+        Some(json!({
+            "mode": "libre",
+            "tools": ["mcp:notion/search", "mcp:notion/fetch"],
+            "limited_to_tools": true,
+        })),
+    )
+    .await;
+    let (refused, refusal) = call(
+        &router,
+        "POST",
+        "/api/v1/sessions",
+        Some(json!({ "mode": "libre", "limited_to_tools": true })),
+    )
+    .await;
+    let (_, sessions) = call(&router, "GET", "/api/v1/sessions", None).await;
+
+    // THEN the first carries the limit in its settings, and the second is
+    // refused without leaving a conversation behind
+    assert_eq!(created, StatusCode::CREATED, "{session}");
+    let id = session["id"].as_str().unwrap();
+    let (_, settings) = call(
+        &router,
+        "GET",
+        &format!("/api/v1/sessions/{id}/settings"),
+        None,
+    )
+    .await;
+    assert_eq!(
+        settings,
+        json!({ "only_accesses": ["mcp:notion/search", "mcp:notion/fetch"] })
+    );
+    assert_eq!(refused, StatusCode::BAD_REQUEST, "{refusal}");
+    assert_eq!(sessions.as_array().map(Vec::len), Some(1), "{sessions}");
+}

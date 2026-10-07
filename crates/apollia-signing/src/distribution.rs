@@ -77,6 +77,21 @@ pub enum DistributionError {
     },
 }
 
+impl DistributionError {
+    /// True when the signature was made by another key than the one it was
+    /// verified against: the key identifiers differ. A signature of the right
+    /// key that does not hold for the content answers false.
+    #[must_use]
+    pub fn is_unknown_key(&self) -> bool {
+        matches!(
+            self,
+            Self::Rejected {
+                source: minisign_verify::Error::UnexpectedKeyId
+            }
+        )
+    }
+}
+
 /// Checks that `signature` is a valid minisign signature of `content` by the
 /// key `public_key`, and returns the trusted comment it carries.
 ///

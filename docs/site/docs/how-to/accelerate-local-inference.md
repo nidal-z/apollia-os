@@ -27,24 +27,33 @@ in the engine as they land upstream.
 
 ## Which engine ships with which artifact
 
-The engine is chosen when the artifact is built, one per artifact, so there is
-nothing to select at install time. What ships:
+The embedded engine is chosen when the artifact is built, one per artifact, so
+there is nothing to select at install time. There is one installer per system.
+What ships:
 
 | Artifact | Engine | Covers |
 |---|---|---|
 | Desktop app, macOS | Metal | Apple Silicon |
-| Desktop app, Windows and Linux, default bundle | Vulkan | NVIDIA, AMD and Intel |
-| Desktop app, Windows and Linux, `-cuda` bundle | CUDA | NVIDIA |
+| Desktop app, Windows and Linux | Vulkan | NVIDIA, AMD and Intel |
 | CLI, `*-cpu` presets | CPU | any machine, no GPU offload |
 | CLI, `*-vulkan` presets | Vulkan | NVIDIA, AMD and Intel |
 
-Vulkan in the default desktop bundle is a deliberate trade. One 32 MB binary
-reaches all three vendors, where the CUDA engine covers NVIDIA alone, weighs
-238 MB plus a 373 MB runtime, and falls back to the processor on every other
-card. So NVIDIA owners get a second bundle rather than a heavier default one:
-the release pipeline compiles a CUDA `llama-server` itself, for Windows and for
-Linux, and hands it to the `-cuda` bundles. They are on the download page
-alongside the default ones.
+Vulkan in the desktop bundle is a deliberate trade. One 32 MB binary reaches
+all three vendors, where the CUDA engine covers NVIDIA alone, weighs 238 MB
+plus a 373 MB runtime, and falls back to the processor on every other card. So
+the CUDA engine is not in any installer. It is published apart, on the engine
+channel, and the application downloads it on demand: on a machine with an
+NVIDIA card, the AI screen offers it, **Speed up with your NVIDIA card**, and
+one click installs it. The next model load uses it, and the embedded Vulkan
+engine stays in place as the fallback. On Windows the download carries the
+CUDA runtime libraries; on Linux the engine relies on those of the machine.
+
+Nothing is run before it is verified. The channel publishes one manifest
+listing each archive with its SHA-256, signed in the minisign format with a
+dedicated distribution key. The application carries the public half of that
+key, requests no archive before the signature holds, and deletes an archive
+whose digest differs. A machine without network imports the same three kinds of
+file, manifest, signature and archive, from a disk, through the same checks.
 
 The command-line archives have no CUDA preset, on any platform. If you run the
 daemon from the CLI on an NVIDIA card and want CUDA rather than Vulkan, point it
@@ -155,10 +164,9 @@ it wins over the bundled one:
 export APOLLIA_LLAMA_SERVER_BIN=/opt/llama.cpp/build/bin/llama-server
 ```
 
-This is also the supported path for a CUDA build on Linux, where upstream
-publishes none. An operator running NVIDIA cards usually already has a
-llama.cpp compiled for those cards and tuned for that load; Apollia uses it
-rather than replacing it with a build of its own.
+This is also the path for a CUDA build of your own. An operator running NVIDIA
+cards usually already has a llama.cpp compiled for those cards and tuned for
+that load; Apollia uses it rather than replacing it with another build.
 
 ## Related
 

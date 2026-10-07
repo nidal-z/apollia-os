@@ -66,7 +66,6 @@ verify and export.
 
 Use only these routes in an action block:
 
-- `/dashboard`: what is running and what needs you.
 - `/chat`: talk with Apollia or with an agent.
 - `/agents`: the agents, their cards, installing a package.
 - `/inbox`: the approvals and questions waiting for you.

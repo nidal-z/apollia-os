@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | ✅ Yes     |
+| 0.3.x   | Yes       |
 
 ## Reporting a Vulnerability
 
@@ -12,7 +12,7 @@
 
 Please report security issues privately through
 [GitHub Security Advisories](https://github.com/Apollia-OS/apollia-os/security/advisories/new).
-If you cannot use GitHub Advisories, email **admin@apollia.fr** instead.
+If you cannot use GitHub Advisories, email **contact@apollia.fr** instead.
 
 Include in your report:
 - A description of the vulnerability and its potential impact
@@ -25,7 +25,8 @@ Include in your report:
 - **Status update** within 7 days (confirmed, rejected, or in progress)
 - **Patch release** within 30 days for confirmed critical vulnerabilities
 
-We will credit reporters in the release notes unless you prefer to remain anonymous.
+The team credits reporters in the release notes unless you prefer to remain
+anonymous.
 
 ## Scope
 
@@ -92,6 +93,9 @@ The fingerprint to expect:
 ```
 578236310A23A3DE368737CD8F38159B9DA5C452   Apollia OS <admin@apollia.fr>
 ```
+
+The address in that line is the user ID recorded in the key, shown so you can
+match it. It is not a contact address: reports go through the channels above.
 
 `gpg` reports the key as untrusted until you certify it, which is expected and
 says only that no chain of trust reaches it from your keyring. What matters is

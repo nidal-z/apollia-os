@@ -108,7 +108,7 @@ that introduces it and update this file.
 |---|---|---|
 | `tool_name` | `&str` | tool invoked |
 | `backend` | `&str` | LLM or MCP backend name |
-| `provider` | `&str` | upstream provider (`anthropic`, `openai`, `ollama`, ...) |
+| `provider` | `&str` | upstream provider (`llama-cpp`, `openai`, `ollama`) |
 | `scope` | `&str` | permission scope (`session`, `project`, `global`) |
 | `decision` | `&str` | permission decision (`allow`, `ask`, `deny`) |
 | `reason` | `&str` | why the event happened, when the label cannot say it |

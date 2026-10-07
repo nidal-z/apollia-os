@@ -65,6 +65,13 @@
     folderId?: string | null;
     /** Optional move action: a folder id, or `null` for out of any folder. */
     onmove?: (folderId: string | null) => void;
+    /**
+     * Whether a double click on the title renames, when `onrename` is given.
+     * Off, the kebab menu entry is the only way in.
+     */
+    renameOnDoubleClick?: boolean;
+    /** The tokens generated for the conversation, already worded; absent hides them. */
+    tokens?: string;
   }
 
   let {
@@ -83,6 +90,8 @@
     folders = [],
     folderId = null,
     onmove,
+    renameOnDoubleClick = true,
+    tokens,
   }: Props = $props();
 
   const canMove = $derived(offersMove(Boolean(onmove), folders));
@@ -148,7 +157,7 @@
   }
 
   function onTitleDblClick(ev: MouseEvent): void {
-    if (!onrename) return;
+    if (!onrename || !renameOnDoubleClick) return;
     ev.stopPropagation();
     void startEdit();
   }
@@ -236,6 +245,9 @@
     <div class="text-micro-lg text-muted-foreground mt-0.5 inline-flex items-center gap-1.5 flex-wrap">
       {#if lastMessage}<span class="truncate">{lastMessage}</span>{/if}
       <span>· {$t("common.relative.ago", { values: { time: timestamp } })}</span>
+      {#if tokens}
+        <span class="tabular-nums" data-testid="conversation-row-tokens">· {tokens}</span>
+      {/if}
       {#if live}
         <span>·</span>
         <span class="text-primary inline-flex items-center gap-1">

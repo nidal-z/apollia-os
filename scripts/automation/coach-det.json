@@ -49,7 +49,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "sleep",
@@ -57,7 +57,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "01-operator-dashboard"
+      "label": "01-operator-chat"
     },
     {
       "kind": "click",
@@ -112,6 +112,16 @@
     {
       "kind": "waitFor",
       "testid": "detail-sidebar-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "guide-context",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "guide-action",
       "timeoutMs": 3000
     },
     {
@@ -249,7 +259,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "sleep",
@@ -257,7 +267,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "09-builder-dashboard"
+      "label": "09-builder-chat"
     },
     {
       "kind": "click",
@@ -341,7 +351,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "screenshot",

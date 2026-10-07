@@ -54,6 +54,34 @@ pub struct DesktopConfig {
     /// the video memory in use. Off by default.
     #[serde(default)]
     pub resource_widget: bool,
+    /// Whether "New conversation" opens the empty conversation that already
+    /// exists rather than a second one. On by default.
+    #[serde(default = "allowed")]
+    pub chat_single_empty: bool,
+    /// Whether a double click on a message of a conversation opens its
+    /// edition. Off by default.
+    #[serde(default)]
+    pub chat_double_click_edit: bool,
+    /// Whether a double click on a conversation or a folder of the list
+    /// renames it. On by default.
+    #[serde(default = "allowed")]
+    pub chat_double_click_rename: bool,
+    /// Whether the regeneration shortcut (Cmd + R on a Mac, Ctrl + R
+    /// elsewhere) regenerates the last answer of the conversation shown. On
+    /// by default.
+    #[serde(default = "allowed")]
+    pub chat_regenerate_shortcut: bool,
+    /// Whether choosing, in a conversation, a model of this machine that is
+    /// not in memory opens the loading window first. On by default; off, the
+    /// model loads at once under its default preset, the load guardrail
+    /// still applying.
+    #[serde(default = "allowed")]
+    pub model_load_window: bool,
+    /// Whether saving settings into a preset, a new one or an existing one,
+    /// asks for a confirmation that lists the settings changed. Off by
+    /// default.
+    #[serde(default)]
+    pub preset_save_confirm: bool,
 }
 
 const fn allowed() -> bool {
@@ -70,6 +98,12 @@ impl Default for DesktopConfig {
             chat_auto_naming: ChatAutoNaming::default(),
             chat_debug_blocks: allowed(),
             resource_widget: false,
+            chat_single_empty: allowed(),
+            chat_double_click_edit: false,
+            chat_double_click_rename: allowed(),
+            chat_regenerate_shortcut: allowed(),
+            model_load_window: allowed(),
+            preset_save_confirm: false,
         }
     }
 }
@@ -258,6 +292,51 @@ mod tests {
             // THEN the choice is the file's
             assert_eq!(desktop.chat_auto_naming, expected, "{written}");
         }
+    }
+
+    #[test]
+    fn test_desktop_config_chat_behaviours_default_and_are_read() {
+        // GIVEN a [desktop] section that names none of the chat behaviours,
+        //       and one that turns each of them the other way
+        let silent = "[desktop]\ndeveloper_mode = true\n";
+        let turned = "[desktop]\nchat_single_empty = false\nchat_double_click_edit = true\n\
+                      chat_double_click_rename = false\nchat_regenerate_shortcut = false\n";
+
+        // WHEN both are read
+        let default = DesktopConfig::from_toml_str(silent).unwrap();
+        let read = DesktopConfig::from_toml_str(turned).unwrap();
+
+        // THEN the defaults are: one empty conversation, no edition on a
+        //      double click, renaming on a double click, the shortcut on
+        assert!(default.chat_single_empty);
+        assert!(!default.chat_double_click_edit);
+        assert!(default.chat_double_click_rename);
+        assert!(default.chat_regenerate_shortcut);
+        // AND the file wins on each
+        assert!(!read.chat_single_empty);
+        assert!(read.chat_double_click_edit);
+        assert!(!read.chat_double_click_rename);
+        assert!(!read.chat_regenerate_shortcut);
+    }
+
+    #[test]
+    fn test_desktop_config_general_behaviours_default_and_are_read() {
+        // GIVEN a [desktop] section that names neither general behaviour,
+        //       and one that turns each of them the other way
+        let silent = "[desktop]\ndeveloper_mode = true\n";
+        let turned = "[desktop]\nmodel_load_window = false\npreset_save_confirm = true\n";
+
+        // WHEN both are read
+        let default = DesktopConfig::from_toml_str(silent).unwrap();
+        let read = DesktopConfig::from_toml_str(turned).unwrap();
+
+        // THEN the defaults are: the loading window opens, a preset is saved
+        //      without a confirmation
+        assert!(default.model_load_window);
+        assert!(!default.preset_save_confirm);
+        // AND the file wins on each
+        assert!(!read.model_load_window);
+        assert!(read.preset_save_confirm);
     }
 
     #[test]

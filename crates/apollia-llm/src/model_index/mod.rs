@@ -24,6 +24,7 @@
 //! files are gone is dropped, and what the disk cannot tell (origin, digest,
 //! pin, overrides) is carried over from the previous entry.
 
+mod drafts;
 pub mod import;
 mod overrides;
 mod scan;
@@ -141,6 +142,23 @@ impl IndexedModel {
     #[must_use]
     pub fn effective_category(&self) -> ModelCategory {
         self.category_override.unwrap_or(self.category)
+    }
+
+    /// Whether a conversation can run on the model: a language model, or a
+    /// draft model, which stays one.
+    #[must_use]
+    pub fn is_language_model(&self) -> bool {
+        matches!(
+            self.effective_category(),
+            ModelCategory::Language | ModelCategory::Draft
+        )
+    }
+
+    /// The weights the engine loads: the source file override when set, the
+    /// model's own file otherwise.
+    #[must_use]
+    pub fn weights_path(&self) -> &Path {
+        self.source_file_override.as_deref().unwrap_or(&self.path)
     }
 
     /// Whether `path` is this model's file, folder, one of its parts or annexes.
@@ -503,6 +521,18 @@ fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> 
     let category = match &sha256 {
         Some(digest) if scan::registry_embedding(digest) => ModelCategory::Embeddings,
         _ => category,
+    };
+    // The card is read at every rebuild rather than kept with the header: it
+    // is copied beside the weights after the download, and can be removed.
+    let category = match category {
+        ModelCategory::Language | ModelCategory::Draft => {
+            if scan::card_marks_draft(&found.path) {
+                ModelCategory::Draft
+            } else {
+                ModelCategory::Language
+            }
+        }
+        other => other,
     };
     let capabilities = scan::with_usable_vision(&found, template_caps);
     let source_file_override = before

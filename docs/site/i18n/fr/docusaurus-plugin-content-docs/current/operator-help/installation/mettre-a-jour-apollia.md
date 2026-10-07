@@ -15,13 +15,18 @@ Toutes les installations n'ont pas de chemin de mise à jour, et savoir laquelle
 est la vôtre évite une recherche.
 
 - **L'application de bureau** se met à jour depuis le `.dmg` macOS, l'`.AppImage`
-  Linux et les installeurs Windows. Un `.deb` Linux, celui en CUDA compris, n'a
-  pas de mise à jour intégrée : Tauri remplace une AppImage sur place et n'a pas
-  d'équivalent pour un paquet, donc réinstallez le `.deb` plus récent à la main.
+  Linux et les installeurs Windows. Un `.deb` Linux n'a pas de mise à jour
+  intégrée : Tauri remplace une AppImage sur place et n'a pas d'équivalent pour
+  un paquet, donc réinstallez le `.deb` plus récent à la main.
+- **Une installation faite depuis un ancien installeur `-cuda`** se met à jour
+  comme les autres, vers l'installeur unique de son système ; un `-cuda.deb` se
+  remplace à la main par le `.deb`. Cet installeur ne porte plus le moteur pour
+  les cartes NVIDIA : après la mise à jour, l'écran IA le propose, **Accélérer
+  avec votre carte NVIDIA**, et un clic le ramène.
 - **La ligne de commande** se met à jour sur quatre couples : macOS Apple
   Silicon, Linux x86_64, Linux aarch64 et Windows x86_64. macOS Intel n'a aucune
   archive publiée, et la commande le dit au lieu de deviner un nom de fichier.
-- Une installation Vulkan ou CUDA se met à jour depuis l'archive CPU de la même
+- Une installation Vulkan se met à jour depuis l'archive CPU de la même
   plateforme. C'est délibéré : le binaire `apollia-os` est identique entre les
   variantes de moteur d'une même plateforme, et la commande ne remplace que ce
   binaire.

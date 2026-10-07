@@ -15,13 +15,18 @@ Not every install has an update path, and knowing which one you have saves a
 search.
 
 - **The desktop application** updates itself from the macOS `.dmg`, the Linux
-  `.AppImage` and the Windows installers. A Linux `.deb`, the CUDA one included,
-  has no in-app update: Tauri replaces an AppImage in place and has no
-  equivalent for a package, so reinstall the newer `.deb` by hand.
+  `.AppImage` and the Windows installers. A Linux `.deb` has no in-app update:
+  Tauri replaces an AppImage in place and has no equivalent for a package, so
+  reinstall the newer `.deb` by hand.
+- **An install made from a former `-cuda` installer** updates like any other,
+  to the one installer of its system; a `-cuda.deb` is replaced by hand with
+  the `.deb`. That installer no longer carries the engine for NVIDIA cards:
+  after the update, the AI screen offers it, **Speed up with your NVIDIA
+  card**, and one click brings it back.
 - **The command line** updates itself on four couples: macOS Apple Silicon,
   Linux x86_64, Linux aarch64 and Windows x86_64. macOS Intel has no published
   archive, and the command says so instead of guessing a file name.
-- A Vulkan or CUDA install updates from the CPU archive of the same platform.
+- A Vulkan install updates from the CPU archive of the same platform.
   That is deliberate: the `apollia-os` binary is identical across the engine
   variants of one platform, and the command replaces that binary only.
 

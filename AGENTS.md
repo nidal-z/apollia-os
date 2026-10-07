@@ -32,7 +32,7 @@ bottom of this file.
 | HTTP API | axum on Unix socket + TCP 7771 |
 | CLI | clap v4 derive |
 | Desktop | Tauri v2 + Svelte 5 + Tailwind 3.4 |
-| SDK | `apollia` package (AgentKit). Source floor Python 3.10 (`sdk/pyproject.toml` `requires-python`); the runtime embeds a 3.12+ interpreter, which is the supported configuration |
+| SDK | `apollia` package (AgentKit). Source floor Python 3.10 (`sdk/pyproject.toml` `requires-python`); the runtime embeds CPython 3.13.13 (`.python-version`, `packaging/fetch-python-standalone.sh`), which is the supported configuration |
 
 ---
 
@@ -164,8 +164,8 @@ Always cross-check against `docs/agents/FORBIDDEN.md` before committing.
   `docs/site/docs/architecture/08-decisions.md` before it lands.
 - Changing a decision recorded in the architecture chapter of `docs/site/`.
 - Modifying a public API in `apollia-core` (used by every other crate).
-- Touching anything in `docs/internal/` (gitignored, source of truth for
-  release planning).
+- Touching anything in `docs/internal/` (gitignored working notes, absent from
+  a public checkout).
 - Force-pushing, rewriting history, deleting branches, or anything that
   rewrites shared state.
 
@@ -231,4 +231,4 @@ Precedence (highest first) : chat prompt > `AGENTS.override.md` > nearest
 ---
 
 Before writing code, read the sub-`AGENTS.md` for the area you touch. The cost
-of reading is 2 minutes. The cost of an unaligned commit is one PR cycle.
+of reading is 2 minutes. The cost of an unaligned commit is redoing it.

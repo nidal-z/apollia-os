@@ -4286,6 +4286,102 @@
         }
       }
     },
+    "/api/v1/engines/installation": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "engine_installation_state",
+        "responses": {
+          "200": {
+            "description": "Where the installation stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstallationState"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "start_engine_installation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The installation started, the one already running, or the refusal that kept it from starting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstallationState"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "dismiss_engine_installation",
+        "responses": {
+          "200": {
+            "description": "The download cancelled or the outcome forgotten; a verification or an extraction is left to end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstallationState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/installation/import": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "start_engine_import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The import started, the installation already running, or the refusal that kept it from starting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstallationState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/engines/nodejs": {
       "get": {
         "tags": [
@@ -7845,6 +7941,86 @@
           },
           "404": {
             "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository or secret store not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`PATCH /api/v1/llm/servers/{name}`: change a saved server field by field.\nThe change applies to the next request sent to one of its models.",
+        "operationId": "update_llm_server",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Server name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Server updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The organisation policy refuses the new address; nothing was changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid address, timeout out of bounds, or a reserved field among the extra parameters",
             "content": {
               "application/json": {
                 "schema": {
@@ -14989,6 +15165,59 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/prompt-template": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/{id}/prompt-template`, the prompt\ntemplate the model of a session receives.",
+        "description": "The template of the preset the session chose when that preset carries\none, else the template the local engine reports for the model of the\nsession when it is loaded. Reading it never loads a model.",
+        "operationId": "get_session_prompt_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The prompt template of the session and where it comes from",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPromptTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem or backend repository unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/restore": {
       "post": {
         "tags": [
@@ -21272,8 +21501,8 @@
           "summarize_middle",
           "sliding_window",
           "stop_at_limit"
-          ]
-        },
+        ]
+      },
       "Continuation": {
         "type": "object",
         "description": "Whether the last answer of a conversation can be continued.",
@@ -21679,6 +21908,10 @@
               "null"
             ],
             "description": "Agent name (required when `mode == \"agent\"`)."
+          },
+          "limited_to_tools": {
+            "type": "boolean",
+            "description": "Limit the conversation to `tools`: of the accesses of its agent only\nthey are offered, and those the agent does not hold are proposed,\neach of their calls asking for consent. Read back as\n`settings.only_accesses`. Refused when `tools` is empty."
           },
           "mode": {
             "type": "string",
@@ -22621,6 +22854,164 @@
           }
         }
       },
+      "EngineInstallationKind": {
+        "type": "string",
+        "description": "What an installation is, for the one who asked.",
+        "enum": [
+          "install",
+          "update",
+          "import"
+        ]
+      },
+      "EngineInstallationState": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Nothing running, and no outcome waiting to be read.",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "idle"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The manifest signature is being verified. No archive was requested.",
+            "required": [
+              "kind",
+              "state"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What is being done."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "verifying"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The signature held and the archive is arriving.",
+            "required": [
+              "kind",
+              "received",
+              "total",
+              "state"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What is being done."
+              },
+              "received": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Bytes of the archive received so far.",
+                "minimum": 0
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "downloading"
+                ]
+              },
+              "total": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Size of the archive the verified manifest states.",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The signature held and the archives of the directory are being\ncompared to their digests and extracted.",
+            "required": [
+              "kind",
+              "state"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What is being done."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "installing"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Verified and installed. The next model load takes it.",
+            "required": [
+              "kind",
+              "state"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What was done."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "installed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Refused or failed. Nothing was installed.",
+            "required": [
+              "kind",
+              "code",
+              "error",
+              "archive_requested",
+              "state"
+            ],
+            "properties": {
+              "archive_requested": {
+                "type": "boolean",
+                "description": "True when an archive had been requested from the mirror: false\nmeans the refusal came before any download."
+              },
+              "code": {
+                "$ref": "#/components/schemas/EngineRefusalCode",
+                "description": "Why, as a stable word."
+              },
+              "error": {
+                "type": "string",
+                "description": "Why, readable as is."
+              },
+              "kind": {
+                "$ref": "#/components/schemas/EngineInstallationKind",
+                "description": "What was being done."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Where the installation of a store stands."
+      },
       "EngineInstalledResponse": {
         "type": "object",
         "description": "Engines installed by a request.",
@@ -22644,6 +23035,23 @@
           "llama-server",
           "vllm-mlx",
           "nodejs"
+        ]
+      },
+      "EngineRefusalCode": {
+        "type": "string",
+        "description": "Why the store refused, as a stable word an interface can branch on. The\nsentence of the error says the same to a reader.",
+        "enum": [
+          "no_trusted_key",
+          "signature_invalid",
+          "signature_unknown_key",
+          "signature_missing",
+          "manifest_invalid",
+          "rollback",
+          "package_not_found",
+          "digest_mismatch",
+          "archive_invalid",
+          "network",
+          "storage"
         ]
       },
       "EngineSettingsBody": {
@@ -22727,6 +23135,13 @@
             "format": "int64",
             "description": "Sequence of the last verified manifest of that channel, if any.",
             "minimum": 0
+          },
+          "nvidia_card": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the NVIDIA card detected, when there is one."
           },
           "updates": {
             "type": "array",
@@ -24430,6 +24845,15 @@
             "$ref": "#/components/schemas/GuardrailCheckDto",
             "description": "What the load guardrail makes of it."
           },
+          "maxCtx": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The largest window the model accepts, from its header; absent when\nthe header does not say, and for an MLX model.",
+            "minimum": 0
+          },
           "memory": {
             "oneOf": [
               {
@@ -24462,6 +24886,13 @@
             ],
             "format": "int32",
             "description": "Layers it would place on the accelerator; absent for an MLX model."
+          },
+          "quantization": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The quantisation the file name declares (`Q4_K_M`); absent when it\ndeclares none."
           },
           "totalLayers": {
             "type": [
@@ -24572,9 +25003,24 @@
             "description": "Requests being answered right now. An unload is refused above zero.",
             "minimum": 0
           },
+          "capabilities": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What the model can do, from the model index."
+          },
           "engine": {
             "$ref": "#/components/schemas/EngineName",
             "description": "The engine serving the model, chosen by its format: `llama-server` for\nGGUF, `vllm-mlx` for MLX."
+          },
+          "footprintGb": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Memory the load guardrail estimated for it at launch, in gigabytes;\nabsent when the launch was not estimated."
           },
           "kind": {
             "$ref": "#/components/schemas/ModelKind",
@@ -24591,6 +25037,13 @@
           "model": {
             "type": "string",
             "description": "Display name, the model file name without its extension."
+          },
+          "modelId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the model in the model index, the name an agent uses;\nabsent for a file the index does not hold."
           },
           "modelPath": {
             "type": "string",
@@ -24624,6 +25077,15 @@
             "type": "integer",
             "format": "int32",
             "description": "Loopback port of the process serving it.",
+            "minimum": 0
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Size of its weights on disk, from the model index.",
             "minimum": 0
           }
         }
@@ -27151,6 +27613,15 @@
           }
         }
       },
+      "PromptTemplateSource": {
+        "type": "string",
+        "description": "Where the template shown comes from.",
+        "enum": [
+          "preset",
+          "engine",
+          "unavailable"
+        ]
+      },
       "ProposedRuleView": {
         "type": "object",
         "description": "One proposed permission rule, as the approval card draws it.",
@@ -28016,9 +28487,16 @@
         "description": "Body of `GET /api/v1/llm/servers/{name}/models`.",
         "required": [
           "server",
-          "models"
+          "models",
+          "expected_context_window"
         ],
         "properties": {
+          "expected_context_window": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Window an agent is expected to have, in tokens: a model served with a\nshorter one is marked `context_short`.",
+            "minimum": 0
+          },
           "models": {
             "type": "array",
             "items": {
@@ -28098,6 +28576,13 @@
             "type": "boolean",
             "description": "Whether the server's models are routable."
           },
+          "extra_params": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Fields added to every request sent to this server. Absent when none."
+          },
           "has_key": {
             "type": "boolean",
             "description": "Whether a key is held for this server."
@@ -28105,6 +28590,15 @@
           "name": {
             "type": "string",
             "description": "Unique name, the first segment of `<server>/<model>`."
+          },
+          "timeout_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seconds the server may stay silent before a request to it is given\nup. Absent when the default of the runtime applies.",
+            "minimum": 0
           }
         }
       },
@@ -28362,6 +28856,26 @@
         },
         "additionalProperties": false
       },
+      "SessionPromptTemplate": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/sessions/{id}/prompt-template`.",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/PromptTemplateSource",
+            "description": "Where the template comes from."
+          },
+          "template": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The template, `null` when `source` is `unavailable`."
+          }
+        }
+      },
       "SessionSettings": {
         "type": "object",
         "description": "The settings of one conversation. Every field is optional: one left out\nis inherited from the agent. An unknown field is refused.",
@@ -28399,6 +28913,13 @@
             "format": "int32",
             "description": "Upper bound on the length of an answer, in tokens.",
             "minimum": 0
+          },
+          "only_accesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses the conversation is limited to. When the list is not empty,\nof the accesses of the agent only those it names are kept, and those\nit names that the agent does not hold are proposed: each of their\ncalls asks for consent."
           },
           "preset": {
             "type": [
@@ -30945,6 +31466,49 @@
           }
         }
       },
+      "UpdateServerRequest": {
+        "type": "object",
+        "description": "Body of `PATCH /api/v1/llm/servers/{name}`. A field left out keeps what\nthe server has.",
+        "properties": {
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New key, written to the secret store. `null` or an empty string\nremoves the key the server had."
+          },
+          "base_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New base address, with or without the trailing `/v1`."
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the server's models are routable."
+          },
+          "extra_params": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "JSON object whose fields are added to every request sent to this\nserver; a field the request already carries is left as it is. `model`,\n`messages`, `stream`, `stream_options`, `tools` and `tool_choice` are\nrefused. `null` adds nothing."
+          },
+          "timeout_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seconds the server may stay silent before a request to it is given\nup, 60 to 3600. `null` returns to the default of the runtime.",
+            "minimum": 0
+          }
+        }
+      },
       "UpdateSessionBody": {
         "type": "object",
         "description": "Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its\nvalue.",
@@ -31090,12 +31654,20 @@
           "engine",
           "variant",
           "latest_tag",
-          "update_available"
+          "update_available",
+          "size"
         ],
         "properties": {
           "engine": {
             "$ref": "#/components/schemas/EngineName",
             "description": "Engine."
+          },
+          "installed_released": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Day the installed build was published, when its manifest stated it."
           },
           "installed_tag": {
             "type": [
@@ -31104,9 +31676,22 @@
             ],
             "description": "Newest tag installed here, if any."
           },
+          "latest_released": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Day the newest build was published, `YYYY-MM-DD`, when the manifest\nstates it."
+          },
           "latest_tag": {
             "type": "string",
             "description": "Newest tag the verified manifest offers."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes of the archive of the newest build, as the verified\nmanifest states it: what installing or updating downloads.",
+            "minimum": 0
           },
           "update_available": {
             "type": "boolean",

@@ -1,20 +1,16 @@
 <script lang="ts">
-  // Filter bar for the audit trail (tool + agent selects) plus the optional
-  // verify action. Extracted verbatim from AuditTrailTable so the table stays
-  // focused on data orchestration. Filter values are bound back to the parent.
+  // Filter bar for the audit trail (tool + agent selects). Extracted from
+  // AuditTrailTable so the table stays focused on data orchestration. Filter
+  // values are bound back to the parent.
   import { t } from "svelte-i18n";
   import { Select } from "$lib/components/ui/select";
   import { FormField } from "$lib/components/ui/form-field";
-  import AuditVerifyButton from "./AuditVerifyButton.svelte";
 
   interface Props {
     filterTool: string;
     filterAgent: string;
     uniqueTools: string[];
     uniqueAgents: string[];
-    runId?: string | undefined;
-    /** Forwarded to the verify action: a verdict was produced. */
-    onverified?: (() => void) | undefined;
   }
 
   let {
@@ -22,8 +18,6 @@
     filterAgent = $bindable(),
     uniqueTools,
     uniqueAgents,
-    runId = undefined,
-    onverified = undefined,
   }: Props = $props();
 </script>
 
@@ -45,10 +39,4 @@
       {/each}
     </Select>
   </FormField>
-
-  {#if runId}
-    <div class="ml-auto">
-      <AuditVerifyButton {runId} {onverified} />
-    </div>
-  {/if}
 </div>

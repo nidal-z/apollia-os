@@ -53,8 +53,6 @@ tels que le bundler les écrit :
 | macOS (Apple Silicon) | `Apollia-OS_0.2.0-1_aarch64.dmg` |
 | Linux (x86-64) | `Apollia-OS_0.2.0-1_amd64.AppImage`, `Apollia-OS_0.2.0-1_amd64.deb` |
 | Windows (x86-64) | `Apollia-OS_0.2.0-1_x64_en-US.msi`, `Apollia-OS_0.2.0-1_x64-setup.exe` |
-| Linux (x86-64), moteur CUDA | `Apollia-OS_0.2.0-1_amd64-cuda.deb` |
-| Windows (x86-64), moteur CUDA | `Apollia-OS_0.2.0-1_x64_en-US-cuda.msi`, `Apollia-OS_0.2.0-1_x64-setup-cuda.exe` |
 <!-- release-artifacts:end -->
 
 Chaque release fournit également un fichier `SHA256SUMS`. Pour vérifier que
@@ -164,8 +162,8 @@ octroi des permissions). Vous pouvez démarrer avec un backend cloud ou pointer
 l'application vers un fichier de modèle local que vous possédez déjà. Pour
 <!-- claim:desktop-downloads-models-in-app -->
 exécuter une inférence entièrement locale, téléchargez un GGUF depuis
-l'application elle-même : le parcours d'accueil le propose, et Réglages,
-Model Hub fait de même par la suite. Déposer un fichier `.gguf` à la main dans
+l'application elle-même : le parcours d'accueil le propose, et l'écran IA,
+Découvrir des modèles, fait de même par la suite. Déposer un fichier `.gguf` à la main dans
 `~/.apollia/models/` fonctionne aussi, avant ou après le parcours d'accueil.
 
 ## L'interpréteur Python sur lequel tournent les agents

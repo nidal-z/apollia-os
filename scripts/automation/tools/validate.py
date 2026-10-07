@@ -73,6 +73,7 @@ SCHEMAS = {
     "resizeWindow": ({"width", "height"}, set(), None),
     "fault": ({"name"}, set(), None),
     "emitEvent": ({"event"}, {"payload"}, None),
+    "expectElapsed": ({"maxMs", "as"}, set(), None),
 }
 SCRIPT_KEYS = {"name", "stopOnError", "destructive", "notes", "dynamicTestids", "steps"}
 
@@ -236,8 +237,9 @@ def build_corpus(ui_root=UI):
         # TabBar/FilterChipBar: a `testidPrefix="X"` prop yields child ids
         # `X-tabbar`, `X-tab-<key>` (TabBar) and `X-<key>` (FilterChipBar).
         # SplitLayout: sidebarTestid="X" / detailTestid="X" render as data-testid,
-        # and so does DetailHeader's titleTestid="X" on its title.
-        for pm in re.finditer(f'(?:sidebarTestid|detailTestid|titleTestid)\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
+        # and so do DetailHeader's titleTestid="X" on its title and Tooltip's
+        # triggerTestid="X" on its trigger.
+        for pm in re.finditer(f'(?:sidebarTestid|detailTestid|titleTestid|triggerTestid)\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
             static_ids.add(pm.group(1))
         for pm in re.finditer(f'testidPrefix\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
             X = pm.group(1)

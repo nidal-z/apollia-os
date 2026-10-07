@@ -71,12 +71,6 @@ fn test_each_load_setting_reaches_its_flag() {
         ("mlock", json!(true), "--mlock", "--mlock"),
         ("mmap", json!(false), "--no-mmap", "--no-mmap"),
         ("seed", json!(42), "--seed", "42"),
-        (
-            "draft_model",
-            json!("/models/draft.gguf"),
-            "--model-draft",
-            "/models/draft.gguf",
-        ),
         ("spec_type", json!("draft-mtp"), "--spec-type", "draft-mtp"),
         ("flash_attn", json!("off"), "--flash-attn", "off"),
         ("cache_type_k", json!("q8_0"), "-ctk", "q8_0"),

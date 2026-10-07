@@ -8,6 +8,8 @@ Local-first. No cloud dependency. Sovereign by design.
 
 [![CI](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![Release](https://img.shields.io/github/v/release/Apollia-OS/apollia-os)](https://github.com/Apollia-OS/apollia-os/releases)
+[![Docs](https://img.shields.io/badge/docs-docs.apollia.fr-blue.svg)](https://docs.apollia.fr)
 
 ---
 
@@ -18,7 +20,7 @@ The best model alone does not make a reliable agent. What decides the result is 
 - **Yours** - agents run locally; no data leaves your machine without an explicit action.
 - **Auditable** - every action is recorded, so you can prove what an agent did.
 - **Cost-bounded** - a step budget enforced by the runtime, never bypassable.
-- **As powerful as you want** - a local model by default, any model you choose on demand.
+- **As powerful as you want** - a local model by default, or any model served by an inference server you designate.
 
 ![The audit trail of the desktop application: every tool call an agent made, with its agent, duration and status](docs/site/static/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
 
@@ -33,11 +35,11 @@ Learn more at [apollia.fr](https://apollia.fr).
 
 Apollia OS is a Rust runtime that executes autonomous Python AI agents in an isolated, local environment. Agents run in-process: the PyO3 bridge translates async Rust futures to Python coroutines directly, with no per-agent subprocess.
 
-Sovereign means self-contained, not feature-poor. The runtime is a single binary, the Python SDK has zero third-party dependencies, SQLite is vendored, the API binds to loopback by default, and there is no telemetry and no phone-home. Nothing is required from the cloud to run an agent. Every external host Apollia can reach (Anthropic, OpenAI, Google, Microsoft, and so on) is a backend or connector you configure yourself.
+Sovereign means self-contained, not feature-poor. The runtime is a single binary, the Python SDK has zero third-party dependencies, SQLite is vendored, the API binds to loopback by default, and there is no telemetry and no phone-home. Nothing is required from the cloud to run an agent. Every external host Apollia can reach (an inference server, a Google or Microsoft account, an MCP server) is a backend or connector you configure yourself.
 
 **Key capabilities:**
 
-- **Local-first LLM inference** - run GGUF models locally through the embedded `llama-server` (CPU, Metal, Vulkan, CUDA depending on the platform), or connect to Anthropic / OpenAI-compatible APIs
+- **Local-first LLM inference** - run GGUF models locally through the embedded `llama-server` (CPU, Metal, Vulkan, CUDA depending on the platform), or connect to an OpenAI-compatible server or to Ollama
 - **Persistent memory** - three-tier SQLite store (episodic, semantic, procedural) with FTS5 full-text search per agent
 - **Native tools** - bash (Linux PID/mount namespaces), path-confined file I/O, Python execution with per-agent venv isolation, HTTP fetch, web search, and more
 - **Step budget** - `max_steps` / `max_tool_calls` / wall-clock timeout enforced at the runtime level, not bypassable by agent code
@@ -56,8 +58,8 @@ Three ways in, and most people want the first.
 
 **Install the desktop application.** Installers are attached to each GitHub
 release: a `.dmg` for macOS Apple Silicon, an `.msi` or `.exe` for Windows
-x86-64, an `.AppImage` or `.deb` for Linux x86-64, plus CUDA-engine variants for
-Linux and Windows. No compiler, no checkout, no command line. The step by step,
+x86-64, an `.AppImage` or `.deb` for Linux x86-64: one installer per system.
+No compiler, no checkout, no command line. The step by step,
 including the checksum verification and the first-launch warnings, is in
 [Install the desktop app](https://docs.apollia.fr/how-to/install-the-desktop-app/).
 
@@ -79,7 +81,8 @@ agent needs no model, so it runs on any machine. Run every command from the
 repository root.
 
 **Prerequisites:** a Rust toolchain (stable), Python 3.13 available as `python3`
-(the checkout pins the exact version in `.python-version`), and `git`.
+(the checkout pins `3.13.13` in `.python-version`, the version the release
+bundles embed), and `git`.
 
 ```bash
 # 1. Clone and build the daemon.
@@ -153,7 +156,7 @@ flowchart TB
         oria["ORIA engine · Observer, Reasoner, Actor<br/>Direct / Orchestrated · StepBudget · ResilienceLayer"]
         tools["Tool registry<br/>+ sandbox"]
         mem["Memory engine<br/>SQLite / FTS5"]
-        llm["LLM router<br/>local · cloud"]
+        llm["LLM router<br/>embedded engine · designated server"]
         side["TriggerEngine · NotificationEngine · PermissionsEngine"]
         aip["AIP bridge (PyO3)<br/>Rust and Python async · ToolProxy · MemoryInterface"]
     end
@@ -177,17 +180,18 @@ Apollia runs on three operating systems, over the four platform couples the
 release pipeline actually builds (`packaging/artifacts.json` is the contract).
 The local inference engine is the upstream `llama-server` binary, pinned and
 checksum-verified; the release stages the backend upstream publishes for each
-couple, and builds the CUDA engine itself for the two desktop bundles that carry
-one.
+couple. The CUDA engine is in no installer: it is published apart, under a
+signed manifest, and the application downloads it on demand on a machine with
+an NVIDIA card.
 
 | Platform | Local inference | Tool sandbox | Notes |
 |----------|-----------------|--------------|-------|
 | macOS Apple Silicon | Metal | `setrlimit` | Desktop `.dmg` and CLI archive |
-| Linux x86_64 | Vulkan, CPU, plus CUDA in a separate desktop bundle | PID + mount namespaces, `setrlimit` | Strongest isolation of the four |
-| Windows x86_64 | Vulkan, CPU, plus CUDA in a separate desktop bundle | none | `bash_executor` needs a POSIX shell on `PATH` (Git Bash, WSL or MSYS2) |
+| Linux x86_64 | Vulkan, CPU, plus CUDA downloaded on demand by the desktop app | PID + mount namespaces, `setrlimit` | Strongest isolation of the four |
+| Windows x86_64 | Vulkan, CPU, plus CUDA downloaded on demand by the desktop app | none | `bash_executor` needs a POSIX shell on `PATH` (Git Bash, WSL or MSYS2) |
 | Linux aarch64 | CPU | PID + mount namespaces, `setrlimit` | CLI archive only, no desktop bundle |
 
-Not built for 0.1.0: macOS Intel (`x86_64-apple-darwin`), Windows ARM64, and the
+Not built: macOS Intel (`x86_64-apple-darwin`), Windows ARM64, and the
 AMD ROCm engine. `apollia-os update` says so for the first: it has no artifact to
 offer a macOS x86-64 host.
 
@@ -206,11 +210,12 @@ you whether one is there.
 
 ## LLM Backends
 
-Apollia talks to Anthropic, OpenAI, Mistral, Ollama and any OpenAI-compatible
-endpoint (LM Studio, vLLM, a self-hosted gateway), and serves local GGUF models
-through an embedded `llama-server` that the daemon spawns and supervises. A
-local model is the default; a cloud one is a choice you make, per agent or per
-conversation.
+Apollia serves local GGUF models through an embedded `llama-server` that the
+daemon spawns and supervises, and reaches two kinds of external server: any
+OpenAI-compatible endpoint at an address you designate (LM Studio, vLLM, a
+self-hosted gateway) and Ollama. There is no dedicated backend per cloud
+vendor. A local model is the default; an external server is a choice you make,
+per agent or per conversation.
 
 Declaring a backend:
 [configuration reference](https://docs.apollia.fr/reference/configuration/).
@@ -220,9 +225,11 @@ Getting the most out of a local model:
 ## Writing an Agent
 
 An Apollia agent is an ordinary Python class. The SDK decorators declare the
-manifest and the entry points; no base class, no inheritance. Every agent module
-ends with `agent = MyClass()`, which is what the runtime loads. Use absolute
-imports (`from apollia import ...`), never relative ones.
+manifest and the entry points; no base class, no inheritance. `@agent`
+instantiates the class and binds the instance to the module, which is what the
+runtime loads, so do not write `agent = MyClass()` yourself: the line builds a
+second instance that overwrites the registered one. Use absolute imports
+(`from apollia import ...`), never relative ones.
 
 ### Conversational agent
 
@@ -265,7 +272,7 @@ apollia-os run coach "How does the Director pattern work?"
 
 A **worker** answers one skill at a time and returns a payload; a **director**
 orchestrates workers and holds the plan. Both are the same minimal contract: a
-decorated class and an `agent = MyClass()` at module level.
+class decorated with `@agent`, and nothing else at module level.
 
 Inside a skill, `ctx` is the whole runtime surface: `ctx.llm` for the model,
 `ctx.memory` for what the agent remembers, `ctx.tools` for the native tools
@@ -347,12 +354,13 @@ just desktop-dev                 # links PyO3 against the bundled interpreter, t
 Use the recipe rather than `cargo tauri dev` on its own. `just desktop-dev`
 first points `PYO3_PYTHON` and `RUSTFLAGS` at the interpreter bundle under
 `target/`, which is the one the application sets `PYTHONHOME` to at run time.
-Without that step the two interpreters differ, every agent dies at boot on
-`ModuleNotFoundError`, and the failure surfaces only as a warning nobody reads.
+Without that step the two interpreters differ and every agent fails at boot
+with `ModuleNotFoundError`, which the application reports as a log warning
+rather than as a startup error.
 The recipe needs that bundle to exist: build it once with
 `bash packaging/build-python-bundle.sh <target-triple> target/python-bundle/<target-triple>`.
 
-**Main routes:** Dashboard · Agents · Projects · Tasks · Chat · Inbox · Connections · LLM · Automations · Memory · Transcriptions · Notifications · Observability · Settings
+**Screens:** Home · Agents (with their batch runs) · Chat · Inbox · Connections · LLM models · Library · Automations · Memory · Transcriptions · Observability · Organization policy · Permissions · Journal · Settings
 
 Views update in real time over the Tauri event bus, not over SSE; the HTTP API is where SSE lives, on `GET /api/v1/tasks/{id}/stream`. The system tray shows the pending approval count and supports graceful quit.
 
@@ -385,33 +393,40 @@ What shipped, what is being built, and the versions planned after it:
 
 ## Contributing
 
-Apollia OS is a single-maintainer preview. **Issues are
-welcome, pull requests are auto-closed by policy.** See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the full rationale and the right
-channel for each kind of feedback.
+Apollia OS is maintained by the Apollia team. How to report a bug, request a
+feature or ask a question, and what the project does with a pull request, is in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 - Found a bug? [Open an issue](https://github.com/Apollia-OS/apollia-os/issues/new?template=bug_report.yml).
 - Have a feature idea? [Open an issue](https://github.com/Apollia-OS/apollia-os/issues/new?template=feature_request.yml).
 - Usage question? [Discussions Q&A](https://github.com/Apollia-OS/apollia-os/discussions/categories/q-a).
 - Security vulnerability? [Private advisory](https://github.com/Apollia-OS/apollia-os/security/advisories/new).
 
+## Project
+
+- [CHANGELOG.md](CHANGELOG.md) - what changed in each release.
+- [ROADMAP.md](ROADMAP.md) - where the next releases are heading.
+- [GOVERNANCE.md](GOVERNANCE.md) - who maintains the project and how decisions
+  are made.
+- [Code of Conduct](.github/CODE_OF_CONDUCT.md) - the rules for every space tied
+  to the repository.
+- [SECURITY.md](SECURITY.md) - supported versions, private reporting, and how to
+  verify a release.
+
 ---
 
 ## Support Apollia OS
 
 Apollia OS is built in the open, under a permissive license. There is no cloud
-backend to upsell and no telemetry to monetize. If the project is useful to you,
-or you want to see it reach a stable v1.0, recurring support is what keeps the
-work going.
+backend to upsell and no telemetry to monetize. If the project is useful to
+you, you can back the work:
 
 - **[Patreon](https://patreon.com/apollia)** - recurring support, with patron-only
   development updates and a vote on what ships next.
 - **[Ko-fi](https://ko-fi.com/apollia)** - a one-time tip, no account or
   subscription required.
-
-GitHub Sponsors is not open yet: the organisation has no Sponsors profile, so
-the button GitHub renders from `.github/FUNDING.yml` leads nowhere. This list
-gains the rail when the profile goes live.
+- **[apollia.fr/soutenir](https://apollia.fr/soutenir)** - the support page,
+  with every way to help in one place.
 
 Funding goes straight into the work: cross-platform CI, vision support, and the
 foundations for distributing community agents.

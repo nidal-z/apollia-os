@@ -3,7 +3,7 @@
   "stopOnError": false,
   "notes": [
     "The plan cache tab reads the seeded plan_cache.db (tests/cli/seed/fragments/plan_cache.sql, one row, three hits): the four cards render, plan-cache-clear-btn opens the purge dialog, the cancel leaves the row, the confirm posts the clear and the empty state returns. No later section reads the plan cache. The purge is not idempotent on a replayed seed HOME: a second pass on the same build finds the cache empty and the button disabled.",
-    "Observability is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute), so the book asserts dashboard-page there and opens the screen only after developer-mode-on."
+    "Observability is a developer screen: with the developer mode off the router sends the route to the default one (Main.svelte reachableRoute), so the book asserts chat-page there and opens the screen only after developer-mode-on."
   ],
   "dynamicTestids": [
     "empty-state-plan-cache",
@@ -70,7 +70,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -785,7 +785,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {

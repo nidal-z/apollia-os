@@ -172,8 +172,22 @@ from .engine_check_response import EngineCheckResponse
 from .engine_entry import EngineEntry
 from .engine_import_request import EngineImportRequest
 from .engine_install_request import EngineInstallRequest
+from .engine_installation_kind import EngineInstallationKind
+from .engine_installation_state_type_0 import EngineInstallationStateType0
+from .engine_installation_state_type_0_state import EngineInstallationStateType0State
+from .engine_installation_state_type_1 import EngineInstallationStateType1
+from .engine_installation_state_type_1_state import EngineInstallationStateType1State
+from .engine_installation_state_type_2 import EngineInstallationStateType2
+from .engine_installation_state_type_2_state import EngineInstallationStateType2State
+from .engine_installation_state_type_3 import EngineInstallationStateType3
+from .engine_installation_state_type_3_state import EngineInstallationStateType3State
+from .engine_installation_state_type_4 import EngineInstallationStateType4
+from .engine_installation_state_type_4_state import EngineInstallationStateType4State
+from .engine_installation_state_type_5 import EngineInstallationStateType5
+from .engine_installation_state_type_5_state import EngineInstallationStateType5State
 from .engine_installed_response import EngineInstalledResponse
 from .engine_name import EngineName
+from .engine_refusal_code import EngineRefusalCode
 from .engine_settings_body import EngineSettingsBody
 from .engine_source import EngineSource
 from .engine_variant import EngineVariant
@@ -273,6 +287,7 @@ from .load_model_request_advanced import LoadModelRequestAdvanced
 from .load_model_response import LoadModelResponse
 from .load_origin import LoadOrigin
 from .loaded_model_dto import LoadedModelDto
+from .loaded_model_dto_capabilities_type_0 import LoadedModelDtoCapabilitiesType0
 from .loaded_models_response import LoadedModelsResponse
 from .locked_key_body import LockedKeyBody
 from .locked_key_body_value import LockedKeyBodyValue
@@ -389,6 +404,7 @@ from .profile_summary_view import ProfileSummaryView
 from .profile_update import ProfileUpdate
 from .profile_update_fields import ProfileUpdateFields
 from .project_outcome import ProjectOutcome
+from .prompt_template_source import PromptTemplateSource
 from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
@@ -438,12 +454,14 @@ from .server_models_response import ServerModelsResponse
 from .server_policy_locks import ServerPolicyLocks
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
+from .server_response_extra_params_type_0 import ServerResponseExtraParamsType0
 from .server_token_view import ServerTokenView
 from .servers_list_response import ServersListResponse
 from .session_folder_body import SessionFolderBody
 from .session_metrics import SessionMetrics
 from .session_model_capabilities import SessionModelCapabilities
 from .session_notes import SessionNotes
+from .session_prompt_template import SessionPromptTemplate
 from .session_settings import SessionSettings
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
@@ -569,6 +587,8 @@ from .update_llm_backend_request_config_json import UpdateLlmBackendRequestConfi
 from .update_preset_request import UpdatePresetRequest
 from .update_preset_request_load import UpdatePresetRequestLoad
 from .update_preset_request_request import UpdatePresetRequestRequest
+from .update_server_request import UpdateServerRequest
+from .update_server_request_extra_params_type_0 import UpdateServerRequestExtraParamsType0
 from .update_session_body import UpdateSessionBody
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
@@ -763,9 +783,23 @@ __all__ = (
     "EngineCheckResponse",
     "EngineEntry",
     "EngineImportRequest",
+    "EngineInstallationKind",
+    "EngineInstallationStateType0",
+    "EngineInstallationStateType0State",
+    "EngineInstallationStateType1",
+    "EngineInstallationStateType1State",
+    "EngineInstallationStateType2",
+    "EngineInstallationStateType2State",
+    "EngineInstallationStateType3",
+    "EngineInstallationStateType3State",
+    "EngineInstallationStateType4",
+    "EngineInstallationStateType4State",
+    "EngineInstallationStateType5",
+    "EngineInstallationStateType5State",
     "EngineInstalledResponse",
     "EngineInstallRequest",
     "EngineName",
+    "EngineRefusalCode",
     "EngineSettingsBody",
     "EngineSource",
     "EnginesResponse",
@@ -860,6 +894,7 @@ __all__ = (
     "LlmStatusResponse",
     "LlmStatusResponseBackendsItem",
     "LoadedModelDto",
+    "LoadedModelDtoCapabilitiesType0",
     "LoadedModelsResponse",
     "LoadEstimateResponse",
     "LoadModelRequest",
@@ -979,6 +1014,7 @@ __all__ = (
     "ProfileUpdate",
     "ProfileUpdateFields",
     "ProjectOutcome",
+    "PromptTemplateSource",
     "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
@@ -1026,12 +1062,14 @@ __all__ = (
     "ServerPolicyLocks",
     "ServerProbeErrorResponse",
     "ServerResponse",
+    "ServerResponseExtraParamsType0",
     "ServersListResponse",
     "ServerTokenView",
     "SessionFolderBody",
     "SessionMetrics",
     "SessionModelCapabilities",
     "SessionNotes",
+    "SessionPromptTemplate",
     "SessionSettings",
     "SessionWorkspace",
     "SetAgentModelRequest",
@@ -1153,6 +1191,8 @@ __all__ = (
     "UpdatePresetRequest",
     "UpdatePresetRequestLoad",
     "UpdatePresetRequestRequest",
+    "UpdateServerRequest",
+    "UpdateServerRequestExtraParamsType0",
     "UpdateSessionBody",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",

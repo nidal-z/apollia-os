@@ -411,32 +411,38 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
       "timeoutMs": 10000
     },
     {
-      "kind": "expect",
-      "testidPrefix": "config-tool-"
+      "kind": "click",
+      "testid": "chat-inspector-integrations-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-session-integrations",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-row",
+      "timeoutMs": 10000
     },
     {
       "kind": "click",
-      "testidPrefix": "config-tool-"
+      "testid": "session-access-switch"
     },
     {
       "kind": "screenshot",
-      "label": "11-config-tool-toggle"
+      "label": "11-session-access-switched"
     },
     {
       "kind": "click",
-      "testidPrefix": "config-group-toggle-"
+      "testid": "session-access-switch"
     },
     {
       "kind": "screenshot",
-      "label": "12-config-group-toggle"
-    },
-    {
-      "kind": "expect",
-      "testid": "context-window-bar"
+      "label": "12-session-access-restored"
     },
     {
       "kind": "expect",
@@ -1043,32 +1049,6 @@
       "label": "18-budget-ready"
     },
     {
-      "kind": "click",
-      "testid": "chat-config-button"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "config-step-budget",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "fill",
-      "testid": "config-step-budget",
-      "text": "1"
-    },
-    {
-      "kind": "click",
-      "testid": "config-save"
-    },
-    {
-      "kind": "screenshot",
-      "label": "18-step-budget-set"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-config-button"
-    },
-    {
       "kind": "sendChat",
       "text": "Liste les fichiers du dossier docs/adr et lis le premier fichier seulement."
     },
@@ -1102,7 +1082,7 @@
     "chat-scroll-to-bottom appears only after an upward scroll leaves the list more than 200 px from the bottom (scrollFollow.ts:42-45, :63-75). The runner's click calls scrollIntoView({block:'center'}) on its target (runner.ts:228-230), so clicking the first message's copy button scrolls the list up; after nine turns the list overflows enough. The copy click also copies that message to the host clipboard.",
     "chat-stop-button is played once, on a long prompt, right before the plan section's new chat: the aborted session keeps a truncated assistant message and nothing after it reads that session again.",
     "The two rewrite blocks (quickpicker-rewrite-restore-button, chat-input-rewrite-restore-button) each cost one meta-LLM call on the default backend; restore is rendered only after a successful rewrite (canRestore) and emptying the field resets it (QuickPicker.svelte:147-153, ChatInput.svelte:299-303). A rewrite refused by the backend (noRouter/noBackend/callFailed/emptyAnswer) leaves the button absent and the block red without blocking the rest.",
-    "dashboard-inbox-more is played by dashboard-det through a list_pending_approvals stub (six PendingApproval values, PendingDecisionsCard.svelte limit 5; the in-memory set no seed reaches), not here; hitl-always-toggle open/close is played by hitl-critical, not folded here (chat-llm keeps no approval pending).",
+    "hitl-always-toggle open/close is played by hitl-critical, not folded here (chat-llm keeps no approval pending).",
     "Measured on 2026-09-06 (two runs): the execution of the approved plan ended in an ask_user question the book never answers, which then made every later awaitTurn return 'paused for ask_user' at once and hid the plan review of the builder section and the twelve-reads turn. The plan prompts now forbid questions. Product finding for the maintainer: that question reached the inbox without a session id (the plan executor builds its ask_user executor without a session, apollia-tools native_dispatcher.rs), so the inbox row carried no 'open the conversation' action.",
     "The reasoning list's show-more and collapse are not played here: they need more than ten items in one turn, which depends on how many steps the model takes. chat-det plays them on a seeded turn instead."
   ]

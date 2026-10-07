@@ -6,7 +6,7 @@
    * "Choose another folder" opens the picker again.
    */
   import { t } from "svelte-i18n";
-  import { CircleCheck, Folder, TriangleAlert, XCircle } from "lucide-svelte";
+  import { CircleCheck, Folder, Play, TriangleAlert, XCircle } from "lucide-svelte";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import ConnectionRefusal from "../../integrations/ConnectionRefusal.svelte";
@@ -15,6 +15,7 @@
     readablePath,
     type FolderOutcome,
   } from "$lib/connections/folderConnection";
+  import type { Connection } from "$lib/types";
 
   type Shown = Exclude<FolderOutcome, { kind: "cancelled" }>;
 
@@ -25,9 +26,11 @@
     onchooseanother: () => void;
     /** Open the place where the refusing rule is read. */
     onopenrule: () => void;
+    /** "Try" the folder just added. */
+    ontry?: (connection: Connection) => void;
   }
 
-  let { open, outcome, onclose, onchooseanother, onopenrule }: Props = $props();
+  let { open, outcome, onclose, onchooseanother, onopenrule, ontry }: Props = $props();
 
   const added = $derived(outcome?.kind === "added" ? outcome.connection : null);
   const abilities = $derived(added ? folderAbilities(added) : null);
@@ -86,6 +89,12 @@
     <Button variant="ghost" size="sm" onclick={onchooseanother} data-testid="folder-connection-choose-another">
       {$t("connections.folder.choose_another")}
     </Button>
+    {#if added && ontry}
+      <Button variant="outline" size="sm" onclick={() => ontry(added)} data-testid="folder-connection-try">
+        {#snippet icon()}<Play size={12} />{/snippet}
+        {$t("connections.try.action")}
+      </Button>
+    {/if}
     <Button variant="primary-solid" size="sm" onclick={onclose} data-testid="folder-connection-done">
       {$t("connections.folder.done")}
     </Button>

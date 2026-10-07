@@ -2,7 +2,7 @@
   /**
    * PageLayout - canonical route container.
    *
-   * Enforces the Dashboard/Chat/Agents reference layout:
+   * Enforces the Chat/Agents reference layout:
    *   • `mx-auto w-full max-w-6xl` centred container
    *   • `<PageHeader>` with kicker, title, subtitle, actions snippet
    *   • Default content padding handled by individual sections inside `children`

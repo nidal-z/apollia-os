@@ -96,6 +96,12 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   },
   {
     pattern: new RegExp(
+      `^guide\\.context\\.${SEG}(\\.${SEG})?\\.(name|text|question|action\\.(label|result)|secondary\\.(first|second))$`,
+    ),
+    builtBy: "lib/apolliaGuide/screenContexts.ts",
+  },
+  {
+    pattern: new RegExp(
       `^companion\\.error\\.${SEG}\\.(cause_1|cause_2|cause_3|message|title)$`,
     ),
     builtBy: "components/companion/CompanionErrorState.svelte",
@@ -181,10 +187,6 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/integrations/OauthCredentialHeader.svelte",
   },
   {
-    pattern: new RegExp(`^settings\\.llm_dialog\\.err_${SEG}$`),
-    builtBy: "components/settings/LlmBackendDialog.svelte",
-  },
-  {
     pattern: new RegExp(`^settings\\.nav\\.${SEG}$`),
     builtBy:
       "lib/command-palette/paletteIndex.ts, lib/navigation/breadcrumbSegments.ts",
@@ -217,6 +219,16 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   {
     pattern: new RegExp(`^trace\\.describe\\.${SEG}$`),
     builtBy: "lib/utils/bashDescriber.ts",
+  },
+  {
+    pattern: new RegExp(
+      `^ai\\.panel\\.((load|inference)\\.(field\\.${SEG}\\.(label|help)|section\\.${SEG})|info\\.${SEG})$`,
+    ),
+    builtBy: "components/ai/modelDetail.ts, components/ai/Model{Load,Inference}Tab.svelte",
+  },
+  {
+    pattern: new RegExp(`^dev\\.ai\\.panel\\.type\\.${SEG}\\.(label|explanation)$`),
+    builtBy: "components/ai/modelDetail.ts",
   },
   {
     pattern: new RegExp(`^transcriptions\\.source_${SEG}$`),

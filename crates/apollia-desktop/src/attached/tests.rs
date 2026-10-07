@@ -17,6 +17,8 @@ fn session(id: &str) -> SessionInfo {
         status: SessionStatus::Active,
         created_at: "2026-10-01T00:00:00Z".to_owned(),
         title: Some("Une conversation".to_owned()),
+        message_count: 0,
+        output_tokens: 0,
     }
 }
 
@@ -172,6 +174,7 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
+        limited_to_tools: false,
         model: None,
     };
 
@@ -180,6 +183,39 @@ async fn test_a_session_is_created_over_http_from_the_interface_request() {
 
     // THEN the daemon's session is returned
     assert_eq!(info.id, "s-new");
+}
+
+#[tokio::test]
+async fn test_a_session_limited_to_its_tools_hands_the_limit_to_the_daemon() {
+    // GIVEN a daemon creating sessions only when the request carries the
+    // tools and says the conversation is limited to them
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sessions"))
+        .and(wiremock::matchers::body_partial_json(serde_json::json!({
+            "mode": "libre",
+            "tools": ["mcp:notion/search"],
+            "limited_to_tools": true
+        })))
+        .respond_with(ResponseTemplate::new(201).set_body_json(session("s-try")))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+    let request = crate::commands::chat::CreateSessionRequest {
+        mode: "libre".to_owned(),
+        agent_name: None,
+        system_prompt: None,
+        tools: vec!["mcp:notion/search".to_owned()],
+        limited_to_tools: true,
+        model: None,
+    };
+
+    // WHEN the attached arm creates the conversation that tries a connection
+    let info = client.create_session(&request).await.unwrap();
+
+    // THEN the daemon received the limit and answered its session
+    assert_eq!(info.id, "s-try");
 }
 
 #[tokio::test]
@@ -202,6 +238,7 @@ async fn test_a_session_created_with_a_model_hands_the_model_to_the_daemon() {
         agent_name: None,
         system_prompt: None,
         tools: Vec::new(),
+        limited_to_tools: false,
         model: Some("Qwen3-4B-Q4_K_M.gguf".to_owned()),
     };
 
@@ -505,13 +542,107 @@ async fn test_a_route_command_refused_by_the_daemon_shows_its_message() {
     assert_eq!(error, "unknown server ghost");
 }
 
+#[tokio::test]
+async fn test_a_start_refused_for_a_taken_port_keeps_its_status_attached() {
+    // GIVEN a daemon whose local server cannot open its port, held elsewhere
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/server/start"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(ResponseTemplate::new(409).set_body_json(serde_json::json!({
+            "error": "port 7772 is already in use by another program"
+        })))
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the attached arm asks for the start
+    let failure = link
+        .post_json_refusable("/api/v1/server/start", &serde_json::json!({}))
+        .await
+        .unwrap_err();
+
+    // THEN the refusal keeps the conflict status and the daemon's own words
+    assert_eq!(failure.status, Some(409));
+    assert_eq!(
+        failure.message,
+        "port 7772 is already in use by another program"
+    );
+}
+
+#[test]
+fn test_the_local_server_of_the_developer_screen_passes_the_gate_attached() {
+    // GIVEN the four commands of the bar of the local server
+    let commands = [
+        "get_local_server",
+        "restart_local_server",
+        "start_local_server",
+        "stop_local_server",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none answers that the service makes it unavailable
+    assert!(refused.is_empty(), "refused: {refused:?}");
+}
+
+#[test]
+fn test_the_tokens_of_the_local_server_pass_the_gate_attached() {
+    // GIVEN the three commands of the window of the tokens
+    let commands = [
+        "create_server_token",
+        "list_server_tokens",
+        "revoke_server_token",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none answers that the service makes it unavailable
+    assert!(refused.is_empty(), "refused: {refused:?}");
+}
+
+#[test]
+fn test_the_logs_of_the_local_server_pass_the_gate_attached() {
+    // GIVEN the commands of the logs pane: the stream, its end, the clearing,
+    // and the two gestures of the window the logs detach into
+    let commands = [
+        "watch_server_logs",
+        "unwatch_server_logs",
+        "clear_server_logs",
+        "open_server_logs_window",
+        "close_server_logs_window",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none answers that the service makes it unavailable
+    assert!(refused.is_empty(), "refused: {refused:?}");
+}
+
 #[test]
 fn test_models_mcp_connections_and_notifications_pass_the_gate_attached() {
     // GIVEN the screens of models, MCP servers, connections, notifications
     // and triggers, through the command each one opens with
     let screens = [
-        "update_llm_backend",
+        "update_llm_server",
         "list_loaded_models",
+        "estimate_model_load",
+        "load_model",
+        "reload_last_loaded_model",
+        "open_model_lease",
+        "set_model_pin",
         "list_mcp_servers",
         "add_mcp_server",
         "list_connections",
@@ -1149,9 +1280,8 @@ fn bearer() -> String {
 }
 
 #[tokio::test]
-async fn test_the_daemon_engines_are_listed_with_the_last_ping_of_this_window() {
-    // GIVEN a daemon holding one engine, answering only the token, and a ping
-    // of that engine this window recorded earlier
+async fn test_the_daemon_engines_are_listed_with_the_token() {
+    // GIVEN a daemon holding one engine, answering only the token
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/api/v1/llm/backends"))
@@ -1169,92 +1299,17 @@ async fn test_the_daemon_engines_are_listed_with_the_last_ping_of_this_window() 
         .expect(1)
         .mount(&server)
         .await;
-    let cache = crate::commands::llm::LlmPingCache::default();
-    cache.write().unwrap().insert(
-        "local".to_owned(),
-        crate::commands::llm::PingState {
-            last_error: Some("connection refused".to_owned()),
-            last_latency_ms: None,
-            last_ping_at: Some("2026-10-03T00:00:00Z".to_owned()),
-            last_available: false,
-        },
-    );
 
     // WHEN the attached arm lists the engines
-    let views = crate::commands::llm::backends_with_pings(&attached_link(&server), &cache)
+    let views = crate::commands::llm::listed_backends(&attached_link(&server))
         .await
         .unwrap();
 
-    // THEN the daemon's engine comes back with the last ping projected on it
+    // THEN the daemon's engine comes back as the daemon holds it
     assert_eq!(views.len(), 1);
     assert_eq!(views[0].name, "local");
-    assert_eq!(
-        views[0].last_ping_error.as_deref(),
-        Some("connection refused")
-    );
+    assert!(views[0].is_default);
     assert!(gate(LinkMode::Attached, "list_llm_backends").is_ok());
-}
-
-#[tokio::test]
-async fn test_an_engine_is_pinged_on_the_daemon_and_the_outcome_recorded() {
-    // GIVEN a daemon that reaches the engine it is asked about
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/v1/llm/ping"))
-        .and(header("authorization", bearer().as_str()))
-        .and(body_json(serde_json::json!({ "backend": "local" })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "backend": "local",
-            "available": true,
-            "latency_ms": 42,
-            "error": null,
-        })))
-        .expect(1)
-        .mount(&server)
-        .await;
-    let cache = crate::commands::llm::LlmPingCache::default();
-
-    // WHEN the attached arm tests the engine
-    let result =
-        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
-            .await;
-
-    // THEN the engine answered, and this window remembers it for the list
-    assert!(result.available);
-    assert_eq!(result.latency_ms, Some(42));
-    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
-    assert!(recorded.last_available);
-    assert!(recorded.last_error.is_none());
-    assert!(gate(LinkMode::Attached, "ping_llm_backend").is_ok());
-}
-
-#[tokio::test]
-async fn test_a_ping_refused_by_the_daemon_is_a_failed_test_with_its_message() {
-    // GIVEN a daemon serving no router
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/v1/llm/ping"))
-        .respond_with(
-            ResponseTemplate::new(503)
-                .set_body_json(serde_json::json!({ "error": "no LLM router configured" })),
-        )
-        .mount(&server)
-        .await;
-    let cache = crate::commands::llm::LlmPingCache::default();
-
-    // WHEN the attached arm tests an engine
-    let result =
-        crate::commands::llm::ping_and_record(&attached_link(&server), &cache, "local".to_owned())
-            .await;
-
-    // THEN the test failed with the daemon's own words, recorded as such
-    assert!(!result.available);
-    assert_eq!(result.error.as_deref(), Some("no LLM router configured"));
-    let recorded = cache.read().unwrap().get("local").cloned().unwrap();
-    assert_eq!(
-        recorded.last_error.as_deref(),
-        Some("no LLM router configured")
-    );
 }
 
 #[tokio::test]
@@ -1307,10 +1362,9 @@ async fn test_a_list_or_reload_refused_by_the_daemon_shows_its_message() {
             .await;
     }
     let link = attached_link(&server);
-    let cache = crate::commands::llm::LlmPingCache::default();
 
     // WHEN the attached arm lists and reloads
-    let listed = crate::commands::llm::backends_with_pings(&link, &cache).await;
+    let listed = crate::commands::llm::listed_backends(&link).await;
     let reloaded = crate::commands::llm::reload_runtime_router(&link).await;
 
     // THEN the interface reads the daemon's own words, not an unavailability

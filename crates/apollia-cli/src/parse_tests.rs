@@ -1088,6 +1088,30 @@ fn test_cli_parses_chat_config_reset_with_confirm() {
 }
 
 #[test]
+fn test_cli_parses_chat_template_with_its_session() {
+    // GIVEN "apollia-os chat template s-1"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "chat", "template", "s-1"]);
+    // THEN the chat sub-command carries the session whose template is read
+    let Commands::Chat { command, .. } = cli.command else {
+        panic!("expected chat");
+    };
+    let Some(ChatHygieneCommand::Template { session_id }) = command else {
+        panic!("expected chat template");
+    };
+    assert_eq!(session_id, "s-1");
+}
+
+#[test]
+fn test_cli_refuses_chat_template_without_a_session() {
+    // GIVEN "apollia-os chat template" with no session id
+    // WHEN the top-level parser reads it
+    let parsed = Cli::try_parse_from(["apollia-os", "chat", "template"]);
+    // THEN it is refused: the session is required
+    assert!(parsed.is_err());
+}
+
+#[test]
 fn test_cli_parses_chat_capabilities_with_its_session() {
     // GIVEN "apollia-os chat capabilities s-1"
     // WHEN the top-level parser reads it

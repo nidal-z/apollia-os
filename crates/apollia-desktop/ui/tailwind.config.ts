@@ -221,6 +221,10 @@ const config: Config = {
         overlay: "var(--z-overlay)",
         tooltip: "var(--z-tooltip)",
       },
+      gridTemplateColumns: {
+        // Two conversations side by side, neither under its minimal width.
+        "panes-2": "repeat(2, minmax(var(--chat-pane-min-width), 1fr))",
+      },
       spacing: {
         // Panel widths the chat shell writes; Tailwind's scale stops at 64
         // (16rem) then jumps to 72, so 280px and 380px had no step.

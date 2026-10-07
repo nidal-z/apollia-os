@@ -116,9 +116,9 @@ const CATALOGUES: [string, JsonObject][] = [
  * list is the second assertion: a French entry that repeats its English
  * counterpart is the defect coming back under a key that now exists.
  *
- * `chat.assistant` is deliberately absent from the divergence list: "Assistant"
- * is the same word in both languages, and it is named in `identicalLocales.ts`
- * with every other entry the two locales legitimately share.
+ * `chat.assistant` is deliberately absent from the divergence list: its value
+ * is the product name, the same in both languages, and it is named in
+ * `identicalLocales.ts` with every other entry the two locales legitimately share.
  */
 const REPAIRED = [
   "chat.ask_user_pending",

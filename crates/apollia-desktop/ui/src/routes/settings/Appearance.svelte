@@ -17,6 +17,18 @@
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
   import DestructiveActionDialog from "../../components/settings/DestructiveActionDialog.svelte";
   import AppearanceChatSettings from "../../components/settings/AppearanceChatSettings.svelte";
+  import { Select } from "$lib/components/ui/select";
+  import {
+    chatAppearance,
+    setChatAppearance,
+    NAV_POSITIONS,
+    type NavPosition,
+  } from "$lib/stores/chatAppearance";
+
+  const NAV_POSITION_LABEL_KEYS: Record<NavPosition, string> = {
+    left: "settings.appearance.nav_position_left",
+    right: "settings.appearance.nav_position_right",
+  };
 
   type Glyph = typeof Sun;
   type SegOption = { value: string; labelKey: string; icon?: Glyph };
@@ -191,6 +203,29 @@
       {@render themeSwatch("light", false, lightActive, $themeMode === "system" && !systemDark, "theme-preview-light")}
       {@render themeSwatch("dark", true, darkActive, $themeMode === "system" && systemDark, "theme-preview-dark")}
     </div>
+
+    <SettingsFieldRow
+      label={$t("settings.appearance.nav_position_label")}
+      hint={$t("settings.appearance.nav_position_hint")}
+      for="appearance-nav-position"
+      border={false}
+      data-testid="appearance-nav-position"
+    >
+      {#snippet control()}
+        <Select
+          id="appearance-nav-position"
+          size="sm"
+          value={$chatAppearance.navPosition}
+          onchange={(e) =>
+            setChatAppearance({ navPosition: e.currentTarget.value as NavPosition })}
+          data-testid="appearance-nav-position-select"
+        >
+          {#each NAV_POSITIONS as position (position)}
+            <option value={position}>{$t(NAV_POSITION_LABEL_KEYS[position])}</option>
+          {/each}
+        </Select>
+      {/snippet}
+    </SettingsFieldRow>
   </SettingsSection>
 
   <AppearanceChatSettings />

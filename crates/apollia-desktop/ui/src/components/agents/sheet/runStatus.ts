@@ -18,7 +18,7 @@ interface StatusMeta {
   variant: BadgeVariant;
   /** Header status icon. */
   icon: typeof Icon;
-  /** i18n key under the `dashboard.status_*` family. */
+  /** i18n key under the `run_status.*` family. */
   i18nKey: string;
 }
 
@@ -27,37 +27,37 @@ const META: Record<Status, StatusMeta> = {
     rail: "hsl(var(--primary))",
     variant: "info",
     icon: Activity,
-    i18nKey: "dashboard.status_working",
+    i18nKey: "run_status.working",
   },
   submitted: {
     rail: "hsl(var(--info))",
     variant: "secondary",
     icon: Clock,
-    i18nKey: "dashboard.status_submitted",
+    i18nKey: "run_status.submitted",
   },
   input_required: {
     rail: "hsl(var(--warning))",
     variant: "warning",
     icon: AlertTriangle,
-    i18nKey: "dashboard.status_approval",
+    i18nKey: "run_status.approval",
   },
   completed: {
     rail: "hsl(var(--success))",
     variant: "success",
     icon: CheckCircle,
-    i18nKey: "dashboard.status_completed",
+    i18nKey: "run_status.completed",
   },
   failed: {
     rail: "hsl(var(--destructive))",
     variant: "destructive",
     icon: XCircle,
-    i18nKey: "dashboard.status_failed",
+    i18nKey: "run_status.failed",
   },
   canceled: {
     rail: "hsl(var(--muted-foreground))",
     variant: "secondary",
     icon: Ban,
-    i18nKey: "dashboard.status_canceled",
+    i18nKey: "run_status.canceled",
   },
 };
 

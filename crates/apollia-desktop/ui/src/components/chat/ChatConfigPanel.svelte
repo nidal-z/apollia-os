@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Sheet } from "$lib/components/ui/sheet";
   import type { ChatSessionDetail } from "$lib/types";
-  import ChatConfigPanelBody from "./ChatConfigPanelBody.svelte";
+  import ChatSessionPanel from "./ChatSessionPanel.svelte";
 
   interface Props {
     open: boolean;
@@ -14,5 +14,5 @@
 </script>
 
 <Sheet {open} {onclose}>
-  <ChatConfigPanelBody {session} {onupdated} {onclose} showHeader />
+  <ChatSessionPanel {session} {onupdated} />
 </Sheet>

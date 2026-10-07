@@ -18,9 +18,7 @@ use apollia_core::config::{
     SEPARATE_REASONING_KEY,
 };
 use apollia_core::llm_backend::LlmBackendRepository;
-use apollia_llm::model_index::{
-    IndexedModel, ModelCategory, ModelFormat, ModelIndex, INDEX_FILE_NAME,
-};
+use apollia_llm::model_index::{IndexedModel, ModelFormat, ModelIndex, INDEX_FILE_NAME};
 use chrono::Utc;
 
 use super::logs::ServerLogsHandle;
@@ -165,8 +163,7 @@ impl LocalModels {
         };
         for entry in &index.models {
             let path = entry.path.display().to_string();
-            let loadable = self.engine_runs(entry.format)
-                && entry.effective_category() == ModelCategory::Language;
+            let loadable = self.engine_runs(entry.format) && entry.is_language_model();
             if loadable
                 && !listed
                     .iter()
@@ -293,7 +290,7 @@ impl LocalModels {
         let index = self.index().await.ok_or(Unheld::NotLoaded)?;
         let entry = index
             .get(id)
-            .filter(|m| m.effective_category() == ModelCategory::Language)
+            .filter(|m| m.is_language_model())
             .ok_or(Unheld::NotLoaded)?;
         let model_path = entry.path.display().to_string();
         let backend = self.backend_row(id).await;

@@ -30,7 +30,6 @@
     "settings-nav-chat",
     "settings-nav-developer",
     "settings-nav-general",
-    "settings-nav-model-hub",
     "settings-nav-notifications",
     "settings-nav-profile",
     "settings-nav-stt",
@@ -403,7 +402,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -688,31 +687,16 @@
     },
     {
       "kind": "goto",
-      "route": "settings"
+      "route": "llm"
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page"
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-model-hub"
+      "testid": "llm-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
-      "testid": "settings-content"
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "installation-telecharger-des-modeles-locaux-1"
-    },
-    {
-      "kind": "click",
-      "testidPrefix": "installed-model-row-",
+      "testid": "ai-model-row",
       "nth": 0,
       "timeoutMs": 8000
     },
@@ -725,8 +709,36 @@
       "label": "installation-telecharger-des-modeles-locaux-1bis"
     },
     {
+      "kind": "click",
+      "testid": "ai-discover-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-window",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "installation-telecharger-des-modeles-locaux-1"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-discover-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ai-discover-window",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -930,7 +942,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
@@ -1528,28 +1540,6 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-page",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "dashboard-bento",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "screenshot",
-      "label": "observabilite-lire-le-digest-quotidien-1"
-    },
-    {
-      "kind": "goto",
       "route": "observability"
     },
     {
@@ -1721,11 +1711,11 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 15000
     },
     {
@@ -1788,11 +1778,11 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "chat"
     },
     {
       "kind": "waitFor",
-      "testid": "dashboard-page",
+      "testid": "chat-page",
       "timeoutMs": 8000
     },
     {

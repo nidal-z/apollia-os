@@ -185,6 +185,8 @@ where
                     base_url: server.base_url,
                     api_key: None,
                     refusal: Some(reason),
+                    idle_timeout: None,
+                    extra_params: None,
                 });
             }
             resolved_endpoint(server, shared)
@@ -203,6 +205,10 @@ where
             base_url: server.base_url,
             api_key,
             refusal: None,
+            idle_timeout: server
+                .timeout_secs
+                .map(|secs| std::time::Duration::from_secs(u64::from(secs))),
+            extra_params: server.extra_params,
         }),
         Err(e) => {
             tracing::event!(
@@ -326,6 +332,8 @@ mod tests {
                 has_key: false,
                 api_key_env: None,
                 enabled,
+                timeout_secs: None,
+                extra_params: None,
             })
             .unwrap();
         }
@@ -343,6 +351,42 @@ mod tests {
         assert!(endpoints[0].api_key.is_none());
     }
 
+    // GIVEN a server saved with a timeout and an extra parameter
+    // WHEN its endpoint is resolved
+    // THEN the router receives both, the timeout as a duration
+    #[test]
+    fn test_the_settings_of_a_server_reach_its_endpoint() {
+        // GIVEN
+        let dir = tempfile::TempDir::new().unwrap();
+        let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+        let extra = serde_json::json!({ "keep_alive": "30m" });
+        repo.save_server(&InferenceServer {
+            name: "corp".into(),
+            base_url: "http://127.0.0.1:11434".into(),
+            has_key: false,
+            api_key_env: None,
+            enabled: true,
+            timeout_secs: Some(120),
+            extra_params: extra.as_object().cloned(),
+        })
+        .unwrap();
+
+        // WHEN
+        let endpoints = server_endpoints(
+            &repo,
+            no_store,
+            &crate::governance::InferenceGovernance::default(),
+        );
+
+        // THEN
+        assert_eq!(endpoints.len(), 1);
+        assert_eq!(
+            endpoints[0].idle_timeout,
+            Some(std::time::Duration::from_secs(120))
+        );
+        assert_eq!(endpoints[0].extra_params, extra.as_object().cloned());
+    }
+
     // GIVEN a server that says its key is stored, and a store without it
     // WHEN its key is resolved
     // THEN the error names the missing key
@@ -356,6 +400,8 @@ mod tests {
             has_key: true,
             api_key_env: None,
             enabled: true,
+            timeout_secs: None,
+            extra_params: None,
         };
 
         // WHEN

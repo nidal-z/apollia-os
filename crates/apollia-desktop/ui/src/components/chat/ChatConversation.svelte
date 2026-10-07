@@ -54,7 +54,6 @@
     sentAttachmentsMetadata,
   } from "$lib/chat/attachments";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
-  import ContextIndicator from "./ContextIndicator.svelte";
   import { refreshSessionMetrics } from "$lib/stores/chatMetrics";
   import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
   import { latestTurnId } from "$lib/stores/thinking";
@@ -66,12 +65,20 @@
   import { agents } from "$lib/stores/sse";
   import { triggerAutoName } from "$lib/chat/autoName";
   import { noteSessionActivity } from "$lib/stores/chatSessions";
+  import { answerToRegenerate } from "$lib/chat/chatBehaviours";
+  import { onRegenerateLast } from "$lib/stores/chatRegenerate";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
-  import { createImageSupport } from "./useImageSupport.svelte";
+  import { paneLeases, syncConversationLease } from "$lib/chat/modelLease";
+  import { SOLE_SEAT, type PaneSeat } from "$lib/chat/chatPanes";
+  import { paneLoads } from "$lib/stores/chatPanes";
+  import PaneRefusalCard from "./PaneRefusalCard.svelte";
+  import { chatTargets } from "$lib/stores/chatTargets";
+  import ReloadLastModel from "./ReloadLastModel.svelte";
+  import { createModelCapabilities } from "./useModelCapabilities.svelte";
   import { createAnswerActions } from "./useAnswerActions.svelte";
 
   interface Props {
@@ -81,21 +88,11 @@
     embedded?: boolean;
     /** When true, hide the config button in the header. */
     hideConfig?: boolean;
-    /**
-     * When provided, the Settings button toggles the shell's
-     * ContextDrawer instead of opening the internal Sheet. The internal Sheet
-     * is suppressed in this mode - the parent owns the config panel.
-     */
+    /** When provided, Settings toggles the shell's ContextDrawer; the internal Sheet is suppressed. */
     onconfigtoggle?: () => void;
-    /**
-     * When provided (responsive), renders a hamburger button in
-     * the header that opens the shell's sessions overlay on small viewports.
-     */
+    /** When provided (responsive), a header hamburger opens the shell's sessions overlay. */
     onsessionsopen?: () => void;
-    /**
-     * When provided (responsive), renders a panel button in the header that
-     * toggles the shell's journal / plan rail on viewports below lg.
-     */
+    /** When provided (responsive), a header button toggles the journal / plan rail below lg. */
     oncontextopen?: () => void;
     /**
      * When true, collapses header actions into an overflow
@@ -116,6 +113,10 @@
     onnewChat?: () => void;
     /** Called with the conversation a choice in the selector opened. */
     onopensession?: (sessionId: string) => void;
+    /** What the empty input suggests asking, in place of the chat's own suggestions. */
+    suggestions?: string[];
+    /** The pane of the chat that shows this conversation. */
+    pane?: PaneSeat;
   }
 
   let {
@@ -131,6 +132,8 @@
     onnewChat,
     onopensession,
     inputHidden = false,
+    suggestions,
+    pane = SOLE_SEAT,
   }: Props = $props();
 
   let messages = $state<ChatMessageView[]>([]);
@@ -165,12 +168,25 @@
     injectedSheetOpen = true;
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
-  const images = createImageSupport(() => sessionId, () => sessionDetail?.llm_backend);
+  const model = createModelCapabilities(() => sessionId, () => sessionDetail?.llm_backend);
 
   const target = $derived<ConversationTarget>({
     mode: sessionMode,
     agentName: sessionAgentName,
     model: sessionDetail?.llm_backend ?? null,
+  });
+
+  // The conversation holds its local model in memory while it is open here.
+  $effect(() => {
+    const known = sessionDetail?.id === sessionId ? target : null;
+    void syncConversationLease(paneLeases, pane.id, sessionId, known, $chatTargets);
+  });
+
+  // The right panel and the shortcuts read the conversation of the active pane.
+  $effect(() => {
+    if (!pane.active || sessionDetail?.id !== sessionId) return;
+    currentSession.set(sessionDetail);
+    chatConversationStats.set(conversationStats);
   });
 
   async function handleTargetPick(choice: ChatTarget): Promise<void> {
@@ -216,9 +232,6 @@
   const inputDisabled = $derived(
     isProcessing || isStreaming || sessionStatus === "closed",
   );
-
-  // summaryText / summarizedCount derivations removed; the
-  // banner moved to ContextDrawer > Memory tab (MemoryInjectedPanel).
 
   const hasCrossSessionRefs = $derived(
     (conversationStats?.cross_sessions_referenced ?? 0) > 0,
@@ -299,7 +312,7 @@
     },
     translate: (key, values) => $t(key, values ? { values } : undefined),
     toast: (label) => addToast(label, "error"),
-    scrollToBottom: () => scroll.toBottom(),
+    scrollToBottom: () => scroll.follow(),
     finalizeStreaming: () => void finalizeStreaming(),
     refreshSession: () => void refreshSession(),
   };
@@ -315,17 +328,17 @@
         tokenBuffer += event.payload.token;
         isStreaming = true;
         isProcessing = false;
-        scroll.toBottom();
+        scroll.follow();
       },
     ));
 
     subscriptions.keep(await listen<RuntimeEventPayload>("runtime-event", (event) => {
-      a2a.onLifecycleEvent(event.payload, () => scroll.toBottom());
+      a2a.onLifecycleEvent(event.payload, () => scroll.follow());
     }));
 
     // Sub-agent step events, which only mean something while a delegation runs.
     subscriptions.keep(await listen<RuntimeEventPayload>("runtime-event", (event) => {
-      a2a.onStepEvent(event.payload, () => scroll.toBottom());
+      a2a.onStepEvent(event.payload, () => scroll.follow());
     }));
 
     subscriptions.keep(await listen<ChatChangedEvent>("runtime-event", (event) => {
@@ -356,6 +369,7 @@
       liveToolChain = [];
       pendingApproval = null;
       messages = [];
+      paneLoads.dismiss(pane.id);
       void loadSession().then(() => restoreGlobalState());
     }
   });
@@ -363,7 +377,7 @@
   onDestroy(() => {
     scroll.dispose();
     subscriptions.dispose();
-    currentSession.set(null);
+    currentSession.update((shown) => (shown?.id === sessionId ? null : shown));
     closeSessionBuffer(sessionId);
   });
 
@@ -395,7 +409,7 @@
     try {
       const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
-      applySessionDetail(detail); scroll.toBottom();
+      applySessionDetail(detail); scroll.follow();
     } catch { /* Session may have been deleted */ }
   }
 
@@ -408,7 +422,7 @@
     try {
       const detail = await getChatSession(sessionId);
       if (!ticket.current) return;
-      applySessionDetail(detail); scroll.toBottom();
+      applySessionDetail(detail); scroll.follow();
     } catch { /* Session may have been deleted */ }
   }
 
@@ -476,7 +490,6 @@
     sessionDetail = detail;
     planMode = detail.plan_mode;
     isProcessing = detail.status === "processing";
-    currentSession.set(detail);
     void loadConversationStats();
     void maybeInheritPlanModeDefault(detail);
   }
@@ -508,7 +521,6 @@
     try {
       const stats = await getConversationStats(sessionId);
       conversationStats = stats;
-      chatConversationStats.set(stats);
     } catch {
       conversationStats = null;
     }
@@ -549,7 +561,7 @@
     pendingError = null;
     messages = [...(messages ?? []).filter((m) => m.id !== "exchange-error"), tempMsg];
     isProcessing = true; tokenBuffer = ""; liveToolChain = [];
-    await tick(); scroll.toBottom(true);
+    await tick(); scroll.sent();
 
     try {
       const documents = documentPayloads(attachments);
@@ -569,6 +581,18 @@
   // The actions under a message: play a turn again, continue the last
   // answer, branch off, rewrite an answer, remove a message. Each truncates
   // or reloads the local thread; a turn played again streams as a new one.
+  // Cmd R (Ctrl R outside the Mac) regenerates the last answer when
+  // Settings > Chat asks for it; the chat route makes the request.
+  onMount(() =>
+    onRegenerateLast(
+      () => sessionId,
+      () => {
+        const id = answerToRegenerate(messages ?? [], isProcessing || isStreaming);
+        if (id) void answers.regenerate(id);
+      },
+    ),
+  );
+
   const answers = createAnswerActions(
     {
       sessionId: () => sessionId,
@@ -625,7 +649,7 @@
     if (patch.isProcessing !== undefined) isProcessing = patch.isProcessing;
     if (patch.approval) pendingApproval = patch.approval;
     if (patch.userInput !== undefined) pendingUserInput = patch.userInput;
-    if (patch.scroll) scroll.toBottom();
+    if (patch.scroll) scroll.follow();
   }
 
   // ── Next Steps ─────────────────────────────────────────
@@ -648,6 +672,10 @@
       renameTrigger={actions.renameTrigger}
       {target}
       ontargetpick={onopensession ? (choice) => void handleTargetPick(choice) : undefined}
+      active={pane.active}
+      loadgate={pane.divided ? (choice) => paneLoads.gate(pane.id, choice) : undefined}
+      onsplit={pane.split}
+      canSplit={pane.canSplit}
       onclose={onclose}
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
@@ -662,17 +690,13 @@
     />
   {/if}
 
-  <!-- Context indicator: the mini gauge rendered below the input (see footer
-       near ChatInput). -->
-  {#if sessionId}
-    <ContextIndicator {sessionId} onclick={openInjectedSheet} />
-  {/if}
-
   <InjectedMemorySheet
     open={injectedSheetOpen}
     turnId={currentTurnId}
     onclose={() => (injectedSheetOpen = false)}
   />
+
+  <PaneRefusalCard {pane} onpick={(choice) => void handleTargetPick(choice)} />
 
   <!-- Agent disparu inline banner. Rendered above the
        messages so the transcript stays readable. -->
@@ -740,6 +764,7 @@
   {/if}
 
   {#if !inputHidden}
+    <ReloadLastModel listens={pane.active} />
     <ChatInput
       disabled={inputDisabled}
       busy={isProcessing || isStreaming}
@@ -750,9 +775,13 @@
       {planMode}
       onplantoggle={togglePlanMode}
       planDisabled={sessionStatus === "closed"}
-      imageSupport={images.value}
+      imageSupport={model.images}
+      capabilities={model.value}
+      oncontextinspect={openInjectedSheet}
       {sessionId}
       agentName={sessionAgentName}
+      {suggestions}
+      active={pane.active}
     />
   {/if}
 </div>

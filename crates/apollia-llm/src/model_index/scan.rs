@@ -127,6 +127,15 @@ pub(super) fn read_header(model: &FoundModel) -> (ModelCategory, Option<String>,
     }
 }
 
+/// Whether the card copied beside the model at `path` marks it as published
+/// to draft for a larger model. No card, or an unreadable one, marks nothing.
+pub(super) fn card_marks_draft(path: &Path) -> bool {
+    matches!(
+        crate::model_cards::installed_card(path),
+        Ok(Some(card)) if card.draft.is_some()
+    )
+}
+
 /// `caps` with vision set from what the engine will actually be given: a GGUF
 /// model reads images only with a projector attached as an annex, which the
 /// runtime passes as `--mmproj`; an MLX folder only when its `config.json`

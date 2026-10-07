@@ -65,7 +65,25 @@
       "notion-update-page": "write_or_delete",
       "notion-update-view": "write_or_delete",
       "notion-wait-session": "read_personal"
-    }
+    },
+    "examples": [
+      {
+        "tool": "notion-search",
+        "label": { "en": "search pages", "fr": "chercher des pages" },
+        "question": {
+          "en": "Which pages mention the budget for next quarter?",
+          "fr": "Quelles pages parlent du budget du prochain trimestre ?"
+        }
+      },
+      {
+        "tool": "notion-fetch",
+        "label": { "en": "read a page", "fr": "lire une page" },
+        "question": {
+          "en": "Summarise my most recent meeting notes page.",
+          "fr": "Résume ma dernière page de compte rendu de réunion."
+        }
+      }
+    ]
   },
   {
     "package_identifier": "@modelcontextprotocol/server-brave-search",
@@ -105,7 +123,25 @@
     "tool_families": {
       "brave_local_search": "read",
       "brave_web_search": "read"
-    }
+    },
+    "examples": [
+      {
+        "tool": "brave_web_search",
+        "label": { "en": "search the web", "fr": "chercher sur le web" },
+        "question": {
+          "en": "What changed in the latest French e-invoicing rules?",
+          "fr": "Qu'est-ce qui a changé dans les dernières règles françaises de facturation électronique ?"
+        }
+      },
+      {
+        "tool": "brave_local_search",
+        "label": { "en": "find places nearby", "fr": "trouver des lieux proches" },
+        "question": {
+          "en": "Find three well-rated print shops near Lyon Part-Dieu.",
+          "fr": "Trouve trois imprimeries bien notées près de Lyon Part-Dieu."
+        }
+      }
+    ]
   },
   {
     "package_identifier": "@modelcontextprotocol/server-filesystem",
@@ -186,7 +222,17 @@
       "open_nodes": "read_personal",
       "read_graph": "read_personal",
       "search_nodes": "read_personal"
-    }
+    },
+    "examples": [
+      {
+        "tool": "search_nodes",
+        "label": { "en": "search the memory", "fr": "chercher dans la mémoire" },
+        "question": {
+          "en": "What do you remember about my clients?",
+          "fr": "Que sais-tu de mes clients ?"
+        }
+      }
+    ]
   },
   {
     "package_identifier": "@modelcontextprotocol/server-puppeteer",
@@ -327,7 +373,25 @@
       "list_users": "read_personal",
       "update_issue": "write_or_delete",
       "update_project": "write_or_delete"
-    }
+    },
+    "examples": [
+      {
+        "tool": "list_issues",
+        "label": { "en": "list issues", "fr": "lister les tickets" },
+        "question": {
+          "en": "Which issues are assigned to me and still open?",
+          "fr": "Quels tickets me sont assignés et encore ouverts ?"
+        }
+      },
+      {
+        "tool": "list_projects",
+        "label": { "en": "list projects", "fr": "lister les projets" },
+        "question": {
+          "en": "Which projects are due this month?",
+          "fr": "Quels projets arrivent à échéance ce mois-ci ?"
+        }
+      }
+    ]
   },
   {
     "package_identifier": "com.atlassian/rovo-mcp",
@@ -595,7 +659,17 @@
       "watchConfluenceLabel": "write_or_delete",
       "watchConfluenceSpace": "write_or_delete",
       "watchJiraIssue": "write_or_delete"
-    }
+    },
+    "examples": [
+      {
+        "tool": "atlassianUserInfo",
+        "label": { "en": "read my profile", "fr": "lire mon profil" },
+        "question": {
+          "en": "Which Atlassian account am I connected with?",
+          "fr": "Avec quel compte Atlassian suis-je connecté ?"
+        }
+      }
+    ]
   },
   {
     "package_identifier": "com.stripe/mcp",
@@ -636,7 +710,25 @@
       "stripe_api_search": "read",
       "stripe_api_write": "write_or_delete",
       "stripe_implementation_planner": "read"
-    }
+    },
+    "examples": [
+      {
+        "tool": "get_balance_summary",
+        "label": { "en": "read the balance", "fr": "lire le solde" },
+        "question": {
+          "en": "What is my current Stripe balance?",
+          "fr": "Quel est mon solde Stripe actuel ?"
+        }
+      },
+      {
+        "tool": "search_stripe_documentation",
+        "label": { "en": "search the documentation", "fr": "chercher dans la documentation" },
+        "question": {
+          "en": "How do I issue a partial refund?",
+          "fr": "Comment faire un remboursement partiel ?"
+        }
+      }
+    ]
   },
   {
     "package_identifier": "com.figma/mcp",
@@ -669,7 +761,17 @@
       "get_variable_defs": "read_personal",
       "list_shaders": "read",
       "send_code_connect_mappings": "write_or_delete"
-    }
+    },
+    "examples": [
+      {
+        "tool": "get_metadata",
+        "label": { "en": "read the selection", "fr": "lire la sélection" },
+        "question": {
+          "en": "Describe the frame selected in Figma.",
+          "fr": "Décris le cadre sélectionné dans Figma."
+        }
+      }
+    ]
   },
   {
     "package_identifier": "io.sentry/mcp",
@@ -762,7 +864,17 @@
       "update_project": "write_or_delete",
       "update_uptime_monitor": "write_or_delete",
       "whoami": "read_personal"
-    }
+    },
+    "examples": [
+      {
+        "tool": "find_projects",
+        "label": { "en": "list projects", "fr": "lister les projets" },
+        "question": {
+          "en": "Which Sentry projects do I have access to?",
+          "fr": "À quels projets Sentry ai-je accès ?"
+        }
+      }
+    ]
   },
   {
     "package_identifier": "com.cloudflare/mcp",
@@ -795,7 +907,17 @@
     "tool_families": {
       "execute": "execute_code",
       "search": "read"
-    }
+    },
+    "examples": [
+      {
+        "tool": "search",
+        "label": { "en": "search the documentation", "fr": "chercher dans la documentation" },
+        "question": {
+          "en": "How do I add a DNS record to my domain?",
+          "fr": "Comment ajouter un enregistrement DNS à mon domaine ?"
+        }
+      }
+    ]
   },
   {
     "package_identifier": "@modelcontextprotocol/server-postgres",
@@ -828,7 +950,17 @@
     "cost_model": { "kind": "free" },
     "tool_families": {
       "query": "read_personal"
-    }
+    },
+    "examples": [
+      {
+        "tool": "query",
+        "label": { "en": "query the database", "fr": "interroger la base" },
+        "question": {
+          "en": "Which tables does the database hold?",
+          "fr": "Quelles tables contient la base de données ?"
+        }
+      }
+    ]
   },
   {
     "package_identifier": "@modelcontextprotocol/server-sqlite",
@@ -1223,7 +1355,25 @@
     "tool_families": {
       "convert_time": "read",
       "get_current_time": "read"
-    }
+    },
+    "examples": [
+      {
+        "tool": "get_current_time",
+        "label": { "en": "read the time", "fr": "lire l'heure" },
+        "question": {
+          "en": "What time is it in Tokyo right now?",
+          "fr": "Quelle heure est-il à Tokyo en ce moment ?"
+        }
+      },
+      {
+        "tool": "convert_time",
+        "label": { "en": "convert a time", "fr": "convertir une heure" },
+        "question": {
+          "en": "If it is 3 pm in Paris, what time is it in Montreal?",
+          "fr": "S'il est 15 h à Paris, quelle heure est-il à Montréal ?"
+        }
+      }
+    ]
   },
   {
     "package_identifier": "mcp-server-fetch",
@@ -1669,6 +1819,16 @@
     "cost_model": { "kind": "free" },
     "tool_families": {
       "fetch": "read"
-    }
+    },
+    "examples": [
+      {
+        "tool": "fetch",
+        "label": { "en": "read a web page", "fr": "lire une page web" },
+        "question": {
+          "en": "Summarise the page https://www.service-public.fr in three points.",
+          "fr": "Résume la page https://www.service-public.fr en trois points."
+        }
+      }
+    ]
   }
 ]

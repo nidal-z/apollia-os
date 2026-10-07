@@ -19,6 +19,8 @@
  * identifier, a code fragment, or a placeholder the runtime fills.
  */
 export const IDENTICAL_BY_NATURE: string[] = [
+  "ai.installed.group", // {label} · {count}
+  "ai.panel.inference.structured.placeholder", // { "type": "object", "properties": {} }
   "authorizations.apollia_name", // Apollia
   "chat.generation.seconds", // {value} s
   "connections.capabilities.group_gdocs", // Google Docs
@@ -26,6 +28,8 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.capabilities.group_gforms", // Google Forms
   "connections.capabilities.group_gmail", // Gmail
   "connections.capabilities.group_gsheets", // Google Sheets
+  "dev.developer.examples.javascript", // JavaScript
+  "dev.developer.examples.python", // Python
   "connections.capabilities.group_gslides", // Google Slides
   "connections.capabilities.group_gtasks", // Google Tasks
   "connections.capabilities.group_onedrive", // OneDrive
@@ -34,14 +38,12 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "connections.native_google_name", // Google Workspace
   "connections.native_microsoft_description", // Outlook Mail, Outlook Calendar, OneDrive
   "connections.native_microsoft_name", // Microsoft 365
-  "dashboard.headline_greeting", // {greeting}.
   "dev.connections.custom_transport_http", // Streamable HTTP (MCP 2025-11-25)
   "dev.connections.custom_transport_sse", // SSE (legacy 2024-11-05)
   "dev.workflows.depth", // depth
   "dev.workflows.parent_run", // parent_run_id
   "dev.workflows.run_id", // run_id
   "dev.workflows.workflow_id", // workflow_id
-  "llm.loaded.engine_mlx", // MLX
   "notifications.field_headers_placeholder", // {"Authorization": "Bearer ..."}
   "notifications.field_url_placeholder", // https://hooks.example.com/notify
   "observability.timeline_window_30min", // 30 min
@@ -53,18 +55,9 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.integrations.placeholder.client_secret", // GOCSPX-…
   "settings.language_en", // English
   "settings.language_fr", // Français
-  "settings.llm_dialog.field_top_k", // Top-K
-  "settings.llm_dialog.field_top_p", // Top-P
   "settings.model_defaults.images.unit", // pixels
   "settings.model_defaults.unload.unit", // minutes
-  "settings.model_hub.detail.param_top_k", // top_k
-  "settings.model_hub.detail.param_top_p", // top_p
   "settings.hardware.gpu", // GPU
-  "settings.model_hub.filters.lang_de", // Deutsch
-  "settings.model_hub.filters.lang_en", // English
-  "settings.model_hub.filters.lang_es", // Español
-  "settings.model_hub.filters.lang_fr", // Français
-  "settings.model_hub.filters.lang_pt", // Português
   "settings.stt_cuda", // CUDA
   "settings.stt_metal", // Metal
   "settings.tools_page.bash_executor_title", // Bash
@@ -84,26 +77,33 @@ export const IDENTICAL_BY_NATURE: string[] = [
  * keeps ("Backend", "Endpoint", "Builder", "Chat").
  */
 export const IDENTICAL_BY_DECISION: string[] = [
+  "ai.capability.vision.label", // Vision
+  "ai.category.embeddings", // Embeddings
+  "ai.installed.col_actions", // Actions
+  "ai.kind.embeddings", // Embeddings
+  "ai.panel.auto", // Auto
+  "ai.panel.info.architecture", // Architecture
+  "ai.panel.info.format", // Format
+  "ai.panel.preset.label", // Preset
   "a11y.actions_menu", // Actions
   "agent_adjust.grant_group_agents", // Agents
   "agent_adjust.grant_group_workflows", // Workflows
   "agent_adjust.mission_label", // Mission
   "agent_adjust.preset_label", // Preset
-  "agent_detail.execution_mode_direct", // Direct
   "agent_detail.messages_title", // Messages
-  "agent_detail.tags_title", // Tags
   "agents.column_agents", // Agents
   "agents.column_workflows", // Workflows
   "agents.kicker_agent", // Agent
   "agents.logs", // Logs
   "agents.title", // Agents
   "automations.status.active", // Active
-  "automations.target_prefix", // Assistant
-  "automations.wizard.step_agent", // Assistant
+  "automations.target_prefix", // Agent
+  "automations.wizard.step_agent", // Agent
   "batch_launch.agent.title", // Agent
   "batch_launch.source.title", // Source
   "chat.activity.sources", // Sources
-  "chat.assistant", // Assistant
+  "chat.assistant", // Apollia
+  "chat.chips.vision", // Vision
   "chat.citations_aria", // Citations
   "chat.command_group.agents", // Agents
   "chat.config_title", // Configuration
@@ -111,18 +111,18 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.conversations_aria", // Conversations
   "chat.export.meta_mode", // Mode
   "chat.export.meta_session", // Session
-  "chat.export.role_assistant", // Assistant
+  "chat.export.role_assistant", // Apollia
   "chat.journal.agent", // Agent
-  "chat.legend_messages", // Messages
   "chat.mode_auto", // Auto
   "chat.planMode.phaseLabel", // Phase
   "chat.quickpicker.agents_section", // Agents
   "chat.quickpicker.docs_link", // Documentation
+  "chat.integrations.group_workflows", // Workflows
+  "chat.session_settings.preset.title", // Preset
   "chat.shortcut_group.chat", // Chat
   "chat.shortcut_group.messages", // Messages
   "chat.shortcut_group.navigation", // Navigation
   "chat.status_active", // Active
-  "chat.system_prompt", // Instructions
   "chat.target_selector.group_agents", // Agents
   "chat.title", // Chat
   "commandPalette.groups.actions", // Actions
@@ -133,12 +133,19 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "connections.mcp_settings.transport", // Transport
   "connections.mailbox.port_label", // Port
   "detailSidebar.tab_guide", // Guide
+  "dev.ai.panel.type.embeddings.label", // Embeddings
   "dev.connections.custom_transport_label", // Transport
   "connections.settings_provider_title", // Provider
   "connections.status_chip_attention", // Attention
+  "dev.developer.docs.admonition.danger", // Danger
+  "dev.developer.docs.admonition.info", // Info
+  "dev.developer.docs.admonition.note", // Note
+  "dev.developer.docs.reference.column.description", // Description
+  "dev.developer.docs.reference.column.type", // Type
+  "dev.developer.docs.reference.where.cookie", // cookie
+  "dev.developer.views.documentation", // Documentation
   "dev.journal.arguments", // Arguments
-  "inbox.row.type_question", // question
-  "inbox.row.type_trigger", // trigger
+  "guide.doc.breadcrumb", // Documentation
   "integrations.wizard.local_loopback_badge", // Local
   "journal.detail.action", // Action
   "journal.detail.agent", // Agent
@@ -152,20 +159,16 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "library.kind.workflow", // workflow
   "library.uninstall.leaving.agents", // {count, plural, one {# agent} other {# agents}}
   "library.uninstall.leaving.workflows", // {count, plural, one {# workflow} other {# workflows}}
-  "llm.ping_ok", // Ping OK ({latency}ms)
-  "llm.table.backend", // Backend
-  "llm.table.tokens", // Tokens
-  "llm.table.total", // Total
   "memory.meta_expiration", // Expiration
   "memory.meta_namespace", // Namespace
   "memory.meta_type", // Type
   "memory.namespaces.cat_agent", // Agents
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
+  "nav.agents", // Agents
   "nav.chat", // Chat
-  "nav.journal", // Journal
+  "nav.sidebar.agents", // Agents
   "nav.sidebar.chat", // Chat
-  "nav.sidebar.journal", // Journal
   "nav.sidebar.transcriptions", // Transcriptions
   "nav.transcriptions", // Transcriptions
   "notifications.field_type", // Type
@@ -186,7 +189,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "packages.preview.version", // version {version}
   "plan_mode.history_pause", // Pause
   "plan_session.origin_initial", // Initial
-  "plan_session.tab_journal", // Journal
   "plan_session.tab_plan", // Plan
   "policy.badge.active", // Active
   "policy.section.journal.title", // Journal
@@ -201,8 +203,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.about.docs_title", // Documentation
   "settings.chat.conversations_title", // Conversations
   "settings.credential.absent", // Absent
-  "settings.developer.mcp.kind_agent", // Agent
-  "settings.developer.mcp.kind_workflow", // Workflow
+  "dev.developer.mcp.kind_agent", // Agent
+  "dev.developer.mcp.kind_workflow", // Workflow
   "settings.engines.channel_stable", // Stable
   "settings.developer.on_demand.idle_unit", // minutes
   "settings.general.application_title", // Application
@@ -210,12 +212,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.general.interface_title", // Interface
   "settings.hardware.architecture", // Architecture
   "settings.hardware.compatible", // Compatible
-  "settings.llm_backend.provider_local", // local
-  "settings.llm_dialog.field_endpoint", // Endpoint
-  "settings.model_hub.detail.param_max_tokens", // max tokens
-  "settings.model_hub.detail.param_temperature", // temperature
-  "settings.model_hub.filters.type_base", // Base
-  "settings.model_hub.filters.type_instruct", // Instruct / Chat
   "settings.nav.chat", // Chat
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
@@ -228,7 +224,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.shortcuts.category.navigation", // Navigation
   "settings.shortcuts.scope.global_label", // Global
   "settings.stt.section.performance_title", // PERFORMANCE
-  "settings.stt_backend", // Backend
   "settings.stt_input_device", // Microphone
   "settings.stt_microphone", // Microphone
   "settings.system_version", // Version

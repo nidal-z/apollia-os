@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import glossary from "$lib/i18n/glossary.json";
 import en from "$lib/i18n/en.json";
 import fr from "$lib/i18n/fr.json";
 
@@ -8,8 +9,7 @@ import fr from "$lib/i18n/fr.json";
 // registry whose entries point at `nav.*` keys. Both surfaces are visible at
 // the same time on every screen, so for every route present on both sides the
 // two catalogs must resolve to the same string. Before this test existed the
-// FR catalog diverged on 4 routes (agents, dashboard, llm, tasks) and the EN
-// catalog on 3 (dashboard, llm, tasks).
+// FR catalog diverged on 4 routes and the EN catalog on 3.
 
 type JsonObject = Record<string, unknown>;
 
@@ -54,9 +54,10 @@ describe("sidebar and breadcrumb name every common route identically", () => {
     // refactor that blinds the extraction fails here instead of passing silently
     expect(commonRoutes).toEqual([
       "agents",
+      "authorizations",
       "automations",
       "chat",
-      "dashboard",
+      "developer",
       "inbox",
       "integrations",
       "journal",
@@ -83,12 +84,13 @@ describe("sidebar and breadcrumb name every common route identically", () => {
     expect(divergent).toEqual([]);
   });
 
-  test.each(catalogs)("the Operator page title of the llm route is the navigation string in %s", (_name, catalog) => {
-    // GIVEN the llm screen title in Operator mode (routes/Llm.svelte reads
-    // `llm.title_operator`) and the navigation string of the llm route
-    // WHEN both are resolved from the same catalog
-    // THEN the screen carries one name, not three
+  test.each(catalogs)("the llm route carries the official name of the AI screen in %s", (name, catalog) => {
+    // GIVEN the official name of the AI screen in the glossary and the
+    // navigation string of the llm route
+    // WHEN both are resolved for the same locale
+    // THEN the screen carries one name, the glossary's
     const navigationLabel = resolve(catalog, breadcrumbKeys.get("llm") as string);
-    expect(resolve(catalog, "llm.title_operator")).toBe(navigationLabel);
+    const official = glossary[name as "fr" | "en"].screens.ai;
+    expect(navigationLabel).toBe(official);
   });
 });

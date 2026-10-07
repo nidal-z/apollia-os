@@ -9,7 +9,7 @@
     "handleClose calls resetState(), so reopening a dialog after a cancel comes back on step 1. The script asserts that: every action is opened twice, cancelled from step 1 the first time and from step 2 the second.",
     "factory-reset is the only action with lockMs > 0. `-lock-hint` renders only while `locked && lockRemaining > 0`, a 3000 ms window opened by the click on `-continue`, hence the tight timeout on that waitFor and the sleep before the final cancel.",
     "factory-reset-confirm-confirm is never clicked, here or anywhere else: it wipes the config directory and restarts the app, which kills the run before the report is written (see README, Gotchas).",
-    "Danger.svelte wraps its cards in SettingsSubPage with no onSave, so the route never goes dirty and the settings nav guard cannot fire. The closing goto dashboard proves the page was left clean."
+    "Danger.svelte wraps its cards in SettingsSubPage with no onSave, so the route never goes dirty and the settings nav guard cannot fire. The closing goto chat proves the page was left clean."
   ],
   "dynamicTestids": [
     "settings-nav-appearance",
@@ -97,7 +97,7 @@
     { "kind": "click", "testid": "reset-onboarding-confirm-cancel" },
     { "kind": "waitGone", "testid": "reset-onboarding-confirm", "timeoutMs": 5000 },
     { "kind": "screenshot", "label": "05-reset-onboarding-retired" },
-    { "kind": "goto", "route": "dashboard" },
+    { "kind": "goto", "route": "chat" },
     { "kind": "waitFor", "testid": "app-main", "timeoutMs": 10000 },
     { "kind": "screenshot", "label": "12-left-clean" }
   ]

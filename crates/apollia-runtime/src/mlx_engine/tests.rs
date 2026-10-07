@@ -414,3 +414,47 @@ async fn an_mlx_model_over_the_guardrail_is_refused_until_the_key_allows_it() {
     assert!(pid_of(&sup, &model).await.is_some());
     sup.shutdown_in_place().await;
 }
+
+#[tokio::test]
+async fn an_mlx_load_unloads_the_unpinned_mlx_models_first_when_the_rule_is_on() {
+    // GIVEN two resident MLX models, one pinned, and an apollia.toml that
+    // turns `unload_before_load` on
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join("apollia.toml");
+    std::fs::write(
+        &config,
+        "[llm.guardrails]\nlevel = \"disabled\"\n\n[llm.residency]\nunload_before_load = true\n",
+    )
+    .unwrap();
+    let launch = MlxLaunch {
+        program: PathBuf::from("python3"),
+        prefix_args: vec!["-c".to_owned(), FAKE_ENGINE.to_owned()],
+        env: Vec::new(),
+    };
+    let mut engine = MlxEngineSupervisor::with_timing(launch, fast_timing());
+    engine.config_file = Some(config);
+    let sup = Arc::new(engine);
+    let residents =
+        MlxEngineSupervisor::with_stand_in_models(&["/models/pinned-mlx", "/models/other-mlx"])
+            .await;
+    let stand_ins: Vec<_> = residents.instances.lock().await.drain(..).collect();
+    sup.instances.lock().await.extend(stand_ins);
+    let residency = crate::residency::Residency::new(None, None, None);
+    residency
+        .set_pinned("/models/pinned-mlx", true)
+        .expect("pinned in memory");
+    sup.attach_residency(Arc::clone(&residency));
+    let model = mlx_folder(dir.path());
+
+    // WHEN a third model is loaded
+    let loaded = sup
+        .ensure_model(model.clone(), None, LoadConsent::Unconfirmed)
+        .await;
+
+    // THEN the unpinned one was unloaded first and the pinned one stays
+    drop(loaded.unwrap());
+    assert!(pid_of(&sup, &model).await.is_some());
+    assert!(pid_of(&sup, "/models/pinned-mlx").await.is_some());
+    assert!(pid_of(&sup, "/models/other-mlx").await.is_none());
+    sup.shutdown_in_place().await;
+}

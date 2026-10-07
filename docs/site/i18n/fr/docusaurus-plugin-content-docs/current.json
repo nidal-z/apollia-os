@@ -75,6 +75,10 @@
     "message": "Transversal",
     "description": "The label for category 'Cross-cutting' in sidebar 'docs'"
   },
+  "sidebar.docs.category.Screens": {
+    "message": "Écrans",
+    "description": "The label for category 'Screens' in sidebar 'docs'"
+  },
   "sidebar.docs.category.Troubleshooting": {
     "message": "Dépannage",
     "description": "The label for category 'Troubleshooting' in sidebar 'docs'"

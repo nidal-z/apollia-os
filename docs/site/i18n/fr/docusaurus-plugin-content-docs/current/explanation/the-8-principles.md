@@ -99,11 +99,11 @@ contrôlez. Une conversation désigne l'un de vos profils, ou suit le profil par
 défaut. À chaque tour, à tous les paliers d'autonomie, l'assistant ajoute à son
 prompt système un court résumé de ce profil : nom, rôle, fonction, outils,
 préférences et notes, ce que vous avez rempli. Elle se trouve sous un
-interrupteur, « Utiliser mes préférences », dans le panneau de configuration de
-la conversation. L'interrupteur est allumé à la création d'une conversation, il
-est enregistré avec elle, et l'éteindre prend effet au message suivant. La jauge
-de contexte du même panneau dit si le prompt porte le profil : ce que vous y
-lisez est ce que le modèle a reçu. Les sessions Companion et les sessions qui
+interrupteur, « Apollia connaît mon profil », dans l'onglet Intégrations du
+panneau droit de la conversation. L'interrupteur est allumé à la création d'une
+conversation, il est enregistré avec elle, et l'éteindre prend effet au message
+suivant. La jauge de contexte de la zone de saisie dit si le prompt porte le
+profil : ce que vous y lisez est ce que le modèle a reçu. Les sessions Companion et les sessions qui
 exécutent un agent installé ne le reçoivent jamais, interrupteur ou non.
 
 <!-- claim:cross-session-recall-injects-summaries -->

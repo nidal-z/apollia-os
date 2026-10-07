@@ -21,7 +21,7 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 11;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 12;
 
 /// Numbered migration steps of `system.db`.
 ///
@@ -39,6 +39,7 @@ pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[
     migrate_v9,
     migrate_v10,
     migrate_v11,
+    migrate_v12,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -555,6 +556,23 @@ pub(crate) fn migrate_v11(conn: &Connection) -> Result<(), rusqlite::Error> {
             model_path TEXT PRIMARY KEY CHECK (length(trim(model_path)) > 0),
             pinned_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );",
+    )
+}
+
+/// v12: what an inference server is reached with beyond its address and key.
+///
+/// `timeout_secs` is how long the server may stay silent before a request to
+/// it is given up; `extra_json` is a JSON object whose fields are added to
+/// every request sent to it. Both are absent by default: the server is then
+/// reached with the defaults of the runtime and nothing is added.
+pub(crate) fn migrate_v12(conn: &Connection) -> Result<(), rusqlite::Error> {
+    add_column_if_missing(
+        conn,
+        "ALTER TABLE inference_servers ADD COLUMN timeout_secs INTEGER",
+    )?;
+    add_column_if_missing(
+        conn,
+        "ALTER TABLE inference_servers ADD COLUMN extra_json TEXT",
     )
 }
 

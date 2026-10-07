@@ -1,9 +1,28 @@
+<script lang="ts" module>
+  import type { ChatMessageStyle } from "$lib/stores/chatAppearance";
+
+  /**
+   * The frame of a user message: a bubble on the right, or, with the "blocks"
+   * style of Appearance, a block the width of the column with no bubble. A
+   * message being edited takes the column either way.
+   */
+  export function userMessageFrame(input: {
+    style: ChatMessageStyle;
+    editing: boolean;
+  }): { align: "items-end" | "items-start"; frame: string } {
+    if (input.style === "block") return { align: "items-start", frame: "chat-user-block w-full py-1" };
+    return { align: "items-end", frame: input.editing ? "w-full" : "chat-user-bubble" };
+  }
+</script>
+
 <script lang="ts">
   import { fly } from "svelte/transition";
   import { t, locale } from "svelte-i18n";
   import { getContext } from "svelte";
   import { ANSWER_ACTIONS, type AnswerActionsContext } from "$lib/chat/answerActions";
   import MessageActions from "./MessageActions.svelte";
+  import { doubleClickEdits } from "$lib/chat/chatBehaviours";
+  import { chatDoubleClickEdit } from "$lib/stores/chatBehaviours";
   import type { ChatMessageView } from "$lib/types";
   import { developerMode } from "$lib/stores/developerMode";
   import MessageRenderer from "./MessageRenderer.svelte";
@@ -15,7 +34,8 @@
   import MessageDocuments from "./MessageDocuments.svelte";
   import { documentsText, typedText } from "$lib/chat/messageDocuments";
   import GenerationInfo from "./GenerationInfo.svelte";
-  import { readGeneration } from "$lib/chat/generationStats";
+  import { readGeneration, showsGenerationInfo } from "$lib/chat/generationStats";
+  import { chatMessageStyle, generationInfoScope } from "$lib/stores/chatAppearance";
   import { parseStream } from "$lib/chat/streamParser";
   import { extractSources } from "$lib/chat/reasoning";
   import {
@@ -36,6 +56,8 @@
     variant?: "default" | "compact";
     /** True while a turn is generating - disables regenerate/edit affordances. */
     busy?: boolean;
+    /** The answer that keeps its generation figures under "last message only". */
+    lastAnswerId?: string | null;
     /** Regenerate the reply to this assistant turn (truncate-in-place). */
     onregenerate?: (messageId: string) => void;
     /** Replace this user message and re-run from it (truncate-in-place). */
@@ -48,6 +70,7 @@
     showTimestamp = true,
     variant = "default",
     busy = false,
+    lastAnswerId = null,
     onregenerate,
     onedit,
   }: Props = $props();
@@ -98,7 +121,13 @@
 
   // The total of the turn, written by the runtime under its answer: read from
   // the message itself, so a reloaded conversation shows the same line.
-  const generation = $derived(isUser ? null : readGeneration(message.metadata));
+  // Which answers show it is a choice of Settings > Appearance.
+  const generation = $derived(
+    isUser ||
+      !showsGenerationInfo({ scope: $generationInfoScope, messageId: message.id, lastAnswerId })
+      ? null
+      : readGeneration(message.metadata),
+  );
 
   // Source cards (zone 3): deduplicated web pages the agent consulted.
   const sources = $derived(extractSources(nonPendingCalls));
@@ -145,6 +174,8 @@
       (isUser ? !!onedit : !!answers && message.role === "assistant"),
   );
 
+  const userFrame = $derived(userMessageFrame({ style: $chatMessageStyle, editing }));
+
   function startEdit(): void {
     editValue = isUser ? userText : (message.content ?? "");
     editing = true;
@@ -152,6 +183,20 @@
 
   function cancelEdit(): void {
     editing = false;
+  }
+
+  // A double click on a message of the user opens its edition when
+  // Settings > Chat asks for it; an answer keeps the double click for
+  // selecting a word.
+  function onBubbleDblClick(): void {
+    const opens = doubleClickEdits({
+      enabled: $chatDoubleClickEdit,
+      isUser,
+      canEdit,
+      busy,
+      editing,
+    });
+    if (opens) startEdit();
   }
 
   function saveEdit(): void {
@@ -169,10 +214,11 @@
 </script>
 
 <div
-  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} {compact
+  class="group flex flex-col {isUser ? userFrame.align : 'items-start'} {compact
     ? 'chat-density-compact gap-0.5'
     : 'gap-1'} w-full"
   data-testid="chat-message-{message.id}"
+  data-message-style={isUser ? $chatMessageStyle : undefined}
   in:fly={{ y: 4, duration: 200 }}
 >
   <!-- Zone 1: the turn in the order it happened, each reasoning fragment a
@@ -202,12 +248,12 @@
     <MessageDocuments messageId={message.id} metadata={message.metadata} />
   {/if}
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="relative {isUser
-      ? editing
-        ? widthClass
-        : 'chat-user-bubble'
+      ? userFrame.frame
       : `${widthClass} text-foreground ${compact ? "py-0.5" : "py-1"}`}"
+    ondblclick={onBubbleDblClick}
   >
     {#if editing}
         <div class="flex flex-col gap-2">

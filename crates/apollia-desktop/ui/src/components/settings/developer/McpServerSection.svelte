@@ -16,6 +16,7 @@
   import { getResolvedSetting, setSetting } from "$lib/ipc/settings";
   import { listMcpExposable, setMcpExposed, type McpExposableItem } from "$lib/ipc/mcpServer";
   import { cliStatusStore, settingsLoaders } from "$lib/stores/settings";
+  import { developerMode } from "$lib/stores/developerMode";
   import type { CliStatus } from "$lib/types";
   import SettingsSection from "../SettingsSection.svelte";
   import SettingsFieldRow from "../SettingsFieldRow.svelte";
@@ -23,6 +24,7 @@
     exposedTestId,
     mcpClientConfig,
     mcpCommandPath,
+    mcpSectionVisible,
     readMcpSwitch,
     setExposure,
     writeMcpSwitch,
@@ -30,8 +32,8 @@
   } from "./mcpServer";
 
   const KIND_LABELS = {
-    agent: "settings.developer.mcp.kind_agent",
-    workflow: "settings.developer.mcp.kind_workflow",
+    agent: "dev.developer.mcp.kind_agent",
+    workflow: "dev.developer.mcp.kind_workflow",
   } as const;
 
   const ipc: McpServerIpc = {
@@ -97,7 +99,7 @@
       locked = written.locked;
     } catch {
       enabled = previous;
-      addToast($t("settings.developer.mcp.write_failed"), "error");
+      addToast($t("dev.developer.mcp.write_failed"), "error");
     }
   }
 
@@ -108,7 +110,7 @@
       items = await setExposure(ipc, items, item, exposed);
     } catch {
       revision += 1;
-      addToast($t("settings.developer.mcp.expose_failed", { values: { name: item.name } }), "error");
+      addToast($t("dev.developer.mcp.expose_failed", { values: { name: item.name } }), "error");
     } finally {
       pending = null;
     }
@@ -121,20 +123,21 @@
       copied = true;
       setTimeout(() => (copied = false), 2000);
     } catch {
-      addToast($t("settings.developer.mcp.copy_failed"), "error");
+      addToast($t("dev.developer.mcp.copy_failed"), "error");
     }
   }
 </script>
 
+{#if mcpSectionVisible($developerMode)}
 <SettingsSection
-  title={$t("settings.developer.mcp.title")}
+  title={$t("dev.developer.mcp.title")}
   bodyLayout="flush"
   data-testid="developer-mcp-section"
 >
   {#snippet icon()}<Plug size={15} strokeWidth={1.75} />{/snippet}
   <SettingsFieldRow
-    label={$t("settings.developer.mcp.switch_label")}
-    hint={$t("settings.developer.mcp.switch_hint")}
+    label={$t("dev.developer.mcp.switch_label")}
+    hint={$t("dev.developer.mcp.switch_hint")}
     for="developer-mcp-switch"
     border={false}
     data-testid="developer-mcp-row"
@@ -146,7 +149,7 @@
           checked={enabled}
           disabled={locked}
           onchange={(next) => void toggle(next)}
-          aria-label={$t("settings.developer.mcp.switch_label")}
+          aria-label={$t("dev.developer.mcp.switch_label")}
           data-testid="developer-mcp-toggle"
         />
         {#if locked}
@@ -165,17 +168,17 @@
 
   {#if enabled}
     <div class="space-y-1 pt-2" data-testid="developer-mcp-items">
-      <p class="text-sm font-medium text-foreground">{$t("settings.developer.mcp.items_label")}</p>
+      <p class="text-sm font-medium text-foreground">{$t("dev.developer.mcp.items_label")}</p>
       {#if itemsError}
         <p class="text-xs text-destructive" data-testid="developer-mcp-items-error">
-          {$t("settings.developer.mcp.items_failed", { values: { error: itemsError } })}
+          {$t("dev.developer.mcp.items_failed", { values: { error: itemsError } })}
         </p>
       {:else if itemsLoaded && items.length === 0}
         <p class="text-xs text-muted-foreground" data-testid="developer-mcp-items-empty">
-          {$t("settings.developer.mcp.items_empty")}
+          {$t("dev.developer.mcp.items_empty")}
         </p>
       {:else}
-        <p class="text-xs text-muted-foreground">{$t("settings.developer.mcp.items_hint")}</p>
+        <p class="text-xs text-muted-foreground">{$t("dev.developer.mcp.items_hint")}</p>
         <ul class="divide-y divide-border pt-2">
           {#each items as item (`${item.kind}:${item.item_id}:${revision}`)}
             {@const testid = exposedTestId(item)}
@@ -208,12 +211,12 @@
         data-testid="developer-mcp-config"
       >
         <div class="flex items-center justify-between gap-3">
-          <p class="text-xs text-muted-foreground">{$t("settings.developer.mcp.config_label")}</p>
+          <p class="text-xs text-muted-foreground">{$t("dev.developer.mcp.config_label")}</p>
           <Button variant="outline" size="sm" onclick={() => void copy()} data-testid="developer-mcp-copy">
             {#snippet icon()}
               {#if copied}<Check size={14} />{:else}<Copy size={14} />{/if}
             {/snippet}
-            {copied ? $t("settings.developer.mcp.copied") : $t("settings.developer.mcp.copy")}
+            {copied ? $t("dev.developer.mcp.copied") : $t("dev.developer.mcp.copy")}
           </Button>
         </div>
         <pre
@@ -223,3 +226,4 @@
     {/if}
   {/if}
 </SettingsSection>
+{/if}

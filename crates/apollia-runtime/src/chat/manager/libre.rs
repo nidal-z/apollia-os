@@ -238,13 +238,19 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             proposed,
         )
     };
-    let available_tools = super::code_context::with_code_context(
-        chat_tools_config_for_session.as_deref(),
-        &agent_id,
-        available_tools,
-        &mut package_tools,
-    )
-    .await;
+    // A conversation limited to a list of accesses is offered nothing a
+    // source of its agent would add.
+    let available_tools = if session_settings.is_limited() {
+        available_tools
+    } else {
+        super::code_context::with_code_context(
+            chat_tools_config_for_session.as_deref(),
+            &agent_id,
+            available_tools,
+            &mut package_tools,
+        )
+        .await
+    };
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
     // `tool_search` tool is built from it twice: as a dispatcher executor (so a

@@ -1368,6 +1368,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/engines/installation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["engine_installation_state"];
+        put?: never;
+        post: operations["start_engine_installation"];
+        delete: operations["dismiss_engine_installation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/installation/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["start_engine_import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/engines/nodejs": {
         parameters: {
             query?: never;
@@ -2453,7 +2485,11 @@ export interface paths {
         delete: operations["delete_llm_server"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * `PATCH /api/v1/llm/servers/{name}`: change a saved server field by field.
+         *     The change applies to the next request sent to one of its models.
+         */
+        patch: operations["update_llm_server"];
         trace?: never;
     };
     "/api/v1/llm/servers/{name}/models": {
@@ -4949,6 +4985,29 @@ export interface paths {
         put?: never;
         /** Handler for `POST /api/v1/sessions/:id/plan/reject`. */
         post: operations["reject_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/prompt-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/sessions/{id}/prompt-template`, the prompt
+         *     template the model of a session receives.
+         * @description The template of the preset the session chose when that preset carries
+         *     one, else the template the local engine reports for the model of the
+         *     session when it is loaded. Reading it never loads a model.
+         */
+        get: operations["get_session_prompt_template"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7478,6 +7537,13 @@ export interface components {
         CreateSessionRequest: {
             /** @description Agent name (required when `mode == "agent"`). */
             agent_name?: string | null;
+            /**
+             * @description Limit the conversation to `tools`: of the accesses of its agent only
+             *     they are offered, and those the agent does not hold are proposed,
+             *     each of their calls asking for consent. Read back as
+             *     `settings.only_accesses`. Refused when `tools` is empty.
+             */
+            limited_to_tools?: boolean;
             /** @description Session mode: `"libre"` or `"agent"`. */
             mode: string;
             /**
@@ -7872,6 +7938,60 @@ export interface components {
             /** @description Variant to install; its newest build on the channel is taken. */
             variant: components["schemas"]["EngineVariant"];
         };
+        /**
+         * @description What an installation is, for the one who asked.
+         * @enum {string}
+         */
+        EngineInstallationKind: "install" | "update" | "import";
+        /** @description Where the installation of a store stands. */
+        EngineInstallationState: {
+            /** @enum {string} */
+            state: "idle";
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "verifying";
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /**
+             * Format: int64
+             * @description Bytes of the archive received so far.
+             */
+            received: number;
+            /** @enum {string} */
+            state: "downloading";
+            /**
+             * Format: int64
+             * @description Size of the archive the verified manifest states.
+             */
+            total: number;
+        } | {
+            /** @description What is being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "installing";
+        } | {
+            /** @description What was done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "installed";
+        } | {
+            /**
+             * @description True when an archive had been requested from the mirror: false
+             *     means the refusal came before any download.
+             */
+            archive_requested: boolean;
+            /** @description Why, as a stable word. */
+            code: components["schemas"]["EngineRefusalCode"];
+            /** @description Why, readable as is. */
+            error: string;
+            /** @description What was being done. */
+            kind: components["schemas"]["EngineInstallationKind"];
+            /** @enum {string} */
+            state: "failed";
+        };
         /** @description Engines installed by a request. */
         EngineInstalledResponse: {
             /** @description What was installed. */
@@ -7882,6 +8002,12 @@ export interface components {
          * @enum {string}
          */
         EngineName: "llama-server" | "vllm-mlx" | "nodejs";
+        /**
+         * @description Why the store refused, as a stable word an interface can branch on. The
+         *     sentence of the error says the same to a reader.
+         * @enum {string}
+         */
+        EngineRefusalCode: "no_trusted_key" | "signature_invalid" | "signature_unknown_key" | "signature_missing" | "manifest_invalid" | "rollback" | "package_not_found" | "digest_mismatch" | "archive_invalid" | "network" | "storage";
         /** @description Body of the settings routes. */
         EngineSettingsBody: {
             /** @description Base address manifests and archives are fetched from. */
@@ -7913,6 +8039,8 @@ export interface components {
              * @description Sequence of the last verified manifest of that channel, if any.
              */
             manifest_sequence?: number | null;
+            /** @description Name of the NVIDIA card detected, when there is one. */
+            nvidia_card?: string | null;
             /**
              * @description Per variant offered by that manifest for this platform, whether a newer
              *     build than the installed one exists. Empty until a manifest verified.
@@ -8646,6 +8774,12 @@ export interface components {
             engine: components["schemas"]["EngineName"];
             /** @description What the load guardrail makes of it. */
             guardrail: components["schemas"]["GuardrailCheckDto"];
+            /**
+             * Format: int32
+             * @description The largest window the model accepts, from its header; absent when
+             *     the header does not say, and for an MLX model.
+             */
+            maxCtx?: number | null;
             memory?: null | components["schemas"]["MemoryEstimateDto"];
             /** @description The model, as asked. */
             modelId: string;
@@ -8661,6 +8795,11 @@ export interface components {
              * @description Layers it would place on the accelerator; absent for an MLX model.
              */
             nGpuLayers?: number | null;
+            /**
+             * @description The quantisation the file name declares (`Q4_K_M`); absent when it
+             *     declares none.
+             */
+            quantization?: string | null;
             /**
              * Format: int32
              * @description Layers the model has; absent when unknown.
@@ -8714,11 +8853,19 @@ export interface components {
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
             activeRequests: number;
+            /** @description What the model can do, from the model index. */
+            capabilities?: Record<string, never> | null;
             /**
              * @description The engine serving the model, chosen by its format: `llama-server` for
              *     GGUF, `vllm-mlx` for MLX.
              */
             engine: components["schemas"]["EngineName"];
+            /**
+             * Format: double
+             * @description Memory the load guardrail estimated for it at launch, in gigabytes;
+             *     absent when the launch was not estimated.
+             */
+            footprintGb?: number | null;
             /**
              * @description What the model serves: `chat`, or `embeddings` for the instance that
              *     serves search by meaning, which counts neither against `maxLoaded` nor
@@ -8731,6 +8878,11 @@ export interface components {
             loadedAt: string;
             /** @description Display name, the model file name without its extension. */
             model: string;
+            /**
+             * @description Identifier of the model in the model index, the name an agent uses;
+             *     absent for a file the index does not hold.
+             */
+            modelId?: string | null;
             /** @description Path the model was loaded from; the key an unload takes. */
             modelPath: string;
             /**
@@ -8759,6 +8911,11 @@ export interface components {
              * @description Loopback port of the process serving it.
              */
             port: number;
+            /**
+             * Format: int64
+             * @description Size of its weights on disk, from the model index.
+             */
+            sizeBytes?: number | null;
         };
         /** @description Response body for `GET /api/v1/llm/loaded-models`. */
         LoadedModelsResponse: {
@@ -9911,6 +10068,11 @@ export interface components {
              */
             name: string;
         };
+        /**
+         * @description Where the template shown comes from.
+         * @enum {string}
+         */
+        PromptTemplateSource: "preset" | "engine" | "unavailable";
         /** @description One proposed permission rule, as the approval card draws it. */
         ProposedRuleView: {
             /** @description `allow` or `deny`. */
@@ -10347,6 +10509,12 @@ export interface components {
         };
         /** @description Body of `GET /api/v1/llm/servers/{name}/models`. */
         ServerModelsResponse: {
+            /**
+             * Format: int32
+             * @description Window an agent is expected to have, in tokens: a model served with a
+             *     shorter one is marked `context_short`.
+             */
+            expected_context_window: number;
             /** @description Models the server offers, in its order. */
             models: components["schemas"]["ServerModel"][];
             /** @description Server name. */
@@ -10382,10 +10550,18 @@ export interface components {
             base_url: string;
             /** @description Whether the server's models are routable. */
             enabled: boolean;
+            /** @description Fields added to every request sent to this server. Absent when none. */
+            extra_params?: Record<string, never> | null;
             /** @description Whether a key is held for this server. */
             has_key: boolean;
             /** @description Unique name, the first segment of `<server>/<model>`. */
             name: string;
+            /**
+             * Format: int32
+             * @description Seconds the server may stay silent before a request to it is given
+             *     up. Absent when the default of the runtime applies.
+             */
+            timeout_secs?: number | null;
         };
         /** @description A token as the list shows it: never its value. */
         ServerTokenView: {
@@ -10520,6 +10696,13 @@ export interface components {
              */
             notes: string;
         };
+        /** @description Answer of `GET /api/v1/sessions/{id}/prompt-template`. */
+        SessionPromptTemplate: {
+            /** @description Where the template comes from. */
+            source: components["schemas"]["PromptTemplateSource"];
+            /** @description The template, `null` when `source` is `unavailable`. */
+            template?: string | null;
+        };
         /**
          * @description The settings of one conversation. Every field is optional: one left out
          *     is inherited from the agent. An unknown field is refused.
@@ -10535,6 +10718,13 @@ export interface components {
              * @description Upper bound on the length of an answer, in tokens.
              */
             max_tokens?: number | null;
+            /**
+             * @description Accesses the conversation is limited to. When the list is not empty,
+             *     of the accesses of the agent only those it names are kept, and those
+             *     it names that the agent does not hold are proposed: each of their
+             *     calls asks for consent.
+             */
+            only_accesses?: string[];
             /**
              * Format: int64
              * @description Preset chosen for the conversation, a preset of its model. It takes
@@ -11669,6 +11859,34 @@ export interface components {
             request?: Record<string, never>;
         };
         /**
+         * @description Body of `PATCH /api/v1/llm/servers/{name}`. A field left out keeps what
+         *     the server has.
+         */
+        UpdateServerRequest: {
+            /**
+             * @description New key, written to the secret store. `null` or an empty string
+             *     removes the key the server had.
+             */
+            api_key?: string | null;
+            /** @description New base address, with or without the trailing `/v1`. */
+            base_url?: string | null;
+            /** @description Whether the server's models are routable. */
+            enabled?: boolean | null;
+            /**
+             * @description JSON object whose fields are added to every request sent to this
+             *     server; a field the request already carries is left as it is. `model`,
+             *     `messages`, `stream`, `stream_options`, `tools` and `tool_choice` are
+             *     refused. `null` adds nothing.
+             */
+            extra_params?: Record<string, never> | null;
+            /**
+             * Format: int32
+             * @description Seconds the server may stay silent before a request to it is given
+             *     up, 60 to 3600. `null` returns to the default of the runtime.
+             */
+            timeout_secs?: number | null;
+        };
+        /**
          * @description Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its
          *     value.
          */
@@ -11730,10 +11948,23 @@ export interface components {
         VariantUpdate: {
             /** @description Engine. */
             engine: components["schemas"]["EngineName"];
+            /** @description Day the installed build was published, when its manifest stated it. */
+            installed_released?: string | null;
             /** @description Newest tag installed here, if any. */
             installed_tag?: string | null;
+            /**
+             * @description Day the newest build was published, `YYYY-MM-DD`, when the manifest
+             *     states it.
+             */
+            latest_released?: string | null;
             /** @description Newest tag the verified manifest offers. */
             latest_tag: string;
+            /**
+             * Format: int64
+             * @description Size in bytes of the archive of the newest build, as the verified
+             *     manifest states it: what installing or updating downloads.
+             */
+            size: number;
             /** @description True when a tag is installed and the manifest offers a newer one. */
             update_available: boolean;
             /** @description Variant. */
@@ -15306,6 +15537,94 @@ export interface operations {
             };
         };
     };
+    engine_installation_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where the installation stands */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    start_engine_installation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description The installation started, the one already running, or the refusal that kept it from starting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    dismiss_engine_installation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The download cancelled or the outcome forgotten; a verification or an extraction is left to end */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
+    start_engine_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineImportRequest"];
+            };
+        };
+        responses: {
+            /** @description The import started, the installation already running, or the refusal that kept it from starting */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstallationState"];
+                };
+            };
+        };
+    };
     node_runtime_state: {
         parameters: {
             query?: never;
@@ -18166,6 +18485,69 @@ export interface operations {
             };
             /** @description Server not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Repository or secret store not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServerRequest"];
+            };
+        };
+        responses: {
+            /** @description Server updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerResponse"];
+                };
+            };
+            /** @description The organisation policy refuses the new address; nothing was changed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Invalid address, timeout out of bounds, or a reserved field among the extra parameters */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -24006,6 +24388,47 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_session_prompt_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The prompt template of the session and where it comes from */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionPromptTemplate"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem or backend repository unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

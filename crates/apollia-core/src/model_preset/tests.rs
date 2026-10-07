@@ -44,6 +44,8 @@ fn declare_server(repo: &LlmBackendRepository, name: &str) {
         has_key: false,
         api_key_env: None,
         enabled: true,
+        timeout_secs: None,
+        extra_params: None,
     })
     .unwrap();
 }
@@ -380,4 +382,68 @@ fn test_default_model_refuses_a_wrong_designation() {
         repo.default_model().unwrap().map(|d| d.backend),
         Some("qwen-local".to_string())
     );
+}
+
+// GIVEN presets whose load settings name a draft model alone, a draft model
+//       under another speculative mode, the draft mode without a draft model,
+//       and a draft model that is not a text
+// WHEN each is created, and the first is then modified to the second
+// THEN the first is stored with the mode that reads a draft model, and the
+//      contrary combinations are refused at creation and at modification
+#[test]
+fn test_a_draft_model_fixes_the_speculative_mode_of_a_preset() {
+    // GIVEN
+    let dir = tempfile::TempDir::new().unwrap();
+    let repo = open_repo(&dir);
+    let with_load = |name: &str, load: serde_json::Value| {
+        let mut preset = draft(name, false);
+        preset.load = load.as_object().cloned().unwrap();
+        preset
+    };
+    let alone = with_load("alone", serde_json::json!({ "draft_model": "qwen-small" }));
+    let other_mode = with_load(
+        "other-mode",
+        serde_json::json!({ "draft_model": "qwen-small", "spec_type": "draft-mtp" }),
+    );
+    let unnamed = with_load(
+        "unnamed",
+        serde_json::json!({ "spec_type": "draft-simple" }),
+    );
+    let not_a_text = with_load("not-a-text", serde_json::json!({ "draft_model": 3 }));
+    let own_head = with_load("own-head", serde_json::json!({ "spec_type": "draft-mtp" }));
+
+    // WHEN
+    let stored = repo
+        .create_preset(ModelSource::Local, "qwen3-8b", &alone)
+        .unwrap();
+    let refusals = [
+        repo.create_preset(ModelSource::Local, "qwen3-8b", &other_mode),
+        repo.create_preset(ModelSource::Local, "qwen3-8b", &unnamed),
+        repo.create_preset(ModelSource::Local, "qwen3-8b", &not_a_text),
+        repo.update_preset(stored.id, &other_mode),
+    ];
+    let kept = repo
+        .create_preset(ModelSource::Local, "qwen3-8b", &own_head)
+        .unwrap();
+
+    // THEN
+    assert_eq!(
+        stored.load.get("spec_type"),
+        Some(&serde_json::json!("draft-simple"))
+    );
+    assert_eq!(
+        stored.load.get("draft_model"),
+        Some(&serde_json::json!("qwen-small"))
+    );
+    for refusal in refusals {
+        assert!(
+            matches!(refusal, Err(LlmBackendError::InvalidPreset(_))),
+            "{refusal:?}"
+        );
+    }
+    assert_eq!(
+        kept.load.get("spec_type"),
+        Some(&serde_json::json!("draft-mtp"))
+    );
+    assert_eq!(repo.list_presets(None).unwrap().len(), 2);
 }

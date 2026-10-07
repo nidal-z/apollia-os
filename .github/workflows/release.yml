@@ -7,13 +7,14 @@
 #   1. Six self-contained CLI archives (Python plus static CRT bundled), one
 #      per preset of the FULL matrix in the `setup` job below
 #      -> one tarball/zip per OS x arch x accelerator preset
-#   2. Desktop installers (Tauri 2), five jobs:
+#   2. Desktop installers (Tauri 2), three jobs, one installer per system:
 #        macOS ARM64         : .dmg
 #        Linux x86_64        : .deb + .AppImage
 #        Windows x86_64      : .msi + .exe (NSIS)
-#        Linux x86_64 CUDA   : .deb + .AppImage
-#        Windows x86_64 CUDA : .msi + .exe (NSIS)
 #      Every desktop job embeds the same Python bundle (PyO3) as the CLI job.
+#      No installer carries an engine for NVIDIA cards: that engine is
+#      published apart, under a signed manifest, by engines.yml, and the
+#      application downloads it on demand.
 #
 # The final `release` job aggregates everything into a draft GitHub Release
 # (reviewed by hand before publication).
@@ -46,7 +47,7 @@ on:
           - "false"
           - "true"
       desktop:
-        description: "Which desktop bundles to build. Narrowing one platform is how you iterate on it without paying for the others; the CUDA pair also drags in the llama-server compile."
+        description: "Which desktop bundles to build. Narrowing one platform is how you iterate on it without paying for the others."
         required: false
         default: "all"
         type: choice
@@ -54,9 +55,7 @@ on:
           - "all"
           - "macos"
           - "linux"
-          - "linux-cuda"
           - "windows"
-          - "windows-cuda"
 
 env:
   CARGO_TERM_COLOR: always
@@ -509,270 +508,6 @@ jobs:
           retention-days: 7 # see "Artifact retention" at the top
 
   # ────────────────────────────────────────────────────────────────────────────
-  # llama-server with CUDA for Linux, built here because upstream ships none.
-  # ────────────────────────────────────────────────────────────────────────────
-  # llama.cpp publishes a CUDA engine for Windows and none for Linux: of the 25
-  # assets on the pinned tag, `ubuntu-*` covers cpu, vulkan, rocm, sycl and
-  # openvino, and stops there. Their dated CUDA container images stop around
-  # b9002, a thousand builds behind the tag this workspace pins, so pulling one
-  # would either move under us or ship Linux users a different llama.cpp from
-  # everyone else. Compiling it here is what remains, and it is the ordinary
-  # thing to do: the toolkit installs, the cmake invocation is upstream's own.
-  #
-  # The cost is stated rather than hidden: nvcc compiles the kernels once per
-  # architecture, so this job is the long pole of a release run.
-  #
-  # The architecture list is a product decision, not a default. Real SASS for
-  # Turing (75), A100 (80), Ampere consumer (86) and Ada (89), which together
-  # cover every consumer card from the RTX 20 series on and the datacenter part
-  # people actually rent, plus virtual 90 so a newer card still runs through
-  # PTX rather than refusing to start. Cards older than Turing are out: adding
-  # them costs build time on every release for hardware that cannot hold a
-  # useful model anyway.
-  llama-cuda-linux:
-    name: llama-server CUDA (Linux x86_64)
-    needs: setup
-    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'linux-cuda')
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Install the CUDA toolkit
-        uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d # v0.2.36
-        with:
-          cuda: '12.6.0'
-          method: 'network'
-          sub-packages: '["nvcc","cudart","thrust"]'
-          non-cuda-sub-packages: '["libcublas","libcublas-dev","libcurand","libcurand-dev"]'
-          use-github-cache: true
-
-      - name: Install build deps
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev
-
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      # The tag is read from the packaging script rather than repeated here, so
-      # the engine this job builds and the engine every other platform downloads
-      # can never drift apart silently.
-      - name: Read the pinned llama.cpp tag
-        id: tag
-        run: |
-          TAG=$(grep -oE 'b[0-9]{4,6}' packaging/fetch-llama-server.sh | head -1)
-          [ -n "$TAG" ] || { echo "no pinned llama.cpp tag in packaging/fetch-llama-server.sh" >&2; exit 1; }
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Build llama.cpp with CUDA
-        run: |
-          git clone --depth 1 --branch "${{ steps.tag.outputs.tag }}" \
-            https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp
-          cmake -S /tmp/llama.cpp -B /tmp/llama.cpp/build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DGGML_CUDA=ON \
-            -DGGML_NATIVE=OFF \
-            -DLLAMA_BUILD_TESTS=OFF \
-            -DLLAMA_BUILD_EXAMPLES=OFF \
-            -DLLAMA_BUILD_SERVER=ON \
-            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
-            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
-            -DCMAKE_CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90-virtual"
-          # `$ORIGIN` on the install RPATH, and it is not cosmetic. CMake strips
-          # the build tree's RPATH when it installs, which the install log said
-          # in as many words: `Set non-toolchain portion of runtime path of
-          # ... to ""`. A library with no RPATH cannot be found beside the file
-          # that needs it, so the AppImage bundler stopped on
-          # `Could not find dependency: libllama.so.0` while deploying
-          # `libllama-common.so.0` from the same directory, and a user's loader
-          # would have stopped the same way. The upstream archives this job
-          # replaces carry `$ORIGIN`, which is why the Vulkan bundle never hit
-          # this.
-          #
-          # Everything the configuration declares, not just the one target.
-          # `cmake --install` runs the install rules of every subdirectory
-          # configured, and stops on the first artefact that was never built:
-          # with `--target llama-server` it stopped on
-          # `cannot find build/bin/libllama-batched-bench-impl.so`.
-          #
-          # The tools cannot simply be configured away. `tools/` is gated on
-          # LLAMA_BUILD_TOOLS and the server lives inside it, so turning tools
-          # off removes what this job exists to produce. Nor can the install be
-          # split: `install(TARGETS llama ...)` sits in the root CMakeLists,
-          # whose install script includes the tools one.
-          #
-          # The extra targets are CPU-side C++ linking against libllama. The
-          # CUDA kernels above dominate this job and are built once either way.
-          cmake --build /tmp/llama.cpp/build --config Release -j"$(nproc)"
-
-      # What ships is what the server needs, walked from the server outwards.
-      #
-      # `cmake --install` lays down everything the project declares, which after
-      # the full build above includes seven tool libraries this release does not
-      # ship: quantize, bench, cli, perplexity and their siblings. Copying the
-      # whole install tree put them in the bundle, and one of them dragged the
-      # AppImage bundler into resolving a CUDA driver library on a runner that
-      # has no driver.
-      #
-      # So the rule is a closure rather than a copy: start at `llama-server`,
-      # take what it asks for, take what those ask for, and stop when a pass adds
-      # nothing. Two source directories feed it, the llama.cpp install tree and
-      # the CUDA toolkit, because the answer to "where does this library live"
-      # differs for the two and the walk should not have to care.
-      #
-      # `libcuda.so.1` is skipped by name: it belongs to the NVIDIA driver, it
-      # ships with the driver on the machine that has the GPU, and copying it
-      # would pin every user to the driver version of a CI runner.
-      #
-      # `cp -L` flattens each symlink chain into one real file named after the
-      # SONAME the loader asks for, which is all $ORIGIN resolution needs.
-      #
-      # Flat, because LLAMA_SERVER_DIR expects the server and its libraries in
-      # one directory, which is also how the upstream archives are laid out.
-      - name: Stage the engine and everything it asks for
-        run: |
-          cmake --install /tmp/llama.cpp/build --prefix /tmp/llama-install
-          mkdir -p engine
-          cp -L /tmp/llama-install/bin/llama-server engine/
-          cd engine
-
-          search_dirs="/tmp/llama-install/lib /tmp/llama-install/bin"
-          for d in "${CUDA_PATH}/lib64" "${CUDA_PATH}/targets/x86_64-linux/lib"; do
-            [ -d "$d" ] && search_dirs="$search_dirs $d"
-          done
-          echo "searching: $search_dirs"
-
-          added=1
-          rounds=0
-          while [ "$added" -ne 0 ]; do
-            added=0
-            rounds=$((rounds + 1))
-            if [ "$rounds" -gt 20 ]; then
-              echo "::error::the dependency closure did not settle in 20 rounds"
-              exit 1
-            fi
-            for f in llama-server *.so*; do
-              [ -e "$f" ] || continue
-              for need in $(readelf -d "$f" 2>/dev/null | awk '/NEEDED/ {gsub(/[][]/,"",$5); print $5}'); do
-                [ "$need" = "libcuda.so.1" ] && continue
-                [ -e "$need" ] && continue
-                src=""
-                for d in $search_dirs; do
-                  cand=$(find "$d" -maxdepth 1 -name "$need" 2>/dev/null | head -1)
-                  [ -n "$cand" ] && { src="$cand"; break; }
-                done
-                # Not every NEEDED entry is ours to ship: libc and its friends
-                # come from the machine. Only a name we can find in one of the
-                # directories above is staged, and the check that follows is
-                # what decides whether a name we did not find is a defect.
-                [ -n "$src" ] || continue
-                cp -L "$src" .
-                echo "  staged ${need} for ${f}"
-                added=$((added + 1))
-              done
-            done
-          done
-          echo "closure settled after ${rounds} round(s)"
-          ls -la
-          echo "engine size: $(du -sh . | cut -f1)"
-          du -h --threshold=1M . 2>/dev/null | sort -h | tail -8 || true
-
-      # Every library the staged files ask for must reach the machine that runs
-      # them. Without this the answer arrives fifteen minutes later and one job
-      # away, from a bundler walking the AppDir, which is how the missing SONAME
-      # above was found the first time. `readelf -d` names what each file needs,
-      # and each name is answered here rather than on a user's machine.
-      #
-      # Two names cannot be judged by "is it on this runner", and the split is
-      # the whole point of this step:
-      #
-      #   - `libcuda.so.1` belongs to the NVIDIA driver, not to the toolkit. It
-      #     ships with the driver on the machine that has the GPU, and copying
-      #     it into a release would pin users to this runner's driver version.
-      #     It is legitimately absent here, where there is a toolkit and no GPU.
-      #
-      #   - the toolkit's own libraries are the mirror image: present on this
-      #     runner and on almost no user machine. Finding one in the loader
-      #     cache here proves nothing about where the engine will run, so they
-      #     are required to be staged rather than accepted as found.
-      #
-      # Each entry prints how it resolved, so the next failure reads as a
-      # verdict rather than as a name with no context.
-      - name: Refuse an engine whose libraries are not all here
-        run: |
-          cd engine
-          driver_provided='libcuda.so.1'
-          toolkit_prefixes='libcudart libcublas libcublasLt libcufft libcurand
-                            libcusparse libcusolver libnvJitLink libnvrtc'
-          missing=""
-          for f in llama-server *.so*; do
-            [ -e "$f" ] || continue
-            for need in $(readelf -d "$f" 2>/dev/null | awk '/NEEDED/ {gsub(/[][]/,"",$5); print $5}'); do
-              if printf '%s\n' $driver_provided | grep -qx "$need"; then
-                echo "  ${f} needs ${need}: comes from the NVIDIA driver on the target machine"
-                continue
-              fi
-              if [ -e "$need" ]; then
-                echo "  ${f} needs ${need}: staged beside it"
-                continue
-              fi
-              staged_check_done=""
-              for prefix in $toolkit_prefixes; do
-                case "$need" in
-                  "${prefix}".so*)
-                    echo "::error::${f} needs ${need}, a CUDA toolkit library that is not staged beside it. This runner has the toolkit and a user machine does not, so it has to ship with the engine."
-                    missing="yes"
-                    staged_check_done="yes"
-                    break
-                    ;;
-                esac
-              done
-              [ -z "$staged_check_done" ] || continue
-              if ldconfig -p | awk '{print $1}' | grep -qx "$need"; then
-                echo "  ${f} needs ${need}: in the system loader cache"
-                continue
-              fi
-              echo "::error::${f} needs ${need}, which is neither staged beside it nor on the system"
-              missing="yes"
-            done
-          done
-          [ -z "$missing" ] || exit 1
-          echo "every NEEDED entry of the staged engine resolves"
-
-          # A sibling that exists is not a sibling that is found. `cmake
-          # --install` clears the RPATH it built with, and a file with none is
-          # searched for only in the system cache: the AppImage bundler stopped
-          # on `Could not find dependency: libllama.so.0` while deploying
-          # `libllama-common.so.0` out of the same directory, and a user's
-          # loader would have done the same. Every file that needs a sibling
-          # must therefore say where to look, and the answer is `$ORIGIN`
-          # because this directory is flat.
-          rootless=""
-          for f in llama-server *.so*; do
-            [ -e "$f" ] || continue
-            needs_sibling=""
-            for need in $(readelf -d "$f" 2>/dev/null | awk '/NEEDED/ {gsub(/[][]/,"",$5); print $5}'); do
-              [ -e "$need" ] && needs_sibling="yes"
-            done
-            [ -n "$needs_sibling" ] || continue
-            if ! readelf -d "$f" 2>/dev/null | grep -qE '\(RUNPATH\)|\(RPATH\)'; then
-              echo "::error::${f} loads a library from this directory and carries no RUNPATH, so nothing will find it"
-              rootless="yes"
-            elif ! readelf -d "$f" 2>/dev/null | grep -E '\(RUNPATH\)|\(RPATH\)' | grep -q 'ORIGIN'; then
-              echo "::error::${f} carries a RUNPATH that does not mention \$ORIGIN, so it will not look beside itself"
-              rootless="yes"
-            fi
-          done
-          [ -z "$rootless" ] || exit 1
-          echo "every file that needs a sibling looks beside itself"
-          # Not run here: without an NVIDIA driver the loader cannot satisfy
-          # libcuda.so.1, so a failure would say nothing about the build.
-
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
-        with:
-          name: llama-server-cuda-linux-x86_64
-          path: engine/
-          if-no-files-found: error
-          retention-days: 1
-
-  # ────────────────────────────────────────────────────────────────────────────
   # Desktop bundle Tauri - macOS ARM64 .dmg (extension future : Linux/Win)
   # ────────────────────────────────────────────────────────────────────────────
   desktop-macos:
@@ -1042,7 +777,8 @@ jobs:
           # The inference engine is Vulkan here. Vulkan reaches NVIDIA, AMD
           # and Intel from one 32 MB binary, where the CUDA engine covers
           # NVIDIA alone, weighs 238 MB plus a 373 MB runtime, and falls back
-          # to the CPU on every other card.
+          # to the CPU on every other card. The CUDA engine is not bundled:
+          # the application downloads it on demand from the engine channel.
           APOLLIA_DESKTOP_LLAMA_BACKEND: "vulkan"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -1250,7 +986,8 @@ jobs:
           # The inference engine is Vulkan here. Vulkan reaches NVIDIA, AMD
           # and Intel from one 32 MB binary, where the CUDA engine covers
           # NVIDIA alone, weighs 238 MB plus a 373 MB runtime, and falls back
-          # to the CPU on every other card.
+          # to the CPU on every other card. The CUDA engine is not bundled:
+          # the application downloads it on demand from the engine channel.
           APOLLIA_DESKTOP_LLAMA_BACKEND: "vulkan"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -1337,378 +1074,12 @@ jobs:
           if-no-files-found: error
           retention-days: 7 # see "Artifact retention" at the top
 
-
-  desktop-linux-cuda:
-    name: Desktop Linux CUDA (x86_64)
-    needs: [setup, llama-cuda-linux]
-    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'linux-cuda')
-    # Pinned to 24.04 (noble), the same base as the Linux CLI builds; GitHub
-    # retires the 22.04 image on 2026-09-17.
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: stable
-          targets: x86_64-unknown-linux-gnu
-
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: "22"
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.13"
-
-      - name: Install Tauri / Linux build deps
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y \
-            build-essential pkg-config libssl-dev \
-            libasound2-dev libpulse-dev libjack-jackd2-dev \
-            libgtk-3-dev libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev librsvg2-dev \
-            libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
-            libxdo-dev curl wget file \
-            python3-dev clang cmake \
-            patchelf librsvg2-common libgdk-pixbuf2.0-bin desktop-file-utils
-
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-        with:
-          key: desktop-linux-cuda-x86_64
-
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
-
-      - name: Install frontend deps
-        working-directory: crates/apollia-desktop/ui
-        run: npm ci
-
-      # The engine is the one llama-cuda-linux compiled, handed to
-      # bundle-cli.sh through the LLAMA_SERVER_DIR mode it already provides for
-      # local builds. Nothing downloads a CUDA engine here because upstream
-      # publishes none for Linux.
-      - name: Take the CUDA engine built upstream of this job
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        with:
-          name: llama-server-cuda-linux-x86_64
-          path: ${{ github.workspace }}/llama-cuda
-      - name: Make the engine executable
-        run: |
-          chmod +x "${{ github.workspace }}/llama-cuda/llama-server"
-          echo "LLAMA_SERVER_DIR=${{ github.workspace }}/llama-cuda" >> $GITHUB_ENV
-
-      - name: Build Python bundle (x86_64-unknown-linux-gnu)
-        run: |
-          ./packaging/build-python-bundle.sh x86_64-unknown-linux-gnu \
-            target/python-bundle/x86_64-unknown-linux-gnu
-
-      # `createUpdaterArtifacts: true` + `pubkey` make `cargo tauri build`
-      # demand TAURI_SIGNING_PRIVATE_KEY. The build must finish either way:
-      # with the secret it emits updater artifacts, without it it builds with
-      # createUpdaterArtifacts=false and the run summary says so. Configuring
-      # the secret stays a human act.
-      - name: Guard the updater signing key
-        shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not configured: building with createUpdaterArtifacts=false, this build ships no updater artifact"
-            echo "TAURI_SIGNING_PRIVATE_KEY absent : createUpdaterArtifacts=false, no updater artifact" >> "$GITHUB_STEP_SUMMARY"
-            echo 'TAURI_BUNDLE_CONFIG={"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
-          fi
-
-      - name: Build Tauri app
-        working-directory: crates/apollia-desktop
-        env:
-          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/bin/python3.13
-          RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/lib
-          APOLLIA_DESKTOP_RUNNERS: "cpu"
-          # CUDA here, against Vulkan in the sibling job. The STT runner stays
-          # on the processor, as in the sibling job and for the same reason;
-          # a CUDA one would drag nvcc into this build for the smaller half of
-          # the gain. LLAMA_SERVER_DIR, set above, is what makes this
-          # reachable at all.
-          APOLLIA_DESKTOP_LLAMA_BACKEND: "cuda"
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          # This bundle asks a different file for its updates than the Vulkan
-          # one. A Tauri manifest keys platforms by triple, so both variants
-          # would claim `linux-x86_64` in a single file and the second written
-          # would win: every installed bundle would then be offered whichever
-          # engine happened to be composed last. The channel is chosen here, at
-          # build time, and baked into the installed app.
-          CHANNEL='{"plugins":{"updater":{"endpoints":["https://github.com/Apollia-OS/apollia-os/releases/latest/download/latest-cuda.json"]}}}'
-          BASE="${TAURI_BUNDLE_CONFIG:-}"
-          [ -n "$BASE" ] || BASE='{}'
-          PATCH=$(jq -c -s '.[0] * .[1]' <<<"$BASE $CHANNEL")
-          # `--bundles deb`, and this is the whole reason the CUDA variant is a
-          # .deb. linuxdeploy refuses an AppDir holding an ELF whose NEEDED it
-          # cannot resolve, and a CUDA engine has one by construction:
-          # `libcuda.so.1` belongs to the NVIDIA driver, so it is absent from a
-          # runner and must never be shipped. Read at the commit the bundler
-          # downloads, its `ldd` parser throws on `=> not found` with no
-          # exception available; the exclusion that would help exists only on
-          # the project's master branch, published under a moving tag. A .deb
-          # needs no such tool, and a Linux user who has an NVIDIA driver
-          # installed can install a .deb. The Vulkan bundle keeps its AppImage
-          # for everyone else.
-          cargo tauri build --verbose --target x86_64-unknown-linux-gnu \
-            --bundles deb --config "$PATCH"
-
-      # Flat staging: actions/upload-artifact roots the artifact at the
-      # longest common ancestor of its paths, so uploading deb/*.deb and
-      # appimage/*.AppImage as-is buries the installers in sub-folders the
-      # release job's flat globs never see. An unmatched glob here fails the
-      # copy, loudly.
-      - name: Collect installers (flat paths)
-        run: |
-          BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle
-          mkdir -p "$BUNDLE/dist"
-          # Tauri names both variants identically, so the CUDA files take a
-          # suffix before they reach a release that already holds the Vulkan
-          # ones. The name is what a download page shows, so it says cuda
-          # rather than a number.
-          for f in "$BUNDLE"/deb/*.deb; do cp "$f" "$BUNDLE/dist/$(basename "${f%.deb}")-cuda.deb"; done
-          # GitHub rewrites any character outside [A-Za-z0-9._-] in a release
-          # asset name, so "Apollia OS_..." is served as "Apollia.OS_...". The
-          # file is renamed here rather than the name being guessed downstream:
-          # one name from the runner to the download URL, and a contract a
-          # guard can check on disk.
-          for f in "$BUNDLE/dist"/"Apollia OS"*; do
-            [ -e "$f" ] || continue
-            mv "$f" "$BUNDLE/dist/$(basename "$f" | sed 's/^Apollia OS/Apollia-OS/')"
-          done
-          # No updater signature is staged, and none is expected: the contract
-          # carries `updater: null` for this platform. Tauri's Linux updater
-          # replaces an AppImage in place and has no path for a .deb, so a
-          # signature here would sign a file nothing could ever install.
-
-      - name: Generate SBOM (CycloneDX)
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          path: target/x86_64-unknown-linux-gnu/release/bundle
-          format: cyclonedx-json
-          output-file: target/x86_64-unknown-linux-gnu/release/bundle/dist/apollia-desktop-linux-x86_64.cdx.json
-          upload-artifact: false
-
-      - name: Generate SBOM (SPDX)
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          path: target/x86_64-unknown-linux-gnu/release/bundle
-          format: spdx-json
-          output-file: target/x86_64-unknown-linux-gnu/release/bundle/dist/apollia-desktop-linux-x86_64.spdx.json
-          upload-artifact: false
-
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
-        with:
-          name: apollia-desktop-linux-cuda-x86_64
-          path: target/x86_64-unknown-linux-gnu/release/bundle/dist/*
-          if-no-files-found: error
-          retention-days: 7 # see "Artifact retention" at the top
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # Desktop bundle Tauri - Windows x86_64 (.msi + .exe NSIS)
-  # ────────────────────────────────────────────────────────────────────────────
-  desktop-windows-cuda:
-    name: Desktop Windows CUDA (x86_64)
-    needs: setup
-    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'windows-cuda')
-    runs-on: windows-latest
-    env:
-      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
-    steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: stable
-          targets: x86_64-pc-windows-msvc
-
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: "22"
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.13"
-
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-        with:
-          key: desktop-windows-cuda-x86_64
-
-      # The Vulkan STT runner is built here, so the SDK it needs at build
-      # time (headers, loader, glslc for ggml's shaders) is installed the way
-      # the windows-x86-vulkan CLI preset installs it, integrity pinned.
-      - name: Install Vulkan SDK (Windows)
-        shell: pwsh
-        run: |
-          $url = "https://sdk.lunarg.com/sdk/download/1.3.290.0/windows/VulkanSDK-1.3.290.0-Installer.exe"
-          $expected = "0ba0392a78157b82354157c5c988d74ddc6bc15573cc9c8653aa60245355fe8a"
-          Invoke-WebRequest -Uri $url -OutFile VulkanSDK.exe -UseBasicParsing
-          $actual = (Get-FileHash VulkanSDK.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $expected) {
-              throw "VulkanSDK.exe sha256 mismatch: expected $expected, got $actual"
-          }
-          Start-Process -FilePath ".\VulkanSDK.exe" -ArgumentList "--accept-licenses","--default-answer","--confirm-command","install" -Wait
-          $sdk = "C:\VulkanSDK\1.3.290.0"
-          echo "VULKAN_SDK=$sdk" >> $env:GITHUB_ENV
-          echo "$sdk\Bin" >> $env:GITHUB_PATH
-
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
-
-      - name: Install frontend deps
-        working-directory: crates/apollia-desktop/ui
-        run: npm ci
-
-      - name: Build Python bundle (x86_64-pc-windows-msvc)
-        shell: bash
-        run: |
-          ./packaging/build-python-bundle.sh x86_64-pc-windows-msvc \
-            target/python-bundle/x86_64-pc-windows-msvc
-
-      # `createUpdaterArtifacts: true` + `pubkey` make `cargo tauri build`
-      # demand TAURI_SIGNING_PRIVATE_KEY. The build must finish either way:
-      # with the secret it emits updater artifacts, without it it builds with
-      # createUpdaterArtifacts=false and the run summary says so. Configuring
-      # the secret stays a human act.
-      - name: Guard the updater signing key
-        shell: bash
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not configured: building with createUpdaterArtifacts=false, this build ships no updater artifact"
-            echo "TAURI_SIGNING_PRIVATE_KEY absent : createUpdaterArtifacts=false, no updater artifact" >> "$GITHUB_STEP_SUMMARY"
-            echo 'TAURI_BUNDLE_CONFIG={"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
-          fi
-
-      - name: Build Tauri app
-        working-directory: crates/apollia-desktop
-        shell: bash
-        env:
-          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-pc-windows-msvc/python/python.exe
-          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
-          # The same two STT runners as the Vulkan installer. No CUDA STT
-          # runner: it would need nvcc in this build, and the runtime lands
-          # an NVIDIA card on the Vulkan runner when the CUDA one is absent,
-          # so dictation runs on the card either way.
-          APOLLIA_DESKTOP_RUNNERS: "cpu vulkan"
-          # CUDA here, against Vulkan in the sibling job. Unlike Linux, this
-          # engine is a download: llama.cpp publishes a Windows CUDA build and
-          # its separate runtime archive, both handled by fetch-llama-server.sh.
-          # No CUDA toolchain enters this build, which is why the nvcc crash
-          # against Visual Studio 18 that stops the CLI CUDA preset does not
-          # reach here.
-          APOLLIA_DESKTOP_LLAMA_BACKEND: "cuda"
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          # Same reasoning as the Linux CUDA job: a Tauri manifest keys
-          # platforms by triple, so this bundle asks a different file for its
-          # updates than the Vulkan one rather than the two fighting over
-          # `windows-x86_64` in a single manifest.
-          CHANNEL='{"plugins":{"updater":{"endpoints":["https://github.com/Apollia-OS/apollia-os/releases/latest/download/latest-cuda.json"]}}}'
-          BASE="${TAURI_BUNDLE_CONFIG:-}"
-          [ -n "$BASE" ] || BASE='{}'
-          PATCH=$(jq -c -s '.[0] * .[1]' <<<"$BASE $CHANNEL")
-          cargo tauri build --target x86_64-pc-windows-msvc --config "$PATCH"
-
-      # ── Code signing with signtool (gated by secrets) ──────────────────────
-      # The PFX cert is passed as base64 and signed with signtool of the
-      # Windows SDK (present by default on the windows-latest runner).
-      - name: Sign MSI + NSIS installers (if cert present)
-        if: env.WINDOWS_CERT_PFX_BASE64 != ''
-        env:
-          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-        shell: pwsh
-        run: |
-          $pfx = Join-Path $env:RUNNER_TEMP "code.pfx"
-          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
-          $signtool = (Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/bin" -Recurse -Filter signtool.exe |
-              Where-Object { $_.FullName -match 'x64\\signtool.exe$' } |
-              Sort-Object FullName -Descending | Select-Object -First 1).FullName
-          $bundleDir = "target/x86_64-pc-windows-msvc/release/bundle"
-          $targets = @()
-          if (Test-Path "$bundleDir/msi") { $targets += Get-ChildItem "$bundleDir/msi/*.msi" }
-          if (Test-Path "$bundleDir/nsis") { $targets += Get-ChildItem "$bundleDir/nsis/*.exe" }
-          foreach ($t in $targets) {
-              & $signtool sign /fd SHA256 /tr "http://timestamp.digicert.com" /td SHA256 `
-                  /f $pfx /p $env:WINDOWS_CERT_PASSWORD $t.FullName
-              & $signtool verify /pa $t.FullName
-          }
-
-      # Flat staging, same reason as the Linux job: keep the installers out
-      # of msi/ and nsis/ sub-folders the release job's flat globs never see.
-      # GitHub's pwsh shell runs with $ErrorActionPreference = 'Stop', so an
-      # unmatched glob fails the step.
-      - name: Collect installers (flat paths)
-        shell: pwsh
-        run: |
-          $bundle = "target/x86_64-pc-windows-msvc/release/bundle"
-          New-Item -ItemType Directory -Force -Path "$bundle/dist" | Out-Null
-          # Tauri names both variants identically, so the CUDA files take a
-          # suffix before they reach a release that already holds the Vulkan
-          # ones. The name is what a download page shows, so it says cuda.
-          Get-ChildItem "$bundle/msi/*.msi" | ForEach-Object {
-              Copy-Item $_ "$bundle/dist/$($_.BaseName)-cuda$($_.Extension)"
-          }
-          Get-ChildItem "$bundle/nsis/*.exe" | ForEach-Object {
-              Copy-Item $_ "$bundle/dist/$($_.BaseName)-cuda$($_.Extension)"
-          }
-          # Updater signatures exist only on a keyed build; their absence is
-          # said out loud, because latest.json is composed from the signatures
-          # the release job receives.
-          $sigs = @(Get-ChildItem "$bundle/msi/*.msi.sig", "$bundle/nsis/*.exe.sig" -ErrorAction SilentlyContinue)
-          if ($sigs.Count -gt 0) {
-              $sigs | ForEach-Object {
-                  Copy-Item $_ "$bundle/dist/$($_.BaseName -replace '(\.msi|\.exe)$', '-cuda$1')$($_.Extension)"
-              }
-          } else {
-              Write-Output "::warning::no Windows CUDA updater signature (TAURI_SIGNING_PRIVATE_KEY absent)"
-          }
-          # GitHub rewrites any character outside [A-Za-z0-9._-] in a release
-          # asset name, so "Apollia OS_..." is served as "Apollia.OS_...". The
-          # file is renamed here rather than the name being guessed downstream:
-          # one name from the runner to the download URL, and a contract a
-          # guard can check on disk.
-          Get-ChildItem "$bundle/dist/Apollia OS*" -ErrorAction SilentlyContinue | ForEach-Object {
-              Rename-Item $_.FullName ($_.Name -replace '^Apollia OS', 'Apollia-OS')
-          }
-
-      - name: Generate SBOM (CycloneDX)
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          path: target/x86_64-pc-windows-msvc/release/bundle
-          format: cyclonedx-json
-          output-file: target/x86_64-pc-windows-msvc/release/bundle/dist/apollia-desktop-windows-cuda-x86_64.cdx.json
-          upload-artifact: false
-
-      - name: Generate SBOM (SPDX)
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          path: target/x86_64-pc-windows-msvc/release/bundle
-          format: spdx-json
-          output-file: target/x86_64-pc-windows-msvc/release/bundle/dist/apollia-desktop-windows-cuda-x86_64.spdx.json
-          upload-artifact: false
-
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
-        with:
-          name: apollia-desktop-windows-cuda-x86_64
-          path: target/x86_64-pc-windows-msvc/release/bundle/dist/*
-          if-no-files-found: error
-          retention-days: 7 # see "Artifact retention" at the top
-
   # ────────────────────────────────────────────────────────────────────────────
   # Aggregation → GitHub Release draft (tag push uniquement)
   # ────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish GitHub Release (draft)
-    needs: [cli, desktop-macos, desktop-linux, desktop-linux-cuda, desktop-windows, desktop-windows-cuda]
+    needs: [cli, desktop-macos, desktop-linux, desktop-windows]
     # No `always()`: a missing installer is a broken release, not something a
     # reviewer discovers after the draft exists. When one platform fails, fix
     # it or re-run the failed job; the three blocking presets and three
@@ -1796,6 +1167,15 @@ jobs:
       # left exactly as the last stable release set it. Its bundle must carry
       # the version X.Y.Z-N, numeric because WiX refuses any other pre-release
       # identifier; the step refuses a trial tag whose bundle says otherwise.
+      #
+      # latest-cuda.json is the manifest the installers with a bundled CUDA
+      # engine were built to ask. Those installers are no longer produced, and
+      # the copies already installed keep asking that file, so it is still
+      # published, as a copy of latest.json (the contract's
+      # `manifest_aliases`): such a copy updates to the one installer of its
+      # system, which then offers the CUDA engine through the engine channel.
+      # Dropping the file would leave those machines on their last version for
+      # good, told only that the channel is unavailable.
       - name: Compose the updater manifest (latest.json)
         env:
           TAG: ${{ github.ref_name }}
@@ -1829,18 +1209,14 @@ jobs:
               for name in contract["updater_manifests"]
           }
 
-          # One manifest per channel, because a Tauri manifest keys platforms by
-          # triple and two bundles share a triple: the CUDA variants would
-          # otherwise overwrite the default ones and offer an NVIDIA build to
-          # every Windows machine. Each contract entry names the channel it
-          # belongs to, and each bundle was built pointing at that file.
+          # One manifest per channel, because a Tauri manifest keys platforms
+          # by triple: two bundles sharing a triple cannot share a manifest.
+          # Each contract entry names the channel it belongs to, and each
+          # bundle was built pointing at that file.
           channels = {}
           for entry in contract["desktop"]:
-              # `updater: null` is a bundle that does not self-update. The
-              # Linux CUDA variant is a .deb, and Tauri's Linux updater
-              # replaces an AppImage in place with no path for one, so it
-              # contributes no platform to any channel. Its channel is still
-              # created below, because the Windows CUDA bundle fills it.
+              # `updater: null` is a bundle that does not self-update: it
+              # contributes no platform, and its channel is still created.
               if entry.get("updater") is None:
                   channels.setdefault(entry["manifest"], {})
                   continue
@@ -1861,36 +1237,35 @@ jobs:
               datetime.datetime.now(datetime.timezone.utc)
               .isoformat(timespec="seconds").replace("+00:00", "Z")
           )
+          # An alias is a manifest no bundle is built for any more: it is
+          # published with the platforms of the manifest it names.
+          aliases = contract.get("manifest_aliases", {})
           for name in contract["updater_manifests"]:
-              platforms = channels.get(name, {})
-              # A platform key is the triple, so the CUDA channel drops the
-              # suffix that distinguishes the two contract entries: the
-              # installed app asks for `windows-x86_64` whichever variant it is,
-              # and the file it asks in is what tells the two apart.
-              keyed = {p.removesuffix("-cuda"): v for p, v in platforms.items()}
+              source = aliases.get(name, name)
+              platforms = channels.get(source, {})
               manifest = {
                   "version": version,
                   "notes": f"Apollia OS {tag}",
                   "pub_date": stamp,
-                  "platforms": keyed,
+                  "platforms": platforms,
               }
               out = pathlib.Path("artifacts") / published_as[name]
               out.write_text(json.dumps(manifest, indent=2) + "\n")
-              print(f"wrote {out} covering {sorted(keyed)}")
+              note = f" (copy of {source})" if source != name else ""
+              print(f"wrote {out} covering {sorted(platforms)}{note}")
           EOF
 
       # One SHA256SUMS covering every artifact. The three per-job files of the
       # previous shape were homonyms: merged into one directory, two of the
       # three were silently overwritten.
       # ── What the release publishes, decided once ───────────────────────────
-      # `artifacts/` holds more than the release ships. The llama-server CUDA
-      # job uploads its whole engine/ directory, which the desktop CUDA bundle
-      # consumes and which no upload pattern publishes; merged flat, its twelve
-      # shared objects sat beside the installers. Steps that walked the
-      # directory rather than the publication list therefore signed twelve
-      # files nobody could download, and listed them in SHA256SUMS, so the
-      # `shasum -a 256 -c SHA256SUMS` that SECURITY.md documents failed twelve
-      # times on a correctly built release.
+      # `artifacts/` can hold more than the release ships: a job once uploaded
+      # a build input there, twelve shared objects no upload pattern
+      # published, which sat beside the installers once merged flat. Steps
+      # that walked the directory rather than the publication list therefore
+      # signed twelve files nobody could download, and listed them in
+      # SHA256SUMS, so the `shasum -a 256 -c SHA256SUMS` that SECURITY.md
+      # documents failed twelve times on a correctly built release.
       #
       # The patterns below are the publication list, and the release step at the
       # bottom of this job repeats them; check_release_artifacts.py holds the

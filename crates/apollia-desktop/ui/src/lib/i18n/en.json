@@ -2,12 +2,12 @@
   "errors": {
     "permission": {
       "title": "Permission required",
-      "friendly_message": "Apollia was blocked from this action by a permission or sandbox rule.",
+      "friendly_message": "Apollia was blocked from this action by a permission or isolation rule.",
       "suggested_action": "Review the matching rule in Settings, Permissions, then retry or grant an exception."
     },
     "ipc": {
-      "title": "Backend unavailable",
-      "friendly_message": "The desktop app could not reach the Apollia runtime to complete this action.",
+      "title": "Engine unavailable",
+      "friendly_message": "The desktop app could not reach the Apollia engine to complete this action.",
       "suggested_action": "Wait a moment and retry. If it persists, restart Apollia."
     },
     "validation": {
@@ -66,7 +66,6 @@
     "confirm": "Confirm",
     "save": "Save",
     "close": "Close",
-    "submitting": "Submitting...",
     "retry": "Retry",
     "continue": "Continue",
     "refresh": "Refresh",
@@ -74,18 +73,10 @@
     "no_input": "No input",
     "delete": "Delete",
     "clear": "Clear",
-    "status": {
-      "ready": "READY",
-      "untested": "NOT TESTED",
-      "error": "ERROR"
-    },
     "back": "Back",
     "next": "Next",
     "optional_label": "(optional)",
-    "no_data": "No data",
     "na": "N/A",
-    "default_badge": "DEFAULT",
-    "saving": "Saving…",
     "finalize": "Finalize",
     "finalizing": "Finalizing…",
     "copy": "Copy",
@@ -122,10 +113,10 @@
       "close_companion": "Close Companion",
       "network": {
         "title": "Companion couldn't connect",
-        "message": "This usually means the local runtime isn't reachable.",
-        "cause_1": "The Apollia runtime is not running",
+        "message": "This usually means the Apollia engine isn't reachable.",
+        "cause_1": "The Apollia engine is not running",
         "cause_2": "A firewall is blocking localhost traffic",
-        "cause_3": "The configured LLM backend is offline"
+        "cause_3": "The configured model provider is offline"
       },
       "permissions": {
         "title": "Permission denied",
@@ -139,7 +130,7 @@
         "message": "The agent didn't respond in time. This often clears up on retry.",
         "cause_1": "The model is loading and not yet warm",
         "cause_2": "Network latency is unusually high",
-        "cause_3": "The runtime is busy with another task"
+        "cause_3": "The Apollia engine is busy with another task"
       },
       "internal": {
         "title": "Companion ran into a problem",
@@ -147,6 +138,250 @@
         "cause_1": "A required service hasn't initialised",
         "cause_2": "Configuration is invalid",
         "cause_3": "An internal error occurred"
+      }
+    }
+  },
+  "guide": {
+    "you_are_on": "You are on",
+    "actions_title": "What you can do here",
+    "unnamed_item": "this agent",
+    "no_model": {
+      "title": "The guide needs a model",
+      "body": "No model can answer for now. In the meantime, here is the documentation page of this screen.",
+      "action": "Choose a model in AI",
+      "onboarding_title": "The guide will answer soon",
+      "onboarding_body": "The guide will answer as soon as a model is chosen. In the meantime, here is the page of \"Getting acquainted\".",
+      "field": "Choose a model to ask a question"
+    },
+    "doc": {
+      "breadcrumb": "Documentation",
+      "open_in_browser": "Open in the browser",
+      "loading": "Loading the page…",
+      "error": "This documentation page could not be read.",
+      "fallback": "This page is not written in this language yet: here it is in English."
+    },
+    "context": {
+      "chat": {
+        "text": "The Chat is where work gets asked for and followed. You talk with Apollia, with one of your agents or directly with a model, and your conversations stay on this machine.",
+        "action": {
+          "label": "Choose an agent",
+          "result": "See your agents and what each can do, then hand one a task."
+        },
+        "secondary": {
+          "first": "See the models in AI",
+          "second": "See what waits in To review"
+        },
+        "question": "Ask: agent or model, which one?"
+      },
+      "agents": {
+        "text": "Your agents work for you; your workflows chain several steps. This screen lists them, and it is where you create one by describing it, from an example or from a package.",
+        "action": {
+          "label": "Hand a task to an agent",
+          "result": "Open the Chat, choose the agent in the top bar and tell it what you expect."
+        },
+        "secondary": {
+          "first": "Install a package from the Library",
+          "second": "See what waits in To review"
+        },
+        "question": "Ask: agent or workflow?",
+        "fiche": {
+          "name": "Sheet of an agent",
+          "text": "You are reading the sheet of {name}. It says what this agent does, which model answers for it, what it may do and what it already did.",
+          "action": {
+            "label": "Hand it a task",
+            "result": "Give it a task in the Chat; you follow its steps there."
+          },
+          "secondary": {
+            "first": "Review its permissions",
+            "second": "See its activity in the Activity log"
+          },
+          "question": "Ask: what does it do on its own?"
+        }
+      },
+      "batches": {
+        "text": "This screen keeps every batch, most recent first, whatever the agent. An open batch can be read again, exported, and its failures run again.",
+        "action": {
+          "label": "See the agents",
+          "result": "Find the agent whose batches you are reading."
+        },
+        "secondary": {
+          "first": "See the batch items that wait in To review",
+          "second": "See the activity in the Activity log"
+        },
+        "question": "Ask: what is a batch?"
+      },
+      "batch": {
+        "text": "You are reading a batch: each item has its state, and an open item shows its detail in the detail panel. The batch can be read again, exported, and its failures run again.",
+        "action": {
+          "label": "See every batch",
+          "result": "The history keeps each batch, most recent first."
+        },
+        "secondary": {
+          "first": "Answer the items that wait in To review",
+          "second": "See the agents"
+        },
+        "question": "Ask: how do I run the failures again?"
+      },
+      "integrations": {
+        "text": "A connection links your agents to one of your services: an account, a mailbox, a folder of your computer or a service from the catalogue. The tools that ship with Apollia are set here too.",
+        "action": {
+          "label": "Give a connection to an agent",
+          "result": "Open the sheet of an agent to adjust what it may access."
+        },
+        "secondary": {
+          "first": "See what each agent may do",
+          "second": "See the connections a package brought"
+        },
+        "question": "Ask: which connection for my mail?"
+      },
+      "llm": {
+        "text": "The AI screen shows the models that answer: those loaded, those installed on this machine and those of the servers of your organisation. Here you discover a model suited to your machine, or add a server.",
+        "action": {
+          "label": "Try a model",
+          "result": "Open the Chat and choose the model in the top bar: it loads at your first question."
+        },
+        "secondary": {
+          "first": "Set the default values of the models",
+          "second": "See which model each agent uses"
+        },
+        "question": "Ask: which model should I choose?"
+      },
+      "inbox": {
+        "text": "To review gathers everything that waits for your answer: the agreements agents ask for, their questions, paused tasks and batch items. Answering here resumes the conversation, the task or the batch concerned.",
+        "action": {
+          "label": "Review your standing agreements",
+          "result": "Agreements given for good are read and withdrawn in Permissions."
+        },
+        "secondary": {
+          "first": "See what the agents did in the Activity log",
+          "second": "Resume a conversation in the Chat"
+        },
+        "question": "Ask: why is this action waiting?"
+      },
+      "developer": {
+        "text": "The Developer screen is meant for people who connect their own programs to Apollia. It only appears with the developer mode on; day to day, nothing here is needed to work with your agents.",
+        "action": {
+          "label": "Set the developer mode",
+          "result": "The mode is turned on and off in Settings, section Developer."
+        },
+        "secondary": {
+          "first": "See the models in AI",
+          "second": "See the activity in the Activity log"
+        },
+        "question": "Ask: what is the developer mode for?"
+      },
+      "library": {
+        "text": "The Library lists what you installed: agents, workflows, tools and connections, with their publisher and their signature. A package brings several of them at once, in a single file.",
+        "action": {
+          "label": "See the installed agents",
+          "result": "The agents and workflows of a package join the Agents screen, ready to work."
+        },
+        "secondary": {
+          "first": "See the connections",
+          "second": "See what each agent may do"
+        },
+        "question": "Ask: what is a package?"
+      },
+      "automations": {
+        "text": "An automation starts an agent or a workflow without you: on a schedule, when a file changes or when a call comes in from another tool. You create one by saying when it must run.",
+        "action": {
+          "label": "Choose the agent to start",
+          "result": "See your agents and what each can do before automating one."
+        },
+        "secondary": {
+          "first": "See what the agents did in the Activity log",
+          "second": "See what waits in To review"
+        },
+        "question": "Ask: how do I start an agent every morning?"
+      },
+      "authorizations": {
+        "text": "Permissions shows what each agent may do on this machine. An agreement is withdrawn in one click, and each withdrawal is written to the Activity log.",
+        "action": {
+          "label": "See the withdrawals in the Activity log",
+          "result": "Every change of access is written there, most recent first."
+        },
+        "secondary": {
+          "first": "Open the sheet of an agent",
+          "second": "See the agreements that wait in To review"
+        },
+        "question": "Ask: what may an agent do without me?"
+      },
+      "journal": {
+        "text": "The Activity log lists every action of the agents and every change of access, in plain words, most recent first. It stays on this device; you can filter it and export it.",
+        "action": {
+          "label": "Review the permissions",
+          "result": "See what each agent may do, and withdraw an agreement if needed."
+        },
+        "secondary": {
+          "first": "Open the sheet of an agent",
+          "second": "See what waits in To review"
+        },
+        "question": "Ask: where do I see what an agent did?"
+      },
+      "settings": {
+        "text": "Settings open in a window above the current screen. There you set the language, the appearance, your profile, the chat, the notifications and the default values of the models.",
+        "action": {
+          "label": "Choose your models in AI",
+          "result": "Models are installed and connected in the AI screen; Settings only fix their default values."
+        },
+        "secondary": {
+          "first": "See the permissions",
+          "second": "See the activity in the Activity log"
+        },
+        "question": "Ask: where do I change the language?"
+      },
+      "transcriptions": {
+        "text": "Transcriptions keeps the history of your voice dictations and of the files transcribed. The screen only appears with the developer mode on.",
+        "action": {
+          "label": "Dictate in the Chat",
+          "result": "Dictation fills the input field of a conversation."
+        },
+        "secondary": {
+          "first": "See the dictation models in AI",
+          "second": "Set up dictation in Settings"
+        },
+        "question": "Ask: how do I dictate a message?"
+      },
+      "observability": {
+        "text": "Observability gathers the technical view of what ran: the timeline of the runs, the cost of the models and the trail of the tool calls. The screen only appears with the developer mode on.",
+        "action": {
+          "label": "Read the same in plain words",
+          "result": "The Activity log tells what the agents did without the technical detail."
+        },
+        "secondary": {
+          "first": "Open the sheet of an agent",
+          "second": "See the models in AI"
+        },
+        "question": "Ask: where do I see what a run cost?"
+      },
+      "memory": {
+        "text": "Memory shows the whole of what your agents remembered: you can search it, open an entry and delete it. The screen only appears with the developer mode on.",
+        "action": {
+          "label": "See the memory of an agent on its sheet",
+          "result": "The sheet of an agent shows what it remembered, without the developer mode."
+        },
+        "secondary": {
+          "first": "Edit your profile in Settings",
+          "second": "See the activity in the Activity log"
+        },
+        "question": "Ask: what does an agent remember?"
+      },
+      "policy": {
+        "text": "The organisation policy is set by your IT department and applies to this whole machine. Nobody can change it from Apollia; this screen gives it to read.",
+        "action": {
+          "label": "See your own permissions",
+          "result": "Within the limits of the policy, you decide what each agent may do."
+        },
+        "secondary": {
+          "first": "See the connections",
+          "second": "See the activity in the Activity log"
+        },
+        "question": "Ask: who sets this policy?"
+      },
+      "onboarding": {
+        "name": "Getting acquainted",
+        "text": "Apollia walks you through a few steps: the language, the model that will answer, a first agent, a connection and a first task. Only the model step is required; the others can be skipped and resumed later.",
+        "question": "Ask: which model should I choose?"
       }
     }
   },
@@ -172,10 +407,9 @@
     "progress": "Progress"
   },
   "nav": {
-    "dashboard": "Home",
     "agents": "Agents",
     "inbox": "To review",
-    "llm": "LLM models",
+    "llm": "AI",
     "automations": "Automations",
     "memory": "Memory",
     "observability": "Observability",
@@ -188,24 +422,26 @@
     "sidebar_label": "Main navigation",
     "developer_group": "Developer mode",
     "sidebar": {
-      "dashboard": "Home",
       "chat": "Chat",
       "agents": "Agents",
       "automations": "Automations",
       "inbox": "To review",
       "memory": "Memory",
       "observability": "Observability",
-      "llm": "LLM models",
+      "llm": "AI",
       "transcriptions": "Transcriptions",
       "integrations": "Connections",
       "settings": "Settings",
       "library": "Library",
-      "journal": "Journal"
+      "journal": "Activity log",
+      "authorizations": "Permissions",
+      "developer": "Developer"
     },
     "policy": "Organization policy",
     "library": "Library",
     "authorizations": "Permissions",
-    "journal": "Journal",
+    "journal": "Activity log",
+    "developer": "Developer",
     "resource_widget": {
       "open": "Open the monitor",
       "aria": "Consumption of this machine, open the resource monitor",
@@ -228,9 +464,9 @@
       "design_dark_mode": "Dark mode"
     },
     "status": {
-      "ok": "Runtime connected · LLM provider available",
-      "no_llm": "Runtime connected · no LLM provider configured",
-      "runtime_down": "Runtime offline - reconnecting"
+      "ok": "Engine connected · LLM provider available",
+      "no_llm": "Engine connected · no LLM provider configured",
+      "runtime_down": "Engine offline - reconnecting"
     },
     "search_aria": "Search and command palette",
     "help_aria": "Help on this screen",
@@ -626,6 +862,24 @@
       "remove_confirm_plain": "Remove the connection",
       "remove_confirm_sources": "Remove the connection and {count, plural, one {its source} other {its # sources}}"
     },
+    "try": {
+      "action": "Try",
+      "title": "Try {name}",
+      "subtitle": "A conversation with Apollia, limited to the tools of this connection. Nothing is sent or changed without your consent.",
+      "choose": "Pick a question",
+      "general_label": "General question",
+      "general_question": "What can I do with {name}?",
+      "no_example": "This connection offers no example: Apollia first tells you what it allows.",
+      "own": "Or ask your own",
+      "own_placeholder": "Write a question…",
+      "quoted": "“{question}”",
+      "launch": "Start the trial",
+      "not_found": "This connection no longer exists.",
+      "no_tools": "This connection offers no tool yet.",
+      "native_added_title": "{provider} is added",
+      "native_added_body": "The account {account} is connected. You choose which agents can use it from their card.",
+      "done": "Done"
+    },
     "badge_builtin": "Built in"
   },
   "integrations": {
@@ -645,7 +899,7 @@
     },
     "connectors": {
       "figma": {
-        "auth_help": "Figma's remote MCP server (mcp.figma.com) is only open to clients on the Figma MCP Catalog (Claude.ai, Cursor, Windsurf, …). Apollia is on the waitlist - we'll switch to the remote endpoint as soon as we're approved.\n\nIn the meantime, this connector relies on Figma's LOCAL Dev Mode MCP server, bundled with Figma Desktop. Heads up: Dev Mode (and therefore its MCP server) requires a paid Figma plan (Professional or higher). If you're on the free plan, this connector won't work yet - wait for Apollia's approval on the remote Catalog.\n\nIf you have a paid plan:\n\n1. Install Figma Desktop and sign in.\n2. Open any file and toggle Dev Mode.\n3. Enable “Dev Mode MCP Server” in Preferences.\n4. Leave Figma Desktop running - your session provides identity, no OAuth needed."
+        "auth_help": "Figma's remote server (mcp.figma.com) is only open to the clients Figma has approved in its catalog (Claude.ai, Cursor, Windsurf, …). Apollia is on the waitlist - we'll switch to the remote server as soon as we're approved.\n\nIn the meantime, this connector relies on the LOCAL Dev Mode server of Figma, bundled with Figma Desktop. Heads up: Dev Mode (and therefore its local server) requires a paid Figma plan (Professional or higher). If you're on the free plan, this connector won't work yet - wait for Apollia's approval in the remote catalog.\n\nIf you have a paid plan:\n\n1. Install Figma Desktop and sign in.\n2. Open any file and toggle Dev Mode.\n3. In Preferences, enable the local server of Dev Mode.\n4. Leave Figma Desktop running - your session provides identity, no OAuth needed."
       }
     },
     "wizard": {
@@ -670,8 +924,7 @@
         "loading": "Generating suggestions…",
         "error": "Suggestions are not available right now.",
         "empty": "No suggestions - explore the tools from the chat.",
-        "try": "Try",
-        "no_tools": "No tool is available for this connection yet, so the example cannot run."
+        "try": "Try"
       },
       "optional": "optional",
       "auth_help_link": "Where to find your key",
@@ -702,7 +955,7 @@
       "approval_ask_label": "Ask me every time",
       "approval_ask_desc": "In an agent task, each action requires your confirmation (recommended).",
       "confirm_button": "Add",
-      "no_package_body": "This server has no installable package and no remote endpoint. It cannot be added automatically.",
+      "no_package_body": "This server has no installable package and no remote address. It cannot be added automatically.",
       "connector_not_configured": "This connection is not yet configured in this build of Apollia. See the help above.",
       "preparing": "Getting the connection ready…",
       "component_downloading": "Downloading a required component",
@@ -732,54 +985,13 @@
       "disconnect_warning": "Disconnect {name}? This will remove the configuration and all stored secrets."
     }
   },
-  "dashboard": {
-    "greeting_morning": "Good morning",
-    "greeting_afternoon": "Good afternoon",
-    "greeting_evening": "Good evening",
-    "no_recent_activity": "No recent activity.",
-    "status_working": "WORKING",
-    "status_submitted": "SUBMITTED",
-    "status_completed": "COMPLETED",
-    "status_failed": "FAILED",
-    "status_approval": "APPROVAL",
-    "status_canceled": "CANCELED",
-    "cold_start_title": "Welcome! Your day is just starting.",
-    "cold_start_subtitle": "Try opening a chat or browse your assistants.",
-    "browse_agents": "Browse my assistants",
-    "headline_pending_one": "You have {count} decision waiting.",
-    "headline_pending_other": "You have {count} decisions waiting.",
-    "headline_agents_one": "{count} agent is working for you.",
-    "headline_agents_other": "{count} agents are working for you.",
-    "headline_greeting": "{greeting}.",
-    "subtitle_pending_one": "{count} decision waiting",
-    "subtitle_pending_other": "{count} decisions waiting",
-    "subtitle_agents_one": "{count} agent at work",
-    "subtitle_agents_other": "{count} agents at work",
-    "subtitle_deliverables_one": "{count} deliverable ready",
-    "subtitle_deliverables_other": "{count} deliverables ready",
-    "subtitle_calm": "All quiet. Start a conversation whenever you are ready.",
-    "header_action_new_chat": "New conversation",
-    "card_pending_title": "Decisions waiting",
-    "card_deliverables_title": "Ready deliverables",
-    "card_agents_title": "At work",
-    "see_all_arrow": "See all →",
-    "see_all_short_arrow": "See all →",
-    "see_all_pending_aria": "See all pending decisions",
-    "pending_empty_title": "Nothing waiting for you",
-    "pending_empty_desc": "You are up to date. Pending decisions will appear here.",
-    "deliverables_empty": "No deliverable completed today.",
-    "agents_empty": "No active agent right now.",
-    "recent_activity_title": "Recent activity",
-    "inbox_more_one": "+ {count} more in To review →",
-    "inbox_more_other": "+ {count} more in To review →",
-    "open_task_aria": "Open task {name}",
-    "agent_detail_aria": "Agent details for {name}",
-    "pending_untitled": "(untitled)",
-    "ctx_open_inbox": "Open in To review",
-    "ctx_open_deliverable": "Open deliverable",
-    "ctx_agent_detail": "Open agent details",
-    "ctx_agent_logs": "View logs",
-    "ctx_open_task": "Open task"
+  "run_status": {
+    "working": "WORKING",
+    "submitted": "SUBMITTED",
+    "completed": "COMPLETED",
+    "failed": "FAILED",
+    "approval": "APPROVAL",
+    "canceled": "CANCELED"
   },
   "agents": {
     "logs": "Logs",
@@ -860,19 +1072,6 @@
     }
   },
   "inbox": {
-    "row": {
-      "type_approval": "approval",
-      "type_question": "question",
-      "type_error": "error",
-      "type_deliverable": "deliverable",
-      "type_trigger": "trigger",
-      "type_memory": "memory",
-      "type_cost": "cost",
-      "action_allow": "Allow",
-      "action_reply": "Reply",
-      "action_resolve": "Resolve",
-      "open_conversation": "Open conversation"
-    },
     "open_in_inbox": "Open in To review",
     "error": {
       "details": "Technical details",
@@ -1042,7 +1241,7 @@
     "reject": "Reject",
     "steps_label": "Steps",
     "error_malformed_plan": "The received plan is incomplete or invalid.",
-    "error_ipc": "Error communicating with the runtime.",
+    "error_ipc": "Error communicating with the Apollia engine.",
     "status_approved": "Plan approved",
     "status_rejected": "Plan rejected",
     "no_steps_placeholder": "No steps defined.",
@@ -1090,7 +1289,7 @@
     "retry_approval": "Retry approval"
   },
   "plan_session": {
-    "tab_journal": "Journal",
+    "tab_journal": "Steps",
     "tab_plan": "Plan",
     "expand": "Expand the plan",
     "collapse": "Collapse the plan",
@@ -1128,50 +1327,6 @@
       "remaining": "· {remaining} left"
     }
   },
-  "llm": {
-    "title": "LLM Backends",
-    "title_operator": "LLM models",
-    "subtitle": "AI models powering your assistants",
-    "empty_title": "No LLM backend configured",
-    "empty_subtitle": "Edit apollia.toml to add a backend.",
-    "empty_operator": "No AI model configured",
-    "empty_operator_hint": "Add a model in apollia.toml or ask your administrator.",
-    "open_settings": "Open settings",
-    "session_stats_title": "Session Statistics (7 days)",
-    "loading_stats": "Loading statistics...",
-    "no_calls": "No LLM calls recorded in the last 7 days.",
-    "no_calls_operator": "No activity recorded yet.",
-    "model": "Model",
-    "ping_ok": "Ping OK ({latency}ms)",
-    "ping_failed": "Ping failed",
-    "local_ai": "Local AI",
-    "running": "Running",
-    "status_untested": "Not tested",
-    "status_error": "Error",
-    "free_local": "Free (runs on your machine)",
-    "pay_per_use": "Pay per use",
-    "used_today": "Used {count} times over the last {days} days, {cost} spent",
-    "table": {
-      "backend": "Backend",
-      "model": "Model",
-      "calls": "Calls",
-      "tokens": "Tokens",
-      "cost_usd": "Cost USD",
-      "total": "Total"
-    },
-    "default_set_toast": "''{name}'' set as the default model",
-    "details": "Details",
-    "loaded": {
-      "title": "Loaded in memory",
-      "empty": "No model is loaded in memory.",
-      "since": "Loaded at {time}",
-      "in_use": "Answering",
-      "engine_mlx": "MLX",
-      "unload": "Unload",
-      "unloaded_toast": "{name} unloaded, its memory is free.",
-      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
-    }
-  },
   "automations": {
     "title": "Automations",
     "delete": "Delete",
@@ -1183,7 +1338,7 @@
     "empty_filter_title": "No automations in this status",
     "empty_filter_desc": "Change filter to explore other automations.",
     "filter_show_all": "Show all automations",
-    "subtitle": "Rules that run your assistants automatically.",
+    "subtitle": "Rules that run your agents automatically.",
     "new": "Create an automation",
     "run_now": "Run now",
     "running": "Starting…",
@@ -1192,7 +1347,7 @@
     "resume": "Resume",
     "pause_toast": "Automation paused",
     "resume_toast": "Automation resumed",
-    "target_prefix": "Assistant",
+    "target_prefix": "Agent",
     "paused_hint": "Paused - enable it in the advanced view to run on schedule.",
     "fired_toast": "Automation started - task {taskId}",
     "status": {
@@ -1208,31 +1363,31 @@
     },
     "empty": {
       "title": "No automations yet",
-      "description": "Automations run your assistants on a schedule, when a file changes, or when a webhook fires.",
+      "description": "Automations run your agents on a schedule, when a file changes, or when a webhook fires.",
       "primary": "Create an automation"
     },
     "wizard": {
       "title": "Create an automation",
       "step_describe": "Describe",
       "step_schedule": "Schedule",
-      "step_agent": "Assistant",
+      "step_agent": "Agent",
       "step_preview": "Preview",
       "describe_prompt": "When should the trigger fire?",
-      "describe_hint": "Focus on the WHEN (frequency, time, event). You will pick the assistant that runs it at the Assistant step.",
+      "describe_hint": "Focus on the WHEN (frequency, time, event). You will pick the agent that runs it at the Agent step.",
       "placeholder_1": "E.g. Every morning at 8am",
       "placeholder_2": "E.g. Every Monday at 9am to prep the week",
       "placeholder_3": "E.g. Every 30 minutes",
       "parsing": "Parsing…",
       "fallback_error": "We couldn't understand automatically. Try a simpler phrasing that states a frequency and time.",
-      "schedule_intro": "Check the schedule before moving on. You can refine it in plain language. The target assistant is picked at the next step.",
+      "schedule_intro": "Check the schedule before moving on. You can refine it in plain language. The target agent is picked at the next step.",
       "next_run": "Next run: {when}",
       "needs_clarification": "Please clarify:",
       "refine_label": "Refine in plain language",
       "refine_placeholder": "E.g. actually 9am",
-      "agent_intro": "Pick the assistant that this trigger will launch. A trigger fires one assistant at a time.",
-      "agent_not_matched_hint": "Apollia didn't recognize an assistant in your description - pick one below.",
-      "agent_pick": "Pick an assistant",
-      "agent_select_aria": "Target assistant",
+      "agent_intro": "Pick the agent that this trigger will launch. A trigger fires one agent at a time.",
+      "agent_not_matched_hint": "Apollia didn't recognize an agent in your description - pick one below.",
+      "agent_pick": "Pick an agent",
+      "agent_select_aria": "Target agent",
       "agent_inferred": "Recognized automatically: {agent}",
       "preview_intro": "All set. Activate to start the schedule.",
       "preview_label": "Automation",
@@ -1412,7 +1567,7 @@
   },
   "memory": {
     "empty_title": "No memory data",
-    "empty_subtitle": "Your assistants will store data here.",
+    "empty_subtitle": "Your agents will store data here.",
     "search_placeholder": "Search... (min. 3 characters)",
     "empty_entries": "No memory entries in this namespace.",
     "no_search_results": "No results for this search.",
@@ -1841,12 +1996,6 @@
     "kpi_avg": "Avg / day",
     "kpi_peak": "Peak day",
     "kpi_top_backend": "Top backend",
-    "verify_ok": "Trace is intact - no broken link.",
-    "verify_fail": "Trace is corrupted - integrity compromised.",
-    "verify_broken_at": "Broken link at entry: {entry}",
-    "verify_run": "Verify integrity",
-    "verify_loading": "Verifying...",
-    "verify_error": "Verification error: {message}",
     "hooks_title": "Active hooks",
     "hooks_load_error": "Failed to load hooks: {message}",
     "audit_purpose_title": "Why this trail?",
@@ -1987,8 +2136,6 @@
       "appearance": "Appearance",
       "profile": "Profile",
       "stt": "Dictation",
-      "llm": "LLM backends",
-      "model_hub": "Model Hub",
       "configuration": "Configuration",
       "system": "System info",
       "shortcuts": "Shortcuts",
@@ -2012,7 +2159,7 @@
       "intro": "Apollia OS runs your AI agents locally, on your own machine, with your own models. The topics below cover the essentials to get up and running.",
       "getting_started": "Getting started",
       "topic_model_title": "Configure a model",
-      "topic_model_body": "Download a local GGUF model from the Model Hub, or connect an external backend, so Apollia and your agents can reason.",
+      "topic_model_body": "Download a local model from the Model Hub, or connect an external server, so Apollia and your agents can reason.",
       "topic_model_action": "Open Model Hub",
       "topic_chat_title": "Start a chat",
       "topic_chat_body": "Talk to Apollia in natural language. Ask a question, delegate a task, or pick an agent to handle the work.",
@@ -2093,8 +2240,8 @@
     "observability": {
       "title": "Observability",
       "subtitle": "Control what is captured about agent execution. All captures are local - nothing is uploaded.",
-      "capture_thoughts": "Agent thoughts (ReAct reasoning)",
-      "capture_thoughts_desc": "Persist the LLM 'thought' field at each ReAct turn.",
+      "capture_thoughts": "Agent thoughts (step-by-step reasoning)",
+      "capture_thoughts_desc": "Persist the 'thought' field of the model at each reasoning turn.",
       "capture_tool_args": "Tool call arguments",
       "capture_tool_args_desc": "Persist the args JSON of each tool invocation.",
       "capture_tool_outputs": "Tool call outputs",
@@ -2125,7 +2272,7 @@
       "unit_bytes": "bytes",
       "unit_days": "days",
       "editable_note": "Edit the observability policy captured about agent execution. Everything stays local, nothing is uploaded.",
-      "restart_note": "Changes apply after restarting the app. The runtime does not reload this policy live.",
+      "restart_note": "Changes apply after restarting the app. The engine does not reload this policy live.",
       "kib_display": "{kib} KiB",
       "sensitive_confirm_title": "Enable sensitive capture?",
       "sensitive_confirm_message": "This persists potentially sensitive content (raw prompts and responses) to the local database. It never leaves your machine, but anyone with local access can read it. Enable it only if you need it for debugging.",
@@ -2141,14 +2288,16 @@
         "navigation": "Navigation",
         "chat": "Chat",
         "settings": "Settings",
-        "companion": "Companion"
+        "companion": "Companion",
+        "developer": "Developer"
       },
       "scope": {
         "chat": "Inside Chat",
         "settings": "Inside Settings",
         "dialog": "Inside a dialog",
         "global_label": "Global",
-        "contextual_label": "Contextual"
+        "contextual_label": "Contextual",
+        "developer": "On the Developer screen"
       },
       "items": {
         "palette_open": "Open the Command Palette",
@@ -2168,7 +2317,9 @@
         "companion_toggle": "Open the guide on the current screen",
         "companion_focus": "Focus the Companion input",
         "settings_engines": "Open System > Engines",
-        "settings_hardware": "Open System > Hardware"
+        "settings_hardware": "Open System > Hardware",
+        "chat_regenerate": "Regenerate the last answer, or reload the last model when none is loaded",
+        "developer_server_toggle": "Start or stop the local server"
       },
       "reserved": "OS reserved",
       "reserved_hint": "Reserved by the operating system and cannot be reassigned.",
@@ -2234,9 +2385,9 @@
     "security": {
       "title": "Security posture",
       "platform": "Platform",
-      "tool_sandbox": "Tool sandbox",
-      "tool_sandbox_namespaces": "Linux namespaces (PID + mount)",
-      "tool_sandbox_none": "No OS sandbox (development mode)",
+      "tool_sandbox": "Tool isolation",
+      "tool_sandbox_namespaces": "Linux process isolation (PID + mount)",
+      "tool_sandbox_none": "No OS isolation (development mode)",
       "rlimits": "Resource limits",
       "rlimits_active": "Active (CPU, memory, file descriptors)",
       "rlimits_inactive": "Not available",
@@ -2348,7 +2499,7 @@
     "stt": {
       "section": {
         "essential_title": "ESSENTIAL",
-        "essential_description": "Backend, language and activation mode.",
+        "essential_description": "Engine, language and activation mode.",
         "advanced_title": "ADVANCED TRIGGERS",
         "advanced_description": "Hotkey, wake word and voice-activity threshold.",
         "performance_title": "PERFORMANCE",
@@ -2406,7 +2557,7 @@
     "stt_disabled": "Disabled",
     "stt_model_not_loaded": "Model not loaded",
     "stt_model_ready_hint": "· loads on first use",
-    "stt_backend": "Backend",
+    "stt_backend": "Engine",
     "stt_model_name": "Active model",
     "stt_metal": "Metal",
     "stt_cuda": "CUDA",
@@ -2442,182 +2593,6 @@
     "stt_model_filter": "Whisper models",
     "stt_model_loaded_toast": "Model \"{name}\" added to your library.",
     "stt_config_hint": "To edit manually, modify the [stt] section in apollia.toml.",
-    "llm_backends": "LLM Backends",
-    "llm_add_backend": "Add backend",
-    "llm_backend_enabled": "Enabled",
-    "llm_backend_default": "Set as default",
-    "llm_no_backends": "No LLM backends configured. Add one to enable AI features.",
-    "llm_set_default": "Set as default",
-    "llm": {
-      "edit": "Edit",
-      "test": "Test connection",
-      "delete_title": "Delete backend",
-      "delete_message": "Delete backend ''{name}''? Active sessions using this backend will fail.",
-      "delete_type_prompt": "Type DELETE to confirm removing the default backend.",
-      "delete_toast": "Backend ''{name}'' deleted",
-      "reload_btn": "Reload",
-      "reload_toast": "LLM engine reloaded",
-      "subtitle": "Language-model backends used by Apollia and your agents."
-    },
-    "llm_dialog": {
-      "title_add": "Add LLM backend",
-      "title_edit": "Edit ''{name}''",
-      "field_name": "Name",
-      "field_provider": "Provider",
-      "field_endpoint": "Endpoint",
-      "field_api_key": "API key",
-      "field_model": "Model",
-      "field_timeout": "Timeout (seconds)",
-      "field_extra_json": "Extra config (JSON object)",
-      "advanced": "Advanced",
-      "section_gen_params": "Generation parameters",
-      "field_temperature": "Temperature",
-      "field_top_k": "Top-K",
-      "field_top_p": "Top-P",
-      "field_repeat_penalty": "Repeat penalty",
-      "gen_params_hint": "Leave blank to use model defaults. Auto-fill from HuggingFace below.",
-      "hf_autofill_title": "Auto-fill from HuggingFace",
-      "hf_autofill_btn": "Fetch params",
-      "hf_no_config": "No generation_config.json found for this repo.",
-      "hf_filled": "Parameters filled from HuggingFace.",
-      "api_key_unchanged": "Leave empty to keep existing key",
-      "test_connection": "Test connection",
-      "testing": "Testing…",
-      "test_ok": "Connection OK ({ms} ms)",
-      "test_failed": "Connection failed",
-      "test_invalid": "Fix validation errors before testing.",
-      "test_local_ok": "Configuration looks valid. Full connection test runs after save.",
-      "field_model_path": "Model file",
-      "browse": "Browse…",
-      "browse_title": "Select a GGUF model file",
-      "scan": "Scan",
-      "scan_empty": "No .gguf files found in ~/.apollia/models, ~/Downloads, or ~/.cache/lm-studio.",
-      "recommended": "Recommended",
-      "multipart_first": "Multi-part model ({total} files) - all parts must be in the same folder.",
-      "multipart_corrected": "Part {part}/{total} selected - path corrected to the first part automatically.",
-      "err_required": "Required",
-      "err_invalid_name": "Use lowercase letters, digits, _ or -",
-      "err_invalid_url": "Must be a valid http(s) URL",
-      "err_invalid_timeout": "Must be a positive number",
-      "err_invalid_json": "Invalid JSON",
-      "err_invalid_json_object": "Must be a JSON object",
-      "warn_cleartext_credentials": "This endpoint uses http:// on another host, so the API key travels unencrypted over the network. Use https://, or a tunnel, unless you fully trust this network.",
-      "notice_remote_egress": "A remote backend sends your prompts to that machine, which can include file contents, memory and workspace data. Local models keep everything on this machine.",
-      "field_context_window": "Context window",
-      "context_window_default": "Default (32k tokens)",
-      "context_window_hint": "How much of a conversation the model holds at once, in tokens. The engine is launched with this window, and compaction and the context gauge are sized against it. A larger window uses more memory, and a model trained on a shorter one runs at its own length."
-    },
-    "model_hub": {
-      "subtitle": "Browse, download, and manage GGUF models from HuggingFace.",
-      "installed": {
-        "label": "Installed models",
-        "total": "{size} on disk",
-        "empty": "No models installed yet.",
-        "in_use": "In use",
-        "unverified_origin": "unverified origin",
-        "unverified_origin_help": "Its digest matches no published or already verified digest.",
-        "delete": "Delete",
-        "delete_title": "Delete model?",
-        "delete_message": "Permanently delete ''{name}'' from disk? This cannot be undone.",
-        "deleted_toast": "Model ''{name}'' deleted",
-        "help": "Files present in your local models directory."
-      },
-      "downloads": {
-        "active": "Active downloads",
-        "cancel_aria": "Cancel download",
-        "downloading_toast": "Downloading {filename}…",
-        "completed_toast": "Model downloaded to {path}",
-        "failed": "Failed",
-        "failed_toast": "Download failed. Free up space or check your connection, then retry."
-      },
-      "token": {
-        "title_button": "Configure HuggingFace token",
-        "set": "Token set",
-        "btn": "Token",
-        "needed": "This model is gated: save a Hugging Face token in Settings > General, then start the download again."
-      },
-      "search": {
-        "placeholder": "Search GGUF models (e.g. qwen3, llama3, mistral)…",
-        "button": "Search"
-      },
-      "filters": {
-        "sort_downloads": "Most downloaded",
-        "sort_likes": "Most liked",
-        "sort_trending": "Trending",
-        "sort_newest": "Newest",
-        "lang_any": "Any language",
-        "lang_en": "English",
-        "lang_fr": "Français",
-        "lang_zh": "中文",
-        "lang_de": "Deutsch",
-        "lang_es": "Español",
-        "lang_ja": "日本語",
-        "lang_ko": "한국어",
-        "lang_ar": "العربية",
-        "lang_ru": "Русский",
-        "lang_pt": "Português",
-        "license_any": "Any license",
-        "license_open": "Open (Apache / MIT…)",
-        "license_restricted": "Restricted",
-        "type_any": "Any type",
-        "type_instruct": "Instruct / Chat",
-        "type_base": "Base",
-        "type_reasoning": "Reasoning",
-        "gated_any": "Gated & Open",
-        "gated_open_only": "Open only",
-        "gated_only": "Gated only",
-        "incompatible": "Incompatible",
-        "show_incompatible_title": "Show incompatible models",
-        "hide_incompatible_title": "Hide incompatible models",
-        "result_count": "{filtered}/{total} models"
-      },
-      "card": {
-        "gated": "Gated",
-        "embedding_only": "Embedding only",
-        "embedding_only_title": "Not a text-generation model - incompatible with llama.cpp",
-        "no_gguf": "No GGUF",
-        "no_gguf_title": "No GGUF files found in this repository",
-        "arch_unknown": "Arch. unknown",
-        "arch_unknown_title": "Architecture not yet confirmed in llama.cpp - may or may not work",
-        "downloads_count": "↓ {count}k downloads",
-        "gguf_files_count": "{count} GGUF files"
-      },
-      "detail": {
-        "loading_files": "Loading files…",
-        "recommended_params": "Recommended parameters",
-        "param_temperature": "temperature",
-        "param_top_p": "top_p",
-        "param_top_k": "top_k",
-        "param_rep_penalty": "rep. penalty",
-        "param_max_tokens": "max tokens",
-        "variants_one": "{count} variant",
-        "variants_other": "{count} variants",
-        "parts": "{count} parts",
-        "compat_fits": "Fits in memory",
-        "compat_might_fit": "Might fit - tight",
-        "compat_too_large": "Too large for your machine",
-        "download": "Download",
-        "files_count": "{count} files",
-        "no_gguf_in_repo": "No GGUF files found in this repository."
-      },
-      "results": {
-        "loading": "Loading…",
-        "load_more": "Load more models",
-        "no_match": "No models match your filters.",
-        "clear_filters": "Clear filters",
-        "no_results": "No models found for \"{query}\".",
-        "retry": "Retry",
-        "no_match_desc": "{total} models found, all hidden by the active filters.",
-        "no_results_desc": "Check the spelling, or search by model family (e.g. qwen, llama, mistral).",
-        "idle_title": "Find a model to run",
-        "idle_desc": "Search by name, family, or author. Only GGUF models compatible with your hardware are shown."
-      },
-      "ctx": {
-        "open_hf": "Open on HuggingFace",
-        "copy_repo": "Copy repository ID",
-        "copied_toast": "Repository ID copied"
-      }
-    },
     "config": {
       "copy_path": "Copy path",
       "path_copied": "Path copied to clipboard",
@@ -2634,9 +2609,9 @@
       "refresh_hours_ago": "{n}h ago",
       "cli_working": "Working…",
       "agent_install_section_title": "Agent package installation",
-      "agent_install_section_desc": "Default behavior when installing agent packages that declare Python (pip) dependencies.",
+      "agent_install_section_desc": "Default behavior when installing agent packages that declare Python dependencies.",
       "auto_install_python_deps_label": "Auto-install Python dependencies",
-      "auto_install_python_deps_desc": "When enabled, packages that declare pip dependencies are installed directly, with no confirmation step. Disabled by default so each download from PyPI requires explicit consent.",
+      "auto_install_python_deps_desc": "When enabled, packages that declare Python dependencies are installed directly, with no confirmation step. Disabled by default so each download from PyPI requires explicit consent.",
       "python_interpreter_label": "Python interpreter",
       "python_interpreter_hint_bundled": "Agents run on the interpreter Apollia ships with ({path}), which needs nothing installed on this machine. Name another one by absolute path to use it instead.",
       "python_interpreter_hint_chosen": "Agents run on this interpreter. It has to exist, start, and be a Python 3.{minor}: the bundled standard library cannot be read by another minor version. If it stops being valid, the bundled interpreter takes over.",
@@ -2676,9 +2651,9 @@
       "web_read_title": "Web read",
       "web_read_desc": "Fetches and extracts the readable content of a URL with an anti-SSRF guard.",
       "bash_executor_title": "Bash",
-      "bash_executor_desc": "Runs shell commands in a supervised sandbox.",
+      "bash_executor_desc": "Runs shell commands in a supervised, isolated space.",
       "python_executor_title": "Python",
-      "python_executor_desc": "Runs isolated Python code in the PyO3 runtime.",
+      "python_executor_desc": "Runs isolated Python code inside Apollia.",
       "file_read_title": "File read",
       "file_read_desc": "Reads a file in the agent workspace.",
       "file_write_title": "File write",
@@ -2700,7 +2675,7 @@
       "memory_search_title": "Memory",
       "memory_search_desc": "Searches the agent's episodic/semantic memory.",
       "ask_user_title": "Ask user",
-      "ask_user_desc": "Requests a human response through an HITL dialog.",
+      "ask_user_desc": "Requests a human response through a dialog.",
       "cat_web": "Web & network",
       "cat_exec": "System & code",
       "cat_files": "Files",
@@ -2730,7 +2705,7 @@
     },
     "tool_config": {
       "title": "Configure {name}",
-      "active_backend": "Active backend:",
+      "active_backend": "Active provider:",
       "no_tool_selected": "No tool selected.",
       "no_config": "This tool exposes no specific configuration. Toggle it from the tools list.",
       "field": {
@@ -2739,21 +2714,17 @@
         "max_response_kb": "Max size (KB)"
       },
       "web_search": {
-        "preferred_backend": "Preferred backend",
+        "preferred_backend": "Preferred provider",
         "backend_auto": "Auto (DDG by default, Brave when a key is present)",
         "backend_ddg_only": "DuckDuckGo only",
         "backend_brave_only": "Brave Search only",
         "brave_api_key": "Brave API key",
-        "require_configured": "Require a configured backend",
-        "require_configured_desc": "Error at startup if no valid backend."
+        "require_configured": "Require a configured provider",
+        "require_configured_desc": "Error at startup if no valid provider."
       },
       "web_read": {
         "ssrf_guard": "SSRF guard (reject private/loopback hosts)"
       }
-    },
-    "llm_backend": {
-      "provider_local": "local",
-      "provider_openai_compatible": "OpenAI-compatible server"
     },
     "all_saved": "All changes saved",
     "save": "Save",
@@ -2773,7 +2744,26 @@
         "next_steps": "Next-step suggestions",
         "reset_one": "Reset \"{name}\""
       },
+      "nav_position_label": "Navigation bar position",
+      "nav_position_hint": "The detail sidebar moves to the opposite side.",
+      "nav_position_left": "Left",
+      "nav_position_right": "Right",
       "chat_style_title": "Chat style",
+      "view_mode_label": "View mode",
+      "view_mode_hint": "In plain text, an answer is shown as received, with no formatting.",
+      "view_mode_markdown": "Rendered Markdown",
+      "view_mode_plain": "Plain text",
+      "tab_scrollbar_label": "Show the tab scroll bar",
+      "tab_scrollbar_hint": "In the split view, the row of tabs and the pane area show a scroll bar as soon as they overflow. They scroll without it too.",
+      "generation_info_label": "Generation info",
+      "generation_info_help": "The line under an answer: its speed, its length, the delay before the first word, its duration and why it ended.",
+      "generation_info_last": "Last message only",
+      "generation_info_all": "All messages",
+      "scroll_sent_top_label": "Scroll the sent message to the top",
+      "follow_generation_label": "Follow the message being generated",
+      "message_style_label": "Message style",
+      "message_style_bubble": "Bubbles",
+      "message_style_block": "Blocks",
       "font_size_label": "Font size",
       "font_size_hint": "Applies to chat messages.",
       "font_size_value": "Step {step} of {max}",
@@ -2788,7 +2778,9 @@
       "full_width_label": "Expand the chat to the window width",
       "reasoning_title": "Reasoning",
       "reasoning_expand_label": "Expand reasoning blocks by default",
-      "reasoning_expand_hint": "A block you open or close keeps your choice."
+      "reasoning_expand_hint": "A block you open or close keeps your choice.",
+      "reasoning_vignette_label": "Show the reasoning block vignette",
+      "reasoning_vignette_hint": "A thought still arriving fades out where its text runs past the block."
     },
     "integrations": {
       "required": "Required",
@@ -2852,7 +2844,7 @@
       "aria": "Contract of {name}",
       "retry": "Retry",
       "missing_title": "Contract unavailable",
-      "missing_desc": "This tool is not registered in the runtime, so it exposes no contract.",
+      "missing_desc": "This tool is not registered in Apollia, so it exposes no contract.",
       "permissions": "Required permissions",
       "input_schema": "Input",
       "output_schema": "Output",
@@ -2864,7 +2856,7 @@
       "default_value": "default: {value}",
       "allowed_values": "Allowed values: {values}",
       "kind_native": "Native",
-      "kind_mcp_server": "MCP server",
+      "kind_mcp_server": "Connection",
       "kind_custom": "Python tool"
     },
     "tool_credentials": {
@@ -2911,23 +2903,6 @@
         "unsupported": "This system has no service manager Apollia can use.",
         "no_cli": "The command line bundled with the application was not found.",
         "write_failed": "The service could not be changed: {error}"
-      },
-      "mcp": {
-        "title": "Apollia as an MCP server",
-        "switch_label": "Expose Apollia as an MCP server",
-        "switch_hint": "An MCP client (Claude Desktop, a code editor) calls the checked agents and workflows as tools.",
-        "write_failed": "The MCP server setting could not be saved.",
-        "items_label": "Exposed agents and workflows",
-        "items_hint": "Check what an MCP client may call.",
-        "items_empty": "No agent or workflow installed yet. The ones you install from the Library will appear here, ready to check.",
-        "items_failed": "The agents and workflows could not be read: {error}",
-        "expose_failed": "{name} could not be updated.",
-        "kind_agent": "Agent",
-        "kind_workflow": "Workflow",
-        "config_label": "Paste into the configuration of the MCP client",
-        "copy": "Copy",
-        "copied": "Copied",
-        "copy_failed": "The configuration could not be copied."
       },
       "on_demand": {
         "title": "On-demand loading and idle delay",
@@ -2981,6 +2956,13 @@
       "behaviours_title": "Behaviour",
       "downloads_open_label": "Open the downloads panel when a download starts",
       "downloads_open_hint": "The panel opens under the downloads icon of the top bar.",
+      "model_load_window_label": "Always open the full loading window",
+      "model_load_window_hint": "On, choosing in a conversation a model that is not in memory opens the loading window, with the estimated memory and the settings. Off, the model loads at once with its default preset; the window opens only when the load is refused.",
+      "model_full_file_name_label": "Always show the full file name",
+      "model_full_file_name_hint": "On, the list of the models of this computer, in the AI screen, shows the file name of each model in place of its name.",
+      "preset_save_confirm_label": "Confirm before saving to a preset",
+      "preset_save_confirm_hint": "On, saving settings to a preset, new or existing, first shows the settings changed and asks you to confirm.",
+      "behaviour_write_failed": "This setting could not be saved.",
       "models_title": "Models",
       "models_dir_label": "Models folder",
       "models_dir_hint": "Where models are downloaded and looked up. Changing the folder does not move the models already downloaded.",
@@ -3016,7 +2998,22 @@
       "naming_always": "Always",
       "naming_always_hint": "Apollia names every new conversation, whatever the generation speed.",
       "trash_label": "Send deleted conversations to the trash",
-      "trash_hint": "Deleted conversations go to the Apollia trash, where you can restore them. Off, a deleted conversation is gone for good."
+      "trash_hint": "Deleted conversations go to the Apollia trash, where you can restore them. Off, a deleted conversation is gone for good.",
+      "single_empty_label": "Only one empty conversation at a time",
+      "single_empty_hint": "On, \"New conversation\" opens the empty conversation that already exists instead of creating another one; its agent or model is chosen from the top bar.",
+      "unload_before_load_label": "Unload the loaded models before loading another one",
+      "unload_before_load_hint": "Off, several models stay loaded together as long as memory allows. On, loading a model unloads the others first; a model kept in memory or answering stays loaded.",
+      "double_click_edit_label": "Double-click a message to edit it",
+      "double_click_edit_hint": "On, a double click on one of your messages opens it for editing. Off, you edit it with its dedicated action.",
+      "token_count_label": "Show the token count in the conversation list",
+      "token_count_hint": "Each conversation of the list shows the tokens the model generated for it.",
+      "double_click_rename_label": "Double-click a conversation or a folder to rename it",
+      "double_click_rename_hint": "On, a double click on the name of a conversation or a folder, in the list or at the top of the conversation, lets you rename it. Off, you rename it from its menu.",
+      "regenerate_label_mac": "Use ⌘ + R to regenerate the last answer",
+      "regenerate_hint_mac": "In a conversation, ⌘ + R regenerates the last answer. When no model is loaded, ⌘ + R reloads the last model, whether this setting is on or off.",
+      "regenerate_label_other": "Use Ctrl + R to regenerate the last answer",
+      "regenerate_hint_other": "In a conversation, Ctrl + R regenerates the last answer. When no model is loaded, Ctrl + R reloads the last model, whether this setting is on or off.",
+      "write_failed": "The setting could not be saved."
     },
     "integrations_section": {
       "subtitle": "What Apollia grants by default, and what is always authorized.",
@@ -3414,6 +3411,10 @@
       "error_not_offered": "{file} is not the file of a search-by-meaning model Apollia offers.",
       "error_default": "The model is installed but could not be set for search by meaning."
     },
+    "first_task": {
+      "intro_title": "{name}, your first agent",
+      "intro_body": "Its first example is filled in below. Send it as it is, or change it."
+    },
     "first_agent": {
       "title": "Your first agent",
       "subtitle": "Choose how to get it. You can add others later from the Agents screen.",
@@ -3449,8 +3450,6 @@
     }
   },
   "agent_detail": {
-    "activity_title": "Recent activity",
-    "no_activity": "No recent activity for this agent.",
     "triggers_title": "Triggers",
     "no_triggers": "No triggers configured for this agent.",
     "trigger_cron": "Runs on a schedule (cron)",
@@ -3459,16 +3458,10 @@
     "trigger_webhook": "Runs via webhook",
     "trigger_oneshot": "One-time trigger",
     "trigger_disabled": "Disabled",
-    "memory_link": "View memory for namespace \"{namespace}\"",
-    "tags_title": "Tags",
-    "execution_mode_title": "Execution mode",
-    "execution_mode_auto": "Automatic",
-    "execution_mode_direct": "Direct",
-    "execution_mode_orchestrated": "Orchestrated",
     "trigger_config_cron": "Expression: {config}",
     "trigger_config_interval": "Every {config}",
     "trigger_config_file_watch": "Watches: {config}",
-    "trigger_config_webhook": "Endpoint: {config}",
+    "trigger_config_webhook": "Address: {config}",
     "trigger_config_oneshot": "One-time trigger",
     "trigger_enabled": "Active",
     "trigger_last_fired": "Last fired: {date}",
@@ -3483,8 +3476,8 @@
     "show_formatted": "Show formatted"
   },
   "mac_sandbox": {
-    "title": "macOS - tools run without sandbox.",
-    "body": "Linux namespace isolation is not available on macOS. Agent tool calls (bash, file I/O) execute directly in your user session. Only run agents you trust, and review their tool permissions in the manifest."
+    "title": "macOS - tools run without isolation.",
+    "body": "Linux process isolation is not available on macOS. Agent tool calls (bash, file I/O) execute directly in your user session. Only run agents you trust, and review the tool permissions they declare."
   },
   "chat": {
     "title": "Chat",
@@ -3508,7 +3501,8 @@
       "next_message": "Next message",
       "prev_message": "Previous message",
       "stop_or_close": "Stop streaming / close modal",
-      "target_selector": "Choose the agent or the model"
+      "target_selector": "Choose the agent or the model",
+      "reload_last_model": "Reload the last model"
     },
     "shortcut_group": {
       "chat": "Chat",
@@ -3521,8 +3515,6 @@
     "status_active": "Active",
     "status_closed": "Closed",
     "message_count": "{n, plural, =0 {no messages} one {# message} other {# messages}}",
-    "system_prompt": "Instructions",
-    "system_prompt_placeholder": "Instructions for the LLM...",
     "input_placeholder": "Type your message...",
     "placeholder_suggestions": {
       "s1": "Ask the agent to summarise the last run...",
@@ -3536,26 +3528,15 @@
       "interrupted": "Interrupted"
     },
     "config_title": "Configuration",
-    "config_save": "Apply",
-    "step_budget_label": "Step budget",
-    "step_budget_placeholder": "Runtime default",
-    "step_budget_hint": "Maximum reasoning steps per turn (1–200). Leave empty to use the runtime default.",
     "config": {
       "profile_label": "Conversation profile",
       "profile_default": "Default profile ({name})",
       "profile_default_unnamed": "Default profile",
-      "profile_hint": "Left empty, the conversation follows your default profile, even when it changes.",
-      "errors": {
-        "llm_required": "Select an LLM provider before saving.",
-        "system_prompt_too_long": "System prompt is too long (max 4000 characters).",
-        "step_budget_invalid": "Step budget must be a whole number.",
-        "step_budget_positive": "Step budget must be greater than zero.",
-        "step_budget_too_large": "Step budget cannot exceed 200."
-      }
+      "profile_hint": "Left empty, the conversation follows your default profile, even when it changes."
     },
     "tool_collapse": "collapse",
     "authorize_tool": "Authorize execution of",
-    "authorize_action": "The assistant would like to perform an action",
+    "authorize_action": "The agent would like to perform an action",
     "ask_user_title": "The agent needs some information",
     "ask_user_submit": "Submit",
     "ask_user_skip": "Skip",
@@ -3563,10 +3544,34 @@
     "ask_user_qa_label": "Questions & answers",
     "ask_user_pending": "Pending…",
     "you": "You",
-    "assistant": "Assistant",
-    "config_provider": "AI Model",
-    "config_no_providers": "No models loaded",
+    "assistant": "Apollia",
     "delete_session": "Delete",
+    "chips": {
+      "thinking": "Think",
+      "thinking_on_hint": "The model thinks before it answers in this conversation. Click to switch thinking off.",
+      "thinking_off_hint": "The model answers without thinking in this conversation. Click to switch thinking back on.",
+      "effort": "Reasoning: {value}",
+      "effort_default": "default",
+      "effort_menu": "Reasoning level",
+      "effort_reset": "Back to the model default",
+      "levels": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      },
+      "vision": "Vision",
+      "vision_hint": "This model reads the images you attach.",
+      "write_error": "The setting could not be saved for this conversation."
+    },
+    "gauge": {
+      "aria": "Context in use: {value}",
+      "conversation_tokens": "Conversation tokens",
+      "loaded_context": "Loaded context",
+      "share_used": "Share used (left)",
+      "share_value": "{pct}% ({remaining})",
+      "profile_included": "Profile included",
+      "unmeasured": "The engine of this conversation does not measure its context."
+    },
     "generation": {
       "label": "Generation info",
       "speed": "{value} tokens/s",
@@ -3637,8 +3642,6 @@
     "dictate_stop": "Stop dictation",
     "slash_commands": "Commands",
     "mention_resources": "Mention a resource",
-    "context_inspect_turn": "Inspect the memory injected for this turn",
-    "context_summary": "Summary: {pct}%",
     "empty_response_operator": "I couldn't produce a response for this request. Try rephrasing it or asking again.",
     "empty_response_builder": "No text response was produced. See the reasoning and tool details above for what happened.",
     "hints": {
@@ -3688,9 +3691,9 @@
       }
     },
     "resources": {
-      "menu_label": "MCP resources",
+      "menu_label": "Resources of your connections",
       "loading": "Loading resources...",
-      "empty": "No MCP resources available",
+      "empty": "No resource available from your connections",
       "unpin": "Unpin resource"
     },
     "commands": {
@@ -3711,27 +3714,14 @@
     "journal_empty": "Live agent activity.",
     "conversations_aria": "Conversations",
     "past_session": "Past session",
-    "use_preferences": "Use my preferences",
-    "inject_user_memory": "Inject user memory",
-    "memory_section": "Memory",
-    "context_window": "Context window",
-    "context_messages": "Messages: {pct}%",
-    "context_memory": "User memory: {pct}%",
-    "context_profile_on": "Profile included in the prompt",
-    "context_profile_off": "Profile not included in the prompt",
-    "context_free": "Free: {pct}%",
-    "legend_messages": "Messages",
-    "legend_memory": "Memory",
-    "legend_summary": "Summary",
-    "legend_free": "Free",
     "recording_hotkey_hint": "{hotkey} to stop · Esc to cancel",
     "rename_session": "Rename",
     "rename_placeholder": "Conversation name…",
     "session_actions": "Session actions",
     "delete_confirm_title": "Delete conversation",
     "delete_confirm_message": "This action cannot be undone. All messages will be lost.",
-    "a2a_workers": "Worker agents",
-    "a2a_no_workers": "No worker agents available",
+    "a2a_workers": "Delegated agents",
+    "a2a_no_workers": "No agent available to delegate to",
     "mode_auto": "Auto",
     "scroll_to_bottom": "Jump to latest",
     "exchange_error": "Error: {error}",
@@ -3764,8 +3754,8 @@
       "sources": "Sources"
     },
     "tool_empty_results": "No results.",
-    "a2a_authorize_skill": "Authorize skill",
-    "a2a_via_worker": "via worker agent",
+    "a2a_authorize_skill": "Authorize the capability",
+    "a2a_via_worker": "via the delegated agent",
     "quickpicker": {
       "title": "Start a conversation",
       "prompt_label": "What do you want to do?",
@@ -3777,7 +3767,7 @@
       "empty_agents": "No agents are installed yet. Install one to start delegating work.",
       "install_agent": "Install an agent",
       "docs_link": "Documentation",
-      "error_no_llm": "No language model is configured yet. Open Settings and add an LLM backend (a local GGUF model or a cloud provider) before starting a conversation.",
+      "error_no_llm": "No language model is configured yet. Open Settings and add one (a local model or an external provider) before starting a conversation.",
       "error_generic": "Could not start the conversation: {error}",
       "submit_hint_enter": "Enter to start a free chat"
     },
@@ -3800,8 +3790,8 @@
       "delete": "Delete session"
     },
     "runtime_disconnected": {
-      "lost": "Runtime connection lost - reconnecting…",
-      "reconnecting": "Reconnecting to the runtime (attempt {attempt})…",
+      "lost": "Connection to the Apollia engine lost - reconnecting…",
+      "reconnecting": "Reconnecting to the Apollia engine (attempt {attempt})…",
       "retry": "Retry now"
     },
     "agent_unavailable": {
@@ -3858,7 +3848,6 @@
     "citations_aria": "Citations",
     "assertion_confidence_aria": "confidence: {level}",
     "assertion_citation_aria": "Citation {number}: {title}",
-    "context_gauge": "Ctx {ctx} · Budget {budget}%",
     "retry_timeline_aria": "Retry timeline",
     "conversation_configure": "Configuration",
     "journal": {
@@ -3888,7 +3877,7 @@
       "input_label": "Input",
       "output_label": "Output",
       "role_user": "User",
-      "role_assistant": "Assistant",
+      "role_assistant": "Apollia",
       "role_tool": "Tool",
       "role_system": "System"
     },
@@ -3899,7 +3888,8 @@
       "newest": "Newest first",
       "oldest": "Oldest first",
       "activity": "Latest activity",
-      "name": "Name, A to Z"
+      "name": "Name, A to Z",
+      "tokens": "Most tokens first"
     },
     "step": {
       "toggle": "Show or hide the step detail",
@@ -3964,6 +3954,186 @@
       "in_messages": "In the messages",
       "pending": "Searching the messages...",
       "failed": "The search in the messages did not go through."
+    },
+    "model_load": {
+      "aria": "Load a model",
+      "back": "Go back without loading",
+      "memory": "Estimated memory",
+      "estimating": "estimating…",
+      "estimate_mark": "estimate",
+      "memory_gpu": "Graphics card",
+      "memory_total": "Total",
+      "gigabytes": "{size} GB",
+      "memory_unknown": "The memory of this model could not be estimated.",
+      "estimate_failed": "The estimate did not go through: {error}",
+      "file": "Model file",
+      "quantization_help": "How much the model is compressed. The stronger it is, the less memory the model takes, and the less refined its answers are.",
+      "no_settings": "No configurable setting for this model: it loads with its original settings.",
+      "context": "Context length",
+      "context_help": "What the model keeps in mind during a conversation, in tokens. The longer the context, the more memory the model takes.",
+      "context_max": "The model accepts up to {max} tokens.",
+      "offload": "Offload to the graphics card",
+      "offload_help": "The model is made of layers. Those given to the graphics card answer faster; the others stay in main memory.",
+      "offload_hint": "Layers given to the graphics card; the rest in main memory.",
+      "refusal_title": "This load exceeds the available memory",
+      "refusal_body": "Estimate {estimated} GB for {budget} GB of memory; guardrails \"{level}\". Reduce the context or the offload, or load anyway after confirming.",
+      "load_failed": "The model could not be loaded: {error}",
+      "remember": "Remember these settings for {name}",
+      "pin": "Keep in memory",
+      "pin_help": "A model kept in memory is not unloaded when it stays idle, nor when its last conversation closes.",
+      "show_advanced": "Show advanced settings",
+      "loading": "Loading…",
+      "load_anyway": "Load anyway…",
+      "load": "Load",
+      "confirm_title": "Load anyway?",
+      "confirm_body": "{name} needs about {estimated} GB of memory, and the load guardrails allow {budget} GB. This computer may slow down sharply or run out of memory.",
+      "confirm_action": "Load anyway",
+      "loaded_toast": "{name} is loaded.",
+      "direct_loading": "Loading {name}…",
+      "direct_refused": "The model could not be loaded directly: {error}",
+      "advanced": {
+        "title": "Advanced settings",
+        "batch": "Evaluation batch size",
+        "threads": "Compute threads",
+        "seed": "Seed",
+        "kv_offload": "Keep the context cache on the graphics card",
+        "automatic": "automatic"
+      }
+    },
+    "model_eject": {
+      "label": "Eject the model",
+      "nothing_loaded": "No model of this computer is loaded for this conversation.",
+      "answering": "The model is answering right now; it can be ejected once its answer ends.",
+      "failed": "{name} could not be ejected: {error}"
+    },
+    "reload_last": {
+      "label": "Reload the last model",
+      "reloading": "Reloading",
+      "refused": "The last model could not be reloaded as it was: {error}"
+    },
+    "conversation_tokens": "{count} tokens",
+    "panes": {
+      "split": "Split",
+      "split_full": "{max} conversations side by side at most",
+      "close": "Close this pane",
+      "aria": "Pane {n}",
+      "tabs_aria": "Open conversations",
+      "untitled": "New conversation",
+      "empty": "Pick a conversation in the list or start a new one.",
+      "refusal_title": "{name} was not loaded in this pane",
+      "refusal_body": "Not enough memory with the models already loaded: estimate {estimated} GB for {budget} GB (guardrails \"{level}\"). Pick a model already loaded, close a pane, or load anyway after confirming.",
+      "refusal_choose": "Pick another model"
+    },
+    "integrations": {
+      "profile_title": "Profile",
+      "profile_switch_assistant": "Apollia knows my profile",
+      "profile_switch_assistant_help": "Added to the conversation; the context gauge shows it.",
+      "profile_switch_agent": "The agent may read my profile",
+      "profile_switch_agent_help": "The agent reads it at its own initiative, and each reading is recorded.",
+      "accesses_title": "What the agent reaches in this conversation",
+      "filter_placeholder": "Filter the accesses",
+      "group_tools": "Tools",
+      "group_connections": "Connections",
+      "group_workflows": "Workflows",
+      "group_agents": "Other agents",
+      "badge_off": "off here",
+      "badge_not_granted": "not granted",
+      "badge_proposed": "proposed",
+      "note_not_granted": "Not granted to this agent. Switching it on proposes it for this conversation only.",
+      "note_proposed": "Each call asks for your consent.",
+      "none_match": "No access matches this filter.",
+      "none": "No access to show for this agent.",
+      "no_conversation": "Open a conversation to see what its agent can use.",
+      "switch_label": "Use \"{name}\" in this conversation"
+    },
+    "session_panel": {
+      "integrations": "Integrations",
+      "settings": "Settings"
+    },
+    "session_settings": {
+      "revert_to_preset": "Back to the preset",
+      "revert_to_default": "Back to the default",
+      "preset": {
+        "title": "Preset",
+        "none": "No preset (the agent's settings)",
+        "hint": "A preset keeps the temperature and the answer length for this model.",
+        "modified": "Modified",
+        "differs": "Differs from the preset: {fields}",
+        "field_temperature": "temperature",
+        "field_max_tokens": "answer length",
+        "discard": "Discard changes",
+        "menu": "Preset actions",
+        "new": "New preset",
+        "import": "Import a preset",
+        "save_as": "Save as preset",
+        "saved": "Preset \"{name}\" saved",
+        "name_label": "Preset name",
+        "create": "Create",
+        "error_not_json": "This file is not a readable JSON file.",
+        "error_not_a_preset": "This file does not describe a preset: it needs a name, and settings written as objects.",
+        "error_no_model": "No model is chosen for this conversation: choose one to use a preset.",
+        "error_refused": "The preset was not created: {reason}"
+      },
+      "instructions": {
+        "title": "Conversation instructions",
+        "placeholder": "For example: answer in one sentence.",
+        "count": "{count} / {max} characters.",
+        "help": "They are added to the agent's mission, without replacing it, for this conversation only.",
+        "too_long": "The instructions are too long: they are not saved."
+      },
+      "reasoning": {
+        "title": "Reasoning",
+        "thinking": "Think before answering",
+        "effort": "Reasoning level",
+        "effort_default": "Default",
+        "effort_low": "Low",
+        "effort_medium": "Medium",
+        "effort_high": "High",
+        "scope": "Holds for this conversation only."
+      },
+      "response": {
+        "title": "Answer",
+        "summary": "Temperature {temperature} · length {length} · {overflow}",
+        "by_default": "default",
+        "length_free": "free",
+        "temperature": "Temperature",
+        "temperature_hint": "Low, answers are more regular; high, they are more varied.",
+        "limit_length": "Limit the answer length",
+        "length_unit": "tokens at most",
+        "overflow": "When the conversation reaches the model's limit",
+        "overflow_summarize_middle": "Summarize the middle",
+        "overflow_sliding_window": "Sliding window",
+        "overflow_stop_at_limit": "Stop at the limit",
+        "overflow_summarize_middle_help": "The oldest exchanges are summarized; the start and the end of the conversation stay as they are. This is the default.",
+        "overflow_sliding_window_help": "The oldest messages leave the conversation sent to the model, without a summary.",
+        "overflow_stop_at_limit_help": "The message is refused once the limit is reached: branch off from an earlier message, or open a new conversation."
+      },
+      "notes": {
+        "title": "Conversation notes",
+        "empty": "Empty",
+        "placeholder": "Your notes on this conversation.",
+        "saved": "Saved.",
+        "saving": "Saving…"
+      },
+      "apply": {
+        "action": "Apply to the agent",
+        "no_model": "No model is chosen for this conversation: there is nothing to apply to the agent.",
+        "title": "Apply to the agent {agent}",
+        "receives": "The agent will receive:",
+        "model": "the model of this conversation: {model}",
+        "preset_created": "a new preset, with the settings of this conversation",
+        "preset_existing": "the preset \"{preset}\"",
+        "preset_none": "no preset: the model's default settings",
+        "temperature": "temperature: {value}",
+        "max_tokens": "answer length: {value} tokens at most",
+        "not_applied": "Reasoning, the context limit and the notes stay with this conversation.",
+        "preset_name": "Preset of {agent}",
+        "add_instructions": "Also add the conversation instructions at the end of the agent's mission",
+        "mission_after": "Resulting mission",
+        "mission_unchanged": "The agent's mission, unchanged",
+        "confirm": "Apply",
+        "done": "Settings applied to the agent {agent}"
+      }
     }
   },
   "transcriptions": {
@@ -4042,6 +4212,7 @@
     "step_ai": "AI",
     "step_first_agent": "First agent",
     "step_connection": "Connection",
+    "step_first_task": "First task",
     "model_percent": "Model: {percent}%",
     "model_downloading": "Model: downloading",
     "model_installing": "Model: installing",
@@ -4122,8 +4293,8 @@
       "notebook_read": "Reading a Jupyter notebook",
       "notebook_edit": "Editing a Jupyter notebook cell",
       "tool_search": "Searching the index of available external tools",
-      "mcp_resources_list": "Listing the resources exposed by connected MCP servers",
-      "mcp_resources_read": "Reading a resource exposed by a connected MCP server"
+      "mcp_resources_list": "Listing the resources exposed by your connections",
+      "mcp_resources_read": "Reading a resource exposed by one of your connections"
     },
     "output": {
       "web_read_truncated": "{chars_total} characters read (truncated, {duration_ms}ms)"
@@ -4208,7 +4379,7 @@
       "python_executor": {
         "label_operator": "Python scripts",
         "desc_operator": "Run Python code in an isolated environment",
-        "desc_builder": "python_executor - per-agent venv, timeout_secs - SandboxProfile::FileSystem - family execute_code"
+        "desc_builder": "python_executor - per-agent Python environment, timeout_secs - SandboxProfile::FileSystem - family execute_code"
       },
       "http_fetch": {
         "label_operator": "Web requests",
@@ -4218,7 +4389,7 @@
       "web_search": {
         "label_operator": "Web search",
         "desc_operator": "Search the web (DuckDuckGo by default, Brave if an API key is set)",
-        "desc_builder": "web_search - pluggable backends (DDG/Brave), opt-in via [tools].web_search"
+        "desc_builder": "web_search - pluggable providers (DDG/Brave), opt-in via [tools].web_search"
       },
       "web_read": {
         "label_operator": "Read an article",
@@ -4228,12 +4399,8 @@
       "memory_search": {
         "label_operator": "Search memory",
         "desc_operator": "Look up information the agent has saved previously",
-        "desc_builder": "memory_search - FTS5 BM25, namespace-scoped, limit - SandboxProfile::ReadOnly"
+        "desc_builder": "memory_search - FTS5 full-text ranking, scoped per memory space, limit - SandboxProfile::ReadOnly"
       }
-    },
-    "select": {
-      "title_operator": "Capabilities",
-      "title_builder": "Available tools"
     },
     "body": {
       "search_label": "Search",
@@ -4393,8 +4560,8 @@
   },
   "empty_states": {
     "agents": {
-      "title": "Your first assistant is one install away",
-      "description": "Install a Python agent file or spin one up from a template. Apollia runs it locally, in its own sandbox - no cloud round-trip.",
+      "title": "Your first agent is one install away",
+      "description": "Install a Python agent file or spin one up from a template. Apollia runs it locally, in its own isolated space - no cloud round-trip.",
       "primary_cta": "Install an agent",
       "secondary_cta": "Start from a template"
     },
@@ -4418,7 +4585,7 @@
     },
     "integrations": {
       "title": "Connect your first tool",
-      "description": "Apollia speaks MCP - browse the registry or plug in a custom server to extend your agents with file systems, APIs, and more.",
+      "description": "Browse the registry or plug in a custom server to extend your agents with file systems, APIs, and more.",
       "primary_cta": "Add a connection",
       "secondary_cta": "Browse the registry"
     }
@@ -4802,6 +4969,968 @@
       "payload": "Payload",
       "hash": "Hash",
       "hash_value": "{hash} (previous: {previous})"
+    },
+    "ai": {
+      "servers": {
+        "timeout_label": "Timeout (seconds)",
+        "timeout_hint": "How long the server may stay silent before a request is given up, from {min} to {max} seconds. Empty: the default of Apollia, ten minutes.",
+        "extra_label": "Extra JSON parameters",
+        "extra_hint": "A JSON object whose fields are added to every request sent to this server. A field the request already carries keeps the value of the request.",
+        "error": {
+          "invalid_timeout": "Type a whole number of seconds, from 60 to 3600.",
+          "invalid_json": "This text is not valid JSON.",
+          "invalid_json_object": "Type a JSON object, between braces.",
+          "reserved_field": "The fields model, messages, stream, stream_options, tools and tool_choice cannot be added here."
+        }
+      },
+      "panel": {
+        "type": {
+          "title": "Model type",
+          "hint": "Corrects the category Apollia files this model under.",
+          "none": {
+            "label": "No override",
+            "explanation": "Apollia files this model by what its file declares."
+          },
+          "language": {
+            "label": "Language model",
+            "explanation": "The model answers in conversations and makes the agents work."
+          },
+          "embeddings": {
+            "label": "Embeddings",
+            "explanation": "The model serves search by meaning in the sources and the memory. It does not converse."
+          },
+          "dictation": {
+            "label": "Dictation",
+            "explanation": "The model transcribes voice into text."
+          },
+          "draft": {
+            "label": "Draft",
+            "explanation": "A small model of the same family as a larger one, used to speed up its answers."
+          }
+        },
+        "source": {
+          "title": "Source file",
+          "hint": "Loads another weights file of this same model, already on this computer, in place of the indexed file.",
+          "enable": "Enable override",
+          "empty": "No other weights file of this model is on this computer."
+        }
+      },
+      "engine": {
+        "refusal_detail": "Refusal detail: {detail}"
+      }
+    },
+    "developer": {
+      "views": {
+        "server": "Local server",
+        "documentation": "Documentation"
+      },
+      "logs": {
+        "title": "Server logs",
+        "summary": "{count, plural, =0 {No line} one {# line} other {# lines}}",
+        "level_label": "Level of the lines shown",
+        "levels": {
+          "debug": "All levels",
+          "info": "Info and above",
+          "warn": "Warnings and errors",
+          "error": "Errors only"
+        },
+        "clear": "Clear",
+        "clear_title": "Empties the logs of the server. The Apollia activity log is not touched.",
+        "detach": "Detach into a window",
+        "reattach": "Bring back to the screen",
+        "detached_notice": "The logs are open in their own window.",
+        "collapse": "Collapse the logs",
+        "expand": "Expand the logs",
+        "empty": "No line yet. Calls the local server receives show here.",
+        "interrupted": "The logs stopped being read.",
+        "resume": "Resume",
+        "failed": "The logs did not answer the request: {error}"
+      },
+      "settings_hint": "The developer mode and the MCP bridge are set in Settings.",
+      "settings_link": "Settings › Developer",
+      "settings": {
+        "open": "Server settings",
+        "title": "Local server settings",
+        "help_label": "About \"{setting}\"",
+        "port_label": "Server port",
+        "port_help": "The port the local server listens on, from 1024 to 65535. A running server is reopened on the new port, and its address changes with it.",
+        "require_auth_label": "Require authentication",
+        "require_auth_help": "Every request must carry a token of the server, in the Authorization header. Off, models answer without a token; from the local network, exposed agents and workflows always require one.",
+        "active_tokens": "Active tokens: {count}",
+        "manage_tokens": "Manage tokens",
+        "serve_on_lan_label": "Serve on the local network",
+        "serve_on_lan_help": "The server listens on every interface: the other devices of the local network can call it. Off, only this computer reaches it. Without authentication, models answer any device of the network; exposed agents and workflows always require a token from the network.",
+        "allow_request_mcp_label": "Allow MCP servers provided by the request",
+        "allow_request_mcp_help": "A request may bring an MCP server of its own: Apollia connects to it over HTTP for the length of the call and runs the tool loop itself. Off, such a request is refused.",
+        "cors_label": "Enable CORS",
+        "cors_help": "A web page of another origin may call the server: it answers the preflight requests of the browser and marks its answers. Off, a browser blocks these calls. Turn it on only for a web application you trust.",
+        "jit_loading_label": "On-demand loading",
+        "jit_loading_help": "A request naming a model of this computer that is not loaded gets it loaded, then receives its answer. Off, it receives an error until the model is loaded.",
+        "jit_auto_unload_label": "Automatically unload unused models loaded on demand",
+        "jit_auto_unload_help": "A model loaded on demand is unloaded after the idle delay below. A model you loaded yourself follows its own delay, in Settings.",
+        "jit_idle_label": "Idle delay",
+        "jit_idle_help": "Time without a request after which a model loaded on demand is unloaded; 0 keeps it loaded.",
+        "jit_keep_last_label": "Keep only the last model loaded on demand",
+        "jit_keep_last_help": "Loading a model on demand unloads those loaded that way before it, when nothing else holds them. A model you loaded yourself is never unloaded by this setting.",
+        "separate_reasoning_label": "Separate reasoning from content in responses",
+        "separate_reasoning_help": "Returns the reasoning of the model in reasoning_content, apart from the text of the answer in content. Off, the reasoning goes back into content, between think tags.",
+        "port_invalid": "Enter a free port, a whole number from 1024 to 65535.",
+        "port_taken": "Port {port} is already taken by another application. Choose a free port, between 1024 and 65535.",
+        "minutes_invalid": "Enter a whole number of minutes, 0 or more.",
+        "write_failed": "This setting could not be saved.",
+        "reopen_failed": "The server could not be reopened with this setting: {error}",
+        "lan_warning": "Served on the local network without authentication: any machine of the network can call the loaded models. Exposed agents and workflows always require a token from the network.",
+        "lan_require_auth": "Require authentication"
+      },
+      "tokens": {
+        "title": "Server tokens",
+        "intro": "A token lets an application call the server when authentication is required. It is distinct from the one Apollia uses for itself, and can be revoked at any time.",
+        "empty": "No active token. Create one for each application that calls the server.",
+        "created_on": "Created on {date}",
+        "last_used": "last used {when}",
+        "never_used": "never used",
+        "name_label": "Token name",
+        "name_placeholder": "Token name, for example \"Test script\"",
+        "create": "Create a token",
+        "created_title": "Token \"{name}\" created",
+        "shown_once": "Copy it now: it will never be shown again. Closing this window clears it from the screen.",
+        "copy": "Copy the token",
+        "copied": "Token copied",
+        "copy_failed": "The token could not be copied. Select it and copy it by hand.",
+        "revoke": "Revoke",
+        "revoke_label": "Revoke the token \"{name}\"",
+        "revoke_title": "Revoke the token \"{name}\"?",
+        "revoke_message": "The applications that use this token (…{lastFour}) will no longer be able to call the server. The revocation is immediate and final.",
+        "close": "Close",
+        "name_empty": "Give the token a name, that of the application that will use it.",
+        "name_invalid": "The name is 64 characters at most and cannot be made of digits only.",
+        "name_taken": "An active token already carries the name \"{name}\". Choose another, or revoke the first.",
+        "read_failed": "The tokens could not be read: {error}",
+        "create_failed": "The token was not created: {error}",
+        "revoke_failed": "The token was not revoked: {error}"
+      },
+      "server": {
+        "status_running": "Server: Running",
+        "status_stopped": "Server: Stopped",
+        "status_error": "Server: Error",
+        "status_unknown": "Server: reading…",
+        "switch_label": "Start or stop the local server",
+        "shortcut_label": "Shortcut to start or stop the server",
+        "reachable_at": "Reachable at",
+        "copy": "Copy the address",
+        "copied": "Address copied",
+        "copy_failed": "The address could not be copied.",
+        "no_address_stopped": "Stopped: no reachable address",
+        "no_address": "No reachable address",
+        "port_in_use": "Port {port} is already used by another application: the server could not start. Free this port or choose another one.",
+        "failed": "The server did not answer the request: {error}",
+        "unreadable": "The state of the server could not be read: {error}",
+        "load_model": "Load a model",
+        "load_reading": "Reading the models…",
+        "load_empty": "No model of this computer is waiting to be loaded."
+      },
+      "models": {
+        "title": "Loaded models",
+        "empty": "No model is loaded. \"Load a model\" puts one in memory.",
+        "size": "{size} GB",
+        "parallel": "Parallel {count}",
+        "eject": "Eject",
+        "eject_failed": "{name} could not be ejected: {error}",
+        "copy_id": "Copy the identifier",
+        "copied": "Identifier copied.",
+        "copy_failed": "The identifier could not be copied.",
+        "detail": "Detail and settings",
+        "detail_unavailable": "This file is not in the list of models of this computer: its settings do not open from here."
+      },
+      "exposed": {
+        "title": "Exposed agents and workflows",
+        "badge": "Exposed",
+        "badge_explanation": "Another application can call it through the local server, like a model.",
+        "agent_explanation": "An agent: it takes a message and answers once its work is done.",
+        "workflow_explanation": "A workflow: it takes a JSON object that carries its inputs.",
+        "inputs_message": "Inputs: message",
+        "inputs_fields": "Inputs: {names}",
+        "inputs_none": "Inputs: none",
+        "inputs_unknown": "Inputs: not read",
+        "governed": "Governed: access, consents, budget",
+        "error": "The list of exposed agents and workflows could not be read.",
+        "empty_title": "No exposed agent or workflow",
+        "empty_body": "Tick an agent or a workflow under \"Exposed agents and workflows\", in Settings › Developer: it will appear here under the identifier {identifier}, and its calls will stay governed.",
+        "empty_action": "Open Settings › Developer"
+      },
+      "endpoints": {
+        "title": "Supported endpoints",
+        "summary": "OpenAI: chat, responses, models, embeddings · Anthropic: messages · Apollia API",
+        "open": "Open the page of supported endpoints"
+      },
+      "docs": {
+        "tree_label": "Documentation pages",
+        "breadcrumb_label": "Breadcrumb",
+        "copy_markdown": "Copy as Markdown",
+        "copied": "Copied",
+        "copy_failed": "The page could not be copied.",
+        "view_on_web": "View on the web",
+        "previous": "Previous: {title}",
+        "next": "Next: {title}",
+        "previous_page": "Previous page",
+        "next_page": "Next page",
+        "loading": "Loading the page…",
+        "error": "This documentation page could not be read.",
+        "fallback": "This page is not available in your language yet: here it is in English.",
+        "diagram_on_web": "View the diagram on the web",
+        "admonition": {
+          "note": "Note",
+          "tip": "Tip",
+          "info": "Info",
+          "warning": "Warning",
+          "caution": "Caution",
+          "danger": "Danger"
+        },
+        "reference": {
+          "title": "HTTP reference",
+          "overview": "Overview",
+          "copy_absent": "Page generated from the API reference: there is no Markdown source to copy.",
+          "generated": "Page generated from the published API reference.",
+          "totals": "{operations} operations in {groups} groups, version {version}.",
+          "operations": "{count, plural, one {# operation} other {# operations}}",
+          "parameters": "Parameters",
+          "no_parameters": "No parameter.",
+          "body_required": "Body, required:",
+          "body_optional": "Body, optional:",
+          "responses": "Responses",
+          "yes": "yes",
+          "no": "no",
+          "column": {
+            "name": "Name",
+            "where": "In",
+            "type": "Type",
+            "required": "Required",
+            "description": "Description"
+          },
+          "where": {
+            "path": "path",
+            "query": "query",
+            "header": "header",
+            "cookie": "cookie",
+            "body": "body"
+          },
+          "method": {
+            "get": "Reads, and changes nothing.",
+            "post": "Creates a resource or starts an action.",
+            "put": "Replaces what exists.",
+            "patch": "Changes part of what exists.",
+            "delete": "Deletes.",
+            "other": "Queries the endpoint, and changes nothing."
+          }
+        }
+      },
+      "examples": {
+        "open": "Examples",
+        "title": "Examples to copy · {identifier}",
+        "curl_simple": "Simple cURL",
+        "curl_mcp": "cURL with an MCP server provided by the request",
+        "curl_tool": "cURL with a tool call",
+        "python": "Python",
+        "javascript": "JavaScript",
+        "sdk_choice": "Choice of the SDK",
+        "sdk_openai": "OpenAI SDK",
+        "sdk_anthropic": "Anthropic SDK",
+        "preview": "Preview: {name}",
+        "copy_entry": "Copy the example {name}",
+        "copied": "Example copied.",
+        "copy_failed": "The example could not be copied.",
+        "reason_models_only": "For models only: an agent or a workflow refuses the tools field and calls its own tools only.",
+        "reason_chat_only": "For models of type llm only: an embeddings model holds no conversation.",
+        "reason_mcp_off": "Turn on \"Allow MCP servers provided by the request\" in the Server settings to see this example.",
+        "mcp_note": "Replace the address with the one of your MCP server. Until a rule allows the tool the model calls, the expected answer is 409 approval_pending, which names that tool: set the rule, then send the request again.",
+        "prompt": "Hello",
+        "prompt_tool": "What is the weather in Paris?",
+        "prompt_mcp": "Which tools can you call?"
+      },
+      "mcp": {
+        "title": "Apollia as an MCP server",
+        "switch_label": "Expose Apollia as an MCP server",
+        "switch_hint": "An MCP client (Claude Desktop, a code editor) calls the checked agents and workflows as tools.",
+        "write_failed": "The MCP server setting could not be saved.",
+        "items_label": "Exposed agents and workflows",
+        "items_hint": "Check what an MCP client may call.",
+        "items_empty": "No agent or workflow installed yet. The ones you install from the Library will appear here, ready to check.",
+        "items_failed": "The agents and workflows could not be read: {error}",
+        "expose_failed": "{name} could not be updated.",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "config_label": "Paste into the configuration of the MCP client",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copy_failed": "The configuration could not be copied."
+      }
+    },
+    "chat": {
+      "prompt_template": {
+        "setting_label": "Always show the prompt template in the chat panel",
+        "setting_hint": "On, the Settings tab of the panel of a conversation shows, under the preset, the prompt template its model receives.",
+        "title": "Prompt template",
+        "source_preset": "The one of the preset of the conversation",
+        "source_engine": "The one the engine applies to the loaded model",
+        "source_unavailable": "Built into the model",
+        "unavailable": "Template built into the model, not readable here",
+        "copy": "Copy",
+        "copied": "Copied"
+      }
+    }
+  },
+  "ai": {
+    "column_title": "Models on this computer",
+    "categories_label": "Model categories",
+    "category": {
+      "all": "All",
+      "language": "Language models",
+      "embeddings": "Embeddings",
+      "dictation": "Dictation",
+      "draft": "Draft models"
+    },
+    "kind": {
+      "language": "Language model",
+      "language_explanation": "This model answers in conversations and does the work of the agents.",
+      "embeddings": "Embeddings",
+      "embeddings_explanation": "This model searches your sources and the memory by meaning. It does not converse.",
+      "dictation_explanation": "This model turns your voice into text for dictation. It does not converse."
+    },
+    "format_explanation": "The file format of the model. Apollia picks the engine that runs it from this: you have nothing to set.",
+    "loaded": {
+      "title": "Loaded",
+      "summary": "{count, plural, one {# model in memory, {size} GB} other {# models in memory, {size} GB}}",
+      "empty": "No model is loaded. A model loads the first time it is asked a question.",
+      "no_engine": "This computer runs no model by itself.",
+      "error": "The list of loaded models could not be read.",
+      "ready": "Ready",
+      "ready_explanation": "The model is in memory and answers without waiting to load.",
+      "answering": "Answering",
+      "answering_explanation": "The model is answering right now; it cannot be unloaded before its answer ends.",
+      "memory": "{size} GB in memory",
+      "since": "loaded {when}",
+      "unload": "Unload",
+      "unloaded_toast": "{name} unloaded, its memory is free.",
+      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes.",
+      "kept": "Kept in memory",
+      "kept_explanation": "This model stays loaded: it is not unloaded when it stays idle, nor when its last conversation closes.",
+      "pin": "Keep in memory",
+      "unpin": "Stop keeping in memory",
+      "pinned_toast": "{name} stays in memory.",
+      "unpinned_toast": "{name} is no longer kept in memory."
+    },
+    "installed": {
+      "title": "On this computer",
+      "filter_placeholder": "Filter models…",
+      "filter_label": "Filter models",
+      "import": "Import a file",
+      "discover": "Discover models",
+      "col_params": "Parameters",
+      "col_name": "Name",
+      "col_size": "Size",
+      "col_modified": "Modified",
+      "col_actions": "Actions",
+      "params_billions": "{n}B",
+      "params_millions": "{n}M",
+      "params_explanation": "The number of parameters of the model, in billions (B) or millions (M). The larger it is, the more capable the model, and the more memory it needs.",
+      "size": "{size} GB",
+      "group": "{label} · {count}",
+      "footer": "{count, plural, one {You have # model, taking up {size} GB.} other {You have # models, taking up {size} GB.}}",
+      "folder_label": "Models folder",
+      "pinned_explanation": "Pinned to top: this model stays first in its category.",
+      "empty_title": "No model on this computer",
+      "empty_hint": "Discover a model suited to your computer, or import a model file you already have.",
+      "empty_language": "No language model on this computer. Discover one to converse and to put your agents to work.",
+      "empty_embeddings": "No embeddings model on this computer. Without one, search goes by words alone.",
+      "empty_dictation": "No dictation model on this computer.",
+      "empty_draft": "A draft model is a small model of the same family as a larger one, which speeds up its answers. None is installed.",
+      "no_match": "No model matches “{query}”.",
+      "error": "The list of models on this computer could not be read.",
+      "import_title": "Import a model file"
+    },
+    "badge": {
+      "default": "Default",
+      "default_explanation": "The model conversations and agents answer with when no other is chosen.",
+      "search": "For search",
+      "search_explanation": "The model that searches your sources and the memory by meaning.",
+      "loaded": "Loaded",
+      "loaded_explanation": "This model is in memory right now.",
+      "unverified": "Unverified origin",
+      "unverified_explanation": "This file matches no published fingerprint: Apollia cannot vouch for where it comes from."
+    },
+    "capability": {
+      "vision": {
+        "label": "Vision",
+        "explanation": "This model can read images."
+      },
+      "tools": {
+        "label": "Tools",
+        "explanation": "This model has been trained to use tools."
+      },
+      "reasoning": {
+        "label": "Reasoning",
+        "explanation": "This model can think before it answers."
+      }
+    },
+    "menu": {
+      "more": "More actions on {name}",
+      "reveal_mac": "Show in Finder",
+      "reveal_windows": "Show in Explorer",
+      "reveal_linux": "Show in file manager",
+      "pin": "Pin to top",
+      "unpin": "Unpin from top",
+      "copy_id": "Copy identifier",
+      "copy_path": "Copy path",
+      "source": "View source",
+      "source_none": "This model was imported from a file: its page of origin is not known.",
+      "use_default": "Use by default",
+      "use_search": "Use for search",
+      "delete": "Delete"
+    },
+    "toast": {
+      "copied_id": "Identifier copied.",
+      "copied_path": "Path copied.",
+      "copy_failed": "The copy could not be made.",
+      "default_set": "{name} now answers by default.",
+      "search_set": "{name} now serves search. The sources and the memory are being indexed again.",
+      "deleted": "{name} deleted.",
+      "imported": "{name} imported."
+    },
+    "search_dialog": {
+      "title": "Use {name} for search?",
+      "message": "The sources and the memory will be indexed again with this model. While that runs, search by meaning may be incomplete.",
+      "confirm": "Use and index again"
+    },
+    "delete_dialog": {
+      "title": "Delete {name}?",
+      "message": "The file is removed from this computer. You will have to download or import it again to use it.",
+      "confirm": "Delete"
+    },
+    "servers": {
+      "title": "Servers",
+      "add": "Add a server",
+      "status": {
+        "active": "Active",
+        "active_explanation": "The server answers and its models are offered to conversations and agents.",
+        "disabled": "Disabled",
+        "disabled_explanation": "This server is disabled: its models are no longer offered.",
+        "checking": "Checking…",
+        "checking_explanation": "Apollia is asking the server for the list of its models.",
+        "unreachable": "Unreachable",
+        "unreachable_explanation": "The server does not answer at its address.",
+        "failing": "Failing",
+        "failing_explanation": "Something answers at this address, but not with the list of models."
+      },
+      "enabled_label": "Active",
+      "enabled_aria": "Enable or disable {name}",
+      "test": "Test",
+      "edit": "Edit",
+      "menu_more": "More actions on {name}",
+      "menu": {
+        "copy_address": "Copy address",
+        "delete": "Delete"
+      },
+      "address": "Address",
+      "key": "Key",
+      "key_saved": "Key saved",
+      "key_none": "No key",
+      "model_count": "{count, plural, =0 {No model} one {# model} other {# models}}",
+      "disabled_hint": "This server is disabled: its models are no longer offered to conversations or agents. Turn it back on with the \"Active\" switch.",
+      "loading": "Reading the models of the server…",
+      "no_models": "The server answers, but offers no model. Install or load a model on the server, then test again.",
+      "stale_hint": "Last known list of the models of this server.",
+      "col_model": "Model",
+      "col_window": "Context window",
+      "short_window": "Short window",
+      "short_window_explanation": "The server serves this model with a context window shorter than the one an agent needs.",
+      "window": "{tokens} tokens",
+      "window_unknown": "Not stated",
+      "short_window_warning": "The server opens {model} with a window of {window} tokens, where an agent expects {expected}. A long conversation or a task of several steps may be cut short. Only the person who runs this server can enlarge this window.",
+      "admin_note": "The loading settings of these models belong to the person who runs the server: Apollia does not change them.",
+      "models_label": "Models of the server",
+      "list_error": "The list of servers could not be read.",
+      "empty_title": "No server connected",
+      "empty_hint": "A server makes the models of your organization available without installing them on this computer.",
+      "toast": {
+        "enabled": "{name} is enabled.",
+        "disabled": "{name} is disabled: its models are no longer offered.",
+        "saved": "{name} is saved.",
+        "deleted": "{name} is deleted.",
+        "address_copied": "Address copied."
+      },
+      "delete_dialog": {
+        "title": "Delete the server {name}?",
+        "message": "Its models will no longer be offered and its key is forgotten. This cannot be undone.",
+        "confirm": "Delete",
+        "type_label": "To confirm, type the name of the server: {name}"
+      },
+      "form": {
+        "title_add": "Add a server",
+        "title_edit": "Edit {name}",
+        "intro": "Connect the AI server of your organization: Ollama, vLLM, TGI, LiteLLM or any OpenAI-compatible server. Its models become available to conversations and agents.",
+        "address_label": "Address",
+        "address_hint": "The address the server gives its clients, with http:// or https:// and its port, for example {example}. It often ends with /v1.",
+        "name_label": "Name",
+        "name_hint": "The name this server appears under in Apollia: lowercase letters, digits and hyphens.",
+        "name_fixed_hint": "The name of a saved server does not change: its models are addressed by it.",
+        "key_label": "Key",
+        "key_hint": "Only if the server asks for one. Apollia keeps it with its secrets, never in clear.",
+        "key_saved_hint": "A key is saved and is never shown. Leave the field empty to keep it, or type another one to replace it.",
+        "key_placeholder": "No key",
+        "key_saved_placeholder": "Key saved, type another one…",
+        "test": "Test",
+        "testing": "Testing…",
+        "save": "Save",
+        "untested_hint": "The test is not required: a server saved without one shows its models as soon as it answers.",
+        "test_ok": "{count, plural, one {Connection successful, # model found.} other {Connection successful, # models found.}}",
+        "save_anyway": "The test did not succeed. You can save anyway, for example if the server is off for now: its models will appear once it answers.",
+        "error": {
+          "required": "This field is required.",
+          "invalid_name": "Use only lowercase letters, digits, hyphens and underscores.",
+          "name_taken": "A server already has this name.",
+          "invalid_address": "The address must start with http:// or https://, followed by the name of the server and its port."
+        }
+      }
+    },
+    "discover": {
+      "title": "Discover models",
+      "search_placeholder": "Search the recognized publishers…",
+      "search_label": "Search a model among the official publishers and the recognized converters",
+      "categories_label": "Kinds of models",
+      "category_embeddings": "Search by meaning",
+      "selection": "Apollia selection",
+      "selection_explanation": "Models chosen and tried by the Apollia team. This mark is Apollia's own: it says nothing of the opinion of the model's publisher.",
+      "refresh": "Read the selection again",
+      "result_count": "{count, plural, =0 {No model} one {# model} other {# models}}",
+      "format_label": "Format of the models",
+      "sort_label": "Order of the models",
+      "sort": {
+        "best_match": "Best match",
+        "likes": "Likes",
+        "downloads": "Downloads",
+        "updated": "Recently updated"
+      },
+      "fits_only": "Only the selection that fits this device",
+      "capacity": "Based on an estimated capacity of {size} GB",
+      "offline_selection": "Offline: the selection stays readable, downloading waits for the network to come back.",
+      "offline_search": "Offline: searching needs the network. The Apollia selection stays readable once the field is emptied.",
+      "search_error": "The search did not go through: {detail}",
+      "no_result": "No model of the recognized publishers matches \"{query}\".",
+      "none_fits": "No model of the selection fits this device.",
+      "selection_empty": "The selection could not be read.",
+      "recommended_here": "Recommended for this computer",
+      "recommended_here_explanation": "The search-by-meaning model that fits this computer beside your language model.",
+      "publisher": {
+        "official": "Official publisher",
+        "official_explanation": "This repository belongs to the organization that trained the model.",
+        "converter": "Recognized converter",
+        "converter_explanation": "This repository republishes another publisher's model in a format this computer runs. Apollia recognizes this converter; the original publisher has no part in it."
+      },
+      "params_billions": "{n} billion",
+      "params_millions": "{n} million",
+      "downloads_explanation": "Downloads of the original repository over the last thirty days.",
+      "likes_explanation": "Likes the original repository received.",
+      "updated": "Updated {when}",
+      "fact": {
+        "publisher": "Publisher",
+        "parameters": "Parameters",
+        "architecture": "Model architecture",
+        "domain": "Domain",
+        "formats": "File formats",
+        "min_memory": "Minimum memory",
+        "license": "License",
+        "capabilities": "Capabilities",
+        "purpose": "What it is for"
+      },
+      "download_title": "Download options",
+      "variants_loading": "Reading the variants…",
+      "variant_bits": "{bits}-bit",
+      "variant_memory": "about {size} GB in memory",
+      "recommended": "Recommended",
+      "recommended_explanation": "Recommended for your hardware: a good balance of speed and quality.",
+      "downloaded": "Downloaded",
+      "on_this_computer_explanation": "This variant is already downloaded on this computer.",
+      "verdict": {
+        "fits": "Fits this computer",
+        "fits_explanation": "The whole model runs on the fastest memory of this computer.",
+        "might_fit": "Barely fits",
+        "might_fit_explanation": "The model runs, split between the graphics card and system memory: its answers will be slower.",
+        "too_large": "Too large",
+        "too_large_explanation": "This variant exceeds the memory this computer can give it. It may fail to load."
+      },
+      "status": {
+        "unavailable": "The variants of this model could not be read.",
+        "downloaded": "The chosen variant is already on this computer.",
+        "downloading": "Downloading. Follow it in the downloads panel, at the top of the window.",
+        "offline": "Offline: downloading is unavailable while the network is cut.",
+        "too_large": "The chosen variant is too large for this computer.",
+        "ready": "The download is verified on arrival, then the model appears under \"On this computer\"."
+      },
+      "download": "Download {size} GB",
+      "download_anyway": "Download {size} GB anyway",
+      "download_plain": "Download",
+      "download_started": "Download started. Follow or cancel it from the downloads panel.",
+      "token_needed": "This model has restricted access: store your Hugging Face token in the General settings, then start the download again.",
+      "options": {
+        "title": "Choose a download option",
+        "use_default": "Use default"
+      },
+      "offload": {
+        "label": "Full GPU offload possible",
+        "explanation": "Full GPU offload possible: the whole model fits in the memory of this computer's accelerator, which can make its answers much faster. Other factors (the architecture of the model, the integrity of the file, the memory free at load time) can still prevent it from loading."
+      },
+      "conversation": {
+        "use": "Use in a new conversation",
+        "reason": {
+          "not_downloaded": "The chosen variant is not on this computer yet: download it first.",
+          "not_listed": "The variant is on this computer, but it is not yet among the models you can talk to. Close this window, then open it again.",
+          "not_language": "This model does not converse: no conversation opens with it."
+        }
+      },
+      "author_fields": {
+        "title": "Author's own fields",
+        "subtitle": "Settings particular to this model, defined by its author",
+        "type_list": "list",
+        "type_boolean": "yes or no",
+        "default": "default: {value}",
+        "yes": "yes",
+        "no": "no"
+      },
+      "defaults": {
+        "title": "Default parameters",
+        "subtitle": "Values advised by the author of the model",
+        "off": "off",
+        "temperature": "Temperature",
+        "top_p": "Cumulative probability threshold (top-p)",
+        "top_k": "Number of choices kept (top-k)",
+        "min_p": "Minimum probability (min-p)",
+        "repetition_penalty": "Repetition penalty",
+        "presence_penalty": "Presence penalty"
+      },
+      "readme": {
+        "title": "Presentation text (README)",
+        "show": "Show the README",
+        "hide": "Hide the README",
+        "loading": "Reading the README at its source…",
+        "byline": "Repository {repo} · Author: {author} · License: {license}",
+        "license_none": "not declared",
+        "note": "Read at the source at your request; nothing is kept once closed.",
+        "error": "The README could not be read: {detail}"
+      },
+      "card_empty": "Choose a model on the left to read its card.",
+      "too_large": {
+        "title": "Download a variant that is too large?",
+        "message": "This variant weighs {size} GB, while this computer can give a model about {capacity} GB. It may fail to load. The recommended variant, when there is one, is the one that fits.",
+        "message_unknown": "This variant weighs {size} GB and exceeds the memory this computer can give a model. It may fail to load.",
+        "confirm": "Download anyway"
+      }
+    },
+    "panel": {
+      "sidebar_tab": "Model",
+      "open": "Model settings",
+      "open_named": "Settings of {name}",
+      "auto": "Auto",
+      "on": "On",
+      "off": "Off",
+      "tab": {
+        "info": "Info",
+        "load": "Loading",
+        "inference": "Inference"
+      },
+      "head": {
+        "use_in_chat": "Use in a new conversation",
+        "load": "Load",
+        "reason_embeddings": "This model serves search by meaning: it does not converse and loads by itself.",
+        "reason_dictation": "This model serves dictation: it does not converse and loads by itself."
+      },
+      "info": {
+        "model": "Model",
+        "file": "File",
+        "format": "Format",
+        "quantization": "Quantization",
+        "architecture": "Architecture",
+        "capabilities": "Capabilities",
+        "domain": "Domain",
+        "size": "Size on disk",
+        "unknown": "Not stated",
+        "no_capability": "None known",
+        "usage_title": "Identifier",
+        "usage_hint": "The name an agent or a request names this model by."
+      },
+      "preset": {
+        "label": "Preset",
+        "none": "No preset: everything is automatic",
+        "default_explanation": "This preset applies to this model when no other is chosen.",
+        "save_as": "Save as a preset",
+        "save": "Save changes",
+        "set_default": "Set as default for this model",
+        "name_label": "Preset name",
+        "name_placeholder": "Preset name",
+        "save_confirm": "Save",
+        "error_name_empty": "Give the preset a name.",
+        "error_name_taken": "This model already has a preset of that name.",
+        "saved": "Preset \"{name}\" saved.",
+        "default_set": "\"{name}\" is now the default preset of this model.",
+        "invalid": "A setting cannot be read. Correct it, then save again.",
+        "load_settings_refused": "Load settings are not saved to a preset while \"Load settings in presets\" is off (Settings, Developer)."
+      },
+      "error": {
+        "integer": "Enter a whole number.",
+        "number": "Enter a number.",
+        "range": "This value is outside the accepted limits.",
+        "choice": "Choose one of the values offered.",
+        "schema_json": "This text is not valid JSON.",
+        "schema_object": "Enter a JSON Schema, between braces."
+      },
+      "load": {
+        "none": "No configurable parameters",
+        "readonly": "Everything is automatic. To fix these settings in a preset, turn on \"Load settings in presets\" (Settings, Developer). For one load only, go through \"Load\".",
+        "relaunch_warning": "This model is in memory: it will be relaunched to take these load settings.",
+        "draft": {
+          "none": "None",
+          "note": "Only the draft models of the same vocabulary as this model are offered.",
+          "unavailable": "{id} (unavailable)",
+          "unavailable_note": "The draft model of this preset is no longer offered for this model: it will load without a draft model."
+        },
+        "section": {
+          "context": "Context and offload",
+          "speculative": "Speculative decoding",
+          "advanced": "Advanced"
+        },
+        "field": {
+          "draft_model": {
+            "label": "Draft model",
+            "help": "A small model of the same vocabulary proposes what comes next and this model checks it: same answer, faster."
+          },
+          "n_ctx": {
+            "label": "Context length",
+            "help": "The number of tokens the model keeps in mind in one request. The larger it is, the more memory it takes."
+          },
+          "n_gpu_layers": {
+            "label": "GPU offload",
+            "help": "The number of layers of the model placed on the graphics card. -1 places them all."
+          },
+          "n_threads": {
+            "label": "CPU thread pool size",
+            "help": "The number of processor threads used for computation."
+          },
+          "n_batch": {
+            "label": "Evaluation batch size",
+            "help": "The number of tokens evaluated at once when the prompt is read."
+          },
+          "n_ubatch": {
+            "label": "Physical batch size",
+            "help": "The number of tokens the engine really processes in one pass."
+          },
+          "n_parallel": {
+            "label": "Max concurrency",
+            "help": "The number of requests the model serves at the same time. Each takes its share of the context."
+          },
+          "kv_unified": {
+            "label": "Unified context cache",
+            "help": "One context cache shared by every concurrent request, instead of a fixed share each."
+          },
+          "ctx_checkpoints": {
+            "label": "Context checkpoints",
+            "help": "The number of checkpoints kept per request, to avoid reading a long context all over again."
+          },
+          "reasoning_budget": {
+            "label": "Reasoning budget",
+            "help": "The number of tokens the model may spend thinking. -1 does not limit it, 0 keeps it from thinking."
+          },
+          "reasoning_budget_message": {
+            "label": "Reasoning budget message",
+            "help": "The text added when the reasoning budget is spent."
+          },
+          "rope_freq_base": {
+            "label": "RoPE frequency base",
+            "help": "The base frequency of position encoding. Leave \"Auto\" for the one of the model."
+          },
+          "rope_freq_scale": {
+            "label": "RoPE frequency scale",
+            "help": "The factor applied to the frequency of position encoding. Leave \"Auto\" for the one of the model."
+          },
+          "kv_offload": {
+            "label": "Offload context cache to GPU memory",
+            "help": "Keeps the context cache in the memory of the graphics card. Off, it stays in system memory."
+          },
+          "mlock": {
+            "label": "Keep model in memory",
+            "help": "Keeps the system from moving the model to disk when memory runs short."
+          },
+          "mmap": {
+            "label": "Try mmap()",
+            "help": "The system reads the file of the model as needed instead of loading it whole."
+          },
+          "seed": {
+            "label": "Seed",
+            "help": "The number that fixes the randomness of the engine. Leave \"Auto\" for a random seed."
+          },
+          "chat_template": {
+            "label": "Chat template",
+            "help": "The Jinja template that lays out the messages for the model. Leave \"Auto\" for the one of the model."
+          },
+          "flash_attn": {
+            "label": "Flash attention",
+            "help": "A faster and leaner way to compute attention, when the hardware allows it."
+          },
+          "cache_type_k": {
+            "label": "K cache quantization type",
+            "help": "The precision of the keys of the context cache. Less precise, it takes less memory."
+          },
+          "cache_type_v": {
+            "label": "V cache quantization type",
+            "help": "The precision of the values of the context cache. Less precise, it takes less memory."
+          }
+        }
+      },
+      "inference": {
+        "section": {
+          "settings": "Settings",
+          "sampling": "Sampling",
+          "structured": "Structured output"
+        },
+        "field": {
+          "temperature": {
+            "label": "Temperature",
+            "help": "The share of randomness in the answers. Low, the model is more consistent; high, more varied."
+          },
+          "max_tokens": {
+            "label": "Limit response length",
+            "help": "The number of tokens an answer does not exceed."
+          },
+          "stop": {
+            "label": "Stop strings",
+            "help": "The texts that end the answer as soon as the model writes them. One per line."
+          },
+          "top_k": {
+            "label": "Top K sampling",
+            "help": "The model only chooses among the k most likely words."
+          },
+          "repeat_penalty": {
+            "label": "Repeat penalty",
+            "help": "Discourages the model from repeating words already written. 1 changes nothing."
+          },
+          "presence_penalty": {
+            "label": "Presence penalty",
+            "help": "Encourages the model to bring up what it has not talked about yet."
+          },
+          "top_p": {
+            "label": "Top P sampling",
+            "help": "The model only chooses among the words that gather this share of the probability."
+          },
+          "min_p": {
+            "label": "Min P sampling",
+            "help": "Sets aside the words whose probability is below this share of that of the most likely word."
+          }
+        },
+        "structured": {
+          "label": "Structured output",
+          "help": "Advanced: you can provide a JSON Schema to enforce a particular output format from the model. Read the documentation to learn more.",
+          "schema_label": "JSON Schema",
+          "placeholder": "{ \"type\": \"object\", \"properties\": {} }"
+        },
+        "author": {
+          "title": "Author fields",
+          "hint": "What the author of the model sets by default. Read only: nothing is changed or sent from here.",
+          "default": "Default: {value}",
+          "values": "Values: {values}",
+          "on": "on",
+          "off": "off"
+        }
+      }
+    },
+    "engine": {
+      "megabytes": "{n} MB",
+      "version_day": "version of {day}",
+      "version_number": "build {tag}",
+      "download_weight": "{size} to download. Its signature is verified before any download.",
+      "signature_promise": "Its signature is verified before any download.",
+      "folder_picker_title": "Folder of the engine to import",
+      "proposal": {
+        "title": "Speed up with your NVIDIA card",
+        "body": "{card} detected. The accelerated engine uses it so your models answer markedly faster.",
+        "body_unnamed": "NVIDIA card detected. The accelerated engine uses it so your models answer markedly faster."
+      },
+      "update": {
+        "title": "New engine version available",
+        "body": "NVIDIA accelerated engine, {latest}. You are using the {installed}.",
+        "body_latest": "NVIDIA accelerated engine, {latest}."
+      },
+      "progress": {
+        "install_title": "Installing the accelerated engine",
+        "install_body": "You can keep using Apollia during the installation.",
+        "update_title": "Updating the accelerated engine",
+        "update_title_version": "Updating the accelerated engine, {version}",
+        "update_body": "The current engine stays in use until the update ends.",
+        "import_title": "Importing the accelerated engine",
+        "import_body": "The chosen folder is verified before anything is installed."
+      },
+      "step": {
+        "signature": "Signature verification",
+        "signature_done": "Signature verified",
+        "signature_key": "Apollia key",
+        "refused": "refused",
+        "download": "Download",
+        "download_pending": "{size}, after the verification",
+        "after_verification": "after the verification",
+        "download_progress": "{received} of {total}",
+        "not_started": "not started",
+        "installation": "Installing"
+      },
+      "eta": {
+        "minutes": "about {n} min",
+        "under_minute": "less than a minute"
+      },
+      "installed": {
+        "title": "Accelerated engine installed",
+        "body": "The next model load will use your NVIDIA card.",
+        "update_title": "Accelerated engine updated",
+        "update_body": "The next model load will use the new version.",
+        "body_loaded": "The next model load will use it. Models already loaded keep the current engine: reload them to benefit.",
+        "reloaded_toast": "{count, plural, one {# model reloaded with the accelerated engine.} other {# models reloaded with the accelerated engine.}}",
+        "reload_busy_toast": "{count, plural, one {# model is answering right now and keeps the current engine. Reload it once its answer ends.} other {# models are answering right now and keep the current engine. Reload them once their answers end.}}"
+      },
+      "refusal": {
+        "title": {
+          "install": "Installation stopped: {cause}",
+          "update": "Update stopped: {cause}",
+          "import": "Import refused: {cause}"
+        },
+        "cause": {
+          "list_altered": "file list altered",
+          "unknown_key": "signature from an unknown key",
+          "older_version": "older version",
+          "signature_missing": "signature missing",
+          "signature_invalid": "signature invalid",
+          "archive_altered": "archive altered",
+          "network": "server unreachable",
+          "other": "engine not found or unreadable"
+        },
+        "body": {
+          "list_altered": "The file list published for this engine was altered after it was signed: it could not be authenticated.",
+          "unknown_key": "The file list published for this engine is signed by a key that is not Apollia's.",
+          "older_version": "The file list offered is older than the one this computer already accepted: going back is refused.",
+          "signature_missing": "The chosen folder does not hold the signature of the engine.",
+          "signature_invalid": "The signature of the folder does not come from Apollia or does not match its files.",
+          "archive_altered": "The digest of the archive does not match the one that was signed: the file was altered or damaged during the copy.",
+          "network": "The server that publishes the engine did not answer. Check the connection, or import the engine from a folder.",
+          "other": "No engine usable on this computer was found, or its files could not be read."
+        },
+        "nothing_downloaded": "No file was downloaded.",
+        "nothing_installed": "Nothing was installed.",
+        "current_kept": "The current engine stays in use."
+      },
+      "action": {
+        "later": "Later",
+        "import": "Import from a folder",
+        "accelerate": "Speed up",
+        "update": "Update",
+        "cancel": "Cancel",
+        "close": "Close",
+        "other_folder": "Choose another folder",
+        "reload": "Reload the models"
+      }
     }
   },
   "governance": {
@@ -5220,6 +6349,59 @@
     "empty_body": "The actions of the agents and the access changes will be written here.",
     "empty_filtered_title": "No entry matches these filters",
     "empty_filtered_body": "Widen the period or clear the filters to see the whole journal again.",
+    "export": {
+      "action": "Export",
+      "title": "Export the journal",
+      "intro": "The export takes over the filters in force: {filters}. It holds every entry that matches them, not only the ones shown.",
+      "format": "File format",
+      "format_csv": "CSV, to open in a spreadsheet",
+      "format_pdf": "PDF, to print or to archive",
+      "pdf_hint": "The PDF goes through the print dialog of your system: choose to save as PDF there.",
+      "content": "Content",
+      "summary_always": "Always included: the summary of each entry (who, what, target, when, result).",
+      "include_detail": "Include the detail (parameters of each action)",
+      "personal_data": "Contains personal data: addresses, file names, recipients. Share this file with care.",
+      "detail_required_badge": "Required by the policy",
+      "detail_required": "Your organization requires the detail in every export.",
+      "detail_forbidden_badge": "Forbidden by the policy",
+      "detail_forbidden": "The detail cannot be exported: the policy of your organization forbids it. The export holds the summary alone.",
+      "cancel": "Cancel",
+      "confirm": "Export",
+      "csv_file": "CSV file",
+      "written": "Journal exported: {path}",
+      "failed": "The export could not be made: {message}"
+    },
+    "verify": {
+      "action": "Verify integrity",
+      "running": "Verifying…",
+      "failed": "The verification could not be made: {message}",
+      "intact_title": "The journal is intact",
+      "intact_origin": "{count, plural, one {The only entry of the journal, since its beginning, was not modified.} other {The # entries of the journal, since its beginning, were neither modified nor moved, and none was inserted.}}",
+      "intact_purge": "{count, plural, one {The only entry of the journal, since {date} (last purge), was not modified.} other {The # entries of the journal, since {date} (last purge), were neither modified nor moved, and none was inserted.}}",
+      "empty_title": "The journal is empty",
+      "empty_body": "There is no entry to verify yet.",
+      "altered_title": "Alteration detected at entry {entry}",
+      "altered_body": "Entry {entry} no longer matches what was written. From this entry on, the journal can no longer serve as proof.",
+      "altered_before": "{count, plural, =0 {No verified entry precedes it.} one {The entry that precedes it is intact.} other {The # entries that precede it are intact.}}",
+      "since_purge": "The verification starts on {date}, the first entry the last purge kept.",
+      "end_title": "Alteration detected at the end of the journal",
+      "end_body": "{count, plural, =0 {The journal holds no entry any more, though it had recorded some: entries were removed, or its state was replaced.} one {The entry present is intact, but it is not the last one the journal had recorded: entries were removed at the end, or its state was replaced.} other {The # entries present follow one another, but the last is not the one the journal had recorded: entries were removed at the end, or its state was replaced.}}",
+      "limit": "Limit: a removal of the last entries may not show here. It is only caught for certain with an anchor exported beforehand and kept elsewhere; an export of the journal made earlier stands for one, for the entries it holds.",
+      "checked_at": "Verified on {date} at {time}.",
+      "export_as_is": "Export the journal as it is",
+      "close": "Close"
+    },
+    "print": {
+      "summary": "Exported on {date} · {filters} · {count, plural, =0 {no entry} one {# entry} other {# entries}}, newest first",
+      "detail_note": "This export holds the detail of each entry: it may contain personal data.",
+      "hint": "Preview of the page. The print dialog of your system prints it or saves it as a PDF.",
+      "print": "Print or save as PDF",
+      "close": "Close the preview",
+      "place": "Place in the journal",
+      "place_value": "{run} · no. {seq}",
+      "empty": "No entry matches these filters.",
+      "failed": "The print dialog could not open: {message}"
+    },
     "tab_entry": "Entry",
     "detail": {
       "agent": "Agent",
@@ -5623,5 +6805,14 @@
     "remove_message": "“{name}” is removed for every agent that consults it, and what Apollia had read of it is erased. Your files and messages are not touched.",
     "remove_confirm": "Remove the source",
     "remove_failed": "This source could not be removed."
+  },
+  "presets": {
+    "save_confirm": {
+      "title": "Save to a preset?",
+      "message": "These changed settings will be saved to the preset:",
+      "message_named": "These changed settings will be saved to the preset \"{name}\":",
+      "no_fields": "No setting was changed: the preset will take the settings shown.",
+      "confirm": "Save"
+    }
   }
 }

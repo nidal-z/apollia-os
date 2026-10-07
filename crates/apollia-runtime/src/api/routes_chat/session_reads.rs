@@ -233,4 +233,4 @@ fn failure(status: StatusCode, error: String) -> ApiError {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

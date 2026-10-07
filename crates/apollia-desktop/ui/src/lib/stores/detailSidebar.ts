@@ -11,9 +11,10 @@ import { derived, get, writable, type Readable } from "svelte/store";
  * Tabs the column can show. The Guide tab exists on every screen; `entry` is
  * the contextual tab of the journal, offered while one of its entries is open;
  * `item` is the contextual tab of the view of a batch, offered while one of
- * its items is open.
+ * its items is open; `model` is the contextual tab of the AI screen, offered
+ * while the panel of one of its models is open.
  */
-export type DetailSidebarTab = "guide" | "entry" | "item";
+export type DetailSidebarTab = "guide" | "entry" | "item" | "model";
 
 export interface DetailSidebarState {
   /** `true` while the column is shown. */
@@ -37,9 +38,11 @@ export function shownTab(
   tab: DetailSidebarTab,
   entryOffered: boolean,
   itemOffered = false,
+  modelOffered = false,
 ): DetailSidebarTab {
   if (tab === "entry" && entryOffered) return "entry";
   if (tab === "item" && itemOffered) return "item";
+  if (tab === "model" && modelOffered) return "model";
   return "guide";
 }
 
@@ -103,6 +106,19 @@ export const detailSidebar = {
    */
   closeItem(): void {
     state.update((s) => (s.tab === "item" ? { open: false, tab: "guide" } : s));
+  },
+
+  /** Opens the column on the contextual tab of the AI screen. */
+  openModel(): void {
+    state.set({ open: true, tab: "model" });
+  },
+
+  /**
+   * Leaves the contextual tab of the AI screen: the column collapses when
+   * that tab was the one shown, and the next opening is on the Guide tab.
+   */
+  closeModel(): void {
+    state.update((s) => (s.tab === "model" ? { open: false, tab: "guide" } : s));
   },
 
   /** Restores the initial state (tests). */

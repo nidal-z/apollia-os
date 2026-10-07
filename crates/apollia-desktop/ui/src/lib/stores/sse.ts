@@ -11,6 +11,7 @@ import { writable, get } from "svelte/store";
 import { t } from "svelte-i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit, type UnlistenFn } from "@tauri-apps/api/event";
+import { listLlmBackends } from "$lib/ipc/llm";
 import {
   isPermissionGranted,
   requestPermission,
@@ -145,8 +146,7 @@ async function refreshTasksViaIpc(): Promise<boolean> {
 
 async function refreshLlmBackendsViaIpc(): Promise<boolean> {
   try {
-    const result: LlmBackendConfig[] = await invoke("list_llm_backends");
-    llmBackends.set(result);
+    llmBackends.set(await listLlmBackends());
     llmBackendsHydrated.set(true);
     return true;
   } catch {

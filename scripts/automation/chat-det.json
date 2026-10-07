@@ -3,7 +3,9 @@
   "stopOnError": false,
   "dynamicTestids": [
     "quickpicker-agent-seed-classifier",
-    "settings-nav-developer"
+    "settings-nav-developer",
+    "settings-nav-chat",
+    "settings-nav-appearance"
   ],
   "steps": [
     {
@@ -173,6 +175,511 @@
       "ms": 200
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_chat_targets",
+      "resolve": {
+        "agents": [
+          {
+            "id": "apollia:chat",
+            "name": "Apollia",
+            "enabled": true,
+            "model": null
+          }
+        ],
+        "installed": [
+          {
+            "id": "Phi-3-mini-Q4",
+            "path": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+            "category": "language",
+            "format": "gguf",
+            "parameters": null
+          }
+        ],
+        "servers": [],
+        "default_model": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": null,
+        "models": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_model_pins",
+      "resolve": {
+        "pins": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_last_loaded_model",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "load": {},
+        "loadedAt": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 2.1,
+          "totalGb": 2.5,
+          "capacityGb": 16.0,
+          "fit": "fits",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "allowed",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-memory-total",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-memory"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-file"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-memory-gpu"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-title",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-format-badge",
+      "contains": "GGUF"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-quantization",
+      "contains": "Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-context-input"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-context-slider"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-context-max"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-offload-input"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-offload-total",
+      "contains": "32"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-context-help"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-offload-help"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-offload-slider"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-remember"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-pin"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-submit"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-advanced-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-advanced",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-kv-offload"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-model-load-window"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-reload-last",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-reload-last-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-reload-last-model",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-target-selector-empty"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "estimate_model_load"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 19.6,
+          "totalGb": 21.4,
+          "capacityGb": 16.0,
+          "fit": "too_large",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "refused",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-refusal-figures",
+      "contains": "16"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-model-load-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-confirm-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "load_model",
+      "reject": "automation: load refused"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-confirm-confirm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-error",
+      "contains": "automation: load refused",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "load_model"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-close"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "estimate_model_load"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "vllm-mlx",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": false,
+        "nCtx": 4096,
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "allowed",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-no-settings",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-memory-unknown"
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-format-badge",
+      "contains": "MLX"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-back"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "estimate_model_load"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "reject": "automation: estimate refused"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-estimate-error",
+      "contains": "automation: estimate refused",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "estimate_model_load"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 2.1,
+          "totalGb": 2.5,
+          "capacityGb": 16.0,
+          "fit": "fits",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "allowed",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "reload_last_loaded_model",
+      "reject": "automation: reload refused"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-reload-last-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-notice",
+      "contains": "automation: reload refused",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "model-load-title",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
       "kind": "click",
       "testid": "quickpicker-toggle-agents"
     },
@@ -331,6 +838,10 @@
     {
       "kind": "expect",
       "testid": "chat-conversation"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-model-eject"
     },
     {
       "kind": "expect",
@@ -763,7 +1274,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 6000
     },
     {
@@ -788,16 +1299,16 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-config-tab"
+      "testid": "chat-inspector-settings-tab"
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
       "timeoutMs": 10000
     },
     {
       "kind": "expect",
-      "testid": "chat-inspector-config"
+      "testid": "chat-inspector-session"
     },
     {
       "kind": "screenshot",
@@ -805,60 +1316,245 @@
     },
     {
       "kind": "expect",
-      "testid": "config-system-prompt"
+      "testid": "session-instructions-field"
     },
     {
       "kind": "fill",
-      "testid": "config-system-prompt",
+      "testid": "session-instructions-field",
       "text": "You are a deterministic test assistant."
     },
     {
+      "kind": "sleep",
+      "ms": 900
+    },
+    {
       "kind": "expect",
-      "testid": "config-step-budget"
+      "testid": "session-preset-select"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-option-none"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-menu"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-file"
     },
     {
       "kind": "fill",
-      "testid": "config-step-budget",
-      "text": "5"
+      "testid": "session-preset-file",
+      "text": "this file is not a preset"
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "config-backend-",
-      "nth": 0,
+      "testid": "session-preset-error",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-instructions-count"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-response-summary"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-notes-summary"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-save-as-preset"
+    },
+    {
+      "kind": "click",
+      "testid": "session-response-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-context-overflow",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-temperature"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-temperature-slider"
+    },
+    {
+      "kind": "click",
+      "testid": "session-limit-length"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-max-tokens",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-modified"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-preset-differs"
+    },
+    {
+      "kind": "click",
+      "testid": "session-apply-to-agent"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-apply-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-apply-preset-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-apply-instructions"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-apply-mission-preview"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-apply-confirm"
+    },
+    {
+      "kind": "click",
+      "testid": "session-apply-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-apply-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "session-preset-discard"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-max-tokens",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "session-notes-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-notes-field",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-notes-field",
+      "text": "Deterministic note."
+    },
+    {
+      "kind": "expect",
+      "testid": "session-notes-status"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-integrations-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-session-integrations",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-profile"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-profile-switch"
+    },
+    {
+      "kind": "expect",
+      "testid": "toggle-profile-access"
+    },
+    {
+      "kind": "click",
+      "testid": "toggle-profile-access"
+    },
+    {
+      "kind": "screenshot",
+      "label": "19-session-profile-switch (an installed agent may read the profile)"
+    },
+    {
+      "kind": "click",
+      "testid": "toggle-profile-access"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "toggle-profile-access",
       "timeoutMs": 2500
     },
     {
       "kind": "expect",
-      "testid": "toggle-user-memory"
-    },
-    {
-      "kind": "click",
-      "testid": "toggle-user-memory"
-    },
-    {
-      "kind": "screenshot",
-      "label": "19-config-memory-toggle"
-    },
-    {
-      "kind": "click",
-      "testid": "toggle-user-memory"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "context-window-bar",
-      "timeoutMs": 2500
+      "testid": "config-profile-select"
     },
     {
       "kind": "expect",
-      "testid": "config-save"
+      "testid": "session-accesses"
+    },
+    {
+      "kind": "expect",
+      "testid": "session-access-filter"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-row",
+      "timeoutMs": 10000
     },
     {
       "kind": "click",
-      "testid": "config-save"
+      "testid": "session-access-switch"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-badge",
+      "timeoutMs": 5000
     },
     {
       "kind": "screenshot",
-      "label": "20-config-saved"
+      "label": "20-session-access-switched"
+    },
+    {
+      "kind": "click",
+      "testid": "session-access-switch"
+    },
+    {
+      "kind": "fill",
+      "testid": "session-access-filter",
+      "text": "no-access-carries-this-name"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-empty",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "session-access-filter",
+      "text": ""
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-row",
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
@@ -1106,7 +1802,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 6000
     },
     {
@@ -1402,11 +2098,11 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-config-tab"
+      "testid": "chat-inspector-settings-tab"
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
       "timeoutMs": 10000
     },
     {
@@ -1496,7 +2192,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 6000
     },
     {
@@ -1517,7 +2213,7 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-config-tab"
+      "testid": "chat-inspector-settings-tab"
     },
     {
       "kind": "sleep",
@@ -1526,6 +2222,170 @@
     {
       "kind": "screenshot",
       "label": "35-inspector-config-builder (plan-review / error / cross-session / next-steps families render only on their live state: screenshot best-effort, never hard-asserted)"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-integrations-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-session-integrations",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "click",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35b-integrations-builder (free conversation: the profile is known, identifiers shown)"
+    },
+    {
+      "kind": "click",
+      "testid": "toggle-user-memory"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "toggle-user-memory",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-access-group",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-access-id"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-show-prompt-template",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-show-prompt-template-switch"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-settings-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-prompt-template-unavailable",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "session-prompt-template-source"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35b-inspector-prompt-template-builtin (developer mode: no engine runs, the template is the one built into the model)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_chat_prompt_template",
+      "resolve": {
+        "source": "engine",
+        "template": "{%- for message in messages %}{{ message.content }}{%- endfor %}"
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-settings-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-prompt-template-text",
+      "contains": "message.content",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-prompt-template-unavailable",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "session-prompt-template-copy"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35c-inspector-prompt-template-engine"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-show-prompt-template",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-show-prompt-template-switch"
     },
     {
       "kind": "goto",
@@ -1653,6 +2513,410 @@
       "kind": "waitFor",
       "testid": "chat-conversation-header",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-split-button"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40a-split-two-panes (the second pane is empty and active)"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "nth": 1,
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 0,
+      "text": "Left pane draft, not sent."
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 1,
+      "text": "Right pane draft, not sent."
+    },
+    {
+      "kind": "screenshot",
+      "label": "40b-split-two-drafts (one composer per pane)"
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 0,
+      "text": ""
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "nth": 1,
+      "text": ""
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_chat_targets",
+      "resolve": {
+        "agents": [
+          {
+            "id": "apollia:chat",
+            "name": "Apollia",
+            "enabled": true,
+            "model": null
+          }
+        ],
+        "installed": [
+          {
+            "id": "Phi-3-mini-Q4",
+            "path": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+            "category": "language",
+            "format": "gguf",
+            "parameters": null
+          }
+        ],
+        "servers": [],
+        "default_model": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_loaded_models",
+      "resolve": {
+        "engineAvailable": true,
+        "maxLoaded": null,
+        "models": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_model_pins",
+      "resolve": {
+        "pins": []
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "estimate_model_load",
+      "resolve": {
+        "modelId": "Phi-3-mini-Q4",
+        "engine": "llama-server",
+        "modelPath": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+        "configurable": true,
+        "nCtx": 4096,
+        "nGpuLayers": 32,
+        "totalLayers": 32,
+        "maxCtx": 131072,
+        "quantization": "Q4",
+        "memory": {
+          "gpuGb": 20.0,
+          "totalGb": 24.0,
+          "capacityGb": 16.0,
+          "fit": "too_large",
+          "kvCacheMeasured": true
+        },
+        "guardrail": {
+          "level": "balanced",
+          "verdict": "refused",
+          "budgetGb": 16.0
+        }
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-model-option",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-pane-refusal-title",
+      "contains": "Phi-3-mini-Q4"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "40c-split-pane-refusal (the load guardrail refuses in the first pane only)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-refusal-choose",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-model-option",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-refusal-load",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-refusal",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-refusal",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-dialog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-panes",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "appearance-tab-scrollbar",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-tab-scrollbar-toggle",
+      "checked": true
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-panes",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 900,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane-tabs",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-pane-tab",
+      "nth": 1
+    },
+    {
+      "kind": "screenshot",
+      "label": "40d-split-narrow-tabs (900 px: one pane at a time, the others behind tabs, the tab scroll bar turned on in Appearance)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-tab",
+      "nth": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-tab",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane-tabs",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-appearance"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "appearance-tab-scrollbar",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "appearance-tab-scrollbar-toggle",
+      "checked": false
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-panes",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-pane",
+      "nth": 1
+    },
+    {
+      "kind": "click",
+      "testid": "chat-close-button",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-split-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pane",
+      "nth": 3,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40e-split-four-panes (the split button is disabled at four)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pane-close",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pane",
+      "nth": 1,
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -2368,12 +3632,12 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-config-tab",
+      "testid": "chat-inspector-settings-tab",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "chat-config-panel",
+      "testid": "chat-session-settings",
       "timeoutMs": 8000
     },
     {
@@ -2512,7 +3776,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "agents"
     },
     {
       "kind": "waitFor",
@@ -2664,7 +3928,7 @@
     },
     {
       "kind": "goto",
-      "route": "dashboard"
+      "route": "agents"
     },
     {
       "kind": "waitFor",
@@ -2686,7 +3950,7 @@
     }
   ],
   "notes": [
-    "Stubs that imitate a backend type, and the type they copy: meta_rewrite_input resolves a RewriteInputIpcResponse (crates/apollia-desktop/src/commands/meta_rewrite.rs, camelCase rewrittenText + fallback in noRouter/noBackend/callFailed/emptyAnswer), armed once per click so the composer and the picker each see one fallback and one success; list_mcp_resources resolves one McpResourceView (lib/chat/mcpResources.ts: server, uri, name, mime_type, description), armed before the first mention open of the composer because ChatInput loads the list once per instance (resourcesLoaded); get_chat_session is rejected with a sqlite-worded string (classifySessionError, lib/stores/runtimeHealth.ts) for the corrupted panel and patched with status closed under argsMatch seed-session-1 for the end-of-session panel; plugin:opener|open_url resolves null so the link-preview-fallback click never reaches the host browser. Every stub is cleared before the block that armed it ends, and the page is reloaded (dashboard then chat) after the fault blocks.",
+    "Stubs that imitate a backend type, and the type they copy: meta_rewrite_input resolves a RewriteInputIpcResponse (crates/apollia-desktop/src/commands/meta_rewrite.rs, camelCase rewrittenText + fallback in noRouter/noBackend/callFailed/emptyAnswer), armed once per click so the composer and the picker each see one fallback and one success; list_mcp_resources resolves one McpResourceView (lib/chat/mcpResources.ts: server, uri, name, mime_type, description), armed before the first mention open of the composer because ChatInput loads the list once per instance (resourcesLoaded); get_chat_session is rejected with a sqlite-worded string (classifySessionError, lib/stores/runtimeHealth.ts) for the corrupted panel and patched with status closed under argsMatch seed-session-1 for the end-of-session panel; plugin:opener|open_url resolves null so the link-preview-fallback click never reaches the host browser. Every stub is cleared before the block that armed it ends, and the page is reloaded (agents then chat) after the fault blocks.",
     "chat-mention-menu-item is clicked for the record but the pin itself is done by Enter: the item's handler is onmousedown (MentionResourceMenu.svelte), which el.click() never fires, so the press step targets the active element, the textarea insertTrigger focused (ChatInput.svelte).",
     "session-corrupted-delete deletes the session the block itself creates through the picker (the reject stub carries no argsMatch, so the freshly created session's first load is the one it answers); no seeded row is touched, which is why the block lives here and not in destructive.json. session-corrupted-export is a blob download anchor: wry 0.55.1 (src/wkwebview/navigation.rs) cancels a shouldPerformDownload navigation when no download handler is registered, and crates/apollia-desktop/src registers none, so the click is inert on macOS.",
     "Seeded sessions are opened through the command palette (command-item-session.<id>, paletteIndex.ts). The group is fed by recentSessionsStore, which persists apollia.commandPalette.recentSessions in the webview's real localStorage (not in the runner's reset list) and, once any touched id resolves, lists only touched ids; this book touches seed-session-2 then seed-session-1 on every run, so both stay listed across runs. goto.sessionId is reserved for the ghost id, as types.ts asks.",
@@ -2700,6 +3964,10 @@
     "The reasoning list's show-more and collapse are played on a seeded turn (seed-session-4, twelve thinking fragments and four tool calls in tests/cli/seed/fragments/chat.sql), not on a model answer: the list collapses past COLLAPSE_ITEM_THRESHOLD = 10 items (lib/chat/reasoning.ts), a count a model reaches only when it happens to take enough steps.",
     "The operator journal is read on the seeded turn: its fourth tool call is seeded failed, and the journal had no branch for that status, so it announced an executed-and-errored call as awaiting approval. The two expects hold the branch that now exists: the first tool row reads executed, the fourth reads failed.",
     "The trash is played on the session the block itself creates through the picker: the row delete sends it to the trash (Settings > Chat keeps the trash on by default), chat-trash-restore puts it back first in the list (the default sort is newest created first), it is deleted again, and chat-trash-erase removes it for good after one cancelled confirmation. No seeded row is touched and the trash is empty before and after, which is why the block lives here and not in destructive.json. Written against the source and validated statically; not yet through a runtime round.",
-    "The folders are played on a folder the block itself creates and deletes: New folder opens on its name, typed in place; a seeded conversation is moved into it through the row menu (Move to), the folder is folded and unfolded, the conversation is taken out (No folder), put back, and the folder is deleted with the conversation still in it, which puts it back out of any folder. No folder is left and no conversation is removed, so the seed reads the same before and after. The search is played in between on two seeded words: sovereign is in the title of seed-session-1 (the Titles section), explicit only in its second message (the In the messages section, with its excerpt; the index of the messages is built from the seeded rows when the runtime first opens chat.db). Dragging a conversation onto a folder is not played: the runner has no drag step. Written against the source and validated statically; not yet through a runtime round."
+    "The folders are played on a folder the block itself creates and deletes: New folder opens on its name, typed in place; a seeded conversation is moved into it through the row menu (Move to), the folder is folded and unfolded, the conversation is taken out (No folder), put back, and the folder is deleted with the conversation still in it, which puts it back out of any folder. No folder is left and no conversation is removed, so the seed reads the same before and after. The search is played in between on two seeded words: sovereign is in the title of seed-session-1 (the Titles section), explicit only in its second message (the In the messages section, with its excerpt; the index of the messages is built from the seeded rows when the runtime first opens chat.db). Dragging a conversation onto a folder is not played: the runner has no drag step. Written against the source and validated statically; not yet through a runtime round.",
+    "The loading window is opened and cancelled through stubbed IPC, since no engine runs in the deterministic run: list_chat_targets is resolved with one local language model shaped like ChatTargets (commands/chat/targets.rs; installed entries as the model index lists them, path a seed file), list_loaded_models with an engine and nothing resident (routes_llm/loaded.rs), list_model_pins with PinsResponse (routes_llm/residency.rs), get_last_loaded_model with LastLoadedModelResponse and estimate_model_load with LoadEstimateResponse (routes_llm/load.rs, camelCase). The memory figures are asserted by presence, not by text: their rendering follows the locale, and they render only once the estimate answered. Four more openings replay the window on other answers of the same stub: an estimate the guardrail refuses (the refusal, then 'Load anyway' whose confirmation is cancelled once and confirmed once against a load_model that rejects, so the error shows and nothing loads), a model that takes no setting and cannot be sized (LoadEstimateResponse of an MLX model without memory), an estimate that rejects, and reload_last_loaded_model rejecting, which opens the window with its reason. Nothing is loaded: each window is cancelled, after which the selector still shows no target and the reload line names the stubbed last model; the stubs are cleared before the walk goes on.",
+    "chat-model-eject is only asserted in the open conversation: no model is resident in the deterministic run, so the button is rendered disabled and an eject has nothing to unload.",
+    "The split-screen block (labels 40a to 40e) plays on the conversation the picker just created: a second pane is opened and filled by a deep link to seed-session-2 (goto with sessionId lands in the active pane), one draft is typed per composer and cleared, the load guardrail refuses a model in the first pane through an estimate_model_load stub that imitates a LoadEstimate (lib/types/llm.ts, verdict refused) with the list_chat_targets, list_loaded_models and list_model_pins stubs of the selector block, the narrow layout is reached at 900 px and left before any other step, and every pane it opened is closed before the block ends, so the step after it finds one pane again.",
+    "The prompt template block of the Settings tab (labels 35b and 35c) is played inside the developer-mode block, since both the row of Settings > Chat (chat-show-prompt-template) and the block exist in developer mode only. The preference is a browser-storage switch, turned on before and off after so the rest of the book finds the tab as before. No engine runs in the deterministic run, so seed-session-2 reads the real answer of the runtime, a template built into the model and not readable (session-prompt-template-unavailable). The text and its Copy button are then played on seed-session-1 through a get_chat_prompt_template stub that imitates SessionPromptTemplate (crates/apollia-runtime/src/api/routes_chat/prompt_template.rs: source, template), armed before the conversation opens because the block reads once per conversation, model, preset and resident models; the stub is cleared before the block ends. Written against the source and validated statically; not yet through a runtime round."
   ]
 }
