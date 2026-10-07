@@ -5558,11 +5558,22 @@
         "none": "Aucun réglage configurable",
         "readonly": "Tout est automatique. Pour fixer ces réglages dans un preset, allumez « Réglages de chargement dans les presets » (Réglages, Développeur). Pour un seul chargement, passez par « Charger ».",
         "relaunch_warning": "Ce modèle est en mémoire : il sera relancé pour prendre ces réglages de chargement.",
+        "draft": {
+          "none": "Aucun",
+          "note": "Seuls les brouillons du même vocabulaire que ce modèle sont proposés.",
+          "unavailable": "{id} (indisponible)",
+          "unavailable_note": "Le brouillon de ce preset n'est plus proposé pour ce modèle : il se chargera sans brouillon."
+        },
         "section": {
           "context": "Contexte et déchargement",
+          "speculative": "Décodage spéculatif",
           "advanced": "Avancé"
         },
         "field": {
+          "draft_model": {
+            "label": "Modèle brouillon",
+            "help": "Un petit modèle du même vocabulaire propose la suite et ce modèle la vérifie : même réponse, plus vite."
+          },
           "n_ctx": {
             "label": "Longueur de contexte",
             "help": "Le nombre de jetons que le modèle garde en tête dans une requête. Plus il est grand, plus il faut de mémoire."

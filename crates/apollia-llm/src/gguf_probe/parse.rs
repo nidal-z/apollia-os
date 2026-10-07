@@ -127,6 +127,11 @@ pub struct GgufHeaderFacts {
     /// file at all. A value the server's build does not know aborts the load
     /// with `unknown pre-tokenizer type`, after the download has completed.
     pub tokenizer_pre: Option<String>,
+    /// Length of `tokenizer.ggml.tokens`, the number of tokens of the
+    /// vocabulary. Read from the head of the array, so it is known even when
+    /// the read stops inside the vocabulary.
+    #[serde(default)]
+    pub tokenizer_token_count: Option<u64>,
     /// Whether `tokenizer.chat_template` is present.
     ///
     /// Apollia launches the server with `--jinja`, so a file without a template
@@ -261,6 +266,16 @@ impl<'a> Cursor<'a> {
     fn u64(&mut self) -> Result<u64, Exhausted> {
         let b = self.take(8)?;
         Ok(u64::from_le_bytes([
+            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        ]))
+    }
+
+    /// The length of the array whose head sits at the cursor (a four-byte
+    /// element tag, then the count), without moving.
+    fn peek_array_len(&self) -> Option<u64> {
+        let start = self.pos.checked_add(4)?;
+        let b = self.bytes.get(start..start.checked_add(8)?)?;
+        Some(u64::from_le_bytes([
             b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
         ]))
     }
@@ -636,6 +651,9 @@ fn read_pair(
     let tag_offset = cur.pos;
     let ty = ValueType::from_tag(cur.u32()?, tag_offset)?;
     let wanted = is_wanted(&key);
+    if ty == ValueType::Array && key == "tokenizer.ggml.tokens" {
+        facts.tokenizer_token_count = cur.peek_array_len();
+    }
     let value = read_value(cur, ty, wanted)?;
 
     if !wanted {

@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use apollia_llm::model_index::{IndexedModel, ModelOrigin};
+use apollia_llm::model_index::{IndexedModel, ModelCategory, ModelOrigin};
 use axum::body::Body;
 use axum::http::{Method, Request};
 use serde_json::json;

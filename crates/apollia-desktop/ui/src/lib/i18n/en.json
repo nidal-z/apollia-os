@@ -5558,11 +5558,22 @@
         "none": "No configurable parameters",
         "readonly": "Everything is automatic. To fix these settings in a preset, turn on \"Load settings in presets\" (Settings, Developer). For one load only, go through \"Load\".",
         "relaunch_warning": "This model is in memory: it will be relaunched to take these load settings.",
+        "draft": {
+          "none": "None",
+          "note": "Only the draft models of the same vocabulary as this model are offered.",
+          "unavailable": "{id} (unavailable)",
+          "unavailable_note": "The draft model of this preset is no longer offered for this model: it will load without a draft model."
+        },
         "section": {
           "context": "Context and offload",
+          "speculative": "Speculative decoding",
           "advanced": "Advanced"
         },
         "field": {
+          "draft_model": {
+            "label": "Draft model",
+            "help": "A small model of the same vocabulary proposes what comes next and this model checks it: same answer, faster."
+          },
           "n_ctx": {
             "label": "Context length",
             "help": "The number of tokens the model keeps in mind in one request. The larger it is, the more memory it takes."

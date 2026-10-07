@@ -504,3 +504,141 @@ fn a_digest_no_entry_pins_leaves_the_header_category() {
     // THEN it stays a language model
     assert_eq!(index.get("qwen").unwrap().category, ModelCategory::Language);
 }
+
+/// A GGUF header of a language model declaring a vocabulary of `tokens`
+/// entries of the family `family`.
+fn with_vocabulary(family: &str, tokens: u64) -> Vec<u8> {
+    let mut out = gguf(&[
+        ("general.architecture", "qwen2"),
+        ("tokenizer.ggml.model", family),
+    ]);
+    // One more pair than `gguf` declared: the vocabulary array.
+    out[16..24].copy_from_slice(&3u64.to_le_bytes());
+    let key = "tokenizer.ggml.tokens";
+    out.extend_from_slice(&(key.len() as u64).to_le_bytes());
+    out.extend_from_slice(key.as_bytes());
+    out.extend_from_slice(&9u32.to_le_bytes());
+    out.extend_from_slice(&8u32.to_le_bytes());
+    out.extend_from_slice(&tokens.to_le_bytes());
+    for _ in 0..tokens {
+        out.extend_from_slice(&1u64.to_le_bytes());
+        out.push(b't');
+    }
+    out
+}
+
+/// A card as the catalogue copies it beside a model, marked as a draft model
+/// or not.
+fn card(draft: bool) -> String {
+    let mark = if draft {
+        r#", "draft": { "source": "https://example.org/draft" }"#
+    } else {
+        ""
+    };
+    format!(
+        r#"{{
+  "id": "qwen2.5/Small", "kind": "language", "label": "Small", "publisher": "Qwen",
+  "license": {{ "id": "apache-2.0", "source": "https://example.org/licence" }},
+  "source_url": "https://huggingface.co/Qwen/Small",
+  "description": {{ "fr": "Petit.", "en": "Small." }},
+  "capabilities": {{ "tools": false, "reasoning": false, "vision": false, "source": "s" }},
+  "memory": {{ "min_gb": 0.6, "source": "s" }},
+  "defaults": {{ "source": "" }},
+  "author_fields": [], "repos": ["Qwen/Small"]{mark}
+}}"#
+    )
+}
+
+#[test]
+fn a_model_whose_card_marks_it_is_filed_as_a_draft_and_stays_a_language_model() {
+    // GIVEN two language models, each with its card beside it, one card marked
+    // as published to draft for a larger model
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    write(root, "small.gguf", &llama("small"));
+    write(root, "small.gguf.card.json", card(true).as_bytes());
+    write(root, "plain.gguf", &llama("plain"));
+    write(root, "plain.gguf.card.json", card(false).as_bytes());
+
+    // WHEN the index is rebuilt, then again once the mark is gone
+    let mut index = rebuilt(root);
+    let marked = index.get("small").unwrap().clone();
+    let plain = index.get("plain").unwrap().clone();
+    write(root, "small.gguf.card.json", card(false).as_bytes());
+    index.rebuild(root).unwrap();
+
+    // THEN the marked model is a draft a conversation can still run on, the
+    // other is a language model, and the category follows the card
+    assert_eq!(marked.category, ModelCategory::Draft);
+    assert!(marked.is_language_model());
+    assert_eq!(plain.category, ModelCategory::Language);
+    assert!(plain.is_language_model());
+    assert_eq!(
+        index.get("small").unwrap().category,
+        ModelCategory::Language
+    );
+}
+
+#[test]
+fn a_model_overridden_as_a_draft_stays_a_language_model_and_others_do_not() {
+    // GIVEN a language model the developer mode files as a draft, and another
+    // it files as an embeddings model
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    write(root, "small.gguf", &llama("small"));
+    write(root, "vectors.gguf", &llama("vectors"));
+    let mut index = rebuilt(root);
+
+    // WHEN the overrides are set
+    index
+        .set_category_override("small", Some(ModelCategory::Draft))
+        .unwrap();
+    index
+        .set_category_override("vectors", Some(ModelCategory::Embeddings))
+        .unwrap();
+
+    // THEN the draft is in force and a conversation can run on it; the
+    // embeddings model is no language model
+    let small = index.get("small").unwrap();
+    assert_eq!(small.effective_category(), ModelCategory::Draft);
+    assert!(small.is_language_model());
+    assert!(!index.get("vectors").unwrap().is_language_model());
+}
+
+#[test]
+fn only_the_drafts_of_the_same_vocabulary_are_proposed_for_a_model() {
+    // GIVEN a main model of 200 tokens, a draft of the same vocabulary, a
+    // draft of 100 tokens, a draft of another family, and a model of the same
+    // vocabulary that is not filed as a draft
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    write(root, "main.gguf", &with_vocabulary("gpt2", 200));
+    write(root, "same.gguf", &with_vocabulary("gpt2", 200));
+    write(root, "fewer.gguf", &with_vocabulary("gpt2", 100));
+    write(root, "family.gguf", &with_vocabulary("llama", 200));
+    write(root, "sibling.gguf", &with_vocabulary("gpt2", 200));
+    let mut index = rebuilt(root);
+    for id in ["same", "fewer", "family"] {
+        index
+            .set_category_override(id, Some(ModelCategory::Draft))
+            .unwrap();
+    }
+
+    // WHEN the drafts of the main model are listed, and one is looked up by
+    // the weights about to be loaded
+    let proposed: Vec<&str> = index
+        .compatible_drafts("main")
+        .iter()
+        .map(|m| m.id.as_str())
+        .collect();
+    let main_path = root.join("main.gguf");
+    let found = index.draft_for(&main_path, "same").map(|m| m.id.clone());
+    let refused = index.draft_for(&main_path, "fewer").map(|m| m.id.clone());
+
+    // THEN only the draft of the same vocabulary is proposed, and never the
+    // model itself
+    assert_eq!(proposed, ["same"]);
+    assert_eq!(found.as_deref(), Some("same"));
+    assert_eq!(refused, None);
+    assert!(index.compatible_drafts("absent").is_empty());
+}

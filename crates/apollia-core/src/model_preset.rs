@@ -179,13 +179,66 @@ fn check_no_system_prompt(
     }
 }
 
+/// Load key naming the draft model of speculative decoding, by its identifier
+/// in the model index.
+pub const DRAFT_MODEL_KEY: &str = "draft_model";
+
+/// Load key naming the speculative decoding mode.
+pub const SPEC_TYPE_KEY: &str = "spec_type";
+
+/// The one speculative mode that reads a draft model.
+pub const SPEC_TYPE_DRAFT_SIMPLE: &str = "draft-simple";
+
+/// The load settings as a preset stores them, the draft model and the
+/// speculative mode held together: naming a draft model fixes the mode to
+/// [`SPEC_TYPE_DRAFT_SIMPLE`], and the two contrary combinations are refused,
+/// a draft model under another mode and that mode without a draft model.
+fn paired_draft_settings(
+    load: &serde_json::Map<String, serde_json::Value>,
+) -> Result<serde_json::Map<String, serde_json::Value>, LlmBackendError> {
+    use serde_json::Value;
+
+    let draft = match load.get(DRAFT_MODEL_KEY) {
+        None | Some(Value::Null) => None,
+        Some(Value::String(id)) if !id.trim().is_empty() => Some(id),
+        Some(_) => {
+            return Err(invalid(format!(
+                "'{DRAFT_MODEL_KEY}' names a model of the model index by its identifier: \
+                 a non-empty text is expected"
+            )))
+        }
+    };
+    let mode = load.get(SPEC_TYPE_KEY).and_then(Value::as_str);
+    let mut stored = load.clone();
+    match (draft, mode) {
+        (Some(_), None) => {
+            stored.insert(SPEC_TYPE_KEY.to_owned(), SPEC_TYPE_DRAFT_SIMPLE.into());
+        }
+        (Some(_), Some(mode)) if mode != SPEC_TYPE_DRAFT_SIMPLE => {
+            return Err(invalid(format!(
+                "a preset with a draft model uses the speculative mode \
+                 '{SPEC_TYPE_DRAFT_SIMPLE}': '{mode}' is refused in '{SPEC_TYPE_KEY}'"
+            )));
+        }
+        (None, Some(SPEC_TYPE_DRAFT_SIMPLE)) => {
+            return Err(invalid(format!(
+                "the speculative mode '{SPEC_TYPE_DRAFT_SIMPLE}' reads a draft model: \
+                 name one in '{DRAFT_MODEL_KEY}'"
+            )));
+        }
+        _ => {}
+    }
+    Ok(stored)
+}
+
 fn check_draft(draft: &PresetDraft) -> Result<(String, String), LlmBackendError> {
     if draft.name.trim().is_empty() {
         return Err(invalid("the preset name is empty"));
     }
     check_no_system_prompt("load", &draft.load)?;
-    let load = serde_json::to_string(&draft.load)
-        .map_err(|e| LlmBackendError::Serialization(e.to_string()))?;
+    let load = paired_draft_settings(&draft.load)?;
+    let load =
+        serde_json::to_string(&load).map_err(|e| LlmBackendError::Serialization(e.to_string()))?;
     let request = serde_json::to_string(&draft.request)
         .map_err(|e| LlmBackendError::Serialization(e.to_string()))?;
     Ok((load, request))

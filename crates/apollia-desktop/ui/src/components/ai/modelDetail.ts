@@ -172,7 +172,15 @@ export function chatTargetOf(model: InstalledModel): ModelTarget {
 // ── Settings ─────────────────────────────────────────────────────────────
 
 /** How a setting is typed in. */
-export type FieldKind = "integer" | "number" | "boolean" | "choice" | "text" | "multiline" | "lines";
+export type FieldKind =
+  | "integer"
+  | "number"
+  | "boolean"
+  | "choice"
+  | "text"
+  | "multiline"
+  | "lines"
+  | "draft";
 
 /** One setting of a preset. */
 export interface SettingField {
@@ -208,19 +216,24 @@ function field(
 }
 
 /** The sections of the Loading tab of a GGUF model, in order. */
-export const LOAD_SECTIONS = ["context", "advanced"] as const;
+export const LOAD_SECTIONS = ["context", "speculative", "advanced"] as const;
 export type LoadSection = (typeof LOAD_SECTIONS)[number];
 
 const CACHE_TYPES = ["f32", "f16", "bf16", "q8_0", "q4_0", "q4_1", "iq4_nl", "q5_0", "q5_1"];
 
+/** The load key that names the draft model, by its identifier in the model index. */
+export const DRAFT_MODEL_KEY = "draft_model";
+
 /**
  * The load settings of a GGUF model, by the keys the local engine reads from
- * a preset. The draft model and the speculative mode are not here: they have
- * their own section, with the drafts.
+ * a preset. The draft model is chosen among the drafts the model can use (see
+ * `draftOptions`); the speculative mode is not here, since the runtime fixes
+ * it as soon as a draft model is named.
  */
 export const LOAD_FIELDS: readonly SettingField[] = [
   field("load", "context", "n_ctx", "integer", { min: 1024, step: 1024 }),
   field("load", "context", "n_gpu_layers", "integer", { min: -1 }),
+  field("load", "speculative", DRAFT_MODEL_KEY, "draft"),
   field("load", "advanced", "n_threads", "integer", { min: 1 }),
   field("load", "advanced", "n_batch", "integer", { min: 1 }),
   field("load", "advanced", "n_ubatch", "integer", { min: 1 }),
@@ -263,6 +276,49 @@ export const INFERENCE_FIELDS: readonly SettingField[] = [
 /** The fields of one section, in order. */
 export function fieldsOf(fields: readonly SettingField[], section: string): SettingField[] {
   return fields.filter((f) => f.section === section);
+}
+
+/**
+ * The sections the Loading tab shows for a model. The speculative decoding
+ * section is there only when the engine of the model takes a draft model,
+ * which the detail says; until the detail is read it is left out.
+ */
+export function loadSections(detail: ModelDetail | null): LoadSection[] {
+  return LOAD_SECTIONS.filter((s) => s !== "speculative" || detail?.draft_setting === true);
+}
+
+/** One entry of the list of draft models. */
+export interface DraftOption {
+  /** The identifier the load settings store. */
+  id: string;
+  /** Its parameter count, when its header says it. */
+  parameters: string | null;
+  /** Whether the draft can still be used with this model. */
+  available: boolean;
+}
+
+/**
+ * The draft models offered for a model: the compatible ones, in the order of
+ * the index. The draft a preset already names stays in the list when it is no
+ * longer compatible or installed, marked unavailable, so the list shows what
+ * the preset holds instead of silently reading "None".
+ */
+export function draftOptions(detail: ModelDetail | null, held: string | undefined): DraftOption[] {
+  const options: DraftOption[] = (detail?.compatible_drafts ?? []).map((d) => ({
+    id: d.id,
+    parameters: d.parameters,
+    available: true,
+  }));
+  const chosen = (held ?? "").trim();
+  if (chosen !== "" && !options.some((o) => o.id === chosen)) {
+    options.push({ id: chosen, parameters: null, available: false });
+  }
+  return options;
+}
+
+/** Whether the draft model the form names can no longer be used with the model. */
+export function draftUnavailable(detail: ModelDetail | null, held: string | undefined): boolean {
+  return draftOptions(detail, held).some((o) => !o.available);
 }
 
 /**
@@ -338,6 +394,8 @@ export function parseField(f: SettingField, raw: string | undefined): Parsed {
     }
     case "boolean":
       return { kind: "value", value: text === "true" };
+    case "draft":
+      return { kind: "value", value: text };
     case "choice":
       return f.choices?.includes(text)
         ? { kind: "value", value: text }

@@ -29,7 +29,7 @@ use serde_json::{Map, Value};
 use apollia_core::model_preset::{ModelSource, PresetDraft, RequestSettings};
 use apollia_core::{LlmBackendError, LlmBackendRepository};
 use apollia_llm::hardware::CompatibilityBadge;
-use apollia_llm::model_index::{ModelCategory, ModelFormat, ModelIndex, INDEX_FILE_NAME};
+use apollia_llm::model_index::{ModelFormat, ModelIndex, INDEX_FILE_NAME};
 
 use crate::api::routes_llm::backends::map_backend_error;
 use crate::api::routes_llm::loaded::LoadedModelDto;
@@ -303,7 +303,7 @@ fn resolve<B: ExecutionBackend + Clone>(
             format!("{model_id} is not a model of the model index"),
         ));
     };
-    if model.effective_category() != ModelCategory::Language {
+    if !model.is_language_model() {
         return Err(refused(
             StatusCode::UNPROCESSABLE_ENTITY,
             format!("{model_id} is not a language model"),

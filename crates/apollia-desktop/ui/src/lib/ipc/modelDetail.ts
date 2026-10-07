@@ -23,6 +23,15 @@ export interface SourceCandidate {
   size_bytes: number;
 }
 
+/** A draft model the load settings of a model may name. */
+export interface DraftCandidate {
+  /** Identifier in the model index, what the load settings store. */
+  id: string;
+  /** Parameter count label read from its header, for example `"0.5B"`. */
+  parameters: string | null;
+  size_bytes: number;
+}
+
 /** What the panel of a model shows beyond its row. */
 export interface ModelDetail {
   id: string;
@@ -40,6 +49,10 @@ export interface ModelDetail {
   /** The other weights files of the same model on this computer. */
   source_candidates: SourceCandidate[];
   author_fields: AuthorField[];
+  /** Whether the engine of the model takes a draft model for speculative decoding. */
+  draft_setting: boolean;
+  /** The installed draft models whose vocabulary is the one of this model. */
+  compatible_drafts: DraftCandidate[];
 }
 
 /** A preset with its settings, as the runtime lists it. */

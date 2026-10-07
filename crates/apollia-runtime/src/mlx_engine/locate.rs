@@ -64,6 +64,12 @@ impl MlxLaunch {
 
     /// The full argument vector for serving `model_path` on loopback `port`.
     ///
+    /// No load setting of a preset reaches this line, the draft model among
+    /// them: the pinned engine has no draft model for a text model (its
+    /// `--mllm-draft-model` asks for `--mllm`, and `--specprefill-draft-model`
+    /// prunes the prompt rather than drafting the answer), so none is passed
+    /// and none is simulated.
+    ///
     /// The engine listens on `127.0.0.1` only. Tool calls are parsed by the
     /// engine's automatic parser, which reads the formats of the common chat
     /// templates. No embeddings route is asked for: the engine ships without
@@ -172,6 +178,25 @@ fn locate_with_site(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_command_line_of_an_mlx_model_carries_no_draft_model() {
+        // GIVEN the engine, whose pinned version drafts for no text model
+        let launch = MlxLaunch::vllm_mlx(
+            PathBuf::from("/app/python/bin/python3.13"),
+            Path::new("/app/python/engines/mlx/site-packages"),
+        );
+
+        // WHEN the command line for a model is built
+        let args = launch.args("/models/qwen-mlx", 41234);
+
+        // THEN no argument names a draft model or a speculative mode
+        let speculative: Vec<&String> = args
+            .iter()
+            .filter(|a| a.contains("draft") || a.contains("spec") || a.contains("mtp"))
+            .collect();
+        assert!(speculative.is_empty(), "{speculative:?}");
+    }
 
     #[test]
     fn the_command_line_serves_the_model_on_loopback_from_the_engine_packages() {
