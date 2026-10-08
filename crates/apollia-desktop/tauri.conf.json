@@ -27,7 +27,7 @@
     },
     "windows": [
       {
-        "title": "Apollia OS",
+        "title": "Apollia Desktop",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -54,7 +54,7 @@
     "licenseFile": "../../packaging/windows/eula.rtf",
     "category": "DeveloperTool",
     "shortDescription": "Sovereign runtime for autonomous AI agents",
-    "longDescription": "Apollia OS runs autonomous AI agents on your own machine. Local inference, local storage, local tools: nothing leaves the machine without an explicit action.",
+    "longDescription": "Apollia Desktop runs autonomous AI agents on your own machine. Local inference, local storage, local tools: nothing leaves the machine without an explicit action.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

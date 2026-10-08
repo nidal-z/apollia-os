@@ -1,19 +1,35 @@
 ---
 sidebar_position: 6.5
-title: Installer l'application de bureau
-description: Installer l'application de bureau Apollia sur macOS, Windows ou Linux, et aller du téléchargement à une première conversation qui fonctionne.
+title: Installer Apollia Desktop
+description: Installer Apollia Desktop, l'application de bureau, sur macOS, Windows ou Linux, et aller du téléchargement à une première conversation qui fonctionne.
 ---
 
-# Installer l'application de bureau
+# Installer Apollia Desktop
 
-Ce guide s'adresse aux personnes qui souhaitent utiliser Apollia comme une
-application de bureau classique : télécharger un installeur, l'installer, puis
+Ce guide s'adresse aux personnes qui souhaitent utiliser Apollia Desktop,
+l'application de bureau, comme n'importe quelle autre : télécharger un installeur, l'installer, puis
 la lancer. Pas de compilateur, pas de ligne de commande, pas de récupération
 des sources. Si vous préférez compiler depuis les sources ou utiliser le
 runtime en ligne de commande, suivez [Installer et exécuter le runtime](/how-to/install-and-run).
 
-Apollia est local-first. L'application de bureau s'exécute sur votre machine,
+Apollia est local-first. Apollia Desktop s'exécute sur votre machine,
 y stocke ses données, et ne nécessite pas de compte pour démarrer.
+
+## Quel fichier porte quel nom
+
+L'application s'appelle **Apollia Desktop** : c'est le nom que portent sa
+fenêtre, ses menus et cette documentation. Les fichiers qui l'installent, et ce
+qu'ils déposent sur le disque, portent encore le nom du moteur qu'elle
+embarque, Apollia OS.
+
+| Ce que vous voyez | Son nom |
+|---|---|
+| L'application : fenêtre, menus, aide | Apollia Desktop |
+| Les installeurs de la page de publication | `Apollia-OS_<version>_...` |
+| Le fichier de l'application sous macOS | `Apollia OS.app` |
+| L'entrée du menu Démarrer et le dossier d'installation sous Windows | `Apollia OS` |
+| L'entrée du menu des applications et le dossier de ressources sous Linux | `Apollia OS`, `/usr/lib/Apollia OS/` |
+| La ligne de commande livrée à l'intérieur | `apollia-os` |
 
 ## Plateformes prises en charge
 
@@ -88,8 +104,9 @@ pas, et `apollia-os update` ne vérifie que l'empreinte SHA256.
 ### macOS
 
 1. Double-cliquez sur le `.dmg` téléchargé.
-2. Glissez **Apollia OS** dans le dossier **Applications**.
-3. Éjectez l'image disque, puis ouvrez **Apollia OS** depuis Applications ou
+2. Glissez **Apollia OS**, le nom que porte le fichier de l'application, dans
+   le dossier **Applications**.
+3. Éjectez l'image disque, puis ouvrez-la depuis Applications ou
    Launchpad.
 
 Une build macOS est signée et notarisée avec un Apple Developer ID lorsque le
@@ -107,12 +124,12 @@ peut pas être vérifié". Pour l'ouvrir malgré tout :
   xattr -dr com.apple.quarantine "/Applications/Apollia OS.app"
   ```
 
-Apollia OS nécessite macOS 13 (Ventura) ou une version plus récente.
+Apollia Desktop nécessite macOS 13 (Ventura) ou une version plus récente.
 
 ### Windows
 
 1. Double-cliquez sur l'installeur `.msi` (ou `.exe`).
-2. Suivez les étapes de l'installeur, puis lancez **Apollia OS** depuis le
+2. Suivez les étapes de l'installeur, puis lancez l'application, sous l'entrée **Apollia OS**, depuis le
    menu Démarrer.
 
 Windows SmartScreen peut avertir que l'éditeur n'est pas reconnu. L'installeur
@@ -149,7 +166,7 @@ Le `.deb` s'installe pour l'ensemble du système sur Debian et Ubuntu :
 sudo apt install ./Apollia-OS_*.deb
 ```
 
-Après avoir installé le `.deb`, lancez **Apollia OS** depuis le menu des
+Après avoir installé le `.deb`, lancez l'application, sous l'entrée **Apollia OS**, depuis le menu des
 applications de votre bureau. L'application repose sur le runtime système
 WebKitGTK ; sur un système minimal, installez `libwebkit2gtk-4.1-0` si la
 fenêtre ne s'ouvre pas.

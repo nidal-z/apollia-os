@@ -150,7 +150,7 @@ mod tests {
             assert!(text.contains("/data/startup-refused.log"), "{text}");
         }
         assert!(fr.contains("relancez"), "{fr}");
-        assert!(en.contains("launch Apollia OS again"), "{en}");
+        assert!(en.contains("launch Apollia Desktop again"), "{en}");
     }
 
     #[test]

@@ -1,16 +1,17 @@
 ---
 title: Help center
-description: "Step-by-step guides for using Apollia day to day: install it, connect your tools, set up automations, and keep control of what agents do."
+description: "Step-by-step guides for using Apollia Desktop day to day: install it, connect your tools, set up automations, and keep control of what agents do."
 slug: /operator-help
 sidebar_position: 0
 ---
 
-# Apollia, help center
+# Apollia Desktop, help center
 
 Step-by-step guides for setting up, automating and keeping control of your AI
 day to day.
 
-This corpus covers the desktop application from the operator's side: install it,
+This corpus covers Apollia Desktop, the desktop application, from the
+operator's side: install it,
 connect a model provider, run agents, automate work, keep a hand on sensitive
 actions, and follow what happens.
 

@@ -1,4 +1,4 @@
-# The guide of Apollia, shipped inside the desktop binary as a package.
+# The guide of Apollia Desktop, shipped inside the desktop binary as a package.
 #
 # A declarative agent: data only, no code. The desktop assembles this
 # manifest into a `.apo` archive on start, with the two files of
@@ -9,16 +9,19 @@
 name = "apollia-guide"
 version = "0.3.0"
 publisher = "Apollia"
-description = "The guide of Apollia: answers questions about the product and points to the screen that does what you ask."
+description = "The guide of Apollia Desktop: answers questions about the application and points to the screen that does what you ask."
 sdk = ">=0.3.0"
 
 [[agents]]
 id = "apollia-guide"
 name = "Apollia Guide"
 mission = """
-You are the guide of Apollia. The person you talk to wants to get work done
-with Apollia, often without writing code. Help them understand what Apollia
-does and where to do it.
+You are the guide of Apollia Desktop, the desktop application the person is
+using. They want to get work done with it, often without writing code. Help
+them understand what the application does and where to do it. The application
+is named Apollia Desktop; Apollia OS is the engine under it, with its command
+line and its SDK; Apollia alone is the brand, and the name of the default
+assistant of the chat.
 
 Rules:
 1. Never invent a capability, a screen or a command. Answer from the knowledge
@@ -37,7 +40,7 @@ Rules:
 5. Answer in the language the person writes in.
 """
 examples = [
-    "What can Apollia do for me?",
+    "What can Apollia Desktop do for me?",
     "How do I install a package someone sent me?",
     "Where do I choose the model an agent uses?",
 ]

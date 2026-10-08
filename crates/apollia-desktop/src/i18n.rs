@@ -91,8 +91,8 @@ pub fn attach_listener(app: &tauri::App) {
 /// Tray menu label for the "open the main window" item.
 pub fn tray_open(l: UiLocale) -> &'static str {
     match l {
-        UiLocale::Fr => "Ouvrir Apollia OS",
-        UiLocale::En => "Open Apollia OS",
+        UiLocale::Fr => "Ouvrir Apollia Desktop",
+        UiLocale::En => "Open Apollia Desktop",
     }
 }
 
@@ -107,8 +107,8 @@ pub fn tray_quit(l: UiLocale) -> &'static str {
 /// macOS application menu label for the quit item.
 pub fn app_quit(l: UiLocale) -> &'static str {
     match l {
-        UiLocale::Fr => "Quitter Apollia OS",
-        UiLocale::En => "Quit Apollia OS",
+        UiLocale::Fr => "Quitter Apollia Desktop",
+        UiLocale::En => "Quit Apollia Desktop",
     }
 }
 
@@ -219,8 +219,8 @@ pub(crate) fn attached_unavailable(locale: UiLocale, command: &str) -> String {
 /// Title of the window a refused launch opens.
 pub(crate) fn startup_refused_title(locale: UiLocale) -> &'static str {
     match locale {
-        UiLocale::Fr => "Apollia OS ne démarre pas",
-        UiLocale::En => "Apollia OS does not start",
+        UiLocale::Fr => "Apollia Desktop ne démarre pas",
+        UiLocale::En => "Apollia Desktop does not start",
     }
 }
 
@@ -234,28 +234,28 @@ pub(crate) fn startup_refused_message(
     let log = log.display();
     let what = match (locale, reason) {
         (UiLocale::Fr, RefusalReason::IncompatibleRuntime { port, version, ours }) => format!(
-            "Le runtime Apollia {version} sert le port {port}, et cette application en version {ours} ne peut pas le piloter.\n\nArrêtez ce runtime avec « apollia-os stop » dans un terminal, puis relancez Apollia OS."
+            "Le runtime Apollia {version} sert le port {port}, et cette application en version {ours} ne peut pas le piloter.\n\nArrêtez ce runtime avec « apollia-os stop » dans un terminal, puis relancez Apollia Desktop."
         ),
         (UiLocale::En, RefusalReason::IncompatibleRuntime { port, version, ours }) => format!(
-            "The Apollia runtime {version} serves port {port}, and this application in version {ours} cannot drive it.\n\nStop that runtime with \"apollia-os stop\" in a terminal, then launch Apollia OS again."
+            "The Apollia runtime {version} serves port {port}, and this application in version {ours} cannot drive it.\n\nStop that runtime with \"apollia-os stop\" in a terminal, then launch Apollia Desktop again."
         ),
         (UiLocale::Fr, RefusalReason::TokenRefused { port }) => format!(
-            "Le programme qui sert le port {port} refuse le jeton de cette installation : c'est un runtime Apollia d'un autre dossier de données, ou un autre programme.\n\nArrêtez-le (« apollia-os stop » s'il s'agit d'Apollia), puis relancez Apollia OS."
+            "Le programme qui sert le port {port} refuse le jeton de cette installation : c'est un runtime Apollia d'un autre dossier de données, ou un autre programme.\n\nArrêtez-le (« apollia-os stop » s'il s'agit d'Apollia), puis relancez Apollia Desktop."
         ),
         (UiLocale::En, RefusalReason::TokenRefused { port }) => format!(
-            "The program serving port {port} refuses the token of this installation: it is an Apollia runtime of another data directory, or another program.\n\nStop it (\"apollia-os stop\" if it is Apollia), then launch Apollia OS again."
+            "The program serving port {port} refuses the token of this installation: it is an Apollia runtime of another data directory, or another program.\n\nStop it (\"apollia-os stop\" if it is Apollia), then launch Apollia Desktop again."
         ),
         (UiLocale::Fr, RefusalReason::ForeignListener { port }) => format!(
-            "Le port {port} est occupé par un programme qui n'est pas Apollia.\n\nFermez ce programme (« lsof -i :{port} » le nomme sur macOS et Linux), puis relancez Apollia OS."
+            "Le port {port} est occupé par un programme qui n'est pas Apollia.\n\nFermez ce programme (« lsof -i :{port} » le nomme sur macOS et Linux), puis relancez Apollia Desktop."
         ),
         (UiLocale::En, RefusalReason::ForeignListener { port }) => format!(
-            "Port {port} is held by a program that is not Apollia.\n\nClose that program (\"lsof -i :{port}\" names it on macOS and Linux), then launch Apollia OS again."
+            "Port {port} is held by a program that is not Apollia.\n\nClose that program (\"lsof -i :{port}\" names it on macOS and Linux), then launch Apollia Desktop again."
         ),
         (UiLocale::Fr, RefusalReason::PortUnavailable { port, source }) => format!(
-            "Le port {port} ne peut pas être ouvert : {source}.\n\nVérifiez qu'aucune règle du système n'interdit ce port, puis relancez Apollia OS."
+            "Le port {port} ne peut pas être ouvert : {source}.\n\nVérifiez qu'aucune règle du système n'interdit ce port, puis relancez Apollia Desktop."
         ),
         (UiLocale::En, RefusalReason::PortUnavailable { port, source }) => format!(
-            "Port {port} cannot be opened: {source}.\n\nCheck that no system rule forbids this port, then launch Apollia OS again."
+            "Port {port} cannot be opened: {source}.\n\nCheck that no system rule forbids this port, then launch Apollia Desktop again."
         ),
     };
     match locale {

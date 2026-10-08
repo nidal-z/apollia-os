@@ -1,10 +1,14 @@
 ---
-title: Installer Apollia sur Windows
+title: Installer Apollia Desktop sur Windows
 slug: /operator-help/installation/install-on-windows
 sidebar_position: 2
 ---
 
-# Installer Apollia sur Windows
+# Installer Apollia Desktop sur Windows
+
+L'application s'appelle Apollia Desktop. Ses installeurs et les fichiers qu'ils
+déposent sur le disque portent encore le nom du moteur qu'elle embarque,
+Apollia OS : c'est le nom que vous lirez ci-dessous.
 
 Chacun des fichiers ci-dessous est attaché à chaque publication sur la page de
 publication, `https://github.com/Apollia-OS/apollia-os/releases`.

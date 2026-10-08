@@ -1,4 +1,4 @@
-//! System tray integration for Apollia OS desktop.
+//! System tray integration for Apollia Desktop.
 //!
 //! Provides a persistent tray icon with a context menu that allows the user to
 //! open the main window, see pending HITL approvals, and quit the application
@@ -14,7 +14,7 @@ use tauri::{AppHandle, Listener, Manager};
 
 use crate::i18n;
 
-/// Tray menu item identifier for "Open Apollia OS".
+/// Tray menu item identifier for "Open Apollia Desktop".
 const MENU_OPEN: &str = "open";
 
 /// Tray menu item identifier for pending approvals display.
@@ -52,9 +52,9 @@ pub fn format_tooltip(active_agents: usize, pending_approvals: usize) -> String 
     }
 
     if parts.is_empty() {
-        "Apollia OS".to_string()
+        "Apollia Desktop".to_string()
     } else {
-        format!("Apollia OS - {}", parts.join(", "))
+        format!("Apollia Desktop - {}", parts.join(", "))
     }
 }
 
@@ -216,7 +216,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .tooltip("Apollia OS")
+        .tooltip("Apollia Desktop")
         .on_menu_event(|app, event| match event.id().as_ref() {
             MENU_OPEN => show_main_window(app),
             MENU_QUIT => initiate_quit(app),
@@ -302,7 +302,7 @@ pub fn setup_app_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>
         .accelerator("CmdOrCtrl+Q")
         .build(app)?;
 
-    let app_menu = SubmenuBuilder::new(app, "Apollia OS")
+    let app_menu = SubmenuBuilder::new(app, "Apollia Desktop")
         .about(None)
         .separator()
         .services()
@@ -375,7 +375,7 @@ mod tests {
         // WHEN formatting the tooltip
         let tooltip = format_tooltip(0, 0);
         // THEN it shows just the app name
-        assert_eq!(tooltip, "Apollia OS");
+        assert_eq!(tooltip, "Apollia Desktop");
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests {
         let tooltip = format_tooltip(1, 0);
         // WHEN the tray tooltip is formatted
         // THEN it uses singular form
-        assert_eq!(tooltip, "Apollia OS - 1 agent active");
+        assert_eq!(tooltip, "Apollia Desktop - 1 agent active");
     }
 
     #[test]
@@ -393,7 +393,7 @@ mod tests {
         let tooltip = format_tooltip(3, 0);
         // WHEN the tray tooltip is formatted
         // THEN it uses plural form
-        assert_eq!(tooltip, "Apollia OS - 3 agents active");
+        assert_eq!(tooltip, "Apollia Desktop - 3 agents active");
     }
 
     #[test]
@@ -402,7 +402,10 @@ mod tests {
         let tooltip = format_tooltip(3, 2);
         // WHEN the tray tooltip is formatted
         // THEN both are shown
-        assert_eq!(tooltip, "Apollia OS - 3 agents active, 2 approvals pending");
+        assert_eq!(
+            tooltip,
+            "Apollia Desktop - 3 agents active, 2 approvals pending"
+        );
     }
 
     #[test]
@@ -411,7 +414,10 @@ mod tests {
         let tooltip = format_tooltip(1, 1);
         // WHEN the tray tooltip is formatted
         // THEN singular forms are used
-        assert_eq!(tooltip, "Apollia OS - 1 agent active, 1 approval pending");
+        assert_eq!(
+            tooltip,
+            "Apollia Desktop - 1 agent active, 1 approval pending"
+        );
     }
 
     #[test]
@@ -420,7 +426,7 @@ mod tests {
         let tooltip = format_tooltip(0, 3);
         // WHEN the tray tooltip is formatted
         // THEN only approvals are shown
-        assert_eq!(tooltip, "Apollia OS - 3 approvals pending");
+        assert_eq!(tooltip, "Apollia Desktop - 3 approvals pending");
     }
 
     #[test]

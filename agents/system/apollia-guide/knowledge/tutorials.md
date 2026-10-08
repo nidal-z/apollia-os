@@ -1,4 +1,4 @@
-# Apollia, tutorials
+# Apollia Desktop, tutorials
 
 ## Create an agent without code
 
