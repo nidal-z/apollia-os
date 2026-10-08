@@ -253,6 +253,30 @@ describe("the models of search by meaning", () => {
 });
 
 describe("the results of a search", () => {
+  test("two repositories of one model make one row, and its card gathers their variants", () => {
+    // GIVEN two converters of the same model, and a repository of another model
+    const first = found();
+    const second = found({ repo_id: "unsloth/Qwen3-8B-GGUF", author: "unsloth" });
+    second.card = {
+      ...second.card,
+      repo_id: "unsloth/Qwen3-8B-GGUF",
+      owner: "unsloth",
+      variants: [variant({ repo_id: "unsloth/Qwen3-8B-GGUF" })],
+    };
+    const other = found({ repo_id: "bartowski/gemma-3-4b-it-GGUF" });
+    other.card = { ...other.card, repo_id: "bartowski/gemma-3-4b-it-GGUF", origin_repo: "google/gemma-3-4b-it" };
+    // WHEN the search is listed
+    const entries = searchEntries([first, other, second], "fr");
+    // THEN the model has one row, named after it, in the place of its first result
+    expect(entries.map((e) => e.name)).toEqual(["Qwen3-8B", "gemma-3-4b-it-GGUF"]);
+    expect(entries[0]).toMatchObject({ identifier: "Qwen/Qwen3-8B", publisher: "Qwen" });
+    // AND its card offers the variants of both repositories
+    const lead = entries[0];
+    if (!lead?.found) throw new Error("fixture");
+    const detail = detailFromFound(lead.found, lead.alsoFound);
+    expect(detail.variants.map((v) => v.repo_id)).toEqual(["bartowski/Qwen3-8B-GGUF", "unsloth/Qwen3-8B-GGUF"]);
+  });
+
   test("a result reads its facts from the generated card, in the language asked", () => {
     // GIVEN a result of a recognised converter
     // WHEN it is listed in French and in English

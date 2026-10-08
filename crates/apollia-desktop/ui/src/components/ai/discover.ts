@@ -111,6 +111,8 @@ export interface DiscoverEntry {
   repos: string[];
   /** The result of a search, which already carries its variants. */
   found: FoundModel | null;
+  /** The other results of the search that carry the same model. */
+  alsoFound: FoundModel[];
   /** The registry entry of a model of search by meaning. */
   embedding: EmbeddingModel | null;
   /** The files of a dictation model, one per precision. */
@@ -138,6 +140,7 @@ function emptyEntry(): Omit<DiscoverEntry, "key" | "source" | "category" | "name
     architecture: null,
     repos: [],
     found: null,
+    alsoFound: [],
     embedding: null,
     dictation: [],
     sourceUrl: null,
@@ -251,9 +254,22 @@ export function localized(text: { fr: string; en: string }, locale: string): str
   return french ? text.fr : text.en;
 }
 
+/** The model a result carries: its card, else the repository it declares, else itself. */
+function modelOf(found: FoundModel): string {
+  const card = found.card;
+  if (card.origin_card_id) return `card:${card.origin_card_id}`;
+  return `repo:${(card.origin_repo ?? found.repo_id).toLowerCase()}`;
+}
+
+function lastSegment(repo: string): string {
+  return repo.split("/").pop() ?? repo;
+}
+
 /**
- * The rows of a search, in the order the search answered. A result whose
- * model has a card of the catalogue takes its author fields and its advised
+ * The rows of a search, one per model, in the order the search answered.
+ * Several repositories that carry the same model make one row, named after
+ * the model, whose card gathers the variants of each. A result whose model
+ * has a card of the catalogue takes its author fields and its advised
  * settings from it; its page stays the one of its own repository.
  */
 export function searchEntries(
@@ -261,29 +277,43 @@ export function searchEntries(
   locale: string,
   cards: readonly ModelCardView[] = [],
 ): DiscoverEntry[] {
-  return models.map((model): DiscoverEntry => {
+  const groups = new Map<string, FoundModel[]>();
+  for (const model of models) {
+    const key = modelOf(model);
+    const group = groups.get(key);
+    if (group) group.push(model);
+    else groups.set(key, [model]);
+  }
+  return [...groups.values()].flatMap((group): DiscoverEntry[] => {
+    const [model, ...others] = group;
+    if (!model) return [];
     const card = model.card;
     const origin = card.origin_card_id ? cards.find((c) => c.id === card.origin_card_id) : undefined;
-    return {
-      ...emptyEntry(),
-      key: `search:${model.repo_id}`,
-      source: "search",
-      category: "language",
-      name: model.repo_id.split("/").pop() ?? model.repo_id,
-      identifier: model.repo_id,
-      publisher: card.owner,
-      publisherKind: card.publisher_kind,
-      description: localized(card.description, locale),
-      capabilities: card.capabilities,
-      updatedAt: card.last_modified ?? model.last_modified ?? null,
-      inSelection: model.in_selection,
-      license: card.license,
-      parameters: card.parameters,
-      architecture: card.architecture,
-      found: model,
-      ...(origin ? fromCard(origin) : {}),
-      sourceUrl: card.source_url,
-    };
+    const gathered = others.length > 0;
+    const originRepo = card.origin_repo ?? model.repo_id;
+    return [
+      {
+        ...emptyEntry(),
+        key: `search:${model.repo_id}`,
+        source: "search",
+        category: "language",
+        name: gathered ? (origin?.label ?? lastSegment(originRepo)) : lastSegment(model.repo_id),
+        identifier: gathered ? originRepo : model.repo_id,
+        publisher: gathered ? (origin?.publisher ?? originRepo.split("/")[0] ?? card.owner) : card.owner,
+        publisherKind: card.publisher_kind,
+        description: localized(card.description, locale),
+        capabilities: card.capabilities,
+        updatedAt: card.last_modified ?? model.last_modified ?? null,
+        inSelection: group.some((m) => m.in_selection),
+        license: card.license,
+        parameters: card.parameters,
+        architecture: card.architecture,
+        found: model,
+        alsoFound: others,
+        ...(origin ? fromCard(origin) : {}),
+        sourceUrl: card.source_url,
+      },
+    ];
   });
 }
 
@@ -512,16 +542,28 @@ export function detailFromRepos(
   };
 }
 
-/** The detail of a search result, which its generated card already holds. */
-export function detailFromFound(found: FoundModel): CardDetail {
+/**
+ * The detail of a search result, which its generated card already holds. The
+ * other results that carry the same model add their variants after its own.
+ */
+export function detailFromFound(found: FoundModel, also: readonly FoundModel[] = []): CardDetail {
+  const seen = new Set<string>();
+  const variants = [found, ...also]
+    .flatMap((model) => model.card.variants)
+    .filter((variant) => {
+      const key = variantKey(variant);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   return {
     downloads: found.downloads,
     likes: found.likes,
     updatedAt: found.card.last_modified ?? found.last_modified ?? null,
     architecture: found.card.architecture,
     capabilities: found.card.capabilities,
-    gated: found.gated,
-    variants: found.card.variants,
+    gated: found.gated || also.some((model) => model.gated),
+    variants,
   };
 }
 

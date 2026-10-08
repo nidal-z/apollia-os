@@ -82,7 +82,7 @@
   /** How long the field waits for the next key before it searches. */
   const SEARCH_DELAY_MS = 350;
   /** How many repositories of one selection entry are asked for its variants. */
-  const MAX_REPOS = 4;
+  const MAX_REPOS = 8;
 
   const lang = $derived($locale ?? "fr");
 
@@ -213,7 +213,7 @@
       return;
     }
     if (entry.found) {
-      detail = detailFromFound(entry.found);
+      detail = detailFromFound(entry.found, entry.alsoFound);
       detailLoading = false;
       return;
     }
