@@ -14,6 +14,7 @@
   import { t, locale } from "svelte-i18n";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { ArrowLeft, Plus } from "lucide-svelte";
+  import InactiveServerDetail from "../components/connections/detail/InactiveServerDetail.svelte";
   import { Button } from "$lib/components/ui/button";
   import { PageHeader } from "$lib/components/operator";
   import ConnectorSidebar from "../components/connections/sidebar/ConnectorSidebar.svelte";
@@ -562,6 +563,18 @@
           ontry={(name) => openTry(`mcp:${selectedServer.name}`, name)}
           onchanged={() => void loadAll()}
           ondisconnected={() => {
+            selection = null;
+            void loadAll();
+          }}
+        />
+      {:else if selection?.kind === "mcp"}
+        <!-- A server the runtime does not run keeps a page: it is started
+             again or removed from there. -->
+        <InactiveServerDetail
+          name={selection.name}
+          label={selectedRow?.label ?? selection.name}
+          onchanged={() => void loadAll()}
+          onremoved={() => {
             selection = null;
             void loadAll();
           }}

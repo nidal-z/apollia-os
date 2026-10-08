@@ -880,7 +880,14 @@
       "done": "Done"
     },
     "badge_builtin": "Built in",
-    "page_subtitle": "The accounts, folders, services and tools Apollia reaches for you."
+    "page_subtitle": "The accounts, folders, services and tools Apollia reaches for you.",
+    "inactive": {
+      "title": "This connection is not active",
+      "body": "Apollia does not run this server: it was stopped, could not start, or comes from a trial. You can start it again, or remove it from your connections.",
+      "reconnect": "Start again",
+      "remove": "Remove",
+      "remove_confirm": "Remove this connection"
+    }
   },
   "integrations": {
     "disclaimer": {

@@ -880,7 +880,14 @@
       "done": "Terminé"
     },
     "badge_builtin": "Intégrée",
-    "page_subtitle": "Les comptes, dossiers, services et outils auxquels Apollia accède pour vous."
+    "page_subtitle": "Les comptes, dossiers, services et outils auxquels Apollia accède pour vous.",
+    "inactive": {
+      "title": "Cette connexion n'est pas active",
+      "body": "Apollia ne fait pas tourner ce serveur : il a été arrêté, n'a pas pu démarrer, ou vient d'un essai. Vous pouvez le relancer, ou le retirer de vos connexions.",
+      "reconnect": "Relancer",
+      "remove": "Retirer",
+      "remove_confirm": "Retirer cette connexion"
+    }
   },
   "integrations": {
     "disclaimer": {
