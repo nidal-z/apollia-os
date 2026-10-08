@@ -169,7 +169,7 @@
 <PageLayout
   title={$t("authorizations.title")}
   subtitle={$t("authorizations.subtitle")}
-  class="space-y-4 p-6"
+  class="space-y-4 pb-8 [&>*:not(:first-child)]:mx-8"
   data-testid="authorizations-page"
 >
   <PolicyPanel summary={auth.policy} onOpen={() => navigateTo("policy")} />

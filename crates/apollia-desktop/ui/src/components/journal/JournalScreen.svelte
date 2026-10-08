@@ -210,7 +210,7 @@
   title={$t("journal.title")}
   subtitle={$t("journal.subtitle")}
   actions={headerActions}
-  class="space-y-4 p-6"
+  class="space-y-4 pb-8 [&>*:not(:first-child)]:mx-8"
   data-testid="journal-page"
 >
   {#if actions.verification.status === "done"}
