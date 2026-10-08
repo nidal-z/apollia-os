@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "granite4.1/granite-4.1-30b",
+  "kind": "language",
+  "label": "Granite 4.1 30B",
+  "publisher": "IBM",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/ibm-granite/granite-4.1-30b"
+  },
+  "source_url": "https://huggingface.co/ibm-granite/granite-4.1-30b",
+  "description": {
+    "fr": "Génération Granite 4.1 d'IBM, sous licence Apache 2.0 : appel d'outils, suivi des consignes et long contexte renforcés, en douze langues dont le français. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+    "en": "The Granite 4.1 generation from IBM, under the Apache 2.0 licence: stronger tool calling, instruction following and long context, in twelve languages including French. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/ibm-granite/granite-4.1-30b/tree/main"
+  },
+  "memory": {
+    "min_gb": 17.5,
+    "source": "https://huggingface.co/ibm-granite/granite-4.1-30b-GGUF/blob/main/granite-4.1-30b-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "ibm-granite/granite-4.1-30b",
+    "ibm-granite/granite-4.1-30b-GGUF",
+    "mlx-community/granite-4.1-30b-4bit",
+    "unsloth/granite-4.1-30b-GGUF",
+    "bartowski/ibm-granite_granite-4.1-30b-GGUF",
+    "lmstudio-community/granite-4.1-30b-GGUF",
+    "mlx-community/granite-4.1-30b-5bit",
+    "mlx-community/granite-4.1-30b-6bit",
+    "mlx-community/granite-4.1-30b-8bit"
+  ]
+}

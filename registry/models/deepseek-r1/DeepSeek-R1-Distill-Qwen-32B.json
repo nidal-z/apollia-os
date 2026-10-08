@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "deepseek-r1/DeepSeek-R1-Distill-Qwen-32B",
+  "kind": "language",
+  "label": "DeepSeek R1 Distill Qwen 32B",
+  "publisher": "DeepSeek",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+  },
+  "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+  "description": {
+    "fr": "Modèle distillé de DeepSeek R1 : un modèle ouvert plus petit a appris à reproduire le raisonnement de R1, qu'il déroule toujours avant de répondre. Celui-ci part d'un modèle Qwen2.5 de 32 milliards de paramètres. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+    "en": "A model distilled from DeepSeek R1: a smaller open model has learned to reproduce the reasoning of R1, which it always lays out before answering. This one starts from a Qwen2.5 model of 32 billion parameters. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/tree/main"
+  },
+  "memory": {
+    "min_gb": 19.9,
+    "source": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Qwen-32B-GGUF/blob/main/DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+    "unsloth/DeepSeek-R1-Distill-Qwen-32B-GGUF",
+    "mlx-community/DeepSeek-R1-Distill-Qwen-32B-4bit",
+    "bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF",
+    "lmstudio-community/DeepSeek-R1-Distill-Qwen-32B-GGUF",
+    "mlx-community/DeepSeek-R1-Distill-Qwen-32B-MLX-4Bit",
+    "mlx-community/DeepSeek-R1-Distill-Qwen-32B-6bit",
+    "mlx-community/DeepSeek-R1-Distill-Qwen-32B-MLX-8Bit"
+  ]
+}

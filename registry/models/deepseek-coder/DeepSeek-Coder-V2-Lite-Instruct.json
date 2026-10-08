@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "deepseek-coder/DeepSeek-Coder-V2-Lite-Instruct",
+  "kind": "language",
+  "label": "DeepSeek Coder V2 Lite",
+  "publisher": "DeepSeek",
+  "license": {
+    "id": "deepseek-license",
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
+  "description": {
+    "fr": "DeepSeek Coder V2 Lite est un modèle à experts de DeepSeek spécialisé dans le code : écriture, complétion et correction de programmes dans de très nombreux langages. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "DeepSeek Coder V2 Lite is a mixture-of-experts model from DeepSeek specialised in code: writing, completing and fixing programs in a great many languages. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 24 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 10.4,
+    "source": "https://huggingface.co/bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF/blob/main/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.3,
+    "top_p": 0.95,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
+    "bartowski/DeepSeek-Coder-V2-Lite-Instruct-GGUF",
+    "mlx-community/DeepSeek-Coder-V2-Lite-Instruct-4bit",
+    "lmstudio-community/DeepSeek-Coder-V2-Lite-Instruct-GGUF",
+    "mlx-community/DeepSeek-Coder-V2-Lite-Instruct-6bit",
+    "mlx-community/DeepSeek-Coder-V2-Lite-Instruct-8bit"
+  ]
+}

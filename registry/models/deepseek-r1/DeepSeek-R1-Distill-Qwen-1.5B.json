@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "deepseek-r1/DeepSeek-R1-Distill-Qwen-1.5B",
+  "kind": "language",
+  "label": "DeepSeek R1 Distill Qwen 1.5B",
+  "publisher": "DeepSeek",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+  },
+  "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+  "description": {
+    "fr": "Modèle distillé de DeepSeek R1 : un modèle ouvert plus petit a appris à reproduire le raisonnement de R1, qu'il déroule toujours avant de répondre. Celui-ci part d'un modèle Qwen2.5 de 1,5 milliard de paramètres. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "A model distilled from DeepSeek R1: a smaller open model has learned to reproduce the reasoning of R1, which it always lays out before answering. This one starts from a Qwen2.5 model of 1.5 billion parameters. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.2,
+    "source": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/blob/main/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+    "unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF",
+    "mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit",
+    "bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF",
+    "lmstudio-community/DeepSeek-R1-Distill-Qwen-1.5B-GGUF",
+    "mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-6bit",
+    "mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-8bit"
+  ]
+}

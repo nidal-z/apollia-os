@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "granite4/granite-4.0-h-1b",
+  "kind": "language",
+  "label": "Granite 4.0 H 1B",
+  "publisher": "IBM",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/ibm-granite/granite-4.0-h-1b"
+  },
+  "source_url": "https://huggingface.co/ibm-granite/granite-4.0-h-1b",
+  "description": {
+    "fr": "Génération Granite 4.0 d'IBM, sous licence Apache 2.0, prévue pour l'entreprise : appel d'outils, réponses fondées sur des documents fournis et sortie structurée. Les variantes H ont une architecture hybride qui consomme moins de mémoire sur les longs contextes. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "The Granite 4.0 generation from IBM, under the Apache 2.0 licence, meant for business use: tool calling, answers grounded in supplied documents and structured output. The H variants have a hybrid architecture that uses less memory on long contexts. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/ibm-granite/granite-4.0-h-1b/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.0,
+    "source": "https://huggingface.co/ibm-granite/granite-4.0-h-1b-GGUF/blob/main/granite-4.0-h-1b-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "ibm-granite/granite-4.0-h-1b",
+    "ibm-granite/granite-4.0-h-1b-GGUF",
+    "mlx-community/granite-4.0-h-1b-4bit",
+    "unsloth/granite-4.0-h-1b-GGUF",
+    "mlx-community/granite-4.0-h-1b-5bit",
+    "mlx-community/granite-4.0-h-1b-6bit",
+    "mlx-community/granite-4.0-h-1b-8bit"
+  ]
+}

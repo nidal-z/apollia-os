@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "granite4.2/granite-4.2-8b",
+  "kind": "language",
+  "label": "Granite 4.2 8B",
+  "publisher": "IBM",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/ibm-granite/granite-4.2-8b"
+  },
+  "source_url": "https://huggingface.co/ibm-granite/granite-4.2-8b",
+  "description": {
+    "fr": "Génération Granite 4.2 d'IBM, sous licence Apache 2.0, pensée pour l'entreprise : raisonnement visible, code, appel d'outils et agents, testée en douze langues dont le français. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The Granite 4.2 generation from IBM, under the Apache 2.0 licence, made for business use: visible reasoning, code, tool calling and agents, tested in twelve languages including French. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/ibm-granite/granite-4.2-8b/tree/main"
+  },
+  "memory": {
+    "min_gb": 5.4,
+    "source": "https://huggingface.co/ibm-granite/granite-4.2-8b-GGUF/blob/main/granite-4.2-8b-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "source": "https://huggingface.co/ibm-granite/granite-4.2-8b/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/ibm-granite/granite-4.2-8b/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "ibm-granite/granite-4.2-8b",
+    "ibm-granite/granite-4.2-8b-GGUF",
+    "lmstudio-community/granite-4.2-8b-MLX-4bit",
+    "bartowski/granite-4.2-8b-GGUF",
+    "lmstudio-community/granite-4.2-8b-GGUF",
+    "lmstudio-community/granite-4.2-8b-MLX-6bit",
+    "lmstudio-community/granite-4.2-8b-MLX-8bit"
+  ]
+}

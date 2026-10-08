@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "nemotron/Llama-3.1-Nemotron-Nano-8B-v1",
+  "kind": "language",
+  "label": "Llama 3.1 Nemotron Nano 8B",
+  "publisher": "NVIDIA",
+  "license": {
+    "id": "nvidia-open-model-license",
+    "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+  },
+  "source_url": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1",
+  "description": {
+    "fr": "Llama 3.1 Nemotron Nano 8B de NVIDIA est dérivé de Llama 3.1 8B et réentraîné pour les agents : appel d'outils et réponses fondées sur des documents fournis. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "Llama 3.1 Nemotron Nano 8B from NVIDIA is derived from Llama 3.1 8B and retrained for agents: tool calling and answers grounded in supplied documents. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1/tree/main"
+  },
+  "memory": {
+    "min_gb": 5.0,
+    "source": "https://huggingface.co/unsloth/Llama-3.1-Nemotron-Nano-8B-v1-GGUF/blob/main/Llama-3.1-Nemotron-Nano-8B-v1-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "source": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "nvidia/Llama-3.1-Nemotron-Nano-8B-v1",
+    "unsloth/Llama-3.1-Nemotron-Nano-8B-v1-GGUF",
+    "bartowski/nvidia_Llama-3.1-Nemotron-Nano-8B-v1-GGUF"
+  ]
+}

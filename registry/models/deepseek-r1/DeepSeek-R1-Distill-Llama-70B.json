@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "deepseek-r1/DeepSeek-R1-Distill-Llama-70B",
+  "kind": "language",
+  "label": "DeepSeek R1 Distill Llama 70B",
+  "publisher": "DeepSeek",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+  },
+  "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+  "description": {
+    "fr": "Modèle distillé de DeepSeek R1 : un modèle ouvert plus petit a appris à reproduire le raisonnement de R1, qu'il déroule toujours avant de répondre. Celui-ci part d'un modèle Llama de 70 milliards de paramètres. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
+    "en": "A model distilled from DeepSeek R1: a smaller open model has learned to reproduce the reasoning of R1, which it always lays out before answering. This one starts from a Llama model of 70 billion parameters. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B/tree/main"
+  },
+  "memory": {
+    "min_gb": 42.6,
+    "source": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Llama-70B-GGUF/blob/main/DeepSeek-R1-Distill-Llama-70B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+    "unsloth/DeepSeek-R1-Distill-Llama-70B-GGUF",
+    "mlx-community/DeepSeek-R1-Distill-Llama-70B-4bit",
+    "bartowski/DeepSeek-R1-Distill-Llama-70B-GGUF",
+    "lmstudio-community/DeepSeek-R1-Distill-Llama-70B-GGUF",
+    "mlx-community/DeepSeek-R1-Distill-Llama-70B-6bit",
+    "mlx-community/DeepSeek-R1-Distill-Llama-70B-8bit"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "gpt-oss/gpt-oss-120b",
+  "kind": "language",
+  "label": "gpt-oss 120B",
+  "publisher": "OpenAI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/openai/gpt-oss-120b"
+  },
+  "source_url": "https://huggingface.co/openai/gpt-oss-120b",
+  "description": {
+    "fr": "gpt-oss est le modèle à poids ouverts d'OpenAI, sous licence Apache 2.0 : il raisonne avant de répondre, avec un effort réglable sur trois niveaux, et appelle des outils, en texte seul. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 96 Go de mémoire en quantification Q4.",
+    "en": "gpt-oss is the open-weight model from OpenAI, under the Apache 2.0 licence: it reasons before answering, with an effort set on three levels, and calls tools, in text only. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 96 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/openai/gpt-oss-120b/tree/main"
+  },
+  "memory": {
+    "min_gb": 62.8,
+    "source": "https://huggingface.co/unsloth/gpt-oss-120b-GGUF/blob/main/Q4_K_M/gpt-oss-120b-Q4_K_M-00001-of-00002.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [
+    {
+      "name": "reasoning_effort",
+      "type": "liste",
+      "values": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default": "medium",
+      "explanation": {
+        "fr": "Règle la profondeur de la réflexion avant la réponse. Plus l'effort est élevé, plus le modèle prend de temps et mieux il traite les problèmes en plusieurs étapes.",
+        "en": "Sets how deep the model thinks before answering. The higher the effort, the more time the model takes and the better it handles multi-step problems."
+      },
+      "source": "https://huggingface.co/openai/gpt-oss-120b/blob/main/README.md"
+    }
+  ],
+  "repos": [
+    "openai/gpt-oss-120b",
+    "unsloth/gpt-oss-120b-GGUF",
+    "mlx-community/gpt-oss-120b-4bit",
+    "bartowski/openai_gpt-oss-120b-GGUF",
+    "lmstudio-community/gpt-oss-120b-GGUF",
+    "ggml-org/gpt-oss-120b-GGUF",
+    "lmstudio-community/gpt-oss-120b-MLX-8bit"
+  ]
+}

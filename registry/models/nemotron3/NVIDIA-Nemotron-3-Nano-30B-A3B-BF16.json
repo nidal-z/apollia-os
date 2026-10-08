@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "nemotron3/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+  "kind": "language",
+  "label": "Nemotron 3 Nano 30B-A3B",
+  "publisher": "NVIDIA",
+  "license": {
+    "id": "nvidia-nemotron-open-model-license",
+    "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-nemotron-open-model-license/"
+  },
+  "source_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+  "description": {
+    "fr": "Génération Nemotron 3 de NVIDIA, à l'architecture hybride qui allège les très longs contextes : elle appelle des outils et réfléchit avant de répondre, la réflexion pouvant être coupée. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 48 Go de mémoire en quantification Q4.",
+    "en": "The Nemotron 3 generation from NVIDIA, with a hybrid architecture that lightens very long contexts: it calls tools and thinks before answering, and thinking can be turned off. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 48 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16/tree/main"
+  },
+  "memory": {
+    "min_gb": 24.6,
+    "source": "https://huggingface.co/lmstudio-community/NVIDIA-Nemotron-3-Nano-30B-A3B-GGUF/blob/main/NVIDIA-Nemotron-3-Nano-30B-A3B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "source": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+    "lmstudio-community/NVIDIA-Nemotron-3-Nano-30B-A3B-GGUF",
+    "mlx-community/NVIDIA-Nemotron-3-Nano-30B-A3B-4bit",
+    "ggml-org/NVIDIA-Nemotron-3-Nano-30B-A3B-GGUF",
+    "mlx-community/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-4Bit",
+    "lmstudio-community/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-4bit",
+    "mlx-community/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-5Bit",
+    "mlx-community/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-6Bit",
+    "mlx-community/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8Bit",
+    "lmstudio-community/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-5bit",
+    "lmstudio-community/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-6bit",
+    "lmstudio-community/NVIDIA-Nemotron-3-Nano-30B-A3B-MLX-8bit"
+  ]
+}
