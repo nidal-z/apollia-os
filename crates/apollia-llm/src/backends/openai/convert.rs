@@ -204,6 +204,14 @@ pub(super) fn map_finish_reason(
 pub(super) fn map_openai_error(err: async_openai::error::OpenAIError) -> LlmError {
     use async_openai::error::OpenAIError;
     match err {
+        // Nothing answered at the address: the server is not started, or the
+        // address is wrong. Said as such, with the address, where it used to
+        // read as an HTTP error without a status.
+        OpenAIError::Reqwest(req_err) if req_err.is_connect() => LlmError::BackendUnavailable {
+            backend: server_address(&req_err),
+            reason: "no server answers at this address: it is not started, or the address is wrong"
+                .to_owned(),
+        },
         OpenAIError::Reqwest(req_err) => {
             let status = req_err.status().map(|s| s.as_u16()).unwrap_or(0);
             match status {
@@ -255,6 +263,18 @@ pub(super) fn map_openai_error(err: async_openai::error::OpenAIError) -> LlmErro
         other => LlmError::InferenceError(other.to_string()),
     }
 }
+/// The scheme, host and port a request was sent to, without its path.
+fn server_address(error: &reqwest::Error) -> String {
+    let Some(url) = error.url() else {
+        return "the configured server".to_owned();
+    };
+    let host = url.host_str().unwrap_or_default();
+    match url.port() {
+        Some(port) => format!("{}://{host}:{port}", url.scheme()),
+        None => format!("{}://{host}", url.scheme()),
+    }
+}
+
 /// Recovers the HTTP status from a body the OpenAI schema could not parse.
 ///
 /// Backends that emit `{"error":{"code":404,...}}` put an integer where the
@@ -452,6 +472,29 @@ mod tests {
     use crate::types::{ChatMessage, CompletionRequest, ReasoningEffort};
     use async_openai::types::CreateChatCompletionRequestArgs;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn a_server_that_does_not_answer_is_named_with_its_address() {
+        // GIVEN a request sent to an address where nothing listens
+        let refused = reqwest::Client::new()
+            .get("http://127.0.0.1:1/v1/chat/completions")
+            .send()
+            .await
+            .expect_err("nothing listens on port 1");
+
+        // WHEN the failure is mapped
+        let mapped = map_openai_error(async_openai::error::OpenAIError::Reqwest(refused));
+
+        // THEN it says the server is unavailable, at its address without the
+        // route, where it used to read as an HTTP error with no status
+        match mapped {
+            LlmError::BackendUnavailable { backend, reason } => {
+                assert_eq!(backend, "http://127.0.0.1:1");
+                assert!(reason.contains("not started"), "{reason}");
+            }
+            other => panic!("expected BackendUnavailable, got {other:?}"),
+        }
+    }
 
     fn built_request() -> async_openai::types::CreateChatCompletionRequest {
         let messages = build_messages(&[ChatMessage::user("hello")]).expect("valid message");
