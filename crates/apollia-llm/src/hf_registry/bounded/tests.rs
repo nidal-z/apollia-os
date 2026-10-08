@@ -394,11 +394,37 @@ fn hub_sorts_order_the_merged_pages_and_cards_carry_date_and_kind() {
 }
 
 fn found(repo: &str, tree_text: &str, profile: Option<&HardwareProfile>) -> FoundModel {
+    found_in(repo, tree_text, profile, &index())
+}
+
+/// The fixture index without the card `id`: what the registry is for a
+/// repository whose origin has no card.
+fn index_without(id: &str) -> RegistryIndex {
+    let mut value: serde_json::Value =
+        serde_json::from_slice(INDEX).expect("the fixture index is JSON");
+    let cards = value["cards"]
+        .as_array_mut()
+        .expect("the fixture index lists its cards");
+    let before = cards.len();
+    cards.retain(|card| card["id"] != id);
+    assert_eq!(
+        cards.len() + 1,
+        before,
+        "the fixture index holds the card {id}"
+    );
+    RegistryIndex::parse(value.to_string().as_bytes()).expect("the index parses without the card")
+}
+
+fn found_in(
+    repo: &str,
+    tree_text: &str,
+    profile: Option<&HardwareProfile>,
+    index: &RegistryIndex,
+) -> FoundModel {
     let authors = search_authors(None);
-    let index = index();
     let ctx = SearchContext {
         authors: &authors,
-        index: Some(&index),
+        index: Some(index),
         selection: &[],
         hardware: profile,
     };
@@ -454,11 +480,13 @@ fn a_converter_copy_of_a_model_with_a_card_inherits_it() {
 
 #[test]
 fn a_repository_without_a_card_gets_facts_only_and_no_readme_sentence() {
-    // GIVEN a converter's repository whose origin has no Apollia card
+    // GIVEN a converter's repository whose origin has no Apollia card: the
+    // registry as it is without the card of that model
     let profile = mac();
+    let index = index_without("granite3.3/granite-3.3-8b-instruct");
 
     // WHEN its result is read
-    let found = found(GRANITE, GRANITE_TREE, Some(&profile));
+    let found = found_in(GRANITE, GRANITE_TREE, Some(&profile), &index);
     let card = &found.card;
 
     // THEN the card is facts: a sentence Apollia builds, parameters,
