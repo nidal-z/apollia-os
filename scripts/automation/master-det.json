@@ -10248,6 +10248,30 @@
       "label": "18-custom-mcp-installed-stub"
     },
     {
+      "kind": "expect",
+      "testid": "connectors-sidebar"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mcp-automation-stub-mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-detail",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connectors-sidebar",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "click",
       "testid": "sidebar-mcp-automation-stub-mcp",
       "timeoutMs": 4000

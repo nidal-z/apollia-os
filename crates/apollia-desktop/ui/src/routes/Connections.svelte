@@ -13,7 +13,8 @@
    */
   import { t, locale } from "svelte-i18n";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import { SplitLayout } from "$lib/components/operator";
+  import { ArrowLeft } from "lucide-svelte";
+  import { PageHeader } from "$lib/components/operator";
   import ConnectorSidebar from "../components/connections/sidebar/ConnectorSidebar.svelte";
   import NativeConnectorDetail from "../components/connections/detail/NativeConnectorDetail.svelte";
   import McpServerDetail from "../components/connections/detail/McpServerDetail.svelte";
@@ -399,7 +400,8 @@
     void loadBuiltinTools();
   });
 
-  // Auto-select the first connection; recover when the target disappears. A
+  // The screen opens on its list; a sheet whose target disappears gives the
+  // list back. A
   // native provider stays selectable without an account: its page is where its
   // client is entered and its first account connected.
   $effect(() => {
@@ -408,8 +410,6 @@
     if (cur !== null && cur.kind !== "native" && cur.kind !== "builtin" && selectedRow === null) {
       selection = null;
     }
-    if (selection !== null) return;
-    selection = rows[0]?.selection ?? { kind: "builtin" };
   });
 
   // Reset tabs on selection kind change.
@@ -487,74 +487,94 @@
 </script>
 
 <div class="flex h-full min-h-0 w-full flex-col" data-testid="connections-route">
-  <SplitLayout sidebarTestid="connectors-sidebar" detailTestid="connector-detail">
-    {#snippet sidebar()}
-      <ConnectorSidebar
-        {rows}
-        {forbidden}
-        {selection}
-        {loading}
-        {loadError}
-        onselect={(sel) => (selection = sel)}
-        onopencatalogue={handleOpenCatalogue}
-        oncontext={handleContext}
-        builtinTools={builtinCount}
-      />
-    {/snippet}
-
-    {#if selection?.kind === "native" && selectedNativeConnector}
-      <NativeConnectorDetail
-        connector={selectedNativeConnector}
-        remote={selectedRow?.remote ?? false}
-        accounts={accountsForProvider(selectedNativeConnector.id)}
-        loading={nativeLoading}
-        error={nativeError}
-        needsSetup={needsSetup(selectedNativeConnector.id)}
-        tab={nativeTab}
-        clientStatus={oauthClients.find((c) => c.provider === selectedNativeConnector.id)}
-        clientError={oauthClientsError}
-        onclientretry={() => void refreshNativeStatus()}
-        onconnect={() => startNativeConnect(selectedNativeConnector.id)}
-        onconfigure={() => openClientSection(selectedNativeConnector.id)}
-        ondisconnect={disconnectNative}
-        ontabchange={(tab) => (nativeTab = tab)}
-        ontry={nativeTry(selectedNativeConnector)}
-      />
-    {:else if selection?.kind === "mcp" && selectedServer}
-      <McpServerDetail
-        server={selectedServer}
-        enrichment={resolveEnrichment(selectedServer)}
-        remote={selectedRow?.remote ?? false}
-        tab={mcpTab}
-        ontabchange={(tab) => (mcpTab = tab)}
-        ontry={(name) => openTry(`mcp:${selectedServer.name}`, name)}
-        onchanged={() => void loadAll()}
-        ondisconnected={() => {
-          selection = null;
-          void loadAll();
-        }}
-      />
-    {:else if selection?.kind === "builtin"}
-      <BuiltinToolsDetail />
-    {:else if selection?.kind === "connection" && selectedConnection}
-      <ConnectionSummaryDetail
-        connection={selectedConnection}
-        label={selectedRow?.label ?? selectedConnection.label}
-        ontry={() => openTry(selectedConnection.id, selectedRow?.label ?? selectedConnection.label)}
-        onremoved={() => {
-          selection = null;
-          void loadAll();
-        }}
-      />
-    {:else}
-      <div
-        class="flex flex-1 items-center justify-center text-body-sm text-muted-foreground"
-        data-testid="connections-select-prompt"
-      >
-        {$t("connections.select_connector_prompt")}
+  {#if selection === null}
+    <!-- The screen opens on one list, across the page; a row opens its sheet
+         in place of the list. -->
+    <div class="flex min-h-0 flex-1 flex-col" data-testid="connectors-sidebar">
+      <PageHeader title={$t("nav.connections")} subtitle={$t("connections.page_subtitle")} />
+      <div class="min-h-0 flex-1 overflow-y-auto px-8 py-5">
+        <div class="mx-auto flex max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card">
+          <ConnectorSidebar
+            {rows}
+            {forbidden}
+            {selection}
+            {loading}
+            {loadError}
+            onselect={(sel) => (selection = sel)}
+            onopencatalogue={handleOpenCatalogue}
+            oncontext={handleContext}
+            builtinTools={builtinCount}
+          />
+        </div>
       </div>
-    {/if}
-  </SplitLayout>
+    </div>
+  {:else}
+    <section class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background" data-testid="connector-detail">
+      <div class="shrink-0 px-6 pt-3">
+        <button
+          type="button"
+          class="-ml-1.5 flex w-fit items-center gap-1 rounded-md px-1.5 py-1 text-body-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          onclick={() => (selection = null)}
+          data-testid="connections-back"
+        >
+          <ArrowLeft size={13} aria-hidden="true" />
+          {$t("nav.connections")}
+        </button>
+      </div>
+    {#if selection?.kind === "native" && selectedNativeConnector}
+        <NativeConnectorDetail
+          connector={selectedNativeConnector}
+          remote={selectedRow?.remote ?? false}
+          accounts={accountsForProvider(selectedNativeConnector.id)}
+          loading={nativeLoading}
+          error={nativeError}
+          needsSetup={needsSetup(selectedNativeConnector.id)}
+          tab={nativeTab}
+          clientStatus={oauthClients.find((c) => c.provider === selectedNativeConnector.id)}
+          clientError={oauthClientsError}
+          onclientretry={() => void refreshNativeStatus()}
+          onconnect={() => startNativeConnect(selectedNativeConnector.id)}
+          onconfigure={() => openClientSection(selectedNativeConnector.id)}
+          ondisconnect={disconnectNative}
+          ontabchange={(tab) => (nativeTab = tab)}
+          ontry={nativeTry(selectedNativeConnector)}
+        />
+      {:else if selection?.kind === "mcp" && selectedServer}
+        <McpServerDetail
+          server={selectedServer}
+          enrichment={resolveEnrichment(selectedServer)}
+          remote={selectedRow?.remote ?? false}
+          tab={mcpTab}
+          ontabchange={(tab) => (mcpTab = tab)}
+          ontry={(name) => openTry(`mcp:${selectedServer.name}`, name)}
+          onchanged={() => void loadAll()}
+          ondisconnected={() => {
+            selection = null;
+            void loadAll();
+          }}
+        />
+      {:else if selection?.kind === "builtin"}
+        <BuiltinToolsDetail />
+      {:else if selection?.kind === "connection" && selectedConnection}
+        <ConnectionSummaryDetail
+          connection={selectedConnection}
+          label={selectedRow?.label ?? selectedConnection.label}
+          ontry={() => openTry(selectedConnection.id, selectedRow?.label ?? selectedConnection.label)}
+          onremoved={() => {
+            selection = null;
+            void loadAll();
+          }}
+        />
+      {:else}
+        <div
+          class="flex flex-1 items-center justify-center text-body-sm text-muted-foreground"
+          data-testid="connections-select-prompt"
+        >
+          {$t("connections.select_connector_prompt")}
+        </div>
+      {/if}
+    </section>
+  {/if}
 </div>
 
 {#if selectedRegistryServer}

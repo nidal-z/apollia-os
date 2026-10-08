@@ -879,7 +879,8 @@
       "native_added_body": "The account {account} is connected. You choose which agents can use it from their card.",
       "done": "Done"
     },
-    "badge_builtin": "Built in"
+    "badge_builtin": "Built in",
+    "page_subtitle": "The accounts, folders, services and tools Apollia reaches for you."
   },
   "integrations": {
     "disclaimer": {

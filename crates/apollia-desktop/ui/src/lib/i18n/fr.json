@@ -879,7 +879,8 @@
       "native_added_body": "Le compte {account} est connecté. Vous choisissez quels agents y ont accès depuis leur fiche.",
       "done": "Terminé"
     },
-    "badge_builtin": "Intégrée"
+    "badge_builtin": "Intégrée",
+    "page_subtitle": "Les comptes, dossiers, services et outils auxquels Apollia accède pour vous."
   },
   "integrations": {
     "disclaimer": {
