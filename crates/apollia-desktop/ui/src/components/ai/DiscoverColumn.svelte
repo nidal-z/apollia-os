@@ -33,6 +33,8 @@
     formats: readonly ModelFormat[];
     sort: SearchSort;
     fitsOnly: boolean;
+    /** Where the language models come from. */
+    source: "selection" | "hub";
     /** What a model can occupy on this machine, in GB; null until probed. */
     capacityGb: number | null;
     entries: readonly DiscoverEntry[];
@@ -58,6 +60,7 @@
     formats,
     sort = $bindable("best_match"),
     fitsOnly = $bindable(false),
+    source = $bindable("selection"),
     capacityGb,
     entries,
     selectedKey,
@@ -183,13 +186,39 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2.5">
+      {#if category === "language"}
+        <!-- The source is a choice one can see and change, not a mark. -->
+        <div class="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5" role="group">
+          <button
+            type="button"
+            class={cn(
+              "rounded-md px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+              source === "selection" ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+            aria-pressed={source === "selection"}
+            onclick={() => {
+              source = "selection";
+              query = "";
+            }}
+            data-testid="ai-discover-selection-mark"
+          >
+            {$t("ai.discover.selection")}
+          </button>
+          <button
+            type="button"
+            class={cn(
+              "rounded-md px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+              source === "hub" ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+            aria-pressed={source === "hub"}
+            onclick={() => (source = "hub")}
+            data-testid="ai-discover-source-hub"
+          >
+            {$t("ai.discover.source_hub")}
+          </button>
+        </div>
+      {/if}
       {#if !searching}
-        <ExplainedBadge
-          label={$t("ai.discover.selection")}
-          explanation={$t("ai.discover.selection_explanation")}
-          variant="primary"
-          testid="ai-discover-selection-mark"
-        />
         <Tooltip
           content={$t("ai.discover.refresh")}
           onclick={onrefresh}
@@ -261,25 +290,32 @@
           {#each group.entries as entry (entry.key)}
             {@const kind = publisherKindKeys(entry.publisherKind)}
             <li class="min-w-0">
+              <!-- The name is the keyboard path; the whole row answers a click. -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class={cn(
-                  "relative flex items-center gap-4 px-4 py-2.5 transition-colors",
+                  "flex cursor-pointer items-center gap-4 px-4 py-2.5 transition-colors",
                   selectedKey === entry.key ? "bg-primary/5" : "hover:bg-muted/40",
                 )}
+                onclick={() => onselect(entry)}
                 data-testid="ai-discover-result"
                 data-entry-key={entry.key}
               >
                 <div class="flex w-56 shrink-0 items-center gap-1.5">
                   <button
                     type="button"
-                    class="min-w-0 truncate text-left text-sm font-semibold text-foreground after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring/60"
+                    class="min-w-0 truncate rounded-sm text-left text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                     aria-current={selectedKey === entry.key ? "true" : undefined}
-                    onclick={() => onselect(entry)}
+                    onclick={(event) => {
+                      event.stopPropagation();
+                      onselect(entry);
+                    }}
                     data-testid="ai-discover-result-open"
                   >
                     {entry.name}
                   </button>
-                  <span class="relative flex shrink-0 items-center gap-1">
+                  <span class="flex shrink-0 items-center gap-1">
                     {#each capabilitiesOf(entry.capabilities) as capability (capability)}
                       <CapabilityIcon {capability} />
                     {/each}
@@ -287,7 +323,7 @@
                 </div>
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm text-foreground/80">{entry.description}</p>
-                  <div class="relative mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <span data-testid="ai-discover-result-publisher">{entry.publisher}</span>
                     {#if entry.recommendedHere}
                       <ExplainedBadge

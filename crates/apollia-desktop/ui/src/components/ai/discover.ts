@@ -393,21 +393,33 @@ export function dictationVariant(
 }
 
 /**
- * The rows the selection shows: the chosen category, the entries that fit the
- * machine alone when asked, the most recent first under that sort. An entry
- * whose memory nobody states is left out of "fits", since nothing says it does.
+ * The selection as the list shows it. The box keeps what is not known to be
+ * too large: a model nobody sized cannot be said not to fit, and leaving it
+ * out emptied the list on a registry whose cards carry no memory. Without a
+ * sort by date, what fits this computer comes first, the lightest first, then
+ * what does not, in the order of the selection.
  */
 export function shownSelection(
   entries: readonly DiscoverEntry[],
   options: { fitsOnly: boolean; capacityGb: number | null; sort: SearchSort },
 ): DiscoverEntry[] {
   const { fitsOnly, capacityGb, sort } = options;
-  const kept =
-    fitsOnly && capacityGb !== null
-      ? entries.filter((e) => e.minMemoryGb !== null && e.minMemoryGb <= capacityGb)
-      : [...entries];
-  if (sort !== "updated") return kept;
-  return [...kept].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+  const tooLarge = (e: DiscoverEntry): boolean =>
+    capacityGb !== null && e.minMemoryGb !== null && e.minMemoryGb > capacityGb;
+  const kept = fitsOnly ? entries.filter((e) => !tooLarge(e)) : [...entries];
+  if (sort === "updated") {
+    return [...kept].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+  }
+  const rank = (e: DiscoverEntry): number => (tooLarge(e) ? 2 : e.minMemoryGb === null ? 1 : 0);
+  return kept
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (a, b) =>
+        rank(a.entry) - rank(b.entry) ||
+        (rank(a.entry) === 0 ? (a.entry.minMemoryGb ?? 0) - (b.entry.minMemoryGb ?? 0) : 0) ||
+        a.index - b.index,
+    )
+    .map(({ entry }) => entry);
 }
 
 /** Whether the words typed start a search rather than show the selection. */

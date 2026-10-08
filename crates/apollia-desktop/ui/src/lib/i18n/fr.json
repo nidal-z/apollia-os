@@ -5597,7 +5597,8 @@
       "back_to_gallery": "Retour au catalogue",
       "min_memory": "{size} Go de mémoire",
       "fit_yes": "tient sur ce poste",
-      "fit_no": "trop lourd pour ce poste"
+      "fit_no": "trop lourd pour ce poste",
+      "source_hub": "Hugging Face"
     },
     "panel": {
       "sidebar_tab": "Modèle",

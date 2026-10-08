@@ -20221,6 +20221,10 @@
     },
     {
       "kind": "expect",
+      "testid": "ai-discover-source-hub"
+    },
+    {
+      "kind": "expect",
       "testid": "ai-discover-refresh"
     },
     {

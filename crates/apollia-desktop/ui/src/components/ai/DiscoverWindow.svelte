@@ -119,7 +119,13 @@
   let searchRun = 0;
   let detailRun = 0;
 
-  const searching = $derived(category === "language" && isSearching(query));
+  // Where the language models come from: the Apollia selection, or the
+  // recognised publishers on Hugging Face. Typing a name searches the second
+  // whatever the choice.
+  let source = $state<"selection" | "hub">("selection");
+  const searching = $derived(
+    category === "language" && (source === "hub" || isSearching(query)),
+  );
   const offline = $derived(browserOffline || unreachable);
   const capacityGb = $derived(hardware?.total_capacity_gb ?? null);
   const formats = $derived(formatsFor(hardware?.accelerator));
@@ -324,13 +330,14 @@
       found = [];
       searchError = null;
       selectedKey = null;
+      source = "selection";
       void loadSelection();
     });
   });
 
   // The search follows the words, the format, the sort and the box, after a pause.
   $effect(() => {
-    void [query, format, sort, fitsOnly];
+    void [query, format, sort, fitsOnly, source];
     if (!open || !searching) return;
     const timer = setTimeout(() => void runSearch(), SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
@@ -421,6 +428,7 @@
         bind:format
         bind:sort
         bind:fitsOnly
+        bind:source
         {category}
         {formats}
         {capacityGb}

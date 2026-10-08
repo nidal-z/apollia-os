@@ -19,6 +19,7 @@
  * identifier, a code fragment, or a placeholder the runtime fills.
  */
 export const IDENTICAL_BY_NATURE: string[] = [
+  "ai.discover.source_hub", // Hugging Face
   "ai.installed.group", // {label} · {count}
   "ai.panel.inference.structured.placeholder", // { "type": "object", "properties": {} }
   "authorizations.apollia_name", // Apollia

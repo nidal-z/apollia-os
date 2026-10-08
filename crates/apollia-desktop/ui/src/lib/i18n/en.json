@@ -5597,7 +5597,8 @@
       "back_to_gallery": "Back to the catalogue",
       "min_memory": "{size} GB of memory",
       "fit_yes": "fits this computer",
-      "fit_no": "too heavy for this computer"
+      "fit_no": "too heavy for this computer",
+      "source_hub": "Hugging Face"
     },
     "panel": {
       "sidebar_tab": "Model",

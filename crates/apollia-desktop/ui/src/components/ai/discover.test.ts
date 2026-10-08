@@ -204,7 +204,7 @@ describe("the selection the window opens on", () => {
     expect(entries.map((e) => e.name)).toEqual(["Qwen3 8B"]);
   });
 
-  test("the box keeps what fits the capacity, and leaves out what nobody sized", () => {
+  test("the box leaves out what is known to be too large, and keeps what nobody sized", () => {
     // GIVEN three entries: one small, one large, one of unknown memory
     const entries = selectionEntries(
       [card(), card({ id: "big", label: "Big", memory: { min_gb: 64, source: "" }, repos: ["x/big"] })],
@@ -212,10 +212,15 @@ describe("the selection the window opens on", () => {
     );
     // WHEN only what fits 21.3 GB is asked
     const shown = shownSelection(entries, { fitsOnly: true, capacityGb: 21.3, sort: "best_match" });
-    // THEN the small one alone stays
-    expect(shown.map((e) => e.name)).toEqual(["Qwen3 8B"]);
-    // AND without the box every entry stays, in the order of the selection
-    expect(shownSelection(entries, { fitsOnly: false, capacityGb: 21.3, sort: "best_match" })).toHaveLength(3);
+    // THEN the large one alone leaves: a model nobody sized cannot be said not to fit
+    expect(shown.map((e) => e.name)).not.toContain("Big");
+    expect(shown).toHaveLength(2);
+    expect(shown[0]?.name).toBe("Qwen3 8B");
+    // AND without the box every entry stays, what fits first and the too large last
+    const all = shownSelection(entries, { fitsOnly: false, capacityGb: 21.3, sort: "best_match" });
+    expect(all).toHaveLength(3);
+    expect(all[0]?.name).toBe("Qwen3 8B");
+    expect(all[2]?.name).toBe("Big");
   });
 });
 
