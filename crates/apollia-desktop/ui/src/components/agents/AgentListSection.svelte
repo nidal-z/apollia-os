@@ -20,17 +20,16 @@
   let { title, count, children, class: className = "" }: Props = $props();
 </script>
 
-<div class={className}>
-  <div
-    class="mb-1.5 px-2 text-overline uppercase text-muted-foreground/80"
-  >
+<section class="overflow-hidden rounded-xl border border-border bg-card shadow-sm {className}">
+  <div class="border-b border-border/60 px-4 py-2.5 text-overline uppercase text-muted-foreground">
     {title} · {count}
   </div>
   <div
+    class="p-1.5"
     role="listbox"
     aria-label={title}
     use:listNavigation={{ rowSelector: "[data-nav-row]" }}
   >
     {@render children()}
   </div>
-</div>
+</section>

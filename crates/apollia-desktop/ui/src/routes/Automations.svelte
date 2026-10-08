@@ -292,12 +292,11 @@
           </EmptyState>
         </ListPanel>
       {:else}
-        <!-- Focal panel: brand-tinted depth marks this as the primary surface.
-             Keyboard nav (roving tabindex) via `listNavigation`. -->
+        <!-- Keyboard nav (roving tabindex) via `listNavigation`. -->
         <div use:listNavigation={{ rowSelector: "[data-automation-nav]" }}>
           <ListPanel
             data-testid="automations-table"
-            class="shadow-primary-lg border-primary/20"
+            class="shadow-sm"
             columns={[
               { label: $t("automations.col_automation"), class: "flex-[2] min-w-0" },
               { label: $t("automations.col_assistant"), class: "w-40" },

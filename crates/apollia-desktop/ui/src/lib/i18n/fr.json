@@ -5577,7 +5577,9 @@
       "group_fits": "Tient sur ce poste",
       "group_heavier": "Demande plus de mémoire",
       "back_to_gallery": "Retour au catalogue",
-      "min_memory": "dès {size} Go de mémoire"
+      "min_memory": "{size} Go de mémoire",
+      "fit_yes": "tient sur ce poste",
+      "fit_no": "trop lourd pour ce poste"
     },
     "panel": {
       "sidebar_tab": "Modèle",

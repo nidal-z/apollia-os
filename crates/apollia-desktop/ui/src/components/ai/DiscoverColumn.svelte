@@ -3,10 +3,10 @@
    * DiscoverColumn - the gallery of the discovery window, across its whole
    * width: what the model is for, the search field, the mark of the Apollia
    * selection, the format, the sort with "only what fits this computer", and
-   * the results as cards, those that fit this computer first.
+   * the results as rows of one list, those that fit this computer first.
    */
   import { locale, t } from "svelte-i18n";
-  import { FileSearch, MessageSquare, Mic, RefreshCw, Search, WifiOff, X } from "lucide-svelte";
+  import { ChevronRight, FileSearch, MessageSquare, Mic, RefreshCw, Search, WifiOff, X } from "lucide-svelte";
   import type { ModelFormat, SearchSort } from "$lib/ipc/modelHub";
   import { cn, formatRelativeTime } from "$lib/utils";
   import { Checkbox } from "$lib/components/ui/checkbox";
@@ -19,7 +19,6 @@
   import {
     DISCOVER_CATEGORIES,
     SEARCH_SORTS,
-    discoverCategoryKey,
     publisherKindKeys,
     sortLabelKey,
     type DiscoverCategory,
@@ -127,33 +126,23 @@
       </Tooltip>
     </div>
 
-    <div class="grid grid-cols-3 gap-3" role="group" aria-label={$t("ai.discover.categories_label")}>
+    <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label={$t("ai.discover.categories_label")}>
       {#each DISCOVER_CATEGORIES as entry (entry)}
         {@const Icon = USAGE_ICONS[entry]}
         <button
           type="button"
           class={cn(
-            "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+            "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
             category === entry
-              ? "border-primary/50 bg-primary/5 text-foreground shadow-sm"
-              : "border-border bg-surface-1 text-muted-foreground hover:border-border hover:bg-surface-2 hover:text-foreground",
+              ? "border-primary/40 bg-primary/5 font-medium text-foreground"
+              : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
           )}
           aria-pressed={category === entry}
           onclick={() => oncategory(entry)}
           data-testid="ai-discover-category-{entry}"
         >
-          <span
-            class={cn(
-              "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-              category === entry ? "bg-gradient-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-            )}
-          >
-            <Icon size={16} aria-hidden="true" />
-          </span>
-          <span class="min-w-0">
-            <span class="block truncate text-sm font-medium text-foreground">{$t(USAGE_KEYS[entry])}</span>
-            <span class="block truncate text-xs text-muted-foreground">{$t(discoverCategoryKey(entry))}</span>
-          </span>
+          <Icon size={14} aria-hidden="true" />
+          {$t(USAGE_KEYS[entry])}
         </button>
       {/each}
     </div>
@@ -268,73 +257,79 @@
             {$t(group.title)} · {group.entries.length}
           </h3>
         {/if}
-        <ul class="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <ul class="mb-5 divide-y divide-border/60 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           {#each group.entries as entry (entry.key)}
             {@const kind = publisherKindKeys(entry.publisherKind)}
             <li class="min-w-0">
               <div
                 class={cn(
-                  "relative flex h-full flex-col gap-2 rounded-xl border bg-surface-1 p-4 transition-colors",
-                  selectedKey === entry.key
-                    ? "border-primary/50"
-                    : "border-border hover:border-primary/30 hover:bg-surface-2",
+                  "relative flex items-center gap-4 px-4 py-2.5 transition-colors",
+                  selectedKey === entry.key ? "bg-primary/5" : "hover:bg-muted/40",
                 )}
                 data-testid="ai-discover-result"
                 data-entry-key={entry.key}
               >
-                <div class="flex items-center gap-1.5">
+                <div class="flex w-56 shrink-0 items-center gap-1.5">
                   <button
                     type="button"
-                    class="min-w-0 flex-1 truncate text-left text-sm font-semibold text-foreground after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring/60"
+                    class="min-w-0 truncate text-left text-sm font-semibold text-foreground after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring/60"
                     aria-current={selectedKey === entry.key ? "true" : undefined}
                     onclick={() => onselect(entry)}
                     data-testid="ai-discover-result-open"
                   >
                     {entry.name}
                   </button>
-                  <span class="relative flex items-center gap-1">
+                  <span class="relative flex shrink-0 items-center gap-1">
                     {#each capabilitiesOf(entry.capabilities) as capability (capability)}
                       <CapabilityIcon {capability} />
                     {/each}
                   </span>
                 </div>
-                <p class="line-clamp-2 min-h-8 text-xs text-muted-foreground">{entry.description}</p>
-                <div class="relative mt-auto flex flex-wrap items-center gap-1.5">
-                  {#if entry.recommendedHere}
-                    <ExplainedBadge
-                      label={$t("ai.discover.recommended_here")}
-                      explanation={$t("ai.discover.recommended_here_explanation")}
-                      variant="primary"
-                      testid="ai-discover-result-recommended"
-                    />
-                  {/if}
-                  {#if searching && entry.inSelection}
-                    <ExplainedBadge
-                      label={$t("ai.discover.selection")}
-                      explanation={$t("ai.discover.selection_explanation")}
-                      variant="primary"
-                      testid="ai-discover-result-selection"
-                    />
-                  {/if}
-                  {#if kind}
-                    <ExplainedBadge
-                      label={$t(kind.label)}
-                      explanation={$t(kind.explanation)}
-                      testid="ai-discover-result-publisher-kind"
-                    />
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm text-foreground/80">{entry.description}</p>
+                  <div class="relative mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <span data-testid="ai-discover-result-publisher">{entry.publisher}</span>
+                    {#if entry.recommendedHere}
+                      <ExplainedBadge
+                        label={$t("ai.discover.recommended_here")}
+                        explanation={$t("ai.discover.recommended_here_explanation")}
+                        variant="primary"
+                        testid="ai-discover-result-recommended"
+                      />
+                    {/if}
+                    {#if searching && entry.inSelection}
+                      <ExplainedBadge
+                        label={$t("ai.discover.selection")}
+                        explanation={$t("ai.discover.selection_explanation")}
+                        variant="primary"
+                        testid="ai-discover-result-selection"
+                      />
+                    {/if}
+                    {#if kind}
+                      <ExplainedBadge
+                        label={$t(kind.label)}
+                        explanation={$t(kind.explanation)}
+                        testid="ai-discover-result-publisher-kind"
+                      />
+                    {/if}
+                    {#if entry.updatedAt}
+                      <span>· {formatRelativeTime(entry.updatedAt, lang)}</span>
+                    {/if}
+                  </div>
+                </div>
+                <div class="w-40 shrink-0 text-right">
+                  {#if entry.minMemoryGb !== null}
+                    <p class="text-sm tabular-nums text-foreground" data-testid="ai-discover-result-memory">
+                      {$t("ai.discover.min_memory", { values: { size: entry.minMemoryGb } })}
+                    </p>
+                    {#if capacityGb !== null}
+                      <p class="text-xs {fitsHere(entry) ? 'text-success' : 'text-muted-foreground'}">
+                        {$t(fitsHere(entry) ? "ai.discover.fit_yes" : "ai.discover.fit_no")}
+                      </p>
+                    {/if}
                   {/if}
                 </div>
-                <p class="flex items-baseline gap-2 text-xs text-muted-foreground">
-                  <span class="min-w-0 flex-1 truncate" data-testid="ai-discover-result-publisher">{entry.publisher}</span>
-                  {#if entry.minMemoryGb !== null}
-                    <span class="shrink-0 tabular-nums" data-testid="ai-discover-result-memory">
-                      {$t("ai.discover.min_memory", { values: { size: entry.minMemoryGb } })}
-                    </span>
-                  {/if}
-                  {#if entry.updatedAt && entry.minMemoryGb === null}
-                    <span class="shrink-0">{formatRelativeTime(entry.updatedAt, lang)}</span>
-                  {/if}
-                </p>
+                <ChevronRight size={15} class="shrink-0 text-muted-foreground" aria-hidden="true" />
               </div>
             </li>
           {/each}

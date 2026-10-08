@@ -670,7 +670,7 @@
       placeholder={currentPlaceholder}
       aria-label={$t("chat.input_placeholder")}
       class="chat-input-textarea block w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-sm text-foreground
-        outline-none placeholder:text-muted-foreground/40
+        outline-none placeholder:text-muted-foreground/40 focus-visible:[box-shadow:none]
         disabled:cursor-not-allowed disabled:opacity-50"
       class:placeholder-fading={!placeholderVisible}
     ></textarea>

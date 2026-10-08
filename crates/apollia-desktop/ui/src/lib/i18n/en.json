@@ -5577,7 +5577,9 @@
       "group_fits": "Fits this computer",
       "group_heavier": "Needs more memory",
       "back_to_gallery": "Back to the catalogue",
-      "min_memory": "from {size} GB of memory"
+      "min_memory": "{size} GB of memory",
+      "fit_yes": "fits this computer",
+      "fit_no": "too heavy for this computer"
     },
     "panel": {
       "sidebar_tab": "Model",

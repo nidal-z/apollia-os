@@ -299,7 +299,7 @@
 {:else if isRail}
   <!-- Medium window: the same entries, icons alone, the name in a tooltip. -->
   <aside
-    class="v4-hair flex h-full w-16 flex-shrink-0 flex-col items-center {side.railBorder} border-border bg-surface-1 py-3"
+    class="v4-hair flex h-full w-16 flex-shrink-0 flex-col items-center {side.railBorder} border-border bg-muted/30 py-3"
     class:rail-right={side.nav === "right"}
     role="navigation"
     aria-label={$t("nav.sidebar_label")}
@@ -381,7 +381,7 @@
 {:else}
   <!-- Wide window: the column, every entry named, in two ranks. -->
   <aside
-    class="v4-hair flex h-full w-60 flex-shrink-0 flex-col {side.railBorder} border-border bg-surface-1"
+    class="v4-hair flex h-full w-60 flex-shrink-0 flex-col {side.railBorder} border-border bg-muted/30"
     role="navigation"
     aria-label={$t("nav.sidebar_label")}
     data-testid="sidebar"

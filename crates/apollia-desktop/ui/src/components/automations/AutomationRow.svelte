@@ -14,7 +14,6 @@
   import TargetChip from "../triggers/TargetChip.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import { refreshTriggers } from "$lib/stores/sse";
-  import { developerMode } from "$lib/stores/developerMode";
   import { ActionMenu, type ActionMenuItem } from "$lib/components/ui/action-menu";
   import { ContextMenu } from "$lib/components/ui/context-menu";
   import { estimateNextRun, formatNextRun, humanizeSchedule } from "$lib/automations/humanize";
@@ -33,7 +32,6 @@
 
   let firing = $state(false);
   let toggling = $state(false);
-  const isBuilder = $derived($developerMode);
 
   type Status = "active" | "paused" | "error";
   const status = $derived<Status>(
@@ -244,13 +242,8 @@
       </div>
       <div class="flex items-center gap-1.5 text-caption text-muted-foreground/80 mt-px">
         <ScheduleIcon size={11} strokeWidth={1.75} class="shrink-0" aria-hidden="true" />
-        {#if isBuilder}
-          <span class="truncate font-mono text-muted-foreground/70" title={rawSchedule}>{rawSchedule}</span>
-        {:else}
-          <span class="truncate" title={humanized.isCustom ? trigger.source_config : ""}>
-            {humanizedLabel}
-          </span>
-        {/if}
+        <!-- Read in words by everyone; the raw schedule stays one hover away. -->
+        <span class="truncate" title={rawSchedule}>{humanizedLabel}</span>
       </div>
     </div>
 
@@ -265,10 +258,11 @@
 
     <!-- PROCHAIN -->
     <div
-      class="w-40 text-caption text-muted-foreground truncate {isBuilder ? 'font-mono' : ''}"
+      class="w-40 truncate text-caption text-muted-foreground"
+      title={nextRunRaw}
       data-testid="automation-next-run"
     >
-      {isBuilder ? nextRunRaw : nextRunLabel}
+      {nextRunLabel}
     </div>
 
     <!-- STATUT -->
@@ -282,7 +276,7 @@
     </div>
 
     <!-- LAST RUN -->
-    <div class="w-24 text-caption text-muted-foreground text-right font-mono">
+    <div class="w-24 text-right text-caption tabular-nums text-muted-foreground">
       {lastRunLabel}
     </div>
 

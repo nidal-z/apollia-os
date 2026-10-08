@@ -46,7 +46,7 @@
     --logo-paper: 40 40% 94%;
 
     /* ── Surfaces - V4 warm gray (greige), vibe Vercel/Arc ── */
-    --background: 33 11% 95%;
+    --background: 40 14% 98%;
     --foreground: 33 13% 9%;
     --surface-1: 40 14% 98%;
     --surface-2: 33 12% 93%;
@@ -401,7 +401,7 @@
      under .dark (and a nested .dark restores the dark palette). Values mirror
      :root exactly; do not diverge from the light source of truth above. */
   .light {
-    --background: 33 11% 95%;
+    --background: 40 14% 98%;
     --foreground: 33 13% 9%;
     --surface-1: 40 14% 98%;
     --surface-2: 33 12% 93%;
