@@ -310,6 +310,14 @@ async fn the_hub_sorts_are_passed_through_by_their_api_key() {
 }
 
 fn recorded_pages_merged(sort: SearchSort, selection: &[String]) -> Vec<HfModelCard> {
+    recorded_pages_merged_for("Qwen3-4B", sort, selection)
+}
+
+fn recorded_pages_merged_for(
+    query: &str,
+    sort: SearchSort,
+    selection: &[String],
+) -> Vec<HfModelCard> {
     let authors = search_authors(None);
     let ctx = SearchContext {
         authors: &authors,
@@ -318,7 +326,7 @@ fn recorded_pages_merged(sort: SearchSort, selection: &[String]) -> Vec<HfModelC
         hardware: None,
     };
     let search = BoundedSearch {
-        query: "Qwen3-4B".to_owned(),
+        query: query.to_owned(),
         sort,
         ..BoundedSearch::default()
     };
@@ -330,6 +338,27 @@ fn recorded_pages_merged(sort: SearchSort, selection: &[String]) -> Vec<HfModelC
         .into_iter()
         .map(|(m, _)| m)
         .collect()
+}
+
+#[test]
+fn without_words_the_selection_does_not_lead_the_list() {
+    // GIVEN the recorded pages and a selection holding one converter's copy
+    let selection = vec!["bartowski/Qwen_Qwen3-4B-GGUF".to_owned()];
+
+    // WHEN they are merged under the best match with no word typed
+    let merged = recorded_pages_merged_for("", SearchSort::BestMatch, &selection);
+    let ids: Vec<&str> = merged.iter().map(|m| m.repo_id.as_str()).collect();
+
+    // THEN the official publisher comes first, and the copy of the selection
+    // stands where its downloads put it among the converters
+    assert!(ids[0].starts_with("Qwen/"), "{ids:?}");
+    assert_ne!(ids[0], "bartowski/Qwen_Qwen3-4B-GGUF");
+    let converters: Vec<u64> = merged
+        .iter()
+        .filter(|m| !m.repo_id.starts_with("Qwen/"))
+        .map(|m| m.downloads)
+        .collect();
+    assert!(converters.windows(2).all(|w| w[0] >= w[1]), "{ids:?}");
 }
 
 #[test]

@@ -457,7 +457,10 @@ fn sort(
             merged.sort_by_key(|(m, _)| {
                 (
                     !is_exact_name(&m.repo_id, query),
-                    !in_selection(&m.repo_id, selection),
+                    // Without words nothing is being matched: the selection
+                    // has its own list, and leading with it here would
+                    // show the same models twice.
+                    !query.is_empty() && !in_selection(&m.repo_id, selection),
                     m.publisher_kind != Some(PublisherKind::Official),
                     std::cmp::Reverse(m.downloads),
                 )

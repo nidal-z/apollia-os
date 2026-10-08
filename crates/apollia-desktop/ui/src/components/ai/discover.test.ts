@@ -11,6 +11,8 @@ import {
   SEARCH_SORTS,
   chosenVariant,
   detailFromFound,
+  mergeFound,
+  wantedFormats,
   detailFromRepos,
   downloadAction,
   embeddingEntries,
@@ -253,6 +255,25 @@ describe("the models of search by meaning", () => {
 });
 
 describe("the results of a search", () => {
+  test("every format is searched by default, and the rows of both are mixed", () => {
+    // GIVEN a machine that runs both formats, and one that runs GGUF alone
+    const both = formatsFor({ kind: "apple_silicon" });
+    const one = formatsFor({ kind: "cuda" });
+    // WHEN the filter holds "all", then a format the machine does not run
+    // THEN it keeps what the machine runs
+    expect(wantedFormats("all", both)).toEqual(["gguf", "mlx"]);
+    expect(wantedFormats("mlx", both)).toEqual(["mlx"]);
+    expect(wantedFormats("all", one)).toEqual(["gguf"]);
+    expect(wantedFormats("mlx", one)).toEqual(["gguf"]);
+    // AND the best match takes one result of each format in turn
+    const g1 = found({ repo_id: "a/g1" });
+    const g2 = found({ repo_id: "a/g2" });
+    const m1 = found({ repo_id: "a/m1", downloads: 999_999_999 });
+    expect(mergeFound([[g1, g2], [m1]], "best_match").map((m) => m.repo_id)).toEqual(["a/g1", "a/m1", "a/g2"]);
+    // AND an order by a figure holds across the formats
+    expect(mergeFound([[g1, g2], [m1]], "downloads")[0]?.repo_id).toBe("a/m1");
+  });
+
   test("two repositories of one model make one row, and its card gathers their variants", () => {
     // GIVEN two converters of the same model, and a repository of another model
     const first = found();

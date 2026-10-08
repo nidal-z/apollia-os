@@ -70,6 +70,39 @@ export function formatsFor(accelerator: AcceleratorProfile | null | undefined): 
   return accelerator?.kind === "apple_silicon" ? ["gguf", "mlx"] : ["gguf"];
 }
 
+/** What the format filter holds: one format, or every one this machine runs. */
+export type FormatChoice = ModelFormat | "all";
+
+/** The formats a choice of the filter keeps, among those this machine runs. */
+export function wantedFormats(choice: FormatChoice, formats: readonly ModelFormat[]): ModelFormat[] {
+  if (choice === "all") return [...formats];
+  return formats.includes(choice) ? [choice] : [...formats];
+}
+
+/**
+ * The results of one search per format, as one list. An order by a figure is
+ * kept across the formats; the best match takes one result of each in turn,
+ * so the first rows are the first of each format.
+ */
+export function mergeFound(pages: readonly (readonly FoundModel[])[], sort: SearchSort): FoundModel[] {
+  if (pages.length === 1) return [...(pages[0] ?? [])];
+  const all = pages.flat();
+  if (sort === "likes") return all.sort((a, b) => b.likes - a.likes);
+  if (sort === "downloads") return all.sort((a, b) => b.downloads - a.downloads);
+  if (sort === "updated") {
+    return all.sort((a, b) => (b.last_modified ?? "").localeCompare(a.last_modified ?? ""));
+  }
+  const out: FoundModel[] = [];
+  const longest = Math.max(...pages.map((page) => page.length));
+  for (let i = 0; i < longest; i += 1) {
+    for (const page of pages) {
+      const model = page[i];
+      if (model) out.push(model);
+    }
+  }
+  return out;
+}
+
 /** Where a row of the left column comes from. */
 export type EntrySource = "selection" | "search" | "embeddings" | "dictation";
 
@@ -522,13 +555,14 @@ export interface CardDetail {
 
 /**
  * The detail of an entry from the repositories that answered, in the order
- * they were asked: the figures of the first one, every variant of the format
+ * they were asked: the figures of the first one, every variant of the formats
  * the filter keeps.
  */
 export function detailFromRepos(
   answers: readonly HfModelCard[],
-  format: ModelFormat,
+  formats: ModelFormat | readonly ModelFormat[],
 ): CardDetail {
+  const kept: readonly ModelFormat[] = typeof formats === "string" ? [formats] : formats;
   const first = answers[0];
   const withCapabilities = answers.find((a) => a.capabilities);
   return {
@@ -538,7 +572,7 @@ export function detailFromRepos(
     architecture: answers.find((a) => a.model_type)?.model_type ?? null,
     capabilities: withCapabilities?.capabilities ?? null,
     gated: answers.some((a) => a.gated),
-    variants: answers.flatMap((a) => a.variants ?? []).filter((v) => v.format === format),
+    variants: answers.flatMap((a) => a.variants ?? []).filter((v) => kept.includes(v.format)),
   };
 }
 

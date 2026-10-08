@@ -5466,6 +5466,7 @@
       "refresh": "Relire la sélection",
       "result_count": "{count, plural, =0 {Aucun modèle} one {# modèle} other {# modèles}}",
       "format_label": "Format des modèles",
+      "format_all": "Tous les formats",
       "sort_label": "Ordre des modèles",
       "sort": {
         "best_match": "Meilleure correspondance",

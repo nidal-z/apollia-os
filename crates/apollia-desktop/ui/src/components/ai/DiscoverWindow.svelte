@@ -23,7 +23,6 @@
     type HardwareProfile,
     type InstalledModel,
     type ModelCardView,
-    type ModelFormat,
     type ModelVariant,
     type SearchSort,
   } from "$lib/ipc/modelHub";
@@ -55,6 +54,9 @@
     embeddingEntries,
     embeddingVariant,
     formatsFor,
+    mergeFound,
+    wantedFormats,
+    type FormatChoice,
     isOfflineError,
     isSearching,
     searchEntries,
@@ -82,13 +84,15 @@
   /** How long the field waits for the next key before it searches. */
   const SEARCH_DELAY_MS = 350;
   /** How many repositories of one selection entry are asked for its variants. */
-  const MAX_REPOS = 8;
+  const MAX_REPOS = 16;
+  /** How many repositories one search of the publishers answers, per format. */
+  const SEARCH_LIMIT = 30;
 
   const lang = $derived($locale ?? "fr");
 
   let query = $state("");
   let category = $state<DiscoverCategory>("language");
-  let format = $state<ModelFormat>("gguf");
+  let format = $state<FormatChoice>("all");
   let sort = $state<SearchSort>("best_match");
   let fitsOnly = $state(false);
 
@@ -129,6 +133,7 @@
   const offline = $derived(browserOffline || unreachable);
   const capacityGb = $derived(hardware?.total_capacity_gb ?? null);
   const formats = $derived(formatsFor(hardware?.accelerator));
+  const wanted = $derived(wantedFormats(format, formats));
 
   const entries = $derived.by((): DiscoverEntry[] => {
     if (category === "embeddings") return embeddingEntries(embeddings, cards);
@@ -190,9 +195,17 @@
     searchLoading = true;
     searchError = null;
     try {
-      const page = await searchHfModels({ query: query.trim(), format, sort, fits_only: fitsOnly });
+      const asked = wanted;
+      const answers = await Promise.allSettled(
+        asked.map((one) =>
+          searchHfModels({ query: query.trim(), format: one, sort, fits_only: fitsOnly, limit: SEARCH_LIMIT }),
+        ),
+      );
       if (run !== searchRun) return;
-      found = page.models;
+      const pages = answers.flatMap((a) => (a.status === "fulfilled" ? [a.value.models] : []));
+      const refused = answers.find((a) => a.status === "rejected");
+      if (pages.length === 0 && refused) throw refused.reason;
+      found = mergeFound(pages, sort);
       unreachable = false;
     } catch (err: unknown) {
       if (run !== searchRun) return;
@@ -221,7 +234,7 @@
     const answers = await Promise.allSettled(entry.repos.slice(0, MAX_REPOS).map((repo) => getHfModel(repo)));
     if (run !== detailRun) return;
     const read = answers.flatMap((a) => (a.status === "fulfilled" ? [a.value] : []));
-    detail = read.length > 0 ? detailFromRepos(read, format) : null;
+    detail = read.length > 0 ? detailFromRepos(read, wanted) : null;
     if (read.length > 0) unreachable = false;
     detailLoading = false;
   }
@@ -337,7 +350,7 @@
 
   // The search follows the words, the format, the sort and the box, after a pause.
   $effect(() => {
-    void [query, format, sort, fitsOnly, source];
+    void [query, wanted, sort, fitsOnly, source];
     if (!open || !searching) return;
     const timer = setTimeout(() => void runSearch(), SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
@@ -351,7 +364,7 @@
 
   // A change of format asks the repositories of the chosen entry again.
   $effect(() => {
-    void format;
+    void wanted;
     untrack(() => {
       if (open && selected && !selected.found && !selected.embedding && selected.dictation.length === 0) {
         void loadDetail(selected);
@@ -405,7 +418,7 @@
         entry={selected}
         {detail}
         {detailLoading}
-        {format}
+        format={chosen?.format ?? wanted[0] ?? "gguf"}
         {variants}
         {chosen}
         {action}

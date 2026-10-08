@@ -8,6 +8,7 @@
   import { locale, t } from "svelte-i18n";
   import { ChevronRight, FileSearch, MessageSquare, Mic, RefreshCw, Search, WifiOff, X } from "lucide-svelte";
   import type { ModelFormat, SearchSort } from "$lib/ipc/modelHub";
+  import type { FormatChoice } from "./discover";
   import { cn, formatRelativeTime } from "$lib/utils";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
@@ -28,7 +29,7 @@
   interface Props {
     query: string;
     category: DiscoverCategory;
-    format: ModelFormat;
+    format: FormatChoice;
     /** The formats this machine can run. */
     formats: readonly ModelFormat[];
     sort: SearchSort;
@@ -56,7 +57,7 @@
   let {
     query = $bindable(""),
     category,
-    format = $bindable("gguf"),
+    format = $bindable("all"),
     formats,
     sort = $bindable("best_match"),
     fitsOnly = $bindable(false),
@@ -169,7 +170,7 @@
             {/each}
           </Select>
         </div>
-        <div class="w-24 shrink-0">
+        <div class="w-40 shrink-0">
           <Select
             size="sm"
             bind:value={format}
@@ -177,9 +178,14 @@
             aria-label={$t("ai.discover.format_label")}
             data-testid="ai-discover-format"
           >
-            {#each formats as entry (entry)}
-              <option value={entry}>{entry.toUpperCase()}</option>
-            {/each}
+            {#if formats.length > 1}
+              <option value="all">{$t("ai.discover.format_all")}</option>
+              {#each formats as entry (entry)}
+                <option value={entry}>{entry.toUpperCase()}</option>
+              {/each}
+            {:else}
+              <option value={format}>{(formats[0] ?? "gguf").toUpperCase()}</option>
+            {/if}
           </Select>
         </div>
       {/if}

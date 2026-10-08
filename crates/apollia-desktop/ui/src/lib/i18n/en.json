@@ -5466,6 +5466,7 @@
       "refresh": "Read the selection again",
       "result_count": "{count, plural, =0 {No model} one {# model} other {# models}}",
       "format_label": "Format of the models",
+      "format_all": "All formats",
       "sort_label": "Order of the models",
       "sort": {
         "best_match": "Best match",
