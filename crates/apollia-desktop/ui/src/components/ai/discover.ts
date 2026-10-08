@@ -302,6 +302,29 @@ export function publisherOfOrg(org: string, official: readonly OfficialPublisher
   return known?.publisher ?? org;
 }
 
+/** The organisation each official publisher is pictured by: the first it publishes under. */
+export function avatarOrgs(official: readonly OfficialPublisher[]): string[] {
+  return official.flatMap((entry) => (entry.orgs[0] ? [entry.orgs[0]] : []));
+}
+
+/**
+ * The pictures keyed by the name the list shows: the name of the publisher,
+ * and each of its organisations, in lower case.
+ */
+export function avatarsByMaker(
+  official: readonly OfficialPublisher[],
+  pictures: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of official) {
+    const picture = entry.orgs[0] ? pictures[entry.orgs[0]] : undefined;
+    if (!picture) continue;
+    out[entry.publisher.toLowerCase()] = picture;
+    for (const org of entry.orgs) out[org.toLowerCase()] = picture;
+  }
+  return out;
+}
+
 /** Up to two initials of a publisher name, for its mark. */
 export function publisherInitials(name: string): string {
   const words = name.trim().split(/[\s._-]+/).filter(Boolean);

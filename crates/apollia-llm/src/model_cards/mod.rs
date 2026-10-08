@@ -30,6 +30,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "cloud")]
+pub mod avatar;
+#[cfg(feature = "cloud")]
 pub mod fetch;
 #[cfg(feature = "cloud")]
 pub mod readme;

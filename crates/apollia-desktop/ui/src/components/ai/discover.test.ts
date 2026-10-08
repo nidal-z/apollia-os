@@ -10,6 +10,8 @@ import type { SelectionFamily } from "$lib/ipc/models";
 import {
   SEARCH_SORTS,
   chosenVariant,
+  avatarOrgs,
+  avatarsByMaker,
   detailFromFound,
   makerGroups,
   mergeFound,
@@ -278,6 +280,24 @@ describe("the list gathered by maker", () => {
     expect(publisherInitials("Mistral AI")).toBe("MA");
     expect(publisherInitials("Qwen")).toBe("QW");
     expect(publisherOfOrg("google", official)).toBe("google");
+  });
+
+  test("a picture read for an organisation marks its publisher under each of its names", () => {
+    // GIVEN a publisher with two organisations, one without any, and the picture of the first organisation
+    const official = [
+      { publisher: "Mistral AI", orgs: ["mistralai", "mistral-community"] },
+      { publisher: "Nobody", orgs: [] },
+    ];
+    // WHEN the organisations to ask are listed, and the answer is keyed
+    const orgs = avatarOrgs(official);
+    const marks = avatarsByMaker(official, { mistralai: "data:image/webp;base64,AA" });
+    // THEN one organisation is asked per publisher, and its picture answers to every name
+    expect(orgs).toEqual(["mistralai"]);
+    expect(marks).toEqual({
+      "mistral ai": "data:image/webp;base64,AA",
+      mistralai: "data:image/webp;base64,AA",
+      "mistral-community": "data:image/webp;base64,AA",
+    });
   });
 });
 

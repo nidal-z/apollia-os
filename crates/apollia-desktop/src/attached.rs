@@ -302,6 +302,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "set_default_embeddings_model",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Models: the picture of each publisher, read at its source once and
+    // kept in the data directory, never through the runtime.
+    "get_publisher_avatars",
     // Models: the README of a repository, read at its source on demand over
     // `/api/v1/llm/registry/readme`, and the dictation models with the one
     // for the machine of the daemon, over `/api/v1/llm/dictation`.

@@ -355,6 +355,15 @@ export function listModelCards(lang: string): Promise<ModelCatalogue> {
   return invoke<ModelCatalogue>("list_model_cards", { lang });
 }
 
+/**
+ * The picture of each organisation of `orgs`, as a `data:` address keyed by
+ * the name asked. Read at its source once, then from the copy the machine
+ * keeps; an organisation without a picture is absent from the answer.
+ */
+export function getPublisherAvatars(orgs: string[]): Promise<Record<string, string>> {
+  return invoke<Record<string, string>>("get_publisher_avatars", { orgs });
+}
+
 /** The README of a repository, as `GET /api/v1/llm/registry/readme` answers. */
 export interface ModelReadme {
   /** The repository, `owner/name`. */

@@ -3,6 +3,8 @@
 //! - [`list_model_cards`]: the catalogue opens, the signed index of cards is
 //!   read (main address, mirror, kept copy) and every card is returned in the
 //!   asked language
+//! - [`get_publisher_avatars`]: the picture of each publisher, read from its
+//!   organisation page once and kept in the data directory
 //! - [`get_model_readme`]: the README of a repository, read at its source
 //!   when the user asks for it and kept nowhere
 //! - [`get_dictation_models`]: the dictation models of the registry, whether
@@ -11,10 +13,13 @@
 //! [`list_model_cards`] never reads the runtime: it reads the registry, the
 //! data directory, its `apollia.toml` and the organisation policy, which the
 //! daemon shares when the application is attached to one, so it serves both
-//! modes. The two others delegate to the runtime's HTTP API, embedded or
+//! modes. [`get_publisher_avatars`] does the same, under the same switch. The
+//! two others delegate to the runtime's HTTP API, embedded or
 //! attached: `GET /api/v1/llm/registry/readme` and `GET /api/v1/llm/dictation`.
 
+use apollia_llm::model_cards::avatar::{default_avatar_dir, publisher_avatar};
 use apollia_llm::model_cards::fetch::{open_catalogue, CatalogueView, RegistrySource};
+use apollia_llm::model_cards::readme::HUGGINGFACE_BASE;
 use apollia_llm::model_cards::{compiled_public_key, default_cache_dir};
 use tauri::State;
 
@@ -52,6 +57,44 @@ pub async fn list_model_cards(lang: Option<String>) -> Result<CatalogueView, Str
     )
     .await
     .map_err(|e| e.to_string())
+}
+
+/// How many organisations one call may ask for.
+const MAX_AVATAR_ORGS: usize = 48;
+
+/// The picture of each organisation of `orgs`, as a `data:` address keyed by
+/// the name asked. An organisation without a picture, or one that could not
+/// be reached, is absent from the answer. A picture is asked at its source
+/// once, then read from the copy kept in the data directory. Nothing is asked
+/// when the model registry is turned off, by configuration or by policy.
+#[tauri::command]
+pub async fn get_publisher_avatars(
+    orgs: Vec<String>,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let data_dir = data_dir();
+    let location = apollia_permissions::policy_location();
+    let policy = apollia_permissions::load_policy(&location.dir, location.owner);
+    let source =
+        RegistrySource::from_config_file(&data_dir.join(apollia_core::paths::CONFIG_FILE_NAME))
+            .under_policy(&policy.imposed_settings());
+    if !source.enabled || source.disabled_by_policy {
+        return Ok(std::collections::HashMap::new());
+    }
+    let cache_dir = default_avatar_dir(&data_dir);
+    let asked = orgs.into_iter().take(MAX_AVATAR_ORGS).map(|org| {
+        let cache_dir = cache_dir.clone();
+        tokio::spawn(async move {
+            let picture = publisher_avatar(HUGGINGFACE_BASE, &cache_dir, &org).await;
+            (org, picture)
+        })
+    });
+    let mut pictures = std::collections::HashMap::new();
+    for task in asked.collect::<Vec<_>>() {
+        if let Ok((org, Some(picture))) = task.await {
+            pictures.insert(org, picture);
+        }
+    }
+    Ok(pictures)
 }
 
 /// The README of `repo` as text, with the repository, its owner and the

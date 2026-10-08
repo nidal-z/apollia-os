@@ -15,6 +15,7 @@
     getDictationModels,
     getHardwareProfile,
     getHfModel,
+    getPublisherAvatars,
     listModelCards,
     searchHfModels,
     startVariantDownload,
@@ -53,6 +54,8 @@
     downloadAction,
     embeddingEntries,
     embeddingVariant,
+    avatarOrgs,
+    avatarsByMaker,
     formatsFor,
     mergeFound,
     wantedFormats,
@@ -99,6 +102,7 @@
 
   let cards = $state<ModelCardView[]>([]);
   let official = $state<OfficialPublisher[]>([]);
+  let marks = $state<Record<string, string>>({});
   let selectionNote = $state<string | null>(null);
   let families = $state<SelectionFamily[]>([]);
   let embeddings = $state<EmbeddingsRecommendation | null>(null);
@@ -181,6 +185,7 @@
     if (catalogue.status === "fulfilled") {
       cards = catalogue.value.cards;
       official = catalogue.value.publishers.official;
+      void loadMarks(official);
       selectionNote = catalogue.value.cards.length === 0 ? catalogue.value.message : null;
     }
     if (recommendation.status === "fulfilled") {
@@ -191,6 +196,18 @@
     if (profile.status === "fulfilled") hardware = profile.value;
     if (voice.status === "fulfilled") dictation = voice.value;
     selectionLoading = false;
+  }
+
+  // The pictures arrive after the list: a publisher is shown by its initials
+  // until its picture is read, and for good when it has none.
+  async function loadMarks(publishers: readonly OfficialPublisher[]): Promise<void> {
+    const orgs = avatarOrgs(publishers);
+    if (orgs.length === 0) return;
+    try {
+      marks = avatarsByMaker(publishers, await getPublisherAvatars(orgs));
+    } catch {
+      marks = {};
+    }
   }
 
   async function runSearch(): Promise<void> {
@@ -437,6 +454,7 @@
       onrefresh={() => void loadSelection()}
       onclose={close}
       grouped={category === "language" && !isSearching(query)}
+      {marks}
     >
       {#snippet card()}
         {#if selected}

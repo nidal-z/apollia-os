@@ -53,6 +53,8 @@
     selectionNote: string | null;
     /** The rows are gathered by who made the model, rather than listed in the order of a search. */
     grouped: boolean;
+    /** The picture of each maker, keyed by its name in lower case. */
+    marks?: Readonly<Record<string, string>>;
     /** The card of the chosen model, shown beside the list. */
     card?: Snippet;
     onselect: (entry: DiscoverEntry) => void;
@@ -78,6 +80,7 @@
     searchError,
     selectionNote,
     grouped,
+    marks = {},
     card,
     onselect,
     oncategory,
@@ -349,7 +352,7 @@
               data-testid="ai-discover-maker-pick"
               data-maker={group.maker}
             >
-              <PublisherMark name={group.maker} size="sm" />
+              <PublisherMark name={group.maker} src={marks[group.maker.toLowerCase()]} size="sm" />
               {group.maker === "" ? $t("ai.discover.maker_unknown") : group.maker}
               <span class="tabular-nums">{group.entries.length}</span>
             </button>
@@ -366,7 +369,7 @@
             data-testid="ai-discover-maker"
             data-maker={group.maker}
           >
-            <PublisherMark name={group.maker} />
+            <PublisherMark name={group.maker} src={marks[group.maker.toLowerCase()]} />
             <span class="min-w-0 truncate text-sm font-semibold text-foreground">
               {group.maker === "" ? $t("ai.discover.maker_unknown") : group.maker}
             </span>

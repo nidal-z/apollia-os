@@ -435,6 +435,14 @@ aux fiches.
 Le coût est que les fiches d'un poste qui n'atteint jamais le registre ont
 l'âge de sa version.
 
+Un éditeur est montré avec l'image de son organisation sur HuggingFace. Aucune
+image n'est livrée avec l'application : chacune est demandée à l'ouverture du
+catalogue, par une requête qui nomme l'organisation et rien d'autre, acceptée
+seulement de cet hôte en HTTPS, dans un format matriciel et sous un plafond de
+taille, puis gardée dans le dossier de données, si bien qu'elle est demandée
+une fois par poste. Un éditeur dont l'image n'a pas pu être lue est montré par
+ses initiales. Un registre coupé ne demande aucune image.
+
 ## Reconnaissance vocale {#speech-to-text}
 
 La transcription tourne hors processus, dans un sidecar bâti sur whisper, si

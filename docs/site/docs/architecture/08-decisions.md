@@ -398,6 +398,14 @@ A guard fails when the shipped index no longer matches the cards.
 The cost is that the cards of a machine that never reaches the registry are as
 old as its build.
 
+A publisher is shown with the picture of its organisation on HuggingFace. No
+picture ships with the application: each one is asked when the catalogue
+opens, by a request that names the organisation and nothing else, accepted
+only from that host over HTTPS, in a raster format and under a size cap, then
+kept in the data directory, so that it is asked once per machine. A publisher
+whose picture could not be read is shown by its initials. A registry turned
+off asks for no picture.
+
 ## Speech to text {#speech-to-text}
 
 Transcription runs out of process, in a sidecar built on whisper, so a model
