@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/bofenghuang/whisper-large-v3-french",
   "description": {
-    "fr": "Version du grand modèle de dictée affinée sur le français : meilleure ponctuation et meilleurs noms propres en français.",
-    "en": "A version of the large dictation model fine-tuned on French: better punctuation and proper names in French."
+    "fr": "Whisper Large-v3 affiné sur le français par Bofeng Huang : meilleure ponctuation, meilleurs noms propres et moins d'erreurs sur le français parlé. Il ne sert que pour le français et pèse autant que Large-v3. Compter de 1,1 à 3,1 Go de mémoire selon la quantification.",
+    "en": "Whisper Large-v3 fine-tuned on French by Bofeng Huang: better punctuation, better proper nouns and fewer errors on spoken French. It serves French only and weighs as much as Large-v3. Plan for 1.1 to 3.1 GB of memory depending on the quantization."
   },
   "capabilities": {
     "tools": false,

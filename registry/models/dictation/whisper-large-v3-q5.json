@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/openai/whisper-large-v3",
   "description": {
-    "fr": "Le modèle de dictée le plus précis de la sélection, plus lent ; pour les transcriptions où chaque mot compte.",
-    "en": "The most precise dictation model of the selection, and slower; for transcripts where every word counts."
+    "fr": "Whisper Large-v3 d'OpenAI, le grand modèle multilingue de la famille, pour les transcriptions où chaque mot compte : noms propres, vocabulaire technique, accents. Il est nettement plus lent que Turbo et gagne à disposer d'une carte graphique ou d'une puce Apple. Compter de 1,1 à 3,1 Go de mémoire selon la quantification.",
+    "en": "Whisper Large-v3 from OpenAI, the large multilingual model of the family, for transcripts where every word counts: proper nouns, technical vocabulary, accents. It is clearly slower than Turbo and benefits from a graphics card or an Apple chip. Plan for 1.1 to 3.1 GB of memory depending on the quantization."
   },
   "capabilities": {
     "tools": false,

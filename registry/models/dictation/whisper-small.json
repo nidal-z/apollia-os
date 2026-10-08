@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/openai/whisper-small",
   "description": {
-    "fr": "Modèle de dictée intermédiaire : plus juste que le modèle de base sur les noms et la ponctuation, encore rapide sur un poste sans carte graphique.",
-    "en": "A mid-sized dictation model: more accurate than the base model on names and punctuation, still quick on a machine without a graphics card."
+    "fr": "Modèle Whisper d'OpenAI intermédiaire : plus juste que Base sur les noms et la ponctuation, encore rapide sur un poste sans carte graphique. Il convient à la dictée courante en français comme en anglais. Compter moins de 1 Go de mémoire.",
+    "en": "A mid-sized Whisper model from OpenAI: more accurate than Base on names and punctuation, still fast on a machine with no graphics card. It suits everyday dictation in French as in English. Plan for less than 1 GB of memory."
   },
   "capabilities": {
     "tools": false,
