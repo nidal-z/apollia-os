@@ -60,13 +60,6 @@
 </script>
 
 <SettingsSubPage route="engines" data-testid="engines-section">
-  <EngineSelection
-    response={$enginesStore.data}
-    {acceleratorKind}
-    settings={$engineSettings}
-    onchoose={selectEngine}
-    onautoupdate={toggleAutoUpdate}
-  />
   <EngineList
     response={$enginesStore.data}
     loading={$enginesStore.loading}
@@ -77,5 +70,12 @@
     {checkError}
     onchannel={selectChannel}
     oncheck={checkUpdates}
+  />
+  <EngineSelection
+    response={$enginesStore.data}
+    {acceleratorKind}
+    settings={$engineSettings}
+    onchoose={selectEngine}
+    onautoupdate={toggleAutoUpdate}
   />
 </SettingsSubPage>
