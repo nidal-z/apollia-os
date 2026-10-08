@@ -1,5 +1,5 @@
 {
-  "name": "agent-create-det (Create an agent from the Agents screen: the conversation that cannot start, the sheet written by hand and refused, the draft read in the conversation, reviewed in the form, saved with a model that cannot be assigned)",
+  "name": "agent-create-det (Create an agent from the Agents screen: the default model on a server that does not answer, the conversation that cannot start, the sheet written by hand and refused, the draft read in the conversation, reviewed in the form, saved with a model that cannot be assigned)",
   "stopOnError": false,
   "steps": [
     {
@@ -27,6 +27,61 @@
       "command": "create_chat_session",
       "reject": "no model is configured for the conversation",
       "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_default_model",
+      "resolve": {
+        "backend": "office-server",
+        "model_source": "server",
+        "model_id": "office-server/qwen"
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_llm_server_models",
+      "reject": "the server does not answer",
+      "once": true
+    },
+    {
+      "kind": "goto",
+      "route": "agents"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "agents-create-button"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-create-server-down",
+      "timeoutMs": 6000,
+      "contains": "office-server"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-server-retry"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-open-ai"
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-create-server-by-hand"
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-default-model-server-down"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
     },
     {
       "kind": "goto",

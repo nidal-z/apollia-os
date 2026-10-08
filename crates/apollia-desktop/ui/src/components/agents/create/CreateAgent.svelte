@@ -37,7 +37,9 @@
   import ChatConversation from "../../chat/ChatConversation.svelte";
   import AgentSheet from "../sheet/AgentSheet.svelte";
   import { modelOptions, type AdjustDraft } from "../sheet/agentAdjust";
+  import { navigateTo } from "$lib/stores/navigation";
   import CreateAgentDraft from "./CreateAgentDraft.svelte";
+  import { modelReadiness } from "./modelReady";
   import CreateAgentReview from "./CreateAgentReview.svelte";
   import {
     DRAFT_SESSION_REQUEST,
@@ -81,6 +83,8 @@
   let sessionId = $state<string | null>(null);
   let starting = $state(true);
   let startError = $state<string | null>(null);
+  // The declared server of the default model, when it does not answer.
+  let serverDown = $state<string | null>(null);
   let draft = $state<ProposedAgent | null>(null);
   let answering = $state(false);
 
@@ -127,6 +131,13 @@
   async function start(): Promise<void> {
     starting = true;
     startError = null;
+    serverDown = null;
+    const model = await modelReadiness();
+    if (!model.ready) {
+      serverDown = model.server;
+      starting = false;
+      return;
+    }
     try {
       const session = await createChatSession(DRAFT_SESSION_REQUEST);
       sessionId = session.id;
@@ -328,6 +339,28 @@
             <div class="flex flex-1 items-center justify-center gap-2 text-body-xs text-muted-foreground">
               <LoadingSpinner size={14} />
               {$t("agent_create.starting")}
+            </div>
+          {:else if serverDown !== null}
+            <div class="space-y-3 p-4" data-testid="agent-create-server-down">
+              <ErrorBanner>
+                <p class="font-medium">{$t("agent_create.server_down_title")}</p>
+                <p class="text-caption opacity-90">
+                  {$t("agent_create.server_down_body", { values: { server: serverDown } })}
+                </p>
+              </ErrorBanner>
+              <div class="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onclick={() => void start()} data-testid="agent-create-server-retry">
+                  {$t("common.retry")}
+                </Button>
+                {#if !embedded}
+                  <Button variant="outline" size="sm" onclick={() => navigateTo("llm")} data-testid="agent-create-open-ai">
+                    {$t("agent_create.open_ai")}
+                  </Button>
+                {/if}
+                <Button variant="outline" size="sm" onclick={() => openReview(null)} data-testid="agent-create-server-by-hand">
+                  {$t("agent_create.write_by_hand")}
+                </Button>
+              </div>
             </div>
           {:else if startError !== null}
             <div class="space-y-3 p-4" data-testid="agent-create-start-error">
