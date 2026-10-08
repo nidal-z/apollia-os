@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "mistral-small-3.1/Mistral-Small-3.1-24B-Instruct-2503",
+  "kind": "language",
+  "label": "Mistral Small 3.1",
+  "publisher": "Mistral AI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+  },
+  "source_url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+  "description": {
+    "fr": "Mistral Small 3.1 de Mistral AI ajoute la lecture d'images et un long contexte à Mistral Small 3, avec la même sobriété en français. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "Mistral Small 3.1 from Mistral AI adds image reading and a long context to Mistral Small 3, with the same plain style in French. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/unsloth/Mistral-Small-3.1-24B-Instruct-2503-GGUF"
+  },
+  "memory": {
+    "min_gb": 14.4,
+    "source": "https://huggingface.co/unsloth/Mistral-Small-3.1-24B-Instruct-2503-GGUF/blob/main/Mistral-Small-3.1-24B-Instruct-2503-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+    "unsloth/Mistral-Small-3.1-24B-Instruct-2503-GGUF",
+    "mlx-community/Mistral-Small-3.1-24B-Instruct-2503-4bit",
+    "bartowski/mistralai_Mistral-Small-3.1-24B-Instruct-2503-GGUF",
+    "lmstudio-community/Mistral-Small-3.1-24B-Instruct-2503-GGUF",
+    "ggml-org/Mistral-Small-3.1-24B-Instruct-2503-GGUF",
+    "mlx-community/Mistral-Small-3.1-24B-Instruct-2503-6bit",
+    "mlx-community/Mistral-Small-3.1-24B-Instruct-2503-8bit"
+  ]
+}

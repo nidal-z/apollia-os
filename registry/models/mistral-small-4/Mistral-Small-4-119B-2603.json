@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "mistral-small-4/Mistral-Small-4-119B-2603",
+  "kind": "language",
+  "label": "Mistral Small 4",
+  "publisher": "Mistral AI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603"
+  },
+  "source_url": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603",
+  "description": {
+    "fr": "Mistral Small 4 de Mistral AI réunit en un modèle à experts la conversation, le raisonnement et la programmation : il lit les images, appelle des outils et réfléchit sur demande. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 96 Go de mémoire en quantification Q4.",
+    "en": "Mistral Small 4 from Mistral AI gathers conversation, reasoning and coding in one mixture-of-experts model: it reads images, calls tools and thinks on request. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 96 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603/tree/main"
+  },
+  "memory": {
+    "min_gb": 73.8,
+    "source": "https://huggingface.co/unsloth/Mistral-Small-4-119B-2603-GGUF/blob/main/UD-Q4_K_M/Mistral-Small-4-119B-2603-UD-Q4_K_M-00001-of-00003.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [
+    {
+      "name": "reasoning_effort",
+      "type": "liste",
+      "values": [
+        "none",
+        "high"
+      ],
+      "default": "none",
+      "explanation": {
+        "fr": "Règle la profondeur de la réflexion avant la réponse. Plus l'effort est élevé, plus le modèle prend de temps et mieux il traite les problèmes en plusieurs étapes.",
+        "en": "Sets how deep the model thinks before answering. The higher the effort, the more time the model takes and the better it handles multi-step problems."
+      },
+      "source": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "mistralai/Mistral-Small-4-119B-2603",
+    "unsloth/Mistral-Small-4-119B-2603-GGUF",
+    "mlx-community/Mistral-Small-4-119B-2603-4bit",
+    "bartowski/mistralai_Mistral-Small-4-119B-2603-GGUF",
+    "lmstudio-community/Mistral-Small-4-119B-2603-GGUF",
+    "mlx-community/Mistral-Small-4-119B-2603-5bit",
+    "mlx-community/Mistral-Small-4-119B-2603-6bit",
+    "mlx-community/Mistral-Small-4-119B-2603-8bit"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "devstral/Devstral-Small-2-24B-Instruct-2512",
+  "kind": "language",
+  "label": "Devstral Small 2",
+  "publisher": "Mistral AI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512"
+  },
+  "source_url": "https://huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512",
+  "description": {
+    "fr": "Devstral de Mistral AI est entraîné pour le génie logiciel avec des agents : il explore un dépôt de code, modifie plusieurs fichiers et enchaîne les appels d'outils. Devstral Small 2, 24 milliards de paramètres, lit aussi les images. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4.",
+    "en": "Devstral from Mistral AI is trained for software engineering with agents: it explores a code repository, edits several files and chains tool calls. Devstral Small 2, 24 billion parameters, also reads images. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512/tree/main"
+  },
+  "memory": {
+    "min_gb": 14.4,
+    "source": "https://huggingface.co/unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF/blob/main/Devstral-Small-2-24B-Instruct-2512-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.15,
+    "source": "https://huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "mistralai/Devstral-Small-2-24B-Instruct-2512",
+    "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
+    "mlx-community/Devstral-Small-2-24B-Instruct-2512-4bit",
+    "bartowski/mistralai_Devstral-Small-2-24B-Instruct-2512-GGUF",
+    "lmstudio-community/Devstral-Small-2-24B-Instruct-2512-GGUF",
+    "ggml-org/Devstral-Small-2-24B-Instruct-2512-GGUF",
+    "mlx-community/mistralai_Devstral-Small-2-24B-Instruct-2512-MLX-4Bit",
+    "mlx-community/Devstral-Small-2-24B-Instruct-2512-5bit",
+    "mlx-community/mistralai_Devstral-Small-2-24B-Instruct-2512-MLX-5Bit",
+    "mlx-community/Devstral-Small-2-24B-Instruct-2512-6bit",
+    "mlx-community/mistralai_Devstral-Small-2-24B-Instruct-2512-MLX-6Bit",
+    "mlx-community/Devstral-Small-2-24B-Instruct-2512-8bit",
+    "mlx-community/mistralai_Devstral-Small-2-24B-Instruct-2512-MLX-8Bit"
+  ]
+}

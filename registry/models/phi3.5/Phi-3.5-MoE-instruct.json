@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "phi3.5/Phi-3.5-MoE-instruct",
+  "kind": "language",
+  "label": "Phi-3.5 MoE",
+  "publisher": "Microsoft",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/microsoft/Phi-3.5-MoE-instruct/resolve/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/microsoft/Phi-3.5-MoE-instruct",
+  "description": {
+    "fr": "Famille Phi-3.5 de Microsoft, sortie en 2024 et remplacée depuis par Phi-4 : conversation et raisonnement en texte seul, avec un long contexte. Cette variante à experts compte 42 milliards de paramètres dont 6,6 milliards travaillent à chaque mot. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 48 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "The Phi-3.5 family from Microsoft, released in 2024 and since replaced by Phi-4: conversation and reasoning in text only, with a long context. This mixture-of-experts variant has 42 billion parameters of which 6.6 billion work on each token. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 48 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/microsoft/Phi-3.5-MoE-instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 25.4,
+    "source": "https://huggingface.co/bartowski/Phi-3.5-MoE-instruct-GGUF/blob/main/Phi-3.5-MoE-instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "microsoft/Phi-3.5-MoE-instruct",
+    "bartowski/Phi-3.5-MoE-instruct-GGUF",
+    "mlx-community/Phi-3.5-MoE-instruct-4bit",
+    "lmstudio-community/Phi-3.5-MoE-instruct-GGUF",
+    "mlx-community/Phi-3.5-MoE-instruct-8bit"
+  ]
+}

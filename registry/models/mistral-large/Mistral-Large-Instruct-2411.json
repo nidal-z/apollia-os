@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "mistral-large/Mistral-Large-Instruct-2411",
+  "kind": "language",
+  "label": "Mistral Large 2 (2411)",
+  "publisher": "Mistral AI",
+  "license": {
+    "id": "mrl",
+    "source": "https://mistral.ai/licenses/MRL-0.1.md"
+  },
+  "source_url": "https://huggingface.co/mistralai/Mistral-Large-Instruct-2411",
+  "description": {
+    "fr": "Mistral Large 2 de Mistral AI, version de novembre 2024 : 123 milliards de paramètres pour les tâches longues et exigeantes, en texte seul. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 96 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (mrl) interdit l'usage commercial.",
+    "en": "Mistral Large 2 from Mistral AI, the November 2024 version: 123 billion parameters for long and demanding tasks, in text only. A very large size, for workstations only; plan for a machine with at least 96 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (mrl) forbids commercial use."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/mistralai/Mistral-Large-Instruct-2411/tree/main"
+  },
+  "memory": {
+    "min_gb": 73.3,
+    "source": "https://huggingface.co/bartowski/Mistral-Large-Instruct-2411-GGUF/blob/main/Mistral-Large-Instruct-2411-Q4_K_M/Mistral-Large-Instruct-2411-Q4_K_M-00001-of-00002.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "mistralai/Mistral-Large-Instruct-2411",
+    "bartowski/Mistral-Large-Instruct-2411-GGUF",
+    "lmstudio-community/Mistral-Large-Instruct-2411-GGUF"
+  ]
+}

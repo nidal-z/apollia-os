@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/microsoft/phi-4",
   "description": {
-    "fr": "Modèle de Microsoft entraîné surtout au raisonnement mathématique et logique ; son gabarit ne prévoit pas d'outils.",
-    "en": "A Microsoft model trained mostly for mathematical and logical reasoning; its template has no tools."
+    "fr": "Famille Phi-4 de Microsoft, sous licence MIT, orientée vers le raisonnement logique et mathématique, surtout en anglais. Phi-4, 14 milliards de paramètres, est le modèle de base de la famille, avec un contexte de 16 000 jetons. Taille intermédiaire, plus précise sur les documents longs et les tâches en plusieurs étapes ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "The Phi-4 family from Microsoft, under the MIT licence, geared towards logical and mathematical reasoning, mostly in English. Phi-4, 14 billion parameters, is the base model of the family, with a context of 16,000 tokens. An intermediate size, more precise on long documents and multi-step tasks; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling."
   },
   "capabilities": {
     "tools": false,
@@ -29,10 +29,13 @@
   "author_fields": [],
   "repos": [
     "microsoft/phi-4",
+    "unsloth/phi-4-GGUF",
+    "mlx-community/phi-4-4bit",
     "microsoft/phi-4-gguf",
     "bartowski/phi-4-GGUF",
-    "unsloth/phi-4-GGUF",
-    "mlx-community/phi-4-4bit"
+    "lmstudio-community/phi-4-GGUF",
+    "mlx-community/phi-4-6bit",
+    "mlx-community/phi-4-8bit"
   ],
   "template": "registry/models/templates/phi4.jinja"
 }

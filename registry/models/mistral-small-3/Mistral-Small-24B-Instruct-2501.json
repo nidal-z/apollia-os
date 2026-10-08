@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501",
   "description": {
-    "fr": "Modèle de Mistral AI, entreprise française : réponses sobres et précises, très bon en français. Le gabarit publié ne prévoit pas d'outils.",
-    "en": "A model from Mistral AI, a French company: sober, precise answers, very good French. Its published template has no tools."
+    "fr": "Mistral Small 3 de Mistral AI, entreprise française : 24 milliards de paramètres, des réponses sobres et précises, très bon en français, en texte seul. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "Mistral Small 3 from Mistral AI, a French company: 24 billion parameters, plain and precise answers, very good in French, in text only. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization. Its chat template has no tool calling."
   },
   "capabilities": {
     "tools": false,
@@ -30,9 +30,12 @@
   "author_fields": [],
   "repos": [
     "mistralai/Mistral-Small-24B-Instruct-2501",
-    "bartowski/Mistral-Small-24B-Instruct-2501-GGUF",
     "unsloth/Mistral-Small-24B-Instruct-2501-GGUF",
-    "mlx-community/Mistral-Small-24B-Instruct-2501-4bit"
+    "mlx-community/Mistral-Small-24B-Instruct-2501-4bit",
+    "bartowski/Mistral-Small-24B-Instruct-2501-GGUF",
+    "lmstudio-community/Mistral-Small-24B-Instruct-2501-GGUF",
+    "mlx-community/Mistral-Small-24B-Instruct-2501-6bit",
+    "mlx-community/Mistral-Small-24B-Instruct-2501-8bit"
   ],
   "template": "registry/models/templates/mistral-small-3.jinja"
 }

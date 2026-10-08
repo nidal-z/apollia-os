@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "devstral/Devstral-2-123B-Instruct-2512",
+  "kind": "language",
+  "label": "Devstral 2",
+  "publisher": "Mistral AI",
+  "license": {
+    "id": "modified-mit",
+    "source": "https://huggingface.co/mistralai/Devstral-2-123B-Instruct-2512/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/mistralai/Devstral-2-123B-Instruct-2512",
+  "description": {
+    "fr": "Devstral de Mistral AI est entraîné pour le génie logiciel avec des agents : il explore un dépôt de code, modifie plusieurs fichiers et enchaîne les appels d'outils. Devstral 2, 123 milliards de paramètres, est la grande taille de la famille. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 96 Go de mémoire en quantification Q4. Sa licence est une licence MIT modifiée, à lire avant un usage commercial.",
+    "en": "Devstral from Mistral AI is trained for software engineering with agents: it explores a code repository, edits several files and chains tool calls. Devstral 2, 123 billion parameters, is the large size of the family. A very large size, for workstations only; plan for a machine with at least 96 GB of memory at Q4 quantization. Its licence is a modified MIT licence, to be read before commercial use."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/mistralai/Devstral-2-123B-Instruct-2512/tree/main"
+  },
+  "memory": {
+    "min_gb": 74.9,
+    "source": "https://huggingface.co/unsloth/Devstral-2-123B-Instruct-2512-GGUF/blob/main/Q4_K_M/Devstral-2-123B-Instruct-2512-Q4_K_M-00001-of-00002.gguf"
+  },
+  "defaults": {
+    "temperature": 0.15,
+    "source": "https://huggingface.co/mistralai/Devstral-2-123B-Instruct-2512/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "mistralai/Devstral-2-123B-Instruct-2512",
+    "unsloth/Devstral-2-123B-Instruct-2512-GGUF",
+    "mlx-community/Devstral-2-123B-Instruct-2512-4bit",
+    "bartowski/mistralai_Devstral-2-123B-Instruct-2512-GGUF",
+    "lmstudio-community/Devstral-2-123B-Instruct-2512-GGUF",
+    "ggml-org/Devstral-2-123B-Instruct-2512-GGUF",
+    "mlx-community/Devstral-2-123B-Instruct-2512-5bit",
+    "mlx-community/Devstral-2-123B-Instruct-2512-6bit",
+    "mlx-community/Devstral-2-123B-Instruct-2512-8bit"
+  ]
+}

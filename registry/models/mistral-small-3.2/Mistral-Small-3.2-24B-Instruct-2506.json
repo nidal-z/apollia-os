@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "mistral-small-3.2/Mistral-Small-3.2-24B-Instruct-2506",
+  "kind": "language",
+  "label": "Mistral Small 3.2",
+  "publisher": "Mistral AI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506"
+  },
+  "source_url": "https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+  "description": {
+    "fr": "Mistral Small 3.2 de Mistral AI corrige Small 3.1 : consignes mieux suivies, moins de répétitions et un appel d'outils plus fiable, avec lecture d'images. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4.",
+    "en": "Mistral Small 3.2 from Mistral AI corrects Small 3.1: instructions better followed, fewer repetitions and more reliable tool calling, with image reading. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF"
+  },
+  "memory": {
+    "min_gb": 14.4,
+    "source": "https://huggingface.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF/blob/main/Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.15,
+    "source": "https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+    "unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+    "mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit",
+    "bartowski/mistralai_Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+    "lmstudio-community/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+    "lmstudio-community/Mistral-Small-3.2-24B-Instruct-2506-MLX-4bit",
+    "mlx-community/Mistral-Small-3.2-24B-Instruct-2506-8bit",
+    "lmstudio-community/Mistral-Small-3.2-24B-Instruct-2506-MLX-6bit",
+    "lmstudio-community/Mistral-Small-3.2-24B-Instruct-2506-MLX-8bit"
+  ]
+}
