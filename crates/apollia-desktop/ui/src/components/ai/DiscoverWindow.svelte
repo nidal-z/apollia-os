@@ -57,6 +57,7 @@
     mergeFound,
     wantedFormats,
     type FormatChoice,
+    type OfficialPublisher,
     isOfflineError,
     isSearching,
     searchEntries,
@@ -97,6 +98,7 @@
   let fitsOnly = $state(false);
 
   let cards = $state<ModelCardView[]>([]);
+  let official = $state<OfficialPublisher[]>([]);
   let selectionNote = $state<string | null>(null);
   let families = $state<SelectionFamily[]>([]);
   let embeddings = $state<EmbeddingsRecommendation | null>(null);
@@ -138,7 +140,7 @@
   const entries = $derived.by((): DiscoverEntry[] => {
     if (category === "embeddings") return embeddingEntries(embeddings, cards);
     if (category === "dictation") return dictationEntries(dictation, cards);
-    if (searching) return searchEntries(found, lang, cards);
+    if (searching) return searchEntries(found, lang, cards, official);
     return shownSelection(selectionEntries(cards, families), { fitsOnly, capacityGb, sort });
   });
 
@@ -178,6 +180,7 @@
     ]);
     if (catalogue.status === "fulfilled") {
       cards = catalogue.value.cards;
+      official = catalogue.value.publishers.official;
       selectionNote = catalogue.value.cards.length === 0 ? catalogue.value.message : null;
     }
     if (recommendation.status === "fulfilled") {
@@ -412,52 +415,54 @@
   hideClose
   data-testid="ai-discover-window"
 >
-  <div class="flex h-[min(720px,84vh)] min-h-0">
-    {#if selected}
-      <DiscoverCard
-        entry={selected}
-        {detail}
-        {detailLoading}
-        format={chosen?.format ?? wanted[0] ?? "gguf"}
-        {variants}
-        {chosen}
-        {action}
-        {conversation}
-        {opening}
-        {sourceUrl}
-        readmeRepo={readmeFrom}
-        onpick={(variant) => (pickedKey = variantKey(variant))}
-        ondefault={() => (pickedKey = null)}
-        onsource={openSource}
-        onconversation={() => void openConversation()}
-        ondownload={requestDownload}
-        oncopy={copyIdentifier}
-        onback={() => (selectedKey = null)}
-        onclose={close}
-      />
-    {:else}
-      <DiscoverColumn
-        bind:query
-        bind:format
-        bind:sort
-        bind:fitsOnly
-        bind:source
-        {category}
-        {formats}
-        {capacityGb}
-        {entries}
-        {selectedKey}
-        {searching}
-        loading={searching ? searchLoading : selectionLoading}
-        {offline}
-        {searchError}
-        {selectionNote}
-        onselect={select}
-        oncategory={setCategory}
-        onrefresh={() => void loadSelection()}
-        onclose={close}
-      />
-    {/if}
+  <div class="flex h-[min(780px,88vh)] min-h-0">
+    <DiscoverColumn
+      bind:query
+      bind:format
+      bind:sort
+      bind:fitsOnly
+      bind:source
+      {category}
+      {formats}
+      {capacityGb}
+      {entries}
+      {selectedKey}
+      {searching}
+      loading={searching ? searchLoading : selectionLoading}
+      {offline}
+      {searchError}
+      {selectionNote}
+      onselect={select}
+      oncategory={setCategory}
+      onrefresh={() => void loadSelection()}
+      onclose={close}
+      grouped={category === "language" && !isSearching(query)}
+    >
+      {#snippet card()}
+        {#if selected}
+          <DiscoverCard
+            entry={selected}
+            {detail}
+            {detailLoading}
+            format={chosen?.format ?? wanted[0] ?? "gguf"}
+            {variants}
+            {chosen}
+            {action}
+            {conversation}
+            {opening}
+            {sourceUrl}
+            readmeRepo={readmeFrom}
+            onpick={(variant) => (pickedKey = variantKey(variant))}
+            ondefault={() => (pickedKey = null)}
+            onsource={openSource}
+            onconversation={() => void openConversation()}
+            ondownload={requestDownload}
+            oncopy={copyIdentifier}
+            onback={() => (selectedKey = null)}
+          />
+        {/if}
+      {/snippet}
+    </DiscoverColumn>
   </div>
 </Dialog>
 

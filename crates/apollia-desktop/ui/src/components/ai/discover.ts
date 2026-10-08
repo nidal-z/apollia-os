@@ -21,6 +21,7 @@ import type {
   HubCapabilities,
   InstalledModel,
   ModelCardView,
+  ModelCatalogue,
   ModelFormat,
   ModelVariant,
   PublisherKind,
@@ -124,6 +125,8 @@ export interface DiscoverEntry {
   identifier: string;
   /** Who published it, in text. */
   publisher: string;
+  /** Who made the model, the name the list gathers its rows under. */
+  maker: string;
   publisherKind: PublisherKind;
   /** A short description, empty when none is written. */
   description: string;
@@ -161,6 +164,7 @@ export interface DiscoverEntry {
 function emptyEntry(): Omit<DiscoverEntry, "key" | "source" | "category" | "name" | "identifier"> {
   return {
     publisher: "",
+    maker: "",
     publisherKind: null,
     description: "",
     capabilities: null,
@@ -237,6 +241,7 @@ export function selectionEntries(
       name: card.label,
       identifier: card.id,
       publisher: card.publisher,
+      maker: card.publisher,
       description: card.description,
       capabilities: {
         tools: card.capabilities.tools,
@@ -263,6 +268,7 @@ export function selectionEntries(
         name: size.name,
         identifier: size.repos[0] ?? size.name,
         publisher: size.family.publisher,
+        maker: size.family.publisher,
         updatedAt: size.family.released,
         inSelection: true,
         license: size.family.license,
@@ -287,6 +293,53 @@ export function localized(text: { fr: string; en: string }, locale: string): str
   return french ? text.fr : text.en;
 }
 
+/** An official publisher and the organisations it publishes under. */
+export type OfficialPublisher = ModelCatalogue["publishers"]["official"][number];
+
+/** The name of the publisher behind an organisation, the organisation itself when none is known. */
+export function publisherOfOrg(org: string, official: readonly OfficialPublisher[]): string {
+  const known = official.find((entry) => entry.orgs.some((o) => o.toLowerCase() === org.toLowerCase()));
+  return known?.publisher ?? org;
+}
+
+/** Up to two initials of a publisher name, for its mark. */
+export function publisherInitials(name: string): string {
+  const words = name.trim().split(/[\s._-]+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const [first, second] = words;
+  const letters = second ? `${first?.[0] ?? ""}${second[0] ?? ""}` : (first ?? "").slice(0, 2);
+  return letters.toUpperCase();
+}
+
+/** The rows of one maker, under its name. */
+export interface MakerGroup {
+  maker: string;
+  entries: DiscoverEntry[];
+}
+
+/**
+ * The rows gathered by who made the model: the makers with the most models
+ * first, then by name, and each one's rows in the order they came. Rows
+ * without a maker close the list under an empty name.
+ */
+export function makerGroups(entries: readonly DiscoverEntry[]): MakerGroup[] {
+  const groups = new Map<string, DiscoverEntry[]>();
+  for (const entry of entries) {
+    const group = groups.get(entry.maker);
+    if (group) group.push(entry);
+    else groups.set(entry.maker, [entry]);
+  }
+  return [...groups.entries()]
+    .map(([maker, list]) => ({ maker, entries: list }))
+    .sort((a, b) => {
+      if (a.maker === "" || b.maker === "") return a.maker === "" ? (b.maker === "" ? 0 : 1) : -1;
+      return (
+        b.entries.length - a.entries.length ||
+        a.maker.localeCompare(b.maker, undefined, { sensitivity: "base" })
+      );
+    });
+}
+
 /** The model a result carries: its card, else the repository it declares, else itself. */
 function modelOf(found: FoundModel): string {
   const card = found.card;
@@ -309,6 +362,7 @@ export function searchEntries(
   models: readonly FoundModel[],
   locale: string,
   cards: readonly ModelCardView[] = [],
+  official: readonly OfficialPublisher[] = [],
 ): DiscoverEntry[] {
   const groups = new Map<string, FoundModel[]>();
   for (const model of models) {
@@ -333,6 +387,7 @@ export function searchEntries(
         name: gathered ? (origin?.label ?? lastSegment(originRepo)) : lastSegment(model.repo_id),
         identifier: gathered ? originRepo : model.repo_id,
         publisher: gathered ? (origin?.publisher ?? originRepo.split("/")[0] ?? card.owner) : card.owner,
+        maker: origin?.publisher ?? publisherOfOrg(originRepo.split("/")[0] ?? card.owner, official),
         publisherKind: card.publisher_kind,
         description: localized(card.description, locale),
         capabilities: card.capabilities,
@@ -371,6 +426,7 @@ export function embeddingEntries(
       name: model.label,
       identifier: model.id,
       publisher: model.publisher,
+      maker: model.publisher,
       description: card?.description ?? "",
       inSelection: true,
       recommendedHere: recommendation.recommended === model.id,
@@ -408,6 +464,7 @@ export function dictationEntries(
       name: card?.label ?? first.label,
       identifier: cardId,
       publisher: card?.publisher ?? first.publisher,
+      maker: card?.publisher ?? first.publisher,
       description: card?.description ?? "",
       updatedAt: first.released,
       inSelection: true,

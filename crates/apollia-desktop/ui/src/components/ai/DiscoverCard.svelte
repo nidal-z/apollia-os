@@ -6,7 +6,7 @@
    * on it, then what its author defines and its README on demand.
    */
   import { locale, t } from "svelte-i18n";
-  import { ArrowLeft, Check, Copy, Download, ExternalLink, Heart, MessageSquarePlus, WifiOff, X } from "lucide-svelte";
+  import { X, Check, Copy, Download, ExternalLink, Heart, MessageSquarePlus, WifiOff } from "lucide-svelte";
   import { formatRelativeTime } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
   import { Tooltip } from "$lib/components/ui/tooltip";
@@ -55,7 +55,6 @@
     oncopy: () => void;
     /** Back to the gallery the card was opened from. */
     onback: () => void;
-    onclose: () => void;
   }
 
   let {
@@ -77,7 +76,6 @@
     ondownload,
     oncopy,
     onback,
-    onclose,
   }: Props = $props();
 
   const lang = $derived($locale ?? "fr");
@@ -120,7 +118,7 @@
       onclick={onback}
       data-testid="ai-discover-back"
     >
-      <ArrowLeft size={13} aria-hidden="true" />
+      <X size={13} aria-hidden="true" />
       {$t("ai.discover.back_to_gallery")}
     </button>
     <div class="flex items-center gap-2">
@@ -135,15 +133,6 @@
         triggerClass="h-7 w-7 justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         <Copy size={14} aria-hidden="true" />
-      </Tooltip>
-      <Tooltip
-        content={$t("common.close")}
-        onclick={onclose}
-        triggerLabel={$t("common.close")}
-        triggerTestid="ai-discover-close"
-        triggerClass="ml-auto h-7 w-7 justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-      >
-        <X size={16} aria-hidden="true" />
       </Tooltip>
     </div>
     <div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground" data-testid="ai-discover-card-figures">

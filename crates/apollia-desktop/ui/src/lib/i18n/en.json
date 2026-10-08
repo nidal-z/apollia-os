@@ -5593,13 +5593,14 @@
         "embeddings": "Search my documents",
         "dictation": "Dictate"
       },
-      "group_fits": "Fits this computer",
-      "group_heavier": "Needs more memory",
-      "back_to_gallery": "Back to the catalogue",
+      "back_to_gallery": "Close the card",
       "min_memory": "{size} GB of memory",
       "fit_yes": "fits this computer",
       "fit_no": "too heavy for this computer",
-      "source_hub": "Hugging Face"
+      "source_hub": "Hugging Face",
+      "maker_unknown": "Publisher not stated",
+      "makers_label": "Model publishers",
+      "makers_all": "All"
     },
     "panel": {
       "sidebar_tab": "Model",

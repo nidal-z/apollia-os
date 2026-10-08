@@ -11,7 +11,10 @@ import {
   SEARCH_SORTS,
   chosenVariant,
   detailFromFound,
+  makerGroups,
   mergeFound,
+  publisherInitials,
+  publisherOfOrg,
   wantedFormats,
   detailFromRepos,
   downloadAction,
@@ -251,6 +254,30 @@ describe("the models of search by meaning", () => {
     // THEN the download names that file of that repository
     expect(variantSelector(v)).toEqual({ kind: "gguf", file: "bge-m3-Q8_0.gguf" });
     expect(v).toMatchObject({ repo_id: "gpustack/bge-m3-GGUF", downloaded: true, size_bytes: 635_000_000 });
+  });
+});
+
+describe("the list gathered by maker", () => {
+  test("the makers with the most models come first, and a conversion sits under who made the model", () => {
+    // GIVEN two converters of a Qwen model, one result of an organisation of Mistral AI, and the official lists
+    const official = [{ publisher: "Mistral AI", orgs: ["mistralai"] }];
+    const second = found({ repo_id: "unsloth/Qwen3-8B-GGUF", author: "unsloth" });
+    second.card = { ...second.card, repo_id: "unsloth/Qwen3-8B-GGUF", owner: "unsloth" };
+    const third = found({ repo_id: "bartowski/Qwen3-4B-GGUF" });
+    third.card = { ...third.card, repo_id: "bartowski/Qwen3-4B-GGUF", origin_repo: "Qwen/Qwen3-4B" };
+    const mistral = found({ repo_id: "bartowski/Mistral-Small-GGUF" });
+    mistral.card = { ...mistral.card, repo_id: "bartowski/Mistral-Small-GGUF", origin_repo: "mistralai/Mistral-Small" };
+    // WHEN the rows are gathered
+    const groups = makerGroups(searchEntries([mistral, found(), second, third], "fr", [], official));
+    // THEN each maker has its rows, the one with the most first, under its public name
+    expect(groups.map((g) => [g.maker, g.entries.length])).toEqual([
+      ["Qwen", 2],
+      ["Mistral AI", 1],
+    ]);
+    // AND a mark is drawn from a name
+    expect(publisherInitials("Mistral AI")).toBe("MA");
+    expect(publisherInitials("Qwen")).toBe("QW");
+    expect(publisherOfOrg("google", official)).toBe("google");
   });
 });
 

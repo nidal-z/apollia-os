@@ -1,12 +1,13 @@
 <script lang="ts">
   /**
-   * DiscoverColumn - the gallery of the discovery window, across its whole
-   * width: what the model is for, the search field, the mark of the Apollia
-   * selection, the format, the sort with "only what fits this computer", and
-   * the results as rows of one list, those that fit this computer first.
+   * DiscoverColumn - the discovery window: across its width, what the model
+   * is for, the search field, the source, the format and the sort with "only
+   * what fits this computer"; under them the models as a list gathered by who
+   * made them, and beside it the card of the one that is chosen.
    */
+  import type { Snippet } from "svelte";
   import { locale, t } from "svelte-i18n";
-  import { ChevronRight, FileSearch, MessageSquare, Mic, RefreshCw, Search, WifiOff, X } from "lucide-svelte";
+  import { ChevronDown, ChevronRight, FileSearch, MessageSquare, Mic, RefreshCw, Search, WifiOff, X } from "lucide-svelte";
   import type { ModelFormat, SearchSort } from "$lib/ipc/modelHub";
   import type { FormatChoice } from "./discover";
   import { cn, formatRelativeTime } from "$lib/utils";
@@ -15,11 +16,13 @@
   import { Select } from "$lib/components/ui/select";
   import { Tooltip } from "$lib/components/ui/tooltip";
   import CapabilityIcon from "./CapabilityIcon.svelte";
+  import PublisherMark from "./PublisherMark.svelte";
   import ExplainedBadge from "./ExplainedBadge.svelte";
   import { capabilitiesOf } from "./explanations";
   import {
     DISCOVER_CATEGORIES,
     SEARCH_SORTS,
+    makerGroups,
     publisherKindKeys,
     sortLabelKey,
     type DiscoverCategory,
@@ -48,6 +51,10 @@
     searchError: string | null;
     /** Why the selection has no card to show, in the words of the registry. */
     selectionNote: string | null;
+    /** The rows are gathered by who made the model, rather than listed in the order of a search. */
+    grouped: boolean;
+    /** The card of the chosen model, shown beside the list. */
+    card?: Snippet;
     onselect: (entry: DiscoverEntry) => void;
     oncategory: (category: DiscoverCategory) => void;
     onrefresh: () => void;
@@ -70,6 +77,8 @@
     offline,
     searchError,
     selectionNote,
+    grouped,
+    card,
     onselect,
     oncategory,
     onrefresh,
@@ -88,19 +97,31 @@
     return capacityGb === null || entry.minMemoryGb === null || entry.minMemoryGb <= capacityGb;
   }
 
-  // The cards in two groups, what fits this computer first. One group only
-  // while the capacity is unknown, or when everything falls on the same side.
-  const groups = $derived.by(() => {
-    const fitting = entries.filter(fitsHere);
-    const heavier = entries.filter((entry) => !fitsHere(entry));
-    if (capacityGb === null || heavier.length === 0 || fitting.length === 0) {
-      return [{ key: "all", title: null as string | null, entries: [...entries] }];
-    }
-    return [
-      { key: "fits", title: "ai.discover.group_fits" as string | null, entries: fitting },
-      { key: "heavier", title: "ai.discover.group_heavier" as string | null, entries: heavier },
-    ];
-  });
+  // Under each maker its models; a search by words keeps its own order in
+  // one list, since the order is then the answer.
+  const makers = $derived(grouped ? makerGroups(entries) : []);
+
+  // One maker kept by the row of makers above the list; null shows them all.
+  let onlyMaker = $state<string | null>(null);
+  const kept = $derived(makers.some((group) => group.maker === onlyMaker) ? onlyMaker : null);
+
+  const groups = $derived(
+    grouped
+      ? makers.filter((group) => kept === null || group.maker === kept)
+      : [{ maker: "", entries: [...entries] }],
+  );
+
+  // The makers the user folded, for the time the window stays open.
+  let folded = $state<Set<string>>(new Set());
+
+  function toggle(maker: string): void {
+    const next = new Set(folded);
+    if (!next.delete(maker)) next.add(maker);
+    folded = next;
+  }
+
+  // With a card open the list keeps a narrow column and its rows one line of facts.
+  const compact = $derived(selectedKey !== null);
 
   const lang = $derived($locale ?? "fr");
   const capacity = $derived(
@@ -265,7 +286,14 @@
     {/if}
   </header>
 
-  <div class="min-h-0 flex-1 overflow-auto px-6 py-5" data-testid="ai-discover-results">
+  <div class="flex min-h-0 flex-1">
+  <div
+    class={cn(
+      "min-h-0 overflow-auto py-4",
+      compact ? "w-[360px] shrink-0 border-r border-border px-3" : "flex-1 px-6",
+    )}
+    data-testid="ai-discover-results"
+  >
     {#if loading && entries.length === 0}
       <p class="text-sm text-muted-foreground" data-testid="ai-discover-loading">{$t("common.loading")}</p>
     {:else if searching && searchError}
@@ -283,16 +311,75 @@
         {/if}
       </p>
     {:else}
-      {#each groups as group (group.key)}
-        {#if group.title}
-          <h3
-            class="mb-2 mt-1 text-overline uppercase text-muted-foreground first:mt-0"
-            data-testid="ai-discover-group-{group.key}"
+      {#if grouped && makers.length > 1}
+        <div
+          class={cn(
+            "mb-4 flex items-center gap-1.5",
+            compact ? "overflow-x-auto pb-1 [&>button]:shrink-0" : "flex-wrap",
+          )}
+          role="group"
+          aria-label={$t("ai.discover.makers_label")}
+          data-testid="ai-discover-makers"
+        >
+          <button
+            type="button"
+            class={cn(
+              "rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+              kept === null
+                ? "border-primary/40 bg-primary/5 font-medium text-foreground"
+                : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+            )}
+            aria-pressed={kept === null}
+            onclick={() => (onlyMaker = null)}
+            data-testid="ai-discover-maker-all"
           >
-            {$t(group.title)} · {group.entries.length}
-          </h3>
+            {$t("ai.discover.makers_all")} · {entries.length}
+          </button>
+          {#each makers as group (group.maker)}
+            <button
+              type="button"
+              class={cn(
+                "flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                kept === group.maker
+                  ? "border-primary/40 bg-primary/5 font-medium text-foreground"
+                  : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+              )}
+              aria-pressed={kept === group.maker}
+              onclick={() => (onlyMaker = kept === group.maker ? null : group.maker)}
+              data-testid="ai-discover-maker-pick"
+              data-maker={group.maker}
+            >
+              <PublisherMark name={group.maker} size="sm" />
+              {group.maker === "" ? $t("ai.discover.maker_unknown") : group.maker}
+              <span class="tabular-nums">{group.entries.length}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+      {#each groups as group (group.maker)}
+        {#if grouped}
+          <button
+            type="button"
+            class="mb-2 flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            aria-expanded={!folded.has(group.maker)}
+            onclick={() => toggle(group.maker)}
+            data-testid="ai-discover-maker"
+            data-maker={group.maker}
+          >
+            <PublisherMark name={group.maker} />
+            <span class="min-w-0 truncate text-sm font-semibold text-foreground">
+              {group.maker === "" ? $t("ai.discover.maker_unknown") : group.maker}
+            </span>
+            <span class="text-xs tabular-nums text-muted-foreground">{group.entries.length}</span>
+            {#if folded.has(group.maker)}
+              <ChevronRight size={14} class="ml-auto shrink-0 text-muted-foreground" aria-hidden="true" />
+            {:else}
+              <ChevronDown size={14} class="ml-auto shrink-0 text-muted-foreground" aria-hidden="true" />
+            {/if}
+          </button>
         {/if}
-        <ul class="mb-5 divide-y divide-border/60 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        {#if !grouped || !folded.has(group.maker)}
+        <ul class="mb-4 divide-y divide-border/60 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           {#each group.entries as entry (entry.key)}
             {@const kind = publisherKindKeys(entry.publisherKind)}
             <li class="min-w-0">
@@ -301,14 +388,15 @@
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class={cn(
-                  "flex cursor-pointer items-center gap-4 px-4 py-2.5 transition-colors",
+                  "flex cursor-pointer items-center transition-colors",
+                  compact ? "gap-2 px-3 py-2" : "gap-4 px-4 py-2.5",
                   selectedKey === entry.key ? "bg-primary/5" : "hover:bg-muted/40",
                 )}
                 onclick={() => onselect(entry)}
                 data-testid="ai-discover-result"
                 data-entry-key={entry.key}
               >
-                <div class="flex w-56 shrink-0 items-center gap-1.5">
+                <div class={cn("flex items-center gap-1.5", compact ? "min-w-0 flex-1" : "w-56 shrink-0")}>
                   <button
                     type="button"
                     class="min-w-0 truncate rounded-sm text-left text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
@@ -327,10 +415,12 @@
                     {/each}
                   </span>
                 </div>
-                <div class="min-w-0 flex-1">
+                <div class={cn("min-w-0 flex-1", compact && "hidden")}>
                   <p class="truncate text-sm text-foreground/80">{entry.description}</p>
                   <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                    <span data-testid="ai-discover-result-publisher">{entry.publisher}</span>
+                    {#if !grouped || entry.publisher !== group.maker}
+                      <span data-testid="ai-discover-result-publisher">{entry.publisher}</span>
+                    {/if}
                     {#if entry.recommendedHere}
                       <ExplainedBadge
                         label={$t("ai.discover.recommended_here")}
@@ -359,24 +449,29 @@
                     {/if}
                   </div>
                 </div>
-                <div class="w-40 shrink-0 text-right">
+                <div class={cn("shrink-0 text-right", compact ? "w-auto" : "w-40")}>
                   {#if entry.minMemoryGb !== null}
                     <p class="text-sm tabular-nums text-foreground" data-testid="ai-discover-result-memory">
                       {$t("ai.discover.min_memory", { values: { size: entry.minMemoryGb } })}
                     </p>
-                    {#if capacityGb !== null}
+                    {#if capacityGb !== null && !compact}
                       <p class="text-xs {fitsHere(entry) ? 'text-success' : 'text-muted-foreground'}">
                         {$t(fitsHere(entry) ? "ai.discover.fit_yes" : "ai.discover.fit_no")}
                       </p>
                     {/if}
                   {/if}
                 </div>
-                <ChevronRight size={15} class="shrink-0 text-muted-foreground" aria-hidden="true" />
+                {#if !compact}
+                  <ChevronRight size={15} class="shrink-0 text-muted-foreground" aria-hidden="true" />
+                {/if}
               </div>
             </li>
           {/each}
         </ul>
+        {/if}
       {/each}
     {/if}
+  </div>
+  {@render card?.()}
   </div>
 </div>

@@ -5593,13 +5593,14 @@
         "embeddings": "Chercher dans mes documents",
         "dictation": "Dicter"
       },
-      "group_fits": "Tient sur ce poste",
-      "group_heavier": "Demande plus de mémoire",
-      "back_to_gallery": "Retour au catalogue",
+      "back_to_gallery": "Fermer la fiche",
       "min_memory": "{size} Go de mémoire",
       "fit_yes": "tient sur ce poste",
       "fit_no": "trop lourd pour ce poste",
-      "source_hub": "Hugging Face"
+      "source_hub": "Hugging Face",
+      "maker_unknown": "Éditeur non renseigné",
+      "makers_label": "Éditeurs des modèles",
+      "makers_all": "Tous"
     },
     "panel": {
       "sidebar_tab": "Modèle",

@@ -729,7 +729,7 @@
     },
     {
       "kind": "click",
-      "testid": "ai-discover-close",
+      "testid": "ai-discover-close-empty",
       "timeoutMs": 3000
     },
     {
