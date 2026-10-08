@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "lfm2/LFM2-24B-A2B",
+  "kind": "language",
+  "label": "LFM2 24B-A2B",
+  "publisher": "Liquid AI",
+  "license": {
+    "id": "lfm1.0",
+    "source": "https://huggingface.co/LiquidAI/LFM2-24B-A2B/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/LiquidAI/LFM2-24B-A2B",
+  "description": {
+    "fr": "Famille LFM2 de Liquid AI, à l'architecture hybride conçue pour tourner sur l'appareil : démarrage rapide, faible mémoire et appel d'outils. Cette taille à experts, la plus grande de la famille, compte 24 milliards de paramètres dont 2 milliards travaillent à chaque mot. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
+    "en": "The LFM2 family from Liquid AI, with a hybrid architecture designed to run on the device: fast start, low memory and tool calling. This mixture-of-experts size, the largest of the family, has 24 billion parameters of which 2 billion work on each token. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 24 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/LiquidAI/LFM2-24B-A2B/tree/main"
+  },
+  "memory": {
+    "min_gb": 14.5,
+    "source": "https://huggingface.co/LiquidAI/LFM2-24B-A2B-GGUF/blob/main/LFM2-24B-A2B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "LiquidAI/LFM2-24B-A2B",
+    "LiquidAI/LFM2-24B-A2B-GGUF",
+    "LiquidAI/LFM2-24B-A2B-MLX-4bit",
+    "bartowski/LiquidAI_LFM2-24B-A2B-GGUF",
+    "lmstudio-community/LFM2-24B-A2B-GGUF",
+    "mlx-community/LFM2-24B-A2B-4bit",
+    "lmstudio-community/LFM2-24B-A2B-MLX-4bit",
+    "LiquidAI/LFM2-24B-A2B-MLX-5bit",
+    "LiquidAI/LFM2-24B-A2B-MLX-6bit",
+    "LiquidAI/LFM2-24B-A2B-MLX-8bit",
+    "lmstudio-community/LFM2-24B-A2B-MLX-5bit",
+    "lmstudio-community/LFM2-24B-A2B-MLX-6bit",
+    "lmstudio-community/LFM2-24B-A2B-MLX-8bit"
+  ]
+}

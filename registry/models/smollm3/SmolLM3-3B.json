@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "smollm3/SmolLM3-3B",
+  "kind": "language",
+  "label": "SmolLM3 3B",
+  "publisher": "Hugging Face",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B"
+  },
+  "source_url": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B",
+  "description": {
+    "fr": "SmolLM3 de Hugging Face est un petit modèle de 3 milliards de paramètres qui appelle des outils, travaille en six langues dont le français et peut réfléchir avant de répondre. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "SmolLM3 from Hugging Face is a small model of 3 billion parameters that calls tools, works in six languages including French and can think before answering. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B/tree/main"
+  },
+  "memory": {
+    "min_gb": 2.0,
+    "source": "https://huggingface.co/unsloth/SmolLM3-3B-GGUF/blob/main/SmolLM3-3B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "source": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "HuggingFaceTB/SmolLM3-3B",
+    "unsloth/SmolLM3-3B-GGUF",
+    "mlx-community/SmolLM3-3B-4bit",
+    "bartowski/HuggingFaceTB_SmolLM3-3B-GGUF",
+    "lmstudio-community/SmolLM3-3B-GGUF",
+    "ggml-org/SmolLM3-3B-GGUF",
+    "lmstudio-community/SmolLM3-3B-MLX-4bit",
+    "mlx-community/SmolLM3-3B-5bit",
+    "mlx-community/SmolLM3-3B-6bit",
+    "mlx-community/SmolLM3-3B-8bit",
+    "lmstudio-community/SmolLM3-3B-MLX-6bit",
+    "lmstudio-community/SmolLM3-3B-MLX-8bit"
+  ]
+}

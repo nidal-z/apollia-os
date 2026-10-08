@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "falcon-h1/Falcon-H1-3B-Instruct",
+  "kind": "language",
+  "label": "Falcon-H1 3B",
+  "publisher": "TII",
+  "license": {
+    "id": "falcon-llm-license",
+    "source": "https://falconllm.tii.ae/falcon-terms-and-conditions.html"
+  },
+  "source_url": "https://huggingface.co/tiiuae/Falcon-H1-3B-Instruct",
+  "description": {
+    "fr": "Famille Falcon-H1 du Technology Innovation Institute d'Abou Dabi, à l'architecture hybride qui tient de longs contextes avec peu de mémoire, avec appel d'outils et de nombreuses langues. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "The Falcon-H1 family from the Technology Innovation Institute of Abu Dhabi, with a hybrid architecture that holds long contexts with little memory, with tool calling and many languages. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/tiiuae/Falcon-H1-3B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.9,
+    "source": "https://huggingface.co/tiiuae/Falcon-H1-3B-Instruct-GGUF/blob/main/Falcon-H1-3B-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "tiiuae/Falcon-H1-3B-Instruct",
+    "tiiuae/Falcon-H1-3B-Instruct-GGUF",
+    "mlx-community/Falcon-H1-3B-Instruct-4bit",
+    "unsloth/Falcon-H1-3B-Instruct-GGUF"
+  ]
+}

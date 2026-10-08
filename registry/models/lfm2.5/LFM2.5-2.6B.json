@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "lfm2.5/LFM2.5-2.6B",
+  "kind": "language",
+  "label": "LFM2.5 2.6B",
+  "publisher": "Liquid AI",
+  "license": {
+    "id": "lfm1.0",
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-2.6B/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/LiquidAI/LFM2.5-2.6B",
+  "description": {
+    "fr": "Famille LFM2.5 de Liquid AI, qui reprend l'architecture de LFM2 avec un entraînement tourné vers les agents : appel d'outils, suivi des consignes et tâches en plusieurs étapes sur l'appareil. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
+    "en": "The LFM2.5 family from Liquid AI, which keeps the LFM2 architecture with training aimed at agents: tool calling, instruction following and multi-step tasks on the device. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-2.6B/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.7,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF/blob/main/LFM2.5-2.6B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.1,
+    "top_k": 50,
+    "repetition_penalty": 1.1,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-2.6B/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "LiquidAI/LFM2.5-2.6B",
+    "LiquidAI/LFM2.5-2.6B-GGUF",
+    "LiquidAI/LFM2.5-2.6B-MLX-4bit",
+    "bartowski/LiquidAI_LFM2.5-2.6B-GGUF",
+    "lmstudio-community/LFM2.5-2.6B-GGUF",
+    "mlx-community/LFM2.5-2.6B-4bit",
+    "lmstudio-community/LFM2.5-2.6B-MLX-4bit",
+    "LiquidAI/LFM2.5-2.6B-MLX-5bit",
+    "LiquidAI/LFM2.5-2.6B-MLX-6bit",
+    "LiquidAI/LFM2.5-2.6B-MLX-8bit",
+    "mlx-community/LFM2.5-2.6B-5bit",
+    "mlx-community/LFM2.5-2.6B-6bit",
+    "mlx-community/LFM2.5-2.6B-8bit",
+    "lmstudio-community/LFM2.5-2.6B-MLX-5bit",
+    "lmstudio-community/LFM2.5-2.6B-MLX-6bit",
+    "lmstudio-community/LFM2.5-2.6B-MLX-8bit"
+  ]
+}

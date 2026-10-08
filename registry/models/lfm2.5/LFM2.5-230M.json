@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "lfm2.5/LFM2.5-230M",
+  "kind": "language",
+  "label": "LFM2.5 230M",
+  "publisher": "Liquid AI",
+  "license": {
+    "id": "lfm1.0",
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-230M/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/LiquidAI/LFM2.5-230M",
+  "description": {
+    "fr": "Famille LFM2.5 de Liquid AI, qui reprend l'architecture de LFM2 avec un entraînement tourné vers les agents : appel d'outils, suivi des consignes et tâches en plusieurs étapes sur l'appareil. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
+    "en": "The LFM2.5 family from Liquid AI, which keeps the LFM2 architecture with training aimed at agents: tool calling, instruction following and multi-step tasks on the device. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-230M/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.2,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-230M-GGUF/blob/main/LFM2.5-230M-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.1,
+    "top_k": 50,
+    "repetition_penalty": 1.05,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-230M/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "LiquidAI/LFM2.5-230M",
+    "LiquidAI/LFM2.5-230M-GGUF",
+    "LiquidAI/LFM2.5-230M-MLX-4bit",
+    "unsloth/LFM2.5-230M-GGUF",
+    "LiquidAI/LFM2.5-230M-MLX-5bit",
+    "LiquidAI/LFM2.5-230M-MLX-6bit",
+    "LiquidAI/LFM2.5-230M-MLX-8bit"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "falcon-h1/Falcon-H1R-7B",
+  "kind": "language",
+  "label": "Falcon-H1R 7B",
+  "publisher": "TII",
+  "license": {
+    "id": "falcon-llm-license",
+    "source": "https://falconllm.tii.ae/falcon-terms-and-conditions.html"
+  },
+  "source_url": "https://huggingface.co/tiiuae/Falcon-H1R-7B",
+  "description": {
+    "fr": "Famille Falcon-H1 du Technology Innovation Institute d'Abou Dabi, à l'architecture hybride qui tient de longs contextes avec peu de mémoire, avec appel d'outils et de nombreuses langues. Falcon-H1R est la variante de raisonnement : elle réfléchit avant de répondre. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The Falcon-H1 family from the Technology Innovation Institute of Abu Dhabi, with a hybrid architecture that holds long contexts with little memory, with tool calling and many languages. Falcon-H1R is the reasoning variant: it thinks before answering. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/tiiuae/Falcon-H1R-7B/tree/main"
+  },
+  "memory": {
+    "min_gb": 4.6,
+    "source": "https://huggingface.co/tiiuae/Falcon-H1R-7B-GGUF/blob/main/Falcon-H1R-7B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "tiiuae/Falcon-H1R-7B",
+    "tiiuae/Falcon-H1R-7B-GGUF",
+    "mlx-community/Falcon-H1R-7B-4bit",
+    "unsloth/Falcon-H1R-7B-GGUF",
+    "mlx-community/Falcon-H1R-7B-5bit",
+    "mlx-community/Falcon-H1R-7B-6bit",
+    "mlx-community/Falcon-H1R-7B-8bit"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "lfm2/LFM2-1.2B",
+  "kind": "language",
+  "label": "LFM2 1.2B",
+  "publisher": "Liquid AI",
+  "license": {
+    "id": "lfm1.0",
+    "source": "https://huggingface.co/LiquidAI/LFM2-1.2B/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/LiquidAI/LFM2-1.2B",
+  "description": {
+    "fr": "Famille LFM2 de Liquid AI, à l'architecture hybride conçue pour tourner sur l'appareil : démarrage rapide, faible mémoire et appel d'outils. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
+    "en": "The LFM2 family from Liquid AI, with a hybrid architecture designed to run on the device: fast start, low memory and tool calling. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/LiquidAI/LFM2-1.2B/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.8,
+    "source": "https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/blob/main/LFM2-1.2B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "LiquidAI/LFM2-1.2B",
+    "LiquidAI/LFM2-1.2B-GGUF",
+    "mlx-community/LFM2-1.2B-4bit",
+    "unsloth/LFM2-1.2B-GGUF",
+    "mlx-community/LFM2-1.2B-5bit",
+    "mlx-community/LFM2-1.2B-6bit",
+    "mlx-community/LFM2-1.2B-8bit",
+    "lmstudio-community/LFM2-1.2B-MLX-8bit"
+  ]
+}
