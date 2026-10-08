@@ -23,7 +23,7 @@
 
 schema_version = 1
 
-converters = ["lmstudio-community", "mlx-community", "unsloth", "bartowski"]
+converters = ["lmstudio-community", "mlx-community", "unsloth", "bartowski", "ggml-org"]
 
 [[official]]
 publisher = "Qwen"
@@ -52,3 +52,39 @@ orgs = ["nvidia"]
 [[official]]
 publisher = "IBM"
 orgs = ["ibm-granite"]
+
+[[official]]
+publisher = "DeepSeek"
+orgs = ["deepseek-ai"]
+
+[[official]]
+publisher = "OpenAI"
+orgs = ["openai"]
+
+[[official]]
+publisher = "Cohere"
+orgs = ["CohereLabs"]
+
+[[official]]
+publisher = "Zhipu AI"
+orgs = ["zai-org"]
+
+[[official]]
+publisher = "Moonshot AI"
+orgs = ["moonshotai"]
+
+[[official]]
+publisher = "01.AI"
+orgs = ["01-ai"]
+
+[[official]]
+publisher = "Liquid AI"
+orgs = ["LiquidAI"]
+
+[[official]]
+publisher = "Hugging Face"
+orgs = ["HuggingFaceTB"]
+
+[[official]]
+publisher = "TII"
+orgs = ["tiiuae"]
