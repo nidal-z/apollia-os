@@ -3419,7 +3419,7 @@
     "title": "Chat",
     "subtitle": "Conversations avec vos agents et le LLM",
     "new_chat": "Nouveau chat",
-    "untitled_session": "Session sans titre",
+    "untitled_session": "Nouvelle conversation",
     "command_group": {
       "sessions": "Sessions récentes",
       "agents": "Agents",
@@ -3447,7 +3447,7 @@
       "messages": "Messages"
     },
     "mode_agent": "Chat Agent",
-    "mode_libre": "Chat Libre",
+    "mode_libre": "Nouvelle conversation",
     "status_closed": "Fermée",
     "message_count": "{n, plural, =0 {aucun message} one {# message} other {# messages}}",
     "input_placeholder": "Tapez votre message...",
@@ -3456,7 +3456,7 @@
       "s2": "Sur quoi concentrer nos efforts ensuite ?",
       "s3": "Prépare un plan pour le sprint de demain..."
     },
-    "first_message_placeholder": "Envoyez votre premier message...",
+    "first_message_placeholder": "Écrivez votre demande ci-dessous. Vous choisissez l'agent ou le modèle en haut.",
     "agent_processing": "Agent en cours...",
     "thinking": "Réflexion en cours...",
     "status": {

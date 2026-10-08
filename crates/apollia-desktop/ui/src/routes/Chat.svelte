@@ -5,6 +5,7 @@
   import { connectionStatus, refreshChatSessionsViaIpc } from "$lib/stores/sse";
   import { pendingChatSessionId, openNewChatRequested } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
+  import { createChatSession } from "$lib/ipc/agents";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary } from "$lib/types";
   import { renameChatSession } from "$lib/ipc/chat";
@@ -233,7 +234,27 @@
       navigateToSession(empty);
       return;
     }
-    showNewChatPicker = true;
+    void startConversation();
+  }
+
+  // A new chat is a conversation, open across the page at once: its agent or
+  // its model is chosen from the top bar, as on any conversation. The picker
+  // stays as the way out when the conversation cannot be created.
+  let startingConversation = false;
+  async function startConversation(): Promise<void> {
+    if (startingConversation) return;
+    startingConversation = true;
+    try {
+      const session = await createChatSession({ mode: "libre" });
+      chatSessions.update((sessions) =>
+        sessions.some((s) => s.id === session.id) ? sessions : [session, ...sessions],
+      );
+      handleSessionCreated(session);
+    } catch {
+      showNewChatPicker = true;
+    } finally {
+      startingConversation = false;
+    }
   }
 
   // External triggers (sidebar button, command palette) push Date.now() into
