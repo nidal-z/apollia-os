@@ -19,9 +19,12 @@
   async function handleTranscribeFile() {
     error = null;
 
+    // The engine reports its model as loaded only after a first transcription,
+    // so that flag cannot gate the first one: what is refused here is dictation
+    // switched off, or no model chosen.
     const status = $sttStatus;
-    if (status && !status.model_loaded) {
-      error = reportError(new Error($t("transcriptions.error_model_not_loaded")), {
+    if (status && !(status.enabled && status.model_path.trim().length > 0)) {
+      error = reportError(new Error($t("transcriptions.error_not_configured")), {
         surface: "inline",
       });
       return;

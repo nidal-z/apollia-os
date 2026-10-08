@@ -4095,7 +4095,6 @@
     "transcribe_file": "Transcrire un fichier",
     "transcribing": "Transcription…",
     "file_filter_audio": "Fichiers audio",
-    "error_model_not_loaded": "Le modèle STT n'est pas chargé. Vérifiez votre configuration dans apollia.toml.",
     "kicker": "Reconnaissance vocale",
     "configure_engine": "Configurer le moteur STT",
     "export": "Exporter",
@@ -4107,7 +4106,10 @@
     "technical_details": "Détails techniques",
     "error_open_settings": "Ouvrir les réglages STT",
     "empty_configure_hotkey": "Configurer le raccourci",
-    "live": "En direct"
+    "live": "En direct",
+    "status_ready": "Prêt",
+    "status_ready_hint": "Le modèle se charge à la première dictée.",
+    "error_not_configured": "La dictée n'est pas activée ou aucun modèle n'est choisi."
   },
   "onboarding_welcome": {
     "title": "Bienvenue dans Apollia",
@@ -6776,5 +6778,11 @@
     "timed_out": "Aucune réponse dans le délai.",
     "failed_hint": " Vous pouvez continuer et réessayer plus tard depuis l'écran IA.",
     "retry": "Tester à nouveau"
+  },
+  "onboarding_dictation": {
+    "title": "Dictée",
+    "hint": "facultatif : choisissez un modèle, un micro, et essayez",
+    "apply": "Appliquer ces réglages",
+    "applied": "Réglages appliqués, vous pouvez tester."
   }
 }

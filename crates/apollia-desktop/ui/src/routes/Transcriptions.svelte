@@ -38,6 +38,12 @@
   let loadState = $state<"loading" | "error" | "ready">("loading");
   let loadError = $state<HumanizedError | null>(null);
 
+  // Dictation switched on with a model chosen: the engine is in place even
+  // though it reports its model as loaded only after a first transcription.
+  const configured = $derived(
+    $sttStatus !== null && $sttStatus.enabled && $sttStatus.model_path.trim().length > 0,
+  );
+
   async function load(showLoading = false) {
     if (showLoading) loadState = "loading";
     // The engine status and the history are independent: get_stt_status errors
@@ -105,13 +111,19 @@
           {#if $sttStatus.enabled && $sttStatus.model_loaded}
             <CheckCircle2 size={15} strokeWidth={1.75} class="shrink-0 text-success" />
             <span class="font-medium text-foreground">{$t("transcriptions.status_active")}</span>
+          {:else if configured}
+            <!-- The engine loads its model on the first dictation: enabled with
+                 a model chosen is ready, not broken. -->
+            <CheckCircle2 size={15} strokeWidth={1.75} class="shrink-0 text-success" />
+            <span class="font-medium text-foreground">{$t("transcriptions.status_ready")}</span>
+            <span class="text-muted-foreground">{$t("transcriptions.status_ready_hint")}</span>
           {:else}
             <XCircle size={15} strokeWidth={1.75} class="shrink-0 text-muted-foreground/50" />
             <span class="text-muted-foreground">{$t("transcriptions.status_inactive")}</span>
           {/if}
         </div>
 
-        {#if $sttStatus.model_loaded}
+        {#if $sttStatus.model_loaded || configured}
           <span class="text-muted-foreground/60" aria-hidden="true">&middot;</span>
           <span class="font-mono text-body-xs text-muted-foreground" data-testid="stt-model-name">
             {$sttStatus.model_name}
@@ -152,7 +164,7 @@
       </Card>
     {/if}
 
-    {#if $sttStatus && !$sttStatus.model_loaded}
+    {#if $sttStatus && !$sttStatus.model_loaded && !configured}
       <ErrorBanner
         tone="warning"
         onretry={() => load(true)}
@@ -160,7 +172,7 @@
         data-testid="stt-model-not-loaded"
       >
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>{$t("transcriptions.error_model_not_loaded")}</span>
+          <span>{$t("transcriptions.error_not_configured")}</span>
           <button
             type="button"
             class="font-medium underline underline-offset-2 outline-none focus-visible:no-underline"

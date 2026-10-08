@@ -615,6 +615,25 @@
       "testid": "onboarding-model-test"
     },
     {
+      "kind": "expect",
+      "testid": "onboarding-dictation-block"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-dictation-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-dictation-apply",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-dictation-toggle",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "sleep",
       "ms": 800
     },

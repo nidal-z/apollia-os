@@ -4095,7 +4095,6 @@
     "transcribe_file": "Transcribe a file",
     "transcribing": "Transcribing…",
     "file_filter_audio": "Audio files",
-    "error_model_not_loaded": "STT model is not loaded. Check your configuration in apollia.toml.",
     "kicker": "Speech to text",
     "configure_engine": "Configure STT engine",
     "export": "Export",
@@ -4107,7 +4106,10 @@
     "technical_details": "Technical details",
     "error_open_settings": "Open STT settings",
     "empty_configure_hotkey": "Configure the shortcut",
-    "live": "Live"
+    "live": "Live",
+    "status_ready": "Ready",
+    "status_ready_hint": "The model loads on the first dictation.",
+    "error_not_configured": "Dictation is off or no model is chosen."
   },
   "onboarding_welcome": {
     "title": "Welcome to Apollia",
@@ -6776,5 +6778,11 @@
     "timed_out": "No answer within the time limit.",
     "failed_hint": " You can go on and try again later from the AI screen.",
     "retry": "Test again"
+  },
+  "onboarding_dictation": {
+    "title": "Dictation",
+    "hint": "optional: pick a model, a microphone, and try it",
+    "apply": "Apply these settings",
+    "applied": "Settings applied, you can test."
   }
 }
