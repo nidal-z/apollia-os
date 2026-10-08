@@ -347,7 +347,7 @@ mod network {
     }
 
     #[tokio::test]
-    async fn offline_the_kept_copy_is_read_and_without_it_the_catalogue_is_empty() {
+    async fn offline_the_kept_copy_is_read_and_without_it_the_shipped_index() {
         // GIVEN a first read that kept a copy, then no address answering
         let server = registry().await;
         let cache = tempfile::tempdir().expect("tempdir");
@@ -362,10 +362,12 @@ mod network {
         let from_copy = load_index(&offline, cache.path(), Some(TEST_KEY)).await;
         let without = load_index(&offline, empty_cache.path(), Some(TEST_KEY)).await;
 
-        // THEN the copy answers, and without it the error says offline
+        // THEN the copy answers, and without it the index that ships with
+        // the application does, with every card of the repository
         assert_eq!(from_copy.expect("the copy").origin, IndexOrigin::Cache);
-        let error = without.expect_err("offline");
-        assert!(matches!(error, RegistryError::Offline { .. }), "{error:?}");
+        let shipped = without.expect("the shipped index");
+        assert_eq!(shipped.origin, IndexOrigin::Shipped);
+        assert!(!shipped.index.cards.is_empty());
     }
 
     #[tokio::test]
@@ -395,10 +397,11 @@ mod network {
         // WHEN the catalogue opens
         let loaded = load_index(&source(url, None), cache.path(), None).await;
 
-        // THEN it is refused by name, before any request
-        assert!(
-            matches!(loaded, Err(RegistryError::Card(CardError::NoTrustedKey))),
-            "{loaded:?}"
+        // THEN the index that ships with the application answers, and no
+        // address is asked for one that could not be checked
+        assert_eq!(
+            loaded.expect("the shipped index").origin,
+            IndexOrigin::Shipped
         );
         assert!(server
             .received_requests()
@@ -437,12 +440,16 @@ mod network {
         let read = installed_card(&model);
 
         // THEN the copy sits next to the weights and reads back whole, while
-        //      the registry itself is unreachable
+        //      the registry itself is unreachable and only the shipped index
+        //      answers
         assert_eq!(
             copied.expect("copied"),
             Some(models.join("Qwen3-8B-Q4_K_M.gguf.card.json"))
         );
-        assert!(matches!(offline, Err(RegistryError::Offline { .. })));
+        assert_eq!(
+            offline.expect("the shipped index").origin,
+            IndexOrigin::Shipped
+        );
         let card = read.expect("readable").expect("present");
         assert_eq!(card.id, "qwen3/Qwen3-8B");
         assert_eq!(card.defaults.temperature, Some(1.0));

@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use apollia_llm::model_cards::fetch::{open_catalogue, RegistrySource};
 use apollia_llm::model_cards::readme::{fetch_readme, ReadmeError, HUGGINGFACE_BASE};
 use apollia_llm::model_cards::{
-    cached_index, compiled_public_key, default_cache_dir, LocalizedCard, PublisherLists,
+    compiled_public_key, default_cache_dir, kept_or_shipped_index, LocalizedCard, PublisherLists,
 };
 
 use super::ErrorResponse;
@@ -60,8 +60,8 @@ pub struct ModelCardsResponse {
     /// (turned off by configuration or policy) or `no_trusted_key` (this build
     /// carries no distribution key).
     pub status: String,
-    /// Where the index came from when `status` is `ok`: `primary`, `mirror`
-    /// or `cache`.
+    /// Where the index came from when `status` is `ok`: `primary`, `mirror`,
+    /// `cache` or `shipped`.
     pub origin: Option<String>,
     /// A sentence for the user when the catalogue is empty.
     pub message: Option<String>,
@@ -166,21 +166,15 @@ pub async fn list_model_cards<B: ExecutionBackend + Clone>(
         .map(Json)
 }
 
-/// The body of the single card route, read from the kept copy only.
+/// The body of the single card route, read without asking the network.
 pub(crate) fn card_body(
     cache_dir: &Path,
     public_key: Option<&str>,
     id: &str,
     lang: &str,
 ) -> Result<LocalizedCard, RouteError> {
-    let index = cached_index(cache_dir, public_key)
-        .map_err(|e| error(StatusCode::BAD_GATEWAY, e.to_string()))?
-        .ok_or_else(|| {
-            error(
-                StatusCode::NOT_FOUND,
-                "no model catalogue is kept yet; open the catalogue first",
-            )
-        })?;
+    let index = kept_or_shipped_index(cache_dir, public_key)
+        .map_err(|e| error(StatusCode::BAD_GATEWAY, e.to_string()))?;
     index
         .card(id)
         .map(|card| card.localized(lang))

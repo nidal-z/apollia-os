@@ -418,13 +418,22 @@ installé lit sa fiche hors ligne.
 
 Une organisation remplace l'adresse par un miroir interne, ou coupe le
 registre, par la section `[models]` d'`apollia.toml`. Un miroir
-change l'origine de l'index, jamais qui peut le signer. Sans réseau et sans
-copie gardée, le catalogue est vide et le dit, rien n'est recommandé, et un
-modèle peut toujours être importé depuis un disque.
+change l'origine de l'index, jamais qui peut le signer.
 
-Le coût est une source réseau dont dépend le catalogue : aucun index n'est
-livré avec l'application, donc un premier lancement sans réseau n'a pas de
-recommandation.
+L'index construit à partir des fiches au moment où l'application a été faite
+est livré dans le binaire. Le catalogue le lit quand aucune adresse ne répond
+et qu'aucune copie signée n'est gardée, et dans une version qui ne porte pas de
+clé de distribution : un premier lancement sans réseau montre toutes les fiches
+que la version connaissait. Il ne porte pas de signature parce qu'il n'en a pas
+besoin, faisant partie du binaire dont la signature le couvre, et il ne
+remplace jamais un index signé : un index lu à une adresse ou dans la copie
+gardée passe avant lui, sous la vérification décrite plus haut. Un registre
+coupé par la configuration ou par la politique reste coupé, et l'index livré
+n'est pas lu non plus. Une garde échoue quand l'index livré ne correspond plus
+aux fiches.
+
+Le coût est que les fiches d'un poste qui n'atteint jamais le registre ont
+l'âge de sa version.
 
 ## Reconnaissance vocale {#speech-to-text}
 

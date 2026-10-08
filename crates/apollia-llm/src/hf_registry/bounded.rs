@@ -523,7 +523,8 @@ pub(super) fn found_model(
 /// What a search reads from this machine before asking the Hub.
 #[derive(Debug, Clone)]
 pub struct SearchInputs {
-    /// The signed index kept by the last opening of the catalogue, if any.
+    /// The signed index kept by the last opening of the catalogue, or the
+    /// one that ships with the application.
     pub index: Option<RegistryIndex>,
     /// The organisations asked.
     pub authors: Vec<SearchAuthor>,
@@ -533,14 +534,15 @@ pub struct SearchInputs {
 
 impl SearchInputs {
     /// Read the kept index from `cache_dir`, checked against the key compiled
-    /// into this build, and the embedded selection. No request is made.
+    /// into this build, or the one that ships with the application, and the
+    /// embedded selection. No request is made.
     #[must_use]
     pub fn load(cache_dir: &std::path::Path) -> Self {
-        let index = match crate::model_cards::cached_index(
+        let index = match crate::model_cards::kept_or_shipped_index(
             cache_dir,
             crate::model_cards::compiled_public_key(),
         ) {
-            Ok(index) => index,
+            Ok(index) => Some(index),
             Err(err) => {
                 event!(Level::WARN, error = %err, "llm.hf_search.index_unread");
                 None

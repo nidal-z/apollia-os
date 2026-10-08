@@ -433,6 +433,22 @@ def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, i
     return faults, len(files), templated
 
 
+def check_shipped_index() -> list[str]:
+    """The index compiled into the application is the one the cards build."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import build_model_registry_index as builder
+
+    shipped = builder.SHIPPED_INDEX
+    if not shipped.is_file():
+        return [f"{shipped.relative_to(ROOT)} is absent: run build_model_registry_index.py --shipped"]
+    if shipped.read_text(encoding="utf-8") != builder.build():
+        return [
+            f"{shipped.relative_to(ROOT)} no longer matches the cards: "
+            "run build_model_registry_index.py --shipped"
+        ]
+    return []
+
+
 def run(
     families: pathlib.Path,
     publishers: pathlib.Path,
@@ -461,6 +477,8 @@ def run(
     faults += dict_faults
     card_faults, cards, templated = check_registry(registry, fam)
     faults += card_faults
+    if registry == REGISTRY and publishers == PUBLISHERS:
+        faults += check_shipped_index()
     families_count = len(fam.get("family", []))
     for fault in faults:
         print(f"  {fault}")

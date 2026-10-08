@@ -275,6 +275,7 @@ BILINGUAL_DATA = (
     "crates/apollia-desktop/ui/src/lib/i18n/glossary.json",
     # Model cards: one description and one explanation per locale.
     "crates/apollia-llm/src/model_cards/fixtures/",
+    "crates/apollia-llm/src/model_cards/shipped-index.json",
     # The sentence of a generated model card, one template per locale.
     "crates/apollia-llm/src/hf_registry/generated_sentences.json",
     "registry/models/",

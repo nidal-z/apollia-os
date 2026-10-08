@@ -102,7 +102,7 @@ async fn offline_the_kept_copy_serves_the_catalogue_in_the_asked_language() {
 }
 
 #[tokio::test]
-async fn offline_without_a_copy_the_catalogue_is_empty_with_a_clear_message() {
+async fn offline_without_a_copy_the_catalogue_reads_the_shipped_index() {
     // GIVEN no copy and no address answering
     let tmp = tempfile::tempdir().expect("tempdir");
     let source = RegistrySource {
@@ -122,12 +122,11 @@ async fn offline_without_a_copy_the_catalogue_is_empty_with_a_clear_message() {
     .await
     .expect("served");
 
-    // THEN it is empty, says why, and recommends nothing
-    assert_eq!(body.status, "offline");
-    assert!(body.cards.is_empty());
-    assert!(body
-        .message
-        .is_some_and(|m| m.contains("could not be reached")));
+    // THEN it holds the cards that ship with the application, and says so
+    assert_eq!(body.status, "ok");
+    assert_eq!(body.origin.as_deref(), Some("shipped"));
+    assert!(!body.cards.is_empty());
+    assert!(body.message.is_none());
 }
 
 #[test]
@@ -154,7 +153,7 @@ fn one_card_is_read_from_the_copy_with_its_source_and_english_as_fallback() {
 }
 
 #[tokio::test]
-async fn the_card_route_answers_404_before_the_catalogue_was_ever_opened() {
+async fn the_card_route_reads_the_shipped_index_before_the_catalogue_was_ever_opened() {
     // GIVEN a runtime whose data directory holds no copy
     let tmp = tempfile::tempdir().expect("tempdir");
     let state = app_state(tmp.path().to_path_buf());
@@ -168,11 +167,9 @@ async fn the_card_route_answers_404_before_the_catalogue_was_ever_opened() {
     )
     .await;
 
-    // THEN the route says the catalogue was never opened
-    assert_eq!(status, axum::http::StatusCode::NOT_FOUND, "{body}");
-    assert!(body["error"]
-        .as_str()
-        .is_some_and(|e| e.contains("open the catalogue")));
+    // THEN the card comes from the index that ships with the application
+    assert_eq!(status, axum::http::StatusCode::OK, "{body}");
+    assert_eq!(body["id"], "qwen3/Qwen3-8B");
 }
 
 #[tokio::test]

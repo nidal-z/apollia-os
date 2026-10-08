@@ -22,6 +22,12 @@ what lets a signature made once be checked by anyone who rebuilds it.
 Usage:
     python3 scripts/build_model_registry_index.py [--out PATH]
     python3 scripts/build_model_registry_index.py --test-fixture
+    python3 scripts/build_model_registry_index.py --shipped
+
+`--shipped` rewrites the index compiled into the application, the one the
+catalogue reads on a machine that never accepted a signed index. It is not
+signed: it is part of the binary. `scripts/check-model-families.py` fails when
+it no longer matches the cards.
 
 `--test-fixture` rewrites the fixture the Rust tests verify: the index built
 from the tree, signed by a throwaway key made on the spot with
@@ -44,6 +50,7 @@ FIXTURES = ROOT / "crates" / "apollia-llm" / "src" / "model_cards" / "fixtures"
 FIXTURE_INDEX = FIXTURES / "registry-index.json"
 FIXTURE_SIGNATURE = FIXTURES / "registry-index.json.minisig"
 FIXTURE_KEY = FIXTURES / "registry-test.key.pub"
+SHIPPED_INDEX = FIXTURES.parent / "shipped-index.json"
 
 INDEX_SCHEMA_VERSION = 1
 CARD_SCHEMA_VERSION = 1
@@ -118,9 +125,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--out", type=pathlib.Path)
     parser.add_argument("--test-fixture", action="store_true")
+    parser.add_argument("--shipped", action="store_true")
     args = parser.parse_args()
     if args.test_fixture:
         return write_test_fixture()
+    if args.shipped:
+        SHIPPED_INDEX.write_text(build(), encoding="utf-8")
+        sys.stdout.write(f"build_model_registry_index: {SHIPPED_INDEX.relative_to(ROOT)} rewritten\n")
+        return 0
     text = build()
     if args.out:
         args.out.write_text(text, encoding="utf-8")

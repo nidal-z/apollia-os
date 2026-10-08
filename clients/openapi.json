@@ -25356,7 +25356,7 @@
               "string",
               "null"
             ],
-            "description": "Where the index came from when `status` is `ok`: `primary`, `mirror`\nor `cache`."
+            "description": "Where the index came from when `status` is `ok`: `primary`, `mirror`,\n`cache` or `shipped`."
           },
           "publishers": {
             "type": "object",

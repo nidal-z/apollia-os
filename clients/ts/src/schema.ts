@@ -9101,8 +9101,8 @@ export interface components {
             /** @description A sentence for the user when the catalogue is empty. */
             message?: string | null;
             /**
-             * @description Where the index came from when `status` is `ok`: `primary`, `mirror`
-             *     or `cache`.
+             * @description Where the index came from when `status` is `ok`: `primary`, `mirror`,
+             *     `cache` or `shipped`.
              */
             origin?: string | null;
             /** @description The official publishers and the recognised converters. */

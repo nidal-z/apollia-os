@@ -383,12 +383,20 @@ is downloaded, so an installed model reads its card offline.
 
 An organisation replaces the address by an internal mirror, or turns the
 registry off, through the `[models]` section of `apollia.toml`.
-A mirror changes where the index comes from, never who may sign it. Without
-network and without a kept copy, the catalogue is empty and says so, nothing is
-recommended, and a model can still be imported from a disk.
+A mirror changes where the index comes from, never who may sign it.
 
-The cost is a network source the catalogue depends on: no index ships with the
-application, so a first launch without network has no recommendation.
+The index built from the cards when the application was made ships inside the
+binary. The catalogue reads it when no address answers and no signed copy is
+kept, and in a build that carries no distribution key: a first launch without
+network shows every card the build knew. It carries no signature because it
+needs none, being part of the binary whose own signature covers it, and it
+never replaces a signed index: an index read from an address or from the kept
+copy wins over it, under the verification above. A registry turned off by
+configuration or by policy stays off, and the shipped index is not read either.
+A guard fails when the shipped index no longer matches the cards.
+
+The cost is that the cards of a machine that never reaches the registry are as
+old as its build.
 
 ## Speech to text {#speech-to-text}
 

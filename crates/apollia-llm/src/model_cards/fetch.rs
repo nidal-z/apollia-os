@@ -112,6 +112,9 @@ pub enum IndexOrigin {
     Mirror,
     /// The copy kept from the last successful read, no address answering.
     Cache,
+    /// The index that ships with the application, no signed index having
+    /// ever been accepted on this machine.
+    Shipped,
 }
 
 /// An index, checked, with where it came from.
@@ -150,15 +153,13 @@ enum Attempt {
 }
 
 /// Read the index for the catalogue: main address, then mirror, then the copy
-/// kept in `cache_dir`. A fetched index is checked against `public_key`, then
-/// kept.
+/// kept in `cache_dir`, then the index that ships with the application. A
+/// fetched index is checked against `public_key`, then kept.
 ///
 /// # Errors
 ///
-/// [`RegistryError::Disabled`] when the source is turned off,
-/// [`RegistryError::Card`] when a signature does not hold or no key is
-/// compiled, and [`RegistryError::Offline`] when nothing answered and no copy
-/// is kept.
+/// [`RegistryError::Disabled`] when the source is turned off, and
+/// [`RegistryError::Card`] when a signature does not hold.
 pub async fn load_index(
     source: &RegistrySource,
     cache_dir: &Path,
@@ -168,7 +169,8 @@ pub async fn load_index(
         return Err(RegistryError::Disabled);
     }
     if public_key.is_none() {
-        return Err(CardError::NoTrustedKey.into());
+        // No key, so no fetched index could be accepted: nothing is asked.
+        return shipped();
     }
     let mut detail = String::new();
     let candidates = std::iter::once((source.url.as_str(), IndexOrigin::Primary)).chain(
@@ -212,8 +214,22 @@ pub async fn load_index(
             index,
             origin: IndexOrigin::Cache,
         }),
-        None => Err(RegistryError::Offline { detail }),
+        None => {
+            tracing::event!(
+                tracing::Level::INFO,
+                detail = %detail,
+                "llm.model_cards.shipped_index_read"
+            );
+            shipped()
+        }
     }
+}
+
+fn shipped() -> Result<LoadedIndex, RegistryError> {
+    Ok(LoadedIndex {
+        index: super::shipped_index()?,
+        origin: IndexOrigin::Shipped,
+    })
 }
 
 async fn fetch_pair(url: &str) -> Result<Attempt, RegistryError> {

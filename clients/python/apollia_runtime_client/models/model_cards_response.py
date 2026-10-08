@@ -27,8 +27,8 @@ class ModelCardsResponse:
             (turned off by configuration or policy) or `no_trusted_key` (this build
             carries no distribution key).
         message (None | str | Unset): A sentence for the user when the catalogue is empty.
-        origin (None | str | Unset): Where the index came from when `status` is `ok`: `primary`, `mirror`
-            or `cache`.
+        origin (None | str | Unset): Where the index came from when `status` is `ok`: `primary`, `mirror`,
+            `cache` or `shipped`.
     """
 
     cards: list[ModelCardsResponseCardsItem]

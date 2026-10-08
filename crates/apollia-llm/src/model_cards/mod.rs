@@ -469,6 +469,40 @@ pub fn cached_index(
     verify_index(&content, &signature, public_key).map(Some)
 }
 
+/// The index built from the cards of this repository when this build was made.
+const SHIPPED_INDEX: &[u8] = include_bytes!("shipped-index.json");
+
+/// The index that ships with the application: what the catalogue reads when
+/// no signed index was ever accepted on this machine. It needs no signature,
+/// being part of the binary, and it is as old as the build.
+///
+/// # Errors
+///
+/// The errors of [`RegistryIndex::parse`].
+pub fn shipped_index() -> Result<RegistryIndex, CardError> {
+    RegistryIndex::parse(SHIPPED_INDEX)
+}
+
+/// The index to read without asking the network: the signed copy kept in
+/// `cache_dir` when there is one, the index that ships with the application
+/// otherwise.
+///
+/// # Errors
+///
+/// The errors of [`cached_index`] when a kept copy is refused, and those of
+/// [`shipped_index`].
+pub fn kept_or_shipped_index(
+    cache_dir: &Path,
+    public_key: Option<&str>,
+) -> Result<RegistryIndex, CardError> {
+    if public_key.is_some() {
+        if let Some(index) = cached_index(cache_dir, public_key)? {
+            return Ok(index);
+        }
+    }
+    shipped_index()
+}
+
 /// Keep `content` and its `signature` in `cache_dir`, each written whole
 /// before it replaces the previous copy.
 ///
@@ -488,24 +522,23 @@ pub fn store_index(cache_dir: &Path, content: &[u8], signature: &str) -> Result<
 }
 
 /// Copy the card of the repository `repo_id` next to the model at
-/// `model_path`, from the index kept in `cache_dir`.
+/// `model_path`, from the index kept in `cache_dir`, or from the one that
+/// ships with the application.
 ///
-/// Returns where the card was written, or `None` when no index is kept or no
-/// card describes that repository.
+/// Returns where the card was written, or `None` when no card describes that
+/// repository.
 ///
 /// # Errors
 ///
-/// The errors of [`cached_index`], and [`CardError::Io`] when the card cannot
-/// be written.
+/// The errors of [`kept_or_shipped_index`], and [`CardError::Io`] when the
+/// card cannot be written.
 pub fn copy_card_beside(
     cache_dir: &Path,
     model_path: &Path,
     repo_id: &str,
     public_key: Option<&str>,
 ) -> Result<Option<PathBuf>, CardError> {
-    let Some(index) = cached_index(cache_dir, public_key)? else {
-        return Ok(None);
-    };
+    let index = kept_or_shipped_index(cache_dir, public_key)?;
     let Some(card) = index.card_for_repo(repo_id) else {
         return Ok(None);
     };
