@@ -210,14 +210,20 @@ into a feature branch (creates merge noise).
 
 ## 11. Tags and versioning
 
-Strict SemVer : `vMAJOR.MINOR.PATCH`. Pre-release suffix when needed :
-`v0.3.0-rc1`.
+Strict SemVer : `vMAJOR.MINOR.PATCH`. A release carries no suffix. A trial
+version, published on the preview update channel only, is tagged
+`vMAJOR.MINOR.PATCH-rc.N` (`v0.3.1-rc.1`). No tag carries `-preview`: the word
+names the update channel, never a version.
 
 Tag on the commit that ships the version. Push the tag explicitly :
 `git push origin v0.3.0`.
 
-Workspace versions are aligned : every `Cargo.toml` in `crates/` uses
-`version.workspace = true`. Bump once in the root `Cargo.toml`.
+One version covers the whole tree, and each manifest states it: every
+`Cargo.toml` under `crates/` and `tests/`, `sdk/pyproject.toml` with
+`apollia.__version__`, the `package.json` files, `tauri.conf.json`,
+`clients/openapi.json` and the built-in agents. A release bumps them together,
+with `Cargo.lock` and the npm locks; `docs/agents/NAMING.md` lists the two
+exceptions.
 
 ---
 

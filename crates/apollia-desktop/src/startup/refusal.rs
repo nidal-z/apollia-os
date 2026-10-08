@@ -128,7 +128,7 @@ mod tests {
     fn incompatible_refusal() -> RefusalReason {
         RefusalReason::IncompatibleRuntime {
             port: 7771,
-            version: "0.2.0-preview".to_owned(),
+            version: "0.2.3".to_owned(),
             ours: "0.3.0",
         }
     }
@@ -145,7 +145,7 @@ mod tests {
 
         // THEN it names the runtime in its version, the gesture, and the log
         for text in [&fr, &en] {
-            assert!(text.contains("0.2.0-preview"), "{text}");
+            assert!(text.contains("0.2.3"), "{text}");
             assert!(text.contains("apollia-os stop"), "{text}");
             assert!(text.contains("/data/startup-refused.log"), "{text}");
         }
@@ -168,7 +168,7 @@ mod tests {
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 2);
         assert!(lines[0].contains("not answer as an Apollia runtime"));
-        assert!(lines[1].contains("0.2.0-preview"));
+        assert!(lines[1].contains("0.2.3"));
         assert!(lines[1].contains("cannot drive it"));
     }
 

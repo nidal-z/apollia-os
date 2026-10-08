@@ -40,7 +40,7 @@ name = "e2e-desk"
 version = "1.0.0"
 publisher = "E2E Publisher"
 description = "A clerk and the workflow it files with."
-sdk = ">=0.2.0-preview"
+sdk = ">=0.3.0"
 
 [[agents]]
 id = "e2e-clerk"

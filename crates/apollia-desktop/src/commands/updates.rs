@@ -276,21 +276,20 @@ fn is_missing_manifest(err: &UpdaterError) -> bool {
 /// `tauri.conf.json`. Returns a serializable description of the current state.
 #[tauri::command]
 pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult, String> {
-    // Displayed, not compared. `app.package_info().version` carries the
-    // `tauri.conf.json` value, which differs on purpose: WiX rejects a
-    // non-numeric pre-release identifier, so the bundle is stamped `0.2.0-1`
-    // while the product is `0.2.0-preview`. The plugin keeps comparing against
-    // its own value; showing it here would put two versions in front of the
-    // operator, one on this panel and another on the About screen.
+    // Displayed, not compared: the plugin compares against the version of
+    // `tauri.conf.json`, which equals the crate version on a release and
+    // differs on a trial version, whose bundle is stamped `X.Y.Z-N` because
+    // WiX rejects a non-numeric pre-release identifier. Showing the crate
+    // version here keeps this panel and the About screen on one string.
     //
     // `tauri build` does not emit `latest.json`: with `createUpdaterArtifacts`
     // it emits one minisign signature per updater artifact, and the release
     // workflow composes the manifest from them (the "Compose the updater
     // manifest" step of release.yml, driven by packaging/artifacts.json).
     // That step must stamp the `tauri.conf.json` version, never the git tag:
-    // a manifest carrying the tag would read as permanently newer than the
-    // installed build, because SemVer ranks a numeric pre-release identifier
-    // below an alphanumeric one, so `0.2.0-1` sorts below `0.2.0-preview`.
+    // SemVer ranks a numeric pre-release identifier below an alphanumeric
+    // one, so a manifest carrying the tag `X.Y.Z-rc.N` would read as
+    // permanently newer than the bundle `X.Y.Z-N` it describes.
     let current_version = env!("CARGO_PKG_VERSION").to_string();
 
     // Self-update needs a signing key: the plugin verifies the downloaded
@@ -460,6 +459,34 @@ mod tests {
 
         // THEN the stable version is offered
         assert!(matches!(verdict, Verdict::Available(Candidate("0.3.0"))));
+    }
+
+    #[test]
+    fn test_the_first_release_without_suffix_outranks_every_earlier_preview() {
+        // GIVEN this release and the two strings the last preview carried, its
+        // product version and the bundle version the updater compared against
+        let release = semver::Version::parse("0.3.0").unwrap();
+        let product = semver::Version::parse("0.2.0-preview").unwrap();
+        let bundle = semver::Version::parse("0.2.0-1").unwrap();
+
+        // WHEN they are ranked the way the updater plugin ranks them
+        // THEN an installed preview reads the release as newer, never the reverse
+        assert!(release > product);
+        assert!(release > bundle);
+    }
+
+    #[test]
+    fn test_the_bundle_and_the_crate_carry_the_same_version() {
+        // GIVEN the configuration the bundle is stamped from
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+
+        // WHEN its version is read
+        let bundled = config["version"].as_str().unwrap();
+
+        // THEN it is the crate version: the updater compares against one, the
+        // About screen shows the other, and a release has no reason to split them
+        assert_eq!(bundled, env!("CARGO_PKG_VERSION"));
     }
 
     #[test]

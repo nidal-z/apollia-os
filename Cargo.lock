@@ -243,7 +243,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "apollia-aip"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-auth",
  "apollia-core",
@@ -274,7 +274,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-auth"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "age",
  "apollia-core",
@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-cli"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-aip",
  "apollia-auth",
@@ -348,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-connectors"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-auth",
  "apollia-core",
@@ -373,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-core"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-desktop"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-aip",
  "apollia-auth",
@@ -447,7 +447,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-e2e-tests"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-aip",
  "apollia-core",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-eval"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-llm",
  "async-trait",
@@ -493,7 +493,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-llm"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-core",
  "apollia-signing",
@@ -523,7 +523,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-mcp"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-auth",
  "apollia-core",
@@ -547,7 +547,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-memory"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-core",
  "chrono",
@@ -563,7 +563,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-notifications"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-core",
  "apollia-tools",
@@ -589,7 +589,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-oria"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-core",
  "apollia-llm",
@@ -615,7 +615,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-permissions"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-core",
  "apollia-signing",
@@ -632,11 +632,11 @@ dependencies = [
 
 [[package]]
 name = "apollia-prompts"
-version = "0.2.0-preview"
+version = "0.3.0"
 
 [[package]]
 name = "apollia-runner"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "axum",
  "hound",
@@ -654,7 +654,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-runtime"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-auth",
  "apollia-connectors",
@@ -708,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-signing"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-auth",
  "base64 0.23.1",
@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-sources"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-core",
  "apollia-llm",
@@ -750,7 +750,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-stt"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "cpal",
  "rubato",
@@ -765,7 +765,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-tools"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "aes-gcm",
  "apollia-auth",
@@ -802,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-triggers"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-core",
  "apollia-mcp",
@@ -821,7 +821,7 @@ dependencies = [
 
 [[package]]
 name = "apollia-workspace"
-version = "0.2.0-preview"
+version = "0.3.0"
 dependencies = [
  "apollia-core",
  "apollia-llm",

@@ -41,7 +41,7 @@ REQUIRED_TOOLS = (
 
 @agent(
     name="eval-oria-probe",
-    version="0.2.0-preview",
+    version="0.3.0",
     description="Measurement probe: an orchestrated agent the ORIA agent-loop suite is played against.",
     tools_required=REQUIRED_TOOLS,
     memory_namespace="eval-oria-probe",

@@ -1155,9 +1155,10 @@ jobs:
       # it emits one minisign signature per updater artifact, and composing
       # the manifest from them is this step's job (tauri-action does the same
       # for projects that use it). The version is read from tauri.conf.json,
-      # never from the git tag: SemVer ranks the numeric pre-release `0.2.0-1`
-      # below the alphanumeric `0.2.0-preview`, so a manifest stamped with the
-      # tag would read as permanently newer than every installed build. A
+      # never from the git tag: SemVer ranks a numeric pre-release identifier
+      # below an alphanumeric one, so a manifest stamped with a trial tag
+      # `vX.Y.Z-rc.N` would read as permanently newer than the bundle
+      # `X.Y.Z-N` it describes. A
       # platform whose signature is absent (no signing key on the build) is
       # left out, and an empty manifest is still published: the updater plugin
       # reports it as "channel unavailable", which is the true state.

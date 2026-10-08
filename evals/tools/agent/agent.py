@@ -50,7 +50,7 @@ REQUIRED_TOOLS = (
 
 @agent(
     name="eval-tools-probe",
-    version="0.2.0-preview",
+    version="0.3.0",
     description="Measurement probe: calls one named native tool per task and reports its observable effect.",
     tools_required=REQUIRED_TOOLS,
     memory_namespace="eval-tools-probe",

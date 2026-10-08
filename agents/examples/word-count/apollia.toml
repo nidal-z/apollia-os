@@ -9,7 +9,7 @@ name = "word-count"
 version = "0.1.0"
 publisher = "Apollia"
 description = "A tool that counts the words, the lines and the characters of a text. No agent: grant the tool to one of yours."
-sdk = ">=0.2.0-preview"
+sdk = ">=0.3.0"
 
 # Written by `python -m apollia describe` from the code; edits here are replaced.
 [[tools]]

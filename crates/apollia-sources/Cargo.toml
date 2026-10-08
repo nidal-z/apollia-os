@@ -1,6 +1,6 @@
 [package]
 name = "apollia-sources"
-version = "0.2.0-preview"
+version = "0.3.0"
 edition.workspace = true
 rust-version.workspace = true
 description = "Apollia OS - the sources an agent may consult: the registry, the actor that owns it, the readers of workbooks, CSV files, PDF, Word and PowerPoint documents, the table a batch reads from them and writes its results to, and the index of each source, kept in step with its files"

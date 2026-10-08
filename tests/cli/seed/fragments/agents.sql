@@ -32,17 +32,17 @@ VALUES
 INSERT INTO installed_agents
     (name, version, install_path, source_path, manifest_json, enabled, installed_at, updated_at)
 VALUES
-    ('onboarding-agent', '0.2.0-preview',
+    ('onboarding-agent', '0.3.0',
      '', '',
-     '{"name":"onboarding-agent","version":"0.2.0-preview","description":"First user contact: short calibration on identity, supervision and sovereignty.","tools_required":[],"tools_optional":[],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"onboarding","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["onboarding","conversational","system"],"skills":[],"execution_mode":"conversational","agent_type":"system","user_memory_write":true,"examples":["Start onboarding"],"limitations":["Runs once at first launch"]}',
+     '{"name":"onboarding-agent","version":"0.3.0","description":"First user contact: short calibration on identity, supervision and sovereignty.","tools_required":[],"tools_optional":[],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"onboarding","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["onboarding","conversational","system"],"skills":[],"execution_mode":"conversational","agent_type":"system","user_memory_write":true,"examples":["Start onboarding"],"limitations":["Runs once at first launch"]}',
      1, '2026-07-16T09:00:00Z', '2026-07-16T09:00:00Z');
 
 INSERT INTO installed_agents
     (name, version, install_path, source_path, manifest_json, enabled, installed_at, updated_at)
 VALUES
-    ('apollia-guide', '0.2.0-preview',
+    ('apollia-guide', '0.3.0',
      '', '',
-     '{"name":"apollia-guide","version":"0.2.0-preview","description":"Conversational coach for Apollia OS: knows product capabilities and suggests actionable deep-links.","tools_required":[],"tools_optional":["navigate","read_memory_namespace","get_user_integrations","get_installed_agents"],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"apollia-guide","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["coach","system","guide"],"skills":[],"execution_mode":"conversational","agent_type":"assistant","examples":["What can Apollia do?","How do I install an agent?"],"limitations":["Guidance only, does not act on your behalf"]}',
+     '{"name":"apollia-guide","version":"0.3.0","description":"Conversational coach for Apollia OS: knows product capabilities and suggests actionable deep-links.","tools_required":[],"tools_optional":["navigate","read_memory_namespace","get_user_integrations","get_installed_agents"],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"apollia-guide","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["coach","system","guide"],"skills":[],"execution_mode":"conversational","agent_type":"assistant","examples":["What can Apollia do?","How do I install an agent?"],"limitations":["Guidance only, does not act on your behalf"]}',
      1, '2026-07-16T09:00:00Z', '2026-07-16T09:00:00Z');
 
 INSERT INTO installed_agents
@@ -66,7 +66,7 @@ INSERT INTO installed_packages
 VALUES
     ('seed-office-pack', '0.1.0',
      '/__SEED_HOME__/.apollia/agents/packages/seed-office-pack',
-     '{"package":{"name":"seed-office-pack","version":"0.1.0","publisher":"Apollia","description":"Seed office toolkit: bundled workers for classification tasks.","sdk":">=0.2.0-preview"},"agents":[{"id":"seed-classifier","name":"seed-classifier","mission":"Deterministic text classifier worker: routes text into labeled categories.","examples":["Classify this ticket as bug or feature"],"defaults":{"access":["pkg:seed-office-pack/classify_text"]}}],"tools":[{"name":"classify_text","module":"tools/classify.py","description":"Classify a text into one of the provided labels.","action":"read","inputs":{"type":"object","properties":{"text":{"type":"string","description":"Text to classify."},"labels":{"type":"array","items":{"type":"string"},"description":"Candidate labels."}},"required":["text","labels"],"additionalProperties":false}}]}',
+     '{"package":{"name":"seed-office-pack","version":"0.1.0","publisher":"Apollia","description":"Seed office toolkit: bundled workers for classification tasks.","sdk":">=0.3.0"},"agents":[{"id":"seed-classifier","name":"seed-classifier","mission":"Deterministic text classifier worker: routes text into labeled categories.","examples":["Classify this ticket as bug or feature"],"defaults":{"access":["pkg:seed-office-pack/classify_text"]}}],"tools":[{"name":"classify_text","module":"tools/classify.py","description":"Classify a text into one of the provided labels.","action":"read","inputs":{"type":"object","properties":{"text":{"type":"string","description":"Text to classify."},"labels":{"type":"array","items":{"type":"string"},"description":"Candidate labels."}},"required":["text","labels"],"additionalProperties":false}}]}',
      '2026-07-16T09:00:00Z', '2026-07-16T09:00:00Z');
 
 INSERT INTO package_agents (package_name, agent_name)

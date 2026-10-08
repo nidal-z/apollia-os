@@ -100,7 +100,7 @@ name = "meeting-prep"
 version = "0.1.0"
 publisher = "You"
 description = "Prepares a sales meeting: public research on the company, then a brief to read before the call."
-sdk = ">=0.2.0-preview"
+sdk = ">=0.3.0"
 
 [[agents]]
 id = "researcher"
