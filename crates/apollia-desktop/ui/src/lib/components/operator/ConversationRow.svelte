@@ -21,7 +21,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { tick } from "svelte";
-  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, Settings2, Folder, FolderInput, FileText, ChevronRight } from "lucide-svelte";
+  import { Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, Settings2, Folder, FolderInput, FileText, ChevronRight } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
@@ -195,27 +195,26 @@
 </script>
 
 <ListRow
+  variant="nav"
   pad={conversationRowPad(density)}
   align="stretch"
   state={isActive ? "active" : "default"}
   dim={isClosed || isArchived}
   onclick={onclick ? onRowClick : undefined}
   onkeydown={onclick ? onRowKeydown : undefined}
-  class="cursor-pointer"
+  class="mx-2 cursor-pointer"
 >
-  <div
-    class="w-[22px] h-[22px] rounded-md shrink-0 mt-0.5 inline-flex items-center justify-center {isActive
-      ? 'bg-primary text-primary-foreground'
-      : 'bg-muted text-muted-foreground'}"
-  >
-    {#if isPinned}
-      <Pin size={11} />
-    {:else if isArchived}
-      <Archive size={11} />
-    {:else}
-      <MessageCircle size={11} />
-    {/if}
-  </div>
+  <!-- A conversation is read by its title; only a pinned or an archived one
+       carries a mark. -->
+  {#if isPinned || isArchived}
+    <div class="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
+      {#if isPinned}
+        <Pin size={11} />
+      {:else}
+        <Archive size={11} />
+      {/if}
+    </div>
+  {/if}
   <div class="flex-1 min-w-0">
     {#if editing}
       <input
@@ -242,9 +241,9 @@
         {title}
       </div>
     {/if}
-    <div class="text-micro-lg text-muted-foreground mt-0.5 inline-flex items-center gap-1.5 flex-wrap">
-      {#if lastMessage}<span class="truncate">{lastMessage}</span>{/if}
-      <span>· {$t("common.relative.ago", { values: { time: timestamp } })}</span>
+    <div class="mt-0.5 flex min-w-0 items-center gap-1.5 text-micro-lg text-muted-foreground">
+      {#if lastMessage}<span class="min-w-0 truncate">{lastMessage}</span>{/if}
+      <span class="shrink-0">· {$t("common.relative.ago", { values: { time: timestamp } })}</span>
       {#if tokens}
         <span class="tabular-nums" data-testid="conversation-row-tokens">· {tokens}</span>
       {/if}

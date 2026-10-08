@@ -75,7 +75,7 @@
 
   <aside
     class={cn(
-      "border-r border-border flex flex-col bg-background",
+      "border-r border-border flex flex-col bg-card",
       isWide
         ? "shrink-0"
         : "absolute inset-y-0 left-0 z-drawer max-w-[85%] shadow-elev-3 transition-transform duration-base " +
