@@ -573,8 +573,6 @@ CLI leaf on a throwaway `HOME` and names the leaves it refuses to play.
 invariants; running them needs a loaded model and an outfitted agent, which no
 recipe provides.
 
----
-
 ### The desktop in dev mode and the macOS keychain
 
 macOS ties each keychain entry to the signature of the program that wrote it.
@@ -589,6 +587,8 @@ signs the binary with that identity under one identifier before running it:
 every build is the same program to the keychain. `APOLLIA_DEV_SIGN_IDENTITY`
 names another identity. Without any, the recipes run as before. The identity
 signs nothing that ships: release builds are signed by the release workflow.
+
+---
 
 ## 8. When the rules block you
 
