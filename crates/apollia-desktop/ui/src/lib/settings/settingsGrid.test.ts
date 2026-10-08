@@ -212,14 +212,16 @@ describe("General gathers the moved content", () => {
     expect(text).not.toContain("about-copy-diagnostics");
   });
 
-  it("keeps a danger zone of factory reset, clear memories and clear logs, without the onboarding reset", () => {
+  it("keeps a danger zone of factory reset, clear memories and clear logs, with the replay of the first launch", () => {
     // GIVEN the danger zone source
     const text = source("components/settings/DangerZone.svelte");
 
     // WHEN its actions are read
-    // THEN the three destructive actions stay and the onboarding reset left
+    // THEN the three destructive actions stay, and the first launch can be
+    // replayed from here as well as from Appearance, under an id of its own
     positions(text, ['id: "factory-reset"', 'id: "clear-memories"', 'id: "clear-logs"']);
-    expect(text).not.toContain("reset-onboarding");
+    expect(text).toContain('id: "replay-onboarding"');
+    expect(text).not.toContain('id: "reset-onboarding"');
   });
 });
 

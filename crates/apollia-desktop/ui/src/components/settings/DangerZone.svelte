@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { t } from "svelte-i18n";
-  import { AlertTriangle, Brain, FileText, Trash2, Ban } from "lucide-svelte";
+  import { AlertTriangle, Ban, Brain, FileText, RefreshCcw, Trash2 } from "lucide-svelte";
   import { cn } from "$lib/utils";
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast";
@@ -12,10 +12,12 @@
     clearLogs,
     factoryReset,
     appRestart,
+    resetOnboarding,
   } from "$lib/ipc/danger";
   import DestructiveActionDialog from "./DestructiveActionDialog.svelte";
 
   type ActionId =
+    | "replay-onboarding"
     | "clear-memories"
     | "clear-logs"
     | "factory-reset";
@@ -39,6 +41,21 @@
 
   let openAction = $state<ActionId | null>(null);
   let loading = $state(false);
+
+  async function runResetOnboarding(): Promise<void> {
+    loading = true;
+    try {
+      await resetOnboarding();
+      addToast($t("settings.danger.reset_onboarding.success"), "success", {
+        "data-testid": "danger-reset-onboarding-toast",
+      });
+      openAction = null;
+    } catch (err) {
+      reportError(err, { surface: "toast" });
+    } finally {
+      loading = false;
+    }
+  }
 
   async function runClearMemories(): Promise<void> {
     loading = true;
@@ -95,6 +112,7 @@
   }
 
   const ACTIONS: DangerAction[] = [
+    { id: "replay-onboarding", key: "reset_onboarding", icon: RefreshCcw, confirmWord: "RESET", irreversible: false, critical: false, warning: false, lockMs: 0, run: runResetOnboarding },
     { id: "clear-memories", key: "clear_memories", icon: Brain, confirmWord: "DELETE", irreversible: true, critical: false, warning: false, lockMs: 0, run: runClearMemories },
     { id: "clear-logs", key: "clear_logs", icon: FileText, confirmWord: "DELETE", irreversible: false, critical: false, warning: false, lockMs: 0, run: runClearLogs },
     { id: "factory-reset", key: "factory_reset", icon: Trash2, confirmWord: "FACTORY RESET", irreversible: true, critical: true, warning: true, lockMs: 3000, run: runFactoryReset },
