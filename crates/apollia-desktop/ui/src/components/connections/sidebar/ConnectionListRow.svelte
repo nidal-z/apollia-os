@@ -8,15 +8,13 @@
    * right-click menu (Test / Configure / Remove).
    */
   import { t } from "svelte-i18n";
-  import { Folder, Mail, Plug, RefreshCw, Settings, Trash2, UserRound } from "lucide-svelte";
-  import { ListRow, StatusDot } from "$lib/components/operator";
+  import { ChevronRight, Folder, Mail, Plug, RefreshCw, Settings, Trash2, UserRound } from "lucide-svelte";
+  import { ListRow } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { ContextMenu, type ActionMenuItem } from "$lib/components/ui/context-menu";
   import { developerMode } from "$lib/stores/developerMode";
-  import { accentTokenFor } from "$lib/connections/accent";
   import { provenanceLine, type ConnectionRow } from "$lib/connections/connectionRows";
-  import { statusAccent } from "$lib/connections/status";
-  import ConnectorTile from "../shared/ConnectorTile.svelte";
+  import { statusBadgeVariant, statusLabelKey } from "$lib/connections/status";
   import type { McpRowAction } from "../shared/types";
 
   interface Props {
@@ -75,8 +73,8 @@
   <ListRow
     variant="nav"
     state={selected ? "active" : "default"}
-    align="stretch"
-    class="text-left"
+    align="center"
+    class="gap-3 !rounded-none px-4 py-3 text-left"
     onclick={onselect}
     data-testid={mcpName !== null
       ? `sidebar-mcp-${mcpName}`
@@ -84,51 +82,36 @@
         ? `sidebar-native-${provider}`
         : `sidebar-connection-${row.key}`}
   >
-    <div
-      class="my-0.5 w-0.5 shrink-0 self-stretch rounded-sm"
-      style="background: {statusAccent(row.status)};"
-    ></div>
-    <ConnectorTile
-      size="sm"
-      accent={row.kind === "native" ? "hsl(var(--primary))" : accentTokenFor(row.label)}
-    >
-      {#snippet icon()}<Icon size={13} />{/snippet}
-    </ConnectorTile>
+    <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+      <Icon size={16} strokeWidth={1.75} />
+    </span>
     <div class="min-w-0 flex-1">
-      <div class="flex min-w-0 items-center gap-1.5">
-        <span class="truncate text-label-md text-foreground" style:font-weight={selected ? 600 : 500}>
-          {row.label}
-        </span>
-        {#if row.status === "active"}
-          <StatusDot color="hsl(var(--success))" glow size={5} />
-        {:else if row.status === "attention"}
-          <StatusDot color="hsl(var(--warning))" glow size={5} />
-        {:else if row.status === "error"}
-          <StatusDot color="hsl(var(--destructive))" glow size={5} />
-        {/if}
+      <div class="flex min-w-0 items-center gap-2">
+        <span class="truncate text-body-sm font-medium text-foreground">{row.label}</span>
         {#if row.remote}
           <Badge size="sm" variant="info" data-testid="connection-remote-{row.key}">
             {$t("connections.remote")}
           </Badge>
         {/if}
       </div>
-      <div class="mt-0.5 truncate text-caption text-muted-foreground">{subLabel}</div>
-      {#if $developerMode}
-        <div
-          class="mt-0.5 truncate font-mono text-caption text-muted-foreground/80"
-          data-testid="connection-provenance-{row.key}"
-        >
-          {provenanceLine(row, $t("connections.badge_official"))}
-        </div>
-      {/if}
+      <div class="mt-0.5 truncate text-caption text-muted-foreground">
+        {subLabel}{#if $developerMode}<span
+            class="text-muted-foreground/70"
+            data-testid="connection-provenance-{row.key}"
+          >
+            · {provenanceLine(row, $t("connections.badge_official"))}</span
+          >{/if}
+      </div>
     </div>
+    <Badge size="sm" variant={statusBadgeVariant(row.status)}>{$t(statusLabelKey(row.status))}</Badge>
+    <ChevronRight size={15} class="shrink-0 text-muted-foreground" aria-hidden="true" />
   </ListRow>
 {/snippet}
 
 {#if mcpName !== null && oncontext}
-  <ContextMenu items={menuItems} class="mb-0.5" data-testid="mcp-ctx-{mcpName}">
+  <ContextMenu items={menuItems} data-testid="mcp-ctx-{mcpName}">
     {@render body()}
   </ContextMenu>
 {:else}
-  <div class="mb-0.5">{@render body()}</div>
+  <div>{@render body()}</div>
 {/if}

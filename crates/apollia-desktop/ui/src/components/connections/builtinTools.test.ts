@@ -72,10 +72,13 @@ describe("the built-in tools in Connections", () => {
       props: { rows: [], selection: { kind: "builtin" }, loading: false, loadError: null, onselect: noop, onopencatalogue: noop, oncontext: noop, builtinTools: { active: 1, total: 4 } },
     });
 
-    // THEN the entry is shown, with its count, and the empty-list sentence is not
+    // THEN the entry is shown, with its count, in a card of its own, apart
+    // from the card that says no connection was added yet
     expect(html).toContain("Apollia, built-in tools");
     expect(html).toContain("1 of 4 on");
-    expect(html).not.toContain('data-testid="connections-sidebar-empty"');
+    expect(html.indexOf('data-testid="connections-builtin-section"')).toBeGreaterThan(
+      html.indexOf('data-testid="connections-sidebar-empty"'),
+    );
   });
 
   test("the page of the built-in tools gives each tool its switch and its configuration", async () => {

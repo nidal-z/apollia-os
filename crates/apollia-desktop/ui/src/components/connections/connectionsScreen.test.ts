@@ -269,7 +269,8 @@ describe("Connections, one list and one word", () => {
     expect(text).toContain("Connections · 4");
     expect(text).not.toContain("Apollia native");
     expect(text).not.toContain("MCP servers");
-    expect(text).toContain("Add a connection");
+    // AND adding one is the action of the page header, not a line of the list
+    expect(route).toContain('data-testid="connections-open-catalogue"');
     expect(route).not.toContain("NATIVE_CONNECTORS");
     expect(route).toContain("loadConnections");
   });

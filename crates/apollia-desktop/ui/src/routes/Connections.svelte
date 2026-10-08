@@ -13,7 +13,8 @@
    */
   import { t, locale } from "svelte-i18n";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import { ArrowLeft } from "lucide-svelte";
+  import { ArrowLeft, Plus } from "lucide-svelte";
+  import { Button } from "$lib/components/ui/button";
   import { PageHeader } from "$lib/components/operator";
   import ConnectorSidebar from "../components/connections/sidebar/ConnectorSidebar.svelte";
   import NativeConnectorDetail from "../components/connections/detail/NativeConnectorDetail.svelte";
@@ -491,9 +492,21 @@
     <!-- The screen opens on one list, across the page; a row opens its sheet
          in place of the list. -->
     <div class="flex min-h-0 flex-1 flex-col" data-testid="connectors-sidebar">
-      <PageHeader title={$t("nav.connections")} subtitle={$t("connections.page_subtitle")} />
+      <PageHeader title={$t("nav.connections")} subtitle={$t("connections.page_subtitle")}>
+        {#snippet actions()}
+          <Button
+            variant="primary-solid"
+            size="sm"
+            onclick={handleOpenCatalogue}
+            data-testid="connections-open-catalogue"
+          >
+            {#snippet icon()}<Plus size={13} />{/snippet}
+            {$t("connections.add_connection")}
+          </Button>
+        {/snippet}
+      </PageHeader>
       <div class="min-h-0 flex-1 overflow-y-auto px-8 py-5">
-        <div class="mx-auto flex max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card">
+        <div class="flex flex-col gap-4">
           <ConnectorSidebar
             {rows}
             {forbidden}
