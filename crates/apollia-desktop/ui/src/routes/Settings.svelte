@@ -39,7 +39,6 @@
   import { developerMode } from "$lib/stores/developerMode";
   import { settingsSubRouteVisible } from "$lib/stores/settings";
   import { installSettingsCloseGuard, closeSettingsWindow } from "$lib/stores/settingsWindow";
-  import { SHORTCUTS, comboFor } from "$lib/navigation/shortcuts";
 
   // ─── Lazy-loaded tab content (existing sub-routes own invoke()/stores) ──
   const LOADERS: Record<SettingsSubRoute, () => Promise<{ default: Component }>> = {
@@ -316,11 +315,6 @@
     return active ? "text-primary" : "text-muted-foreground";
   }
 
-  /** Platform chord of a column entry's shortcut, from the shortcut catalogue. */
-  function entryCombo(shortcutId: string | undefined): string | null {
-    const entry = shortcutId ? SHORTCUTS.find((s) => s.id === shortcutId) : undefined;
-    return entry ? comboFor(entry).replaceAll("+", "") : null;
-  }
 </script>
 
 <!--
@@ -357,12 +351,6 @@
               <span class="min-w-0 flex-1 truncate text-body-sm" title={$t(entry.labelKey)}>
                 {$t(entry.labelKey)}
               </span>
-              {#if entryCombo(entry.shortcutId)}
-                <kbd
-                  class="flex-none font-mono text-caption text-muted-foreground"
-                  data-testid="settings-nav-{entry.key}-shortcut"
-                >{entryCombo(entry.shortcutId)}</kbd>
-              {/if}
               {#if isDirty}
                 <span
                   class="h-1.5 w-1.5 flex-none rounded-full bg-warning"

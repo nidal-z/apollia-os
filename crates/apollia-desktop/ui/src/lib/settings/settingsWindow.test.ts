@@ -207,15 +207,14 @@ describe("System shortcuts (criterion 2)", () => {
     // WHEN its entries are read
     const shortcuts = system?.entries.map((e) => [e.key, e.shortcutId]);
 
-    // THEN each names the catalogue entry the column renders as a keycap
+    // THEN each names the catalogue entry of its chord
     expect(shortcuts).toEqual([
       ["engines", "settings.engines"],
       ["hardware", "settings.hardware"],
     ]);
     expect(Object.values(SETTINGS_SECTION_SHORTCUTS)).toEqual(["engines", "hardware"]);
-    expect(source("routes/Settings.svelte")).toContain(
-      'data-testid="settings-nav-{entry.key}-shortcut"',
-    );
+    // AND the column does not draw the chords, which stay keyboard paths
+    expect(source("routes/Settings.svelte")).not.toContain("-shortcut");
   });
 
   it("leaves another handler alone when the chord does not match", () => {

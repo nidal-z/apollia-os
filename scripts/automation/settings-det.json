@@ -47,10 +47,8 @@
     "settings-nav-configuration",
     "settings-nav-developer",
     "settings-nav-engines",
-    "settings-nav-engines-shortcut",
     "settings-nav-general",
     "settings-nav-hardware",
-    "settings-nav-hardware-shortcut",
     "settings-nav-model-defaults",
     "settings-nav-profile",
     "settings-nav-stt",
@@ -171,10 +169,6 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "expect",
-      "testid": "settings-nav-engines-shortcut"
-    },
-    {
       "kind": "press",
       "testid": "settings-nav-engines",
       "key": "H",
@@ -208,10 +202,6 @@
       "kind": "waitGone",
       "testid": "resource-monitor-measuring",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "expect",
-      "testid": "settings-nav-hardware-shortcut"
     },
     {
       "kind": "screenshot",

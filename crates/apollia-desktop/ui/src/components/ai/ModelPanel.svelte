@@ -1,21 +1,20 @@
 <script lang="ts">
   /**
    * ModelPanel - the panel of an installed model, in the detail sidebar of
-   * the AI screen: its name and its two actions, then its tabs. Infos is
+   * the AI screen: its name and its two actions, then its sections. Infos is
    * there for everyone; Loading and Inference come with the developer mode.
    * Everything is automatic by default and the sections of the last two are
    * folded: nobody has to open them.
    *
-   * The settings of the last two tabs are those of a preset of the model.
+   * The settings of the last two sections are those of a preset of the model.
    * In developer mode, two more sections correct the type of the model and
    * the weights file it loads.
    */
   import { untrack } from "svelte";
   import { get } from "svelte/store";
   import { locale, t } from "svelte-i18n";
-  import { MessageSquarePlus, Play, Square } from "lucide-svelte";
+  import { ChevronDown, MessageSquarePlus, Play, Square } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
-  import { TabBar } from "$lib/components/ui/tabs";
   import { addToast } from "$lib/components/ui/toast";
   import { reportError } from "$lib/errors/reportError";
   import { listModelPresets } from "$lib/ipc/agentAdjust";
@@ -319,43 +318,62 @@
         {/if}
       </header>
 
-      <!-- A lone tab is not a choice: the bar shows once the developer mode
-           adds Loading and Inference to Infos. -->
       {#if tabs.length > 1}
-        <TabBar
-          items={tabs}
-          activeTab={tab}
-          ontabchange={(key) => (asked = key as PanelTab)}
-          testidPrefix="ai-panel"
-          variant="underline"
-        />
-      {/if}
-
-      {#if tab === "info"}
-        <ModelInfoTab {model} {detail} oncopy={(text) => void copy(text)} />
+        <!-- With the developer mode on, the panel folds into sections, one
+             open at a time: what the model is, how it loads, how it answers. -->
+        <div class="flex flex-col gap-2" data-testid="ai-panel-tabbar">
+          {#each tabs as entry (entry.key)}
+            {@const opened = tab === entry.key}
+            <section class="overflow-hidden rounded-lg border border-border bg-surface-1">
+              <button
+                type="button"
+                class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-body-sm font-medium text-foreground transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                aria-expanded={opened}
+                onclick={() => (asked = entry.key)}
+                data-testid="ai-panel-tab-{entry.key}"
+              >
+                {entry.label}
+                <ChevronDown
+                  size={14}
+                  class="shrink-0 text-muted-foreground transition-transform {opened ? 'rotate-180' : ''}"
+                  aria-hidden="true"
+                />
+              </button>
+              {#if opened}
+                <div class="flex flex-col gap-4 border-t border-border p-3">
+                  {#if entry.key === "info"}
+                    <ModelInfoTab {model} {detail} oncopy={(text) => void copy(text)} />
+                  {:else}
+                    <ModelPresetBar
+                      {presets}
+                      {chosen}
+                      {changed}
+                      {working}
+                      onchoose={choose}
+                      onsaveas={saveAs}
+                      onsave={save}
+                      onsetdefault={setDefault}
+                    />
+                    {#if entry.key === "load"}
+                      <ModelLoadTab
+                        format={model.format}
+                        {detail}
+                        bind:form
+                        {errors}
+                        writable={loadSettingsKept}
+                        relaunch={relaunchWarning(selection?.loaded ?? false, form, baseline)}
+                      />
+                    {:else}
+                      <ModelInferenceTab bind:form {errors} authorFields={detail?.author_fields ?? []} />
+                    {/if}
+                  {/if}
+                </div>
+              {/if}
+            </section>
+          {/each}
+        </div>
       {:else}
-        <ModelPresetBar
-          {presets}
-          {chosen}
-          {changed}
-          {working}
-          onchoose={choose}
-          onsaveas={saveAs}
-          onsave={save}
-          onsetdefault={setDefault}
-        />
-        {#if tab === "load"}
-          <ModelLoadTab
-            format={model.format}
-            {detail}
-            bind:form
-            {errors}
-            writable={loadSettingsKept}
-            relaunch={relaunchWarning(selection?.loaded ?? false, form, baseline)}
-          />
-        {:else}
-          <ModelInferenceTab bind:form {errors} authorFields={detail?.author_fields ?? []} />
-        {/if}
+        <ModelInfoTab {model} {detail} oncopy={(text) => void copy(text)} />
       {/if}
 
       <ModelDevSections {detail} {working} ontype={overrideType} onsource={overrideSource} />
