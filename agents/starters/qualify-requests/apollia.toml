@@ -12,7 +12,7 @@ name = "qualify-requests"
 version = "1.0.0"
 publisher = "Apollia"
 description = "Qualifies a batch of requests: each row of a workbook is checked against your reference documents and a public source, then given back with its qualification and its sources."
-sdk = ">=0.2.0-preview"
+sdk = ">=0.3.0"
 
 [[agents]]
 id = "qualify-requests"

@@ -143,9 +143,11 @@ fn test_versions_compare_on_major_and_minor() {
     // GIVEN pairs of versions
     // WHEN they are compared
     // THEN only the major and minor numbers decide
-    assert!(compatible("0.2.0-preview", "0.2.0-preview"));
-    assert!(compatible("0.2.3", "0.2.0-preview"));
-    assert!(!compatible("0.3.0", "0.2.0-preview"));
+    assert!(compatible("0.3.0", "0.3.0"));
+    assert!(compatible("0.3.2", "0.3.0"));
+    assert!(compatible("0.3.0-1", "0.3.0"));
+    assert!(!compatible("0.2.3", "0.3.0"));
+    assert!(!compatible("0.2.0-preview", "0.3.0"));
     assert!(!compatible("garbage", "0.2.0"));
 }
 

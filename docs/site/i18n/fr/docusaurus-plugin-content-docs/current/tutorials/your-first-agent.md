@@ -57,7 +57,7 @@ name = "coach"
 version = "0.1.0"
 publisher = "You"
 description = "A product coach that answers questions about Apollia from a small glossary."
-sdk = ">=0.2.0-preview"
+sdk = ">=0.3.0"
 
 [[agents]]
 id = "coach"

@@ -4,7 +4,7 @@
 
 [package]
 name = "eval-oria-probe"
-version = "0.2.0-preview"
+version = "0.3.0"
 description = "Measurement probe for the ORIA agent-loop suite: an orchestrated agent that may call the native tools."
 author = "Apollia OS"
 

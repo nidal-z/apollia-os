@@ -1,5 +1,9 @@
 # Preview channel - points the preview update channel at a trial version.
 #
+# "Preview" is the name of an update channel, the one a desktop set to
+# `update_channel = "preview"` follows. It is not a version suffix: no version
+# carries `-preview`, and a trial version is recognised by its `-rc.N` tag.
+#
 # A trial version is a tag vX.Y.Z-rc.N. The release workflow builds it into a
 # draft pre-release that carries latest-preview.json and
 # latest-cuda-preview.json in place of the stable manifests. The draft is

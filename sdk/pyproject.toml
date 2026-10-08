@@ -7,10 +7,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "apollia-sdk"
 # Tracks the Apollia OS product version: the SDK ships with the runtime and has
-# no release cycle of its own. PEP 440 normalises "-preview" to "rc0", so the
-# built wheel is apollia_sdk-0.2.0rc0; the string here is the one the git tag,
-# the changelog and `apollia.__version__` all use.
-version = "0.2.0-preview"
+# no release cycle of its own. The string here is the one the git tag, the
+# changelog and `apollia.__version__` all use.
+version = "0.3.0"
 description = "Python SDK for Apollia OS agent development"
 # The SDK source runs on Python 3.10+ (no 3.11/3.12-only syntax; the 3.11+
 # typing.Required / NotRequired are imported behind an ImportError fallback in

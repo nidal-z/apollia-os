@@ -25,9 +25,9 @@ The first public preview.
   fetch.
 - An audit trail, human approvals, and scoped permission rules.
 
-### v0.2.0-preview
+### v0.2.0, the second preview
 
-The second preview. Its content is listed in the [changelog](CHANGELOG.md).
+Its content is listed in the [changelog](CHANGELOG.md).
 
 ## In progress
 
