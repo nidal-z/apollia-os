@@ -82,10 +82,17 @@ describe("first launch - every step but the AI one can be passed", () => {
     // WHEN their controls are read
     // THEN the embeddings step can be passed
     expect(embeddings).toContain('data-testid="embeddings-skip"');
-    // AND the questions of the conversation can be passed, on that step only
-    const footer = region(modal, '{#if currentStep === "chat"}\n      <!--', "{/if}\n  </div>");
+    // AND the questions of the conversation can be passed, where there is one:
+    // a profile completed later from the settings
+    const footer = region(
+      modal,
+      '{#if currentStep === "chat" && enriching}\n      <!--',
+      "{/if}\n  </div>",
+    );
     expect(footer).toContain('data-testid="onboarding-skip-optional"');
-    // AND the profile it proposes can be left unsaved
+    // AND the profile form, which the first launch opens on, can be left unsaved
+    expect(modal).toContain("<OnboardingModelTest");
+    expect(source("./OnboardingModelTest.svelte")).toContain("<OnboardingProfileReview proposal={null}");
     expect(review).toContain('data-testid="onboarding-review-skip"');
   });
 

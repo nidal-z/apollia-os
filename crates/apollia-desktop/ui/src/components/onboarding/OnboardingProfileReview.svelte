@@ -79,10 +79,10 @@
   <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
     <div class="flex flex-col gap-1">
       <h3 class="text-heading-md font-semibold text-foreground">
-        {$t("onboarding_review.title")}
+        {$t(proposal ? "onboarding_review.title" : "onboarding_review.title_blank")}
       </h3>
       <p class="text-body-sm text-muted-foreground">
-        {$t("onboarding_review.description")}
+        {$t(proposal ? "onboarding_review.description" : "onboarding_review.description_blank")}
       </p>
     </div>
 

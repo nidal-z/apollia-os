@@ -96,44 +96,20 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-chat-step"
+      "testid": "onboarding-model-test-step"
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-chat-banner",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-stop-button",
-      "timeoutMs": 60000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
-      "timeoutMs": 300000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "sendChat",
-      "text": "My name is Ada. I am a programme officer at a regional fund, and I qualify the grant requests that associations send us."
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-stop-button",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
+      "testid": "onboarding-model-test-answer",
       "timeoutMs": 180000
     },
     {
-      "kind": "click",
-      "testid": "onboarding-skip-optional"
+      "kind": "expect",
+      "testid": "onboarding-model-test"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-model-test-retry"
     },
     {
       "kind": "waitFor",

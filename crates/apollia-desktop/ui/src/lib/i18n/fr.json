@@ -4141,7 +4141,9 @@
     "loading": "Chargement du profil…",
     "back": "Retour",
     "skip": "Passer sans enregistrer",
-    "save": "Enregistrer"
+    "save": "Enregistrer",
+    "title_blank": "Parlez-nous de vous",
+    "description_blank": "Ce que vous écrivez ici aide vos agents à répondre pour vous. Aucun champ n'est obligatoire : remplissez ce que vous voulez, ou passez, vous y reviendrez dans Réglages."
   },
   "onboarding_modal": {
     "title": "Apollia - Premier contact",
@@ -6763,5 +6765,16 @@
       "no_fields": "Aucun réglage n'a été modifié : le preset reprendra les réglages affichés.",
       "confirm": "Enregistrer"
     }
+  },
+  "onboarding_model_test": {
+    "prompt": "Présente-toi en une phrase.",
+    "running": "Votre modèle répond à une question, pour vérifier que tout fonctionne…",
+    "downloading": "Votre modèle arrive. Le test se lancera dès qu'il sera prêt ; vous pouvez remplir votre profil en attendant.",
+    "no_model": "Aucun modèle n'est prêt à répondre pour l'instant.",
+    "answered": "Votre modèle fonctionne : il a répondu en {seconds} s.",
+    "failed": "Le modèle n'a pas répondu.",
+    "timed_out": "Aucune réponse dans le délai.",
+    "failed_hint": " Vous pouvez continuer et réessayer plus tard depuis l'écran IA.",
+    "retry": "Tester à nouveau"
   }
 }

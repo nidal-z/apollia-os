@@ -4141,7 +4141,9 @@
     "loading": "Loading the profile…",
     "back": "Back",
     "skip": "Skip without saving",
-    "save": "Save"
+    "save": "Save",
+    "title_blank": "Tell us about you",
+    "description_blank": "What you write here helps your agents answer for you. No field is required: fill in what you want, or skip, you can come back to it in Settings."
   },
   "onboarding_modal": {
     "title": "Apollia - First contact",
@@ -6763,5 +6765,16 @@
       "no_fields": "No setting was changed: the preset will take the settings shown.",
       "confirm": "Save"
     }
+  },
+  "onboarding_model_test": {
+    "prompt": "Introduce yourself in one sentence.",
+    "running": "Your model is answering a question, to check that everything works…",
+    "downloading": "Your model is on its way. The test starts as soon as it is ready; you can fill in your profile meanwhile.",
+    "no_model": "No model is ready to answer yet.",
+    "answered": "Your model works: it answered in {seconds} s.",
+    "failed": "The model did not answer.",
+    "timed_out": "No answer within the time limit.",
+    "failed_hint": " You can go on and try again later from the AI screen.",
+    "retry": "Test again"
   }
 }

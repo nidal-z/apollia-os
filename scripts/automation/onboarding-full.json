@@ -603,7 +603,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-chat-step",
+      "testid": "onboarding-model-test-step",
       "timeoutMs": 15000
     },
     {
@@ -612,11 +612,7 @@
     },
     {
       "kind": "expect",
-      "testid": "onboarding-skip-optional"
-    },
-    {
-      "kind": "click",
-      "testid": "onboarding-skip-optional"
+      "testid": "onboarding-model-test"
     },
     {
       "kind": "sleep",

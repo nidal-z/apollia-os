@@ -10,9 +10,11 @@
    *                                   cannot be passed
    *   3. {@link OnboardingEmbeddingsStep} - the model search by meaning
    *                                   uses, recommended for this machine
-   *   4. {@link OnboardingChatStep} - a short agent-driven chat, then the
-   *                                   proposed profile read over before it
-   *                                   is saved
+   *   4. {@link OnboardingModelTest} - the model answers one question,
+   *                                   then the profile is filled by hand,
+   *                                   or passed over; the agent-driven chat
+   *                                   ({@link OnboardingChatStep}) stays for
+   *                                   a profile completed later
    *   5. {@link OnboardingFirstAgent} - a first agent: installed from a
    *                                   package, created by describing the
    *                                   need, or taken from an example
@@ -62,6 +64,7 @@
   import OnboardingAiSetup from "./OnboardingAiSetup.svelte";
   import OnboardingEmbeddingsStep from "./OnboardingEmbeddingsStep.svelte";
   import OnboardingChatStep from "./OnboardingChatStep.svelte";
+  import OnboardingModelTest from "./OnboardingModelTest.svelte";
   import OnboardingFirstAgent from "./OnboardingFirstAgent.svelte";
   import OnboardingConnection from "./OnboardingConnection.svelte";
   import {
@@ -363,6 +366,14 @@
               onnext={() => goTo("chat")}
               onback={() => goTo("ai-setup")}
             />
+          {:else if currentStep === "chat" && !enriching}
+            <!-- The first launch tests the model, then fills the profile by
+                 hand; the conversation stays for a profile completed later
+                 from Settings > Profile. -->
+            <OnboardingModelTest
+              onback={() => goTo("embeddings")}
+              onclose={() => advanceFrom("chat")}
+            />
           {:else if currentStep === "chat"}
             <OnboardingChatStep
               onback={() => goTo("embeddings")}
@@ -412,7 +423,7 @@
       </div>
     {/if}
 
-    {#if currentStep === "chat"}
+    {#if currentStep === "chat" && enriching}
       <!-- During the conversation every question is optional: skipping them
            opens the profile review, where the person fills the form by hand
            or leaves without saving. -->
