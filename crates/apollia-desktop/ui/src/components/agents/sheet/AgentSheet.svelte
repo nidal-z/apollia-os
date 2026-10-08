@@ -36,6 +36,7 @@
   } from "$lib/ipc/agentSheet";
   import { createIdentityGuard } from "$lib/utils/identityGuard";
   import type { AgentListItem, Connection, TaskSummary } from "$lib/types";
+  import { TabBar } from "$lib/components/ui/tabs";
   import SheetMission from "./SheetMission.svelte";
   import SheetModel from "./SheetModel.svelte";
   import SheetAccess from "./SheetAccess.svelte";
@@ -213,6 +214,19 @@
 
   // ── Adjustment ──────────────────────────────────────────────────────
   const adjusting = $derived(adjust !== null && adjust.active && adjust.draft !== null);
+
+  // The tabs of the sheet. Adjusting brings the first one back: it is the
+  // only one that holds something to change.
+  type SheetTab = "sheet" | "activity" | "memory" | "technical";
+  let asked = $state<SheetTab>("sheet");
+  const tab = $derived<SheetTab>(
+    adjusting || (asked === "technical" && agent === null) ? "sheet" : asked,
+  );
+  const tabs = $derived(
+    (agent ? (["sheet", "activity", "memory", "technical"] as const) : (["sheet", "activity", "memory"] as const)).map(
+      (key) => ({ key, label: $t(TAB_KEYS[key]) }),
+    ),
+  );
   let presets = $state<PresetOffer[]>([]);
   let extraAccesses = $state<AccessView[]>([]);
 
@@ -285,53 +299,76 @@
     const known = accesses.find((a) => a.id === accessId);
     return known ? (known.permits ?? known.label) : readableName(accessId);
   }
+
+  /** The label of each tab, named in full so the catalogue checks see them. */
+  const TAB_KEYS = {
+    sheet: "agent_sheet.tab.sheet",
+    activity: "agent_sheet.tab.activity",
+    memory: "agent_sheet.tab.memory",
+    technical: "agent_sheet.tab.technical",
+  } as const;
 </script>
 
-<!-- What the agent is on the left, what it did and keeps on the right; one
-     column on a narrow window. -->
+<!-- Three tabs: what the agent is, what it did, what it keeps. While the
+     sheet is being adjusted, only the first one holds something to change. -->
 <div
-  class="grid max-w-6xl grid-cols-1 gap-x-8 gap-y-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]"
+  class="flex max-w-5xl flex-col gap-5"
   data-testid="agent-sheet"
   data-agent={definitionId}
   aria-label={$t("agent_sheet.label")}
 >
-  <div class="min-w-0 space-y-6">
-  {#if adjusting && adjust?.draft && adjust.base}
-    <AdjustMission draft={adjust.draft} modified={marked("mission") || marked("examples")} />
-    <AdjustModel draft={adjust.draft} options={modelOptions($llmBackends)} {presets} modified={marked("model")} />
-    <AdjustAccess
-      draft={adjust.draft}
-      groups={adjustGroups}
-      inForce={adjust.base.access}
-      modified={marked("access")}
-      {loadCandidates}
-      agentName={resolved?.name ?? agent?.name ?? definitionId}
-      {loadConnectionOffer}
-      {remote}
-    />
-    <AdjustSources draft={adjust.draft} sources={registry} modified={marked("sources")} />
-  {:else}
-    <SheetMission view={mission} modified={marked("mission") || marked("examples")} />
-    <SheetModel view={model} fallback={notice} modified={marked("model")} />
-    <SheetAccess {groups} loading={accessLoading} modified={marked("access")} {remote} />
-    <SheetSources rows={sources} modified={marked("sources")} />
-  {/if}
-  </div>
-  <div class="min-w-0 space-y-6">
-  <SheetAlways {definitionId} />
-  <SheetActivity
-    {runs}
-    {runsLoading}
-    {runsError}
-    changes={changeRows}
-    triggersFor={agent?.name ?? null}
-    logsFor={runtimeId}
-    {accessLabel}
-    {onOpenLogs}
+  <TabBar
+    items={tabs}
+    activeTab={tab}
+    ontabchange={(key) => (asked = key as SheetTab)}
+    testidPrefix="agent-sheet"
+    variant="underline"
   />
-  <SheetMemory namespace={memoryNamespace} />
-  {#if agent}
+
+  {#if tab === "sheet"}
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      {#if adjusting && adjust?.draft && adjust.base}
+        <AdjustMission draft={adjust.draft} modified={marked("mission") || marked("examples")} />
+        <AdjustModel draft={adjust.draft} options={modelOptions($llmBackends)} {presets} modified={marked("model")} />
+        <AdjustAccess
+          draft={adjust.draft}
+          groups={adjustGroups}
+          inForce={adjust.base.access}
+          modified={marked("access")}
+          {loadCandidates}
+          agentName={resolved?.name ?? agent?.name ?? definitionId}
+          {loadConnectionOffer}
+          {remote}
+        />
+        <AdjustSources draft={adjust.draft} sources={registry} modified={marked("sources")} />
+      {:else}
+        <div class="min-w-0 space-y-5">
+          <SheetMission view={mission} modified={marked("mission") || marked("examples")} />
+          <SheetModel view={model} fallback={notice} modified={marked("model")} />
+        </div>
+        <div class="min-w-0 space-y-5">
+          <SheetAccess {groups} loading={accessLoading} modified={marked("access")} {remote} />
+          <SheetSources rows={sources} modified={marked("sources")} />
+        </div>
+      {/if}
+    </div>
+  {:else if tab === "activity"}
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <SheetActivity
+        {runs}
+        {runsLoading}
+        {runsError}
+        changes={changeRows}
+        triggersFor={agent?.name ?? null}
+        logsFor={runtimeId}
+        {accessLabel}
+        {onOpenLogs}
+      />
+      <SheetAlways {definitionId} />
+    </div>
+  {:else if tab === "memory"}
+    <SheetMemory namespace={memoryNamespace} />
+  {:else if agent}
     <SheetTechnical {agent} definition={resolved} />
   {/if}
-</div>
 </div>

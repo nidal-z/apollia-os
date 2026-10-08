@@ -56,9 +56,10 @@ describe("memory distribution - each function at its destination", () => {
     const memory = source("components/agents/sheet/SheetMemory.svelte");
 
     // WHEN the section and its calls are located
-    // THEN the sheet mounts it outside any developer branch, and it lists,
+    // THEN the sheet mounts it under its Memory tab, outside any developer branch, and it lists,
     // searches, deletes one entry and clears the namespace
-    expect(sheet).toMatch(/\n  <SheetMemory namespace=\{memoryNamespace\} \/>/);
+    expect(sheet).toMatch(/\n    <SheetMemory namespace=\{memoryNamespace\} \/>/);
+    expect(sheet).toContain('{:else if tab === "memory"}');
     for (const call of ["listMemoryEntries(", "searchMemory(", "deleteMemoryEntry(", "clearMemory("]) {
       expect(memory).toContain(call);
     }

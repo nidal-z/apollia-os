@@ -10,7 +10,8 @@
     "The standing consents (authorizations-always) need a row in family_consents, which the seed does not hold: the recipe asserts the empty state on the screen and on the agent sheet. Their withdrawal is covered by the Vitest suite and the Rust tests of the desktop commands."
   ],
   "dynamicTestids": [
-    "settings-nav-developer"
+    "settings-nav-developer",
+    "agent-sheet-tab-activity"
   ],
   "steps": [
     {
@@ -373,6 +374,11 @@
       "kind": "waitFor",
       "testid": "agent-sheet",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-tab-activity",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",

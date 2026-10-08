@@ -32,7 +32,9 @@
     "settings-nav-notifications",
     "settings-nav-profile",
     "settings-nav-stt",
-    "trigger-logs-filter-all"
+    "trigger-logs-filter-all",
+    "agent-sheet-tab-activity",
+    "agent-sheet-tab-sheet"
   ],
   "steps": [
     {
@@ -1178,6 +1180,11 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "click",
+      "testid": "agent-sheet-tab-activity",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "agent-sheet-activity",
       "timeoutMs": 6000
@@ -1213,6 +1220,11 @@
       "kind": "waitGone",
       "testid": "agent-logs-sheet",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-tab-sheet",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",

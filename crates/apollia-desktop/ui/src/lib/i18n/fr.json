@@ -4731,7 +4731,13 @@
     "remote": "Distant",
     "always_legend": "Les familles pour lesquelles vous avez répondu « toujours ». Retirez-en une en un clic : le retrait est inscrit au Journal.",
     "mission_more": "Afficher toute la mission",
-    "mission_less": "Replier"
+    "mission_less": "Replier",
+    "tab": {
+      "sheet": "Fiche",
+      "activity": "Activité",
+      "memory": "Mémoire",
+      "technical": "Technique"
+    }
   },
   "agent_adjust": {
     "modified": "Modifié",

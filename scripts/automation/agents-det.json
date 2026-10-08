@@ -3,7 +3,10 @@
   "stopOnError": false,
   "dynamicTestids": [
     "command-item-agents.create",
-    "settings-nav-developer"
+    "settings-nav-developer",
+    "agent-sheet-tab-activity",
+    "agent-sheet-tab-memory",
+    "agent-sheet-tab-sheet"
   ],
   "steps": [
     {
@@ -602,6 +605,11 @@
       "label": "06-agent-tools"
     },
     {
+      "kind": "click",
+      "testid": "agent-sheet-tab-activity",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "agent-sheet-activity",
       "timeoutMs": 2500
@@ -633,6 +641,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "click",
+      "testid": "agent-sheet-tab-activity",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "agent-sheet-activity",
       "timeoutMs": 2500
@@ -661,6 +674,11 @@
       "label": "08-agent-settings"
     },
     {
+      "kind": "click",
+      "testid": "agent-sheet-tab-sheet",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "agent-sheet-mission",
       "timeoutMs": 2500
@@ -687,9 +705,19 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "click",
+      "testid": "agent-sheet-tab-activity",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "agent-sheet-activity",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-tab-sheet",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -716,6 +744,11 @@
       "kind": "waitFor",
       "testid": "agent-detail-title",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-tab-memory",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -859,6 +892,11 @@
       "label": "14-agent-detail-builder-overview"
     },
     {
+      "kind": "click",
+      "testid": "agent-sheet-tab-activity",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "agent-sheet-activity",
       "timeoutMs": 2500
@@ -901,6 +939,11 @@
       "kind": "waitFor",
       "testid": "agent-detail-title",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-tab-memory",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
