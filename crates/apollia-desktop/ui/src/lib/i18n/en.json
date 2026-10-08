@@ -3466,7 +3466,7 @@
       "s2": "What should we focus on next?",
       "s3": "Draft a plan for tomorrow's sprint..."
     },
-    "first_message_placeholder": "Write your request below. You pick the agent or the model at the top.",
+    "first_message_placeholder": "Write your request below.",
     "agent_processing": "Agent processing...",
     "thinking": "Thinking...",
     "status": {

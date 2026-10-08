@@ -3466,7 +3466,7 @@
       "s2": "Sur quoi concentrer nos efforts ensuite ?",
       "s3": "Prépare un plan pour le sprint de demain..."
     },
-    "first_message_placeholder": "Écrivez votre demande ci-dessous. Vous choisissez l'agent ou le modèle en haut.",
+    "first_message_placeholder": "Écrivez votre demande ci-dessous.",
     "agent_processing": "Agent en cours...",
     "thinking": "Réflexion en cours...",
     "status": {
