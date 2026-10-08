@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "id": "gemma3/gemma-3-270m-it",
+  "kind": "language",
+  "label": "Gemma 3 270M",
+  "publisher": "Google",
+  "license": {
+    "id": "gemma",
+    "source": "https://huggingface.co/google/gemma-3-270m-it"
+  },
+  "source_url": "https://huggingface.co/google/gemma-3-270m-it",
+  "description": {
+    "fr": "Génération Gemma 3 de Google, soignée en rédaction et à l'aise dans de nombreuses langues ; elle n'a pas de mode de réflexion. Cette taille minuscule ne lit que le texte et sert surtout de base à spécialiser sur une tâche précise. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "The Gemma 3 generation from Google, careful in writing and at ease in many languages; it has no thinking mode. This tiny size reads text only and mostly serves as a base to specialise on one precise task. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/google/gemma-3-270m-it/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.3,
+    "source": "https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/blob/main/gemma-3-270m-it-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "google/gemma-3-270m-it",
+    "unsloth/gemma-3-270m-it-GGUF",
+    "mlx-community/gemma-3-270m-it-4bit",
+    "bartowski/google_gemma-3-270m-it-GGUF",
+    "lmstudio-community/gemma-3-270m-it-GGUF",
+    "ggml-org/gemma-3-270m-it-GGUF",
+    "unsloth/gemma-3-270m-it-qat-GGUF",
+    "bartowski/google_gemma-3-270m-it-qat-GGUF",
+    "lmstudio-community/gemma-3-270m-it-qat-GGUF",
+    "ggml-org/gemma-3-270m-it-qat-GGUF",
+    "lmstudio-community/gemma-3-270m-it-MLX-4bit",
+    "mlx-community/gemma-3-270m-it-5bit",
+    "mlx-community/gemma-3-270m-it-6bit",
+    "mlx-community/gemma-3-270m-it-8bit",
+    "lmstudio-community/gemma-3-270m-it-MLX-8bit",
+    "mlx-community/gemma-3-270m-it-qat-4bit",
+    "mlx-community/gemma-3-270m-it-qat-5bit",
+    "mlx-community/gemma-3-270m-it-qat-6bit",
+    "mlx-community/gemma-3-270m-it-qat-8bit"
+  ]
+}

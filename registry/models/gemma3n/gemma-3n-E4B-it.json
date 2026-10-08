@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "gemma3n/gemma-3n-E4B-it",
+  "kind": "language",
+  "label": "Gemma 3n E4B",
+  "publisher": "Google",
+  "license": {
+    "id": "gemma",
+    "source": "https://huggingface.co/google/gemma-3n-E4B-it"
+  },
+  "source_url": "https://huggingface.co/google/gemma-3n-E4B-it",
+  "description": {
+    "fr": "Gemma 3n de Google est conçu pour les téléphones et les ordinateurs portables : son architecture n'active qu'une partie des paramètres, ce qui réduit la mémoire utilisée. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; les conversions GGUF recensées ne lisent que le texte.",
+    "en": "Gemma 3n from Google is designed for phones and laptops: its architecture activates only part of its parameters, which lowers the memory it uses. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling; the listed GGUF conversions read text only."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/google/gemma-3n-E4B-it/tree/main"
+  },
+  "memory": {
+    "min_gb": 4.6,
+    "source": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/blob/main/gemma-3n-E4B-it-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "google/gemma-3n-E4B-it",
+    "unsloth/gemma-3n-E4B-it-GGUF",
+    "mlx-community/gemma-3n-E4B-it-4bit",
+    "bartowski/google_gemma-3n-E4B-it-GGUF",
+    "ggml-org/gemma-3n-E4B-it-GGUF",
+    "lmstudio-community/gemma-3n-E4B-it-MLX-4bit",
+    "mlx-community/gemma-3n-E4B-it-5bit",
+    "mlx-community/gemma-3n-E4B-it-6bit",
+    "mlx-community/gemma-3n-E4B-it-8bit",
+    "lmstudio-community/gemma-3n-E4B-it-MLX-6bit",
+    "lmstudio-community/gemma-3n-E4B-it-MLX-8bit"
+  ]
+}
