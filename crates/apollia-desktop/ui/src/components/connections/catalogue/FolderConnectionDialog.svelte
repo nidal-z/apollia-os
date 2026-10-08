@@ -2,13 +2,16 @@
   /**
    * FolderConnectionDialog - what follows the system picker when a folder is
    * added as a connection: the folder added, its readable path and what the
-   * agents may do in it; or the refusal of the admission; or the failure.
+   * agents may do in it, with the offer to let the agent of the chat read it;
+   * or the refusal of the admission; or the failure.
    * "Choose another folder" opens the picker again.
    */
   import { t } from "svelte-i18n";
   import { CircleCheck, Folder, Play, TriangleAlert, XCircle } from "lucide-svelte";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
+  import { Checkbox } from "$lib/components/ui/checkbox";
+  import { grantFolderToApollia } from "$lib/connections/folderGrant";
   import ConnectionRefusal from "../../integrations/ConnectionRefusal.svelte";
   import {
     folderAbilities,
@@ -34,6 +37,36 @@
 
   const added = $derived(outcome?.kind === "added" ? outcome.connection : null);
   const abilities = $derived(added ? folderAbilities(added) : null);
+  // Reading is offered to the agent of the chat, checked: the person who
+  // adds a folder expects it to be read. Unchecked, nothing is granted.
+  let grantApollia = $state(true);
+  let granting = $state(false);
+  let grantError = $state<string | null>(null);
+
+  // A new outcome is a new offer.
+  $effect(() => {
+    void outcome;
+    grantApollia = true;
+    grantError = null;
+  });
+
+  /** Grants when asked to, then goes on; a failed grant keeps the dialog open. */
+  async function finish(then: () => void): Promise<void> {
+    if (added && grantApollia && abilities?.read) {
+      granting = true;
+      grantError = null;
+      try {
+        await grantFolderToApollia(added);
+      } catch (err) {
+        grantError = err instanceof Error ? err.message : String(err);
+        return;
+      } finally {
+        granting = false;
+      }
+    }
+    then();
+  }
+
   const title = $derived(
     added
       ? $t("connections.folder.added_title", { values: { name: added.label } })
@@ -69,6 +102,26 @@
         {/if}
       </div>
       <p class="text-body-sm text-muted-foreground">{$t("connections.folder.bounds")}</p>
+      {#if abilities.read}
+        <!-- A folder added is granted to no agent: reading is offered to the
+             agent of the chat here, and declined by unchecking. -->
+        <label
+          class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5"
+        >
+          <Checkbox bind:checked={grantApollia} class="mt-0.5" disabled={granting} />
+          <span class="min-w-0">
+            <span class="block text-body-sm font-medium text-foreground">
+              {$t("connections.folder.grant_apollia")}
+            </span>
+            <span class="block text-caption text-muted-foreground">
+              {$t("connections.folder.grant_apollia_hint")}
+            </span>
+          </span>
+        </label>
+        {#if grantError}
+          <p class="text-caption text-destructive" role="alert">{grantError}</p>
+        {/if}
+      {/if}
     </div>
   {:else if outcome?.kind === "refused"}
     <ConnectionRefusal refusal={outcome.refusal} onopen={onopenrule} />
@@ -90,12 +143,25 @@
       {$t("connections.folder.choose_another")}
     </Button>
     {#if added && ontry}
-      <Button variant="outline" size="sm" onclick={() => ontry(added)} data-testid="folder-connection-try">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={granting}
+        onclick={() => void finish(() => ontry(added))}
+        data-testid="folder-connection-try"
+      >
         {#snippet icon()}<Play size={12} />{/snippet}
         {$t("connections.try.action")}
       </Button>
     {/if}
-    <Button variant="primary-solid" size="sm" onclick={onclose} data-testid="folder-connection-done">
+    <Button
+      variant="primary-solid"
+      size="sm"
+      disabled={granting}
+      loading={granting}
+      onclick={() => void finish(onclose)}
+      data-testid="folder-connection-done"
+    >
       {$t("connections.folder.done")}
     </Button>
   </div>

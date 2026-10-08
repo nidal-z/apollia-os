@@ -399,9 +399,12 @@ fn no_folder_message(tool: &str) -> String {
     } else {
         "to read"
     };
+    // The model repeats this to the person: it has to say that a folder
+    // already added is one grant away, or it sends them to add it again.
     format!(
-        "no folder is granted to this agent {what}: add the folder as a connection, \
-         then grant it to the agent on its sheet"
+        "no folder is granted to this agent {what}: a folder already added in Connections \
+         still has to be granted to this agent, on its sheet under Agents; a folder that \
+         is not a connection yet is added in Connections first"
     )
 }
 
@@ -781,7 +784,14 @@ mod tests {
                 Err(ToolExecutionError::ExecutionFailed { code, message }) => {
                     assert_eq!(code, "no_folder_granted");
                     assert!(message.contains(what), "{message}");
-                    assert!(message.contains("grant it to the agent"), "{message}");
+                    assert!(
+                        message.contains("granted to this agent, on its sheet"),
+                        "{message}"
+                    );
+                    assert!(
+                        message.contains("already added in Connections"),
+                        "{message}"
+                    );
                 }
                 other => panic!("expected a refusal, got {other:?}"),
             }

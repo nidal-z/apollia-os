@@ -859,7 +859,9 @@
       "remove_with_sources": "{count, plural, one {Une source en dépend. Elle sera retirée} other {# sources en dépendent. Elles seront retirées}} avec la connexion : les agents qui les consultent n'y auront plus accès. Les fichiers du dossier ne sont pas touchés.",
       "dependent_sources": "Sources qui en dépendent · {count}",
       "remove_confirm_plain": "Retirer la connexion",
-      "remove_confirm_sources": "Retirer la connexion et {count, plural, one {sa source} other {ses # sources}}"
+      "remove_confirm_sources": "Retirer la connexion et {count, plural, one {sa source} other {ses # sources}}",
+      "grant_apollia": "Laisser Apollia lire ce dossier",
+      "grant_apollia_hint": "Apollia pourra ouvrir et chercher dans ce dossier et ses sous-dossiers. Les autres agents le reçoivent sur leur fiche, et vous pouvez le retirer à Apollia au même endroit."
     },
     "try": {
       "action": "Essayer",

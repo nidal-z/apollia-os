@@ -859,7 +859,9 @@
       "remove_with_sources": "{count, plural, one {One source depends on it. It will be removed} other {# sources depend on it. They will be removed}} with the connection: the agents that consult them will no longer reach them. The files of the folder are not touched.",
       "dependent_sources": "Sources that depend on it · {count}",
       "remove_confirm_plain": "Remove the connection",
-      "remove_confirm_sources": "Remove the connection and {count, plural, one {its source} other {its # sources}}"
+      "remove_confirm_sources": "Remove the connection and {count, plural, one {its source} other {its # sources}}",
+      "grant_apollia": "Let Apollia read this folder",
+      "grant_apollia_hint": "Apollia will be able to open and search this folder and its subfolders. Other agents are granted it on their sheet, and you can take it back from Apollia in the same place."
     },
     "try": {
       "action": "Try",
