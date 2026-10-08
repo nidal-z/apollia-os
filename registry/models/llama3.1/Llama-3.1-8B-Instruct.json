@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
   "description": {
-    "fr": "Modèle Llama de taille moyenne, répandu et bien connu, qui appelle des outils ; un choix sûr pour un poste de 16 Go.",
-    "en": "A widespread, well-known mid-sized Llama model that calls tools; a safe choice for a 16 GB machine."
+    "fr": "Llama 3.1 de Meta, sorti en 2024, reste une référence répandue : conversation générale en plusieurs langues et appel d'outils, en texte seul. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "Llama 3.1 from Meta, released in 2024, remains a widespread reference: general conversation in several languages and tool calling, in text only. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
   },
   "capabilities": {
     "tools": true,
@@ -31,8 +31,11 @@
   "author_fields": [],
   "repos": [
     "meta-llama/Llama-3.1-8B-Instruct",
-    "bartowski/Llama-3.1-8B-Instruct-GGUF",
     "unsloth/Llama-3.1-8B-Instruct-GGUF",
-    "mlx-community/Llama-3.1-8B-Instruct-4bit"
+    "mlx-community/Llama-3.1-8B-Instruct-4bit",
+    "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+    "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+    "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+    "mlx-community/Meta-Llama-3.1-8B-Instruct-8bit"
   ]
 }
