@@ -575,6 +575,21 @@ recipe provides.
 
 ---
 
+### The desktop in dev mode and the macOS keychain
+
+macOS ties each keychain entry to the signature of the program that wrote it.
+An unsigned dev binary carries a new signature after every build, so the
+keychain asks for its password again, once per entry the application reads at
+startup, and "Always allow" lasts until the next build of the Rust side.
+
+`just desktop-dev-identity` makes a self-signed code-signing identity named
+`Apollia Dev` in the login keychain, once. From then on `just desktop-dev` and
+`just desktop-dev-llama` build through `scripts/lib/dev-sign-cargo.sh`, which
+signs the binary with that identity under one identifier before running it:
+every build is the same program to the keychain. `APOLLIA_DEV_SIGN_IDENTITY`
+names another identity. Without any, the recipes run as before. The identity
+signs nothing that ships: release builds are signed by the release workflow.
+
 ## 8. When the rules block you
 
 - A lint flags legitimate code : add `#[allow(clippy::<lint>)]` with an

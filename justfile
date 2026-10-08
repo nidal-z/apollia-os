@@ -387,7 +387,12 @@ desktop-ui-install:
 # Run the desktop in dev mode, linked against the bundled interpreter (STT runners: `just build-runners` first)
 [group('desktop')]
 desktop-dev: _require-tauri
-    source "{{lib}}/python-bundle.sh"; python_bundle_activate; cd crates/apollia-desktop; cargo tauri dev
+    source "{{lib}}/python-bundle.sh"; source "{{lib}}/dev-sign.sh"; python_bundle_activate; cd crates/apollia-desktop; dev_sign_tauri_dev
+
+# macOS: make the signing identity `desktop-dev` uses, so the keychain stops asking after each build
+[group('desktop')]
+desktop-dev-identity:
+    source "{{lib}}/dev-sign.sh"; dev_sign_create_identity
 
 # Run the desktop in dev mode beside a background llama-server on the given model
 [group('desktop')]
@@ -398,7 +403,8 @@ desktop-dev-llama model=llama_model: _require-tauri build-runners
     source "{{lib}}/llama.sh"; llama_require_model "{{model}}"
     source "{{lib}}/python-bundle.sh"; python_bundle_activate
     llama_start "{{model}}" dev
-    cd crates/apollia-desktop && RUST_LOG="${RUST_LOG:-debug}" cargo tauri dev
+    source "{{lib}}/dev-sign.sh"
+    cd crates/apollia-desktop && RUST_LOG="${RUST_LOG:-debug}" dev_sign_tauri_dev
 
 # Start a local llama-server (--jinja) as an external OpenAI-compatible backend
 [group('llm')]
