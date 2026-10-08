@@ -1676,7 +1676,8 @@
     "injected_title": "Injected memory",
     "injected_no_turn": "No active turn.",
     "injected_empty": "The agent injected no memory for this turn.",
-    "injected_principle": "Principle 6 - memory is never injected automatically."
+    "injected_principle": "Principle 6 - memory is never injected automatically.",
+    "page_subtitle": "What your agents remembered, space by space. You can read it, search it and erase it."
   },
   "notifications": {
     "channels_title": "Channels",

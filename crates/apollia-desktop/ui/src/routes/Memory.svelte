@@ -22,7 +22,7 @@
   import { fly } from "svelte/transition";
   import { LoadingShimmer } from "$lib/components/feedback";
   import { addToast } from "$lib/components/ui/toast/store";
-  import { DetailHeader, SplitLayout, ErrorBanner } from "$lib/components/operator";
+  import { DetailHeader, PageHeader, SplitLayout, ErrorBanner } from "$lib/components/operator";
   import { listNavigation } from "$lib/components/operator/listNavigation";
   import { Button } from "$lib/components/ui/button";
   import { Disclosure } from "$lib/components/ui/disclosure";
@@ -275,9 +275,10 @@
 </script>
 
 <div class="flex flex-col h-full" data-testid="memory-page">
+  <PageHeader title={$t("nav.memory")} subtitle={$t("memory.page_subtitle")} />
   <div class="flex flex-1 min-h-0 overflow-hidden">
     {#if !loadingMemory && namespaces.length === 0}
-      <div class="flex-1 px-8 py-8">
+      <div class="flex-1 px-8 py-6">
         <EmptyState
           icon={Database}
           title={$t("memory.empty_title")}

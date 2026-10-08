@@ -86,17 +86,16 @@
     error: AlertTriangle,
   };
 
-  /** Pastel chip palette per type. Foreground tokens are *dark* variants of
-   *  each accent (info-foreground, warning-foreground…) so the text reads
-   *  well on the 10% tinted background - never use `accent-foreground` here,
-   *  it's white. LLM gets a custom dark violet distinct from primary/memory. */
+  /** One quiet chip for every type; colour is kept for what asks for
+   *  attention, an approval that waits and an error. */
+  const QUIET_CHIP = "bg-muted/60 text-foreground border-border";
   const TYPE_CHIP: Record<string, string> = {
-    task: "bg-info/10 text-info border-info/30",
-    tool: "bg-warning/10 text-warning border-warning/30",
-    llm: "bg-[hsl(var(--chart-6)/0.10)] [color:hsl(var(--chart-6))] border-[hsl(var(--chart-6)/0.30)]",
-    hitl: "bg-destructive/10 text-destructive border-destructive/30",
-    memory: "bg-primary/10 text-primary border-primary/30",
-    a2a: "bg-success/10 text-success border-success/30",
+    task: QUIET_CHIP,
+    tool: QUIET_CHIP,
+    llm: QUIET_CHIP,
+    hitl: "bg-warning/10 text-warning border-warning/30",
+    memory: QUIET_CHIP,
+    a2a: QUIET_CHIP,
     error: "bg-destructive/10 text-destructive border-destructive/30",
   };
 
@@ -339,8 +338,8 @@
         {@const ChipIcon = TYPE_ICON[tf]}
         <button
           class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium transition-colors {active
-            ? TYPE_CHIP[tf]
-            : 'glass-border-subtle glass-inset text-muted-foreground/50'}"
+            ? 'border-primary/40 bg-primary/5 text-foreground'
+            : 'border-border text-muted-foreground hover:bg-muted/60'}"
           onclick={() => toggleType(tf)}
         >
           <ChipIcon class="h-3 w-3" />

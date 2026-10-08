@@ -53,38 +53,35 @@
 </script>
 
 <div
-  class="relative flex flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl px-6 py-16 text-center glass-card glass-border shadow-elev-1"
+  class="relative flex flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border border-border bg-card px-6 py-14 text-center shadow-sm"
   data-testid={page ? `empty-state-${page}` : "empty-state"}
   in:fly={{ y: flyY, duration: flyDuration, easing: cubicOut }}
 >
-  <!-- Accent wash - tints the background with the brand gradient. -->
-  <div class="pointer-events-none absolute inset-0 bg-gradient-accent opacity-70" aria-hidden="true"></div>
-
   {#if trailing}
     <div class="absolute right-4 top-4 z-10">{@render trailing()}</div>
   {/if}
 
-  <!-- Illustration : custom snippet OR default gradient + icon. -->
+  <!-- Illustration: a custom snippet, or the icon on a quiet tile. -->
   <div class="relative">
     {#if illustration}
       {@render illustration()}
     {:else if IconComponent}
       <div
-        class="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-primary shadow-primary-lg"
+        class="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground"
         aria-hidden="true"
       >
-        <IconComponent size={36} strokeWidth={1.5} class="text-primary-foreground/95" />
+        <IconComponent size={22} strokeWidth={1.5} />
       </div>
     {/if}
   </div>
 
   <div class="relative flex max-w-xl flex-col items-center gap-2">
-    <h2 class="text-display-sm text-foreground" data-testid="empty-state-title">
+    <h2 class="text-heading-md font-semibold text-foreground" data-testid="empty-state-title">
       {title}
     </h2>
     {#if description}
       <p
-        class="text-sm leading-relaxed text-muted-foreground md:text-base"
+        class="text-body-sm leading-relaxed text-muted-foreground"
         data-testid="empty-state-description"
       >
         {description}
@@ -96,7 +93,8 @@
     <div class="relative mt-1 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
       {#if primaryLabel && primaryAction}
         <Button
-          variant="primary-gradient"
+          variant="primary-solid"
+          size="sm"
           onclick={primaryAction}
           data-testid="empty-state-primary-cta"
           class="min-w-[10rem]"

@@ -1676,7 +1676,8 @@
     "injected_title": "Mémoire injectée",
     "injected_no_turn": "Aucun tour actif.",
     "injected_empty": "L'agent n'a injecté aucune mémoire pour ce tour.",
-    "injected_principle": "Principe 6 - la mémoire n'est jamais injectée automatiquement."
+    "injected_principle": "Principe 6 - la mémoire n'est jamais injectée automatiquement.",
+    "page_subtitle": "Ce que vos agents ont retenu, espace par espace. Vous pouvez le lire, le chercher et l'effacer."
   },
   "notifications": {
     "channels_title": "Canaux",
