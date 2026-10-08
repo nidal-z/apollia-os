@@ -3,11 +3,10 @@
    * SheetSection - one titled section of an agent sheet: a title, marked
    * "Modified" when its value is the user's rather than the package's, a
    * one-line legend saying what the section is for, an optional action on the
-   * right, and its body in a card.
+   * right, and its body, all in one card.
    */
   import type { Snippet } from "svelte";
   import { t } from "svelte-i18n";
-  import { Card } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
 
   interface Props {
@@ -23,22 +22,28 @@
   let { title, legend, testid, modified = false, action, children }: Props = $props();
 </script>
 
-<section class="space-y-2" data-testid={testid} aria-label={title}>
-  <div class="flex items-start justify-between gap-3">
+<!-- The grammar of a settings section: a card whose head names the section
+     and says what it is for, over its body. -->
+<section
+  class="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+  data-testid={testid}
+  aria-label={title}
+>
+  <div class="flex items-start justify-between gap-3 border-b border-border/60 px-4 py-3">
     <div class="min-w-0">
       <div class="flex items-center gap-2">
-        <h3 class="m-0 text-body-sm font-semibold text-foreground">{title}</h3>
+        <h3 class="m-0 text-overline uppercase text-muted-foreground">{title}</h3>
         {#if modified}
           <Badge size="sm" variant="warning" data-testid={`${testid}-modified`}>{$t("agent_adjust.modified")}</Badge>
         {/if}
       </div>
-      <p class="m-0 text-caption text-muted-foreground">{legend}</p>
+      <p class="m-0 mt-0.5 text-caption text-muted-foreground">{legend}</p>
     </div>
     {#if action}
       <div class="flex shrink-0 flex-wrap justify-end gap-2">{@render action()}</div>
     {/if}
   </div>
-  <Card class="p-3.5">
+  <div class="p-4">
     {@render children()}
-  </Card>
+  </div>
 </section>

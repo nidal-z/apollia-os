@@ -128,9 +128,11 @@
       </div>
     {:else}
       {#if installed}
+        <!-- The gesture that removes stays within reach and out of the way. -->
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
+          class="text-muted-foreground"
           disabled={busy}
           onclick={onArmUninstall}
           data-testid="agent-uninstall-btn"

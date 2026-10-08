@@ -4722,7 +4722,9 @@
     "technical_autonomy": "Autonomie",
     "technical_overridden": "Champs surchargés",
     "remote": "Distant",
-    "always_legend": "Les familles pour lesquelles vous avez répondu « toujours ». Retirez-en une en un clic : le retrait est inscrit au Journal."
+    "always_legend": "Les familles pour lesquelles vous avez répondu « toujours ». Retirez-en une en un clic : le retrait est inscrit au Journal.",
+    "mission_more": "Afficher toute la mission",
+    "mission_less": "Replier"
   },
   "agent_adjust": {
     "modified": "Modifié",

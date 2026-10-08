@@ -4722,7 +4722,9 @@
     "technical_autonomy": "Autonomy",
     "technical_overridden": "Overridden fields",
     "remote": "Remote",
-    "always_legend": "The families you answered \"always\" for. Withdraw one in one click: the withdrawal is recorded in the Activity log."
+    "always_legend": "The families you answered \"always\" for. Withdraw one in one click: the withdrawal is recorded in the Activity log.",
+    "mission_more": "Show the whole mission",
+    "mission_less": "Fold"
   },
   "agent_adjust": {
     "modified": "Modified",
