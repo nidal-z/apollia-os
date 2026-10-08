@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
   "description": {
-    "fr": "Modèle Qwen2.5 éprouvé, sans mode de réflexion : réponses directes, appel d'outils, bonne tenue en français.",
-    "en": "A proven Qwen2.5 model without a thinking mode: direct answers, tool calls, good French."
+    "fr": "Génération Qwen2.5 d'Alibaba, sortie en 2024 et remplacée depuis par Qwen3 : réponses directes sans mode de réflexion, appel d'outils et bonne tenue en plusieurs langues. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The Qwen2.5 generation from Alibaba, released in 2024 and since replaced by Qwen3: direct answers with no thinking mode, tool calling and good behaviour in several languages. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
   },
   "capabilities": {
     "tools": true,
@@ -34,9 +34,12 @@
   "repos": [
     "Qwen/Qwen2.5-7B-Instruct",
     "Qwen/Qwen2.5-7B-Instruct-GGUF",
-    "bartowski/Qwen2.5-7B-Instruct-GGUF",
     "mlx-community/Qwen2.5-7B-Instruct-4bit",
-    "lmstudio-community/Qwen2.5-7B-Instruct-MLX-4bit"
+    "bartowski/Qwen2.5-7B-Instruct-GGUF",
+    "lmstudio-community/Qwen2.5-7B-Instruct-GGUF",
+    "lmstudio-community/Qwen2.5-7B-Instruct-MLX-4bit",
+    "mlx-community/Qwen2.5-7B-Instruct-8bit",
+    "lmstudio-community/Qwen2.5-7B-Instruct-MLX-8bit"
   ],
   "template": "registry/models/templates/qwen2.5.jinja"
 }

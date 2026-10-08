@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-4B",
   "description": {
-    "fr": "Petit modèle Qwen3 qui appelle des outils et peut réfléchir avant de répondre : un bon point de départ sur un poste de 8 Go.",
-    "en": "A small Qwen3 model that calls tools and can think before answering: a good starting point on an 8 GB machine."
+    "fr": "Génération Qwen3 d'Alibaba, pour le texte seul : elle appelle des outils, travaille dans une centaine de langues et passe d'une réponse directe à une réflexion visible selon le réglage. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "The Qwen3 generation from Alibaba, for text only: it calls tools, works in about a hundred languages and switches between a direct answer and visible thinking depending on the setting. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
   },
   "capabilities": {
     "tools": true,
@@ -44,11 +44,18 @@
   "repos": [
     "Qwen/Qwen3-4B",
     "Qwen/Qwen3-4B-GGUF",
+    "Qwen/Qwen3-4B-MLX-4bit",
     "unsloth/Qwen3-4B-GGUF",
     "bartowski/Qwen_Qwen3-4B-GGUF",
-    "Qwen/Qwen3-4B-MLX-4bit",
+    "lmstudio-community/Qwen3-4B-GGUF",
+    "ggml-org/Qwen3-4B-GGUF",
     "mlx-community/Qwen3-4B-4bit",
-    "lmstudio-community/Qwen3-4B-MLX-4bit"
+    "lmstudio-community/Qwen3-4B-MLX-4bit",
+    "Qwen/Qwen3-4B-MLX-6bit",
+    "Qwen/Qwen3-4B-MLX-8bit",
+    "mlx-community/Qwen3-4B-6bit",
+    "mlx-community/Qwen3-4B-8bit",
+    "lmstudio-community/Qwen3-4B-MLX-8bit"
   ],
   "template": "crates/apollia-llm/src/capabilities/fixtures/chat_template_qwen3_4b.jinja"
 }

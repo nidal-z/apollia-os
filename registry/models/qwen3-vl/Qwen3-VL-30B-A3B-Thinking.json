@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "id": "qwen3-vl/Qwen3-VL-30B-A3B-Thinking",
+  "kind": "language",
+  "label": "Qwen3-VL 30B-A3B Thinking",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Thinking"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Thinking",
+  "description": {
+    "fr": "Qwen3-VL d'Alibaba lit les images et les documents numérisés : description, lecture de tableaux et de texte dans l'image, repérage d'éléments à l'écran, avec appel d'outils. Cette variante réfléchit toujours avant de répondre. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+    "en": "Qwen3-VL from Alibaba reads images and scanned documents: description, reading tables and text inside an image, locating elements on a screen, with tool calling. This variant always thinks before answering. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Thinking/tree/main"
+  },
+  "memory": {
+    "min_gb": 18.6,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Thinking-GGUF/blob/main/Qwen3VL-30B-A3B-Thinking-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "top_k": 20,
+    "repetition_penalty": 1.0,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Thinking/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen3-VL-30B-A3B-Thinking",
+    "Qwen/Qwen3-VL-30B-A3B-Thinking-GGUF",
+    "mlx-community/Qwen3-VL-30B-A3B-Thinking-4bit",
+    "unsloth/Qwen3-VL-30B-A3B-Thinking-GGUF",
+    "bartowski/Qwen_Qwen3-VL-30B-A3B-Thinking-GGUF",
+    "lmstudio-community/Qwen3-VL-30B-A3B-Thinking-GGUF",
+    "lmstudio-community/Qwen3-VL-30B-A3B-Thinking-MLX-4bit",
+    "mlx-community/Qwen3-VL-30B-A3B-Thinking-5bit",
+    "mlx-community/Qwen3-VL-30B-A3B-Thinking-6bit",
+    "mlx-community/Qwen3-VL-30B-A3B-Thinking-8bit",
+    "lmstudio-community/Qwen3-VL-30B-A3B-Thinking-MLX-5bit",
+    "lmstudio-community/Qwen3-VL-30B-A3B-Thinking-MLX-6bit",
+    "lmstudio-community/Qwen3-VL-30B-A3B-Thinking-MLX-8bit"
+  ]
+}

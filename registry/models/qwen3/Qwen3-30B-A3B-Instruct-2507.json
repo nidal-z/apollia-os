@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "qwen3/Qwen3-30B-A3B-Instruct-2507",
+  "kind": "language",
+  "label": "Qwen3 30B-A3B Instruct 2507",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "description": {
+    "fr": "Qwen3 d'Alibaba, pour le texte seul : il appelle des outils et travaille dans une centaine de langues. Cette version de juillet 2025 répond toujours directement, sans réflexion visible, avec un contexte allongé. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+    "en": "Qwen3 from Alibaba, for text only: it calls tools and works in about a hundred languages. This July 2025 version always answers directly, with no visible thinking, with a longer context. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507/tree/main"
+  },
+  "memory": {
+    "min_gb": 18.6,
+    "source": "https://huggingface.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF/blob/main/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "source": "https://huggingface.co/Qwen/Qwen3-30B-A3B-Instruct-2507/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF",
+    "mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit",
+    "bartowski/Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF",
+    "lmstudio-community/Qwen3-30B-A3B-Instruct-2507-GGUF",
+    "lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-4bit",
+    "mlx-community/Qwen3-30B-A3B-Instruct-2507-5bit",
+    "mlx-community/Qwen3-30B-A3B-Instruct-2507-6bit",
+    "mlx-community/Qwen3-30B-A3B-Instruct-2507-8bit",
+    "lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-6bit",
+    "lmstudio-community/Qwen3-30B-A3B-Instruct-2507-MLX-8bit"
+  ]
+}

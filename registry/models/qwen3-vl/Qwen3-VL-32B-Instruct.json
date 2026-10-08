@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "id": "qwen3-vl/Qwen3-VL-32B-Instruct",
+  "kind": "language",
+  "label": "Qwen3-VL 32B Instruct",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct",
+  "description": {
+    "fr": "Qwen3-VL d'Alibaba lit les images et les documents numérisés : description, lecture de tableaux et de texte dans l'image, repérage d'éléments à l'écran, avec appel d'outils. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+    "en": "Qwen3-VL from Alibaba reads images and scanned documents: description, reading tables and text inside an image, locating elements on a screen, with tool calling. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 19.8,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct-GGUF/blob/main/Qwen3VL-32B-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "repetition_penalty": 1.0,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen3-VL-32B-Instruct",
+    "Qwen/Qwen3-VL-32B-Instruct-GGUF",
+    "mlx-community/Qwen3-VL-32B-Instruct-4bit",
+    "unsloth/Qwen3-VL-32B-Instruct-GGUF",
+    "bartowski/Qwen_Qwen3-VL-32B-Instruct-GGUF",
+    "lmstudio-community/Qwen3-VL-32B-Instruct-GGUF",
+    "lmstudio-community/Qwen3-VL-32B-Instruct-MLX-4bit",
+    "mlx-community/Qwen3-VL-32B-Instruct-5bit",
+    "mlx-community/Qwen3-VL-32B-Instruct-6bit",
+    "mlx-community/Qwen3-VL-32B-Instruct-8bit",
+    "lmstudio-community/Qwen3-VL-32B-Instruct-MLX-5bit",
+    "lmstudio-community/Qwen3-VL-32B-Instruct-MLX-6bit",
+    "lmstudio-community/Qwen3-VL-32B-Instruct-MLX-8bit"
+  ]
+}

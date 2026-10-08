@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "id": "qwen3-coder/Qwen3-Coder-Next",
+  "kind": "language",
+  "label": "Qwen3 Coder Next",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3-Coder-Next/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3-Coder-Next",
+  "description": {
+    "fr": "Modèle d'Alibaba spécialisé dans la programmation avec des agents : il enchaîne les appels d'outils, lit de longs dépôts de code et s'intègre aux assistants de développement. Qwen3 Coder Next compte 80 milliards de paramètres dont 3 milliards travaillent à chaque mot, et se remet d'une commande qui échoue en cours de tâche. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
+    "en": "A model from Alibaba specialised in coding with agents: it chains tool calls, reads long code repositories and plugs into development assistants. Qwen3 Coder Next has 80 billion parameters of which 3 billion work on each token, and recovers from a command that fails in the middle of a task. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/Qwen3-Coder-Next/tree/main"
+  },
+  "memory": {
+    "min_gb": 48.5,
+    "source": "https://huggingface.co/Qwen/Qwen3-Coder-Next-GGUF/blob/main/Qwen3-Coder-Next-Q4_K_M/Qwen3-Coder-Next-Q4_K_M-00001-of-00004.gguf"
+  },
+  "defaults": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 40,
+    "source": "https://huggingface.co/Qwen/Qwen3-Coder-Next/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen3-Coder-Next",
+    "Qwen/Qwen3-Coder-Next-GGUF",
+    "mlx-community/Qwen3-Coder-Next-4bit",
+    "unsloth/Qwen3-Coder-Next-GGUF",
+    "bartowski/Qwen_Qwen3-Coder-Next-GGUF",
+    "lmstudio-community/Qwen3-Coder-Next-GGUF",
+    "ggml-org/Qwen3-Coder-Next-GGUF",
+    "lmstudio-community/Qwen3-Coder-Next-MLX-4bit",
+    "mlx-community/Qwen3-Coder-Next-5bit",
+    "mlx-community/Qwen3-Coder-Next-6bit",
+    "mlx-community/Qwen3-Coder-Next-8bit",
+    "lmstudio-community/Qwen3-Coder-Next-MLX-6bit",
+    "lmstudio-community/Qwen3-Coder-Next-MLX-8bit"
+  ]
+}

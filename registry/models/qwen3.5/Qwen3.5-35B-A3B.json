@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B",
   "description": {
-    "fr": "Modèle Qwen3.5 à experts : seule une petite partie du modèle travaille à chaque mot, ce qui le rend rapide pour sa taille. Il lui faut toutefois la mémoire de l'ensemble.",
-    "en": "A mixture-of-experts Qwen3.5 model: only a small part of it works on each word, which makes it fast for its size. It still needs the memory of the whole."
+    "fr": "Génération Qwen3.5 d'Alibaba : chaque taille lit les images, appelle des outils et peut réfléchir avant de répondre, avec une architecture qui réduit le coût en mémoire des longs contextes. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+    "en": "The Qwen3.5 generation from Alibaba: every size reads images, calls tools and can think before answering, with an architecture that lowers the memory cost of long contexts. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."
   },
   "capabilities": {
     "tools": true,
@@ -44,9 +44,13 @@
   "repos": [
     "Qwen/Qwen3.5-35B-A3B",
     "unsloth/Qwen3.5-35B-A3B-GGUF",
+    "mlx-community/Qwen3.5-35B-A3B-4bit",
     "bartowski/Qwen_Qwen3.5-35B-A3B-GGUF",
     "lmstudio-community/Qwen3.5-35B-A3B-GGUF",
-    "mlx-community/Qwen3.5-35B-A3B-4bit"
+    "ggml-org/Qwen3.5-35B-A3B-GGUF",
+    "mlx-community/Qwen3.5-35B-A3B-5bit",
+    "mlx-community/Qwen3.5-35B-A3B-6bit",
+    "mlx-community/Qwen3.5-35B-A3B-8bit"
   ],
   "template": "registry/models/templates/qwen3.5.jinja"
 }
