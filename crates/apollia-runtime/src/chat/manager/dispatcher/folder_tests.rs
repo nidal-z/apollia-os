@@ -156,3 +156,149 @@ async fn the_folder_of_a_project_is_not_reached_unless_granted() {
         Some(granted.path().canonicalize().expect("canonical"))
     );
 }
+
+/// The access the chat holds once the reading tools were chosen on the sheet
+/// of Apollia: the native names, with no folder among them.
+fn reading_natives() -> Vec<String> {
+    ["file_glob", "file_grep", "file_list", "file_read"]
+        .map(str::to_owned)
+        .to_vec()
+}
+
+async fn list(
+    invoker: &NativeChatToolInvoker,
+    dir: &std::path::Path,
+    recursive: bool,
+) -> Result<String, String> {
+    invoker
+        .invoke(
+            "file_list",
+            &serde_json::json!({ "dir": dir.to_string_lossy(), "recursive": recursive }),
+        )
+        .await
+}
+
+#[tokio::test]
+async fn a_folder_added_as_a_connection_is_not_reached_until_it_is_granted_to_apollia() {
+    // GIVEN a folder stored as a connection, and Apollia holding the reading
+    // tools by name but no access to that folder
+    let data = tempfile::tempdir().expect("tempdir");
+    let downloads = tempfile::tempdir().expect("tempdir");
+    std::fs::write(downloads.path().join("invoice.pdf"), "x").expect("seed");
+    add_folder(data.path(), downloads.path());
+    grant_apollia(data.path(), &reading_natives());
+    let invoker = apollia_invoker(data.path()).await;
+
+    // WHEN the chat lists the folder
+    let listing = list(&invoker, downloads.path(), false).await;
+
+    // THEN the call is refused: adding the connection granted it to no agent
+    let refusal = listing.expect_err("a folder nobody granted is not listed");
+    assert!(refusal.contains("no_folder_granted"), "{refusal}");
+}
+
+#[tokio::test]
+async fn a_granted_folder_is_listed_and_read_through_every_level_and_never_beyond_its_root() {
+    // GIVEN a folder holding a file two levels down, granted to Apollia for
+    // its reading tools, and a sibling folder that is not granted
+    let data = tempfile::tempdir().expect("tempdir");
+    let parent = tempfile::tempdir().expect("tempdir");
+    let granted = parent.path().join("Downloads");
+    let sibling = parent.path().join("Documents");
+    let deep = granted.join("clients").join("2026");
+    std::fs::create_dir_all(&deep).expect("seed");
+    std::fs::create_dir_all(&sibling).expect("seed");
+    std::fs::write(deep.join("quote.txt"), "two levels down").expect("seed");
+    std::fs::write(sibling.join("private.txt"), "not granted").expect("seed");
+    let id = add_folder(data.path(), &granted);
+    let mut access = reading_natives();
+    access.extend(
+        ["file_read", "file_list"]
+            .map(|tool| apollia_tools::folder_access::folder_access_name(&id, tool)),
+    );
+    grant_apollia(data.path(), &access);
+    let invoker = apollia_invoker(data.path()).await;
+
+    // WHEN the chat lists the root recursively, lists the deepest folder,
+    // reads its file by an absolute and by a relative path, then reaches for
+    // the sibling by its own path and by climbing out of the root
+    let whole = list(&invoker, &granted, true).await;
+    let deepest = list(&invoker, &deep, false).await;
+    let absolute = read(&invoker, &deep.join("quote.txt")).await;
+    let relative = invoker
+        .invoke(
+            "file_read",
+            &serde_json::json!({ "path": "clients/2026/quote.txt" }),
+        )
+        .await;
+    let sibling_list = list(&invoker, &sibling, false).await;
+    let sibling_read = read(&invoker, &sibling.join("private.txt")).await;
+    let climbed = read(&invoker, &deep.join("../../../Documents/private.txt")).await;
+
+    // THEN every level under the root answers
+    assert!(
+        whole.as_ref().is_ok_and(|text| text.contains("quote.txt")),
+        "{whole:?}"
+    );
+    assert!(
+        deepest
+            .as_ref()
+            .is_ok_and(|text| text.contains("quote.txt")),
+        "{deepest:?}"
+    );
+    assert!(
+        absolute
+            .as_ref()
+            .is_ok_and(|text| text.contains("two levels down")),
+        "{absolute:?}"
+    );
+    assert!(
+        relative
+            .as_ref()
+            .is_ok_and(|text| text.contains("two levels down")),
+        "{relative:?}"
+    );
+    // AND nothing outside the root does
+    for outside in [sibling_list, sibling_read, climbed] {
+        let refusal = outside.expect_err("outside the granted root");
+        assert!(
+            refusal.contains("outside every folder granted"),
+            "{refusal}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_link_inside_a_granted_folder_does_not_lead_out_of_it() {
+    // GIVEN a granted folder whose sub-folder holds a symbolic link to a
+    // folder that is not granted
+    let data = tempfile::tempdir().expect("tempdir");
+    let granted = tempfile::tempdir().expect("tempdir");
+    let other = tempfile::tempdir().expect("tempdir");
+    let sub = granted.path().join("sub");
+    std::fs::create_dir_all(&sub).expect("seed");
+    std::fs::write(other.path().join("secret.txt"), "elsewhere").expect("seed");
+    std::os::unix::fs::symlink(other.path(), sub.join("escape")).expect("link");
+    let id = add_folder(data.path(), granted.path());
+    let mut access = reading_natives();
+    access.extend(
+        ["file_read", "file_list"]
+            .map(|tool| apollia_tools::folder_access::folder_access_name(&id, tool)),
+    );
+    grant_apollia(data.path(), &access);
+    let invoker = apollia_invoker(data.path()).await;
+
+    // WHEN the chat lists and reads through the link
+    let listed = list(&invoker, &sub.join("escape"), false).await;
+    let read = read(&invoker, &sub.join("escape").join("secret.txt")).await;
+
+    // THEN both are refused
+    for through_link in [listed, read] {
+        let refusal = through_link.expect_err("a link out of the root is refused");
+        assert!(
+            refusal.contains("outside every folder granted"),
+            "{refusal}"
+        );
+    }
+}
