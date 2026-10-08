@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "glm4v/GLM-4.1V-9B-Thinking",
+  "kind": "language",
+  "label": "GLM-4.1V 9B Thinking",
+  "publisher": "Zhipu AI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/zai-org/GLM-4.1V-9B-Thinking"
+  },
+  "source_url": "https://huggingface.co/zai-org/GLM-4.1V-9B-Thinking",
+  "description": {
+    "fr": "Modèle de vision de Zhipu AI, d'environ 9 milliards de paramètres, qui lit les images et raisonne sur leur contenu. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; les conversions GGUF recensées ne lisent que le texte.",
+    "en": "A vision model from Zhipu AI, of about 9 billion parameters, that reads images and reasons over their content. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling; the listed GGUF conversions read text only."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/zai-org/GLM-4.1V-9B-Thinking/tree/main"
+  },
+  "memory": {
+    "min_gb": 6.2,
+    "source": "https://huggingface.co/unsloth/GLM-4.1V-9B-Thinking-GGUF/blob/main/GLM-4.1V-9B-Thinking-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.8,
+    "top_p": 0.6,
+    "top_k": 2,
+    "source": "https://huggingface.co/zai-org/GLM-4.1V-9B-Thinking/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "zai-org/GLM-4.1V-9B-Thinking",
+    "unsloth/GLM-4.1V-9B-Thinking-GGUF",
+    "mlx-community/GLM-4.1V-9B-Thinking-4bit",
+    "mlx-community/GLM-4.1V-9B-Thinking-5bit",
+    "mlx-community/GLM-4.1V-9B-Thinking-8bit"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "glm4v/GLM-4.6V-Flash",
+  "kind": "language",
+  "label": "GLM-4.6V Flash",
+  "publisher": "Zhipu AI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/zai-org/GLM-4.6V-Flash"
+  },
+  "source_url": "https://huggingface.co/zai-org/GLM-4.6V-Flash",
+  "description": {
+    "fr": "Modèle de vision de Zhipu AI, d'environ 9 milliards de paramètres, qui lit les images et raisonne sur leur contenu. Celui-ci appelle aussi des outils, et sa réflexion peut être coupée. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "A vision model from Zhipu AI, of about 9 billion parameters, that reads images and reasons over their content. This one also calls tools, and its thinking can be turned off. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/zai-org/GLM-4.6V-Flash/tree/main"
+  },
+  "memory": {
+    "min_gb": 6.2,
+    "source": "https://huggingface.co/unsloth/GLM-4.6V-Flash-GGUF/blob/main/GLM-4.6V-Flash-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.8,
+    "top_p": 0.6,
+    "top_k": 2,
+    "source": "https://huggingface.co/zai-org/GLM-4.6V-Flash/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/zai-org/GLM-4.6V-Flash/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "zai-org/GLM-4.6V-Flash",
+    "unsloth/GLM-4.6V-Flash-GGUF",
+    "mlx-community/GLM-4.6V-Flash-4bit",
+    "bartowski/zai-org_GLM-4.6V-Flash-GGUF",
+    "lmstudio-community/GLM-4.6V-Flash-GGUF",
+    "ggml-org/GLM-4.6V-Flash-GGUF",
+    "lmstudio-community/GLM-4.6V-Flash-MLX-4bit",
+    "mlx-community/GLM-4.6V-Flash-5bit",
+    "mlx-community/GLM-4.6V-Flash-6bit",
+    "mlx-community/GLM-4.6V-Flash-8bit",
+    "lmstudio-community/GLM-4.6V-Flash-MLX-6bit",
+    "lmstudio-community/GLM-4.6V-Flash-MLX-8bit"
+  ]
+}

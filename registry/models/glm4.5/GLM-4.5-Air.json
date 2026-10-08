@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "glm4.5/GLM-4.5-Air",
+  "kind": "language",
+  "label": "GLM-4.5 Air",
+  "publisher": "Zhipu AI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/zai-org/GLM-4.5-Air"
+  },
+  "source_url": "https://huggingface.co/zai-org/GLM-4.5-Air",
+  "description": {
+    "fr": "GLM-4.5 Air de Zhipu AI est un modèle à experts pour les agents et la programmation, avec appel d'outils et une réflexion qui peut être coupée. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 96 Go de mémoire en quantification Q4.",
+    "en": "GLM-4.5 Air from Zhipu AI is a mixture-of-experts model for agents and coding, with tool calling and thinking that can be turned off. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 96 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/zai-org/GLM-4.5-Air/tree/main"
+  },
+  "memory": {
+    "min_gb": 73.0,
+    "source": "https://huggingface.co/unsloth/GLM-4.5-Air-GGUF/blob/main/Q4_K_M/GLM-4.5-Air-Q4_K_M-00001-of-00002.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/zai-org/GLM-4.5-Air/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "zai-org/GLM-4.5-Air",
+    "unsloth/GLM-4.5-Air-GGUF",
+    "mlx-community/GLM-4.5-Air-4bit",
+    "bartowski/zai-org_GLM-4.5-Air-GGUF",
+    "lmstudio-community/GLM-4.5-Air-GGUF",
+    "ggml-org/GLM-4.5-Air-GGUF",
+    "lmstudio-community/GLM-4.5-Air-MLX-4bit",
+    "mlx-community/GLM-4.5-Air-5bit",
+    "mlx-community/GLM-4.5-Air-6bit",
+    "mlx-community/GLM-4.5-Air-8bit",
+    "lmstudio-community/GLM-4.5-Air-MLX-6bit",
+    "lmstudio-community/GLM-4.5-Air-MLX-8bit"
+  ]
+}

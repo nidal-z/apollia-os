@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "kimi/Kimi-VL-A3B-Thinking-2506",
+  "kind": "language",
+  "label": "Kimi-VL A3B Thinking 2506",
+  "publisher": "Moonshot AI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/moonshotai/Kimi-VL-A3B-Thinking-2506"
+  },
+  "source_url": "https://huggingface.co/moonshotai/Kimi-VL-A3B-Thinking-2506",
+  "description": {
+    "fr": "Kimi-VL de Moonshot AI est un modèle à experts qui lit les images, les captures d'écran et les longs documents. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "Kimi-VL from Moonshot AI is a mixture-of-experts model that reads images, screenshots and long documents. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 24 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/moonshotai/Kimi-VL-A3B-Thinking-2506/tree/main"
+  },
+  "memory": {
+    "min_gb": 10.6,
+    "source": "https://huggingface.co/ggml-org/Kimi-VL-A3B-Thinking-2506-GGUF/blob/main/Kimi-VL-A3B-Thinking-2506-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "source": "https://huggingface.co/moonshotai/Kimi-VL-A3B-Thinking-2506/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "moonshotai/Kimi-VL-A3B-Thinking-2506",
+    "ggml-org/Kimi-VL-A3B-Thinking-2506-GGUF",
+    "mlx-community/Kimi-VL-A3B-Thinking-2506-5bit",
+    "mlx-community/Kimi-VL-A3B-Thinking-2506-6bit",
+    "mlx-community/Kimi-VL-A3B-Thinking-2506-8bit"
+  ]
+}

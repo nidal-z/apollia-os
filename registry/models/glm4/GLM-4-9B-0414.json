@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "glm4/GLM-4-9B-0414",
+  "kind": "language",
+  "label": "GLM-4 9B 0414",
+  "publisher": "Zhipu AI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/zai-org/GLM-4-9B-0414"
+  },
+  "source_url": "https://huggingface.co/zai-org/GLM-4-9B-0414",
+  "description": {
+    "fr": "Famille GLM-4 de Zhipu AI : conversation, code et appel d'outils, à l'aise en chinois et en anglais. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The GLM-4 family from Zhipu AI: conversation, code and tool calling, at ease in Chinese and English. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/zai-org/GLM-4-9B-0414/tree/main"
+  },
+  "memory": {
+    "min_gb": 6.2,
+    "source": "https://huggingface.co/unsloth/GLM-4-9B-0414-GGUF/blob/main/GLM-4-9B-0414-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "zai-org/GLM-4-9B-0414",
+    "unsloth/GLM-4-9B-0414-GGUF",
+    "mlx-community/GLM-4-9B-0414-4bit",
+    "bartowski/THUDM_GLM-4-9B-0414-GGUF",
+    "lmstudio-community/GLM-4-9B-0414-GGUF",
+    "mlx-community/GLM-4-9B-0414-6bit",
+    "mlx-community/GLM-4-9B-0414-8bit"
+  ]
+}

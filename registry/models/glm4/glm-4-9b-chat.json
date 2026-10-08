@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "glm4/glm-4-9b-chat",
+  "kind": "language",
+  "label": "GLM-4 9B",
+  "publisher": "Zhipu AI",
+  "license": {
+    "id": "glm-4",
+    "source": "https://huggingface.co/THUDM/glm-4-9b-chat/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/zai-org/glm-4-9b-chat",
+  "description": {
+    "fr": "Famille GLM-4 de Zhipu AI : conversation, code et appel d'outils, à l'aise en chinois et en anglais. Cette première version date de juin 2024. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The GLM-4 family from Zhipu AI: conversation, code and tool calling, at ease in Chinese and English. This first version dates from June 2024. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/zai-org/glm-4-9b-chat/tree/main"
+  },
+  "memory": {
+    "min_gb": 6.3,
+    "source": "https://huggingface.co/bartowski/glm-4-9b-chat-GGUF/blob/main/glm-4-9b-chat-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.8,
+    "top_p": 0.8,
+    "source": "https://huggingface.co/zai-org/glm-4-9b-chat/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "zai-org/glm-4-9b-chat",
+    "bartowski/glm-4-9b-chat-GGUF"
+  ]
+}
