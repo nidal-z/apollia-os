@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/openai/whisper-base",
   "description": {
-    "fr": "Modèle de dictée léger et équilibré, pour dicter des messages courts sur un poste modeste.",
-    "en": "A light, balanced dictation model for dictating short messages on a modest machine."
+    "fr": "Modèle Whisper d'OpenAI léger, pour dicter des messages courts sur un poste modeste. Plus juste que Tiny, il bute encore sur les noms propres et le vocabulaire de métier. Il tient sur toute machine.",
+    "en": "A light Whisper model from OpenAI, for dictating short messages on a modest machine. More accurate than Tiny, it still stumbles on proper nouns and trade vocabulary. It fits any machine."
   },
   "capabilities": {
     "tools": false,

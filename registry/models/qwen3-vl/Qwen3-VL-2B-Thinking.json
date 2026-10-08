@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "qwen3-vl/Qwen3-VL-2B-Thinking",
+  "kind": "language",
+  "label": "Qwen3-VL 2B Thinking",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-2B-Thinking"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3-VL-2B-Thinking",
+  "description": {
+    "fr": "Qwen3-VL d'Alibaba lit les images et les documents numérisés : description, lecture de tableaux et de texte dans l'image, repérage d'éléments à l'écran, avec appel d'outils. Cette variante réfléchit toujours avant de répondre. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "Qwen3-VL from Alibaba reads images and scanned documents: description, reading tables and text inside an image, locating elements on a screen, with tool calling. This variant always thinks before answering. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-2B-Thinking/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.2,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-2B-Thinking-GGUF/blob/main/Qwen3VL-2B-Thinking-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 20,
+    "repetition_penalty": 1.0,
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-2B-Thinking/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen3-VL-2B-Thinking",
+    "Qwen/Qwen3-VL-2B-Thinking-GGUF",
+    "mlx-community/Qwen3-VL-2B-Thinking-4bit",
+    "unsloth/Qwen3-VL-2B-Thinking-GGUF",
+    "bartowski/Qwen_Qwen3-VL-2B-Thinking-GGUF",
+    "lmstudio-community/Qwen3-VL-2B-Thinking-GGUF",
+    "mlx-community/Qwen3-VL-2B-Thinking-5bit",
+    "mlx-community/Qwen3-VL-2B-Thinking-6bit",
+    "mlx-community/Qwen3-VL-2B-Thinking-8bit",
+    "lmstudio-community/Qwen3-VL-2B-Thinking-MLX-8bit"
+  ]
+}

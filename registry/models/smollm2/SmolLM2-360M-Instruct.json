@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "smollm2/SmolLM2-360M-Instruct",
+  "kind": "language",
+  "label": "SmolLM2 360M",
+  "publisher": "Hugging Face",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct"
+  },
+  "source_url": "https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct",
+  "description": {
+    "fr": "SmolLM2 de Hugging Face est une famille de très petits modèles, surtout en anglais, pour des tâches simples sur une machine modeste : résumé, reformulation, extraction. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "SmolLM2 from Hugging Face is a family of very small models, mostly in English, for simple tasks on a modest machine: summarising, rewriting, extraction. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.3,
+    "source": "https://huggingface.co/unsloth/SmolLM2-360M-Instruct-GGUF/blob/main/SmolLM2-360M-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "HuggingFaceTB/SmolLM2-360M-Instruct",
+    "unsloth/SmolLM2-360M-Instruct-GGUF",
+    "mlx-community/SmolLM2-360M-Instruct-6bit",
+    "HuggingFaceTB/SmolLM2-360M-Instruct-GGUF",
+    "bartowski/SmolLM2-360M-Instruct-GGUF",
+    "lmstudio-community/SmolLM2-360M-Instruct-GGUF"
+  ]
+}

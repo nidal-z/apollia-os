@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "ministral-3/Ministral-3-14B-Instruct-2512",
+  "kind": "language",
+  "label": "Ministral 3 14B",
+  "publisher": "Mistral AI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512"
+  },
+  "source_url": "https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512",
+  "description": {
+    "fr": "Famille Ministral 3 de Mistral AI, sous licence Apache 2.0, pour les postes de travail courants : elle lit les images, appelle des outils et tient bien le français. Taille intermédiaire, plus précise sur les documents longs et les tâches en plusieurs étapes ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The Ministral 3 family from Mistral AI, under the Apache 2.0 licence, for everyday workstations: it reads images, calls tools and handles French well. An intermediate size, more precise on long documents and multi-step tasks; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512/tree/main"
+  },
+  "memory": {
+    "min_gb": 8.3,
+    "source": "https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512-GGUF/blob/main/Ministral-3-14B-Instruct-2512-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "mistralai/Ministral-3-14B-Instruct-2512",
+    "mistralai/Ministral-3-14B-Instruct-2512-GGUF",
+    "mlx-community/Ministral-3-14B-Instruct-2512-4bit",
+    "unsloth/Ministral-3-14B-Instruct-2512-GGUF",
+    "bartowski/mistralai_Ministral-3-14B-Instruct-2512-GGUF",
+    "lmstudio-community/Ministral-3-14B-Instruct-2512-GGUF",
+    "ggml-org/Ministral-3-14B-Instruct-2512-GGUF",
+    "mlx-community/Ministral-3-14B-Instruct-2512-5bit",
+    "mlx-community/Ministral-3-14B-Instruct-2512-6bit",
+    "mlx-community/Ministral-3-14B-Instruct-2512-8bit"
+  ]
+}

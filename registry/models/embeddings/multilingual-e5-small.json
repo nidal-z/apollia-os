@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/intfloat/multilingual-e5-small",
   "description": {
-    "fr": "Petit modèle d'embeddings multilingue : il transforme vos textes en vecteurs pour la recherche par le sens dans vos documents, en français comme en anglais. Léger, il tourne partout.",
-    "en": "A small multilingual embeddings model: it turns your texts into vectors for search by meaning across your documents, in French as in English. Light, it runs anywhere."
+    "fr": "Petit modèle d'embeddings multilingue d'intfloat : il transforme vos textes en vecteurs pour la recherche par le sens dans vos documents, en français comme en anglais. Il lit des passages de 512 jetons au plus, ce qui impose de découper les longs documents. Léger, il tient sur toute machine.",
+    "en": "A small multilingual embeddings model from intfloat: it turns your texts into vectors for search by meaning in your documents, in French as in English. It reads passages of 512 tokens at most, so long documents have to be split. Light, it fits any machine."
   },
   "capabilities": {
     "tools": false,

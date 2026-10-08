@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "granite4/granite-4.0-h-tiny",
+  "kind": "language",
+  "label": "Granite 4.0 H Tiny",
+  "publisher": "IBM",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/ibm-granite/granite-4.0-h-tiny"
+  },
+  "source_url": "https://huggingface.co/ibm-granite/granite-4.0-h-tiny",
+  "description": {
+    "fr": "Génération Granite 4.0 d'IBM, sous licence Apache 2.0, prévue pour l'entreprise : appel d'outils, réponses fondées sur des documents fournis et sortie structurée. Les variantes H ont une architecture hybride qui consomme moins de mémoire sur les longs contextes ; celle-ci est à experts. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The Granite 4.0 generation from IBM, under the Apache 2.0 licence, meant for business use: tool calling, answers grounded in supplied documents and structured output. The H variants have a hybrid architecture that uses less memory on long contexts; this one is a mixture of experts. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/ibm-granite/granite-4.0-h-tiny/tree/main"
+  },
+  "memory": {
+    "min_gb": 4.3,
+    "source": "https://huggingface.co/ibm-granite/granite-4.0-h-tiny-GGUF/blob/main/granite-4.0-h-tiny-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "ibm-granite/granite-4.0-h-tiny",
+    "ibm-granite/granite-4.0-h-tiny-GGUF",
+    "mlx-community/granite-4.0-h-tiny-4bit",
+    "unsloth/granite-4.0-h-tiny-GGUF",
+    "bartowski/ibm-granite_granite-4.0-h-tiny-GGUF",
+    "lmstudio-community/granite-4.0-h-tiny-GGUF",
+    "lmstudio-community/granite-4.0-h-tiny-MLX-4bit",
+    "mlx-community/granite-4.0-h-tiny-8bit",
+    "lmstudio-community/granite-4.0-h-tiny-MLX-5bit",
+    "lmstudio-community/granite-4.0-h-tiny-MLX-6bit",
+    "lmstudio-community/granite-4.0-h-tiny-MLX-8bit"
+  ]
+}

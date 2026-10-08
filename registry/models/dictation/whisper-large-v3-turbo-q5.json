@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/openai/whisper-large-v3-turbo",
   "description": {
-    "fr": "Le meilleur compromis pour dicter : proche de la qualité du grand modèle, plusieurs fois plus rapide.",
-    "en": "The best trade-off for dictation: close to the large model's quality, several times faster."
+    "fr": "Whisper Large-v3 Turbo d'OpenAI garde l'encodeur de Large-v3 avec un décodeur réduit : une qualité proche du grand modèle, plusieurs fois plus vite. C'est le choix courant pour dicter en français comme en anglais ; il ne traduit pas. Compter de 0,6 à 1,7 Go de mémoire selon la quantification.",
+    "en": "Whisper Large-v3 Turbo from OpenAI keeps the Large-v3 encoder with a reduced decoder: a quality close to the large model, several times faster. It is the usual choice for dictating in French as in English; it does not translate. Plan for 0.6 to 1.7 GB of memory depending on the quantization."
   },
   "capabilities": {
     "tools": false,

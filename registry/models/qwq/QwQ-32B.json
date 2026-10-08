@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "qwq/QwQ-32B",
+  "kind": "language",
+  "label": "QwQ 32B",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/QWQ-32B/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/Qwen/QwQ-32B",
+  "description": {
+    "fr": "QwQ d'Alibaba est un modèle de raisonnement : il réfléchit toujours avant de répondre, ce qui l'aide sur les problèmes de logique, de mathématiques et de code, au prix de réponses plus lentes. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+    "en": "QwQ from Alibaba is a reasoning model: it always thinks before answering, which helps on logic, mathematics and code problems, at the price of slower answers. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/QwQ-32B/tree/main"
+  },
+  "memory": {
+    "min_gb": 19.9,
+    "source": "https://huggingface.co/Qwen/QwQ-32B-GGUF/blob/main/qwq-32b-q4_k_m.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 40,
+    "repetition_penalty": 1.0,
+    "source": "https://huggingface.co/Qwen/QwQ-32B/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/QwQ-32B",
+    "Qwen/QwQ-32B-GGUF",
+    "mlx-community/QwQ-32B-4bit",
+    "unsloth/QwQ-32B-GGUF",
+    "bartowski/Qwen_QwQ-32B-GGUF",
+    "lmstudio-community/QwQ-32B-GGUF",
+    "lmstudio-community/QwQ-32B-MLX-4bit",
+    "mlx-community/QwQ-32B-6bit",
+    "mlx-community/QwQ-32B-8bit",
+    "lmstudio-community/QwQ-32B-MLX-8bit"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "granite3.3/granite-3.3-2b-instruct",
+  "kind": "language",
+  "label": "Granite 3.3 2B",
+  "publisher": "IBM",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct"
+  },
+  "source_url": "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct",
+  "description": {
+    "fr": "Granite 3.3 d'IBM, sous licence Apache 2.0 : questions sur des documents fournis, appel d'outils et réflexion sur demande ; Granite 4 lui a succédé. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "Granite 3.3 from IBM, under the Apache 2.0 licence: questions over supplied documents, tool calling and thinking on request; Granite 4 has succeeded it. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.6,
+    "source": "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct-GGUF/blob/main/granite-3.3-2b-instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "ibm-granite/granite-3.3-2b-instruct",
+    "ibm-granite/granite-3.3-2b-instruct-GGUF",
+    "mlx-community/granite-3.3-2b-instruct-4bit",
+    "unsloth/granite-3.3-2b-instruct-GGUF",
+    "bartowski/ibm-granite_granite-3.3-2b-instruct-GGUF",
+    "lmstudio-community/granite-3.3-2b-instruct-GGUF",
+    "mlx-community/granite-3.3-2b-instruct-6bit",
+    "mlx-community/granite-3.3-2b-instruct-8bit"
+  ]
+}

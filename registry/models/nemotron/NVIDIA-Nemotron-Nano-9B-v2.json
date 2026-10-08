@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "nemotron/NVIDIA-Nemotron-Nano-9B-v2",
+  "kind": "language",
+  "label": "Nemotron Nano 9B v2",
+  "publisher": "NVIDIA",
+  "license": {
+    "id": "nvidia-open-model-license",
+    "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+  },
+  "source_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2",
+  "description": {
+    "fr": "Modèle Nemotron de NVIDIA, prévu pour les agents : appel d'outils et réponses fondées sur des documents fournis. Nemotron Nano 9B v2 réfléchit avant de répondre, et une consigne dans le message coupe cette réflexion. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "A Nemotron model from NVIDIA, meant for agents: tool calling and answers grounded in supplied documents. Nemotron Nano 9B v2 thinks before answering, and a line in the message turns that thinking off. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2/tree/main"
+  },
+  "memory": {
+    "min_gb": 6.6,
+    "source": "https://huggingface.co/bartowski/nvidia_NVIDIA-Nemotron-Nano-9B-v2-GGUF/blob/main/nvidia_NVIDIA-Nemotron-Nano-9B-v2-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "nvidia/NVIDIA-Nemotron-Nano-9B-v2",
+    "bartowski/nvidia_NVIDIA-Nemotron-Nano-9B-v2-GGUF",
+    "mlx-community/NVIDIA-Nemotron-Nano-9B-v2-6bit"
+  ]
+}

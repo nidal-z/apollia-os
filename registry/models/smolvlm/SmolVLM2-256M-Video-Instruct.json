@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "smolvlm/SmolVLM2-256M-Video-Instruct",
+  "kind": "language",
+  "label": "SmolVLM2 256M",
+  "publisher": "Hugging Face",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/HuggingFaceTB/SmolVLM2-256M-Video-Instruct"
+  },
+  "source_url": "https://huggingface.co/HuggingFaceTB/SmolVLM2-256M-Video-Instruct",
+  "description": {
+    "fr": "SmolVLM2 de Hugging Face est un très petit modèle qui lit les images, surtout en anglais : description et questions simples sur une image. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "SmolVLM2 from Hugging Face is a very small model that reads images, mostly in English: description and simple questions about an image. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/HuggingFaceTB/SmolVLM2-256M-Video-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.2,
+    "source": "https://huggingface.co/ggml-org/SmolVLM2-256M-Video-Instruct-GGUF/blob/main/SmolVLM2-256M-Video-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "HuggingFaceTB/SmolVLM2-256M-Video-Instruct",
+    "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF"
+  ]
+}

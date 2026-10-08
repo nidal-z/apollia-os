@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "phi4/Phi-4-mini-instruct",
+  "kind": "language",
+  "label": "Phi-4 mini",
+  "publisher": "Microsoft",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/microsoft/Phi-4-mini-instruct/resolve/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/microsoft/Phi-4-mini-instruct",
+  "description": {
+    "fr": "Famille Phi-4 de Microsoft, sous licence MIT, orientée vers le raisonnement logique et mathématique, surtout en anglais. Phi-4 mini, 3,8 milliards de paramètres, ajoute l'appel d'outils et un long contexte dans un format de portable. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "The Phi-4 family from Microsoft, under the MIT licence, geared towards logical and mathematical reasoning, mostly in English. Phi-4 mini, 3.8 billion parameters, adds tool calling and a long context in a laptop-sized format. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/microsoft/Phi-4-mini-instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 2.5,
+    "source": "https://huggingface.co/unsloth/Phi-4-mini-instruct-GGUF/blob/main/Phi-4-mini-instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "microsoft/Phi-4-mini-instruct",
+    "unsloth/Phi-4-mini-instruct-GGUF",
+    "mlx-community/Phi-4-mini-instruct-4bit",
+    "bartowski/microsoft_Phi-4-mini-instruct-GGUF",
+    "lmstudio-community/Phi-4-mini-instruct-GGUF",
+    "mlx-community/Phi-4-mini-instruct-mlx-4Bit",
+    "mlx-community/Phi-4-mini-instruct-6bit",
+    "mlx-community/Phi-4-mini-instruct-mlx-6Bit",
+    "mlx-community/Phi-4-mini-instruct-8bit",
+    "mlx-community/Phi-4-mini-instruct-mlx-8Bit"
+  ]
+}

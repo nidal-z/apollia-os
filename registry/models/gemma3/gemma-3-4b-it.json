@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/google/gemma-3-4b-it",
   "description": {
-    "fr": "Petit modèle Gemma 3 qui lit les images ; son gabarit ne prévoit pas d'outils, il convient donc à la conversation et à la description d'images.",
-    "en": "A small Gemma 3 model that reads images; its template has no tools, so it suits conversation and describing images."
+    "fr": "Génération Gemma 3 de Google, soignée en rédaction et à l'aise dans de nombreuses langues ; elle n'a pas de mode de réflexion. Cette taille lit aussi les images. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "The Gemma 3 generation from Google, careful in writing and at ease in many languages; it has no thinking mode. This size also reads images. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling."
   },
   "capabilities": {
     "tools": false,
@@ -31,10 +31,22 @@
   "author_fields": [],
   "repos": [
     "google/gemma-3-4b-it",
-    "google/gemma-3-4b-it-GGUF",
     "unsloth/gemma-3-4b-it-GGUF",
-    "bartowski/gemma-3-4b-it-GGUF",
-    "mlx-community/gemma-3-4b-it-4bit"
+    "mlx-community/gemma-3-4b-it-4bit",
+    "bartowski/google_gemma-3-4b-it-GGUF",
+    "lmstudio-community/gemma-3-4b-it-GGUF",
+    "ggml-org/gemma-3-4b-it-GGUF",
+    "google/gemma-3-4b-it-qat-q4_0-gguf",
+    "unsloth/gemma-3-4b-it-qat-GGUF",
+    "bartowski/google_gemma-3-4b-it-qat-GGUF",
+    "lmstudio-community/gemma-3-4B-it-qat-GGUF",
+    "ggml-org/gemma-3-4b-it-qat-GGUF",
+    "mlx-community/gemma-3-4b-it-5bit",
+    "mlx-community/gemma-3-4b-it-6bit",
+    "mlx-community/gemma-3-4b-it-8bit",
+    "mlx-community/gemma-3-4b-it-qat-4bit",
+    "mlx-community/gemma-3-4b-it-qat-6bit",
+    "mlx-community/gemma-3-4b-it-qat-8bit"
   ],
   "template": "crates/apollia-llm/src/capabilities/fixtures/chat_template_gemma3_4b.jinja"
 }

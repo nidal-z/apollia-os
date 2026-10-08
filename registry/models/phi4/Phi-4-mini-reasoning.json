@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "phi4/Phi-4-mini-reasoning",
+  "kind": "language",
+  "label": "Phi-4 mini reasoning",
+  "publisher": "Microsoft",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/microsoft/Phi-4-mini-instruct-reasoning/resolve/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/microsoft/Phi-4-mini-reasoning",
+  "description": {
+    "fr": "Famille Phi-4 de Microsoft, sous licence MIT, orientée vers le raisonnement logique et mathématique, surtout en anglais. Phi-4 mini reasoning est spécialisé dans les problèmes de mathématiques en plusieurs étapes, dans un format de portable. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "The Phi-4 family from Microsoft, under the MIT licence, geared towards logical and mathematical reasoning, mostly in English. Phi-4 mini reasoning is specialised in multi-step mathematics problems, in a laptop-sized format. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/microsoft/Phi-4-mini-reasoning/tree/main"
+  },
+  "memory": {
+    "min_gb": 2.5,
+    "source": "https://huggingface.co/unsloth/Phi-4-mini-reasoning-GGUF/blob/main/Phi-4-mini-reasoning-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "microsoft/Phi-4-mini-reasoning",
+    "unsloth/Phi-4-mini-reasoning-GGUF",
+    "mlx-community/Phi-4-mini-reasoning-4bit",
+    "bartowski/microsoft_Phi-4-mini-reasoning-GGUF",
+    "lmstudio-community/Phi-4-mini-reasoning-GGUF",
+    "lmstudio-community/Phi-4-mini-reasoning-MLX-4bit",
+    "mlx-community/Phi-4-mini-reasoning-6bit",
+    "mlx-community/Phi-4-mini-reasoning-8bit"
+  ]
+}

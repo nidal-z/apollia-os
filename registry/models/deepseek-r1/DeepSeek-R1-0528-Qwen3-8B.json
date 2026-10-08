@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "deepseek-r1/DeepSeek-R1-0528-Qwen3-8B",
+  "kind": "language",
+  "label": "DeepSeek R1 0528 Qwen3 8B",
+  "publisher": "DeepSeek",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+  },
+  "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+  "description": {
+    "fr": "Modèle distillé de DeepSeek R1 : un modèle ouvert plus petit a appris à reproduire le raisonnement de R1, qu'il déroule toujours avant de répondre. Celui-ci part de Qwen3 8B et reprend le raisonnement de la version R1 de mai 2025. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "A model distilled from DeepSeek R1: a smaller open model has learned to reproduce the reasoning of R1, which it always lays out before answering. This one starts from Qwen3 8B and takes up the reasoning of the May 2025 version of R1. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-0528-Qwen3-8B/tree/main"
+  },
+  "memory": {
+    "min_gb": 5.1,
+    "source": "https://huggingface.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF/blob/main/DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+    "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+    "mlx-community/DeepSeek-R1-0528-Qwen3-8B-4bit",
+    "bartowski/deepseek-ai_DeepSeek-R1-0528-Qwen3-8B-GGUF",
+    "lmstudio-community/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+    "lmstudio-community/DeepSeek-R1-0528-Qwen3-8B-MLX-4bit",
+    "mlx-community/DeepSeek-R1-0528-Qwen3-8B-6bit",
+    "mlx-community/DeepSeek-R1-0528-Qwen3-8B-8bit",
+    "lmstudio-community/DeepSeek-R1-0528-Qwen3-8B-MLX-8bit"
+  ]
+}

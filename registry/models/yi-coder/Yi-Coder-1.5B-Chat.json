@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "yi-coder/Yi-Coder-1.5B-Chat",
+  "kind": "language",
+  "label": "Yi Coder 1.5B",
+  "publisher": "01.AI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/01-ai/Yi-Coder-1.5B-Chat"
+  },
+  "source_url": "https://huggingface.co/01-ai/Yi-Coder-1.5B-Chat",
+  "description": {
+    "fr": "Yi Coder de 01.AI est un petit modèle spécialisé dans le code, avec un long contexte pour lire plusieurs fichiers à la fois. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "Yi Coder from 01.AI is a small model specialised in code, with a long context to read several files at once. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/01-ai/Yi-Coder-1.5B-Chat/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.0,
+    "source": "https://huggingface.co/bartowski/Yi-Coder-1.5B-Chat-GGUF/blob/main/Yi-Coder-1.5B-Chat-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "01-ai/Yi-Coder-1.5B-Chat",
+    "bartowski/Yi-Coder-1.5B-Chat-GGUF",
+    "lmstudio-community/Yi-Coder-1.5B-Chat-GGUF"
+  ]
+}

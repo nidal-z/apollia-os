@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/openai/whisper-tiny",
   "description": {
-    "fr": "Le plus petit modèle de dictée : quasi instantané, pour des notes rapides ; la transcription reste approximative.",
-    "en": "The smallest dictation model: almost instant, for quick notes; the transcript stays approximate."
+    "fr": "Le plus petit modèle Whisper d'OpenAI pour la dictée : quasi instantané, y compris sans carte graphique, pour des notes rapides. La transcription reste approximative sur les noms propres, la ponctuation et les voix peu nettes. Il tient sur toute machine.",
+    "en": "The smallest Whisper model from OpenAI for dictation: near instant, even with no graphics card, for quick notes. The transcript stays approximate on proper nouns, punctuation and unclear voices. It fits any machine."
   },
   "capabilities": {
     "tools": false,

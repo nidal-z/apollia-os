@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "command-a/command-a-reasoning-08-2025",
+  "kind": "language",
+  "label": "Command A Reasoning",
+  "publisher": "Cohere",
+  "license": {
+    "id": "cc-by-nc-4.0",
+    "source": "https://huggingface.co/CohereLabs/command-a-reasoning-08-2025"
+  },
+  "source_url": "https://huggingface.co/CohereLabs/command-a-reasoning-08-2025",
+  "description": {
+    "fr": "Command A Reasoning de Cohere est la variante de raisonnement de Command A : agents d'entreprise et tâches en plusieurs étapes, avec appel d'outils. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 96 Go de mémoire en quantification Q4. Sa licence (cc-by-nc-4.0) interdit l'usage commercial.",
+    "en": "Command A Reasoning from Cohere is the reasoning variant of Command A: business agents and multi-step tasks, with tool calling. A very large size, for workstations only; plan for a machine with at least 96 GB of memory at Q4 quantization. Its licence (cc-by-nc-4.0) forbids commercial use."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/CohereLabs/command-a-reasoning-08-2025/tree/main"
+  },
+  "memory": {
+    "min_gb": 67.2,
+    "source": "https://huggingface.co/bartowski/CohereLabs_command-a-reasoning-08-2025-GGUF/blob/main/CohereLabs_command-a-reasoning-08-2025-Q4_K_M/CohereLabs_command-a-reasoning-08-2025-Q4_K_M-00001-of-00002.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "CohereLabs/command-a-reasoning-08-2025",
+    "bartowski/CohereLabs_command-a-reasoning-08-2025-GGUF",
+    "mlx-community/command-a-reasoning-08-2025-8bit"
+  ]
+}

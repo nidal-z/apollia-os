@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "qwen2.5-coder/Qwen2.5-Coder-0.5B-Instruct",
+  "kind": "language",
+  "label": "Qwen2.5 Coder 0.5B",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct",
+  "description": {
+    "fr": "Qwen2.5 Coder d'Alibaba est entraîné pour le code : écriture, correction et explication de programmes dans de nombreux langages, avec appel d'outils et sans mode de réflexion. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "Qwen2.5 Coder from Alibaba is trained for code: writing, fixing and explaining programs in many languages, with tool calling and no thinking mode. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.5,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/blob/main/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf"
+  },
+  "defaults": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "repetition_penalty": 1.05,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+    "Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF",
+    "mlx-community/Qwen2.5-Coder-0.5B-Instruct-4bit",
+    "unsloth/Qwen2.5-Coder-0.5B-Instruct-GGUF",
+    "bartowski/Qwen2.5-Coder-0.5B-Instruct-GGUF",
+    "lmstudio-community/Qwen2.5-Coder-0.5B-Instruct-GGUF",
+    "lmstudio-community/Qwen2.5-Coder-0.5B-Instruct-MLX-4bit",
+    "mlx-community/Qwen2.5-Coder-0.5B-Instruct-8bit",
+    "lmstudio-community/Qwen2.5-Coder-0.5B-Instruct-MLX-8bit"
+  ]
+}

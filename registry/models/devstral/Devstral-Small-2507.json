@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "devstral/Devstral-Small-2507",
+  "kind": "language",
+  "label": "Devstral Small 1.1",
+  "publisher": "Mistral AI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/mistralai/Devstral-Small-2507"
+  },
+  "source_url": "https://huggingface.co/mistralai/Devstral-Small-2507",
+  "description": {
+    "fr": "Devstral Small 1.1 de Mistral AI est entraîné pour le génie logiciel avec des agents : il explore un dépôt de code, modifie plusieurs fichiers et enchaîne les appels d'outils ; Devstral Small 2 lui a succédé. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4.",
+    "en": "Devstral Small 1.1 from Mistral AI is trained for software engineering with agents: it explores a code repository, edits several files and chains tool calls; Devstral Small 2 has succeeded it. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/unsloth/Devstral-Small-2507-GGUF"
+  },
+  "memory": {
+    "min_gb": 14.4,
+    "source": "https://huggingface.co/unsloth/Devstral-Small-2507-GGUF/blob/main/Devstral-Small-2507-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "mistralai/Devstral-Small-2507",
+    "unsloth/Devstral-Small-2507-GGUF",
+    "mlx-community/Devstral-Small-2507-4bit",
+    "bartowski/mistralai_Devstral-Small-2507-GGUF",
+    "lmstudio-community/Devstral-Small-2507-GGUF",
+    "lmstudio-community/Devstral-Small-2507-MLX-4bit",
+    "mlx-community/Devstral-Small-2507-5bit",
+    "mlx-community/Devstral-Small-2507-6bit",
+    "mlx-community/Devstral-Small-2507-8bit",
+    "lmstudio-community/Devstral-Small-2507-MLX-6bit",
+    "lmstudio-community/Devstral-Small-2507-MLX-8bit"
+  ]
+}

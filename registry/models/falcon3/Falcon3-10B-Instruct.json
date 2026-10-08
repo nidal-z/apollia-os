@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "falcon3/Falcon3-10B-Instruct",
+  "kind": "language",
+  "label": "Falcon3 10B",
+  "publisher": "TII",
+  "license": {
+    "id": "falcon-llm-license",
+    "source": "https://falconllm.tii.ae/falcon-terms-and-conditions.html"
+  },
+  "source_url": "https://huggingface.co/tiiuae/Falcon3-10B-Instruct",
+  "description": {
+    "fr": "Famille Falcon3 du Technology Innovation Institute d'Abou Dabi : conversation, code et appel d'outils en anglais, français, espagnol et portugais. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The Falcon3 family from the Technology Innovation Institute of Abu Dhabi: conversation, code and tool calling in English, French, Spanish and Portuguese. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/tiiuae/Falcon3-10B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 6.3,
+    "source": "https://huggingface.co/tiiuae/Falcon3-10B-Instruct-GGUF/blob/main/Falcon3-10B-Instruct-q4_k_m.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "tiiuae/Falcon3-10B-Instruct",
+    "tiiuae/Falcon3-10B-Instruct-GGUF",
+    "mlx-community/Falcon3-10B-Instruct-4bit",
+    "bartowski/Falcon3-10B-Instruct-GGUF",
+    "lmstudio-community/Falcon3-10B-Instruct-GGUF",
+    "mlx-community/Falcon3-10B-Instruct-6bit",
+    "mlx-community/Falcon3-10B-Instruct-8bit"
+  ]
+}

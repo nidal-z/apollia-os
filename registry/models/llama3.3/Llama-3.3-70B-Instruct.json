@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
   "description": {
-    "fr": "Grand modèle de Meta, réservé aux postes très dotés : rédaction soignée et suivi fidèle des consignes, avec appel d'outils.",
-    "en": "A large Meta model for well-equipped machines only: careful writing and faithful instruction following, with tool calls."
+    "fr": "Llama 3.3 de Meta n'existe qu'en 70 milliards de paramètres : rédaction soignée, suivi fidèle des consignes et appel d'outils, en texte seul. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
+    "en": "Llama 3.3 from Meta exists only at 70 billion parameters: careful writing, faithful instruction following and tool calling, in text only. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."
   },
   "capabilities": {
     "tools": true,
@@ -31,8 +31,11 @@
   "author_fields": [],
   "repos": [
     "meta-llama/Llama-3.3-70B-Instruct",
-    "bartowski/Llama-3.3-70B-Instruct-GGUF",
     "unsloth/Llama-3.3-70B-Instruct-GGUF",
-    "mlx-community/Llama-3.3-70B-Instruct-4bit"
+    "mlx-community/Llama-3.3-70B-Instruct-4bit",
+    "bartowski/Llama-3.3-70B-Instruct-GGUF",
+    "lmstudio-community/Llama-3.3-70B-Instruct-GGUF",
+    "mlx-community/Llama-3.3-70B-Instruct-6bit",
+    "mlx-community/Llama-3.3-70B-Instruct-8bit"
   ]
 }

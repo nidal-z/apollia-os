@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/google/gemma-3-27b-it",
   "description": {
-    "fr": "Le plus grand Gemma 3 de la sélection : rédaction soignée et lecture d'images, sans appel d'outils, pour un poste bien doté.",
-    "en": "The largest Gemma 3 of the selection: careful writing and image reading, without tool calls, for a well-equipped machine."
+    "fr": "Génération Gemma 3 de Google, soignée en rédaction et à l'aise dans de nombreuses langues ; elle n'a pas de mode de réflexion. Cette taille, la plus grande de la génération, lit aussi les images. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "The Gemma 3 generation from Google, careful in writing and at ease in many languages; it has no thinking mode. This size, the largest of the generation, also reads images. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization. Its chat template has no tool calling."
   },
   "capabilities": {
     "tools": false,
@@ -31,10 +31,21 @@
   "author_fields": [],
   "repos": [
     "google/gemma-3-27b-it",
-    "google/gemma-3-27b-it-GGUF",
     "unsloth/gemma-3-27b-it-GGUF",
-    "bartowski/gemma-3-27b-it-GGUF",
-    "mlx-community/gemma-3-27b-it-4bit"
+    "mlx-community/gemma-3-27b-it-4bit",
+    "bartowski/google_gemma-3-27b-it-GGUF",
+    "lmstudio-community/gemma-3-27b-it-GGUF",
+    "ggml-org/gemma-3-27b-it-GGUF",
+    "google/gemma-3-27b-it-qat-q4_0-gguf",
+    "unsloth/gemma-3-27b-it-qat-GGUF",
+    "bartowski/google_gemma-3-27b-it-qat-GGUF",
+    "lmstudio-community/gemma-3-27B-it-qat-GGUF",
+    "ggml-org/gemma-3-27b-it-qat-GGUF",
+    "mlx-community/gemma-3-27b-it-6bit",
+    "mlx-community/gemma-3-27b-it-8bit",
+    "mlx-community/gemma-3-27b-it-qat-4bit",
+    "mlx-community/gemma-3-27b-it-qat-6bit",
+    "mlx-community/gemma-3-27b-it-qat-8bit"
   ],
   "template": "crates/apollia-llm/src/capabilities/fixtures/chat_template_gemma3_4b.jinja"
 }

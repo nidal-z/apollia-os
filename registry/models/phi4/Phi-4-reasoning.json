@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "phi4/Phi-4-reasoning",
+  "kind": "language",
+  "label": "Phi-4 reasoning",
+  "publisher": "Microsoft",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/microsoft/Phi-4-reasoning/resolve/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/microsoft/Phi-4-reasoning",
+  "description": {
+    "fr": "Famille Phi-4 de Microsoft, sous licence MIT, orientée vers le raisonnement logique et mathématique, surtout en anglais. Phi-4 reasoning déroule toujours sa réflexion avant de répondre, pour les mathématiques, les sciences et le code. Taille intermédiaire, plus précise sur les documents longs et les tâches en plusieurs étapes ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "The Phi-4 family from Microsoft, under the MIT licence, geared towards logical and mathematical reasoning, mostly in English. Phi-4 reasoning always lays out its thinking before answering, for mathematics, science and code. An intermediate size, more precise on long documents and multi-step tasks; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/microsoft/Phi-4-reasoning/tree/main"
+  },
+  "memory": {
+    "min_gb": 9.1,
+    "source": "https://huggingface.co/unsloth/Phi-4-reasoning-GGUF/blob/main/phi-4-reasoning-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "top_k": 50,
+    "source": "https://huggingface.co/microsoft/Phi-4-reasoning/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "microsoft/Phi-4-reasoning",
+    "unsloth/Phi-4-reasoning-GGUF",
+    "mlx-community/Phi-4-reasoning-4bit",
+    "bartowski/microsoft_Phi-4-reasoning-GGUF",
+    "lmstudio-community/Phi-4-reasoning-GGUF",
+    "lmstudio-community/Phi-4-reasoning-MLX-4bit",
+    "mlx-community/Phi-4-reasoning-6bit",
+    "mlx-community/Phi-4-reasoning-8bit"
+  ]
+}

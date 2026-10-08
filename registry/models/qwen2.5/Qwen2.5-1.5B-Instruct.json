@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "id": "qwen2.5/Qwen2.5-1.5B-Instruct",
+  "kind": "language",
+  "label": "Qwen2.5 1.5B",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct",
+  "description": {
+    "fr": "Génération Qwen2.5 d'Alibaba, sortie en 2024 et remplacée depuis par Qwen3 : réponses directes sans mode de réflexion, appel d'outils et bonne tenue en plusieurs langues. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "The Qwen2.5 generation from Alibaba, released in 2024 and since replaced by Qwen3: direct answers with no thinking mode, tool calling and good behaviour in several languages. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.2,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/blob/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+  },
+  "defaults": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "repetition_penalty": 1.1,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen2.5-1.5B-Instruct",
+    "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+    "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+    "bartowski/Qwen2.5-1.5B-Instruct-GGUF",
+    "lmstudio-community/Qwen2.5-1.5B-Instruct-GGUF",
+    "lmstudio-community/Qwen2.5-1.5B-Instruct-MLX-4bit",
+    "mlx-community/Qwen2.5-1.5B-Instruct-8bit",
+    "lmstudio-community/Qwen2.5-1.5B-Instruct-MLX-8bit"
+  ]
+}

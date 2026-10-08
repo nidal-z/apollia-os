@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "gpt-oss/gpt-oss-20b",
+  "kind": "language",
+  "label": "gpt-oss 20B",
+  "publisher": "OpenAI",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/openai/gpt-oss-20b"
+  },
+  "source_url": "https://huggingface.co/openai/gpt-oss-20b",
+  "description": {
+    "fr": "gpt-oss est le modèle à poids ouverts d'OpenAI, sous licence Apache 2.0 : il raisonne avant de répondre, avec un effort réglable sur trois niveaux, et appelle des outils, en texte seul. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 24 Go de mémoire en quantification Q4.",
+    "en": "gpt-oss is the open-weight model from OpenAI, under the Apache 2.0 licence: it reasons before answering, with an effort set on three levels, and calls tools, in text only. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 24 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/openai/gpt-oss-20b/tree/main"
+  },
+  "memory": {
+    "min_gb": 11.7,
+    "source": "https://huggingface.co/unsloth/gpt-oss-20b-GGUF/blob/main/gpt-oss-20b-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [
+    {
+      "name": "reasoning_effort",
+      "type": "liste",
+      "values": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default": "medium",
+      "explanation": {
+        "fr": "Règle la profondeur de la réflexion avant la réponse. Plus l'effort est élevé, plus le modèle prend de temps et mieux il traite les problèmes en plusieurs étapes.",
+        "en": "Sets how deep the model thinks before answering. The higher the effort, the more time the model takes and the better it handles multi-step problems."
+      },
+      "source": "https://huggingface.co/openai/gpt-oss-20b/blob/main/README.md"
+    }
+  ],
+  "repos": [
+    "openai/gpt-oss-20b",
+    "unsloth/gpt-oss-20b-GGUF",
+    "lmstudio-community/gpt-oss-20b-MLX-8bit",
+    "bartowski/openai_gpt-oss-20b-GGUF",
+    "lmstudio-community/gpt-oss-20b-GGUF",
+    "ggml-org/gpt-oss-20b-GGUF"
+  ]
+}

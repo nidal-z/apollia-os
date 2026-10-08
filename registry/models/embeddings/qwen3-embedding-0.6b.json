@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
   "description": {
-    "fr": "Modèle d'embeddings de Qwen, plus précis pour la recherche par le sens et capable de lire des passages longs ; il demande un peu plus de mémoire.",
-    "en": "An embeddings model from Qwen, more precise for search by meaning and able to read long passages; it needs a little more memory."
+    "fr": "Modèle d'embeddings de Qwen pour la recherche par le sens, dans une centaine de langues. Plus précis que les petits modèles et capable de lire des passages longs, jusqu'à 32 000 jetons. Il demande un peu plus de mémoire, autour de 1 Go.",
+    "en": "An embeddings model from Qwen for search by meaning, in about a hundred languages. More precise than the small models and able to read long passages, up to 32,000 tokens. It needs a little more memory, around 1 GB."
   },
   "capabilities": {
     "tools": false,

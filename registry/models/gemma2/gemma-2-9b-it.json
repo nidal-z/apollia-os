@@ -10,8 +10,8 @@
   },
   "source_url": "https://huggingface.co/google/gemma-2-9b-it",
   "description": {
-    "fr": "Ancienne génération Gemma, conservée pour la conversation simple ; ni outils ni images.",
-    "en": "An older Gemma generation, kept for plain conversation; neither tools nor images."
+    "fr": "Génération Gemma 2 de Google, sortie en 2024 et remplacée depuis par Gemma 3 puis Gemma 4 : conversation et rédaction en texte seul, sans images ni mode de réflexion. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
+    "en": "The Gemma 2 generation from Google, released in 2024 and since replaced by Gemma 3 then Gemma 4: conversation and writing in text only, with no images and no thinking mode. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling."
   },
   "capabilities": {
     "tools": false,
@@ -30,6 +30,9 @@
   "repos": [
     "google/gemma-2-9b-it",
     "bartowski/gemma-2-9b-it-GGUF",
-    "mlx-community/gemma-2-9b-it-4bit"
+    "mlx-community/gemma-2-9b-it-4bit",
+    "lmstudio-community/gemma-2-9b-it-GGUF",
+    "mlx-community/gemma-2-9b-it-6bit",
+    "mlx-community/gemma-2-9b-it-8bit"
   ]
 }

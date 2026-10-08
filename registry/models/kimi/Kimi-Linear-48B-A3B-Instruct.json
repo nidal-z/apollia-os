@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "kimi/Kimi-Linear-48B-A3B-Instruct",
+  "kind": "language",
+  "label": "Kimi Linear 48B-A3B",
+  "publisher": "Moonshot AI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct"
+  },
+  "source_url": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct",
+  "description": {
+    "fr": "Kimi Linear de Moonshot AI est un modèle à experts de 48 milliards de paramètres dont l'attention linéaire réduit le coût en mémoire et en temps des très longs contextes, avec appel d'outils. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 48 Go de mémoire en quantification Q4.",
+    "en": "Kimi Linear from Moonshot AI is a mixture-of-experts model of 48 billion parameters whose linear attention lowers the memory and time cost of very long contexts, with tool calling. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 48 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/moonshotai/Kimi-Linear-48B-A3B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 30.1,
+    "source": "https://huggingface.co/bartowski/moonshotai_Kimi-Linear-48B-A3B-Instruct-GGUF/blob/main/moonshotai_Kimi-Linear-48B-A3B-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "moonshotai/Kimi-Linear-48B-A3B-Instruct",
+    "bartowski/moonshotai_Kimi-Linear-48B-A3B-Instruct-GGUF",
+    "mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit",
+    "mlx-community/Kimi-Linear-48B-A3B-Instruct-5bit",
+    "mlx-community/Kimi-Linear-48B-A3B-Instruct-6bit",
+    "mlx-community/Kimi-Linear-48B-A3B-Instruct-8bit"
+  ]
+}

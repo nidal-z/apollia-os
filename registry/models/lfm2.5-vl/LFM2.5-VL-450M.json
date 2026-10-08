@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "lfm2.5-vl/LFM2.5-VL-450M",
+  "kind": "language",
+  "label": "LFM2.5-VL 450M",
+  "publisher": "Liquid AI",
+  "license": {
+    "id": "lfm1.0",
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-VL-450M/blob/main/LICENSE"
+  },
+  "source_url": "https://huggingface.co/LiquidAI/LFM2.5-VL-450M",
+  "description": {
+    "fr": "LFM2.5-VL de Liquid AI lit les images sur l'appareil : lecture de pages entières, repérage d'objets et appel d'outils, avec peu de mémoire. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
+    "en": "LFM2.5-VL from Liquid AI reads images on the device: reading whole pages, locating objects and tool calling, with little memory. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-VL-450M/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.3,
+    "source": "https://huggingface.co/LiquidAI/LFM2.5-VL-450M-GGUF/blob/main/LFM2.5-VL-450M-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "LiquidAI/LFM2.5-VL-450M",
+    "LiquidAI/LFM2.5-VL-450M-GGUF",
+    "LiquidAI/LFM2.5-VL-450M-MLX-4bit",
+    "LiquidAI/LFM2.5-VL-450M-MLX-5bit",
+    "LiquidAI/LFM2.5-VL-450M-MLX-6bit",
+    "LiquidAI/LFM2.5-VL-450M-MLX-8bit",
+    "mlx-community/LFM2.5-VL-450M-6bit",
+    "mlx-community/LFM2.5-VL-450M-8bit"
+  ]
+}
