@@ -158,15 +158,15 @@ beforeEach(() => {
 });
 
 describe("Engines - one engine per format", () => {
-  test("the page opens on the engine of each format: Automatic, then every engine held with its version", () => {
+  test("the page names the engine of each format: Automatic, then every engine held with its version", () => {
     // GIVEN a Mac holding several engines per format, and no choice written
     // WHEN System > Engines renders
     const html = renderToString(Engines).body;
 
-    // THEN the engine per format comes first, before the list
+    // THEN the engine per format follows the list of what runs here
     expect(html).toContain(copy.selection_title);
-    expect(html.indexOf('data-testid="engines-selection"')).toBeGreaterThan(-1);
-    expect(html.indexOf('data-testid="engines-selection"')).toBeLessThan(
+    expect(html.indexOf('data-testid="engines-list"')).toBeGreaterThan(-1);
+    expect(html.indexOf('data-testid="engines-selection"')).toBeGreaterThan(
       html.indexOf('data-testid="engines-list"'),
     );
     // AND it carries a GGUF line and an MLX line
