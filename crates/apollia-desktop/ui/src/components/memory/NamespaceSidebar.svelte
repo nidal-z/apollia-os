@@ -133,13 +133,13 @@
             aria-selected={isActive}
             onclick={() => (categoryFilter = chip.key)}
             disabled={count === 0 && chip.key !== "all"}
-            class="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-overline font-medium tracking-tight transition-colors disabled:cursor-not-allowed disabled:opacity-40 {isActive
-              ? 'bg-background text-foreground shadow-elev-1'
+            class="inline-flex shrink-0 items-center gap-1.5 rounded px-2 py-1 text-caption font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 {isActive
+              ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'}"
             data-testid="namespace-sidebar-cat-{chip.key}"
             title={$t(chip.labelKey)}
           >
-            <Icon size={10} />
+            <Icon size={12} />
             <span class="hidden sm:inline">{$t(chip.labelKey)}</span>
             <span class="tabular-nums {isActive ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
               {count}
@@ -202,11 +202,11 @@
                 {#if ns.displayName}
                   {ns.displayName}
                 {:else}
-                  <span class="font-mono">{ns.name}</span>
+                  <span>{ns.name}</span>
                 {/if}
               </div>
               {#if ns.displayName && ns.displayName !== ns.name}
-                <div class="truncate font-mono text-overline font-normal tracking-normal text-muted-foreground/60" title={ns.name}>
+                <div class="truncate text-caption text-muted-foreground/70" title={ns.name}>
                   {ns.name}
                 </div>
               {/if}

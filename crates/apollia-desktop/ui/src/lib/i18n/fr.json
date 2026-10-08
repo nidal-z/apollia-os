@@ -1563,7 +1563,7 @@
     "empty_title": "Aucune donnée mémoire",
     "empty_subtitle": "Vos agents stockeront des données ici.",
     "search_placeholder": "Rechercher... (min. 3 caractères)",
-    "empty_entries": "Aucune entrée mémoire dans ce namespace.",
+    "empty_entries": "Aucune entrée dans cet espace.",
     "no_search_results": "Aucun résultat pour cette recherche.",
     "entry_deleted": "Entrée supprimée.",
     "entry_not_found": "Entrée introuvable.",
@@ -1603,7 +1603,7 @@
     "cancel": "Annuler",
     "confirm": "Confirmer",
     "namespaces": {
-      "title": "Namespaces",
+      "title": "Espaces de mémoire",
       "filter_placeholder": "Filtrer…",
       "category_filter": "Filtrer par catégorie",
       "cat_all": "Tous",
@@ -1615,9 +1615,9 @@
       "cat_agent_header": "Agents",
       "cat_project_header": "Projets",
       "cat_other_header": "Autres",
-      "no_match": "Aucun namespace ne correspond.",
-      "empty_category": "Aucun namespace dans cette catégorie.",
-      "empty": "Aucun namespace."
+      "no_match": "Aucun espace ne correspond.",
+      "empty_category": "Aucun espace dans cette catégorie.",
+      "empty": "Aucun espace."
     },
     "value_empty": "vide",
     "action_open": "Ouvrir le détail",

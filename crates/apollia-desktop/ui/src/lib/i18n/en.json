@@ -1603,7 +1603,7 @@
     "cancel": "Cancel",
     "confirm": "Confirm",
     "namespaces": {
-      "title": "Namespaces",
+      "title": "Memory spaces",
       "filter_placeholder": "Filter…",
       "category_filter": "Filter by category",
       "cat_all": "All",
@@ -1615,9 +1615,9 @@
       "cat_agent_header": "Agents",
       "cat_project_header": "Projects",
       "cat_other_header": "Other",
-      "no_match": "No namespace matches.",
-      "empty_category": "No namespace in this category.",
-      "empty": "No namespace."
+      "no_match": "No space matches.",
+      "empty_category": "No space in this category.",
+      "empty": "No space."
     },
     "value_empty": "empty",
     "action_open": "Open details",
