@@ -1,10 +1,14 @@
 ---
-title: Install Apollia on macOS
+title: Install Apollia Desktop on macOS
 slug: /operator-help/installation/install-on-macos
 sidebar_position: 1
 ---
 
-# Install Apollia on macOS
+# Install Apollia Desktop on macOS
+
+The application is Apollia Desktop. Its installers and the files they put on
+disk still carry the name of the engine underneath, Apollia OS, which is the
+name you will read below.
 
 Apollia ships for macOS from the publication page,
 `https://github.com/Apollia-OS/apollia-os/releases`, which attaches three files

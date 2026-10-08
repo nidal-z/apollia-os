@@ -1764,11 +1764,11 @@
     "native": {
       "approval_title": "Action requise",
       "approval_body": "Agent {agentName} attend une approbation",
-      "task_approval_title": "Action requise - Apollia OS",
+      "task_approval_title": "Action requise - Apollia Desktop",
       "task_approval_body": "Tâche {id} attend votre approbation",
       "chat_approval_title": "Approbation requise - Chat",
       "chat_approval_body": "L'outil « {tool} » demande votre autorisation (session {id})",
-      "tool_failure_title": "Outil échoué - Apollia OS",
+      "tool_failure_title": "Outil échoué - Apollia Desktop",
       "tool_failure_body": "L'outil « {tool} » a échoué (session {id})",
       "batch_completed_title": "Lot terminé",
       "batch_interrupted_title": "Lot interrompu",
@@ -2097,7 +2097,7 @@
       "notifications": "Notifications"
     },
     "help": {
-      "intro": "Apollia OS exécute vos agents IA en local, sur votre propre machine, avec vos propres modèles. Les rubriques ci-dessous couvrent l'essentiel pour démarrer.",
+      "intro": "Apollia Desktop exécute vos agents IA en local, sur votre propre machine, avec vos propres modèles. Les rubriques ci-dessous couvrent l'essentiel pour démarrer.",
       "getting_started": "Premiers pas",
       "topic_model_title": "Configurer un modèle",
       "topic_model_body": "Téléchargez un modèle local depuis le Hub de modèles, ou connectez un serveur externe, afin qu'Apollia et vos agents puissent raisonner.",
@@ -2161,7 +2161,7 @@
       "local_memory": "Conversations, mémoire des agents et contexte des projets sont stockés dans des bases SQLite locales.",
       "local_audit": "Chaque action sensible est écrite dans un journal d'audit local, infalsifiable et exportable.",
       "license_title": "Licence",
-      "license_body": "Apollia OS est libre et open source, sous double licence MIT ou Apache 2.0, au choix.",
+      "license_body": "Apollia Desktop est libre et open source, sous double licence MIT ou Apache 2.0, au choix.",
       "contact_title": "Contact",
       "channel_stable": "Canal stable",
       "channel_prerelease": "Canal préversion",
@@ -2243,7 +2243,7 @@
       "items": {
         "palette_open": "Ouvrir la palette de commandes",
         "help_overlay": "Afficher la cheatsheet contextuelle",
-        "app_quit": "Quitter Apollia",
+        "app_quit": "Quitter Apollia Desktop",
         "nav_back": "Revenir en arrière",
         "nav_forward": "Aller en avant",
         "nav_sidebar": "Afficher/masquer la barre latérale",
@@ -2563,7 +2563,7 @@
     "update": {
       "check": "Vérifier les mises à jour",
       "checking": "Vérification en cours…",
-      "up_to_date": "Apollia OS est à jour",
+      "up_to_date": "Apollia Desktop est à jour",
       "available": "Version {version} disponible",
       "install": "Installer et relancer",
       "error": "Impossible de vérifier les mises à jour",
@@ -2571,7 +2571,7 @@
       "changelog_title": "Nouveautés",
       "show_details": "Détails techniques",
       "downloading": "Téléchargement de la mise à jour…",
-      "installed": "Mise à jour installée. Redémarrage d'Apollia OS…",
+      "installed": "Mise à jour installée. Redémarrage d'Apollia Desktop…",
       "no_channel": "Aucune mise à jour n'a encore été publiée. Cette version est la plus récente disponible.",
       "open_releases": "Ouvrir la page des versions"
     },
@@ -4121,7 +4121,7 @@
     "error_not_configured": "La dictée n'est pas activée ou aucun modèle n'est choisi."
   },
   "onboarding_welcome": {
-    "title": "Bienvenue dans Apollia",
+    "title": "Bienvenue dans Apollia Desktop",
     "tagline": "Vos agents travaillent sur votre poste, avec vos outils et vos documents. Choisissez d'abord la langue de l'interface.",
     "language_label": "Langue de l'interface",
     "language_hint": "Vous pourrez la changer à tout moment dans Réglages, Général."
@@ -4586,7 +4586,7 @@
       "shortcuts": "Afficher les raccourcis clavier",
       "openShortcutsPage": "Ouvrir la page Raccourcis",
       "help": "Aide et premiers pas",
-      "about": "À propos d'Apollia",
+      "about": "À propos d'Apollia Desktop",
       "resetOnboarding": "Réinitialiser l'onboarding",
       "quit": "Quitter",
       "toggleDevConsole": "Basculer la console dev"

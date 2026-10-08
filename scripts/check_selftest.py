@@ -2834,6 +2834,23 @@ def check_ui_vocabulary_fires() -> None:
         f"the agent sheet escaped the guard: {found!r}",
     )
 
+    found = uivocab.product_name_findings(
+        "en", {"settings.updates.up_to_date": "Apollia OS is up to date"}
+    )
+    case(
+        "the engine name used for the application is refused",
+        len(found) == 1 and "settings.updates.up_to_date" in found[0],
+        f"an interface text named the application Apollia OS and passed: {found!r}",
+    )
+    for name, key, value in [
+        ("the name of the application", "settings.updates.up_to_date", "Apollia Desktop is up to date"),
+        ("the brand alone", "chat.empty", "Talk with Apollia."),
+        ("the engine named in a developer text", "dev.api_title", "The Apollia OS runtime API"),
+        ("the engine named on a developer screen", "observability.title", "Apollia OS events"),
+    ]:
+        found = uivocab.product_name_findings("en", {key: value})
+        case(f"stays silent on {name}", found == [], f"{key} was refused: {found!r}")
+
     real = uivocab.SIDEBAR.read_text(encoding="utf-8")
     case(
         "the real sidebar carries every exempt route",

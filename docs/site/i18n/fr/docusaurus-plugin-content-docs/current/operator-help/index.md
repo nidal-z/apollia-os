@@ -1,15 +1,15 @@
 ---
 title: Centre d'aide operateur
-description: "Des guides pas à pas pour utiliser Apollia au quotidien : l'installer, brancher vos outils, créer des automatisations, garder la main sur les agents."
+description: "Des guides pas à pas pour utiliser Apollia Desktop au quotidien : l'installer, brancher vos outils, créer des automatisations, garder la main sur les agents."
 slug: /operator-help
 sidebar_position: 0
 ---
 
-# Apollia, centre d'aide
+# Apollia Desktop, centre d'aide
 
 Guides pas-a-pas pour configurer, automatiser et controler votre IA au quotidien.
 
-Ce corpus est en francais. Il couvre l'application desktop cote operateur :
+Ce corpus est en francais. Il couvre Apollia Desktop, l'application de bureau, cote operateur :
 installer, connecter un fournisseur d'IA, lancer des agents, automatiser,
 garder la main sur les actions sensibles et suivre ce qui se passe.
 

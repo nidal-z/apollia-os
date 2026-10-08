@@ -1,8 +1,16 @@
-# Apollia, capabilities
+# Apollia Desktop, capabilities
 
-Apollia runs AI agents on your own machine. Your data stays there unless you
-connect a service yourself. It works with a model that runs on this computer,
+Apollia Desktop is the application you are in. It runs AI agents on your own
+machine. Your data stays there unless you connect a service yourself. It works with a model that runs on this computer,
 or with a model server you choose to connect.
+
+## The three names
+
+- **Apollia Desktop** is the application: its window, its screens, its help.
+- **Apollia OS** is the engine under it, with the `apollia-os` command line
+  and the Python SDK. A developer drives it directly; nobody has to.
+- **Apollia** alone is the brand, and the name of the default assistant of the
+  chat.
 
 ## Agents
 

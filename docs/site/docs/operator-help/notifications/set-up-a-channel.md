@@ -157,7 +157,7 @@ card on the Notifications page.
 - **Desktop notification invisible**: check that the application's notifications are allowed in the system settings (macOS: *Settings → Notifications → Apollia*; Windows 11: *Settings → System → Notifications*).
 - **Webhook returning 401 / 403**: the URL or the authentication header is wrong. Regenerate the URL on the Slack/Discord/Teams side and paste it again.
 - **Webhook returning 404 or timing out**: the URL was copied wrong or the endpoint is offline.
-- **Webhook blocked (SSRF)**: if the error message contains *"SSRF blocked"*, the URL points to a private address (`10.x.x.x`, `192.168.x.x`, `127.0.0.1`, or a cloud metadata endpoint). Apollia OS refuses these deliveries for safety; use public URLs only.
+- **Webhook blocked (SSRF)**: if the error message contains *"SSRF blocked"*, the URL points to a private address (`10.x.x.x`, `192.168.x.x`, `127.0.0.1`, or a cloud metadata endpoint). Apollia Desktop refuses these deliveries for safety; use public URLs only.
 - **Name already taken**: the name is free-form but the technical identifier must be unique. If the creation fails with a conflict, open the *"Technical identifier"* section and change it manually.
 - **Test notification received but not the real ones**: check the *Global events* section at the top of the **Notifications** page - an event unchecked globally will go out on no channel, even if that channel checks it locally.
 

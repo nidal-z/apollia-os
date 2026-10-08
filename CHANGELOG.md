@@ -7,6 +7,10 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [0.3.0] - Unreleased
 
+The desktop application is named Apollia Desktop from this version on.
+Apollia OS keeps naming the engine under it, the `apollia-os` command line and
+the SDK.
+
 Changes since `0.2.0-preview`. This release does not chase new capabilities: it
 makes the product readable and usable without opening a file of code or of
 configuration. An agent becomes a sheet anyone can read, the places where the

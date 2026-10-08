@@ -53,6 +53,7 @@ const WHITELIST_FILES = new Set([
 const BRAND_WHITELIST = new Set([
   "Apollia",
   "Apollia OS",
+  "Apollia Desktop",
   "Apollia Chat",
   "Apollia OS Runtime",
   "MCP",

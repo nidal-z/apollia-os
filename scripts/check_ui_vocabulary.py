@@ -15,6 +15,13 @@ in `s` is the same word. ICU placeholders (`{name}`) are variable names, not
 displayed text, and are not read. A faulty value exits 1 with the key and the
 term.
 
+The name of the application, same catalogues, second rule: the application is
+`Apollia Desktop`, and `Apollia OS` names the engine under it, its command line
+and its SDK. A value outside the developer texts that carries `Apollia OS`
+names the application by the engine, and fails with its key. The developer
+texts may name the engine, by the same exemption as below. This rule has no
+named exemption: its debt was zero when it arrived.
+
 Exemptions, three kinds:
 
   dev namespace   keys under `dev.` are the texts of the developer mode; they
@@ -69,6 +76,10 @@ EXEMPT_BLOCKS = {
     "observability": "observability",
     "transcriptions": "transcriptions",
 }
+
+# The engine, its command line and its SDK. The application is Apollia Desktop.
+ENGINE_NAME = "Apollia OS"
+APPLICATION_NAME = "Apollia Desktop"
 
 PLACEHOLDER = re.compile(r"\{[^{}]*\}")
 DEV_CALL = re.compile(r"(?:\$t|\$_|get\(t\))\(\s*[\"'`]dev\.")
@@ -150,6 +161,18 @@ def catalogue_findings(
     return findings
 
 
+def product_name_findings(lang: str, leaves: dict[str, str]) -> list[str]:
+    """Values outside the developer texts that name the application by the engine."""
+    return [
+        f"{lang}.json {key}: names the application {ENGINE_NAME}; the "
+        f"application is {APPLICATION_NAME}, {ENGINE_NAME} is the engine"
+        for key in sorted(leaves)
+        if namespace(key) != DEV_NAMESPACE
+        and namespace(key) not in EXEMPT_BLOCKS
+        and ENGINE_NAME in PLACEHOLDER.sub(" ", leaves[key])
+    ]
+
+
 def block_findings(routes: set[str]) -> list[str]:
     """Exempt blocks whose route left the developer group of the sidebar."""
     return [
@@ -210,6 +233,7 @@ def main() -> int:
             return 2
         exemptions = list(locale.get("exemptions", []))
         findings += catalogue_findings(lang, leaves, terms, exemptions)
+        findings += product_name_findings(lang, leaves)
         counts.append(f"{lang}: {len(leaves)} keys, {len(terms)} terms, {len(exemptions)} exempted")
 
     routes = developer_routes(SIDEBAR.read_text(encoding="utf-8"))

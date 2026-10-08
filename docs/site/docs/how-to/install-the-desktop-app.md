@@ -1,18 +1,34 @@
 ---
 sidebar_position: 6.5
-title: Install the desktop app
-description: Install the Apollia desktop application on macOS, Windows or Linux, and get from the download to a first working conversation.
+title: Install Apollia Desktop
+description: Install Apollia Desktop, the desktop application, on macOS, Windows or Linux, and get from the download to a first working conversation.
 ---
 
-# Install the desktop app
+# Install Apollia Desktop
 
-This guide is for people who want to run Apollia as a normal desktop application:
+This guide is for people who want to run Apollia Desktop, the desktop
+application, like any other:
 download an installer, install it, and launch. No compiler, no command line, no
 source checkout. If instead you want to build from source or run the command-line
 runtime, follow [Install and run the runtime](/how-to/install-and-run).
 
-Apollia is local-first. The desktop app runs on your machine, stores its data on
+Apollia is local-first. Apollia Desktop runs on your machine, stores its data on
 your machine, and does not need an account to start.
+
+## Which file carries which name
+
+The application is **Apollia Desktop**: that is the name in its window, in its
+menus and in this documentation. The files that install it, and what they put
+on disk, still carry the name of the engine underneath, Apollia OS.
+
+| What you see | Its name |
+|---|---|
+| The application: window, menus, help | Apollia Desktop |
+| The installers on the release page | `Apollia-OS_<version>_...` |
+| The application file on macOS | `Apollia OS.app` |
+| The Start menu entry and the install folder on Windows | `Apollia OS` |
+| The application menu entry and the resource folder on Linux | `Apollia OS`, `/usr/lib/Apollia OS/` |
+| The command line shipped inside | `apollia-os` |
 
 ## Platform availability
 
@@ -87,8 +103,9 @@ embed it, and `apollia-os update` verifies the SHA256 checksum only.
 ### macOS
 
 1. Double-click the downloaded `.dmg`.
-2. Drag **Apollia OS** into the **Applications** folder.
-3. Eject the disk image, then open **Apollia OS** from Applications or Launchpad.
+2. Drag **Apollia OS**, the name the application file carries, into the
+   **Applications** folder.
+3. Eject the disk image, then open it from Applications or Launchpad.
 
 A macOS build is signed and notarized with an Apple Developer ID when the release
 pipeline has the signing secrets, and ad-hoc signed otherwise. If yours is
@@ -103,12 +120,13 @@ cannot be verified". To open it anyway:
   xattr -dr com.apple.quarantine "/Applications/Apollia OS.app"
   ```
 
-Apollia OS requires macOS 13 (Ventura) or newer.
+Apollia Desktop requires macOS 13 (Ventura) or newer.
 
 ### Windows
 
 1. Double-click the `.msi` (or `.exe`) installer.
-2. Follow the installer steps, then launch **Apollia OS** from the Start menu.
+2. Follow the installer steps, then launch the application from the Start menu,
+   under the entry **Apollia OS**.
 
 Windows SmartScreen may warn that the publisher is unrecognized. The installer
 names Apollia as its publisher, but it is not signed with an Authenticode
@@ -142,8 +160,8 @@ The `.deb` installs system-wide on Debian and Ubuntu:
 sudo apt install ./Apollia-OS_*.deb
 ```
 
-After installing the `.deb`, launch **Apollia OS** from your desktop application
-menu. The app relies on the system WebKitGTK runtime; on a minimal system, install
+After installing the `.deb`, launch the application from your desktop
+application menu, under the entry **Apollia OS**. The app relies on the system WebKitGTK runtime; on a minimal system, install
 `libwebkit2gtk-4.1-0` if the window fails to open.
 
 ## First launch

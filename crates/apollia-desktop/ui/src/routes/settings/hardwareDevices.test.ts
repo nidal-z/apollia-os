@@ -306,7 +306,7 @@ describe("Copy the information", () => {
 
     // THEN it is these lines, in this order, and no path is in it
     expect(text.split("\n")).toEqual([
-      "Apollia OS v0.3.0",
+      "Apollia Desktop v0.3.0",
       "Operating system: Windows 11",
       "Processor: AMD Ryzen 9 7950X, x86-64, 32 cores",
       "Memory: 64.0 GB",
@@ -354,7 +354,7 @@ describe("Copy the information", () => {
 
     // THEN the GPU line says none, and unknown facts say unknown
     expect(text).toContain("GPU: None");
-    expect(text.split("\n")[0]).toBe("Apollia OS unknown");
+    expect(text.split("\n")[0]).toBe("Apollia Desktop unknown");
   });
 });
 

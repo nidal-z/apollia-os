@@ -263,7 +263,7 @@
       <!-- Drawer header -->
       <div class="flex items-center gap-2 px-4 py-4">
         <img src="/logo.svg" alt="Apollia" width="28" height="28" class="h-7 w-7 shrink-0" />
-        <span class="text-base font-semibold text-foreground">Apollia OS</span>
+        <span class="text-base font-semibold text-foreground">Apollia Desktop</span>
         <div class="ml-auto">
           <button
             class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -390,7 +390,7 @@
   >
     <div class="flex items-center gap-2.5 px-6 pb-4 pt-5">
       <img src="/logo.svg" alt="Apollia" width="28" height="28" class="h-7 w-7 shrink-0" />
-      <span class="text-base font-medium text-foreground">Apollia OS</span>
+      <span class="text-base font-medium text-foreground">Apollia Desktop</span>
     </div>
 
     <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">

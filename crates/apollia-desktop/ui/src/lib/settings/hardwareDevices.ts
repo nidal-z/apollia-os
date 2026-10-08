@@ -115,6 +115,9 @@ export interface HardwareInfoLabels {
 
 const gb = (value: number): string => `${value.toFixed(value >= 100 ? 0 : 1)} GB`;
 
+/** The name of the application, a brand that no locale translates. */
+const APPLICATION_NAME = "Apollia Desktop";
+
 /**
  * The description of the machine as plain text: the version of the
  * application, the operating system, the processor, the memory, each graphics
@@ -123,7 +126,7 @@ const gb = (value: number): string => `${value.toFixed(value >= 100 ? 0 : 1)} GB
 export function hardwareInfoText(input: HardwareInfoInput, labels: HardwareInfoLabels): string {
   const { hardware } = input;
   const lines = [
-    `Apollia OS ${input.version ? `v${input.version}` : labels.unknown}`,
+    `${APPLICATION_NAME} ${input.version ? `v${input.version}` : labels.unknown}`,
     `${labels.os}: ${input.os ?? labels.unknown}`,
   ];
   if (hardware) {

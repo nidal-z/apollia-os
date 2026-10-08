@@ -6,6 +6,11 @@
 
 Local-first. No cloud dependency. Sovereign by design.
 
+**Apollia Desktop** is the application: you install it, then create, run and
+supervise agents from its window, without writing code. **Apollia OS** is the
+engine under it, with its `apollia-os` command line and its Python SDK: what
+this repository builds, and what a developer drives directly.
+
 [![CI](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 [![Release](https://img.shields.io/github/v/release/Apollia-OS/apollia-os)](https://github.com/Apollia-OS/apollia-os/releases)
@@ -42,7 +47,7 @@ Sovereign means self-contained, not feature-poor. The runtime is a single binary
 - **Triggers** - cron, interval, oneshot, file watch, and authenticated webhooks (HMAC-SHA256)
 - **Multi-agent orchestration** - directors coordinate specialized workers over the A2A skill protocol, with human-in-the-loop suspension and resume
 - **Human-in-the-Loop (HITL)** - any tool can require human approval before execution; the runtime suspends and resumes transparently
-- **Desktop app** - native Tauri v2 + Svelte 5 UI, kept live for every subsystem by the Tauri event bus
+- **Apollia Desktop** - the desktop application, a native Tauri v2 + Svelte 5 UI, kept live for every subsystem by the Tauri event bus
 - **REST API + CLI** - full management via the `apollia-os` CLI or HTTP on `127.0.0.1:7771`
 
 ---
@@ -51,7 +56,7 @@ Sovereign means self-contained, not feature-poor. The runtime is a single binary
 
 Three ways in, and most people want the first.
 
-**Install the desktop application.** Installers are attached to each GitHub
+**Install Apollia Desktop, the application.** Installers are attached to each GitHub
 release: a `.dmg` for macOS Apple Silicon, an `.msi` or `.exe` for Windows
 x86-64, an `.AppImage` or `.deb` for Linux x86-64: one installer per system.
 No compiler, no checkout, no command line. The step by step,
@@ -380,9 +385,9 @@ For the threat model, scope, and private reporting, see [SECURITY.md](SECURITY.m
 
 ---
 
-## Desktop App
+## Apollia Desktop
 
-The Tauri v2 + Svelte 5 desktop application provides a native UI for all runtime subsystems. Build the UI once, then launch it through the repository recipe (requires the `cargo tauri` CLI):
+Apollia Desktop, the Tauri v2 + Svelte 5 desktop application, provides a native UI for all runtime subsystems. Build the UI once, then launch it through the repository recipe (requires the `cargo tauri` CLI):
 
 ```bash
 just desktop-ui-install          # npm ci in crates/apollia-desktop/ui
@@ -402,7 +407,7 @@ The recipe needs that bundle to exist: build it once with
 
 Views update in real time over the Tauri event bus, not over SSE; the HTTP API is where SSE lives, on `GET /api/v1/tasks/{id}/stream`. The system tray shows the pending approval count and supports graceful quit.
 
-**Updates.** Releases are published on [GitHub Releases](https://github.com/Apollia-OS/apollia-os/releases). The desktop app checks that feed only when you ask it to, from Settings, and never in the background. Until a release is published the check reports that there is nothing newer, rather than failing.
+**Updates.** Releases are published on [GitHub Releases](https://github.com/Apollia-OS/apollia-os/releases). Apollia Desktop checks that feed only when you ask it to, from Settings, and never in the background. Until a release is published the check reports that there is nothing newer, rather than failing.
 
 ---
 

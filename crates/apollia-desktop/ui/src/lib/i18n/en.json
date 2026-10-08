@@ -1764,11 +1764,11 @@
     "native": {
       "approval_title": "Action required",
       "approval_body": "Agent {agentName} is waiting for approval",
-      "task_approval_title": "Action required - Apollia OS",
+      "task_approval_title": "Action required - Apollia Desktop",
       "task_approval_body": "Task {id} is waiting for your approval",
       "chat_approval_title": "Approval required - Chat",
       "chat_approval_body": "Tool “{tool}” requests your authorization (session {id})",
-      "tool_failure_title": "Tool failed - Apollia OS",
+      "tool_failure_title": "Tool failed - Apollia Desktop",
       "tool_failure_body": "Tool “{tool}” failed (session {id})",
       "batch_completed_title": "Batch completed",
       "batch_interrupted_title": "Batch interrupted",
@@ -2097,7 +2097,7 @@
       "notifications": "Notifications"
     },
     "help": {
-      "intro": "Apollia OS runs your AI agents locally, on your own machine, with your own models. The topics below cover the essentials to get up and running.",
+      "intro": "Apollia Desktop runs your AI agents locally, on your own machine, with your own models. The topics below cover the essentials to get up and running.",
       "getting_started": "Getting started",
       "topic_model_title": "Configure a model",
       "topic_model_body": "Download a local model from the Model Hub, or connect an external server, so Apollia and your agents can reason.",
@@ -2161,7 +2161,7 @@
       "local_memory": "Conversations, agent memory and project context are stored in local SQLite databases.",
       "local_audit": "Every sensitive action is written to a local, tamper-evident audit journal you can export.",
       "license_title": "License",
-      "license_body": "Apollia OS is free and open source, dual-licensed under either the MIT license or the Apache License 2.0, at your option.",
+      "license_body": "Apollia Desktop is free and open source, dual-licensed under either the MIT license or the Apache License 2.0, at your option.",
       "contact_title": "Contact",
       "channel_stable": "Stable channel",
       "channel_prerelease": "Preview channel",
@@ -2243,7 +2243,7 @@
       "items": {
         "palette_open": "Open the Command Palette",
         "help_overlay": "Show contextual cheatsheet",
-        "app_quit": "Quit Apollia",
+        "app_quit": "Quit Apollia Desktop",
         "nav_back": "Navigate back",
         "nav_forward": "Navigate forward",
         "nav_sidebar": "Toggle the sidebar",
@@ -2563,7 +2563,7 @@
     "update": {
       "check": "Check for updates",
       "checking": "Checking…",
-      "up_to_date": "Apollia OS is up to date",
+      "up_to_date": "Apollia Desktop is up to date",
       "available": "Version {version} available",
       "install": "Install and restart",
       "error": "Unable to check for updates",
@@ -2571,7 +2571,7 @@
       "changelog_title": "What's new",
       "show_details": "Technical details",
       "downloading": "Downloading update…",
-      "installed": "Update installed. Restarting Apollia OS…",
+      "installed": "Update installed. Restarting Apollia Desktop…",
       "no_channel": "No update has been published yet. This build is the latest one available.",
       "open_releases": "Open the releases page"
     },
@@ -4121,7 +4121,7 @@
     "error_not_configured": "Dictation is off or no model is chosen."
   },
   "onboarding_welcome": {
-    "title": "Welcome to Apollia",
+    "title": "Welcome to Apollia Desktop",
     "tagline": "Your agents work on your computer, with your tools and your documents. First choose the language of the interface.",
     "language_label": "Interface language",
     "language_hint": "You can change it at any time in Settings, General."
@@ -4586,7 +4586,7 @@
       "shortcuts": "Open Keyboard shortcuts",
       "openShortcutsPage": "Open Keyboard Shortcuts page",
       "help": "Help & getting started",
-      "about": "About Apollia",
+      "about": "About Apollia Desktop",
       "resetOnboarding": "Reset Onboarding",
       "quit": "Quit",
       "toggleDevConsole": "Toggle dev console"

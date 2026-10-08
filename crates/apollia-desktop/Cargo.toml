@@ -2,7 +2,7 @@
 name = "apollia-desktop"
 version = "0.3.0"
 edition.workspace = true
-description = "Apollia OS - Desktop application (Tauri v2 + embedded runtime)"
+description = "Apollia Desktop - desktop application (Tauri v2 + embedded Apollia OS runtime)"
 # Inherited rather than restated: the Windows installer reads the publisher and
 # the support links from here when tauri.conf.json leaves them unset, and this
 # crate opted into none of the workspace fields, so it had nothing to give.

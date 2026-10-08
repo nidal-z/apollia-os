@@ -1,10 +1,14 @@
 ---
-title: Install Apollia on Linux
+title: Install Apollia Desktop on Linux
 slug: /operator-help/installation/install-on-linux
 sidebar_position: 3
 ---
 
-# Install Apollia on Linux
+# Install Apollia Desktop on Linux
+
+The application is Apollia Desktop. Its installers and the files they put on
+disk still carry the name of the engine underneath, Apollia OS, which is the
+name you will read below.
 
 Every file below is attached to each release on the publication page,
 `https://github.com/Apollia-OS/apollia-os/releases`.
@@ -43,7 +47,8 @@ the `.deb` or unpack one of the `apollia-os-linux-*` archives.
 sudo apt install ./Apollia-OS_<version>_amd64.deb
 ```
 
-Then launch **Apollia OS** from your desktop application menu: the app starts
+Then launch the application from your desktop application menu, under the
+entry **Apollia OS**: the app starts
 the daemon itself. The `apollia-os` command line ships inside the package
 (`/usr/lib/Apollia OS/`) but is not on your `PATH` until you enable it from
 **Settings > System** in the app, which creates the `/usr/local/bin` link. The

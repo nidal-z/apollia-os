@@ -1,4 +1,4 @@
-//! Apollia OS desktop application (Tauri v2).
+//! Apollia Desktop application (Tauri v2).
 //!
 //! The Apollia runtime runs embedded inside the Tauri process via
 //! [`apollia_runtime::init_embedded()`], on the TCP port this process claims
