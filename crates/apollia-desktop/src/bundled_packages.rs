@@ -1,11 +1,14 @@
-//! The packages the desktop binary ships: the guide and the onboarding of
-//! Apollia.
+//! The packages the desktop binary ships: the guide, the onboarding and the
+//! agent workshop of Apollia.
 //!
 //! The guide is a declarative agent: a mission, examples and defaults, no
 //! code. Its manifest and its knowledge base are embedded in the binary by
 //! `include_str!`. The onboarding is a declarative agent too, with one tool
 //! that records the profile facts of the first conversation; its manifest and
-//! the source of its tool are embedded the same way.
+//! the source of its tool are embedded the same way. The agent workshop holds
+//! no agent: it is one workflow, which turns the form of the Agents screen
+//! into the sheet of an agent; its manifest and the source of the workflow are
+//! embedded too.
 //!
 //! On start, unless the installed package is already the version the binary
 //! carries, the desktop assembles each into a `.apo` archive under
@@ -51,6 +54,16 @@ const ONBOARDING_MANIFEST: &str =
 
 /// The files of the onboarding package besides its manifest.
 const ONBOARDING_FILES: [(&str, &str); 1] = [(ONBOARDING_MODULE, ONBOARDING_SOURCE)];
+
+/// The manifest of the agent workshop, its workflow described.
+const AGENT_BUILDER_MANIFEST: &str =
+    include_str!("../../../agents/system/agent-builder/apollia.toml");
+
+/// The files of the agent workshop besides its manifest.
+const AGENT_BUILDER_FILES: [(&str, &str); 1] = [(
+    "workflows/draft.py",
+    include_str!("../../../agents/system/agent-builder/workflows/draft.py"),
+)];
 
 /// The agents earlier versions installed as code, now shipped as packages of
 /// the same name.
@@ -149,6 +162,27 @@ pub fn onboarding_manifest() -> Result<ApolliaManifest, BundledPackageError> {
     Ok(apollia_manifest::parse(ONBOARDING_MANIFEST)?)
 }
 
+/// The manifest of the agent workshop as the binary ships it.
+///
+/// # Errors
+///
+/// [`BundledPackageError::Manifest`] for an embedded manifest the build should
+/// never have let through.
+pub fn agent_builder_manifest() -> Result<ApolliaManifest, BundledPackageError> {
+    Ok(apollia_manifest::parse(AGENT_BUILDER_MANIFEST)?)
+}
+
+/// Assembles the agent workshop, its workflow included, into
+/// `<data_dir>/agents/bundled/agent-builder.apo` and returns its path.
+///
+/// # Errors
+///
+/// [`BundledPackageError`] when the manifest is invalid or the archive cannot
+/// be written.
+pub fn assemble_agent_builder(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
+    assemble(data_dir, &agent_builder_manifest()?, &AGENT_BUILDER_FILES)
+}
+
 /// Assembles the guide into `<data_dir>/agents/bundled/apollia-guide.apo` and
 /// returns its path.
 ///
@@ -243,7 +277,7 @@ struct Shipped {
 }
 
 /// The packages the binary ships, in the order they are installed.
-const SHIPPED: [Shipped; 2] = [
+const SHIPPED: [Shipped; 3] = [
     Shipped {
         manifest: guide_manifest,
         assemble: assemble_guide,
@@ -251,6 +285,10 @@ const SHIPPED: [Shipped; 2] = [
     Shipped {
         manifest: onboarding_manifest,
         assemble: assemble_onboarding,
+    },
+    Shipped {
+        manifest: agent_builder_manifest,
+        assemble: assemble_agent_builder,
     },
 ];
 

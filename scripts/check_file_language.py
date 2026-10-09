@@ -305,6 +305,10 @@ FRENCH_DATA: dict[str, int] = {
     # The copy of a batch's results is named in the language of the interface.
     "crates/apollia-sources/src/table/results.rs": 1,
     "scripts/check_release_artifacts.py": 1,
+    # The headings of the mission the agent workshop lays out, in the language
+    # of the person, and the French request its test feeds it.
+    "agents/system/agent-builder/workflows/draft.py": 5,
+    "tests/test_agent_builder_workflow.py": 1,
     # parser: French words the code matches on, or folds
     # The typed-pause payload keys are the product's wire vocabulary (`genre`,
     # `libelle`, `autre`...): the parser and the TypedDict declaring them match on

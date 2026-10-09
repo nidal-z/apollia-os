@@ -1,0 +1,23 @@
+# The agent workshop of Apollia Desktop, shipped inside the desktop binary as a package.
+#
+# One workflow, `draft` (workflows/draft.py): it takes the form the Agents
+# screen shows to create an agent, asks the person what the form leaves unsaid,
+# and hands back a sheet the person reads over and saves. It creates nothing.
+# The desktop assembles this folder into a `.apo` archive on start and installs
+# it like any package. Its version follows the product version.
+
+[package]
+name = "agent-builder"
+version = "0.3.0"
+publisher = "Apollia"
+description = "The agent workshop of Apollia Desktop: a short form, a few questions, and the sheet of an agent for you to review."
+sdk = ">=0.3.0"
+
+# Written by `python -m apollia describe` from the code; edits here are replaced.
+[[workflows]]
+name = "draft"
+module = "workflows/draft.py"
+description = "Turn the form of the agent workshop into the sheet of an agent, asking the person what the form leaves unsaid. Creates nothing: the person reads the sheet over and saves it."
+action = "read"
+inputs = { type = "object", properties = { purpose = { type = "string", format = "long-text" }, result = { type = "string", format = "long-text" }, rules = { type = "string", format = "long-text" }, examples = { type = "string", format = "long-text" }, sources = { type = "array", items = { type = "string" } }, rights = { type = "array", items = { type = "string" } }, language = { type = "string" }, offer = { type = "string", format = "long-text" } }, additionalProperties = false, required = ["purpose"], x-order = ["purpose", "result", "rules", "examples", "sources", "rights", "language", "offer"] }
+steps = ["understand", "ask", "write"]

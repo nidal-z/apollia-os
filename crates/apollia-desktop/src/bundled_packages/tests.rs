@@ -350,3 +350,59 @@ async fn an_onboarding_installed_as_code_becomes_the_package_agent_and_its_tool_
         )
     );
 }
+
+/// Identifier of the agent workshop package.
+const AGENT_BUILDER: &str = "agent-builder";
+
+/// The workflow the Agents screen launches, as `<package>/<workflow>`.
+const AGENT_BUILDER_WORKFLOW: &str = "agent-builder/draft";
+
+#[test]
+fn the_agent_workshop_is_one_workflow_and_no_agent() {
+    // GIVEN the manifest of the agent workshop embedded in the binary
+    // WHEN it is read
+    let manifest = agent_builder_manifest().unwrap();
+
+    // THEN it holds no agent and no tool, and one workflow that reads only,
+    // in the module the binary carries, at the product version
+    assert_eq!(manifest.package.name, AGENT_BUILDER);
+    assert_eq!(manifest.package.version, env!("CARGO_PKG_VERSION"));
+    assert!(manifest.agents.is_empty() && manifest.tools.is_empty());
+    assert!(manifest.pip.is_none() && manifest.mcp_servers.is_empty());
+    assert_eq!(manifest.workflows.len(), 1);
+    let workflow = &manifest.workflows[0];
+    assert_eq!(
+        format!("{AGENT_BUILDER}/{}", workflow.name),
+        AGENT_BUILDER_WORKFLOW
+    );
+    assert_eq!(workflow.module, AGENT_BUILDER_FILES[0].0);
+    assert_eq!(workflow.steps, ["understand", "ask", "write"]);
+}
+
+#[tokio::test]
+async fn the_agent_workshop_installs_with_its_workflow_under_a_strict_governance() {
+    // GIVEN an empty data directory and a governance that requires signatures
+    let dir = tempfile::tempdir().unwrap();
+    let governance = StrictGovernance::default();
+
+    // WHEN the agent workshop is assembled and installed
+    let path = assemble_agent_builder(dir.path()).unwrap();
+    let outcome = install_embedded(&path, dir.path(), &governance)
+        .await
+        .unwrap();
+
+    // THEN it installs unsigned, as an embedded package, and its archive
+    // carries the workflow as the binary ships it
+    assert!(
+        matches!(outcome, EmbeddedOutcome::Installed(_)),
+        "{outcome:?}"
+    );
+    let mut archive = ApoArchive::open(&path).unwrap();
+    assert_eq!(archive.signature_state().unwrap(), SignatureState::Unsigned);
+    let out = dir.path().join("unpacked");
+    archive.extract_to(&out).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(out.join(AGENT_BUILDER_FILES[0].0)).unwrap(),
+        AGENT_BUILDER_FILES[0].1
+    );
+}
