@@ -171,7 +171,10 @@
       if (runId !== run) return;
       steps = detail.steps;
       if (detail.run.status === "running") {
-        question = questionOf(await listPendingDecisions().catch(() => []), run);
+        // The same question read again keeps its object, so nothing shown
+        // for it is drawn anew.
+        const waiting = questionOf(await listPendingDecisions().catch(() => []), run);
+        if (waiting?.id !== question?.id) question = waiting;
         return;
       }
       stopPolling();

@@ -341,6 +341,28 @@ test.describe("creating an agent from a form", () => {
     expect(sheet.access).toEqual(["notes_lookup", "web_search", "mail_send"]);
   });
 
+  test("an answer being typed survives the reads of the run", async ({ page }) => {
+    // GIVEN the workshop waiting on its question, which the screen reads
+    //       again every second
+    await openCreation(page);
+    await page.getByTestId("agent-create-purpose").fill("Read the press every morning");
+    await page.getByTestId("agent-create-prepare").click();
+    const own = page.getByTestId("agent-create-question-own");
+    await expect(own).toBeVisible();
+
+    // WHEN the person types an answer of their own and several reads go by
+    await own.fill("Ten lines, with the sources");
+    await page.waitForTimeout(3500);
+
+    // THEN what was typed is still there, and sending it answers the run
+    await expect(own).toHaveValue("Ten lines, with the sources");
+    await page.getByTestId("agent-create-question-send").click();
+    await expect(page.getByTestId("agent-create-review")).toBeVisible();
+    expect(await sent(page, "decide_pending_decision")).toEqual([
+      { request: { id: "workflow-question:r1", answer: "answer", value: "Ten lines, with the sources" } },
+    ]);
+  });
+
   test("leaving while the workshop works stops its run and creates no agent", async ({ page }) => {
     // GIVEN the workshop launched, waiting on its question
     await openCreation(page);

@@ -26,9 +26,13 @@
 
   let own = $state("");
 
-  // A new question starts with an empty answer of one's own.
+  // A new question starts with an empty answer of one's own. The question is
+  // read again every second and handed over as a new object each time: only
+  // its identifier says whether it is another question, so what is being
+  // typed survives the reads.
+  const asked = $derived(question?.id ?? null);
   $effect(() => {
-    void question?.id;
+    void asked;
     own = "";
   });
 
