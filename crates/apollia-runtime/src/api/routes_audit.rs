@@ -471,22 +471,24 @@ fn resolve_run_id(ids: &[String], input: &str) -> RunIdResolution {
     }
 }
 
-/// `POST /api/v1/audit/replay/:run_id`, replay a captured run and report
-/// determinism.
+/// `POST /api/v1/audit/replay/:run_id`, check that the captured trace of a
+/// run is complete and consistent.
 ///
-/// Resolves the run id (full or unambiguous prefix), runs the
-/// [`ReplayHarness`], and returns a JSON body with a `status` discriminant:
-/// `identical`, `diverged`, or `error`. Status codes: 200 for identical and
-/// diverged (the determinism verdict is in the body), 404 for an unknown run,
-/// 400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the
-/// journal is not configured.
+/// Resolves the run id (full or unambiguous prefix), then steps through the
+/// trace the journal captured, offline: each model response is read back and
+/// each tool call it asked for is matched with the tool output captured next.
+/// No model is called, no tool runs and the agent is not run again. Returns a
+/// JSON body with a `status` discriminant: `identical`, `diverged`, or `error`.
+/// Status codes: 200 for identical and diverged (the verdict is in the body),
+/// 404 for an unknown run, 400 for an ambiguous prefix, 422 for an incomplete
+/// trace, 503 when the journal is not configured.
 #[utoipa::path(
     post,
     path = "/api/v1/audit/replay/{run_id}",
     tag = "audit",
-    params(("run_id" = String, Path, description = "Run id (full or unambiguous prefix) to replay")),
+    params(("run_id" = String, Path, description = "Run id (full or unambiguous prefix) whose trace is checked")),
     responses(
-        (status = 200, description = "Replay determinism verdict (identical or diverged)"),
+        (status = 200, description = "Verdict on the captured trace (identical or diverged)"),
         (status = 400, description = "Ambiguous run id prefix", body = crate::api::openapi::ApiErrorBody),
         (status = 404, description = "Unknown run", body = crate::api::openapi::ApiErrorBody),
         (status = 422, description = "Incomplete trace", body = crate::api::openapi::ApiErrorBody),

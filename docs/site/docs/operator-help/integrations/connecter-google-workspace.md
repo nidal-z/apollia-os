@@ -60,17 +60,11 @@ If either half is missing, Apollia refuses the connection before opening your br
 
 1. In the sidebar, open **Connections**, then open the **Google Workspace** page: from the list, or from **Add a connection** when it is not listed yet.
 
-   ![Google Workspace page in Connections, not connected, with the Accounts tab and the Connect an account button](/img/operator-help/integration-google-workspace-1.png)
-
 2. Click **Connect an account**. A window opens inside Apollia and your browser automatically opens the Google consent page.
 
 3. Pick the Google account to use, then accept the permissions offered (Mail, Calendar, Drive Workspace, and so on).
 
-   ![Google consent screen, Apollia asks for access to the account, list of permissions (app Drive files, Calendar events, sending mail, draft management), warning that the app is not verified by Google](/img/operator-help/integration-google-workspace-2.png)
-
 4. Back in Apollia, the window detects the return automatically. A second step offers you the agent Drive root folder (default **Apollia**). Confirm by clicking **Save** (or **Keep the default** to keep the value offered).
-
-   ![Google Drive folder dialog in Apollia, explanation of the drive.file scope, Folder path field with the value Apollia, Keep the default and Save buttons](/img/operator-help/integration-google-workspace-3.png)
 
 5. The window confirms that Google Workspace is added, with **Try** and **Done**. Your account appears under the **Accounts** tab of the page.
 

@@ -2113,14 +2113,14 @@
         "tags": [
           "audit"
         ],
-        "summary": "`POST /api/v1/audit/replay/:run_id`, replay a captured run and report\ndeterminism.",
-        "description": "Resolves the run id (full or unambiguous prefix), runs the\n[`ReplayHarness`], and returns a JSON body with a `status` discriminant:\n`identical`, `diverged`, or `error`. Status codes: 200 for identical and\ndiverged (the determinism verdict is in the body), 404 for an unknown run,\n400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the\njournal is not configured.",
+        "summary": "`POST /api/v1/audit/replay/:run_id`, check that the captured trace of a\nrun is complete and consistent.",
+        "description": "Resolves the run id (full or unambiguous prefix), then steps through the\ntrace the journal captured, offline: each model response is read back and\neach tool call it asked for is matched with the tool output captured next.\nNo model is called, no tool runs and the agent is not run again. Returns a\nJSON body with a `status` discriminant: `identical`, `diverged`, or `error`.\nStatus codes: 200 for identical and diverged (the verdict is in the body),\n404 for an unknown run, 400 for an ambiguous prefix, 422 for an incomplete\ntrace, 503 when the journal is not configured.",
         "operationId": "post_replay_run",
         "parameters": [
           {
             "name": "run_id",
             "in": "path",
-            "description": "Run id (full or unambiguous prefix) to replay",
+            "description": "Run id (full or unambiguous prefix) whose trace is checked",
             "required": true,
             "schema": {
               "type": "string"
@@ -2129,7 +2129,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Replay determinism verdict (identical or diverged)"
+            "description": "Verdict on the captured trace (identical or diverged)"
           },
           "400": {
             "description": "Ambiguous run id prefix",

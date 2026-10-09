@@ -693,14 +693,16 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * `POST /api/v1/audit/replay/:run_id`, replay a captured run and report
-         *     determinism.
-         * @description Resolves the run id (full or unambiguous prefix), runs the
-         *     [`ReplayHarness`], and returns a JSON body with a `status` discriminant:
-         *     `identical`, `diverged`, or `error`. Status codes: 200 for identical and
-         *     diverged (the determinism verdict is in the body), 404 for an unknown run,
-         *     400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the
-         *     journal is not configured.
+         * `POST /api/v1/audit/replay/:run_id`, check that the captured trace of a
+         *     run is complete and consistent.
+         * @description Resolves the run id (full or unambiguous prefix), then steps through the
+         *     trace the journal captured, offline: each model response is read back and
+         *     each tool call it asked for is matched with the tool output captured next.
+         *     No model is called, no tool runs and the agent is not run again. Returns a
+         *     JSON body with a `status` discriminant: `identical`, `diverged`, or `error`.
+         *     Status codes: 200 for identical and diverged (the verdict is in the body),
+         *     404 for an unknown run, 400 for an ambiguous prefix, 422 for an incomplete
+         *     trace, 503 when the journal is not configured.
          */
         post: operations["post_replay_run"];
         delete?: never;
@@ -13732,14 +13734,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Run id (full or unambiguous prefix) to replay */
+                /** @description Run id (full or unambiguous prefix) whose trace is checked */
                 run_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Replay determinism verdict (identical or diverged) */
+            /** @description Verdict on the captured trace (identical or diverged) */
             200: {
                 headers: {
                     [name: string]: unknown;

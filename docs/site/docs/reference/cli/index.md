@@ -1115,7 +1115,7 @@ Audit trail (journal, export, verify, anchor, replay, show)
 * `export` - Export the hash-chained journal to a file, as CSV or JSON
 * `verify` - Verify the audit journal's hash chains and signatures
 * `anchor` - Print the exportable head anchor of the global chain
-* `replay` - Replay a captured run and detect divergences
+* `replay` - Check that the captured trace of a run is complete and consistent
 * `show` - Show a run's full journal, including the model's LLM completions
 
 
@@ -1200,9 +1200,9 @@ Storing this off-machine is the only defense against truncation of the global ta
 
 ## `apollia-os audit replay`
 
-Replay a captured run and detect divergences.
+Check that the captured trace of a run is complete and consistent.
 
-Compares the replayed run against its captured trace across every category: LLM responses, tool outputs, and plan construction. Divergences are grouped by category in the human output and listed in the `--json` payload. `run` accepts a full run_id or an unambiguous prefix of at least 8 characters. Exit 0 = identical, exit 2 = diverged, exit 1 = any error (run not found, ambiguous prefix, incomplete trace, runtime unreachable).
+Steps through the trace the journal captured, offline: each model response is read back, and each tool call it asked for is matched with the tool output captured next, as are the changes of the plan. No model is called, no tool runs and the agent is not run again: this tells whether the trace holds together, not whether the agent would answer the same today. Divergences are grouped by category in the human output and listed in the `--json` payload. `run` accepts a full run_id or an unambiguous prefix of at least 8 characters. Exit 0 = identical, exit 2 = diverged, exit 1 = any error (run not found, ambiguous prefix, incomplete trace, runtime unreachable).
 
 **Usage:** `apollia-os audit replay <RUN>`
 

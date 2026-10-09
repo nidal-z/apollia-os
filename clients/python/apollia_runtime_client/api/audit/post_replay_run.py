@@ -73,15 +73,17 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Any | ApiErrorBody]:
-    """`POST /api/v1/audit/replay/:run_id`, replay a captured run and report
-    determinism.
+    """`POST /api/v1/audit/replay/:run_id`, check that the captured trace of a
+    run is complete and consistent.
 
-     Resolves the run id (full or unambiguous prefix), runs the
-    [`ReplayHarness`], and returns a JSON body with a `status` discriminant:
-    `identical`, `diverged`, or `error`. Status codes: 200 for identical and
-    diverged (the determinism verdict is in the body), 404 for an unknown run,
-    400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the
-    journal is not configured.
+     Resolves the run id (full or unambiguous prefix), then steps through the
+    trace the journal captured, offline: each model response is read back and
+    each tool call it asked for is matched with the tool output captured next.
+    No model is called, no tool runs and the agent is not run again. Returns a
+    JSON body with a `status` discriminant: `identical`, `diverged`, or `error`.
+    Status codes: 200 for identical and diverged (the verdict is in the body),
+    404 for an unknown run, 400 for an ambiguous prefix, 422 for an incomplete
+    trace, 503 when the journal is not configured.
 
     Args:
         run_id (str):
@@ -110,15 +112,17 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
 ) -> Any | ApiErrorBody | None:
-    """`POST /api/v1/audit/replay/:run_id`, replay a captured run and report
-    determinism.
+    """`POST /api/v1/audit/replay/:run_id`, check that the captured trace of a
+    run is complete and consistent.
 
-     Resolves the run id (full or unambiguous prefix), runs the
-    [`ReplayHarness`], and returns a JSON body with a `status` discriminant:
-    `identical`, `diverged`, or `error`. Status codes: 200 for identical and
-    diverged (the determinism verdict is in the body), 404 for an unknown run,
-    400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the
-    journal is not configured.
+     Resolves the run id (full or unambiguous prefix), then steps through the
+    trace the journal captured, offline: each model response is read back and
+    each tool call it asked for is matched with the tool output captured next.
+    No model is called, no tool runs and the agent is not run again. Returns a
+    JSON body with a `status` discriminant: `identical`, `diverged`, or `error`.
+    Status codes: 200 for identical and diverged (the verdict is in the body),
+    404 for an unknown run, 400 for an ambiguous prefix, 422 for an incomplete
+    trace, 503 when the journal is not configured.
 
     Args:
         run_id (str):
@@ -142,15 +146,17 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
 ) -> Response[Any | ApiErrorBody]:
-    """`POST /api/v1/audit/replay/:run_id`, replay a captured run and report
-    determinism.
+    """`POST /api/v1/audit/replay/:run_id`, check that the captured trace of a
+    run is complete and consistent.
 
-     Resolves the run id (full or unambiguous prefix), runs the
-    [`ReplayHarness`], and returns a JSON body with a `status` discriminant:
-    `identical`, `diverged`, or `error`. Status codes: 200 for identical and
-    diverged (the determinism verdict is in the body), 404 for an unknown run,
-    400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the
-    journal is not configured.
+     Resolves the run id (full or unambiguous prefix), then steps through the
+    trace the journal captured, offline: each model response is read back and
+    each tool call it asked for is matched with the tool output captured next.
+    No model is called, no tool runs and the agent is not run again. Returns a
+    JSON body with a `status` discriminant: `identical`, `diverged`, or `error`.
+    Status codes: 200 for identical and diverged (the verdict is in the body),
+    404 for an unknown run, 400 for an ambiguous prefix, 422 for an incomplete
+    trace, 503 when the journal is not configured.
 
     Args:
         run_id (str):
@@ -177,15 +183,17 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
 ) -> Any | ApiErrorBody | None:
-    """`POST /api/v1/audit/replay/:run_id`, replay a captured run and report
-    determinism.
+    """`POST /api/v1/audit/replay/:run_id`, check that the captured trace of a
+    run is complete and consistent.
 
-     Resolves the run id (full or unambiguous prefix), runs the
-    [`ReplayHarness`], and returns a JSON body with a `status` discriminant:
-    `identical`, `diverged`, or `error`. Status codes: 200 for identical and
-    diverged (the determinism verdict is in the body), 404 for an unknown run,
-    400 for an ambiguous prefix, 422 for an incomplete trace, 503 when the
-    journal is not configured.
+     Resolves the run id (full or unambiguous prefix), then steps through the
+    trace the journal captured, offline: each model response is read back and
+    each tool call it asked for is matched with the tool output captured next.
+    No model is called, no tool runs and the agent is not run again. Returns a
+    JSON body with a `status` discriminant: `identical`, `diverged`, or `error`.
+    Status codes: 200 for identical and diverged (the verdict is in the body),
+    404 for an unknown run, 400 for an ambiguous prefix, 422 for an incomplete
+    trace, 503 when the journal is not configured.
 
     Args:
         run_id (str):
