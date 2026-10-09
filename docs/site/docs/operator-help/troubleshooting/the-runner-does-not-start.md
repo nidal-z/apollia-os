@@ -23,19 +23,13 @@ The installation bundle must contain at least `apollia-runner-cpu` next to the d
 **Linux:** in the AppImage `.AppDir/usr/bin/` or next to `apollia-os` (`.deb` package)
 **Windows:** `C:\Program Files\Apollia OS\apollia-runner-*.exe`
 
-Check with:
-
-```sh
-apollia-os doctor
-```
-
-If `apollia-runner-cpu` is missing: reinstall Apollia (the bundle has been altered).
+Look in that folder yourself: `apollia-os doctor` does not check the runners. If `apollia-runner-cpu` is missing: reinstall Apollia (the bundle has been altered).
 
 ## 2. The GPU driver is missing or too old
 
-The daemon detected your GPU and tried to spawn the matching STT runner, `apollia-runner-metal` on macOS or `apollia-runner-vulkan` on Windows, but the runtime libraries are missing.
+The daemon detected your GPU and tried to spawn the matching STT runner, `apollia-runner-metal` on macOS or `apollia-runner-vulkan` on Windows and on a Linux command-line install, but the runtime libraries are missing.
 
-The published bundles carry three STT runners and no others: `apollia-runner-cpu` everywhere, `apollia-runner-metal` on macOS, and `apollia-runner-vulkan` on Windows, in the installers and in the Vulkan command-line bundle. There is no CUDA or ROCm STT runner: on an NVIDIA card the daemon uses the Vulkan one. The Linux bundles carry the processor runner alone, so a GPU driver changes nothing for dictation there.
+The published bundles carry three STT runners and no others: `apollia-runner-cpu` everywhere, `apollia-runner-metal` on macOS, and `apollia-runner-vulkan` in the Windows installers and in the Vulkan command-line bundles of Windows and Linux. There is no CUDA or ROCm STT runner: on an NVIDIA card the daemon uses the Vulkan one. The Linux desktop packages carry the processor runner alone, so a GPU driver changes nothing for dictation there.
 
 **Symptoms:**
 

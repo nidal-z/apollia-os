@@ -12,23 +12,42 @@ sidebar_position: 2
 
 - Au moins un agent qui a déjà conversé ou exécuté une tâche.
 
+## Comment un agent se souvient
+
+Un agent ne garde une mémoire propre que si la source **Mémoire de l'agent** est cochée sur sa fiche, sous **Sources consultées**. Avec cette source, l'agent garde des notes avec un outil, sous un nom qu'il choisit, et les retrouve dans une conversation ou une tâche suivante. Il peut aussi retirer une note dont il n'a plus besoin. Sa mémoire est un seul espace, au nom de l'agent, dans lequel aucun autre agent n'écrit. Ni garder une note ni chercher dans sa mémoire ne demande votre accord : l'agent agit sur son propre espace.
+
+Rien de cette mémoire n'est ajouté de lui-même à une conversation. L'agent y cherche quand il en a besoin.
+
+Un agent sans cette source ne garde pas de mémoire propre, et sa fiche le dit.
+
 ## Où trouver quoi
 
-Deux endroits distincts, deux usages distincts :
+Trois endroits distincts, trois usages distincts :
 
-- **Paramètres → Profil** - votre profil utilisateur (prénom, rôle, secteur, supervision des agents, souveraineté…). C'est ce que tous vos agents savent de vous. Voir [Mon profil](manage-my-profile.md).
-- **Mémoire** (depuis la sidebar) - l'explorateur des **namespaces mémoire** par agent et par projet. C'est ce que chaque agent retient pour lui-même (épisodes de conversation, faits sémantiques, procédures apprises).
+- **Réglages**, section **Profil** : vos profils et les faits gardés dans chacun. C'est ce que les agents autorisés à lire votre profil savent de vous. Voir [Mon profil](manage-my-profile.md).
+- **La fiche d'un agent**, onglet **Mémoire** : ce que cet agent-là a retenu. Accessible à tout le monde.
+- **Mémoire** (depuis la barre latérale, affichée seulement mode développeur allumé) : l'explorateur de tous les **namespaces mémoire**, avec export, import et purge.
 
-Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supprimer des entrées.
+## Relire la mémoire d'un agent
+
+1. Dans la barre latérale, cliquez sur **Agents**, ouvrez l'agent, puis l'onglet **Mémoire** de sa fiche.
+
+2. L'onglet liste ce que l'agent a retenu, avec le nombre d'entrées. **Chercher dans la mémoire** réduit la liste aux entrées qui correspondent.
+
+3. **Supprimer**, sur une ligne, retire cette entrée.
+
+4. **Tout effacer** retire tout ce que l'agent a retenu, après une confirmation qui dit combien d'entrées partent. Ses sources, vos fichiers et vos mails restent.
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Mémoire**. La page affiche un layout deux colonnes : sidebar des namespaces à gauche, panneau central avec la liste des entrées du namespace sélectionné.
+La suite de cette page couvre l'écran **Mémoire**. C'est l'un des écrans techniques : allumez le mode développeur dans **Réglages**, section **Développeur**, et il apparaît dans la barre latérale.
+
+1. Dans la barre latérale, cliquez sur **Mémoire**. La page affiche un layout deux colonnes : sidebar des namespaces à gauche, panneau central avec la liste des entrées du namespace sélectionné.
 
    ![Page Mémoire : la liste des namespaces à gauche, les filtres par type et la recherche au centre, et les entrées de la mémoire du profil utilisateur](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-1.png)
 
 2. **Sidebar gauche** - la liste des **namespaces** (un namespace = un espace mémoire isolé). Chaque namespace est classifié automatiquement :
-   - **Profil** : votre profil utilisateur partagé (`__user__`). En lecture seule depuis cette page - l'édition se fait dans **Paramètres → Profil**. Une bannière le rappelle quand vous sélectionnez `__user__`.
+   - **Profil** : votre profil utilisateur partagé (`__user__`). En lecture seule depuis cette page - l'édition se fait dans **Réglages**, section **Profil**. Une bannière le rappelle quand vous sélectionnez `__user__`.
    - **Agents** : namespaces d'agents installés (un par agent - ex: `veille-ia`, `email-triage`).
    - **Projets** : namespaces scopés à un projet (format `{project_id}:{ns}`).
    - **Autres** : namespaces legacy ou d'agents désinstallés.
@@ -88,13 +107,15 @@ L'entrée supprimée n'apparaît plus dans la liste, même après recharge de la
 
 ## Si ça ne marche pas
 
-- **La page est vide** : aucun agent n'a encore généré de mémoire. Lancez une conversation et revenez.
+- **Mémoire ne figure pas dans la barre latérale** : le mode développeur est éteint. Allumez-le dans **Réglages**, section **Développeur**, ou utilisez l'onglet **Mémoire** de la fiche de l'agent.
+- **L'onglet Mémoire dit que l'agent ne garde pas de mémoire propre** : sa source **Mémoire de l'agent** n'est pas cochée.
+- **La page est vide** : aucun agent n'a encore rien gardé. Travaillez avec un agent dont la source mémoire est cochée et revenez.
 - **La suppression échoue** : l'agent est en train d'écrire dans la mémoire, attendez quelques secondes et réessayez.
 - **Le namespace attendu n'apparaît pas** : vérifiez que l'agent est bien installé (l'agent doit être listé dans **Agents** pour apparaître sous la catégorie *Agents*, sinon le namespace bascule en *Autres*).
 - **Vous voulez vider tout un namespace** : utilisez **Purger** avec **Tous les types** et `0` jour. Pour tout effacer d'un coup, voir [Réinitialiser Apollia (factory reset)](../troubleshooting/factory-reset.md), ou utilisez la CLI : `apollia-os memory clear --agent <NAME> --confirm`.
 - **L'aperçu de purge annonce moins d'entrées que la purge n'en supprime** : l'aperçu est compté sur la liste que cette page lit, qui s'arrête aux 500 épisodes de conversation les plus récents. Sur un gros namespace, le chiffre réel est plus élevé, et c'est celui annoncé à la fin.
 - **Les boutons Exporter, Importer et Purger sont grisés** : aucun namespace n'est sélectionné. Choisissez-en un dans la sidebar de gauche.
 
-> **Note** : Pour gérer les **outils** disponibles à vos agents (recherche web, lecture de fichiers, etc.), ouvrez **Paramètres → Outils**. La page propose le détail de chaque outil, son activation/désactivation, sa configuration éventuelle et son contrat, voir [Inspecter un outil](../controle/inspect-a-tool.md).
+> **Note** : Pour gérer les **outils** fournis avec Apollia (recherche web, lecture de fichiers, etc.), ouvrez **Connexions**, section **Outils intégrés**. La page propose chaque outil, son activation/désactivation et sa configuration éventuelle, voir [Inspecter un outil](../controle/inspect-a-tool.md).
 
 > **Référence technique :** [Référence Apollia](/reference) - types de mémoire, durées de rétention par défaut, limites.

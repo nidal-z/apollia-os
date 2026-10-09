@@ -74,7 +74,9 @@ const REDIRECTS = {
   '/operator-help/projects/enable-context-providers': '/operator-help/projects/what-became-of-projects',
   '/operator-help/transversal/activer-la-compagnonne-ia': '/operator-help/transversal/enable-apollia-help',
   '/operator-help/transversal/naviguer-au-clavier-command-palette': '/operator-help/transversal/navigate-with-the-keyboard',
-  '/operator-help/transversal/suivre-la-visite-guidee': '/operator-help/transversal/take-the-guided-tour',
+  // The guided tours were retired; both addresses of their page lead to the help of the Guide.
+  '/operator-help/transversal/suivre-la-visite-guidee': '/operator-help/transversal/enable-apollia-help',
+  '/operator-help/transversal/take-the-guided-tour': '/operator-help/transversal/enable-apollia-help',
   '/operator-help/transversal/trouver-sa-version-et-ses-donnees': '/operator-help/transversal/find-your-version-and-data',
   '/operator-help/transversal/utiliser-l-inbox': '/operator-help/transversal/use-the-inbox',
   '/operator-help/troubleshooting/la-dictee-vocale-ne-transcrit-rien': '/operator-help/troubleshooting/voice-dictation-transcribes-nothing',

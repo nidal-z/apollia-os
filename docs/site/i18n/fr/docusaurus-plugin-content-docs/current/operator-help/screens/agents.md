@@ -6,19 +6,19 @@ sidebar_position: 2
 
 # L'écran Agents
 
-> Vos agents et vos workflows, dans une seule liste.
+> Vos agents et vos workflows, côte à côte.
 
 ## À quoi ça sert
 
-Les agents travaillent pour vous : chacun a une mission, un modèle et des accès que vous décidez. Les workflows enchaînent plusieurs étapes. Cet écran liste les deux, et c'est ici qu'un nouveau commence.
+Les agents travaillent pour vous : chacun a une mission, un modèle et des accès que vous décidez. Les workflows enchaînent plusieurs étapes. Cet écran liste les deux, une colonne chacun, et c'est ici qu'un nouveau commence. Un agent ne se démarre ni ne s'arrête : il est chargé par sa première tâche et libéré une fois inactif.
 
 ## Ce que vous pouvez faire
 
-- Créer un agent en décrivant ce que vous voulez : Apollia rédige sa fiche, et rien n'est enregistré avant votre validation.
+- Créer un agent depuis un court formulaire : Apollia demande ce qui manque, rédige sa fiche, et rien n'est enregistré avant votre validation.
 - Partir d'un exemple proposé par Apollia, ou installer un paquet.
-- Ouvrir la fiche d'un agent pour lire ce qu'il fait et ce à quoi il a accès.
+- Ouvrir la fiche d'un agent pour lire ce qu'il fait et ce à quoi il a accès, ou ouvrir une conversation avec lui depuis sa ligne.
 
 ## Pour aller plus loin
 
 - [Installer un agent](/operator-help/agents/install-an-agent)
-- [Démarrer un agent ou un paquet](/operator-help/agents/start-an-agent)
+- [Confier une tâche à un agent](/operator-help/agents/start-an-agent)

@@ -11,25 +11,26 @@ sidebar_position: 3
 ## Prérequis
 
 - L'application est ouverte.
-- Vous connaissez l'outil par son nom, ou vous savez le reconnaître dans la liste (`bash_executor`, `file_write`, `http_fetch`, etc.).
+- Vous savez reconnaître l'outil dans la liste (Recherche Web, Écriture de fichiers, Bash, etc.).
+- Pour lire le contrat d'un outil, le mode développeur est allumé (**Réglages**, section **Développeur**).
 
-## La différence avec la page Autorisations
+## La différence avec l'écran Autorisations
 
-Deux pages, deux questions :
+Deux écrans, deux questions :
 
-- **Paramètres → Autorisations** répond à « *qu'est-ce que cet outil a le droit de faire en ce moment* » : les règles persistées, leur portée, leur révocation. Voir [Gérer les autorisations d'outils](manage-tool-permissions.md).
-- **Paramètres → Outils** répond à « *qu'est-ce que cet outil* » : son activation, sa configuration, et son contrat. C'est l'objet de cette page.
+- **Autorisations** répond à « *quels agents peuvent se servir de cet outil, et que demandent-ils d'abord* » : les accès de chaque agent, les accords donnés, leur retrait. Voir [Gérer les autorisations d'outils](manage-tool-permissions.md).
+- **Connexions**, section **Outils intégrés**, répond à « *qu'est-ce que cet outil* » : s'il est activé, sa configuration, et son contrat. C'est l'objet de cette page.
 
 ## Lire le contrat d'un outil
 
-1. Dans la sidebar, cliquez sur **Paramètres**, puis sur **Outils** dans le menu de gauche.
+1. Dans la barre latérale, cliquez sur **Connexions**, puis sur **Apollia, outils intégrés** sous **Outils intégrés**. La page liste les outils fournis avec Apollia, groupés par catégorie, chacun avec son interrupteur et son état (**Actif**, **Désactivé** ou **Clé requise**).
 
-2. Sur la carte de l'outil, cliquez sur le bouton **Contrat** (icône accolades), ou faites un clic droit sur la carte et choisissez **Voir le contrat**. Un panneau s'ouvre à droite.
+2. Mode développeur allumé, cliquez sur le bouton **Contrat** de la carte de l'outil, ou faites un clic droit sur la carte et choisissez **Voir le contrat**. Un panneau s'ouvre à droite. Mode développeur éteint, la page ne montre ni le bouton ni les identifiants techniques.
 
 3. Le panneau montre, dans l'ordre :
 
    - Le **nom affiché** et, en dessous, l'identifiant technique utilisé partout ailleurs (la piste d'audit, les règles d'autorisation, un manifeste).
-   - Deux badges : le **type** d'outil (natif, servi par un serveur MCP, custom) et la **version**, chacun affiché seulement si le runtime le renseigne.
+   - Deux badges : le **type** d'outil (**Natif**, **Connexion** ou **Outil Python**) et la **version**, chacun affiché seulement si le runtime le renseigne.
    - La **description** que l'outil déclare de lui-même.
    - Les **permissions requises**, sous forme de badges. Cette section n'apparaît que si l'outil déclare des permissions : une section absente signifie « non renseigné », jamais « n'exige rien ».
    - L'**entrée** et la **sortie**, sous forme de liste de champs indentée : nom, type, obligatoire ou facultatif, valeur par défaut et valeurs autorisées quand le schéma les précise. Un schéma qui n'est pas une liste de champs, et tous les cas que la lecture ne sait pas aplatir, retombent sur le document brut, à un clic derrière **JSON brut** dans les deux sections.
@@ -41,19 +42,20 @@ Un outil qui n'est pas enregistré dans le runtime n'expose aucun contrat, et le
 
 ## Voir les identifiants configurés
 
-En bas de la page **Outils**, une section **Identifiants** liste tous les identifiants enregistrés sur cette machine, une ligne par couple outil et clé : l'outil concerné, le nom de la clé, et sa date d'ajout. Un compteur à côté du titre donne le total, et **Recharger** relit la liste.
+En bas de la même page, une section **Identifiants** liste tous les identifiants enregistrés sur cette machine, une ligne par couple outil et clé : l'outil concerné et sa date d'ajout. Le nom de la clé s'affiche mode développeur allumé. **Recharger** relit la liste.
 
-**Aucune valeur, ni aucun fragment de valeur, n'est jamais affiché.** Les clés restent chiffrées sur la machine ; seuls leurs noms et leurs dates arrivent jusqu'à l'interface. Enregistrer, tester et supprimer une clé se font dans le panneau de configuration propre à l'outil, depuis sa carte.
+**Aucune valeur, ni aucun fragment de valeur, n'est jamais affiché.** Les clés restent chiffrées sur la machine ; seuls leurs noms et leurs dates arrivent jusqu'à l'interface. Une clé s'enregistre dans le panneau de configuration propre à l'outil, derrière le bouton **Configurer** de sa carte.
 
 Une section vide est l'état normal sur une installation neuve : elle signifie qu'aucun outil ne s'est encore vu confier de clé.
 
 ## Vérification
 
-- Le panneau de contrat de `file_write` affiche un schéma d'entrée qui liste les champs attendus par l'outil.
+- Le panneau de contrat de l'outil **Écriture de fichiers** affiche une entrée qui liste les champs attendus par l'outil.
 - L'identifiant technique affiché sous le titre du panneau est celui que vous retrouvez dans les entrées du [Journal](../observabilite/read-the-audit-trail.md).
 
 ## Si ça ne marche pas
 
+- **Il n'y a pas de bouton Contrat** : le mode développeur est éteint. Allumez-le dans **Réglages**, section **Développeur**.
 - **Le panneau annonce un contrat indisponible** : l'outil figure dans la liste mais n'est pas enregistré dans le runtime. Rien n'est cassé de votre côté, il n'y a simplement rien à décrire.
 - **La section Entrée affiche du JSON brut au lieu d'une liste de champs** : le schéma n'est pas une simple liste de champs. Le document brut est le contrat entier, rien n'a été masqué.
 - **Un outil a une clé configurée mais la section Identifiants ne montre rien** : cliquez sur **Recharger**. La liste est lue à l'ouverture de la page, pas à chaque changement fait ailleurs.

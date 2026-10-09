@@ -10,25 +10,25 @@ sidebar_position: 1
 
 ## Prérequis
 
-- Au moins un agent installé et démarrable depuis la page Mes assistants.
-- Un fournisseur d'IA configuré (depuis **Paramètres → Modèles**).
+- Au moins un agent listé dans l'écran **Agents**.
+- Un modèle qui répond, réglé dans l'écran **IA**.
 - Vous savez à quelle fréquence vous voulez que la tâche se répète.
 
 ## Étapes - créer une automatisation en langage naturel (parcours par défaut)
 
-1. Dans la sidebar, cliquez sur **Mes déclencheurs**. La page s'intitule **Automatisations**.
+1. Dans la barre latérale, cliquez sur **Automatisations**.
 
-2. Cliquez sur le bouton **Créer une automatisation** en haut à droite. Un assistant en **4 étapes** s'ouvre (Décrire → Planifier → Assistant → Aperçu).
+2. Cliquez sur le bouton **Créer une automatisation** en haut à droite. Une fenêtre en **4 étapes** s'ouvre (Décrire → Planifier → Agent → Aperçu).
    ![Page Automatisations, bouton Creer une automatisation en haut a droite et stepper en quatre etapes](/img/operator-help/automatisations-programmer-un-trigger-1.png)
 
-3. **Étape Décrire** - Décrivez **le quand** : à quel moment ou à quelle fréquence le déclencheur doit se déclencher. Exemples : *« Tous les matins à 8 h »*, *« Chaque lundi à 9 h pour préparer la semaine »*, *« Toutes les 30 minutes »*. Vous n'avez pas besoin de nommer un assistant à ce stade : un déclencheur est indépendant de l'assistant qui l'exécutera, vous choisirez cet assistant à l'étape **Assistant**. Cliquez sur **Suivant** ; Apollia analyse la phrase (l'étiquette du bouton passe à *« Analyse… »*).
+3. **Étape Décrire** - Décrivez **le quand** : à quel moment ou à quelle fréquence le déclencheur doit se déclencher. Exemples : *« Tous les matins à 8 h »*, *« Chaque lundi à 9 h pour préparer la semaine »*, *« Toutes les 30 minutes »*. Vous n'avez pas besoin de nommer un agent à ce stade : un déclencheur est indépendant de l'agent qui l'exécutera, vous choisirez cet agent à l'étape **Assistant**. Cliquez sur **Suivant** ; Apollia analyse la phrase (l'étiquette du bouton passe à *« Analyse… »*).
 
 4. **Étape Planifier** - Apollia affiche sa lecture de votre phrase dans un encadré (par exemple *« Tous les jours à 08:00 »*) avec la **prochaine exécution prévue**. Si quelque chose vous semble inexact, ajustez en langage naturel dans le champ du bas (*« plutôt à 9 h »*) et appuyez sur Entrée - la planification se met à jour. Si Apollia a besoin d'une précision sur le calendrier (heure manquante, jour ambigu…), un bandeau orange affiche les points à clarifier ; complétez-les via le champ d'ajustement. L'absence d'assistant dans la description n'est pas bloquante à cette étape.
    ![Etape Planification, encart de planification en clair, ligne de prochaine execution et champs d'affinage](/img/operator-help/automatisations-programmer-un-trigger-2.png)
 
-5. **Étape Assistant** - Sélectionnez l'assistant qui exécutera ce déclencheur. Un déclencheur lance toujours **un assistant à la fois**. Si votre phrase nommait un agent existant, il est pré-sélectionné et un sous-texte indique *« Reconnu automatiquement : … »*. Sinon, un encart orange rappelle qu'aucun assistant n'a été reconnu, et vous le choisissez dans la liste déroulante. Seuls les assistants installés apparaissent.
+5. **Étape Agent** - Sélectionnez l'agent qui exécutera ce déclencheur. Un déclencheur lance toujours **un agent à la fois**. Si votre phrase nommait un agent existant, il est pré-sélectionné et un sous-texte indique *« Reconnu automatiquement : … »*. Sinon, un encart orange rappelle qu'aucun agent n'a été reconnu, et vous le choisissez dans la liste déroulante. Seuls les assistants installés apparaissent.
 
-6. **Étape Aperçu** - Apollia récapitule le déclencheur : la planification en clair, l'assistant cible, et la consigne transmise au déclenchement si elle a été détectée. Cliquez sur **Activer cette automatisation**.
+6. **Étape Aperçu** - Apollia récapitule le déclencheur : la planification en clair, l'agent cible, et la consigne transmise au déclenchement si elle a été détectée. Cliquez sur **Activer cette automatisation**.
 
 7. Une notification confirme la création. L'automatisation apparaît dans la table avec un voyant **Active** vert et la colonne **Prochain déclenchement** indique la date prévue.
 
@@ -45,7 +45,7 @@ Une automatisation se modifie sur place. Changer un horaire ne passe plus par un
 
 1. Sur la ligne de l'automatisation, cliquez sur le menu **⋯** → **Modifier**. Avec la ligne sélectionnée au clavier, la touche **E** fait la même chose.
 
-2. La fenêtre **Modifier le trigger** s'ouvre sur la définition enregistrée, avec les mêmes champs qu'en mode avancé : assistant cible, type de déclencheur et ses paramètres, interrupteur **Activée**, comportement quand une exécution est déjà en cours, et modèle d'entrée.
+2. La fenêtre **Modifier le trigger** s'ouvre sur la définition enregistrée, avec les mêmes champs qu'en mode avancé : agent cible, type de déclencheur et ses paramètres, interrupteur **Activée**, comportement quand une exécution est déjà en cours, et modèle d'entrée.
 
 3. **L'identifiant est grisé** : il adresse l'automatisation et ne peut plus changer après la création. Tout le reste est modifiable, y compris le type de déclencheur.
 
@@ -53,17 +53,13 @@ Une automatisation se modifie sur place. Changer un horaire ne passe plus par un
 
 5. Cliquez sur **Enregistrer**. Une confirmation nomme l'automatisation, la liste se recharge, et le moteur redémarre sur la nouvelle définition.
 
-**Une automatisation déclarée dans `apollia.toml` ne se modifie pas ici.** La fenêtre le dit et s'arrête là : ces triggers tournent dans le moteur mais n'ont pas de définition enregistrée à réécrire. Modifiez le fichier, puis utilisez **Recharger la config**.
-
-## Recharger le fichier de configuration
-
-Le bouton **Recharger la config**, en haut à droite de la page, relit `apollia.toml` et redémarre le moteur d'automatisations sur cette base, puis annonce combien d'automatisations sont actives. Utilisez-le après avoir modifié le fichier à la main, cela évite de redémarrer l'application. Le bouton **Actualiser**, juste à côté, fait autre chose et beaucoup plus petit : il relit la liste que le moteur détient déjà.
+**Une automatisation déclarée dans `apollia.toml` ne se modifie pas ici.** La fenêtre le dit et s'arrête là : ces triggers tournent dans le moteur mais n'ont pas de définition enregistrée à réécrire. Modifiez le fichier : le changement est lu au prochain démarrage d'Apollia.
 
 ## Mode avancé (optionnel)
 
 Pour les opérateurs qui préfèrent saisir directement les paramètres techniques (expression cron exacte, chemin de fichier précis, secret webhook…), le wizard propose un lien **Mode avancé** en bas à gauche. Il ouvre une fenêtre de création détaillée où vous choisissez :
 
-- **L'assistant cible** (en haut).
+- **L'agent cible** (en haut).
 - **Le type de déclenchement** parmi cinq cartes :
   - **Sur un calendrier** - quotidien, hebdomadaire, ou à heure précise.
   - **À intervalle régulier** - toutes les 30 minutes, toutes les heures, etc.
@@ -72,7 +68,7 @@ Pour les opérateurs qui préfèrent saisir directement les paramètres techniqu
   - **Via une URL externe** - déclenché par appel HTTP entrant (webhook).
 - **Les paramètres du type choisi** - voir détails ci-dessous.
 - Un interrupteur **Activée** (vrai par défaut).
-- Une section **Paramètres avancés** repliée par défaut : nom technique (ID) personnalisable, comportement *« si un déclenchement est déjà en cours »* (mettre en file ou ignorer), et **consigne** envoyée à l'assistant.
+- Une section **Paramètres avancés** repliée par défaut : nom technique (ID) personnalisable, comportement *« si un déclenchement est déjà en cours »* (mettre en file ou ignorer), et **consigne** envoyée à l'agent.
 
 ### Paramètres par type - mode avancé
 
@@ -91,12 +87,12 @@ L'automatisation figure dans la table **Automatisations** avec :
 
 ## Si ça ne marche pas
 
-- **L'assistant cible n'apparaît pas dans la liste** : il n'est pas installé. Allez sur **Mes assistants** et installez-le, puis rouvrez le wizard.
+- **L'agent cible n'apparaît pas dans la liste** : il n'est pas installé. Installez-le depuis l'écran **Agents**, puis rouvrez la fenêtre de création.
 - **Apollia n'a pas compris ma phrase** : un message *« Nous n'avons pas pu comprendre automatiquement »* apparaît. Reformulez plus simplement en énonçant clairement la fréquence et l'heure (ex. *« Tous les jours à 9 h »*).
-- **L'étape Planifier indique des points à clarifier** : l'encart orange en haut liste les ambiguïtés sur le calendrier (par exemple « heure manquante »). Tapez la précision dans le champ d'ajustement et validez avec Entrée. Si la seule chose qu'Apollia n'a pas trouvée est l'assistant, vous pouvez quand même passer à l'étape suivante : la sélection se fait à l'étape Assistant.
-- **Le bouton "Activer" est désactivé** : il manque une donnée - vérifiez que l'étape Planifier n'a plus d'ambiguïté de calendrier et qu'un assistant est sélectionné.
+- **L'étape Planifier indique des points à clarifier** : l'encart orange en haut liste les ambiguïtés sur le calendrier (par exemple « heure manquante »). Tapez la précision dans le champ d'ajustement et validez avec Entrée. Si la seule chose qu'Apollia n'a pas trouvée est l'agent, vous pouvez quand même passer à l'étape suivante : la sélection se fait à l'étape Agent.
+- **Le bouton "Activer" est désactivé** : il manque une donnée - vérifiez que l'étape Planifier n'a plus d'ambiguïté de calendrier et qu'un agent est sélectionné.
 - **Le lancement immédiat (icône ▶︎) est grisé** : l'automatisation est en pause. Reprenez-la depuis le menu **⋯** de la ligne, ou ouvrez **Modifier** et réactivez l'interrupteur **Activée**.
-- **La fenêtre Modifier refuse d'ouvrir l'automatisation** : elle vient de `apollia.toml`. Changez-la dans le fichier, puis cliquez sur **Recharger la config**.
+- **La fenêtre Modifier refuse d'ouvrir l'automatisation** : elle vient de `apollia.toml`. Changez-la dans le fichier, puis redémarrez Apollia.
 
 ## Appeler un webhook depuis un service externe
 

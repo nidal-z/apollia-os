@@ -6,80 +6,88 @@ sidebar_position: 2
 
 # Manage tool permissions
 
-> For operators who want to review, filter or revoke the permissions granted to an agent's tools - without waiting for an action to raise a new approval card.
+> For operators who want to review what each agent may do on this machine, and withdraw a consent, without waiting for an action to raise a new request.
 
 ## Prerequisites
 
-- The application is open and at least one agent has been run.
-- Permissions were granted during an earlier session (during an approval, you chose "Always allow" or a persisted scope).
+- The application is open and at least one agent is installed. The Apollia agent, the one of the Chat, is always listed.
 
 ## How are permissions created?
 
-Rules appear automatically when an agent requests access to a tool and you choose a persisted scope in the approval card (for example: *Always for this assistant* or *Always, everywhere*). Chat rules (*Chat* scope) are created through the **"Always allow"** button in the free chat. You can also create one by hand, with the **Add rule** button at the top of the Rules section, which is how you authorise something before an agent ever asks for it.
+The **Permissions** screen gathers three things for each agent:
 
-## Review the active permissions
+- **Its accesses, by family.** They come from the sheet of the agent: what it was granted when it was installed or created, and what you adjusted since. The families are **Read**, **Read personal data**, **Write or delete**, **Send outside** and **Run code**.
+- **Its "always".** Each one is a consent you gave by answering **Always for this agent** to a request (see [Approve or reject an agent action](approve-or-reject-an-action.md)). It covers one family of action, for that agent only.
+- **Its fine rules.** A fine rule allows or refuses one precise action. One is written when you answer **Always allow this command** to a request to run code, and others can be written by hand with the developer mode on.
 
-1. In the sidebar, click **Settings**.
+A permission has one of two scopes and no other: **one agent**, or **every agent**. An "always" is always for one agent. A fine rule is for one agent or for every agent.
 
-2. In the left menu, select **Permissions**.
-   ![Settings > Permissions page, list of permission cards (PermissionRuleCard) with scope badges](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1.png)
+## Review the permissions of an agent
 
-3. The central panel shows every active rule as a **list of cards**. Each card states:
-   - the **tool name** that is authorised (e.g.: `bash_executor`, `file_write`, `http_fetch`)
-   - a **scope badge**: *This project* or *Everywhere*
-   - the **argument prefix** (if the rule is limited to certain invocations)
-   - the **expiry date** or the mention *Permanent*
-   - the **author** of the decision (agent or user)
+1. In the sidebar, click **Permissions**.
+
+2. At the top, the **Organization policy** panel says whether your organization deposited a policy on this machine, and what it imposes. Without one, it reads *No policy: you are free.*
+
+3. The list on the left has two parts:
+   - **For every agent**, with the row **Rules for every agent**.
+   - **Each agent**, one row per agent, the Apollia agent first. Under each name, a line counts its families, its "always" and its fine rules.
+
+   The field **Filter by agent, family or access…** above the list narrows it.
+
+4. Click an agent. The panel on the right shows:
+   - **Accesses granted, by family**: each family the agent holds an access in, what that access lets it do, and a badge that says what the family asks before the agent acts: **Without asking** for reading, **Your consent is asked**, **Always granted** when an "always" covers it, **Consent every time** for running code, or **Enforced by policy** when the policy of your organization forbids the family.
+   - **"Always" given**: each standing consent, with the date it was given.
+   - **Fine rules**: each rule in plain words, with a badge **Allows** or **Refuses**, its family, whom it targets and the date it was added.
+
+   **Open the sheet** leads to the sheet of the agent, where its accesses are adjusted.
 
 <!-- claim:prefix-rules-evaluated-per-invocation -->
-> **What a rule actually does:** a rule with no prefix that allows an ordinary tool auto-approves every invocation of that tool. A rule carrying an **argument prefix** is evaluated on every invocation, against the call's argument: it auto-approves any argument starting with the prefix, and the longest matching prefix wins when several rules apply. A **deny** rule always takes precedence: it refuses a matching call even when the tool is otherwise covered by an "Always allow".
+> **What a fine rule actually does:** a fine rule is checked on every action of the agents it targets, against the request itself. A rule that **refuses** always wins: the action it matches is refused, even when an "always" would have let it through. A rule that **allows** a command lets that command run without asking, while the developer mode is on.
 <!-- claim:executor-guard-blocks-command-chaining -->
-> **Code executors** (`bash_executor`, `python_executor`) are stricter: a prefix rule only applies to a **single simple command** sharing that prefix, with no chaining (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) or substitution (`` ` ``, `$(...)`). A rule without a prefix never auto-approves a code executor: every invocation asks for confirmation again.
+> **Code** is stricter: a rule that allows only applies to a **single simple command** that starts with the text of the rule, with no chaining (`;`, `&&`, `||`), pipe, redirection (`>`, `<`) or substitution (`` ` ``, `$(...)`). A rule with no command never lets code run without asking.
 
-4. Use the filters in the left panel to narrow the list:
-   - **Scope**: *All*, *This project*, *Chat / agent*, *Everywhere*
-   - **Tool**: pick a specific tool from the list of tools present
+## Withdraw a consent or a rule
 
-## Revoke a single permission
+1. Select the agent, or **Rules for every agent**.
+2. On the line of the "always" or of the fine rule, click **Withdraw**.
+3. The withdrawal takes effect at once and is recorded in the Activity log. The line stays in place, marked **Withdrawn**, with a **Cancel** button that puts it back, until you leave the screen.
 
-1. Find the card matching the rule you want to remove.
-2. Click the **Revoke** button (bin icon, on the right of the card).
-3. A confirmation message appears briefly. The card disappears immediately.
-   ![permission card with the Revoke button visible, confirmation toast "Rule bash revoked"](/img/operator-help/controle-configurer-les-permissions-de-fichiers-2.png)
+Once an "always" is withdrawn, the next action of that family by that agent asks for your consent again.
 
-Once revoked, the tool involved will ask for manual approval again at its next invocation.
+## Revoke everything at once
 
-## Active sessions
+1. Click **Revoke all** above the list.
+2. Under **What is withdrawn**, choose **The fine rules only**, **The "always" consents only** or **Both**.
+3. Under **Scope**, choose **Every agent** or **One agent**, and pick the agent.
+4. Read the line that says how many fine rules and how many "always" are concerned, then click **Revoke all**.
 
-The **Active sessions** section lists the tools auto-approved through "For this session" in the ongoing chat conversations. These permissions are **in-memory only** - they disappear when the session closes and are not persisted.
+This is immediate and cannot be undone. The accesses granted by family do not change: they are adjusted on the sheet of each agent.
 
-Each entry states the tool name, the session involved (title or short identifier), the mode (*Apollia Chat*, *Agent*, *Companion*) and an orange *Session* badge. Click **Revoke** to remove the permission immediately. The tool will ask for confirmation again at the next call in that session.
+## Write a fine rule (developer mode)
 
-![Active sessions section, list of entries with an orange Session badge and a Revoke button](/img/operator-help/controle-configurer-les-permissions-de-fichiers-3.png)
+With the developer mode on (**Settings**, section **Developer**), the screen also carries an **Add a fine rule** button, and each fine rule gets **Edit** and **Duplicate**. The window asks for:
 
-## Revoke every permission at once
+- **Effect**: **Allow** or **Refuse**.
+- **Action family** and **Tool**: the tool the rule is about.
+- **Argument prefix**: the start of the request the rule matches, for example `git status`. For a tool that runs code, allowing requires a simple command here.
+- **Scope**: **Every agent** or **One agent**.
 
-1. Click the red **Revoke all** button at the top right.
-2. Choose the scope to purge:
-   - *This project* - removes the rules tied to the current project
-   - *Chat / agent* - removes the rules tied to the Apollia Chat agent and to Python agents
-   - *Everywhere* - removes the global rules
-   - *All scopes* - removes every persisted rule
-3. Check the number of affected rules shown in the dialog, then click **Revoke**.
-   ![Revoke all dialog: the scope selector and the revoke button](/img/operator-help/controle-configurer-les-permissions-de-fichiers-1bis.png)
+Every rule written or changed is recorded in the Activity log. Everyone sees the rules and can withdraw them, with the developer mode off as well.
 
-## Chat rules (Apollia Chat)
+## The built-in tools
 
-The **Apollia Chat** section lists the tools auto-approved for every free chat session. These rules are created through **"Always allow"** in the chat and persist from one session to the next. Revoke them one by one here so the tool asks for confirmation again at the next invocation from the chat. Code executors (`bash_executor`, `python_executor`) never show up there: they cannot be auto-approved in bulk and always go back through a per-invocation confirmation.
+The tools shipped with Apollia (web search, page reading, Python and the others) are not turned on or set up here. A line at the bottom of the screen says so, and **Open Connections** leads to **Connections**, section **Built-in tools**. See [Inspect a tool](inspect-a-tool.md).
 
-## Review the recent audit
+## Review the decisions taken
 
-At the bottom of the page, the **Recent audit** section (read-only) lists the last 20 permission decisions: tool, decision (allow / deny), scope, number of the rule applied and agent involved. This lets you check that a rule is properly applied without having to run an agent.
+This screen shows what is in force, not what happened. Each withdrawal and each rule written is recorded in the **Activity log**, which you open from the sidebar; its **Nature** filter separates **Actions** from **Access changes**. See [Read the audit trail](../observabilite/read-the-audit-trail.md).
 
 ## If it does not work
 
-- **No permission shown**: no persisted rule exists for the selected filters. Reset the filters, or run an agent and grant a persisted permission through the approval card.
-- **The rule comes back after revocation**: another agent (or a global configuration) creates the same rule automatically. Check your agents or contact support.
-- **The "Revoke all" button is greyed out**: the list is empty - there is nothing to revoke for the current filters.
+- **An agent shows no "always" and no fine rule**: none was given. Its accesses by family still apply, and each sensitive action asks for your consent.
+- **The Withdraw button is missing on a family**: an access granted by family is not withdrawn here. Click **Open the sheet** and adjust the accesses of the agent.
+- **The Revoke all button of the window is greyed out**: the choice you made concerns no fine rule and no "always".
+- **An agent that is no longer installed is listed**: it still holds an "always" or a fine rule, which you can withdraw.
+- **Add a fine rule is not shown**: the developer mode is off.
 
 > **Technical reference:** [Apollia reference](/reference)

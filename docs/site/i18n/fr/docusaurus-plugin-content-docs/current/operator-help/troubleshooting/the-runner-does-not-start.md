@@ -23,32 +23,26 @@ Le bundle d'installation doit contenir au minimum `apollia-runner-cpu` à côté
 **Linux :** dans l'AppImage `.AppDir/usr/bin/` ou à côté de `apollia-os` (paquet `.deb`)
 **Windows :** `C:\Program Files\Apollia OS\apollia-runner-*.exe`
 
-Vérifiez via :
-
-```sh
-apollia-os doctor
-```
-
-Si `apollia-runner-cpu` est absent : ré-installez Apollia (le bundle a été altéré).
+Regardez vous-même dans ce dossier : `apollia-os doctor` ne vérifie pas les runners. Si `apollia-runner-cpu` est absent : réinstallez Apollia (le bundle a été altéré).
 
 ## 2. Le driver GPU est manquant ou trop ancien
 
-Le daemon a détecté votre GPU et tenté de spawner le runner STT correspondant, `apollia-runner-metal` sur macOS ou `apollia-runner-vulkan` sur Windows, mais les libs runtime sont absentes.
+Le daemon a détecté votre GPU et tenté de spawner le runner STT correspondant, `apollia-runner-metal` sur macOS ou `apollia-runner-vulkan` sur Windows et sur une installation Linux en ligne de commande, mais les bibliothèques d'exécution sont absentes.
 
-Les bundles publiés embarquent trois runners STT et pas d'autres : `apollia-runner-cpu` partout, `apollia-runner-metal` sur macOS, et `apollia-runner-vulkan` sur Windows, dans les installateurs comme dans le bundle en ligne de commande Vulkan. Il n'existe pas de runner STT CUDA ou ROCm : sur une carte NVIDIA, le daemon utilise celui en Vulkan. Les bundles Linux ne portent que le runner processeur, donc un pilote GPU n'y change rien pour la dictée.
+Les bundles publiés embarquent trois runners STT et pas d'autres : `apollia-runner-cpu` partout, `apollia-runner-metal` sur macOS, et `apollia-runner-vulkan` dans les installateurs Windows et dans les bundles en ligne de commande Vulkan de Windows et de Linux. Il n'existe pas de runner STT CUDA ou ROCm : sur une carte NVIDIA, le daemon utilise celui en Vulkan. Les paquets de bureau Linux ne portent que le runner processeur, donc un pilote GPU n'y change rien pour la dictée.
 
 **Symptômes :**
 
 - macOS : rarement bloquant (Metal est dans le système).
 - Linux et Windows : `libvulkan.so.1 not found`, ou l'erreur de chargeur équivalente, quand le driver GPU ne fournit pas Vulkan.
 
-**Fix :** mettez à jour le driver GPU, ou revenez au runner CPU en copiant `apollia-runner-cpu` à côté du binaire `apollia-os` (voir la page d'installation de votre système). Redémarrez ensuite : `apollia-os stop && apollia-os start`.
+**Correctif :** mettez à jour le driver GPU, ou revenez au runner CPU en copiant `apollia-runner-cpu` à côté du binaire `apollia-os` (voir la page d'installation de votre système). Redémarrez ensuite : `apollia-os stop && apollia-os start`.
 
 ## 3. Pare-feu bloque la connexion loopback (Windows)
 
 Le runner écoute sur `127.0.0.1:<port-auto>`. Si le Windows Defender Firewall a bloqué `apollia-runner-cpu.exe` au premier lancement, le daemon ne peut pas s'y connecter.
 
-**Fix :** `Paramètres > Confidentialité et sécurité > Sécurité Windows > Pare-feu et protection réseau > Autoriser une application` puis cochez Apollia OS pour les réseaux privés.
+**Correctif :** `Paramètres > Confidentialité et sécurité > Sécurité Windows > Pare-feu et protection réseau > Autoriser une application` puis cochez Apollia OS pour les réseaux privés.
 
 ## 4. Cold start lent (Apple Silicon)
 

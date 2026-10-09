@@ -20,9 +20,9 @@ sidebar_position: 3
 
    > **Note :** il n'y a qu'un seul raccourci d'ouverture. Cmd+K (ou Ctrl+K) couvre tous les cas - page, action, raccourci. Tapez quelques lettres pour réduire la liste.
 
-2. Tapez quelques lettres de ce que vous cherchez. La liste se filtre en temps réel. Exemple en tapant **agent** : *Agents* (page), *Créer un agent*, *Démarrer tous les agents*, *Arrêter tous les agents*.
+2. Tapez quelques lettres de ce que vous cherchez. La liste se filtre en temps réel. Exemple en tapant **agent** : *Agents* (page) et *Créer un agent*.
 
-   Les entrées sont **groupées par catégorie** (Pages, Actions, Sessions récentes, Modèles de chat, Slash commands…) - les sections changent selon la page courante.
+   Les entrées sont **groupées par catégorie** (Récemment utilisés, Pages, Actions, Sessions, Paramètres, Aide) - les sections changent selon la page courante.
 
 3. Utilisez les flèches **Haut** et **Bas** pour parcourir les résultats. La ligne sélectionnée est mise en évidence.
 
@@ -36,11 +36,9 @@ Pour voir d'un coup d'œil les raccourcis disponibles dans le contexte courant, 
 
 ## Liste complète des raccourcis
 
-Pour parcourir tous les raccourcis (globaux, navigation, chat, paramètres, companion, approbations) groupés par catégorie, allez sur **Paramètres → Raccourcis**. La page propose une **recherche** pour retrouver une combinaison par nom (*« sidebar »*, *« nouveau chat »*, *« aide »*…).
+Pour parcourir tous les raccourcis groupés par catégorie (Global, Navigation, Chat, Réglages, Companion), ouvrez **Réglages**, section **Chat**, et descendez jusqu'au bloc **Tous les raccourcis**. Il propose une **recherche** pour retrouver une combinaison par nom (*« barre latérale »*, *« nouveau chat »*, *« aide »*…). La même liste s'ouvre depuis la palette avec **Ouvrir la page Raccourcis**.
 
-![Page Parametres puis Raccourcis, barre de recherche en haut et raccourcis groupes par categorie](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
-
-> **Lecture seule.** Cette page n'autorise pas la personnalisation des combinaisons pour le moment. Les raccourcis sont fixés et alignés sur les conventions natives de macOS / Windows.
+> **Lecture seule.** Cette liste n'autorise pas la personnalisation des combinaisons. Seule exception : la touche qui envoie un message, qui a son propre interrupteur dans le bloc **Raccourcis clavier** de la même section.
 
 ## Quelques raccourcis utiles
 
@@ -50,7 +48,7 @@ Pour parcourir tous les raccourcis (globaux, navigation, chat, paramètres, comp
 - **Cmd+[ / Ctrl+[** - page précédente (navigation historique).
 - **Cmd+] / Ctrl+]** - page suivante.
 - **Cmd+/ / Ctrl+/** - ouvrir ou replier l'onglet **Guide** sur l'écran courant.
-- **Cmd+Enter / Ctrl+Enter** - envoyer le message courant (dans un chat).
+- **Entrée** - envoyer le message courant (dans un chat) ; **Maj+Entrée** passe à la ligne. Un interrupteur dans **Réglages**, section **Chat**, fait envoyer **Cmd+Entrée / Ctrl+Entrée** à la place.
 - **Échap** - fermer le dialog / chat-input courant.
 
 ## Vérification
@@ -61,4 +59,4 @@ La palette s'ouvre instantanément avec **Cmd+K** / **Ctrl+K**, et l'action choi
 
 - **Cmd+K n'ouvre rien** : un autre logiciel (Slack, Notion, navigateur…) intercepte peut-être la combinaison en premier. Cliquez d'abord dans la fenêtre d'Apollia pour qu'elle reçoive le focus, puis ré-essayez. Si le problème persiste, l'autre logiciel doit être quitté ou son raccourci changé.
 - **L'action recherchée n'apparaît pas** : certaines entrées sont **contextuelles**. Par exemple, *Sessions récentes* / *Modèles de chat* / *Slash commands* n'apparaissent que si vous êtes sur la page **Chat**. Naviguez d'abord vers la page correspondante puis rouvrez la palette.
-- **Je veux personnaliser un raccourci** : non disponible pour le moment - la page **Paramètres → Raccourcis** est en lecture seule. Les conventions natives (Cmd / Ctrl) sont respectées partout.
+- **Je veux personnaliser un raccourci** : la liste **Tous les raccourcis** de **Réglages**, section **Chat**, est en lecture seule. Seule la touche qui envoie un message se change, dans la même section.

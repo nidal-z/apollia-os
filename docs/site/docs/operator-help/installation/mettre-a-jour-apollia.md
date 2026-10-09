@@ -32,15 +32,16 @@ search.
 
 ## From the application
 
-**Settings > System** shows an update panel, also reachable from
-**Settings > About**.
+**Settings > General** opens on the **App update** block: the installed
+version, the update panel and the **Update channel**, **Stable** or
+**Preview**.
 
 1. Click **Check for updates**. Apollia reads the update manifest attached to
    the latest release and compares its version with yours.
-2. If a newer version exists, the panel shows its version number. The manifest
-   carries no changelog, so what to expect from that version is on the published
-   release page, not in the panel.
-3. Start the installation. A progress bar tracks the download.
+2. If a newer version exists, the panel shows its version number, and under
+   **What's new** the notes of that version when the release carries some.
+   Otherwise what to expect from that version is on the published release page.
+3. Click **Install and restart**. A progress bar tracks the download.
 4. Quit Apollia and open it again once the installation is finished.
 
 ## From the command line
@@ -102,7 +103,8 @@ Copy-Item -Recurse "$env:USERPROFILE\.apollia" "$env:USERPROFILE\.apollia.backup
 - **"no release has been published yet"**, or nothing offered although you can
   see a version on GitHub: both paths read the *latest published* release, which
   skips drafts and pre-releases. A release still in draft, or marked as a
-  pre-release, is invisible to them until it is published for real.
+  pre-release, is invisible to them until it is published for real. In the
+  application, the **Preview** update channel also receives the trial versions.
 - **Nothing new is offered although a published release exists**: the artifact
   for your platform may not be attached to that release. Check the published
   releases page, `https://github.com/Apollia-OS/apollia-os/releases`, and

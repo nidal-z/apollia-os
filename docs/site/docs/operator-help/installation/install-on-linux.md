@@ -37,8 +37,8 @@ The app starts the daemon in the background. The daemon serves local LLM inferen
 
 One thing to know before you pick this format: an AppImage is a read-only mount
 that exists only while the app runs. The command line lives inside that mount,
-and the `/usr/local/bin` link offered by **Settings > System** points into it, so
-the link dangles as soon as you quit. For a command line that survives, install
+and the `/usr/local/bin` link offered by **Settings > Hardware**, with the
+developer mode on, points into it, so the link dangles as soon as you quit. For a command line that survives, install
 the `.deb` or unpack one of the `apollia-os-linux-*` archives.
 
 ## Installation (.deb)
@@ -50,9 +50,10 @@ sudo apt install ./Apollia-OS_<version>_amd64.deb
 Then launch the application from your desktop application menu, under the
 entry **Apollia OS**: the app starts
 the daemon itself. The `apollia-os` command line ships inside the package
-(`/usr/lib/Apollia OS/`) but is not on your `PATH` until you enable it from
-**Settings > System** in the app, which creates the `/usr/local/bin` link. The
-verification commands below assume that link exists.
+(`/usr/lib/Apollia OS/`) but is not on your `PATH` until you enable it in the
+app: turn the developer mode on in **Settings > Developer**, then click
+**Install CLI** in **Settings > Hardware**, which creates the `/usr/local/bin`
+link. The verification commands below assume that link exists.
 
 ## Verification
 

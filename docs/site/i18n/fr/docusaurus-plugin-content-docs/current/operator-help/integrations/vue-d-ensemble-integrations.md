@@ -23,8 +23,8 @@ Maintenus directement par Apollia pour les services qui n'exposent pas (encore) 
 
 - Tokens stockés dans le trousseau du système (Keychain macOS, Credential Manager Windows, Secret Service Linux).
 - Appels directs depuis votre machine vers `gmail.googleapis.com` ou `graph.microsoft.com`, aucun relai cloud Apollia.
-- Approbation HITL automatique sur toutes les écritures.
-- Plusieurs comptes peuvent être connectés, et un appel d'outil utilise toujours le premier connecté.
+- Toute écriture demande votre accord avant de s'exécuter.
+- Plusieurs comptes peuvent être connectés. Chacun est une connexion à part entière, accordée à un agent compte par compte.
 
 **Les deux ne coûtent pas la même chose à démarrer.** Bon à savoir avant de cliquer, car la différence n'apparaît qu'une fois sur la page du connecteur :
 
@@ -37,20 +37,18 @@ Ce n'est pas un oubli côté Google. Google exige un écran de consentement vér
 
 ### Serveurs MCP
 
-Le standard ouvert Model Context Protocol. Processus tiers, locaux (stdio via `npx` ou `uvx`) ou distants (HTTP/SSE), qui exposent des outils consommables par n'importe quel client MCP. Ce que vous parcourez sous **Catalogue MCP** est le registre MCP public, paginé au fil du défilement : sa taille est donc celle du registre le jour où vous le consultez. Apollia ajoute sa propre couche de présentation (libellé operator, description, catégorie, niveau de confiance, aide à la connexion) à **18** de ces entrées :
+Le standard ouvert Model Context Protocol. Processus tiers, locaux (stdio via `npx` ou `uvx`) ou distants (HTTP/SSE), qui exposent des outils consommables par n'importe quel client MCP. Dans la feuille **Ajouter une connexion**, l'onglet **Catalogue des connexions** s'ouvre sur les connexions intégrées à Apollia (un dossier de votre ordinateur, Google Workspace, Microsoft 365, une boîte mail), puis sur la sélection qu'Apollia fournit, chaque entrée avec son libellé, sa description et un badge **Officiel** ou **Communauté**. Le registre MCP public n'est lu que si vous cliquez sur **Explorer tout** ; il est paginé au fil du défilement, sa taille est donc celle du registre le jour où vous le consultez. La sélection contient ces entrées :
 
-Notion, Slack, GitHub, Linear, Atlassian (Jira + Confluence), Stripe, Figma (Dev Mode), Sentry, Cloudflare, PostgreSQL, SQLite, Git, Time, Fetch, Fichiers locaux, Mémoire (graphe de connaissances), Navigateur web, Recherche Brave.
+Notion, Linear, Atlassian (Jira + Confluence), Stripe, Figma (Dev Mode), Sentry, Cloudflare, PostgreSQL, Heure, Récupération web, Mémoire (graphe de connaissances), Recherche Brave.
 
-Vous pouvez aussi ajouter votre propre serveur, sur l'onglet **MCP personnalisé** de la même feuille. Modifier le catalogue lui-même n'est pas possible en `v0.1.0-preview` : le fichier de surcharge n'est lu par rien.
-
-![page Connexions, sidebar gauche listant les connecteurs natifs (Google Workspace, Microsoft 365) et les serveurs MCP, panneau de droite avec l'onglet Aperçu du connecteur sélectionné et le bouton Ajouter un connecteur en bas](/img/operator-help/integration-overview-1.png)
+Vous pouvez aussi ajouter votre propre serveur, sur l'onglet **Connexion personnalisée** de la même feuille. Avec le mode développeur activé, les deux onglets s'appellent **Catalogue MCP** et **MCP personnalisé**. Modifier le catalogue lui-même n'est pas possible : le fichier de surcharge n'est lu par rien.
 
 ## Par où commencer
 
 - Mail, calendrier, drive perso ou pro : voir [Connecter Google Workspace](connecter-google-workspace.md) ou [Connecter Microsoft 365](connecter-microsoft-365.md).
-- Notion, GitHub, Linear, Atlassian, Stripe, etc. : voir [Connecter un serveur MCP](connecter-un-serveur-mcp.md).
+- Notion, Linear, Atlassian, Stripe, etc. : voir [Connecter un serveur MCP](connecter-un-serveur-mcp.md).
 - Vos serveurs MCP internes : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
-- Adapter le catalogue à votre équipe n'est pas possible en `v0.1.0-preview`.
+- Adapter le catalogue à votre équipe n'est pas possible.
 
 ## Comment choisir
 
@@ -58,21 +56,21 @@ Vous pouvez aussi ajouter votre propre serveur, sur l'onglet **MCP personnalisé
 |---|---|---|---|
 | Gmail, Google Calendar, Drive | Apollia | Aucun | Connecteur natif |
 | Outlook, Calendar, OneDrive | Apollia | Aucun | Connecteur natif |
-| Notion, Slack, Linear, GitHub | Aucun | Officiel | MCP du catalogue |
-| Atlassian (Jira + Confluence) | Aucun | Atlassian Rovo | MCP du catalogue |
-| Stripe, Figma, Sentry, Cloudflare | Aucun | Officiel | MCP du catalogue |
-| Votre serveur interne | Aucun | À câbler | MCP personnalisé |
+| Notion, Linear | Aucun | Officiel | Catalogue des connexions |
+| Atlassian (Jira + Confluence) | Aucun | Atlassian Rovo | Catalogue des connexions |
+| Stripe, Figma, Sentry, Cloudflare | Aucun | Officiel | Catalogue des connexions |
+| Votre serveur interne | Aucun | À câbler | Connexion personnalisée |
 
 ## Garder le contrôle
 
-- **Approbation HITL** : toutes les écritures (envoi mail, création événement, écriture fichier) demandent votre confirmation avant exécution. Voir [Comprendre les permissions MCP](understand-mcp-permissions.md).
-- **Tokens locaux** : aucun secret ne quitte votre machine. Voir [Gérer les tokens OAuth](manage-oauth-tokens.md).
-- **Politique de l'organisation** : interdire le cloud pour les connexions est une règle de la politique signée que votre organisation peut déployer, `connections.remote = "deny"`, vérifiée par le runtime. Sous cette règle, Apollia refuse d'ajouter une connexion à un service en ligne, un compte Google ou Microsoft compris, et l'annonce dans la fenêtre de connexion. Sans politique, vous êtes libre : aucune connexion n'est refusée parce qu'elle est en ligne. La politique vérifie une connexion à son ajout ; une connexion déjà en place continue de répondre.
+- **Votre accord d'abord** : toute écriture (envoi d'un mail, création d'un événement, écriture d'un fichier) demande votre accord avant exécution. Voir [Comprendre les permissions MCP](understand-mcp-permissions.md).
+- **Tokens locaux** : les tokens restent sur votre machine et ne sont envoyés qu'au service auquel ils appartiennent. Voir [Gérer les tokens OAuth](manage-oauth-tokens.md).
+- **Politique de l'organisation** : interdire le cloud pour les connexions est une règle de la politique signée que votre organisation peut déployer, `connections.remote = "deny"`, vérifiée par le runtime. Sous cette règle, Apollia refuse d'ajouter une connexion à un service en ligne, un compte Google ou Microsoft compris, et l'annonce dans la fenêtre de connexion. Sans politique, vous êtes libre : aucune connexion n'est refusée parce qu'elle est en ligne. La politique est lue au démarrage d'Apollia : une connexion qu'elle interdit, déjà en place, est alors listée sous **Interdites par la politique** et ses outils sont refusés.
 
 ## Vérification
 
-- La page **Connexions** s'ouvre et affiche la sidebar des connecteurs (vide si rien n'est encore branché).
-- Le bouton **Ajouter un connecteur** est visible en bas de cette sidebar, et ouvre une feuille avec un onglet **Catalogue MCP** et un onglet **MCP personnalisé**.
+- La page **Connexions** s'ouvre et liste vos connexions.
+- Le bouton **Ajouter une connexion** est visible en haut de la page, et ouvre une feuille avec un onglet **Catalogue des connexions** et un onglet **Connexion personnalisée**.
 
 ## Si ça ne marche pas
 

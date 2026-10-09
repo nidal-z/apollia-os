@@ -15,19 +15,15 @@ sidebar_position: 4
   - 🟡 ambre - aucun LLM connecté → le guide ne peut pas encore répondre.
   - 🔴 rouge - runtime déconnecté → rien ne fonctionnera ; quittez et relancez l'application.
 
-  Pour configurer un LLM, allez sur **Paramètres → Modèles LLM**.
+  Pour installer un modèle ou connecter un serveur, ouvrez **IA** dans la barre latérale.
 
 ## Étapes
 
 1. Cliquez sur l'**icône d'aide** (un point d'interrogation dans un cercle) de la barre du haut. Elle est sur chaque écran, toujours au même endroit. **Cmd+/** (macOS) ou **Ctrl+/** (Windows et Linux) fait la même chose depuis n'importe où, même pendant la saisie, tout comme l'action **Ouvrir ou fermer le guide** de la palette de commandes (**Cmd+K**).
 
-   ![L'écran Accueil, avec l'icône d'aide de la barre du haut](/img/operator-help/transversal-activer-la-compagnonne-ia-1.png)
-
 2. Le **panneau de détail** s'ouvre à droite de l'écran, sur son onglet **Guide**. En tête, le guide dit sur quel écran vous êtes et à quoi il sert, et propose des actions ; chacune ouvre l'écran qu'elle nomme. Dessous, une session de discussion dédiée démarre, et un court spinner s'affiche pendant sa création (1 à 2 secondes).
 
 3. Posez une question rapide. Le guide répond dans la colonne, et l'écran reste utilisable à sa gauche.
-
-   ![L'onglet Guide ouvert dans le panneau de détail, avec la zone de saisie](/img/operator-help/transversal-activer-la-compagnonne-ia-2.png)
 
 4. Le guide **sait sur quel écran vous êtes**, et quelle fiche y est ouverte. Sur l'écran Agents, un agent ouvert, demander *« que fait cet agent tout seul ? »* suffit : il sait de quel agent vous parlez.
 
@@ -48,7 +44,7 @@ L'icône d'aide fonctionne aussi pendant le premier lancement : la barre du haut
 
 ## Si ça ne marche pas
 
-- **Le guide ne répond pas / aucune réponse n'arrive** : vérifiez le **point d'état Apollia** dans le bandeau. S'il est ambre, configurez un fournisseur LLM dans **Paramètres → Modèles LLM**.
+- **Le guide ne répond pas / aucune réponse n'arrive** : vérifiez le **point d'état Apollia** dans le bandeau. S'il est ambre, installez un modèle ou connectez un serveur dans **IA**.
 - **L'onglet montre une page de documentation à la place de la conversation** : aucun modèle ne peut encore répondre. La page est celle de l'écran courant, lue sans réseau, et **Ouvrir dans le navigateur** mène à la même page du site public. Installez un modèle ou connectez un serveur dans **IA**, et la conversation revient.
 - **L'onglet Guide s'ouvre puis affiche une erreur** : la session n'a pas pu démarrer. Cliquez sur **Réessayer** dans l'onglet, ou repliez-le et rouvrez-le.
 

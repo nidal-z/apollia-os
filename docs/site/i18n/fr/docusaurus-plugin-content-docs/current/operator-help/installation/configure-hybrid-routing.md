@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # Configurer le routage hybride local + frontier
 
-> Pour tout operator qui veut combiner un modèle local rapide pour les étapes simples et un modèle cloud puissant pour les étapes complexes, avec un plafond de coût automatique.
+> Pour toute personne qui veut combiner un modèle local rapide pour les étapes simples et un modèle cloud puissant pour les étapes complexes, avec un plafond de coût automatique.
 
 ## Prérequis
 
@@ -37,7 +37,7 @@ precise = "local-qwen3-8b"
 fast    = "local-qwen3-4b"
 
 [llm.routing.hybrid]
-frontier          = "claude-anthropic"
+frontier          = "frontier-server"
 cost_ceiling_usd  = 2.00
 ceiling_action    = "stay_local"
 ```
@@ -67,8 +67,8 @@ Le routage hybride se voit plus tard, au moment où une étape est escaladée. D
 lignes racontent toute l'histoire, et les deux portent le nom du frontier :
 
 ```
-frontier="claude-anthropic" session_cost_usd=0.31 ceiling_usd=2 llm.hybrid.escalation.routed
-frontier="claude-anthropic" reason="the session cost ceiling is reached" llm.hybrid.escalation.blocked
+frontier="frontier-server" session_cost_usd=0.31 ceiling_usd=2 llm.hybrid.escalation.routed
+frontier="frontier-server" reason="the session cost ceiling is reached" llm.hybrid.escalation.blocked
 ```
 
 Lancez une tâche délibérément complexe et cherchez l'une des deux. Pour surveiller l'escalade et le cumul de coût en temps réel, consultez la page d'observabilité. Voir [Surveiller les coûts LLM](../observabilite/monitor-ai-costs.md).
@@ -76,7 +76,7 @@ Lancez une tâche délibérément complexe et cherchez l'une des deux. Pour surv
 ## Si ca ne marche pas
 
 - **Plus rien ne se charge après la modification :** la table `[llm.routing]` est incomplète. `precise` et `fast` sont requises dès que la table existe, et écrire `[llm.routing.hybrid]` seule suffit à la créer.
-- **Aucune escalade n'a jamais lieu, et aucune erreur nulle part :** un nom de `frontier` erroné n'est pas détecté au démarrage du daemon. Il se manifeste à la première escalade par `llm.hybrid.escalation.blocked` avec `reason="the frontier backend is absent from the router"`. Vérifiez le nom exact dans **Réglages - Backends LLM**, la correspondance est sensible à la casse.
+- **Aucune escalade n'a jamais lieu, et aucune erreur nulle part :** un nom de `frontier` erroné n'est pas détecté au démarrage du daemon. Il se manifeste à la première escalade par `llm.hybrid.escalation.blocked` avec `reason="the frontier backend is absent from the router"`. Vérifiez le nom exact dans la sortie de `apollia-os llm status`, la correspondance est sensible à la casse.
 - **Le plafond est atteint immédiatement :** la ligne bloquée porte `reason="the session cost ceiling is reached"`. Augmentez `cost_ceiling_usd` ou découpez vos tâches en sessions plus courtes.
 - **Toutes les étapes passent en local alors que vous attendez de l'escalade :** le routeur n'escalade que sur une étape qu'il juge complexe. Testez avec une tâche explicitement complexe avant de conclure que la configuration est fausse.
 

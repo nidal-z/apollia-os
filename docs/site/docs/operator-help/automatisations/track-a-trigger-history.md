@@ -15,7 +15,7 @@ sidebar_position: 2
 
 ## Steps
 
-1. In the sidebar, click **My Triggers**.
+1. In the sidebar, click **Automations**.
 
 2. Find the row of the automation you care about in the table. Hover it to reveal the actions on the right.
 
@@ -32,7 +32,7 @@ sidebar_position: 2
    ![Trigger run history panel, with the status filter chips at the top and the stacked run cards below](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-2.png)
 
 5. Learn the **possible statuses**:
-   - **FIRED** - the run did happen and a task was created for the assistant. This status says nothing about the outcome of the task itself: to know whether the agent succeeded at its work, see [View an agent's logs](../agents/view-an-agent-logs.md).
+   - **FIRED** - the run did happen and a task was created for the agent. This status says nothing about the outcome of the task itself: to know whether the agent succeeded at its work, see [View an agent's logs](../agents/view-an-agent-logs.md).
    - **SKIPPED** - the run was skipped because an earlier run was still in progress. Behaviour controlled by the *"if a run is already in progress"* setting of the advanced mode (queue or drop).
    - **ERROR** - the run itself failed (before even creating the task). The **reason** shows in red on a dedicated line right below.
 
@@ -46,11 +46,11 @@ sidebar_position: 2
 
 ## See the result of the associated task
 
-The History panel only shows the trigger events, not the detail of what the assistant produced. For that:
+The History panel only shows the trigger events, not the detail of what the agent produced. For that:
 
 1. Note the short task identifier shown on the FIRED row.
-2. Close the panel, go to **My Assistants**.
-3. Open the logs of the matching assistant ([View an agent's logs](../agents/view-an-agent-logs.md)) and find the task by its identifier prefix.
+2. Close the panel, go to **Agents**.
+3. Open the logs of the matching agent ([View an agent's logs](../agents/view-an-agent-logs.md)) and find the task by its identifier prefix.
 
 ## Check the next run
 
@@ -63,8 +63,8 @@ The history shows at least one row with the expected status. For an automation t
 ## If it does not work
 
 - **The history is empty**: no run has happened yet. Start one manually with the **▶︎** icon on the table row, then click **↻** in the panel to refresh.
-- **Every run is SKIPPED**: the previous run never finished. Check the state of the assistant in **My Assistants**; read its logs to see whether the current task has been in the **Running** status for too long. If so, see [An agent is stuck](../troubleshooting/an-agent-is-stuck.md). Once the task is unblocked, future runs will go back to FIRED.
-- **Every run is in ERROR**: read the reason shown in red under each row. Frequent causes: assistant uninstalled, invalid webhook secret, invalid cron expression.
-- **I do not see a task identifier associated with a FIRED entry**: rare; the task may have been created then deleted right away. Search by identifier prefix in **My Assistants → Logs**.
+- **Every run is SKIPPED**: the previous run never finished. Open the sheet of the agent in **Agents** and read its logs to see whether the current task has been in the **WORKING** status for too long. If so, see [An agent is stuck](../troubleshooting/an-agent-is-stuck.md). Once the task is unblocked, future runs will go back to FIRED.
+- **Every run is in ERROR**: read the reason shown in red under each row. Frequent causes: agent uninstalled, invalid webhook secret, invalid cron expression.
+- **I do not see a task identifier associated with a FIRED entry**: rare; the task may have been created then deleted right away. Search by identifier prefix in the logs of the agent.
 
 > **Technical reference:** [Apollia reference](/reference) - detailed reading of the FIRED/SKIPPED/ERROR statuses, `on_busy` behaviour, troubleshooting stuck runs.

@@ -17,14 +17,14 @@ sidebar_position: 8
 
 | Mode | What the model is shown | Recommended when |
 |---|---|---|
-| `deferred` (default) | The `tool_search` tool, and the indexed tools only when the whole index fits inside `tool_search_limit`. | You have many MCP servers connected, or servers with a lot of tools. The agent looks for the tool it needs through `tool_search`. |
-| `eager` | Every tool of every server, schema included. | The tool set is small and fixed, and you would rather not spend a turn on a search. |
+| `deferred` (default) | The `tool_search` tool, and the MCP tools granted to the agent only when they all fit inside `tool_search_limit`. | You have many MCP servers connected, or servers with a lot of tools. The agent looks for the tool it needs through `tool_search`. |
+| `eager` | Every MCP tool granted to the agent, schema included. | The tool set is small and fixed, and you would rather not spend a turn on a search. |
 
 In `deferred` mode, the daemon does not put every tool schema in front of the model at startup. It indexes what each server exposes, and the agent finds what it needs through `tool_search`.
 
 **What the mode does not change.** Both modes send the same single `tools/list` to each server at connection time, and the deferred path keeps the schemas that answer brings back in its cache rather than dropping them. So the process holds the same thing either way: deferring is about what enters the prompt, not about what the machine loads. Do not pick it to save memory or to shorten startup, pick it to keep the prompt small.
 
-One nuance decides how the agent reaches a tool once it has found it. When the whole index fits inside `tool_search_limit`, Apollia declares those tools directly, schemas included, and the agent calls them like any other tool. Above that bound, `tool_search` stays the only entry point and its results carry each tool's schema, which is what the agent reads before calling. Either way the tool is callable; the bound decides whether it is announced up front or discovered.
+One nuance decides how the agent reaches a tool once it has found it. The index an agent searches holds the MCP tools granted to it, and nothing else. When that index fits inside `tool_search_limit`, Apollia declares those tools directly, schemas included, and the agent calls them like any other tool. Above that bound, `tool_search` stays the only entry point and its results carry each tool's schema, which is what the agent reads before calling. Either way the tool is callable; the bound decides whether it is announced up front or discovered.
 
 ## Steps - Configure the loading mode
 
@@ -49,7 +49,7 @@ In `deferred` mode, one more line is written when the assistant's tool list is b
 
 ## If it does not work
 
-- **"The agent cannot find a tool that is nonetheless connected" in `deferred` mode:** there is nothing to declare in the agent's manifest, and no manifest key named `tool_search` is read by anything. The tool is injected by the runtime, and only into the built-in conversational assistant. An installed Python agent has no `tool_search` at all, so in `deferred` mode it reaches MCP tools only when the whole index fits inside `tool_search_limit` and is therefore declared up front. Raise that bound, or switch to `eager`.
+- **"The agent cannot find a tool that is nonetheless connected" in `deferred` mode:** `tool_search` searches the tools granted to the agent, not everything that is connected. Open the agent's sheet, click **Adjust**, and grant the connection under **Accesses**. Nothing has to be declared for `tool_search` itself: the runtime offers it on its own in this mode.
 - **Startup time stays long despite `deferred` mode:** the mode is not what to look at. Both modes pay the same `tools/list` per server at connection time, so a slow start comes from a server that is slow to answer it. Test each one from the **Connections** page.
 - **`tool_search` returns too few results:** raise `tool_search_limit` in `apollia.toml`. The upper bound is `500`.
 

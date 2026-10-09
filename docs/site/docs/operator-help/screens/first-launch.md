@@ -10,7 +10,7 @@ sidebar_position: 16
 
 ## What it is for
 
-The first time, Apollia walks you through a few steps: the language, the model that will answer, a first agent, a connection and a first task. Only the model step is required.
+The first time, Apollia walks you through a few steps: the language, the model that will answer, the model that searches your documents by meaning, a few words about you, a first agent, a connection and a first task. Only the model step is required.
 
 ## What you can do
 

@@ -12,23 +12,42 @@ sidebar_position: 2
 
 - At least one agent that has already held a conversation or run a task.
 
+## How an agent remembers
+
+An agent keeps a memory of its own only when the **The agent's memory** source is checked on its sheet, under **Sources**. With that source, the agent keeps notes with a tool, under a name it chooses, and finds them again in a later conversation or a later task. It can also drop a note it no longer needs. Its memory is one space, named after the agent, that no other agent writes to. Neither keeping a note nor searching its memory asks for your consent: the agent acts on its own space.
+
+Nothing from that memory is added to a conversation on its own. The agent searches it when it needs to.
+
+An agent without that source keeps no memory of its own, and its sheet says so.
+
 ## Where to find what
 
-Two distinct places, two distinct uses:
+Three distinct places, three distinct uses:
 
-- **Settings → Profile** - your user profile (first name, role, sector, agent supervision, sovereignty, and so on). This is what all your agents know about you. See [My profile](manage-my-profile.md).
-- **Memory** (from the sidebar) - the explorer of **memory namespaces** per agent and per project. This is what each agent retains for itself (conversation episodes, semantic facts, learned procedures).
+- **Settings**, section **Profile**: your profiles and the facts kept in each one. This is what the agents allowed to read your profile know about you. See [My profile](manage-my-profile.md).
+- **The sheet of an agent**, tab **Memory**: what that one agent retained. Available to everyone.
+- **Memory** (from the sidebar, shown only with the developer mode on): the explorer of every **memory namespace**, with export, import and purge.
 
-This page covers the second one: browsing the memory namespaces and deleting entries in them.
+## Review the memory of one agent
+
+1. In the sidebar, click **Agents**, open the agent, then the **Memory** tab of its sheet.
+
+2. The tab lists what the agent retained, with the number of entries. **Search the memory** narrows the list to the entries that match.
+
+3. **Delete**, on a line, removes that entry.
+
+4. **Erase all** removes everything the agent retained, after a confirmation that says how many entries go. Its sources, your files and your mails stay.
 
 ## Steps
+
+The rest of this page covers the **Memory** screen. It is one of the technical screens: turn the developer mode on in **Settings**, section **Developer**, and it appears in the sidebar.
 
 1. In the sidebar, click **Memory**. The page shows a two-column layout: the namespace sidebar on the left, the central panel with the list of entries for the selected namespace.
 
    ![Memory page: the namespace list on the left, the type filters and the search in the middle, and the entries of the user profile memory](/img/operator-help/memoire-consulter-et-nettoyer-la-memoire-1.png)
 
 2. **Left sidebar** - the list of **namespaces** (one namespace = one isolated memory space). Each namespace is classified automatically:
-   - **Profile**: your shared user profile (`__user__`). Read-only from this page, editing happens in **Settings → Profile**. A banner reminds you of that when you select `__user__`.
+   - **Profile**: your shared user profile (`__user__`). Read-only from this page, editing happens in **Settings**, section **Profile**. A banner reminds you of that when you select `__user__`.
    - **Agents**: namespaces of installed agents (one per agent, for example `veille-ia`, `email-triage`).
    - **Projects**: namespaces scoped to a project (format `{project_id}:{ns}`).
    - **Other**: legacy namespaces or namespaces of uninstalled agents.
@@ -88,13 +107,15 @@ The deleted entry no longer appears in the list, even after reloading the page. 
 
 ## If it does not work
 
-- **The page is empty**: no agent has generated memory yet. Start a conversation and come back.
+- **Memory is not in the sidebar**: the developer mode is off. Turn it on in **Settings**, section **Developer**, or use the **Memory** tab on the sheet of the agent.
+- **The Memory tab says the agent keeps no memory of its own**: its **The agent's memory** source is not checked.
+- **The page is empty**: no agent has kept anything yet. Work with an agent whose memory source is checked and come back.
 - **Deletion fails**: the agent is writing to memory, wait a few seconds and try again.
 - **The expected namespace does not appear**: check that the agent is installed (the agent must be listed under **Agents** to appear under the *Agents* category, otherwise the namespace falls into *Other*).
 - **You want to empty a whole namespace**: use **Purge** with **All types** and `0` days. To wipe every namespace at once, see [Reset Apollia (factory reset)](../troubleshooting/factory-reset.md), or use the CLI: `apollia-os memory clear --agent <NAME> --confirm`.
 - **The purge preview announces fewer entries than the purge removes**: the preview is counted on the listing this page reads, which stops at the 500 most recent conversation episodes. On a large namespace the real figure is higher, and it is the one reported at the end.
 - **The Export, Import and Purge buttons are greyed out**: no namespace is selected. Pick one in the left sidebar.
 
-> **Note**: To manage the **tools** available to your agents (web search, file reading, and so on), open **Settings → Tools**. The page offers the detail of each tool, its enabling and disabling, its optional configuration and its contract, see [Inspect a tool](../controle/inspect-a-tool.md).
+> **Note**: To manage the **tools** shipped with Apollia (web search, file reading, and so on), open **Connections**, section **Built-in tools**. The page offers each tool, its enabling and disabling and its optional configuration, see [Inspect a tool](../controle/inspect-a-tool.md).
 
 > **Technical reference:** [Apollia reference](/reference) - memory types, default retention durations, limits.

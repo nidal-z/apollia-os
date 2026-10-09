@@ -33,15 +33,16 @@ est la vôtre évite une recherche.
 
 ## Depuis l'application
 
-**Réglages > Système** affiche un panneau de mise à jour, également accessible
-depuis **Réglages > À propos**.
+**Réglages > Général** s'ouvre sur le bloc **Mise à jour de l'application** : la
+version installée, le panneau de mise à jour et le **Canal de mise à jour**,
+**Stable** ou **Préversion**.
 
 1. Cliquez sur **Vérifier les mises à jour**. Apollia lit le manifeste de mise à
    jour attaché à la dernière version publiée et compare sa version à la vôtre.
-2. Si une version plus récente existe, le panneau affiche son numéro. Le
-   manifeste ne porte pas de journal des changements : ce qu'apporte cette
-   version est sur la page de publication, pas dans le panneau.
-3. Lancez l'installation. Une barre de progression suit le téléchargement.
+2. Si une version plus récente existe, le panneau affiche son numéro, et sous
+   **Nouveautés** les notes de cette version quand la publication en porte.
+   Sinon, ce qu'apporte cette version est sur la page de publication.
+3. Cliquez sur **Installer et relancer**. Une barre de progression suit le téléchargement.
 4. Quittez Apollia et rouvrez-la une fois l'installation terminée.
 
 ## Depuis la ligne de commande
@@ -107,7 +108,8 @@ Copy-Item -Recurse "$env:USERPROFILE\.apollia" "$env:USERPROFILE\.apollia.backup
   voyez une version sur GitHub : les deux chemins lisent la dernière version
   *publiée*, ce qui écarte les brouillons et les préversions. Une version encore
   en brouillon, ou marquée préversion, leur est invisible tant qu'elle n'est pas
-  publiée pour de bon.
+  publiée pour de bon. Dans l'application, le canal de mise à jour
+  **Préversion** reçoit aussi les versions d'essai.
 - **Rien de neuf n'est proposé alors qu'une version publiée existe** : l'artefact
   de votre plateforme n'est peut-être pas attaché à cette version. Regardez la
   page de publication, `https://github.com/Apollia-OS/apollia-os/releases`, et

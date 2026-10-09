@@ -11,7 +11,7 @@ sidebar_position: 5
 ## Prerequisites
 
 - Apollia running, daemon active.
-- The agent to evaluate installed and startable.
+- The agent to evaluate installed.
 - A `suite.toml` file to create (see below).
 
 ## Create an evaluation suite

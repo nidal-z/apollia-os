@@ -20,5 +20,5 @@ A batch is one task handed to an agent for a series of items. This screen, reach
 
 ## Go further
 
-- [Start an agent or a package](/operator-help/agents/start-an-agent)
+- [Hand a task to an agent](/operator-help/agents/start-an-agent)
 - [Approve or reject an agent action](/operator-help/control/approve-or-reject-an-action)

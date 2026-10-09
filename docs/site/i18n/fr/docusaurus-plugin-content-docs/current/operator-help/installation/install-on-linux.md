@@ -38,7 +38,7 @@ L'app démarre le daemon en arrière-plan. Le daemon sert l'inférence LLM local
 Un point à connaître avant de choisir ce format : une AppImage est un montage en
 lecture seule qui n'existe que pendant l'exécution de l'app. La ligne de commande
 vit dans ce montage, et le lien `/usr/local/bin` proposé par **Réglages >
-Système** y pointe, donc il pend dès que vous quittez. Pour une ligne de commande
+Matériel**, mode développeur allumé, y pointe, donc il pend dès que vous quittez. Pour une ligne de commande
 qui survit, installez le `.deb` ou décompressez une des archives
 `apollia-os-linux-*`.
 
@@ -52,8 +52,10 @@ Lancez ensuite l'application depuis le menu des applications de votre bureau,
 sous l'entrée **Apollia OS** :
 l'app démarre le daemon elle-même. La ligne de commande `apollia-os` est livrée
 dans le paquet (`/usr/lib/Apollia OS/`) mais n'est pas sur votre `PATH` tant que
-vous ne l'activez pas depuis **Réglages > Système** dans l'app, qui crée le lien
-`/usr/local/bin`. Les commandes de vérification ci-dessous supposent ce lien.
+vous ne l'activez pas dans l'app : allumez le mode développeur dans **Réglages >
+Développeur**, puis cliquez sur **Installer la CLI** dans **Réglages >
+Matériel**, ce qui crée le lien `/usr/local/bin`. Les commandes de vérification
+ci-dessous supposent ce lien.
 
 ## Vérification
 

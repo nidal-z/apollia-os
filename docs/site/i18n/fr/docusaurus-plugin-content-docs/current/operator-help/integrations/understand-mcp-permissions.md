@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # Comprendre les permissions MCP
 
-> Pour tout operator qui veut savoir pourquoi un outil demande une approbation, comment changer une règle, et ce que la politique de votre organisation interdit.
+> Pour tout operator qui veut savoir pourquoi un outil demande une approbation, comment retirer un accord, et ce que la politique de votre organisation interdit.
 
 ## Prérequis
 
@@ -15,36 +15,32 @@ sidebar_position: 7
 
 ## Pourquoi cet outil demande une approbation
 
-Chaque outil exposé par un connecteur ou un MCP a une **policy d'approbation** :
+Chaque outil exposé par un connecteur ou un MCP appartient à une **famille d'action**, et c'est la famille qui porte la règle :
 
-| Policy | Comportement | Cas d'usage |
+| Famille | Règle | Exemples |
 |---|---|---|
-| `auto_approve` | L'outil s'exécute immédiatement. | Lectures sans effet de bord, `gcal.list_events`, `gdrive.workspace_list`, `outlook.search`. |
-| `always_require_approval` | Une popup HITL apparaît, vous décidez. | Écritures, `gmail.send`, `outlook.send`, `gcal.create_event`. |
-| `confirm_phrase` | Popup HITL + il faut taper une phrase de confirmation (le nom de la chose à supprimer par exemple). | Suppressions irréversibles, `gcal.delete_event`, `outlook_cal.delete_event`. |
+| **Lire** | **Sans demander** : l'outil s'exécute immédiatement. | Un outil d'un serveur sans compte, que le serveur déclare en lecture seule. |
+| **Lire des données personnelles**, **Écrire ou supprimer**, **Envoyer vers l'extérieur** | **Votre accord est demandé** : une carte apparaît, vous décidez. | Lecture d'un compte connecté, `gcal.list_events`, `outlook.search`. Écritures et suppressions, `gcal.create_event`, `gcal.delete_event`. Envois, `gmail.send`, `outlook.send`. |
+| **Exécuter du code** | **Accord à chaque fois**. | Une commande ou un script que l'agent veut lancer. |
 
-La carte porte trois boutons, **Autoriser une fois**, **Refuser** et **Toujours autoriser**. La portée est un choix distinct, proposé à côté : *Pour cette session*, *Toujours pour cet assistant* ou *Toujours, partout*. Répondre **Toujours autoriser** sur une portée autre que la session crée une **règle persistante** que vous retrouverez et pourrez révoquer dans **Paramètres, Permissions**.
+La carte porte trois réponses, **Une fois**, **Toujours pour cet agent** et **Refuser**. Il n'y a ni portée à choisir ni mot à taper. **Toujours pour cet agent** vaut pour l'agent qui a demandé et pour la famille d'action de l'outil ; vous le retrouvez, et le retirez, sur l'écran **Autorisations**. Un refus accepte une raison facultative, transmise à l'agent. Pour le code, la réponse durable est **Toujours autoriser cette commande** : elle est proposée avec le mode développeur activé, pour une commande simple et unique, et toute autre exécution redemande. Un outil que son serveur ne décrit pas est traité comme sensible et demandé à chaque fois.
 
-Il n'existe pas d'écran d'approbations propre au MCP, ni de file d'attente de demandes MCP à traiter. Un outil exposé par un serveur MCP passe par la même porte qu'un outil natif, celle qu'ouvre la boucle d'exécution : la carte dans la conversation si vous y êtes, la **Boîte de réception** pour une tâche d'agent en attente. Tout ce que le reste de ce centre d'aide dit sur l'approbation d'une action s'y applique sans changement.
-
-![Popup d'approbation dans le chat : le titre de l'outil, les paramètres exposés, les boutons Autoriser une fois, Refuser et Toujours autoriser, et le choix de portée](/img/operator-help/integration-comprendre-les-permissions-mcp-1.png)
+Il n'existe pas d'écran d'approbations propre au MCP, ni de file d'attente de demandes MCP à traiter. Un outil exposé par un serveur MCP passe par la même porte qu'un outil natif, celle qu'ouvre la boucle d'exécution : la carte dans la conversation si vous y êtes, l'écran **À valider** pour une tâche d'agent en attente. Tout ce que le reste de ce centre d'aide dit sur l'approbation d'une action s'y applique sans changement.
 
 ## Voir et changer les règles
 
-Ouvrez **Paramètres, Permissions**. Quatre sections :
+Ouvrez **Autorisations** dans la barre latérale. L'écran liste les agents, et pour chacun :
 
-- **Règles** : les règles persistantes, créées via les demandes d'approbation, par l'agent d'onboarding, ou à la main. Filtrables par portée (Toutes, Ce projet, Agent de chat, Partout) et par outil. L'auteur de la règle est affiché sur chaque ligne mais n'est pas un filtre.
-- **Sessions actives** : autorisations valables uniquement pour la session de chat en cours.
-- **Apollia Chat** : les règles qui s'appliquent spécifiquement au chat libre.
+- **Accès accordés, par famille** : ce que l'agent peut utiliser, avec la règle de chaque famille.
+- **« Toujours » donnés** : les accords auxquels vous avez répondu **Toujours pour cet agent**, chacun avec un bouton **Retirer**.
+- **Règles fines** : les règles sur une commande ou un outil précis, chacune avec un bouton **Retirer**. Les **Règles pour tous les agents** sont listées à part.
 - Les décisions elles-mêmes ne sont pas listées sur cet écran : chaque consentement donné et chaque refus est une entrée du **Journal**.
 
-Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'une portée d'un coup, le bouton **Révoquer tout** vous fait choisir la portée et affiche combien de règles seraient retirées, puis Annuler ou Révoquer. Il ne demande aucune confirmation à taper.
+Pour en retirer plusieurs d'un coup, **Tout révoquer** demande ce qui est retiré (les règles fines, les « toujours » ou les deux) et pour quelle portée (tous les agents ou un agent), puis affiche combien sont concernés. Il ne demande aucune confirmation à taper. Chaque retrait est inscrit au **Journal**.
 
-Le niveau d'approbation par serveur n'est pas sur cette page : il se trouve dans **Connexions**, sur l'onglet **Réglages** du serveur. Il propose deux choix, *Autoriser automatiquement* et *Me demander à chaque fois*, et il ne s'applique qu'aux tâches d'agent. Une conversation ne le lit pas : un appel à un outil que vous n'avez pas autorisé, pour la session ou par une règle, vous est d'abord demandé, quel que soit le choix du serveur. Un niveau lecture seule a été retiré volontairement : il enregistrait le même octet que *Autoriser automatiquement*, donc le libellé le plus restrictif produisait le réglage le moins protecteur.
+Il n'existe pas de niveau d'approbation par serveur. Dans **Connexions**, l'onglet **Paramètres** d'un serveur contient ses réglages de lancement, ses délais d'attente et **Déconnecter**, et rien sur l'approbation : un outil se décide sur sa famille d'action, quel que soit le serveur dont il vient.
 
-![Page Paramètres, Autorisations : les règles de permission empilées avec un bouton Révoquer par ligne](/img/operator-help/integration-comprendre-les-permissions-mcp-2.png)
-
-Une règle se crée de deux façons. La plupart du temps elle apparaît toute seule, quand vous répondez « Toujours autoriser » à une demande d'approbation. Vous pouvez aussi en créer une à la main depuis cette page, via le formulaire **Ajouter une règle**, ce qui permet d'autoriser quelque chose avant même qu'un agent le demande.
+Un « toujours » apparaît tout seul, quand vous répondez **Toujours pour cet agent** à une demande d'accord. Une règle fine s'écrit à la main depuis cet écran, via **Ajouter une règle fine**, avec le mode développeur activé.
 
 ## Ce que la politique de l'organisation interdit
 
@@ -56,7 +52,7 @@ qui la vérifie.
 - **Aucune politique** : vous êtes libre. Aucune connexion n'est refusée parce qu'elle est en ligne.
 - **Une politique avec `connections.remote = "deny"`** : ajouter une connexion à un service en ligne est refusé, qu'il s'agisse d'un compte Google ou Microsoft ou d'un serveur MCP distant. La fenêtre affiche « Refusé par la politique de l'organisation » et rien n'est envoyé.
 
-La politique est vérifiée à l'ajout d'une connexion, pas à chaque appel d'outil : aucun agent ne reçoit d'erreur de politique sur le chemin des outils. Voyez-la comme une barrière à la connexion, pas comme une frontière réseau.
+La politique est lue au démarrage d'Apollia. Une connexion qu'elle interdit n'est pas démarrée : elle est listée sous **Interdites par la politique** dans **Connexions**, et un appel à l'un de ses outils est refusé. Une politique peut aussi interdire un type d'action ou un outil nommé, et ce refus tient quoi que vous ayez répondu auparavant.
 
 ## Ce qu'un serveur MCP peut, et ne peut pas, vous demander
 
@@ -69,20 +65,18 @@ Apollia n'en honore aucune aujourd'hui, et en annonce une.
 
 Les deux dernières ne sont pas annoncées pendant la poignée de main : un serveur
 découvre donc leur absence à la connexion, et non en envoyant une requête qui
-reste sans réponse. Roots est le seul cas où l'annonce devance l'implémentation ;
-les trois sont prévues, et passeront toutes par votre approbation le jour où
-elles arriveront.
+reste sans réponse. Roots est le seul cas où l'annonce devance l'implémentation.
 
 ## Vérification
 
-- Ouvrez **Paramètres, Permissions**, les quatre sections s'affichent.
-- Dans le chat, déclenchez une écriture (envoi de mail), la popup apparaît.
-- Répondez **Toujours autoriser** avec la portée *Toujours pour cet assistant*, confirmez, vérifiez qu'une nouvelle ligne apparaît dans **Règles**.
+- Ouvrez **Autorisations** dans la barre latérale, la liste des agents s'affiche.
+- Dans le chat, déclenchez une écriture (envoi de mail), la demande d'accord apparaît.
+- Répondez **Toujours pour cet agent**, et vérifiez qu'une nouvelle ligne apparaît sous **« Toujours » donnés** pour cet agent.
 
 ## Si ça ne marche pas
 
-- **Un outil read-only demande une approbation alors que ce n'est pas attendu** : la policy par défaut a été durcie. Vérifiez dans **Autorisations** et restaurez le mode `auto`.
-- **Un outil sensible s'exécute sans demande** : vous avez répondu **Toujours autoriser** un jour, sur une portée plus large que la session. Allez révoquer cette règle.
-- **Un serveur MCP ne répond plus après un changement de souveraineté** : le profil n'est pas en cause. Il ne filtre aucun transport MCP, local ou distant. Regardez le serveur lui-même, via [Tester une connexion MCP](test-an-mcp-connection.md).
+- **Un outil qui ne fait que lire demande votre accord** : il lit un compte connecté, donc des données personnelles, ou son serveur ne l'a pas décrit et il est traité comme sensible. Répondez **Toujours pour cet agent** pour que la question cesse pour cet agent.
+- **Un outil sensible s'exécute sans demande** : vous avez répondu **Toujours pour cet agent** un jour, pour sa famille. Ouvrez **Autorisations** et retirez cet accord.
+- **Une connexion ne répond plus après le déploiement d'une politique** : vérifiez si elle est listée sous **Interdites par la politique** dans **Connexions**. Si ce n'est pas le cas, regardez le serveur lui-même, via [Tester une connexion MCP](test-an-mcp-connection.md).
 
 > **Référence technique :** [Référence Apollia](/reference) , gouvernance complète, audit trail, format des règles dans `governance.db`.

@@ -10,20 +10,20 @@ sidebar_position: 2
 
 ## Prérequis
 
-- Un modèle Whisper est téléchargé via [Télécharger des modèles locaux](../installation/telecharger-des-modeles-locaux.md).
+- Un modèle de dictée (Whisper) est téléchargé via [Télécharger des modèles locaux](../installation/telecharger-des-modeles-locaux.md).
 - Le microphone de votre machine fonctionne et Apollia a l'autorisation d'y accéder.
 - Un raccourci clavier libre, qui n'entre pas en conflit avec l'OS ou une autre application.
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
-   ![page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
+1. Dans la barre latérale, cliquez sur **Réglages**, puis sur la section **Dictée**.
+   ![Réglages, section Dictée, état du modèle de dictée affiché en haut](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
 
-2. Vérifiez que le modèle Whisper apparaît avec une pastille verte **Chargé**. Sinon, retournez au Hub de modèles pour le télécharger.
+2. Vérifiez qu'un modèle est nommé sous **Modèle actif**. Il se charge au premier usage. Si aucun n'est nommé, téléchargez un modèle de dictée depuis l'écran **IA**, ou cliquez sur **Charger un modèle** pour choisir un fichier de modèle que vous avez déjà.
 
 3. Sélectionnez la **langue** de dictée dans le sélecteur. Il propose treize langues plus **Détection automatique** ; la liste exacte figure dans [Configuration](/reference/configuration). Nommer la langue améliore nettement la précision, et la détection automatique n'est pas fiable sur un enregistrement court.
 
-4. Sélectionnez votre microphone dans le sélecteur **Périphérique d'entrée**. Laisser le défaut système convient jusqu'au jour où un périphérique virtuel (BlackHole, Soundflower, un périphérique agrégé) devient ce défaut : Apollia enregistre alors du silence. Nommer le périphérique lève l'ambiguïté.
+4. Sélectionnez votre microphone dans le sélecteur **Microphone**. Laisser le défaut système convient jusqu'au jour où un périphérique virtuel (BlackHole, Soundflower, un périphérique agrégé) devient ce défaut : Apollia enregistre alors du silence. Nommer le périphérique lève l'ambiguïté.
 
 5. Cliquez sur le champ **Raccourci global**. Une fenêtre invite à appuyer sur la combinaison de touches souhaitée (par exemple **Cmd + Shift + Espace**).
    ![fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée](/img/operator-help/chat-activer-la-dictee-vocale-2.png)
@@ -36,9 +36,9 @@ sidebar_position: 2
 
 7. Enregistrez. Les réglages de dictée s'appliquent dès la dictée suivante ; il n'y a rien à relancer.
 
-8. Avant de quitter la page, lancez le **Test** et dites quelques mots. Les barres doivent suivre votre voix, et le texte reconnu s'affiche en dessous. Des barres plates signifient que le périphérique choisi ne délivre rien.
+8. Avant de quitter la page, cliquez sur **Tester** et dites quelques mots. Les barres doivent suivre votre voix, et le texte reconnu s'affiche en dessous. Des barres plates signifient que le périphérique choisi ne délivre rien.
 
-9. Ouvrez un chat depuis la sidebar.
+9. Ouvrez un chat depuis la barre latérale.
 
 10. Maintenez votre raccourci enfoncé. Un **overlay sombre plein écran** s'affiche avec un visualiseur audio à barres. Parlez naturellement.
     A l'ecran : l'overlay d'enregistrement plein écran, avec le visualiseur audio à barres et le texte {hotkey} pour arrêter · Esc pour annuler.
@@ -61,7 +61,7 @@ Le silence n'est pas transcrit. Quand chaque instant d'un enregistrement se situ
 
 ## Si ça ne marche pas
 
-- **Aucune transcription :** nommez votre microphone dans le sélecteur **Périphérique d'entrée** au lieu de vous en remettre au défaut système, puis consultez [La dictée vocale ne transcrit rien](../troubleshooting/voice-dictation-transcribes-nothing.md).
+- **Aucune transcription :** nommez votre microphone dans le sélecteur **Microphone** au lieu de vous en remettre au défaut système, puis consultez [La dictée vocale ne transcrit rien](../troubleshooting/voice-dictation-transcribes-nothing.md).
 - **Raccourci ignoré :** une autre application capte peut-être la même combinaison ; choisissez-en une moins courante.
 - **Transcription approximative :** vérifiez que la langue sélectionnée correspond bien à celle parlée, et envisagez un modèle Whisper plus gros.
 - **Le texte n'apparaît pas dans le champ :** assurez-vous que le champ de saisie du chat est actif (cliquez dessus) avant d'utiliser le raccourci.

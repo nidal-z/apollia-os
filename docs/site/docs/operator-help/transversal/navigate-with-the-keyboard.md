@@ -20,9 +20,9 @@ sidebar_position: 3
 
    > **Note:** there is only one shortcut to open it. Cmd+K (or Ctrl+K) covers every case: page, action, shortcut. Type a few letters to narrow the list.
 
-2. Type a few letters of what you are looking for. The list filters in real time. For example, typing **agent** gives: *Agents* (page), *Create agent*, *Start all agents*, *Stop all agents*.
+2. Type a few letters of what you are looking for. The list filters in real time. For example, typing **agent** gives: *Agents* (page) and *Create agent*.
 
-   Entries are **grouped by category** (Pages, Actions, Recent sessions, Templates, Slash commands…) and the sections change depending on the current page.
+   Entries are **grouped by category** (Recently used, Pages, Actions, Sessions, Settings, Help) and the sections change depending on the current page.
 
 3. Use the **Up** and **Down** arrow keys to move through the results. The selected row is highlighted.
 
@@ -36,11 +36,9 @@ To see at a glance the shortcuts available in the current context, press **?** (
 
 ## Full list of shortcuts
 
-To browse every shortcut (global, navigation, chat, settings, companion, approvals) grouped by category, go to **Settings → Shortcuts**. The page offers a **search** to find a combination by name (*"sidebar"*, *"new chat"*, *"help"*…).
+To browse every shortcut grouped by category (Global, Navigation, Chat, Settings, Companion), open **Settings**, section **Chat**, and go down to the **All shortcuts** block. It offers a **search** to find a combination by name (*"sidebar"*, *"new chat"*, *"help"*…). The same list opens from the palette with **Open Keyboard Shortcuts page**.
 
-![Settings then Shortcuts page, with the search bar at the top and the shortcuts grouped by category](/img/operator-help/transversal-naviguer-au-clavier-command-palette-2.png)
-
-> **Read only.** This page does not allow customising the combinations for now. The shortcuts are fixed and aligned with the native macOS / Windows conventions.
+> **Read only.** This list does not allow customising the combinations. The one exception is the key that sends a message, which has its own switch in the **Keyboard shortcuts** block of the same section.
 
 ## A few useful shortcuts
 
@@ -50,7 +48,7 @@ To browse every shortcut (global, navigation, chat, settings, companion, approva
 - **Cmd+[ / Ctrl+[** - previous page (history navigation).
 - **Cmd+] / Ctrl+]** - next page.
 - **Cmd+/ / Ctrl+/** - open or collapse the **Guide** tab on the current screen.
-- **Cmd+Enter / Ctrl+Enter** - send the current message (inside a chat).
+- **Enter** - send the current message (inside a chat); **Shift+Enter** starts a new line. A switch in **Settings**, section **Chat**, makes **Cmd+Enter / Ctrl+Enter** send instead.
 - **Esc** - close the current dialog / chat input.
 
 ## Verification
@@ -61,4 +59,4 @@ The palette opens instantly with **Cmd+K** / **Ctrl+K**, and the chosen action r
 
 - **Cmd+K opens nothing**: another piece of software (Slack, Notion, a browser…) may be intercepting the combination first. Click inside the Apollia window so that it gets the focus, then try again. If the problem persists, the other software has to be quit or its shortcut changed.
 - **The action I am looking for does not show up**: some entries are **contextual**. For example, *Recent sessions* / *Templates* / *Slash commands* only appear if you are on the **Chat** page. Navigate to the matching page first, then reopen the palette.
-- **I want to customise a shortcut**: not available for now, the **Settings → Shortcuts** page is read only. The native conventions (Cmd / Ctrl) are respected everywhere.
+- **I want to customise a shortcut**: the **All shortcuts** list of **Settings**, section **Chat**, is read only. Only the key that sends a message can be changed, in the same section.

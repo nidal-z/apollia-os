@@ -20,5 +20,5 @@ The view of a batch shows each of its items with its state. An open item shows i
 
 ## Go further
 
-- [Start an agent or a package](/operator-help/agents/start-an-agent)
+- [Hand a task to an agent](/operator-help/agents/start-an-agent)
 - [Approve or reject an agent action](/operator-help/control/approve-or-reject-an-action)

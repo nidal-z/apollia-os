@@ -1,68 +1,63 @@
 ---
-title: Start an agent or a package
+title: Hand a task to an agent
 slug: /operator-help/agents/start-an-agent
 sidebar_position: 2
 ---
 
-# Start an agent or a package
+# Hand a task to an agent
 
-> For any operator who has installed an agent (or a package of agents): put it into service so you can talk to it or let its triggers fire.
+> For anyone who has an agent installed and wants it to work: talk to it, give it a series of items, or let an automation call it.
 
 ## Prerequisites
 
-- The agent or the package is installed and visible in the left column of **My Assistants**.
-- An AI provider is connected (green dot in the top bar).
+- The agent is listed in the **Agents** screen.
+- A model answers. Models are set up in the **AI** screen.
 
-## Agent or package: what is the difference in practice?
+## An agent is never started nor stopped
 
-On the **My Assistants** page, the left column shows two distinct sections:
+There is no start button and no stop button. An agent is loaded by its first task and released once it is idle. What the **Agents** screen shows is whether a task can reach the agent:
 
-- **My assistants** - a single agent, identified by a star icon. You start it on its own. This is the format delivered for a simple agent (one `.py` file).
-- **My packages** - a coherent set of agents that often work together, identified by a box icon. Starting a package means starting **all its agents and activating its triggers** at once.
+- **available**: the agent takes a task.
+- **degraded**: the agent still takes a task, with a warning.
+- **unavailable**: the agent was switched off from the command line. `apollia-os agent start <agent-id>` makes it available again.
 
-You will also find a system agent pinned at the top, **Apollia Chat**: it is always available and requires neither installation nor start.
+The built-in agent **Apollia Chat**, at the top of the **Agents** column, is always available.
 
-## Steps - Start a single assistant
+## Steps - Talk to an agent
 
-1. In the sidebar, open **My Assistants**. The left column lists your assistants under **My assistants · N**.
-   ![My Assistants page - left column with the two sections "My assistants" and "My packages" visible](/img/operator-help/agents-demarrer-un-agent-1.png)
+1. In the sidebar, open **Agents**.
 
-2. Find your agent in the list. The dot to the right of its name shows its state: **grey** (stopped), **green** (active), **orange** (degraded).
+2. On the row of the agent, click **Chat**. A conversation with this agent opens in the **Chat** screen.
 
-3. Click the **play button** (▶) at the right of the row. The dot turns green and the button becomes a stop button (■).
+3. Type your request and send it. The agent answers in the conversation, and the steps of its work are shown as it goes.
 
-4. Click the row (anywhere except the play button) to open the detail panel on the right. There you see its status, its tools, its version and its activity.
+You can also click the row to open the sheet of the agent, then **New chat** at the top of the sheet. From the **Chat** screen, the selector of the conversation lists your agents: choosing one opens a new conversation with it.
 
-5. To talk to it, click **New chat** at the top right of the detail panel. A dedicated conversation opens.
+## Steps - Give an agent a series of items
 
-6. To free resources when you no longer need it, click the stop button on the row again. The dot turns grey again.
+1. Open **Agents** and click the row of the agent to open its sheet.
 
-> Agents marked as **workers** (only called internally by other agents) do not appear in the **My assistants** section - you will find them in the detail of a package.
+2. Click **Process a batch** at the top of the sheet, and follow the window that opens.
 
-## Steps - Start a whole package
+3. Follow the batch from **Batch history**, at the top of the **Agents** screen.
 
-1. In the sidebar, open **My Assistants**. Scroll the left column down to the **My packages · N** section.
+## Steps - Let an automation call the agent
 
-2. The package row shows how many agents and triggers it contains in total and how many are active (for example `0/2 agents · 0/1 triggers` when everything is stopped).
+1. Open the sheet of the agent and click **Automate**. The window that opens is prefilled with this agent as its target.
 
-3. Click the **play button** (▶) at the right of the row. Apollia starts every agent of the package and activates their triggers in a single operation. The dot turns green; the counter shows `2/2 agents · 1/1 triggers`.
+2. Say when the automation must run, then create it. It is listed in the **Automations** screen. See [Schedule a trigger](../automatisations/schedule-a-trigger.md).
 
-4. Click the row to open the package detail: there you see the list of the agents it contains, their roles (*director* or *worker*), and the list of the configured triggers (cron, webhook, and so on).
-   ![package detail panel - Information, Agents (with director/worker roles) and Triggers sections](/img/operator-help/agents-demarrer-un-agent-2.png)
+## Steps - Launch a workflow
 
-![package detail panel - Information, Agents (with director/worker roles) and Triggers sections (continued)](/img/operator-help/agents-demarrer-un-agent-2bis.png)
+1. In the sidebar, open **Agents**. Workflows are listed in the **Workflows** column.
 
-5. If only some of the agents started, the package dot turns **orange** (**partial** status). Click an agent row in the panel to identify the one that is failing, then open its logs.
+2. On the row of the workflow, click **Launch**.
 
-6. To stop everything at once: click the stop button on the package row again, or use **Stop all** at the top right of the detail panel.
+3. Fill in the inputs the workflow asks for, then launch it. Its sheet shows where each step of the run stands.
 
-## Special case - Apollia Chat
+## Choose the autonomy level of a run from the command line
 
-The system agent **Apollia Chat**, pinned at the top of the list, is **always active**: no start/stop button. Click it to open its configuration panel (personality, tools, model).
-
-## Choose the autonomy level before launching
-
-By default, an agent starts at the `assisted` level: it asks for your approval on every sensitive action. You can choose a different level for a specific run with the `--autonomy` flag:
+From the command line, a run takes an autonomy level with the `--autonomy` flag:
 
 ```
 apollia-os run <agent-id> "<your request>" --autonomy <tier>
@@ -71,37 +66,34 @@ apollia-os run <agent-id> "<your request>" --autonomy <tier>
 The agent identifier is required. The request text is optional and defaults to
 empty, which is rarely what you want.
 
-
-
 The four available levels:
 
 | Level | Behavior |
 |---|---|
-| `assisted` | Default. The plan gate is armed: you approve the plan once before it runs. No verification pass. |
+| `assisted` | The plan gate is armed: you approve the plan once before it runs. No verification pass. |
 | `supervised` | Plan gate armed, plus one verification pass after the run finishes. |
-| `bounded_autonomous` | **The plan gate is bypassed**: the plan runs without your approval. Wider StepBudget, one verification pass at the end. Pass `--plan` to re-arm the gate for a run. |
+| `bounded_autonomous` | **The plan gate is bypassed**: the plan runs without your approval. Wider step budget, one verification pass at the end. Pass `--plan` to re-arm the gate for a run. |
 | `long_autonomous` | Same bypass as above, maximum budget. Reserved for tasks that tolerate running unattended end to end. |
 
 At every level, a filesystem write the runtime judges risky raises its own
 approval prompt, independently of the plan gate.
 
-If you omit the flag, the level configured in your preferences applies (`assisted` by default).
+If you omit the flag, the run takes the level of the agent, and `assisted` when the agent names none.
 
 > For the detail of the levels and their guarantees, see [Autonomy levels](choose-an-autonomy-level.md).
 
 ## Verification
 
-- **Single assistant** - green dot on the row and in the detail panel. Sending a message in **New chat** triggers a streaming answer.
-- **Package** - green dot and a counter such as `N/N agents · M/M triggers`. The triggers (cron, webhook, and so on) are active.
+- **Conversation**: your message gets an answer that arrives progressively.
+- **Sheet of the agent**: the **Activity** tab lists the run under **Runs**, with its input, its output and its steps.
 
 ## If it does not work
 
-- **The dot stays orange or red:** open the agent logs from its detail panel (**Logs** link at the bottom) to read the precise error.
-- **"AI provider unavailable" error:** check the dot in the top bar and reconnect the provider if needed.
-- **Play button greyed out on an agent:** its installation path cannot be found (file moved or deleted). Reinstall it.
-- **Play button greyed out on a package:** the source folder of the package is gone (warning icon next to the name). Reinstall the package from its source.
-- **Package in "partial" status:** one or more agents did not start. The package detail lists the state of each agent - open the logs of the one that failed.
-- **The agent stops too soon:** the StepBudget of the current level has been reached. Raise the level with `--autonomy supervised` or `--autonomy bounded_autonomous` depending on your level of confidence. See [Autonomy levels](choose-an-autonomy-level.md).
-- **The agent starts but does not answer:** see [An agent is stuck](../troubleshooting/an-agent-is-stuck.md).
+- **The row has no Chat button, and New chat is greyed out:** the agent is **unavailable**. Make it available again with `apollia-os agent start <agent-id>`.
+- **The agent reads "degraded":** it still takes a task. Open its logs to read what went wrong, see [View an agent's logs](view-an-agent-logs.md).
+- **No answer comes:** check in the **AI** screen that a model is installed or that your server answers.
+- **The agent asks for your agreement and waits:** answer in the conversation, or in the **To review** screen.
+- **The agent stops too soon:** the step budget of the level has been reached. See [Autonomy levels](choose-an-autonomy-level.md).
+- **The agent takes the task but never finishes:** see [An agent is stuck](../troubleshooting/an-agent-is-stuck.md).
 
-> **Concept:** [Apollia explanation](/explanation) - understanding the director/worker distinction inside a package and their lifecycle.
+> **Concept:** [Apollia explanation](/explanation) - what an agent, a workflow and a package are.

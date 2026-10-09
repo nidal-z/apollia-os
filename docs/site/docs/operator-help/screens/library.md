@@ -21,4 +21,4 @@ The Library lists what was installed on this machine: agents, workflows, tools a
 ## Go further
 
 - [Install an agent](/operator-help/agents/install-an-agent)
-- [Start an agent or a package](/operator-help/agents/start-an-agent)
+- [Hand a task to an agent](/operator-help/agents/start-an-agent)

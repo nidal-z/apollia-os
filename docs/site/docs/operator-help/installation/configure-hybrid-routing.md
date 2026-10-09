@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # Configure hybrid local + frontier routing
 
-> For any operator who wants to combine a fast local model for simple steps and a powerful cloud model for complex steps, with an automatic cost ceiling.
+> For anyone who wants to combine a fast local model for simple steps and a powerful cloud model for complex steps, with an automatic cost ceiling.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ precise = "local-qwen3-8b"
 fast    = "local-qwen3-4b"
 
 [llm.routing.hybrid]
-frontier          = "claude-anthropic"
+frontier          = "frontier-server"
 cost_ceiling_usd  = 2.00
 ceiling_action    = "stay_local"
 ```
@@ -67,8 +67,8 @@ Hybrid routing shows up later, at the moment a step is escalated. Two lines tell
 the whole story, and both carry the frontier name:
 
 ```
-frontier="claude-anthropic" session_cost_usd=0.31 ceiling_usd=2 llm.hybrid.escalation.routed
-frontier="claude-anthropic" reason="the session cost ceiling is reached" llm.hybrid.escalation.blocked
+frontier="frontier-server" session_cost_usd=0.31 ceiling_usd=2 llm.hybrid.escalation.routed
+frontier="frontier-server" reason="the session cost ceiling is reached" llm.hybrid.escalation.blocked
 ```
 
 Run one deliberately complex task and look for either of them. To watch escalation and cumulative cost in real time, see the observability page. See [Monitor LLM costs](../observabilite/monitor-ai-costs.md).
@@ -76,7 +76,7 @@ Run one deliberately complex task and look for either of them. To watch escalati
 ## If it does not work
 
 - **Nothing loads at all after the change:** the `[llm.routing]` table is incomplete. `precise` and `fast` are required as soon as the table exists, and writing `[llm.routing.hybrid]` alone is enough to create it.
-- **No escalation ever happens, and no error anywhere:** a wrong `frontier` name is not caught when the daemon starts. It surfaces at the first escalation as `llm.hybrid.escalation.blocked` with `reason="the frontier backend is absent from the router"`. Check the exact name against **Settings - LLM Backends**, the match is case sensitive.
+- **No escalation ever happens, and no error anywhere:** a wrong `frontier` name is not caught when the daemon starts. It surfaces at the first escalation as `llm.hybrid.escalation.blocked` with `reason="the frontier backend is absent from the router"`. Check the exact name against the output of `apollia-os llm status`, the match is case sensitive.
 - **The ceiling is reached immediately:** the blocked line carries `reason="the session cost ceiling is reached"`. Raise `cost_ceiling_usd` or split your tasks into shorter sessions.
 - **Every step stays local when you expect escalation:** the router only escalates on a step it judges complex. Test with an explicitly complex task before concluding the configuration is wrong.
 

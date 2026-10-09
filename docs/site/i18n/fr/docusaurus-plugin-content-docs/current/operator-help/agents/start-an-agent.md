@@ -1,107 +1,99 @@
 ---
-title: Démarrer un agent ou un package
+title: Confier une tâche à un agent
 slug: /operator-help/agents/start-an-agent
 sidebar_position: 2
 ---
 
-# Démarrer un agent ou un package
+# Confier une tâche à un agent
 
-> Pour tout operator qui a installé un agent (ou un package d'agents) : le mettre en marche pour pouvoir lui parler ou laisser ses déclencheurs s'activer.
+> Pour toute personne qui a un agent installé et veut le faire travailler : lui parler, lui confier une série d'éléments, ou laisser une automatisation l'appeler.
 
 ## Prérequis
 
-- L'agent ou le package est installé et visible dans la colonne de gauche de **Mes assistants**.
-- Un fournisseur d'IA est connecté (pastille verte dans le bandeau supérieur).
+- L'agent figure dans l'écran **Agents**.
+- Un modèle répond. Les modèles se règlent dans l'écran **IA**.
 
-## Agent ou package : quelle différence côté usage ?
+## Un agent ne se démarre ni ne s'arrête
 
-Dans la page **Mes assistants**, la colonne de gauche affiche deux sections distinctes :
+Il n'y a ni bouton de démarrage ni bouton d'arrêt. Un agent est chargé par sa première tâche et libéré une fois inactif. Ce que montre l'écran **Agents**, c'est si une tâche peut atteindre l'agent :
 
-- **Mes assistants** - un agent unique, identifié par une icône d'étoile. On le démarre seul. C'est le format livré pour un agent simple (un fichier `.py`).
-- **Mes packages** - un ensemble cohérent d'agents qui travaillent souvent ensemble, identifié par une icône de boîte. Démarrer un package, c'est démarrer **tous ses agents et activer ses déclencheurs** d'un coup.
+- **disponible** : l'agent prend une tâche.
+- **dégradé** : l'agent prend encore une tâche, avec un avertissement.
+- **indisponible** : l'agent a été désactivé depuis la ligne de commande. `apollia-os agent start <id-agent>` le rend de nouveau disponible.
 
-Vous y trouverez aussi un agent système épinglé en haut, **Apollia Chat** : il est toujours disponible et ne nécessite ni installation ni démarrage.
+L'agent intégré **Apollia Chat**, en tête de la colonne **Agents**, est toujours disponible.
 
-## Étapes - Démarrer un assistant seul
+## Étapes - Parler à un agent
 
-1. Dans la sidebar, ouvrez **Mes assistants**. La colonne de gauche liste vos assistants sous **Mes assistants · N**.
-   ![page Mes assistants - colonne de gauche avec les deux sections "Mes assistants" et "Mes packages" visibles](/img/operator-help/agents-demarrer-un-agent-1.png)
+1. Dans la barre latérale, ouvrez **Agents**.
 
-2. Repérez votre agent dans la liste. La pastille à droite de son nom indique son état : **grise** (arrêté), **verte** (actif), **orange** (dégradé).
+2. Sur la ligne de l'agent, cliquez sur **Discuter**. Une conversation avec cet agent s'ouvre dans l'écran **Chat**.
 
-3. Cliquez sur le **bouton lecture** (▶) à droite de la ligne. La pastille passe au vert et le bouton se transforme en bouton stop (■).
+3. Écrivez votre demande et envoyez-la. L'agent répond dans la conversation, et les étapes de son travail s'affichent au fur et à mesure.
 
-4. Cliquez sur la ligne (n'importe où sauf le bouton lecture) pour ouvrir le panneau de détail à droite. Vous y voyez son statut, ses outils, sa version et son activité.
+Vous pouvez aussi cliquer sur la ligne pour ouvrir la fiche de l'agent, puis sur **Nouveau chat** en haut de la fiche. Depuis l'écran **Chat**, le sélecteur de la conversation liste vos agents : en choisir un ouvre une nouvelle conversation avec lui.
 
-5. Pour discuter avec lui, cliquez sur **Nouveau chat** en haut à droite du panneau de détail. Une conversation dédiée s'ouvre.
+## Étapes - Confier une série d'éléments à un agent
 
-6. Pour libérer les ressources quand vous n'en avez plus besoin, recliquez sur le bouton stop de la ligne. La pastille redevient grise.
+1. Ouvrez **Agents** et cliquez sur la ligne de l'agent pour ouvrir sa fiche.
 
-> Les agents marqués comme **workers** (uniquement appelés en interne par d'autres agents) n'apparaissent pas dans la section **Mes assistants** - vous les retrouverez dans le détail d'un package.
+2. Cliquez sur **Traiter un lot** en haut de la fiche, et suivez la fenêtre qui s'ouvre.
 
-## Étapes - Démarrer un package entier
+3. Suivez le lot depuis **Historique des lots**, en haut de l'écran **Agents**.
 
-1. Dans la sidebar, ouvrez **Mes assistants**. Faites défiler la colonne de gauche jusqu'à la section **Mes packages · N**.
+## Étapes - Laisser une automatisation appeler l'agent
 
-2. La ligne du package indique combien d'agents et de déclencheurs il contient au total et combien sont actifs (par exemple `0/2 agents · 0/1 triggers` quand tout est arrêté).
+1. Ouvrez la fiche de l'agent et cliquez sur **Automatiser**. La fenêtre qui s'ouvre est préremplie avec cet agent comme cible.
 
-3. Cliquez sur le **bouton lecture** (▶) à droite de la ligne. Apollia démarre tous les agents du package et active leurs déclencheurs en une seule opération. La pastille passe au vert ; le compteur affiche `2/2 agents · 1/1 triggers`.
+2. Dites quand l'automatisation doit se lancer, puis créez-la. Elle figure dans l'écran **Automatisations**. Voir [Programmer un trigger](../automatisations/schedule-a-trigger.md).
 
-4. Cliquez sur la ligne pour ouvrir le détail du package : vous y voyez la liste des agents qu'il contient, leurs rôles (*director* ou *worker*), et la liste des déclencheurs configurés (cron, webhook…).
-   ![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers](/img/operator-help/agents-demarrer-un-agent-2.png)
+## Étapes - Lancer un workflow
 
-![panneau de détail d'un package - sections Informations, Agents (avec rôles director/worker), Triggers (suite)](/img/operator-help/agents-demarrer-un-agent-2bis.png)
+1. Dans la barre latérale, ouvrez **Agents**. Les workflows figurent dans la colonne **Workflows**.
 
-5. Si certains agents seulement ont démarré, la pastille du package devient **orange** (statut **partiel**). Cliquez sur la ligne d'un agent dans le panneau pour identifier celui qui pose problème, puis ouvrez ses logs.
+2. Sur la ligne du workflow, cliquez sur **Lancer**.
 
-6. Pour tout arrêter d'un coup : recliquez sur le bouton stop de la ligne du package, ou utilisez **Tout arrêter** en haut à droite du panneau de détail.
+3. Remplissez les entrées que le workflow demande, puis lancez-le. Sa fiche montre où en est chaque étape de l'exécution.
 
-## Cas particulier - Apollia Chat
+## Choisir le palier d'autonomie d'une exécution en ligne de commande
 
-L'agent système **Apollia Chat**, épinglé en haut de la liste, est **toujours actif** : pas de bouton démarrer/arrêter. Cliquez dessus pour ouvrir son panneau de configuration (personnalité, outils, modèle).
-
-## Choisir le palier d'autonomie avant de lancer
-
-Par défaut, un agent démarre en palier `assisted` : il demande votre approbation à chaque action sensible. Vous pouvez choisir un palier différent pour une exécution précise avec le flag `--autonomy` :
+En ligne de commande, une exécution prend un palier d'autonomie avec l'option `--autonomy` :
 
 ```
-apollia-os run <id-de-l-agent> "<votre demande>" --autonomy <palier>
+apollia-os run <id-agent> "<votre demande>" --autonomy <palier>
 ```
 
-L'identifiant de l'agent est obligatoire. Le texte de la demande est optionnel et
-vaut la chaîne vide par défaut, ce qui est rarement ce que vous voulez.
-
-
+L'identifiant de l'agent est obligatoire. Le texte de la demande est facultatif et vaut
+vide par défaut, ce qui est rarement ce que vous voulez.
 
 Les quatre paliers disponibles :
 
 | Palier | Comportement |
 |---|---|
-| `assisted` | Défaut. Le gate de plan est armé : vous approuvez le plan une fois avant son exécution. Pas de passe de vérification. |
-| `supervised` | Gate de plan armé, plus une passe de vérification après la fin de l'exécution. |
-| `bounded_autonomous` | **Le gate de plan est contourné** : le plan s'exécute sans votre approbation. StepBudget plus large, une passe de vérification à la fin. Passez `--plan` pour réarmer le gate sur une exécution. |
-| `long_autonomous` | Même contournement, budget maximum. Réservé aux tâches qui tolèrent de tourner sans surveillance de bout en bout. |
+| `assisted` | La barrière de plan est armée : vous approuvez le plan une fois avant son exécution. Aucune passe de vérification. |
+| `supervised` | Barrière de plan armée, plus une passe de vérification après la fin de l'exécution. |
+| `bounded_autonomous` | **La barrière de plan est contournée** : le plan s'exécute sans votre approbation. Budget d'étapes plus large, une passe de vérification à la fin. Passez `--plan` pour réarmer la barrière sur une exécution. |
+| `long_autonomous` | Même contournement que ci-dessus, budget maximal. Réservé aux tâches qui tolèrent de tourner sans surveillance de bout en bout. |
 
-À tous les paliers, une écriture fichier que le runtime juge risquée déclenche sa
-propre demande d'approbation, indépendamment du gate de plan.
+À chaque palier, une écriture sur le système de fichiers que le runtime juge risquée déclenche sa propre
+demande d'approbation, indépendamment de la barrière de plan.
 
-Si vous omettez le flag, le palier configuré dans vos préférences s'applique (par défaut `assisted`).
+Si vous omettez l'option, l'exécution prend le palier de l'agent, et `assisted` quand l'agent n'en nomme aucun.
 
-> Pour le détail des paliers et leurs garanties, voir [Paliers d'autonomie](choose-an-autonomy-level.md).
+> Pour le détail des paliers et de leurs garanties, voir [Paliers d'autonomie](choose-an-autonomy-level.md).
 
 ## Vérification
 
-- **Assistant seul** - pastille verte sur la ligne et dans le panneau de détail. L'envoi d'un message dans **Nouveau chat** déclenche une réponse en streaming.
-- **Package** - pastille verte et compteur du type `N/N agents · M/M triggers`. Les déclencheurs (cron, webhook…) sont actifs.
+- **Conversation** : votre message reçoit une réponse qui arrive progressivement.
+- **Fiche de l'agent** : l'onglet **Activité** liste l'exécution sous **Exécutions**, avec son entrée, sa sortie et ses étapes.
 
 ## Si ça ne marche pas
 
-- **La pastille reste orange ou rouge :** ouvrez les logs de l'agent depuis son panneau de détail (lien **Logs** en bas) pour lire l'erreur précise.
-- **Erreur « fournisseur d'IA indisponible » :** vérifiez la pastille du bandeau supérieur et reconnectez le fournisseur si besoin.
-- **Bouton lecture grisé sur un agent :** son chemin d'installation est introuvable (fichier déplacé ou supprimé). Réinstallez-le.
-- **Bouton lecture grisé sur un package :** le dossier source du package a disparu (icône d'avertissement à côté du nom). Réinstallez le package depuis sa source.
-- **Package en statut « partiel » :** un ou plusieurs agents n'ont pas démarré. Le détail du package liste l'état de chaque agent - ouvrez les logs de celui qui est en échec.
-- **L'agent s'arrête trop vite :** le StepBudget du palier actuel est atteint. Montez le palier avec `--autonomy supervised` ou `--autonomy bounded_autonomous` selon votre niveau de confiance. Voir [Paliers d'autonomie](choose-an-autonomy-level.md).
-- **L'agent démarre mais ne répond pas :** consultez [Un agent est bloqué](../troubleshooting/an-agent-is-stuck.md).
+- **La ligne n'a pas de bouton Discuter, et Nouveau chat est grisé :** l'agent est **indisponible**. Rendez-le de nouveau disponible avec `apollia-os agent start <id-agent>`.
+- **L'agent porte la mention « dégradé » :** il prend encore une tâche. Ouvrez ses logs pour lire ce qui s'est mal passé, voir [Consulter les logs d'un agent](view-an-agent-logs.md).
+- **Aucune réponse n'arrive :** vérifiez dans l'écran **IA** qu'un modèle est installé ou que votre serveur répond.
+- **L'agent demande votre accord et attend :** répondez dans la conversation, ou dans l'écran **À valider**.
+- **L'agent s'arrête trop tôt :** le budget d'étapes du palier est atteint. Voir [Paliers d'autonomie](choose-an-autonomy-level.md).
+- **L'agent prend la tâche mais ne termine jamais :** voir [Un agent est bloqué](../troubleshooting/an-agent-is-stuck.md).
 
-> **Concept :** [Explication Apollia](/explanation) - comprendre la différence director/worker dans un package et leur cycle de vie.
+> **Concept :** [Explication Apollia](/explanation) - ce que sont un agent, un workflow et un paquet.

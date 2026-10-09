@@ -10,20 +10,20 @@ sidebar_position: 2
 
 ## Prerequisites
 
-- A Whisper model is downloaded via [Download local models](../installation/telecharger-des-modeles-locaux.md).
+- A dictation model (Whisper) is downloaded via [Download local models](../installation/telecharger-des-modeles-locaux.md).
 - Your machine's microphone works and Apollia is allowed to use it.
 - A free keyboard shortcut that does not conflict with the OS or another application.
 
 ## Steps
 
-1. In the sidebar, click **Settings**, then the **Speech-to-Text** section.
-   ![Settings page, Speech-to-Text section, Whisper model status shown at the top](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
+1. In the sidebar, click **Settings**, then the **Dictation** section.
+   ![Settings, Dictation section, state of the dictation model shown at the top](/img/operator-help/chat-activer-la-dictee-vocale-1.png)
 
-2. Check that the Whisper model appears with a green **Loaded** pill. If not, go back to the Model Hub to download it.
+2. Check that a model is named under **Active model**. It loads on first use. If none is named, download a dictation model from the **AI** screen, or click **Load a model** to pick a model file you already have.
 
 3. Select the dictation **Language** in the picker. It offers thirteen languages plus **Auto-detect**; the exact list is in [Configuration](/reference/configuration). Naming the language improves accuracy noticeably, and auto-detection is unreliable on short recordings.
 
-4. Select your microphone in the **Input device** picker. Leaving it on the system default is fine until a virtual device (BlackHole, Soundflower, an aggregate device) becomes that default, in which case Apollia records silence. Naming the device removes the ambiguity.
+4. Select your microphone in the **Microphone** picker. Leaving it on the system default is fine until a virtual device (BlackHole, Soundflower, an aggregate device) becomes that default, in which case Apollia records silence. Naming the device removes the ambiguity.
 
 5. Click the **Global hotkey** field. A window prompts you to press the key combination you want (for example **Cmd + Shift + Space**).
    ![HotkeyCapture window with the message "Press your hotkey combination" and the captured combination](/img/operator-help/chat-activer-la-dictee-vocale-2.png)
@@ -61,7 +61,7 @@ Silence is not transcribed. When every moment of a recording sits below the sile
 
 ## If it does not work
 
-- **No transcription:** name your microphone in the **Input device** picker rather than relying on the system default, then read [Voice dictation transcribes nothing](../troubleshooting/voice-dictation-transcribes-nothing.md).
+- **No transcription:** name your microphone in the **Microphone** picker rather than relying on the system default, then read [Voice dictation transcribes nothing](../troubleshooting/voice-dictation-transcribes-nothing.md).
 - **Shortcut ignored:** another application may be capturing the same combination; pick a less common one.
 - **Rough transcription:** check that the selected language matches the one you speak, and consider a larger Whisper model.
 - **The text does not show up in the field:** make sure the chat input field is focused (click it) before using the shortcut.

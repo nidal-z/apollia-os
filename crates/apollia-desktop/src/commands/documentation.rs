@@ -238,7 +238,9 @@ mod tests {
                 }
             }
         }
-        assert!(seen > 50, "the pages name their screenshots, {seen} read");
+        // A floor, so that a loop reading nothing does not pass: the pages
+        // showed more before the screenshots of retired screens were taken out.
+        assert!(seen > 20, "the pages name their screenshots, {seen} read");
     }
 
     #[test]

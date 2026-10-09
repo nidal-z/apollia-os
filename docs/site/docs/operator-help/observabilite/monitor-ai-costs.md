@@ -11,7 +11,8 @@ sidebar_position: 3
 ## Prerequisites
 
 - At least one conversation or agent has already called your AI provider.
-- You use a billed backend (Anthropic, OpenAI, Mistral). Local models do not appear in the costs.
+- You use a billed server. Local models do not appear in the costs.
+- The developer mode is on (**Settings**, section **Developer**): **Observability** is one of the technical screens, shown in the sidebar only with that mode.
 
 ## Steps
 
@@ -26,9 +27,9 @@ sidebar_position: 3
    - **Top backend** - name of the backend that weighs the most, with its cumulative total.
    ![LLM Costs tab, with the period selector, the four KPIs, the stacked bar chart and the backend legend](/img/operator-help/observabilite-surveiller-les-couts-llm-1.png)
 
-4. In the centre, a **stacked bar chart** shows the selected period. One bar per day, each bar split into coloured segments by **backend** (Anthropic, OpenAI, and so on). The vertical axis is in dollars with rounded ticks; the horizontal axis shows the date (day of the week + short date for short windows, date only for 30 d and above). A backend only shows up for the calls Apollia was able to price, which is not every call it made.
+4. In the centre, a **stacked bar chart** shows the selected period. One bar per day, each bar split into coloured segments by **backend**. The vertical axis is in dollars with rounded ticks; the horizontal axis shows the date (day of the week + short date for short windows, date only for 30 d and above). A backend only shows up for the calls Apollia was able to price, which is not every call it made.
 
-5. Hover a column: the other days fade slightly and the **day total** appears above the bar. A tooltip also appears on each segment with the **backend name** and its **exact cost** (for example `anthropic: $0.42 - May 11`).
+5. Hover a column: the other days fade slightly and the **day total** appears above the bar. A tooltip also appears on each segment with the **backend name** and its **exact cost**.
 
 6. Below the chart, the **legend** lists every active backend as **pills** showing the **cumulative total per backend** over the window. Handy to compare each provider's share at a glance.
 
@@ -40,8 +41,9 @@ The figures at the bottom match your intuition about consumption. The data refre
 
 ## If it does not work
 
+- **Observability is not in the sidebar**: the developer mode is off. Turn it on in **Settings**, section **Developer**.
 - **The chart is empty**: no priced call was recorded over the window, which has two causes. Your backend may be a fully local model, which costs nothing. Or the model you call carries no price in Apollia: the OpenAI-compatible client, which serves OpenAI, Mistral, Ollama and any custom gateway, prices only `gpt-4o-mini`, `gpt-4o` and `gpt-3.5-turbo`. Any other identifier is recorded with no cost at all.
-- **The costs look too high**: open the **Logs** of the busiest assistant (**My Assistants** page) and look at the longest tasks - a bulky injected context inflates input tokens fast.
+- **The costs look too high**: open **Agents**, then **Logs** in the menu of the busiest agent, and look at the longest tasks - a bulky injected context inflates input tokens fast.
 - **Costs went up after enabling hybrid routing**: the frontier is being called more often than expected. Lower `cost_ceiling_usd` in `[llm.routing.hybrid]` to limit escalation, or disable hybrid routing temporarily. See [Connect a remote model](../installation/connecter-un-modele-distant.md).
 
 > **Technical reference:** [Apollia reference](/reference)

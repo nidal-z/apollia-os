@@ -20,5 +20,5 @@ Un lot est une même tâche confiée à un agent pour une série d'éléments. C
 
 ## Pour aller plus loin
 
-- [Démarrer un agent ou un paquet](/operator-help/agents/start-an-agent)
+- [Confier une tâche à un agent](/operator-help/agents/start-an-agent)
 - [Approuver ou refuser une action d'agent](/operator-help/control/approve-or-reject-an-action)

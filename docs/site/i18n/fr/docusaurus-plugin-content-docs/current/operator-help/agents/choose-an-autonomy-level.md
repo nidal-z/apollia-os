@@ -11,7 +11,7 @@ sidebar_position: 3
 ## Prérequis
 
 - Apollia lancé et le daemon actif.
-- Au moins un agent installé et démarré.
+- Au moins un agent installé.
 - Familiarité avec la commande `apollia-os run`.
 
 ## Les quatre paliers
@@ -67,23 +67,27 @@ $ apollia-os config set autonomy.default_level supervised
 Error: unknown config key: 'autonomy.default_level'
 ```
 
-Une exécution lancée sans `--autonomy` tourne au palier `assisted`. Pour
-travailler à un autre palier, passez le drapeau à chaque exécution.
+Une exécution lancée sans `--autonomy` prend le palier de l'agent, et
+`assisted` quand l'agent n'en nomme aucun. Pour donner un autre palier à un
+agent pour chaque exécution, réglez-le sur cet agent :
+
+```
+apollia-os agent set mon-agent autonomy supervised
+```
+
+`apollia-os agent reset mon-agent --field autonomy` revient au palier de son
+paquet.
 
 ## Vérification
 
-Après le lancement, les premières lignes de log de la tâche indiquent le palier actif :
-
-```
-autonomy.level=supervised agent=mon-agent "autonomy.activated"
-```
-
-Ouvrez les logs depuis le panneau de détail de l'agent ou via `apollia-os agent logs mon-agent --last 20`.
+Mode développeur activé, le palier d'un agent se lit sur sa fiche, dans
+l'onglet **Technique**, sous **Autonomie**. C'est le palier que prend une
+exécution quand `--autonomy` n'est pas passé.
 
 ## Si ca ne marche pas
 
 - **Valeur inconnue au lancement :** si vous passez une valeur incorrecte à `--autonomy`, la CLI rejette la commande et liste les quatre valeurs valides (`assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`). Vérifiez l'orthographe, les valeurs sont en `snake_case`.
 - **Le palier `--autonomy` est ignoré :** vérifiez que vous utilisez bien `apollia-os run`, pas `apollia-os start`. La commande `start` démarre le daemon sans exécuter de tâche ; `--autonomy` n'y a pas de sens.
-- **Un bloc `[autonomy]` n'a aucun effet :** le daemon ne lit pas cette section d'`apollia.toml`, qu'il soit redémarré ou non. Réglez le palier exécution par exécution avec `--autonomy`.
+- **Un bloc `[autonomy]` n'a aucun effet :** le daemon ne lit pas cette section d'`apollia.toml`, qu'il soit redémarré ou non. Réglez le palier exécution par exécution avec `--autonomy`, ou agent par agent avec `apollia-os agent set`.
 
 > **Référence technique :** [Référence Apollia](/reference) - StepBudget, ResilienceLayer, comportement de chaque palier d'autonomie.

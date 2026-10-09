@@ -7,7 +7,7 @@ sidebar_position: 4
 # Configurer votre profil au premier lancement
 
 > Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.
-> Il vous fait passer en sept étapes - la langue, l'IA, le modèle qui cherche par le sens, une courte conversation qui propose votre profil, un premier agent, une connexion dont cet agent a besoin, une première tâche avec lui - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur dans les Paramètres, éteint par défaut.
+> Il vous fait passer en sept étapes - la langue, l'IA, le modèle qui cherche par le sens, une courte conversation qui propose votre profil, un premier agent, une connexion dont cet agent a besoin, une première tâche avec lui - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur, un interrupteur dans **Réglages → Développeur**, éteint par défaut.
 > Durée totale : 3 à 8 minutes selon le téléchargement des modèles.
 >
 > Cette page couvre **le parcours initial uniquement**. Pour éditer votre profil au quotidien depuis l'application installée, voir **[Mon profil](../memoire/manage-my-profile.md)**.
@@ -37,15 +37,11 @@ Le parcours est rythmé par un rail de progression visible en haut de la fenêtr
 
 Au lancement, Apollia détecte qu'aucun profil n'existe et ouvre la fenêtre de configuration centrée sur l'écran.
 
-![Étape Langue, le titre "Bienvenue dans Apollia", les deux langues Français et English côte à côte, et le bouton Continuer](/img/operator-help/installation-configurer-votre-profil-1.png)
-
-Choisissez **Français** ou **English** : la fenêtre bascule aussitôt, et toutes les étapes suivantes se lisent dans la langue choisie. Vous pourrez la changer à tout moment dans **Paramètres → Général**. Cliquez ensuite sur **Continuer**.
+Choisissez **Français** ou **English** : la fenêtre bascule aussitôt, et toutes les étapes suivantes se lisent dans la langue choisie. Vous pourrez la changer à tout moment dans **Réglages → Général**. Cliquez ensuite sur **Continuer**.
 
 ### Étape 2 - Choisir l'IA
 
-C'est la seule étape que vous ne pouvez pas passer : sans modèle ni serveur, aucun agent ne peut répondre. Un bandeau d'informations système (RAM, OS, GPU) apparaît en haut pour vous aider à choisir. Rien d'autre n'est demandé ici. La fenêtre de contexte suit le défaut du modèle, et la dictée vocale se règle plus tard dans **Paramètres → Reconnaissance vocale**.
-
-![Étape IA, bandeau RAM · macOS · GPU, section du modèle de langage avec la liste des modèles recommandés et un badge "Recommandé"](/img/operator-help/installation-configurer-votre-profil-3.png)
+C'est la seule étape que vous ne pouvez pas passer : sans modèle ni serveur, aucun agent ne peut répondre. Un bandeau d'informations système (RAM, OS, GPU) apparaît en haut pour vous aider à choisir. Rien d'autre n'est demandé ici. La fenêtre de contexte suit le défaut du modèle, et la dictée vocale se règle plus tard dans **Réglages → Dictée**.
 
 Deux cartes ouvrent l'étape : **Sur ce poste** et **Utiliser un serveur**. Quatre chemins possibles, selon votre situation, les trois premiers sur ce poste :
 
@@ -53,8 +49,6 @@ Deux cartes ouvrent l'étape : **Sur ce poste** et **Utiliser un serveur**. Quat
 2. **Modèles recommandés à télécharger.** Apollia affiche une liste de modèles dimensionnés pour votre machine, avec un badge **Recommandé** sur le plus pertinent. La liste reste proposée qu'un GGUF ait déjà été trouvé ou non, et après la configuration d'un premier modèle. Cliquez sur la ligne pour lancer le téléchargement - une barre de progression avec débit en MB/s s'affiche, vous pouvez l'annuler à tout moment.
 3. **Recherche HuggingFace.** Le bouton **Rechercher sur HuggingFace** ouvre un mini-navigateur intégré : tapez le nom d'un modèle, dépliez les fichiers GGUF disponibles, et cliquez pour télécharger celui qui correspond à votre RAM (les fichiers sont étiquetés *fits* / *might fit* / *too large*).
 4. **Un serveur.** Cliquez sur la carte **Utiliser un serveur** quand votre organisation fait tourner un serveur d'IA, ou quand vous en utilisez déjà un (Ollama, llama-server, vLLM, ou tout serveur à l'interface compatible OpenAI). Le formulaire reste dans la fenêtre : saisissez l'**adresse du serveur** (par exemple `http://localhost:11434`), ajoutez la **clé** seulement si le serveur en demande une, puis cliquez sur **Tester**. Apollia liste les modèles que le serveur propose ; choisissez-en un, il devient le modèle par défaut de vos agents. Si le test échoue, le message dit quoi vérifier : l'adresse, la clé, ou le démarrage du serveur.
-
-![Téléchargement d'un modèle recommandé en cours, avec barre de progression et débit](/img/operator-help/installation-configurer-votre-profil-4.png)
 
 **Continuer** devient actif dès qu'un modèle est configuré (badge vert **Configuré**), qu'un modèle d'un serveur est choisi, ou qu'un téléchargement est lancé. Vous n'avez pas à attendre la fin du téléchargement : poursuivez les étapes suivantes pendant que le fichier arrive. Sa progression reste affichée en haut de la fenêtre à chaque étape, et le modèle s'installe de lui-même quand le fichier est là.
 
@@ -76,8 +70,6 @@ Si le modèle choisi à l'étape 2 est encore en téléchargement, la fenêtre l
 
 L'agent d'onboarding s'ouvre dans la fenêtre. Il pose quelques questions, un sujet à la fois, et chacune peut être passée.
 
-![Étape Qui je suis avec les pips de progression en haut, l'agent d'onboarding pose sa première question et l'utilisateur répond en présentant son rôle](/img/operator-help/installation-configurer-votre-profil-5.png)
-
 Les questions couvrent les champs d'un profil :
 
 | Champ | Pourquoi |
@@ -94,20 +86,20 @@ Répondez naturellement, sans formulation précise. **Rien n'est écrit pendant 
 Aucun champ n'est obligatoire. Corrigez ce qui ne va pas, puis choisissez :
 
 - **Enregistrer** - le formulaire est écrit dans votre profil par défaut, et le parcours passe au premier agent.
-- **Passer sans enregistrer** - rien n'est écrit, et le parcours passe au premier agent. Votre profil reste vide jusqu'à ce que vous le remplissiez depuis **Paramètres → Profil**.
+- **Passer sans enregistrer** - rien n'est écrit, et le parcours passe au premier agent. Votre profil reste vide jusqu'à ce que vous le remplissiez depuis **Réglages → Profil**.
 - **Retour** - revient à la conversation ; **Revoir la proposition** rouvre le formulaire.
 
 <!-- claim:onboarding-skip-direct -->
 Le bouton **Passer les questions** (dans le pied de la fenêtre) met fin à la conversation **immédiatement, sans tour d'IA supplémentaire** : le formulaire s'ouvre aussitôt, vide ou avec ce que l'agent avait déjà proposé, et vous le remplissez à la main ou vous passez. Le bouton **J'ai fini** dans le chat, lui, laisse l'agent proposer un profil à partir de ce que vous avez déjà dit.
 
-L'onboarding ne propose plus de règles de permissions. Les règles se créent depuis les demandes d'approbation, ou à la main dans **Paramètres → Permissions**.
+Le premier lancement ne propose aucune règle de permission. Un consentement se donne depuis une demande d'approbation, et ce qu'un agent peut faire se lit et se retire sur l'écran **Autorisations** de la barre latérale.
 
 ### Étape 5 - Votre premier agent
 
 Trois cartes, trois façons d'avoir un agent prêt à travailler quand la fenêtre se ferme :
 
 - **Installer un agent** ouvre un paquet que vous avez reçu (un fichier `.apo`). Apollia montre ce qu'il contient, ce qu'il demande et qui l'a publié ; rien n'est installé avant votre confirmation.
-- **Créer en décrivant mon besoin** ouvre une courte conversation. Apollia prépare la fiche de l'agent au fil de vos réponses, vous la relisez et la corrigez, et **Enregistrer l'agent** le crée.
+- **Créer en décrivant mon besoin** ouvre un court formulaire : vous dites à quoi sert l'agent et, si vous le souhaitez, ce qu'il doit rendre, ce qu'il ne doit jamais faire et ce qu'il peut consulter. Apollia pose une question ou deux sur ce qui manque, chacune avec des réponses à choisir, puis rédige la fiche de l'agent ; vous la relisez et la corrigez, et **Enregistrer l'agent** le crée.
 - **Partir d'un exemple** liste les agents prêts à l'emploi qu'Apollia propose, chacun avec sa mission et la connexion qu'il requiert. Choisissez-en un : seul celui-ci est installé, après la même confirmation que pour tout paquet.
 
 Une fois l'agent là, l'étape le nomme et **Continuer** passe à la suite. **Passer** ferme la fenêtre sans agent, sur une conversation avec Apollia, et vous pouvez ajouter un agent à tout moment depuis l'écran **Agents**.
@@ -133,7 +125,7 @@ La dernière étape n'a pas d'écran : la fenêtre se ferme, la configuration es
 
 ### Sauter le parcours
 
-Si vous préférez configurer Apollia plus tard, cliquez sur **Configurer plus tard** (en haut à droite de la fenêtre, disponible à toutes les étapes). Apollia s'ouvre normalement, mais sans LLM configuré le chat ne pourra pas répondre - vous devrez brancher un fournisseur depuis **Paramètres → Backends LLM** avant la première conversation.
+Si vous préférez configurer Apollia plus tard, cliquez sur **Configurer plus tard** (en haut à droite de la fenêtre, disponible à toutes les étapes). Apollia s'ouvre normalement, mais sans modèle le chat ne pourra pas répondre : vous devrez télécharger un modèle ou ajouter un serveur depuis l'écran **IA** avant la première conversation.
 
 Pour rouvrir le parcours après coup, voir la section [Relancer le parcours](#relancer-le-parcours) ci-dessous.
 
@@ -145,29 +137,27 @@ Le parcours est **résumable** : si vous quittez la fenêtre en cours de route (
 
 Si vous voulez rejouer le parcours du premier lancement :
 
-1. Ouvrez **Paramètres → Zone de danger**.
-2. Cliquez sur **Réinitialiser l'onboarding**. Cette action efface uniquement les marqueurs de progression et de profil - vos backends LLM, modèles téléchargés et autres données restent intacts.
+1. Ouvrez **Réglages → Général** et descendez jusqu'au bloc **Zone de danger**.
+2. Cliquez sur **Réinitialiser l'onboarding**. Cette action efface uniquement les marqueurs de progression et de profil : vos modèles, vos serveurs et vos autres données restent intacts.
 3. Une fenêtre de confirmation demande de taper `RESET`. Confirmez.
-4. Le parcours en sept étapes redémarre depuis le choix de la langue.
+4. Le parcours en sept étapes redémarre depuis le choix de la langue au prochain lancement d'Apollia.
 
-Pour de **petits ajustements** (corriger votre nom, ajouter un outil quotidien) sans repasser le parcours, ouvrez directement **Paramètres → Profil** - voir [Mon profil](../memoire/manage-my-profile.md). Sur un profil dont des champs sont vides, **Compléter avec un agent** lance la même courte conversation pour ce profil ; sa proposition revient dans le formulaire, où **Enregistrer** l'écrit et **Passer** l'écarte.
+Pour de **petits ajustements** (corriger votre nom, ajouter un outil quotidien) sans repasser le parcours, ouvrez directement **Réglages → Profil** - voir [Mon profil](../memoire/manage-my-profile.md). Sur un profil dont des champs sont vides, **Compléter avec un agent** lance la même courte conversation pour ce profil ; sa proposition revient dans le formulaire, où **Enregistrer** l'écrit et **Passer** l'écarte.
 
 :::warning Réinitialiser entièrement Apollia
-Le bouton **Réinitialisation d'usine** (zone danger, bas de page) supprime **toutes** vos données - agents, mémoire, modèles téléchargés, backends LLM, intégrations. Cette action ne peut pas être annulée. Voir [Réinitialiser Apollia](../troubleshooting/factory-reset.md).
+Le bouton **Réinitialisation d'usine** (même bloc **Zone de danger**, sous **Dernier recours**) supprime **toutes** vos données : agents, mémoire, modèles téléchargés, serveurs, connexions. Cette action ne peut pas être annulée. Voir [Réinitialiser Apollia](../troubleshooting/factory-reset.md).
 :::
 
 ## Vérification
 
-Une fois le parcours terminé, ouvrez **Paramètres → Profil** : le profil par défaut contient ce que vous avez enregistré, modifiable à tout moment. Si vous avez passé sans enregistrer, ses champs sont vides.
-
-![Page Paramètres → Profil après onboarding, sections Identité (prénom, rôle, secteur), Objectifs, et Supervision des agents avec les niveaux HITL](/img/operator-help/installation-configurer-votre-profil-7.png)
+Une fois le parcours terminé, ouvrez **Réglages → Profil** : le profil par défaut contient ce que vous avez enregistré, modifiable à tout moment. Si vous avez passé sans enregistrer, ses champs sont vides.
 
 ## Si ça ne marche pas
 
 - **La fenêtre ne s'ouvre pas au premier lancement :** consultez les logs au démarrage. Si l'erreur évoque l'agent d'onboarding, redémarrez Apollia ; il est provisionné automatiquement à chaque lancement.
 - **Le bouton Continuer reste désactivé à l'étape IA :** il s'ouvre dès qu'un modèle est configuré (badge vert **Configuré**), qu'un modèle est choisi sous **Utiliser un serveur**, ou qu'un téléchargement est lancé. Un téléchargement échoué ou annulé le referme.
 - **Le téléchargement d'un modèle bloque à 0 % :** vérifiez votre connexion internet, annulez avec le bouton **X**, puis relancez. Le débit attendu est de 5 à 50 MB/s selon votre lien.
-- **L'agent ne répond plus pendant la conversation :** fermez la fenêtre via **Configurer plus tard** et relancez depuis **Paramètres → Zone de danger → Réinitialiser l'onboarding**.
-- **Le formulaire s'ouvre vide :** l'agent n'a rien proposé, ou vous avez passé les questions. Remplissez les champs à la main, ou passez et revenez depuis **Paramètres → Profil**.
+- **L'agent ne répond plus pendant la conversation :** fermez la fenêtre via **Configurer plus tard** et relancez avec **Réinitialiser l'onboarding**, dans le bloc **Zone de danger** de **Réglages → Général**.
+- **Le formulaire s'ouvre vide :** l'agent n'a rien proposé, ou vous avez passé les questions. Remplissez les champs à la main, ou passez et revenez depuis **Réglages → Profil**.
 
-> **Référence technique :** [Référence Apollia](/reference) - spec complète des 5 étapes, persistence backend, commandes IPC, événements runtime.
+> **Référence technique :** [Référence Apollia](/reference).

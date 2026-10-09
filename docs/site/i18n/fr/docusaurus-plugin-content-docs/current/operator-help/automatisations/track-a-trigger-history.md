@@ -15,7 +15,7 @@ sidebar_position: 2
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Mes déclencheurs**.
+1. Dans la barre latérale, cliquez sur **Automatisations**.
 
 2. Repérez la ligne de l'automatisation qui vous intéresse dans la table. Passez la souris dessus pour faire apparaître les actions à droite.
 
@@ -32,7 +32,7 @@ sidebar_position: 2
    ![Panneau d'historique des declenchements, puces de filtre de statut en haut et cartes d'execution empilees](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-2.png)
 
 5. Repérez les **statuts possibles** :
-   - **DÉCLENCHÉ** - le déclenchement a bien eu lieu et une tâche a été créée pour l'assistant. Ce statut ne dit rien du résultat de la tâche elle-même : pour savoir si l'agent a réussi son travail, voir [Consulter les logs d'un agent](../agents/view-an-agent-logs.md).
+   - **DÉCLENCHÉ** - le déclenchement a bien eu lieu et une tâche a été créée pour l'agent. Ce statut ne dit rien du résultat de la tâche elle-même : pour savoir si l'agent a réussi son travail, voir [Consulter les logs d'un agent](../agents/view-an-agent-logs.md).
    - **IGNORÉ** - le déclenchement a été ignoré parce qu'une exécution précédente était encore en cours. Comportement contrôlé par le réglage *« si un déclenchement est déjà en cours »* du mode avancé (file d'attente ou abandon).
    - **ERREUR** - le déclenchement lui-même a échoué (avant même de créer la tâche). La **raison** s'affiche en rouge sur une ligne dédiée juste en dessous.
 
@@ -46,11 +46,11 @@ sidebar_position: 2
 
 ## Voir le résultat de la tâche associée
 
-Le panneau Historique n'affiche que les événements de déclenchement, pas le détail de ce que l'assistant a produit. Pour ça :
+Le panneau Historique n'affiche que les événements de déclenchement, pas le détail de ce que l'agent a produit. Pour ça :
 
 1. Notez l'identifiant court de tâche affiché sur la ligne DÉCLENCHÉ.
-2. Fermez le panneau, rendez-vous sur **Mes assistants**.
-3. Ouvrez les logs de l'assistant correspondant ([Consulter les logs d'un agent](../agents/view-an-agent-logs.md)) et repérez la tâche par son préfixe d'identifiant.
+2. Fermez le panneau, rendez-vous sur **Agents**.
+3. Ouvrez les logs de l'agent correspondant ([Consulter les logs d'un agent](../agents/view-an-agent-logs.md)) et repérez la tâche par son préfixe d'identifiant.
 
 ## Vérifier la prochaine exécution
 
@@ -63,8 +63,8 @@ L'historique affiche au moins une ligne avec le statut attendu. Pour une automat
 ## Si ça ne marche pas
 
 - **L'historique est vide** : aucun déclenchement n'a encore eu lieu. Lancez-en un manuellement avec l'icône **▶︎** sur la ligne du tableau, puis cliquez sur **↻** dans le panneau pour rafraîchir.
-- **Tous les déclenchements sont en IGNORÉ** : la précédente exécution n'a jamais terminé. Vérifiez l'état de l'assistant dans **Mes assistants** ; consultez ses logs pour voir si la tâche en cours est encore au statut **En cours** depuis trop longtemps. Si oui, voir [Un agent est bloqué](../troubleshooting/an-agent-is-stuck.md). Une fois la tâche débloquée, les futurs déclenchements repasseront en DÉCLENCHÉ.
-- **Tous les déclenchements sont en ERREUR** : lisez la raison affichée en rouge sous chaque ligne. Causes fréquentes : assistant désinstallé, secret de webhook invalide, expression cron invalide.
-- **Je ne vois pas d'identifiant de tâche associé à un DÉCLENCHÉ** : rare ; la tâche a peut-être été créée puis immédiatement supprimée. Cherchez par préfixe d'identifiant dans **Mes assistants → Logs**.
+- **Tous les déclenchements sont en IGNORÉ** : la précédente exécution n'a jamais terminé. Ouvrez la fiche de l'agent dans **Agents** et consultez ses logs pour voir si la tâche en cours est au statut **EN COURS** depuis trop longtemps. Si oui, voir [Un agent est bloqué](../troubleshooting/an-agent-is-stuck.md). Une fois la tâche débloquée, les futurs déclenchements repasseront en DÉCLENCHÉ.
+- **Tous les déclenchements sont en ERREUR** : lisez la raison affichée en rouge sous chaque ligne. Causes fréquentes : agent désinstallé, secret de webhook invalide, expression cron invalide.
+- **Je ne vois pas d'identifiant de tâche associé à un DÉCLENCHÉ** : rare ; la tâche a peut-être été créée puis immédiatement supprimée. Cherchez par préfixe d'identifiant dans les logs de l'agent.
 
 > **Référence technique :** [Référence Apollia](/reference) - interprétation détaillée des statuts FIRED/SKIPPED/ERROR, comportement `on_busy`, dépannage des déclenchements bloqués.

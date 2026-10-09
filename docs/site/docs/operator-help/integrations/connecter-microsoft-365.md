@@ -38,9 +38,9 @@ See the observable differences in the table further down.
 
 ## Steps
 
-1. In the sidebar, open **Connections**, then select the **Microsoft 365** card.
+1. In the sidebar, open **Connections**, then open the **Microsoft 365** page: from the list, or from **Add a connection** when it is not listed yet.
 
-   On screen: the Connections page, with the Microsoft 365 card highlighted and the Connect an account button in the right-hand panel.
+   On screen: the Microsoft 365 page, with the Connect an account button under the Accounts tab.
 
 2. Click **Connect an account**. A window opens inside Apollia and your browser opens the Microsoft consent page.
 
@@ -48,30 +48,30 @@ See the observable differences in the table further down.
 
    On screen: the Microsoft consent page, with the list of requested accesses (Mail, Calendar, Files) and the No and Yes buttons.
 
-4. Back in Apollia, the window detects the return automatically and closes. Your account appears in the sidebar with a green dot.
+4. Back in Apollia, the window detects the return automatically and confirms that Microsoft 365 is added, with **Try** and **Done**. Your account appears under the **Accounts** tab of the page.
 
-   On screen: the Connections sidebar, with the Microsoft 365 card expanded showing the connected account and its green dot.
+   On screen: the Accounts tab of the Microsoft 365 page, showing the connected account.
 
 ## What you can do
 
 **Outlook (mail)**:
-- Automatic reads: search messages, read a specific mail, list your folders.
-- Writes with HITL approval: send a mail, reply, move a message.
+- Reads: search messages, read a specific mail, list your folders. Reading your account is reading personal data, so Apollia asks for your agreement; **Always for this agent** stops the question for that agent.
+- Writes and sends, with your agreement: send a mail, reply, move a message.
 
 **Calendar**:
-- Automatic reads: list events, open a specific event.
-- Writes with HITL approval: create or change an event.
-- Deletion with a confirmation phrase: delete an event.
+- Reads, under the same rule: list events, open a specific event.
+- Writes, with your agreement: create or change an event.
+- Deletion, with your agreement like any write: delete an event. There is no phrase to type.
 
-**OneDrive (read-only in v0.1.0)**:
+**OneDrive (read-only)**:
 - Search your files, read the metadata, download a file, list recent files.
-- OneDrive writing and the workspace folder pattern (the equivalent of Google's `Drive/Apollia/<agent>/`) will land in a later version.
+- There is no OneDrive write, and no workspace folder pattern like Google's `Drive/Apollia/<agent>/`.
 
-Microsoft Teams is not covered in v0.1.0.
+Microsoft Teams is not covered.
 
 ## Multiple accounts
 
-As with Google, you can connect several Microsoft accounts, and each keeps its own token in the keychain. As with Google too, an agent cannot pick between them: no tool schema carries an account parameter, and every call resolves to the first account connected. If an agent must act as a given account, connect that one alone.
+As with Google, you can connect several Microsoft accounts, and each keeps its own token. Each connected account is a connection of its own. Its tools are granted to an agent account by account, on the agent's sheet, and a call runs as the account that was granted and as no other.
 
 ## Personal vs professional differences
 
@@ -98,33 +98,33 @@ Optional. Apollia's own registration covers both account types, so most operator
 
 **In Apollia.**
 
-1. Open **Settings → OAuth integrations**.
-2. Paste the identifier into the client ID field on the Microsoft card and save. It is stored in `~/.apollia/oauth-clients.toml`, readable by your user only. Leave the secret field empty, a public client has none.
-3. Click **Test configuration**.
+1. Open the **Microsoft 365** page in **Connections**. Under the **Accounts** tab, the **Microsoft client** section holds the client.
+2. Paste the identifier into the **Client ID** field and save. It is kept in a configuration file of your computer, readable by your user only. There is no secret to enter, a public client has none.
+3. Click **Test the client**.
 
 Clearing the field again restores the identifier shipped with Apollia. Existing connected accounts were issued against the previous registration, so disconnect and reconnect them after a change.
 
-**Alternative for a shell or a headless host.** `APOLLIA_MICROSOFT_CLIENT_ID` takes priority over the file, and only applies to processes launched from the shell where you exported it. See [Environment variables](/reference/environment-variables).
+**Alternative for a shell or a headless host.** `APOLLIA_MICROSOFT_CLIENT_ID` takes priority over what was entered on the page, and only applies to processes launched from the shell where you exported it. See [Environment variables](/reference/environment-variables).
 
 ## Verification
 
-- The dot next to the account is green.
-- In free chat, ask *"List my last 3 Outlook mails"*. The answer comes back without an approval request.
-- Then try *"Send a mail to <your address> with the subject test"*. An approval popup appears before sending.
+- The **Accounts** tab lists the account, and the page header reads **1 active**.
+- On the page, click **Try** and ask *"List my last 3 Outlook mails"*. Apollia answers with the tools of this connection, and asks for your agreement before it reads the account.
+- Then try *"Send a mail to <your address> with the subject test"*. A consent request appears before sending.
 - The system keychain holds an `apollia-connector-microsoft` entry tied to your address.
 
 ## If it does not work
 
-- **The Microsoft 365 card reads "Setup required"**: it cannot, on a build that carries the identifier, and neither an empty environment variable nor a blanked entry in `~/.apollia/oauth-clients.toml` produces it: both are skipped when empty and the shipped identifier stands. If you do see it, the build itself was compiled without the identifier. Check `apollia-os connector client-id list`, which names the source of the client it resolved, `env`, `file`, `builtin` or `none`. Plain `connector list` shows the registered connectors, their services and their operation counts, and says nothing about the client identifier.
+- **The Microsoft 365 page reads "Setup required"**: it cannot, on a build that carries the identifier, and neither an empty environment variable nor an emptied **Client ID** field produces it: both are skipped when empty and the shipped identifier stands. If you do see it, the build itself was compiled without the identifier. Check `apollia-os connector client-id list`, which names the source of the client it resolved, `env`, `file`, `builtin` or `none`. Plain `connector list` shows the registered connectors, their services and their operation counts, and says nothing about the client identifier.
 - **Microsoft rejects the redirect URI**: only reachable with your own registration. It is missing its **Mobile and desktop applications** platform, or that platform does not list `http://127.0.0.1`. A registration created as "Web" will not work. Clear the client ID field to fall back on Apollia's own registration.
 - **Microsoft answers that the account does not exist in the directory**: also specific to your own registration, and it means the supported account types were set to a single tenant. Recreate it with **Accounts in any organizational directory and personal Microsoft accounts**, or clear the field to use Apollia's.
 - **Consent refused at the Microsoft screen**: a managed Entra ID tenant often requires an organization-level approval before an external application may be used at all. The error text comes from Microsoft, not from Apollia, and it names the tenant policy at fault. Ask your administrator to pre-approve the application, or use a personal Microsoft account.
 - **`outlook.send` fails on a recipient**: Microsoft Graph validates recipients more strictly than Google does. Apollia surfaces Graph's own error verbatim, prefixed with the HTTP status. Check the target address and make sure there is no dead alias.
-- **OneDrive write refused**: that is expected in v0.1.0, OneDrive is read-only.
+- **OneDrive write refused**: that is expected, OneDrive is read-only.
 - **Connecting stops with "Refused by your organisation's policy"**: your organisation's policy denies connections to online services on this computer, and nothing was sent to Microsoft. Only the person who manages that policy can grant an exception.
 
 ## Disconnecting an account
 
-On the Microsoft 365 card, click **Disconnect** next to the account. The token is deleted from the local keychain. To revoke on the Microsoft side too, go to https://myaccount.microsoft.com and remove the Apollia application permission.
+On the Microsoft 365 page, under the **Accounts** tab, click **Disconnect** next to the account and confirm. The token is deleted from the local secret store. To revoke on the Microsoft side too, go to https://myaccount.microsoft.com and remove the Apollia application permission.
 
 > **Technical reference:** [Apollia reference](/reference) , Microsoft OAuth flow, full scopes, proactive refresh.

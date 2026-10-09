@@ -12,97 +12,74 @@ sidebar_position: 1
 
 ## Prérequis
 
-- Un agent en cours d'exécution sur une tâche qui touche fichiers, commandes ou outils externes.
+- Un agent en cours d'exécution sur une tâche qui touche des fichiers, des commandes ou des outils externes.
 - Vous comprenez ce que l'agent est censé faire (la mission est claire pour vous).
 
-## Où la demande d'approbation apparaît
+## Où la demande d'accord apparaît
 
-Une demande d'approbation peut surgir à deux endroits, selon le contexte :
+Une demande d'accord s'affiche à deux endroits :
 
-- **Dans le chat** (avec Apollia Chat ou un agent conversationnel) : une **carte d'approbation** s'insère dans le flux des messages, à la position chronologique de la demande. La carte porte une icône bouclier ⛨ et une bordure orange.
-  ![Carte d'approbation en ligne dans le chat, icone bouclier orange, apercu de la commande a autoriser, et les boutons Autoriser une fois, Refuser et Toujours autoriser](/img/operator-help/controle-approuver-ou-refuser-une-action-1.png)
+- **Dans le chat** : une carte s'insère dans la conversation, à l'endroit où l'agent a demandé. Elle dit ce que l'agent veut faire et porte les réponses.
 
-- **Dans la sidebar → Approbations** (qui ouvre la page **Boîte de réception**) : pour les agents qui tournent en arrière-plan ou qui ont mis leur tâche en pause pour vérification humaine. Chaque demande apparaît sous forme d'une ligne dans une liste groupée par date (Aujourd'hui / Hier / Plus tôt). Cliquer une ligne déplie la **carte HITL** avec les détails et les boutons d'action.
-  ![Page Boite de reception, puces de filtre en haut et carte d'approbation depliee affichant son badge de risque](/img/operator-help/controle-approuver-ou-refuser-une-action-2.png)
+- **Dans la barre latérale, sous À valider** : une seule liste réunit tout ce qui vous attend, quelle que soit la conversation, la tâche ou le lot d'où cela vient. Une demande posée dans une conversation figure aux deux endroits, et y répondre à l'un la retire de l'autre. Voir [Utiliser la liste À valider](../transversal/use-the-inbox.md).
 
-> **Note :** Les demandes apparaissent **en temps réel** sans rafraîchissement. Un compteur dans le sous-titre de la page indique le nombre total en attente.
+> **Note :** les demandes apparaissent sans rafraîchir. Le badge à côté de **À valider**, dans la barre latérale, compte ce qui attend.
 
-## Les trois décisions possibles
+## Les trois réponses
 
-Quel que soit le point d'entrée (chat ou Boîte de réception pour un appel d'outil), les actions disponibles sont les mêmes :
+Une demande d'accord a trois réponses, et rien d'autre. Il n'y a pas de portée à choisir.
 
-1. **Autoriser une fois** - l'action s'exécute immédiatement pour cette demande uniquement. L'agent reprend, la prochaine occurrence redemandera confirmation.
+1. **Une fois** : l'action s'exécute, pour cette demande seulement. La prochaine action du même type redemande.
 
-2. **Refuser** - un dialog **Raison du refus** s'ouvre. Saisissez une explication de **5 à 500 caractères** (compteur en bas du textarea) puis confirmez. Le bouton n'est actif qu'à partir de 5 caractères.
-   ![dialog Raison du refus avec textarea, compteur "12 / 500", boutons Annuler / Confirmer le refus en bas](/img/operator-help/controle-approuver-ou-refuser-une-action-3.png)
+2. **Toujours pour cet agent** : l'action s'exécute, et cet agent peut refaire ce type d'action sans vous redemander. L'accord vaut pour l'agent qui a demandé et pour la famille de l'action (par exemple écrire ou supprimer), pas pour les autres agents. Vous le retirez à tout moment dans l'écran **Autorisations** (voir [Gérer les autorisations d'outils](manage-tool-permissions.md)).
 
-   La raison est **transmise à l'agent** : elle est injectée dans le message d'outil que voit le LLM à l'itération suivante, sous la forme *« Outil refusé par l'utilisateur. Raison : … »*. Cela permet à l'agent de corriger sa trajectoire plutôt que de retenter aveuglément. La raison est aussi **persistée** dans l'historique récent (voir plus bas) pour retrouver le contexte plus tard.
+3. **Refuser** : l'action ne s'exécute pas. Le champ à côté du bouton reçoit une raison, facultative : laissez-le vide et cliquez sur **Refuser**, ou tapez d'abord une courte phrase (500 caractères au plus). La raison est transmise à l'agent, ce qui lui permet de corriger sa trajectoire au lieu de retenter la même chose.
 
-3. **Toujours autoriser** - ouvre un menu avec **3 portées** au choix, dans la carte du chat :
-
-   | Portée | Effet |
-   |---|---|
-   | **Pour cette session** | Auto-approuvé jusqu'à la fermeture du chat. Non persistée. |
-   | **Toujours pour cet assistant** | Règle persistée - l'assistant courant ne redemandera plus pour cet outil. |
-   | **Toujours, partout** | Règle persistée globalement - tous les assistants. Affichée en orange comme signal de la portée maximale. |
-
-   La demande d'approbation déclenchée par une écriture fichier jugée risquée est une autre surface, et elle en propose **quatre** : les trois ci-dessus plus **Cet outil uniquement**, qui autorise ce seul outil et rien d'autre.
-
-   Les règles persistées sont consultables et révocables dans **Paramètres → Autorisations** (voir [Gérer les autorisations d'outils](manage-tool-permissions.md)).
+Une action de la famille **Lire** ne demande aucun accord : l'agent n'est pas interrompu. Les autres familles (**Lire des données personnelles**, **Écrire ou supprimer**, **Envoyer vers l'extérieur**, **Exécuter du code**) demandent.
 
 <!-- claim:chat-tool-governance-path -->
-> **Cas particulier des exécuteurs de code** (`bash_executor`, `python_executor`) : *Toujours autoriser* n'est jamais honoré pour eux, quelle que soit la portée choisie. Leur argument est une commande shell ou du code arbitraire ; une autorisation en bloc serait un blanc-seing sur tout l'interpréteur. L'appel courant est bien exécuté une fois, mais l'invocation suivante redemande une confirmation.
+> **Cas particulier du code** (les outils Bash et Python) : **Toujours pour cet agent** n'est jamais proposé pour du code. Une commande ou un script peut faire tout ce que peut l'interpréteur, et un accord donné à toute la famille serait un chèque en blanc. Par défaut, chaque exécution demande votre accord, avec **Une fois** et **Refuser** pour seules réponses.
 <!-- claim:prefix-rules-evaluated-per-invocation -->
-> Pour auto-approuver une commande précise, configurez une règle de préfixe ciblée dans **Paramètres → Autorisations** : elle est évaluée à chaque invocation et ne s'applique qu'à une commande simple unique (sans enchaînement `;`, `&&`, pipe, redirection ni substitution). Tout ce qui dépasse le préfixe, ou toute commande enchaînée, redemande une confirmation comme avant.
+> Mode développeur allumé, une commande simple propose aussi **Toujours autoriser cette commande** : cet agent peut alors relancer exactement cette commande sans vous redemander, et vous le retirez dans l'écran **Autorisations**. La règle est vérifiée à chaque exécution. Elle n'est pas proposée sur une commande qui en enchaîne plusieurs (avec `;`, `&&`, un pipe, une redirection ou une substitution) : chaque exécution d'une telle commande demande votre accord.
 
 <!-- claim:bash-executor-requires-posix-shell -->
-> **Sous Windows**, ces deux outils exigent aussi des prérequis sur la machine : un shell POSIX dans le `PATH` pour `bash_executor` (Git Bash, MSYS2 ou WSL) et un Python 3 installé pour `python_executor`. S'il en manque un, l'appel échoue avec un message nommant le prérequis au lieu de s'exécuter.
+> **Sous Windows**, ces deux outils ont aussi des prérequis sur l'hôte : un shell POSIX dans le `PATH` pour Bash (Git Bash, MSYS2 ou WSL) et un Python 3 installé pour Python. Quand l'un manque, l'appel échoue avec un message qui nomme le prérequis au lieu de s'exécuter.
 
-> **Cas particulier des tâches en pause** (« approbation de tâche ») : un agent qui se suspend lui-même via un point de contrôle HITL n'expose qu'**Autoriser** / **Refuser** (pas de *Toujours autoriser*) puisqu'il ne s'agit pas d'un outil mémorisable. Le dialog de raison reste obligatoire au refus.
+> **Cas particuliers à deux réponses :** une tâche qui s'est mise en pause pour vous attendre, et un fait qu'un agent propose pour votre profil, n'offrent que **Une fois** et **Refuser**. Ni l'un ni l'autre ne s'accorde pour de bon.
 
 ## Approuver un plan (mode plan)
 
-Quand l'assistant travaille en **mode plan**, une carte distincte apparaît dans le chat dès que le plan est prêt : la carte de relecture du plan, qui liste les étapes proposées avec les actions **Approuver** et **Demander des changements**. Cette validation est séparée des approbations d'outils ci-dessus : elle valide le plan entier avant tout début d'exécution.
+Quand l'assistant travaille en **mode plan**, une carte distincte apparaît dans le chat une fois le plan prêt : la carte de revue du plan, qui liste les étapes proposées avec les actions **Approuver** et **Demander des ajustements**. Ce contrôle est distinct des demandes d'accord ci-dessus : il valide le plan entier avant le début de toute exécution.
 
 <!-- claim:plan-approval-executes -->
-Une fois le plan approuvé, l'assistant **exécute le plan approuvé** et ne le repropose pas ; si vous approuvez pendant que l'assistant termine encore son tour en cours, l'exécution démarre juste après la fin de ce tour. Un refus accompagné d'un commentaire transmet votre retour à l'assistant, qui révise le plan et le soumet à nouveau via la même carte.
+Une fois que vous approuvez, l'assistant **exécute le plan approuvé** et ne le repropose pas ; si vous approuvez alors que l'assistant termine encore son tour en cours, l'exécution démarre juste après la fin de ce tour. Demander des ajustements avec un commentaire renvoie votre retour à l'assistant, qui révise le plan et le soumet à nouveau via la même carte.
 
-## Étapes - résolution d'une demande
+## Étapes - répondre à une demande
 
-1. Cliquez sur **Autoriser une fois** pour valider ponctuellement, ou ouvrez le menu **Toujours autoriser** pour installer une règle persistante.
+1. Lisez ce que l'agent demande. Pour du code, lisez la commande entière : dans **À valider**, une longue commande est repliée, et les réponses apparaissent une fois que vous avez cliqué sur **Afficher la commande entière**.
 
-2. Pour refuser, cliquez sur **Refuser** : le dialog de raison s'ouvre. Tapez une explication courte mais utile à l'agent (ex. *« Mauvais dossier - utilise ./tmp à la place »* plutôt que *« Non »*), puis cliquez sur **Confirmer le refus**.
+2. Cliquez sur **Une fois** pour laisser passer cette seule action, ou sur **Toujours pour cet agent** pour ne plus être sollicité pour ce type d'action par cet agent.
 
-3. La carte disparaît du chat (ou de la Boîte de réception), un toast confirme la décision (*« Action approuvée »* / *« Action refusée »* / *« Règle enregistrée - futurs appels auto-approuvés »*).
+3. Pour rejeter, tapez une raison utile à l'agent (par exemple *« Mauvais dossier, utilise ./tmp à la place »* plutôt que *« Non »*), puis cliquez sur **Refuser**.
 
-4. Dans le chat, l'agent reçoit immédiatement le résultat (refus + raison, ou résultat de l'outil) et poursuit sa réflexion à la prochaine itération de raisonnement.
+4. L'agent reçoit aussitôt votre réponse et poursuit : avec le résultat de l'action, ou avec votre refus et sa raison.
 
-## Consulter l'historique des décisions
+## Relire les décisions déjà prises
 
-Au bas de la page **Boîte de réception**, sous la liste des actions en attente, une section **Historique récent (14 jours)** affiche les **50 dernières** décisions HITL résolues (chronologie inverse) :
-
-- Icône colorée : ✅ Autorisé (vert) · 🛡 Toujours autorisé (bleu primaire) · ❌ Refusé (rouge).
-- Nom de l'outil concerné.
-- Pour les refus : la **raison saisie** au moment du refus, en rouge.
-- Horodatage relatif (`5min ago`, `2h ago`…) avec date absolue en tooltip.
-- Préfixe court de la session d'origine.
-
-![section Historique récent - quatre lignes avec icônes différentes, un refus avec sa raison affichée en rouge](/img/operator-help/controle-approuver-ou-refuser-une-action-4.png)
-
-L'historique est en **lecture seule** ; il ne se remplace pas par la page Paramètres → Autorisations → Audit récent, qui affiche en plus les décisions automatiques (déclenchées par règles persistées) sur 20 entrées.
+La liste **À valider** ne garde aucun historique : une demande à laquelle vous avez répondu la quitte. Les décisions déjà prises se lisent dans le **Journal**, depuis la barre latérale. Chaque action des agents et chaque changement d'accès y est inscrit, avec son résultat : réussi, échoué ou refusé. Voir [Consulter la piste d'audit](../observabilite/read-the-audit-trail.md).
 
 ## Vérification
 
-- La carte d'approbation disparaît du chat (ou la ligne de la Boîte de réception) immédiatement après votre décision.
-- Un toast confirme l'opération.
-- Si vous avez choisi **Toujours autoriser**, ouvrez **Paramètres → Autorisations** et vérifiez qu'une nouvelle règle apparaît dans la liste, avec le bon scope.
-- Pour un refus, l'agent doit prendre en compte la raison à sa prochaine itération (vous le verrez dans la suite de la conversation ou dans les logs de l'agent).
+- La carte quitte le chat, et la ligne quitte **À valider**, juste après votre réponse.
+- Si vous avez choisi **Toujours pour cet agent**, ouvrez **Autorisations**, sélectionnez l'agent, et vérifiez que l'accord figure sous **« Toujours » donnés**.
+- Pour un refus, l'agent tient compte de la raison dans la suite de la conversation.
 
 ## Si ça ne marche pas
 
-- **Aucune carte n'apparaît alors que l'agent semble bloqué** : ouvrez la **Boîte de réception** depuis la sidebar. Les agents en arrière-plan y déposent leurs demandes au lieu de les afficher dans le chat.
-- **L'agent réessaie sans cesse la même action refusée** : la raison n'était peut-être pas exploitable par l'agent. Ouvrez ses logs depuis **Mes assistants** ; la raison transmise s'y retrouve dans la sortie de l'outil refusé. Refusez à nouveau avec une raison plus actionnable (chemin alternatif, valeur attendue…).
-- **Une règle "Toujours" crée trop d'actions automatiques** : ouvrez **Paramètres → Autorisations** et révoquez ou affinez le périmètre de la règle. Voir [Gérer les autorisations d'outils](manage-tool-permissions.md).
-- **Moins de demandes d'approbation que d'habitude** : c'est normal si l'agent tourne en palier `supervised` ou supérieur. La boucle de vérification automatique résout une partie des situations sans vous solliciter. Si vous souhaitez rétablir un contrôle complet, relancez l'agent avec `--autonomy assisted`.
+- **Aucune carte n'apparaît alors que l'agent semble bloqué** : ouvrez **À valider** depuis la barre latérale. Une tâche ou un lot qui tourne en arrière-plan y dépose ses demandes.
+- **L'agent retente sans cesse la même action refusée** : la raison n'était peut-être pas exploitable par l'agent. Refusez de nouveau avec une raison plus actionnable (un autre chemin, la valeur attendue).
+- **Un « toujours » laisse passer trop de choses** : ouvrez **Autorisations**, sélectionnez l'agent et cliquez sur **Retirer** sur l'accord. La prochaine action de cette famille redemande. Voir [Gérer les autorisations d'outils](manage-tool-permissions.md).
+- **Toujours pour cet agent manque sur une demande** : c'est attendu pour du code, pour une tâche en pause et pour un fait proposé pour votre profil.
+- **Moins de demandes d'accord que d'habitude** : c'est attendu si l'agent tourne en palier `supervised` ou supérieur. La boucle de vérification automatique résout une partie des situations sans vous solliciter. Si vous voulez reprendre un contrôle total, relancez l'agent avec `--autonomy assisted`.
 
 > **Concept :** [Explication Apollia](/explanation)

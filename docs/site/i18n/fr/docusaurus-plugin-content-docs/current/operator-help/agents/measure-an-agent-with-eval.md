@@ -11,7 +11,7 @@ sidebar_position: 5
 ## Prérequis
 
 - Apollia lancé, daemon actif.
-- L'agent à évaluer installé et démarrable.
+- L'agent à évaluer installé.
 - Un fichier `suite.toml` à créer (voir ci-dessous).
 
 ## Créer une suite d'évaluation

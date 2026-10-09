@@ -38,40 +38,40 @@ Voir les différences observables dans le tableau plus bas.
 
 ## Étapes
 
-1. Dans la sidebar, ouvrez **Connexions**, puis sélectionnez la carte **Microsoft 365**.
+1. Dans la barre latérale, ouvrez **Connexions**, puis ouvrez la fiche **Microsoft 365** : depuis la liste, ou depuis **Ajouter une connexion** si elle n'y figure pas encore.
 
-   A l'ecran : la page Connexions, avec la carte Microsoft 365 mise en évidence et le bouton Connecter un compte dans le panneau de droite.
+   À l'écran : la fiche Microsoft 365, avec le bouton Connecter un compte sous l'onglet Comptes.
 
 2. Cliquez sur **Connecter un compte**. Une fenêtre s'ouvre dans Apollia et votre navigateur ouvre la page de consentement Microsoft.
 
 3. Authentifiez-vous avec votre compte Microsoft, puis acceptez les autorisations (Mail, Calendar, Files).
 
-   A l'ecran : la page de consentement Microsoft, avec la liste des accès demandés (Mail, Calendar, Files) et les boutons Non et Oui.
+   À l'écran : la page de consentement Microsoft, avec la liste des accès demandés (Mail, Calendar, Files) et les boutons Non et Oui.
 
-4. De retour dans Apollia, la fenêtre détecte le retour automatiquement et se ferme. Votre compte apparaît dans la sidebar avec une pastille verte.
+4. De retour dans Apollia, la fenêtre détecte le retour automatiquement et confirme que Microsoft 365 est ajouté, avec **Essayer** et **Terminé**. Votre compte apparaît sous l'onglet **Comptes** de la fiche.
 
-   A l'ecran : la sidebar Connexions, avec la carte Microsoft 365 dépliée affichant le compte connecté et sa pastille verte.
+   À l'écran : l'onglet Comptes de la fiche Microsoft 365, affichant le compte connecté.
 
 ## Ce que vous pouvez faire
 
 **Outlook (mail)** :
-- Lecture automatique : chercher des messages, lire un mail précis, lister vos dossiers.
-- Écriture avec approbation HITL : envoyer un mail, répondre, déplacer un message.
+- Lectures : chercher des messages, lire un mail précis, lister vos dossiers. Lire votre compte, c'est lire des données personnelles : Apollia demande donc votre accord, et **Toujours pour cet agent** fait cesser la question pour cet agent.
+- Écritures et envois, avec votre accord : envoyer un mail, répondre, déplacer un message.
 
 **Calendar** :
-- Lecture automatique : lister des événements, ouvrir un événement précis.
-- Écriture avec approbation HITL : créer ou modifier un événement.
-- Suppression avec phrase de confirmation : supprimer un événement.
+- Lectures, selon la même règle : lister des événements, ouvrir un événement précis.
+- Écritures, avec votre accord : créer ou modifier un événement.
+- Suppression, avec votre accord comme toute écriture : supprimer un événement. Il n'y a aucune phrase à taper.
 
-**OneDrive (lecture seule v0.1.0)** :
+**OneDrive (lecture seule)** :
 - Chercher dans vos fichiers, lire les métadonnées, télécharger un fichier, lister les fichiers récents.
-- L'écriture OneDrive et le pattern workspace folder (équivalent du `Drive/Apollia/<agent>/` Google) arriveront dans une version ultérieure.
+- Il n'y a ni écriture OneDrive, ni dossier de travail par agent comme le `Drive/Apollia/<agent>/` de Google.
 
-Microsoft Teams n'est pas couvert en v0.1.0.
+Microsoft Teams n'est pas couvert.
 
 ## Multi-comptes
 
-Comme pour Google, vous pouvez connecter plusieurs comptes Microsoft, et chacun garde son token séparé dans le trousseau. Comme pour Google aussi, un agent ne peut pas choisir entre eux : aucun schéma d'outil ne porte de paramètre de compte, et tout appel se résout sur le premier compte connecté. Si un agent doit agir sous un compte donné, ne connectez que celui-là.
+Comme pour Google, vous pouvez connecter plusieurs comptes Microsoft, et chacun garde son propre token. Chaque compte connecté est une connexion à part entière. Ses outils s'accordent à un agent compte par compte, sur la fiche de l'agent, et un appel s'exécute au nom du compte accordé et d'aucun autre.
 
 ## Différences perso vs pro
 
@@ -98,33 +98,33 @@ Optionnel. L'inscription d'Apollia couvre les deux types de comptes, la plupart 
 
 **Dans Apollia.**
 
-1. Ouvrez **Réglages → Intégrations OAuth**.
-2. Collez l'identifiant dans le champ identifiant client de la carte Microsoft et enregistrez. Il est stocké dans `~/.apollia/oauth-clients.toml`, lisible par votre seul utilisateur. Laissez le champ secret vide, un client public n'en a pas.
-3. Cliquez sur **Tester la configuration**.
+1. Ouvrez la fiche **Microsoft 365** dans **Connexions**. Sous l'onglet **Comptes**, la section **Client Microsoft** contient le client.
+2. Collez l'identifiant dans le champ **Client ID** et enregistrez. Il est rangé dans un fichier de configuration de votre poste, lisible par votre seul utilisateur. Il n'y a aucun secret à saisir, un client public n'en a pas.
+3. Cliquez sur **Tester le client**.
 
 Vider à nouveau le champ rétablit l'identifiant fourni avec Apollia. Les comptes déjà connectés l'ont été auprès de l'inscription précédente : déconnectez-les et reconnectez-les après un changement.
 
-**Alternative pour un shell ou une machine sans interface.** `APOLLIA_MICROSOFT_CLIENT_ID` prime sur le fichier, et ne vaut que pour les processus lancés depuis le shell où vous l'avez exportée. Voir [Environment variables](/reference/environment-variables).
+**Alternative pour un shell ou une machine sans interface.** `APOLLIA_MICROSOFT_CLIENT_ID` prime sur ce qui a été saisi sur la fiche, et ne vaut que pour les processus lancés depuis le shell où vous l'avez exportée. Voir [Environment variables](/reference/environment-variables).
 
 ## Vérification
 
-- La pastille à côté du compte est verte.
-- Dans le chat libre, demandez *"Liste mes 3 derniers mails Outlook"*. La réponse arrive sans demande d'approbation.
-- Tentez ensuite *"Envoie un mail à <votre adresse> avec le sujet test"*. Une popup d'approbation s'affiche avant l'envoi.
+- L'onglet **Comptes** liste le compte, et l'en-tête de la fiche affiche **1 actif(s)**.
+- Sur la fiche, cliquez sur **Essayer** et demandez *« Liste mes 3 derniers mails Outlook »*. Apollia répond avec les outils de cette connexion, et demande votre accord avant de lire le compte.
+- Tentez ensuite *« Envoie un mail à <votre adresse> avec le sujet test »*. Une demande d'accord s'affiche avant l'envoi.
 - Le trousseau du système contient une entrée `apollia-connector-microsoft` associée à votre adresse.
 
 ## Si ça ne marche pas
 
-- **La carte Microsoft 365 affiche « Configuration requise »** : c'est impossible sur une version qui embarque l'identifiant, et ni une variable d'environnement vide ni une entrée vidée à la main dans `~/.apollia/oauth-clients.toml` ne le produisent : les deux sont ignorées lorsqu'elles sont vides et l'identifiant fourni reprend la main. Si vous le voyez malgré tout, c'est que la version installée a été compilée sans l'identifiant. Vérifiez avec `apollia-os connector client-id list`, qui nomme la source du client résolu, `env`, `file`, `builtin` ou `none`. Le simple `connector list` affiche les connecteurs enregistrés, leurs services et leur nombre d'opérations, et ne dit rien de l'identifiant client.
+- **La fiche Microsoft 365 affiche « Configuration requise »** : c'est impossible sur une version qui embarque l'identifiant, et ni une variable d'environnement vide ni un champ **Client ID** vidé ne le produisent : les deux sont ignorées lorsqu'elles sont vides et l'identifiant fourni reprend la main. Si vous le voyez malgré tout, c'est que la version installée a été compilée sans l'identifiant. Vérifiez avec `apollia-os connector client-id list`, qui nomme la source du client résolu, `env`, `file`, `builtin` ou `none`. Le simple `connector list` affiche les connecteurs enregistrés, leurs services et leur nombre d'opérations, et ne dit rien de l'identifiant client.
 - **Microsoft rejette l'URI de redirection** : atteignable uniquement avec votre propre inscription. Elle n'a pas sa plateforme **Applications mobiles et de bureau**, ou celle-ci ne liste pas `http://127.0.0.1`. Une inscription créée en « Web » ne fonctionnera pas. Videz le champ identifiant client pour retomber sur l'inscription d'Apollia.
 - **Microsoft répond que le compte n'existe pas dans l'annuaire** : également propre à votre inscription, cela signifie que les types de comptes pris en charge ont été réglés sur un tenant unique. Recréez-la avec **Comptes dans un annuaire organisationnel quelconque et comptes Microsoft personnels**, ou videz le champ pour utiliser celle d'Apollia.
 - **Consentement refusé à l'écran Microsoft** : un tenant Entra ID géré exige souvent une approbation au niveau organisation avant qu'une application externe puisse être utilisée. Le texte d'erreur vient de Microsoft et non d'Apollia, et il nomme la politique de tenant en cause. Demandez à votre administrateur de pré-approuver l'application, ou utilisez un compte Microsoft personnel.
 - **`outlook.send` échoue sur un destinataire** : Microsoft Graph valide les destinataires plus strictement que Google. Apollia remonte l'erreur de Graph telle quelle, préfixée du statut HTTP. Vérifiez l'adresse cible et l'absence d'alias mort.
-- **OneDrive en écriture refusé** : c'est attendu en v0.1.0, OneDrive est en lecture seule.
+- **OneDrive en écriture refusé** : c'est attendu, OneDrive est en lecture seule.
 - **La connexion s'arrête sur « Refusé par la politique de l'organisation »** : la politique de votre organisation interdit les connexions à des services en ligne sur ce poste, et rien n'a été envoyé à Microsoft. Seule la personne qui gère cette politique peut accorder une exception.
 
 ## Déconnecter un compte
 
-Sur la carte Microsoft 365, cliquez sur **Déconnecter** à côté du compte. Le token est supprimé du trousseau local. Pour révoquer également côté Microsoft, allez sur https://myaccount.microsoft.com et retirez l'autorisation de l'application Apollia.
+Sur la fiche Microsoft 365, sous l'onglet **Comptes**, cliquez sur **Déconnecter** à côté du compte et confirmez. Le token est supprimé du coffre de secrets local. Pour révoquer également côté Microsoft, allez sur https://myaccount.microsoft.com et retirez l'autorisation de l'application Apollia.
 
 > **Référence technique :** [Référence Apollia](/reference) , flow OAuth Microsoft, scopes complets, refresh proactif.

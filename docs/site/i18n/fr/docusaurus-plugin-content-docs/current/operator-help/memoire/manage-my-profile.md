@@ -6,97 +6,108 @@ sidebar_position: 1
 
 # Gérer mon profil
 
-> Pour les operators qui veulent **consulter et modifier** au quotidien ce que tous leurs agents savent d'eux - prénom, rôle, secteur, supervision, contraintes.
+> Pour les operators qui veulent **consulter et modifier** au quotidien ce que leurs agents savent d'eux : nom, rôle, fonction, outils, préférences.
 >
 > Cette page couvre **l'édition d'un profil existant**. Si vous lancez Apollia pour la première fois, le parcours guidé peuple les valeurs initiales : voir **[Configurer votre profil au premier lancement](../installation/set-up-your-profile.md)**.
 
 ## Pourquoi un profil utilisateur
 
-Tous vos agents partagent un **profil utilisateur** unique. Quand vous dites à l'un d'eux que vous êtes développeur·euse en fintech, les autres agents profitent de cette information : vocabulaire adapté, ton ajusté, suggestions pertinentes. Pas de re-saisie à chaque agent.
+Un profil vous décrit une fois, pour tous les agents autorisés à le lire. Quand il dit que vous êtes développeur en fintech, ces agents adaptent leur vocabulaire, leur ton et leurs suggestions, sans ressaisie pour chacun.
 
-Ce profil est **local**. Aucune donnée ne quitte votre machine.
+Vous pouvez garder **plusieurs profils**, un pour chaque facette de votre travail. L'un d'eux est le profil **par défaut** : c'est celui que vos agents utilisent.
+
+Un agent ne lit votre profil que si la source **Profil** est cochée sur sa fiche, sous **Sources consultées**. Un agent sans cette source n'en sait rien.
+
+Les profils sont **locaux**. Aucune donnée ne quitte votre machine.
 
 ## Où l'éditer
 
-**Paramètres → Profil**, accessible depuis l'icône ⚙️ de la sidebar.
+Dans la barre latérale, cliquez sur **Réglages**, puis sur la section **Profil**.
 
-![Page Parametres puis Profil, avec ses sections empilees, de l'identite jusqu'a la zone de danger](/img/operator-help/memoire-gerer-mon-profil-1.png)
+La section contient trois blocs :
 
-L'écran est divisé en sections :
-
-- **Identité** - prénom, rôle, secteur, taille d'équipe, objectifs.
-- **Supervision des agents** *(sensible)* - niveau HITL (Human-in-the-Loop), domaines d'autonomie, déclenchement.
-- **Outils & contexte métier** - outils du quotidien, niveau technique, intégrations connectées *(la dernière est sensible)*.
-- **Contraintes** *(sensible)* - souveraineté des données, conformité.
-- **Préférences** - langue préférée, backend LLM par défaut.
+- **Profils** : la liste de vos profils, celui par défaut marqué **Par défaut**, et le bouton **Nouveau profil**.
+- **Informations du profil** : le formulaire du profil sélectionné dans la liste. Six champs, tous facultatifs : **Nom**, **Rôle**, **Fonction**, **Outils utilisés**, **Préférences** et **Ce que vos agents doivent savoir**, un texte libre.
+- **Ce que vos agents ont retenu** : les faits gardés dans ce profil, notés par vos agents ou ajoutés par vous.
 
 ## Étapes
 
-1. Ouvrez **Paramètres → Profil**.
+1. Ouvrez **Réglages**, section **Profil**, et cliquez sur le profil à modifier dans la liste **Profils**.
 
-2. Saisissez ou modifiez les champs voulus. Chaque champ est sauvegardé automatiquement quand vous quittez le champ (sortie de focus) ou changez d'option. Un toast confirme l'enregistrement.
+2. Modifiez les champs voulus. Rien n'est enregistré pendant la saisie.
 
-3. Vider un champ et quitter le focus **supprime** l'entrée du profil.
+3. Cliquez sur **Enregistrer** en bas de la fenêtre (ou appuyez sur **Cmd+S** sous macOS, **Ctrl+S** sous Windows et Linux). **Abandonner** remet les champs comme ils étaient.
 
-## Qui a renseigné chaque champ
+Sélectionner un autre profil enregistre d'abord les modifications en cours.
 
-Une **pastille** apparaît à côté des champs déjà renseignés et indique l'origine de la valeur :
+## Garder plusieurs profils
 
-- **onboarding** - valeur posée par le parcours guidé au premier démarrage. Vous la verrez sur les quelques champs que l'onboarding remplit (prénom, rôle, niveau de supervision, souveraineté des données).
-- **vous** - valeur saisie ou modifiée depuis ce formulaire. Toute modification que vous faites ici remplace l'origine précédente par **vous**.
-- **agent** - valeur déduite par un agent au fil d'une conversation (par exemple un agent qui aurait observé votre rôle dans un échange).
+- **Nouveau profil** demande un nom et crée un profil vide.
+- Le menu en bout de chaque ligne propose **Renommer**, **Définir par défaut**, **Réinitialiser…** et **Supprimer…**.
+- Le profil par défaut ne peut pas être supprimé : choisissez d'abord un autre profil par défaut.
+- Supprimer un profil supprime ses champs, son texte libre et ce que vos agents y ont retenu. Cette action ne peut pas être annulée.
 
-Un champ vide ne porte pas de pastille. Tant que vous ne touchez pas à un champ, la pastille d'origine est préservée - passer le focus dessus sans rien changer ne la remplace pas.
+Ces changements prennent effet aussitôt, sans **Enregistrer**.
 
-## Champs sensibles
+## Les faits d'un profil
 
-Quatre champs portent un badge **Sensible** :
+Sous le formulaire, **Ce que vos agents ont retenu** liste les faits du profil. Ils ne servent qu'à ce profil.
 
-- **Niveau HITL** (Supervision des agents)
-- **Souveraineté des données** (Contraintes)
-- **Conformité** (Contraintes)
-- **Intégrations connectées** (Outils & contexte métier)
+- **Ajouter un fait** en ajoute un à la main, par exemple *« Je facture mes clients le 5 du mois »*.
+- Sur chaque fait, **Modifier** le corrige, **Copier la valeur** le copie et **Supprimer** le retire, après une confirmation.
+- Une pastille sur chaque fait dit d'où il vient : **onboarding** (le parcours guidé du premier lancement), **vous**, ou **agent**.
 
-Modifier ces champs **ne ré-applique pas automatiquement** vos règles de permissions. Apollia respecte le principe « la mémoire ne change pas l'environnement sans décision explicite ». Pour que les nouvelles valeurs influencent les permissions, relancez l'onboarding (voir ci-dessous).
+Un fait est enregistré aussitôt, sans **Enregistrer**.
+
+## Ce qu'un agent peut proposer
+
+Un agent dont la source **Profil** est cochée peut proposer un fait durable vous concernant pour votre profil. Il n'en écrit jamais un de lui-même :
+
+- La proposition vous arrive comme une demande d'accord, dans le chat et dans **À valider**, avec le fait affiché.
+- **Une fois** accepte le fait, qui est alors ajouté à votre profil. **Refuser** l'abandonne.
+- Chaque proposition est demandée, à chaque fois. Il n'y a pas de « toujours » pour elle.
+
+Un agent ne peut pas proposer ainsi une valeur pour l'un des six champs du formulaire : ceux-là, c'est à vous de les remplir.
+
+## Compléter un profil avec un agent
+
+Quand un profil a un nom et un rôle mais garde des champs vides, un bandeau propose **Compléter avec un agent** : un agent vous pose quelques questions, puis remplit le formulaire avec sa proposition. Un second bandeau, *Proposition de l'agent, à relire*, coiffe alors le formulaire. Corrigez ce qui ne va pas, puis cliquez sur **Enregistrer** pour garder la proposition ou sur **Passer** pour l'abandonner. Rien n'est écrit avant **Enregistrer**.
 
 ## Réinitialiser votre profil
 
 Plusieurs chemins, selon ce que vous voulez effacer.
 
-### A - Effacer uniquement le profil et reposer les questions
+### A - Vider un profil
 
-Au bas de la page **Paramètres → Profil**, la **Zone danger** propose un bouton **Réinitialiser le profil**. Confirmez dans la modale.
+Dans la liste **Profils**, ouvrez le menu du profil et choisissez **Réinitialiser…**. Les champs, le texte libre et ce que vos agents ont retenu dans ce profil sont vidés. Le profil reste dans la liste.
 
-![La zone de danger du profil avec la modale de confirmation Réinitialiser le profil au premier plan](/img/operator-help/memoire-gerer-mon-profil-1bis.png)
+Pour le profil par défaut, la fenêtre propose deux boutons : **Réinitialiser seulement**, ou **Réinitialiser et refaire connaissance**, qui lance ensuite une courte conversation avec un agent, lequel vous propose un nouveau profil à relire.
 
-- Tout le profil est effacé (les 5 sections).
-- L'agent d'onboarding redémarre **immédiatement** pour reconstruire vos préférences depuis zéro.
-- L'historique des conversations et les mémoires des autres agents **ne sont pas touchés**.
+L'historique des conversations et les mémoires de vos agents ne sont pas touchés.
 
-C'est l'option à choisir si vous voulez juste « repasser le questionnaire de configuration » sans toucher au reste.
+### B - Repasser le parcours guidé
 
-### B - Repasser uniquement le parcours guidé (sans effacer le profil)
+Dans **Réglages**, section **Général**, le bloc **Zone de danger** contient un bouton **Réinitialiser l'onboarding**. Il fait rejouer le parcours d'accueil du premier lancement.
 
-Dans **Paramètres → Zone de danger** (entrée distincte de la sidebar Paramètres), le bouton **Réinitialiser l'onboarding** relance le parcours guidé sans effacer ce qui est déjà renseigné. Utile si vous voulez juste re-télécharger un modèle, recalibrer une intégration ou voir les écrans de bienvenue à nouveau.
+Il n'est pas neutre pour votre profil : il vide aussi ce que votre profil contient, alors même que la fenêtre annonce qu'aucune donnée n'est supprimée. Préférez le chemin A quand vous voulez seulement changer un profil.
 
-Il a un effet de bord que la fenêtre ne mentionne pas : il remet aussi les visites guidées à zéro. Les six parcours repartent de leur première étape et la bande **Prise en main** réapparaît sur l'écran Accueil, alors que la fenêtre annonce qu'aucune donnée n'est supprimée.
+### C - Effacer toutes les mémoires (profils et agents)
 
-### C - Effacer toutes les mémoires (profil + agents + projets)
+Dans le même bloc **Zone de danger**, le bouton **Effacer les mémoires** supprime **toutes** les mémoires d'Apollia : votre profil et la mémoire de chaque agent. C'est plus large que la réinitialisation d'un profil. Utilisez-le si vous voulez repartir d'une ardoise entièrement vierge côté mémoire.
 
-Dans **Paramètres → Zone de danger**, le bouton **Effacer les mémoires** supprime **toutes** les mémoires Apollia, sur tous les namespaces : profil utilisateur, mémoire des agents, mémoire de projet. C'est plus large que la réinitialisation du profil - à utiliser si vous voulez repartir d'une page complètement blanche côté mémoire (les conversations, agents installés et permissions restent en place).
-
-> Pour aller encore plus loin (effacer aussi les agents installés, les permissions, les paramètres système), c'est l'option **Réinitialisation usine** au bas de la même Zone de danger.
+> Pour aller encore plus loin (effacer aussi les agents installés, les conversations, les modèles et les réglages), l'option est **Réinitialisation d'usine**, en bas du même bloc.
 
 ## Vérification
 
-- Rechargez la page : les valeurs saisies persistent.
-- Démarrez une nouvelle conversation avec n'importe quel agent et observez qu'il vous adresse par votre prénom / adapte son ton à votre rôle.
-- Sur un champ que vous venez de modifier, la pastille bascule sur **vous**.
+- Fermez les réglages et rouvrez-les : les valeurs enregistrées sont là.
+- Démarrez une nouvelle conversation avec un agent dont la source **Profil** est cochée : il s'adapte à ce que dit le profil.
+- Un fait que vous avez ajouté porte la pastille **vous**.
 
 ## Si ça ne marche pas
 
-- **Les champs restent vides après saisie** : un agent était peut-être en train d'écrire. Réessayez après quelques secondes.
-- **Le bouton « Réinitialiser le profil » ne relance pas l'onboarding** : utilisez **Réinitialiser l'onboarding** dans Paramètres → Zone de danger. Il n'y a pas d'entrée Onboarding dans la barre latérale.
-- **Un agent ignore votre profil** : un agent ne lit votre profil que si la source **profil** est cochée pour lui. Son paquet peut la cocher par défaut ; c'est vous qui décidez avec `apollia-os agent set <agent> sources profile` (citez toutes les sources à garder, la liste remplace celle du paquet), et `apollia-os agent show <agent>` vous dit où elle en est. Chaque lecture est inscrite dans la trace de l'exécution, avec l'agent, le profil et l'heure. Une fois la source cochée, si l'agent est tiers, ouvrez son code (ou contactez son auteur) pour vérifier qu'il lit `ctx.profile`.
+- **Les champs reviennent comme avant** : la modification n'a pas été enregistrée. Cliquez sur **Enregistrer** avant de quitter la section.
+- **Supprimer… est refusé sur un profil** : c'est le profil par défaut. Définissez-en d'abord un autre par défaut.
+- **Un agent ignore votre profil** : un agent ne lit votre profil que si la source **Profil** est cochée pour lui. Ouvrez **Agents**, puis la fiche de l'agent, et regardez sous **Sources consultées**. En ligne de commande, `apollia-os agent show <agent>` vous dit où il en est et `apollia-os agent set <agent> sources profile` la coche (listez toutes les sources à garder, la liste remplace celle du paquet).
+- **Un agent ne propose jamais de fait** : sa source **Profil** n'est pas cochée, ou il n'a rien trouvé de durable à proposer.
 
-> **Référence technique :** [Référence Apollia](/reference) - schéma canonique des champs, source unique de vérité du profil global, contrat SDK Python `ctx.profile.*`.
+> **Référence technique :** [Référence Apollia](/reference)

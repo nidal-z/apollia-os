@@ -20,5 +20,5 @@ La vue d'un lot montre chacun de ses éléments avec son état. Un élément ouv
 
 ## Pour aller plus loin
 
-- [Démarrer un agent ou un paquet](/operator-help/agents/start-an-agent)
+- [Confier une tâche à un agent](/operator-help/agents/start-an-agent)
 - [Approuver ou refuser une action d'agent](/operator-help/control/approve-or-reject-an-action)

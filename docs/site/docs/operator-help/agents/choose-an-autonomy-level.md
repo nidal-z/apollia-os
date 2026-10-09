@@ -11,7 +11,7 @@ sidebar_position: 3
 ## Prerequisites
 
 - Apollia running and the daemon active.
-- At least one agent installed and started.
+- At least one agent installed.
 - Familiarity with the `apollia-os run` command.
 
 ## The four levels
@@ -66,23 +66,27 @@ $ apollia-os config set autonomy.default_level supervised
 Error: unknown config key: 'autonomy.default_level'
 ```
 
-A run launched without `--autonomy` runs at `assisted`. To work at another
-level, pass the flag on each run.
+A run launched without `--autonomy` takes the level of the agent, and
+`assisted` when the agent names none. To give one agent another level for
+every run, set it on that agent:
+
+```
+apollia-os agent set my-agent autonomy supervised
+```
+
+`apollia-os agent reset my-agent --field autonomy` goes back to the level of
+its package.
 
 ## Verification
 
-After launch, the first log lines of the task show the active level:
-
-```
-autonomy.level=supervised agent=my-agent "autonomy.activated"
-```
-
-Open the logs from the agent detail panel or with `apollia-os agent logs my-agent --last 20`.
+With the developer mode on, the level of an agent is shown on its sheet, in
+the **Technical** tab, under **Autonomy**. It is the level a run takes when
+`--autonomy` is not passed.
 
 ## If it does not work
 
 - **Unknown value at launch:** if you pass an incorrect value to `--autonomy`, the CLI rejects the command and lists the four valid values (`assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`). Check the spelling, the values are in `snake_case`.
 - **The `--autonomy` level is ignored:** check that you are using `apollia-os run`, not `apollia-os start`. The `start` command starts the daemon without running a task; `--autonomy` has no meaning there.
-- **A `[autonomy]` block has no effect:** the daemon does not read that section of `apollia.toml`, restarted or not. Set the level run by run with `--autonomy`.
+- **A `[autonomy]` block has no effect:** the daemon does not read that section of `apollia.toml`, restarted or not. Set the level run by run with `--autonomy`, or agent by agent with `apollia-os agent set`.
 
 > **Technical reference:** [Apollia reference](/reference) - StepBudget, ResilienceLayer, behavior of each autonomy level.

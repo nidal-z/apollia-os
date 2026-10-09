@@ -10,13 +10,13 @@ sidebar_position: 14
 
 ## What it is for
 
-The Observability screen gathers the timeline of the runs, the cost of the models and the trail of the tool calls. It is listed in the sidebar only while the developer mode is on. The Activity log tells the same story in plain words.
+The Observability screen gathers the timeline of the runs, the cost of the models and the messages agents exchange, along with tabs for delegation, the plan cache, hooks and the capture policy. It is listed in the sidebar only while the developer mode is on. The Activity log tells the same story in plain words.
 
 ## What you can do
 
 - Follow a run in the timeline.
 - Watch what the models cost.
-- Read the trail of the tool calls.
+- Read the messages agents exchanged, in the Mailbox tab.
 
 ## Go further
 

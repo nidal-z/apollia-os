@@ -14,44 +14,41 @@ sidebar_position: 5
 
 ## Steps
 
-1. In the sidebar, click **Settings**, then **About** (bottom of the navigation, in the **Help** cluster).
+1. In the sidebar, click **Settings**. The window opens on the **General** section, which holds everything this page uses.
 
-2. The header shows the **version**, the **release channel** and the **platform**. The channel is read from the version string: a version carrying a suffix after the hyphen, such as `0.1.0-preview`, is a preview build; a bare version is a stable one. That number is the product version, and it is not the one stamped on the installer files: those carry `0.1.0-1`, because the Windows installer format refuses a non-numeric pre-release identifier. Both name the same build, and the number to quote is the one on this screen.
-
-3. The **Version and build** section lists the values that identify this installation: version, platform, Python interpreter, inference engine and transcription engine. Click any value to copy it.
+2. The **App update** block shows the **Installed version**, and under it the update channel in force: **Stable channel** or **Preview channel**. The channel is the one chosen on the next line, **Update channel**; it is not guessed from the version number. Click the version to copy it.
 
 <!-- claim:about-reports-resolved-data-dir -->
 
-4. The **Where your data lives** section shows the **data directory**: the single folder that holds your conversations, agent memory, models, configuration and audit journal. Click it to copy the full path.
+3. The **Application** block shows the **Data directory**: the single folder that holds your conversations, agent memory, models, configuration and audit journal. Click it to copy the full path.
 
    > **Note:** the path shown is the one this installation actually resolved, not a generic example. It normally reads `.apollia` inside your home directory, and it follows the home directory Apollia was launched with. Trust the value on screen over any path written in a guide.
 
-5. The **What runs on this machine** section states, item by item, what stays local: inference, voice transcription, storage and the audit journal.
+4. At the bottom of the section, the **About** block holds **What runs on this machine**, which states, item by item, what stays local: inference, voice transcription, storage and the audit journal. The licence, the open-source components Apollia is built on and the links to the documentation and the source code follow.
 
 ## Report a problem with the right information
 
 1. In **Settings**, open **Hardware** (in the **System** group) and click **Copy the information** in its header. This copies a plain-text block with the version, the operating system, the processor, the memory, each GPU, and each engine with its version. In developer mode it also carries the Python interpreter, the configuration file and the data directory.
 
-2. In the **Resources** section, click **Report a problem**. Your browser opens a new issue on the public repository.
+2. Back in **General**, in the **Application** block, click **Open in browser** on the **Report a problem** line. Your browser opens the reporting page.
 
-3. Paste that block into the issue, then describe what you were doing and what you expected instead.
+3. Paste that block into the report, then describe what you were doing and what you expected instead.
 
 > **Nothing is sent automatically.** The block goes to your clipboard and nowhere else. Read it before pasting it, and remove any path you would rather not publish.
 
 ## Back up or erase everything
 
-The data directory from step 4 is a normal folder. Copying it elsewhere backs Apollia up; deleting it puts the application back to its first launch. For the guided path, with its precautions, see [Reset Apollia (factory reset)](../troubleshooting/factory-reset.md).
+The data directory from step 3 is a normal folder. Copying it elsewhere backs Apollia up; deleting it puts the application back to its first launch. For the guided path, with its precautions, see [Reset Apollia (factory reset)](../troubleshooting/factory-reset.md).
 
 ## Going further
 
-The full manual, with the guides for every screen, is published on **docs.apollia.fr**. Reach it from **Settings → Help → Help center**, or from **Settings → About → Documentation**.
+The full manual, with the guides for every screen, is published on **docs.apollia.fr**. Reach it from **Settings**, section **General**: **Open the help center** in the **Help** block, or **Documentation** under **Resources** in the **About** block.
 
 ## Verification
 
-The **About** page shows a version, and the data directory it displays exists on your disk under that exact path.
+The **General** section shows a version, and the data directory it displays exists on your disk under that exact path.
 
 ## If it does not work
 
-- **"System information could not be loaded":** the interface reached the page before the runtime was ready. Leave the page and come back, or relaunch the application.
+- **The version reads "Version unknown":** the interface reached the section before the engine was ready. Close the settings and open them again, or relaunch the application.
 - **The data directory says the home directory could not be resolved:** Apollia was launched in an environment with no home directory (`HOME` on macOS and Linux, `USERPROFILE` on Windows). This happens with some service launchers. Relaunch it from your normal session.
-- **The version reads "Version unknown":** same cause as the first case. The rest of the page stays usable.

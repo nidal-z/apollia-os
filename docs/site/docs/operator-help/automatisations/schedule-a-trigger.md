@@ -10,25 +10,25 @@ sidebar_position: 1
 
 ## Prerequisites
 
-- At least one agent installed and startable from the My Assistants page.
-- An AI provider configured (from **Settings → Models**).
+- At least one agent listed in the **Agents** screen.
+- A model that answers, set up in the **AI** screen.
 - You know how often you want the task to repeat.
 
 ## Steps - create an automation in plain language (default path)
 
-1. In the sidebar, click **My Triggers**. The page is titled **Automations**.
+1. In the sidebar, click **Automations**.
 
-2. Click the **Create an automation** button at the top right. A **4-step** wizard opens (Describe → Schedule → Assistant → Preview).
+2. Click the **Create an automation** button at the top right. A **4-step** wizard opens (Describe → Schedule → Agent → Preview).
    ![Automations page, with the Create an automation button at the top right and the four-step stepper](/img/operator-help/automatisations-programmer-un-trigger-1.png)
 
-3. **Describe step** - Describe **the when**: at what moment or how often the trigger should fire. Examples: *"Every morning at 8am"*, *"Every Monday at 9am to prep the week"*, *"Every 30 minutes"*. You do not need to name an assistant at this stage: a trigger is independent from the assistant that will run it, and you pick that assistant at the **Assistant** step. Click **Next**; Apollia parses the sentence (the button label switches to *"Parsing…"*).
+3. **Describe step** - Describe **the when**: at what moment or how often the trigger should fire. Examples: *"Every morning at 8am"*, *"Every Monday at 9am to prep the week"*, *"Every 30 minutes"*. You do not need to name an agent at this stage: a trigger is independent from the agent that will run it, and you pick that agent at the **Agent** step. Click **Next**; Apollia parses the sentence (the button label switches to *"Parsing…"*).
 
-4. **Schedule step** - Apollia shows how it read your sentence in a box (for example *"Every day at 08:00"*) with the **next scheduled run**. If something looks off, adjust it in plain language in the field at the bottom (*"actually 9am"*) and press Enter - the schedule updates. If Apollia needs a detail about the calendar (missing time, ambiguous day…), an orange banner lists the points to clarify; fill them in through the refine field. A missing assistant in the description does not block this step.
+4. **Schedule step** - Apollia shows how it read your sentence in a box (for example *"Every day at 08:00"*) with the **next scheduled run**. If something looks off, adjust it in plain language in the field at the bottom (*"actually 9am"*) and press Enter - the schedule updates. If Apollia needs a detail about the calendar (missing time, ambiguous day…), an orange banner lists the points to clarify; fill them in through the refine field. A missing agent in the description does not block this step.
    ![Schedule step, with the human-readable schedule box, the next-run line and the refinement fields](/img/operator-help/automatisations-programmer-un-trigger-2.png)
 
-5. **Assistant step** - Select the assistant that will run this trigger. A trigger always launches **one assistant at a time**. If your sentence named an existing agent, it is preselected and a sub-label reads *"Recognized automatically: …"*. Otherwise, an orange box reminds you that no assistant was recognised, and you pick it from the dropdown. Only installed assistants show up.
+5. **Agent step** - Select the agent that will run this trigger. A trigger always launches **one agent at a time**. If your sentence named an existing agent, it is preselected and a sub-label reads *"Recognized automatically: …"*. Otherwise, an orange box reminds you that no agent was recognised, and you pick it from the dropdown. Only installed agents show up.
 
-6. **Preview step** - Apollia sums the trigger up: the schedule in plain words, the target assistant, and the prompt sent at trigger time if one was detected. Click **Activate this automation**.
+6. **Preview step** - Apollia sums the trigger up: the schedule in plain words, the target agent, and the prompt sent at trigger time if one was detected. Click **Activate this automation**.
 
 7. A notification confirms the creation. The automation appears in the table with a green **Active** indicator, and the **Next run** column shows the scheduled date.
 
@@ -45,7 +45,7 @@ An automation is edited in place. Changing a schedule no longer means deleting a
 
 1. On the automation row, click the **⋯** menu → **Edit**. With the row focused from the keyboard, the **E** key does the same.
 
-2. The **Edit trigger** window opens on the stored definition, with the same fields as advanced mode: target assistant, trigger type and its parameters, the **Enabled** toggle, the behaviour when a run is already in progress, and the input template.
+2. The **Edit trigger** window opens on the stored definition, with the same fields as advanced mode: target agent, trigger type and its parameters, the **Enabled** toggle, the behaviour when a run is already in progress, and the input template.
 
 3. The **identifier is greyed out**: it addresses the automation and cannot be changed after creation. Everything else is editable, including the trigger type.
 
@@ -53,17 +53,13 @@ An automation is edited in place. Changing a schedule no longer means deleting a
 
 5. Click **Save**. A confirmation names the automation, the list reloads, and the engine restarts on the new definition.
 
-**An automation declared in `apollia.toml` is not editable here.** The window says so and stops: those triggers run in the engine but have no stored definition to rewrite. Edit the file, then use **Reload config**.
-
-## Reload the configuration file
-
-The **Reload config** button at the top right of the page re-reads `apollia.toml` and restarts the automation engine on it, then reports how many automations are active. Use it after editing the file by hand, it saves restarting the application. The **Refresh** button next to it does something else and much smaller: it re-reads the list the engine already holds.
+**An automation declared in `apollia.toml` is not editable here.** The window says so and stops: those triggers run in the engine but have no stored definition to rewrite. Edit the file: the change is read the next time Apollia starts.
 
 ## Advanced mode (optional)
 
 For operators who prefer to enter the technical parameters directly (exact cron expression, precise file path, webhook secret…), the wizard offers an **Advanced mode** link at the bottom left. It opens a detailed creation window where you choose:
 
-- **The target assistant** (at the top).
+- **The target agent** (at the top).
 - **The trigger type** among five cards:
   - **On a schedule** - daily, weekly, or at a specific time.
   - **At regular intervals** - every 30 minutes, every hour, and so on.
@@ -72,7 +68,7 @@ For operators who prefer to enter the technical parameters directly (exact cron 
   - **Via an external URL** - fired by an incoming HTTP call (webhook).
 - **The parameters of the chosen type** - details below.
 - An **Enabled** toggle (true by default).
-- An **Advanced settings** section, collapsed by default: customisable technical name (ID), behaviour *"if a run is already in progress"* (queue or drop), and the **input template** sent to the assistant.
+- An **Advanced settings** section, collapsed by default: customisable technical name (ID), behaviour *"if a run is already in progress"* (queue or drop), and the **input template** sent to the agent.
 
 ### Parameters per type - advanced mode
 
@@ -91,12 +87,12 @@ The automation shows up in the **Automations** table with:
 
 ## If it does not work
 
-- **The target assistant does not show up in the list**: it is not installed. Go to **My Assistants** and install it, then reopen the wizard.
+- **The target agent does not show up in the list**: it is not installed. Install it from the **Agents** screen, then reopen the wizard.
 - **Apollia did not understand my sentence**: a *"We couldn't understand automatically"* message appears. Rephrase more simply, stating the frequency and the time clearly (e.g. *"Every day at 9am"*).
-- **The Schedule step lists points to clarify**: the orange box at the top lists the calendar ambiguities (for example "missing time"). Type the detail in the refine field and confirm with Enter. If the only thing Apollia did not find is the assistant, you can still move to the next step: the selection happens at the Assistant step.
-- **The "Activate" button is disabled**: something is missing - check that the Schedule step has no calendar ambiguity left and that an assistant is selected.
+- **The Schedule step lists points to clarify**: the orange box at the top lists the calendar ambiguities (for example "missing time"). Type the detail in the refine field and confirm with Enter. If the only thing Apollia did not find is the agent, you can still move to the next step: the selection happens at the Agent step.
+- **The "Activate" button is disabled**: something is missing - check that the Schedule step has no calendar ambiguity left and that an agent is selected.
 - **The immediate run (▶︎ icon) is greyed out**: the automation is paused. Resume it from the **⋯** menu on the row, or open **Edit** and turn the **Enabled** toggle back on.
-- **The Edit window refuses to open the automation**: it comes from `apollia.toml`. Change it in the file, then click **Reload config**.
+- **The Edit window refuses to open the automation**: it comes from `apollia.toml`. Change it in the file, then restart Apollia.
 
 ## Call a webhook from an external service
 

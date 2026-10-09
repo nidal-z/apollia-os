@@ -1,131 +1,98 @@
 ---
-title: Utiliser la Boîte de réception
+title: Utiliser la liste À valider
 slug: /operator-help/transversal/use-the-inbox
 sidebar_position: 2
 ---
 
-# Utiliser la Boîte de réception
+# Utiliser la liste À valider
 
-> Pour les operators qui veulent traiter au même endroit tout ce qui demande leur attention : approbations d'actions, questions d'agents, échecs récents, historique des notifications envoyées.
+> Pour les operators qui veulent répondre au même endroit à tout ce que leurs agents attendent : demandes d'accord, questions, tâches en pause et éléments de lot.
 
 ## Prérequis
 
-- Au moins un agent ou trigger a tourné récemment.
+- Au moins un agent, une tâche ou un lot a demandé quelque chose.
 
 ## Où la trouver
 
-Dans la sidebar, l'entrée **Boîte de réception** (icône bouclier). Le badge à côté du libellé indique le nombre d'**actions à traiter** (approbations + questions en attente). Ce compteur reste strictement sur les actions concrètes - il n'inclut pas les événements informatifs ni les notifications passées.
+Dans la barre latérale, l'entrée **À valider**. Le badge à côté du libellé compte ce qui attend votre réponse. Le même nombre figure en tête de l'écran : *« 3 éléments attendent votre réponse. »*
 
-## Architecture de la page
+## Comment l'écran est organisé
 
-La page est organisée en **trois onglets**, accessibles via la barre d'onglets en tête :
+**À valider** est une seule liste, sans onglets. Elle réunit les accords demandés par les agents dans les conversations, les questions des agents, les tâches qui se sont mises en pause pour vous attendre et les éléments de lot qui attendent un accès, du plus récent au plus ancien. Répondre ici reprend la conversation, la tâche ou le lot concerné.
 
-| Onglet | Contenu |
-|---|---|
-| **À traiter** | Approbations HITL en attente + questions `ask_user` que les agents vous posent. C'est ici que vit l'interactivité bloquante. |
-| **Activité** | Événements récents qui demandent votre attention sans bloquer un agent : échecs de tâche, erreurs de déclencheur, agents en mode dégradé, fournisseur LLM indisponible. Fenêtre glissante de 14 jours. |
-| **Notifications envoyées** | Historique des notifications poussées vers vos canaux Desktop / Webhook (50 dernières). |
+Chaque élément porte, au-dessus de sa carte :
 
-L'onglet actif est mémorisé entre les sessions (rafraîchir la page conserve votre dernière vue). Vous pouvez aussi y arriver directement via un lien (la page **Notifications** (une entrée de premier niveau de la barre latérale) redirige par exemple sur l'onglet *Notifications envoyées*).
+- **D'où il vient** : *Depuis la conversation « … »*, *Depuis une tâche, en pause* ou *Depuis un lot, élément 4*.
+- **Un lien pour y retourner** : **Ouvrir la conversation**, **Ouvrir l'agent** ou **Ouvrir le lot**.
+- **Quand il a été demandé**.
 
-## Onglet "À traiter"
+Quand rien n'attend, l'écran le dit : *Rien n'attend votre réponse*.
 
-![Boite de reception sur l'onglet A traiter, puces de compteur dans la barre d'onglets et puces de filtre en dessous](/img/operator-help/transversal-utiliser-l-inbox-1.png)
+## Filtrer la liste
 
-### Filtrer la liste
+Quatre pastilles au-dessus de la liste, chacune avec son compteur :
 
-- **Trois chips de type** au-dessus de la liste - **Tous** / **Approbations** / **Questions**. Cliquez pour ne voir que ce qui vous intéresse.
-- **Sélecteur Agent** à droite de la rangée de chips - isole le travail d'un seul agent.
-- Les items sont **groupés automatiquement par jour** (Aujourd'hui / Hier / Plus tôt), du plus récent en haut.
+- **Tout**
+- **Décisions** : les demandes d'accord, pauses de tâches comprises.
+- **Questions** : ce à quoi on répond avec des mots.
+- **Éléments de lot** : les éléments d'un lot qui attendent un accès.
 
-### Traiter une approbation
+## Répondre à une demande d'accord
 
-Cliquez sur une ligne d'approbation pour la déplier en carte de décision. Voir la page dédiée [Approuver ou refuser une action d'agent](../controle/approve-or-reject-an-action.md) pour le détail des portées de *Toujours autoriser* et du dialog de raison de refus (5 à 500 caractères).
+La carte est celle du chat, avec les mêmes réponses : **Une fois**, **Toujours pour cet agent** et **Refuser**, avec une raison facultative. Une tâche en pause n'offre que **Une fois** et **Refuser**. Voir [Approuver ou refuser une action d'agent](../controle/approve-or-reject-an-action.md) pour ce que couvre chaque réponse.
 
+Une longue commande est repliée : la liste montre ses premières lignes, et les réponses apparaissent une fois que vous avez cliqué sur **Afficher la commande entière**. Vous répondez sur ce que vous avez lu en entier.
 
-### Répondre à une question d'agent (`ask_user`)
+Quand vous répondez **Toujours pour cet agent** à un élément de lot, les autres éléments de cet agent qui attendent le même type d'accès repartent, et une ligne dit combien ont été repris.
 
-Quand un agent utilise l'outil `ask_user` pour vous interroger, l'item apparaît dans cet onglet sous le libellé **Question**. Cliquez pour déplier le formulaire dynamique.
+## Répondre à une question
 
-![Formulaire ask_user deplie, encart de contexte en haut suivi des questions auxquelles repondre](/img/operator-help/transversal-utiliser-l-inbox-2.png)
+Quand un agent vous demande quelque chose, l'élément montre une carte intitulée *« … vous pose une question »*, avec le badge **Question**. Dessous, quand l'agent en a fourni une, une phrase donne le contexte.
 
-Le formulaire affiche, dans l'ordre :
+Chaque question est présentée selon ce que l'agent attend :
 
-- Un **encart bleu** avec le contexte fourni par l'agent (s'il en a fourni un - *"pourquoi je vous pose ces questions"*).
-- Une à dix **questions**, chacune rendue selon son type :
-  - **Question ouverte** - champ texte libre, avec une indication d'aide si l'agent en a précisé une.
-  - **Choix unique** - radios, une seule option sélectionnable.
-  - **Choix multiple** - cases à cocher, plusieurs options possibles.
+- **Une question ouverte** : un champ de texte.
+- **Un choix parmi des réponses proposées par l'agent** : une réponse, ou plusieurs quand l'agent le permet. Quand l'agent l'accepte, un champ **Autre réponse…** figure à côté des choix.
+- **Une question par oui ou non** : **Oui** et **Non**.
 
-Deux actions en bas :
+Ensuite :
 
-- **Répondre** *(bouton primaire)* - envoie vos réponses à l'agent, qui reprend son exécution. Les champs laissés vides sont marqués *« non répondu »* dans la réponse transmise - pas de blocage.
-- **Refuser de répondre** *(ghost rouge)* - ouvre le dialog de raison (5 à 500 caractères). L'agent reçoit votre refus motivé et adapte sa suite.
+- **Répondre** envoie ce que vous avez rempli. Le bouton devient actif dès qu'une question porte une réponse.
+- **Refuser de répondre** refuse, avec une raison facultative transmise à l'agent.
 
-> **Note :** une notification (toast desktop ou webhook si configuré) part automatiquement quand un agent appelle `ask_user`. Vous pouvez désactiver cette notification dans **Notifications** (une entrée de premier niveau de la barre latérale) en décochant *Question d'agent*.
+## Revenir sur une réponse
 
-### Historique récent
+Une fois votre réponse donnée, l'élément se réduit à une ligne qui dit ce que vous avez répondu, avec la mention *Réponse enregistrée. Cette ligne se retire dans quelques secondes.* Pendant ces quelques secondes, **Annuler** reprend la réponse et l'élément attend de nouveau. Ensuite la réponse est envoyée et la ligne quitte la liste.
 
-Sous la liste des items en attente, une section **Historique récent (14 jours)** liste vos décisions résolues : ✅ Autorisé / 🛡 Toujours autorisé / ❌ Refusé (avec la raison saisie). Lecture seule.
+## Les décisions déjà prises
 
-Deux origines sont fusionnées dans cette liste unique, triée du plus récent au plus ancien, jusqu'à 50 par origine sur la même fenêtre de 14 jours. Un badge en début de ligne dit laquelle :
+Il n'y a pas d'historique ici : une décision prise se lit dans le **Journal**, depuis la barre latérale. Voir [Consulter la piste d'audit](../observabilite/read-the-audit-trail.md).
 
-- **Chat** : un outil que vous avez autorisé dans une conversation. La ligne nomme l'outil et, en dessous, la session concernée.
-- **Tâche d'agent** : une tâche d'agent qui a été suspendue en attendant votre approbation. La ligne nomme l'agent et, en dessous, la tâche. Une décision sur une tâche est seulement autorisée ou refusée : le runtime n'en garde qu'un oui ou un non, sans variante *toujours*.
-
-Si une seule des deux origines échoue au chargement, son erreur s'affiche au-dessus des lignes qui ont répondu, au lieu de remplacer toute la section. La section n'est remplacée par un encadré d'erreur que si les deux échouent.
-
-## Onglet "Activité"
-
-![Boite de reception sur l'onglet Activite, ses quatre puces de filtre et la liste des cartes d'evenement](/img/operator-help/transversal-utiliser-l-inbox-3.png)
-
-Cet onglet liste les événements qui n'ont pas demandé d'action immédiate mais méritent un coup d'œil. Quatre catégories couvertes sur la fenêtre de 14 jours :
-
-- **Échecs** ❌ - `task.failed` (tâche d'agent échouée) et `trigger.error` (déclencheur en erreur).
-- **Dégradations** ⚠️ - `agent.degraded` (un outil optionnel n'est plus disponible, l'agent continue en capacités réduites).
-- **LLM** 🔌 - `llm.backend_down` (fournisseur d'IA injoignable).
-
-Filtrez avec les chips en haut. Chaque ligne propose un bouton **Voir les logs** qui ouvre **Observabilité → Chronologie** pré-positionnée sur la tâche concernée si disponible.
-
-> **Source :** cet onglet consomme la même base de données que la page Notifications. Un événement apparaît ici uniquement s'il a déclenché au moins une tentative d'envoi vers un canal (notification globale activée). Sinon, retrouvez-le dans **Observabilité → Chronologie**.
-
-## Onglet "Notifications envoyées"
-
-![Boite de reception sur l'onglet Notifications envoyees, filtre par canal et tableau d'envoi a quatre colonnes](/img/operator-help/transversal-utiliser-l-inbox-4.png)
-
-Tableau des **50 dernières notifications** poussées vers vos canaux Desktop ou Webhook, avec :
-
-- **Horodatage** relatif (avec date absolue en tooltip).
-- **Canal** - affiché par son nom (label) si défini, sinon son identifiant.
-- **Événement** - libellé humain (*Tâche échouée*, *Approbation requise*, etc.).
-- **Statut** - badge vert *« envoyé »* ou rouge *« échoué »*.
-
-Un sélecteur en haut filtre par canal. Pour configurer les canaux ou les événements globaux, allez sur **Notifications** (une entrée de premier niveau de la barre latérale) (voir [Configurer un canal](../notifications/set-up-a-channel.md)).
+Les notifications envoyées par Apollia ne sont pas listées ici non plus. Les dernières figurent dans **Réglages**, section **Notifications**, sous **Derniers envois**. Voir [Configurer un canal de notification](../notifications/set-up-a-channel.md).
 
 ## Vérification
 
-- L'onglet "À traiter" se vide quand vous avez tout résolu - le badge sidebar redescend à zéro.
-- Une nouvelle approbation ou question d'agent fait remonter le badge **sans rafraîchissement manuel** (push temps réel).
-- Refuser un item le déplace immédiatement dans la section *Historique récent*.
+- La liste se vide une fois que vous avez répondu à tout, et le badge de la barre latérale retombe à zéro.
+- Une nouvelle demande fait monter le badge sans rafraîchissement manuel.
+- Un élément auquel vous avez répondu dans le chat quitte la liste.
 
 ## Si ça ne marche pas
 
-- **Le badge sidebar reste à zéro alors qu'un agent attend** : vérifiez le **point d'état** à côté du mot *Apollia* dans le bandeau supérieur. S'il est rouge, le runtime est déconnecté ; quittez et rouvrez l'application.
-- **Un item `ask_user` ne propose pas le formulaire** : c'est un cas limite. Ouvrez la conversation correspondante (id de session affiché sur la carte) ; l'agent y attend une réponse via le chat lui-même.
-- **L'onglet Activité est vide alors qu'une tâche a clairement échoué** : l'événement n'a probablement pas été poussé dans la chaîne de notifications (aucun canal abonné). Ouvrez **Observabilité → Chronologie** pour la trace brute.
-- **Vous voulez éviter de réapprouver toujours la même action** : utilisez les options *Toujours autoriser* sur la carte. Voir [Approuver ou refuser une action d'agent](../controle/approve-or-reject-an-action.md).
+- **Le badge de la barre latérale reste à zéro alors qu'un agent attend** : vérifiez le **point d'état** à côté du mot *Apollia* dans la barre du haut. S'il est rouge, le moteur est déconnecté ; quittez et rouvrez l'application.
+- **Les réponses d'une demande d'exécution de code ne s'affichent pas** : la commande est repliée. Cliquez sur **Afficher la commande entière**.
+- **Le bouton Répondre reste grisé** : aucune question ne porte encore de réponse.
+- **Vous voulez éviter de répondre sans cesse à la même demande** : répondez **Toujours pour cet agent**. Voir [Approuver ou refuser une action d'agent](../controle/approve-or-reject-an-action.md).
 
 ## Demandes provenant d'un serveur MCP
 
-**Rien n'arrive ici depuis un serveur MCP en v0.1.0.** La spécification définit
+**Rien n'arrive ici depuis un serveur MCP.** La spécification définit
 deux façons pour un serveur de rappeler son client, une demande de saisie
 structurée (`elicitation/create`) et une demande d'appel LLM
-(`sampling/createMessage`), et Apollia n'implémente ni l'une ni l'autre. Il
-n'annonce plus le contraire aux serveurs, si bien qu'un serveur qui les supporte
-ne les utilisera simplement pas face à Apollia.
+(`sampling/createMessage`), et Apollia n'implémente ni l'une ni l'autre. Il ne
+dit pas aux serveurs qu'il le fait : un serveur qui les prend en charge ne s'en
+servira simplement pas avec Apollia.
 
-Ce qui arrive dans votre boîte de réception vient des agents et du runtime :
-approbations, questions, notifications. Les demandes à l'initiative d'un serveur
-sont prévues, et elles passeront par une approbation le jour où elles arriveront.
+Ce qui arrive dans cette liste vient des agents, des tâches et des lots :
+demandes d'accord, questions et pauses.
 
 > **Concept :** [Explication Apollia](/explanation)

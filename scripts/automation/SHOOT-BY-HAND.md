@@ -205,7 +205,6 @@ pages carry no illustration, and one of them matters more than the rest:
 | Page | Why it deserves one |
 |---|---|
 | `integrations/connecter-microsoft-365.md` | The only connector that works with nothing to configure, and the contrast with Google is the point. Automatable. |
-| `transversal/suivre-la-visite-guidee.md` | A whole subsystem, shipped and never shown. |
 | `agents/choisir-un-palier-d-autonomie.md` | The choice happens on screen. Automatable. |
 | `transversal/trouver-sa-version-et-ses-donnees.md` | Its five values just became copyable. |
 

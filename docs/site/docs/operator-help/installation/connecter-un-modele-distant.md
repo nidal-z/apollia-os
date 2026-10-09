@@ -6,125 +6,83 @@ sidebar_position: 6
 
 # Connect a remote model
 
-> For any operator who wants to plug Anthropic, OpenAI (or a compatible LM Studio, vLLM), Mistral, or a remote Ollama server into Apollia.
+> For anyone who wants to plug into Apollia the AI server of their organisation, or a service they already use: Ollama, vLLM, LM Studio, a LiteLLM gateway, or any server with an OpenAI-compatible interface.
 
 ## Prerequisites
 
 - Apollia running.
-- For a cloud model, a valid API key with the provider (link to the console further down, per provider).
-- For remote Ollama, the URL of an instance reachable from your machine (and `ollama serve` running on the server side).
-- Active internet connection, unless Ollama is on your local network.
+- The address of the server, as it gives it to its clients, with its port.
+- A key, only if the server asks for one.
+- A network path from your machine to the server.
 
 ## What this choice implies
 
-Two points to know before plugging in a remote backend. Apollia also
-reminds you of them in the form, but they deserve to be stated here.
+Two points to know before plugging in a server.
 
-**Your prompts leave the machine.** A remote backend receives what Apollia
-sends it, which can include file contents, memory entries and workspace
-data. This is the expected behaviour of a remote model, and it is
-precisely what a local model avoids: with the embedded `llama-server` engine,
-nothing goes out. The choice is yours, it just has to be a conscious one.
+**Your prompts leave the machine.** A server receives what Apollia sends it,
+which can include file contents, memory entries and workspace data. This is the
+expected behaviour of a remote model, and it is precisely what a local model
+avoids: with the embedded `llama-server` engine, nothing goes out. The choice is
+yours, it just has to be a conscious one.
 
-**Over `http://`, the API key travels in cleartext.** If the endpoint is not
-`https://` and points to another machine, the key transits unencrypted over
+**Over `http://`, the key travels in cleartext.** If the address does not start
+with `https://` and points to another machine, the key transits unencrypted over
 the network. On a trusted local network or inside a tunnel, that is acceptable.
-Otherwise, prefer `https://`. Remote Ollama uses no key, so only the first
-point applies to it.
+Otherwise, prefer `https://`. A server that asks for no key is only concerned by
+the first point.
 
 ## For which use case
 
 Apollia distinguishes three cases. Choose according to what you want to do:
 
-- **Plug in a cloud provider or an Ollama server**: this is that page. An API key or a URL is enough, nothing to download.
-- **Run a local model** in `.gguf` format, served by the embedded `llama-server` engine and managed automatically by Apollia: see [Download local models](telecharger-des-modeles-locaux.md). That is the choice that keeps everything on the machine.
-- **See and manage the backends already configured**: open **Settings**, then **LLM Backends**.
+- **Plug in a server**: this is that page. An address is enough, nothing to download.
+- **Run a local model**, served by the embedded engine and managed automatically by Apollia: see [Download local models](telecharger-des-modeles-locaux.md). That is the choice that keeps everything on the machine.
+- **See and manage the servers already saved**: open the **AI** screen, under **Servers**.
 
-## Common steps
+## Steps
 
-1. In the sidebar, open **Settings**, then the **LLM Backends** section.
-2. Click **+ Add LLM backend** at the top. A configuration window opens.
+1. In the sidebar, open **AI**.
+2. Under **Servers**, click **Add a server**. The form opens in the screen.
+3. Type the **Address** of the server, with `http://` or `https://` and its port, for example `http://localhost:11434`. It often ends with `/v1`.
+4. Check the **Name**, which Apollia proposes from the address: lowercase letters, digits and hyphens. It is the name the server appears under in Apollia, and it does not change once the server is saved.
+5. Fill in the **Key** only if the server asks for one. Apollia keeps it with its secrets and never shows it again.
+6. Click **Test**. Apollia asks the server for the list of its models and saves nothing: a message confirms the connection and the number of models found.
+7. Click **Save**. The server appears under **Servers**, with its state and its models. The test is not required: a server saved while it is off shows its models as soon as it answers.
+8. (Optional) In the list of the models of the server, open the menu of a model and choose **Use by default** so that conversations and agents answer with it when no other model is chosen.
 
-   ![Add LLM backend dialog, empty, with the Name and Provider fields](/img/operator-help/installation-connecter-un-modele-distant-1.png)
+## What a saved server shows
 
-3. Give it a unique **Name** (lowercase letters, digits and hyphens, for example `claude-anthropic`).
-4. Choose the **Provider** from the dropdown.
-5. Fill in the provider-specific fields (see the sections below).
-6. Click **Test** to validate the connection. A green *"OK · XXX ms"* badge confirms that the provider answers.
+- **Its state**: **Active** when it answers and its models are offered, **Disabled** when you turned it off with the **Active** switch, **Unreachable** when nothing answers at its address, **Failing** when something answers but not with a list of models.
+- **Test** asks the server for its models again, and **Edit** reopens the form to change the address or the key.
+- **Its models**, each with the **Context window** the server serves it with. A model marked **Short window** is served with a window shorter than the one an agent needs: a long conversation or a task of several steps may be cut short, and only the person who runs the server can enlarge it.
+- The menu of the server copies its address or deletes it. Deleting a server forgets its key.
 
-   On screen: the configuration dialog with the provider selected, the Endpoint and API Key fields filled in, and a green "OK · 312 ms" badge shown under the Test button.
+Apollia does not change the loading settings of the models of a server: they belong to the person who runs it.
 
-7. If the test passes, click **Save**. The backend appears in the list.
-8. (Optional) Tick **Default backend** so that it is selected automatically when a new chat opens.
+## Addresses of common servers
 
-## Anthropic
+- **Ollama**: `http://<host>:11434`, or `http://localhost:11434` when Ollama runs on your machine. The Ollama service must be started on that host.
+- **vLLM, LM Studio, LiteLLM and similar**: the address their documentation gives for the OpenAI-compatible interface, which usually ends with `/v1`.
+- **An online service with an OpenAI-compatible interface**: the address its documentation gives, with the key it issued to you.
 
-- **Default endpoint**: `https://api.anthropic.com` (leave as is unless you use a custom gateway).
-- **Where to get the key**: https://console.anthropic.com, **API Keys** section.
-- **Model**: a free-text field. Apollia ships no model list for any provider and does not validate the value, so it is passed to the API as you type it. Take the exact identifier from the provider's own documentation, which is the only current source. Anthropic identifiers are dated and change with each release, so an identifier copied from an older page will be rejected by the API rather than silently downgraded.
-
-  Model identifiers change over time: always take the exact identifier of the current model from the [Anthropic model list](https://docs.anthropic.com/en/docs/about-claude/models).
-
-Apollia applies prompt caching on the Anthropic side automatically.
-
-## OpenAI (or compatible)
-
-- **Default endpoint**: `https://api.openai.com/v1`.
-- **Custom endpoint**: use the matching `/v1` URL for LM Studio, vLLM, OpenRouter, Azure OpenAI or any other compatible service.
-- **Where to get the key**: https://platform.openai.com, **API keys** section.
-- **Model**: free text, as above. Take the identifier from the provider's documentation.
-
-## Mistral
-
-- **Default endpoint**: `https://api.mistral.ai/v1`.
-- **Where to get the key**: https://console.mistral.ai, **API keys** section.
-- **Model**: free text, as above. Take the identifier from the provider's documentation.
-
-## Remote Ollama
-
-- **Endpoint**: `http://<host>:11434/v1` for a remote server, or `http://127.0.0.1:11434/v1` if Ollama runs on your machine.
-- **API Key**: optional (useful if you have a reverse proxy with authentication).
-- **Service prerequisite**: `ollama serve` must be running on the target host.
-- **Models**: see `ollama list` on the host. Examples: `llama3.1:8b`, `qwen2.5:14b`.
-- **Context window**: Apollia talks to Ollama through its native API and asks for 32768 tokens on every call, or the model's trained length when that is shorter. Ollama's own default, sized from video memory (4096 tokens below 24 GB), therefore no longer applies, and a long system prompt or a large tool list is no longer cut off. Set **Context window** on the backend to ask for another size. An endpoint ending in `/v1` still works.
-
-For a GGUF model managed directly by Apollia through its embedded engine (without an Ollama daemon), see [Download local models](telecharger-des-modeles-locaux.md).
+For a model managed directly by Apollia through its embedded engine, without a server, see [Download local models](telecharger-des-modeles-locaux.md).
 
 ## Hybrid routing: escalate to a frontier model
 
-Hybrid routing lets Apollia use a local model by default and switch automatically to a frontier (cloud) model for steps that exceed local capabilities, within a cost ceiling.
-
-Configure it in your Apollia configuration file. `[llm.routing.hybrid]` is a
-subsection of `[llm.routing]`, whose two keys are required as soon as the table
-exists, so the whole block goes in together:
-
-```toml
-[llm.routing]
-precise = "local-qwen3-8b"      # backend for deep reasoning
-fast    = "local-qwen3-4b"      # backend for lightweight extraction
-
-[llm.routing.hybrid]
-frontier = "claude-anthropic"   # name of the remote backend to use on escalation
-cost_ceiling_usd = 2.00         # ceiling in dollars per routing session
-```
-
-With this setting, the runtime evaluates each step: if it needs the frontier model and the ceiling has not been reached yet, escalation happens automatically. Past the ceiling, the runtime falls back to local.
-
-The backend named in `frontier` must be configured and active in **Settings - LLM Backends**.
+Hybrid routing lets Apollia use a local model by default and switch automatically to a more capable remote model for the steps that exceed local capabilities, within a cost ceiling. It is set in the configuration file, not in the application: see [Configure hybrid local + frontier routing](configure-hybrid-routing.md).
 
 ## Verification
 
-- The backend appears in the list with a green dot.
-- Open a chat, select that backend in the picker at the top, send a short message. The answer streams in.
-- The Apollia top banner shows the name of the active backend.
+- The server appears under **Servers** with the **Active** state, and its models are listed.
+- Open a chat, choose one of its models in the selector of agents and models, under **Models**, and send a short message. The answer streams in.
 
 ## If it does not work
 
-- **401 or 403 error on the test**: your API key is invalid, expired or revoked. Copy the key again from the provider console without stray whitespace.
-- **"Model not found" error**: check the exact spelling of the name (case sensitive, for example `claude-3-5-sonnet-20241022` and not `Claude-3.5-Sonnet`).
-- **Timeout on cloud**: check your internet connection or the provider status.
-- **Ollama unreachable**: check that `ollama serve` is running on the target host and that port 11434 is open. For remote Ollama, test with `curl http://<host>:11434/api/tags` from your machine.
-- **No answer in the chat despite a green dot**: see [The AI provider is not responding](../troubleshooting/the-ai-provider-does-not-answer.md).
-- **Ceiling reached and the agent does not finish**: the ceiling counts the cumulative cost of a routing session, not of a single run. When it is reached, the runtime degrades to local automatically for the rest of the session, unless `ceiling_action = "hard_stop"` is set, in which case the run ends with an error instead. If the task absolutely needs the frontier model all the way, raise the ceiling or disable hybrid routing by removing the `[llm.routing.hybrid]` section.
+- **The server does not answer**: check that the server is started, that the address and the port are right, and that this computer can reach it on the network. For Ollama, `curl http://<host>:11434/api/tags` from your machine tells whether it is reachable.
+- **The server refuses the key**: the key is missing, mistyped or no longer valid. Copy it again without stray whitespace.
+- **This address does not answer like an AI server**: something answers, but with no list of models. Use the address of the interface of the server, not the one of its home page.
+- **The server offers no model**: it answers, but its list is empty. Install or load a model on the server, then test again.
+- **The policy of your organisation refuses this server**: use a server your organisation allows, or ask the person who manages Apollia for you.
+- **No answer in the chat although the server is Active**: see [The AI provider does not answer](../troubleshooting/the-ai-provider-does-not-answer.md).
 
 > **Technical reference:** [Configuration](/reference/configuration) for the `[llm]` section, its backends and its routing keys, and [LLM sampling defaults](/reference/sampling-defaults) for the one sampling parameter a request actually carries to a model.

@@ -6,97 +6,108 @@ sidebar_position: 1
 
 # Manage my profile
 
-> For operators who want to **review and change**, day to day, what all their agents know about them: first name, role, sector, supervision, constraints.
+> For operators who want to **review and change**, day to day, what their agents know about them: name, role, function, tools, preferences.
 >
 > This page covers **editing an existing profile**. If you are launching Apollia for the first time, the guided flow fills the initial values: see **[Set up your profile on first launch](../installation/set-up-your-profile.md)**.
 
 ## Why a user profile
 
-All your agents share a single **user profile**. When you tell one of them that you are a developer in fintech, the other agents benefit from that information: matching vocabulary, adjusted tone, relevant suggestions. No re-entry for each agent.
+A profile describes you once, for every agent that is allowed to read it. When it says you are a developer in fintech, those agents adapt their vocabulary, their tone and their suggestions, with no re-entry for each one.
 
-This profile is **local**. No data leaves your machine.
+You can keep **several profiles**, one for each side of your work. One of them is the **default** profile: it is the one your agents use.
+
+An agent reads your profile only when the **Profile** source is checked on its sheet, under **Sources**. An agent without that source knows nothing of it.
+
+The profiles are **local**. No data leaves your machine.
 
 ## Where to edit it
 
-**Settings → Profile**, reachable from the ⚙️ icon in the sidebar.
+In the sidebar, click **Settings**, then the **Profile** section.
 
-![Settings then Profile page, showing its stacked sections from Identity down to the danger zone](/img/operator-help/memoire-gerer-mon-profil-1.png)
+The section holds three blocks:
 
-The screen is split into sections:
-
-- **Identity** - first name, role, sector, team size, goals.
-- **Agent supervision** *(sensitive)* - HITL level (Human-in-the-Loop), autonomy areas, triggering.
-- **Tools & business context** - everyday tools, technical level, connected integrations *(the last one is sensitive)*.
-- **Constraints** *(sensitive)* - data sovereignty, compliance.
-- **Preferences** - preferred language, default LLM backend.
+- **Profiles**: the list of your profiles, the default one marked **Default**, and the **New profile** button.
+- **Profile details**: the form of the profile selected in the list. Six fields, all optional: **Name**, **Role**, **Function**, **Tools you use**, **Preferences** and **What your agents should know**, a free text.
+- **What your agents remembered**: the facts kept in that profile, noted by your agents or added by you.
 
 ## Steps
 
-1. Open **Settings → Profile**.
+1. Open **Settings**, section **Profile**, and click the profile to edit in the **Profiles** list.
 
-2. Enter or change the fields you want. Each field is saved automatically when you leave it (focus out) or change an option. A toast confirms the save.
+2. Change the fields you want. Nothing is saved while you type.
 
-3. Emptying a field and leaving the focus **deletes** the profile entry.
+3. Click **Save** at the bottom of the window (or press **Cmd+S** on macOS, **Ctrl+S** on Windows and Linux). **Discard** puts the fields back as they were.
 
-## Who filled each field
+Selecting another profile saves the changes in progress first.
 
-A **chip** appears next to the fields already filled in and shows where the value came from:
+## Keep several profiles
 
-- **onboarding** - value set by the guided flow at first start. You will see it on the few fields the onboarding fills (first name, role, supervision level, data sovereignty).
-- **you** - value entered or changed from this form. Any change you make here replaces the previous origin with **you**.
-- **agent** - value inferred by an agent during a conversation (for example an agent that noticed your role in an exchange).
+- **New profile** asks for a name and creates an empty profile.
+- The menu at the end of each row offers **Rename**, **Set as default**, **Reset…** and **Delete…**.
+- The default profile cannot be deleted: make another profile the default first.
+- Deleting a profile deletes its fields, its free text and what your agents remembered in it. This cannot be undone.
 
-An empty field carries no chip. As long as you do not touch a field, its origin chip is preserved, focusing it without changing anything does not replace it.
+These changes take effect at once, without **Save**.
 
-## Sensitive fields
+## The facts of a profile
 
-Four fields carry a **Sensitive** badge:
+Under the form, **What your agents remembered** lists the facts of the profile. They serve this profile only.
 
-- **HITL level** (Agent supervision)
-- **Data sovereignty** (Constraints)
-- **Compliance** (Constraints)
-- **Connected integrations** (Tools & business context)
+- **Add a fact** adds one by hand, for example *"I invoice my clients on the 5th of the month"*.
+- On each fact, **Edit** corrects it, **Copy value** copies it and **Delete** removes it, after a confirmation.
+- A chip on each fact says where it comes from: **onboarding** (the guided flow of the first launch), **you**, or **agent**.
 
-Changing these fields **does not automatically re-apply** your permission rules. Apollia honours the principle "memory does not change the environment without an explicit decision". For the new values to influence permissions, rerun the onboarding (see below).
+A fact is saved at once, without **Save**.
+
+## What an agent may propose
+
+An agent whose **Profile** source is checked may propose a lasting fact about you for your profile. It never writes one on its own:
+
+- The proposal reaches you as a consent request, in the chat and in **To review**, with the fact shown.
+- **Once** accepts the fact, which is then added to your profile. **Refuse** drops it.
+- Each proposal is asked, every time. There is no "always" for it.
+
+An agent cannot propose a value for one of the six fields of the form this way: those are yours to fill.
+
+## Complete a profile with an agent
+
+When a profile has a name and a role but still has empty fields, a banner offers **Complete with an agent**: an agent asks you a few questions, then fills the form with its proposal. A second banner, *The agent's proposal, to review*, then heads the form. Correct what is off, then click **Save** to keep the proposal or **Skip** to drop it. Nothing is written before **Save**.
 
 ## Resetting your profile
 
 Several paths, depending on what you want to erase.
 
-### A - Erase only the profile and ask the questions again
+### A - Empty one profile
 
-At the bottom of the **Settings → Profile** page, the **Danger zone** offers a **Reset profile** button. Confirm in the modal.
+In the **Profiles** list, open the menu of the profile and choose **Reset…**. The fields, the free text and what your agents remembered in this profile are emptied. The profile stays in the list.
 
-![The profile danger zone with the Reset profile confirmation modal in the foreground](/img/operator-help/memoire-gerer-mon-profil-1bis.png)
+For the default profile, the window offers two buttons: **Reset only**, or **Reset and get acquainted again**, which then starts a short conversation with an agent that proposes a new profile for you to review.
 
-- The whole profile is erased (all 5 sections).
-- The onboarding agent restarts **immediately** to rebuild your preferences from scratch.
-- Conversation history and the memories of other agents **are not touched**.
+Conversation history and the memories of your agents are not touched.
 
-This is the option to pick if you only want to "take the configuration questionnaire again" without touching the rest.
+### B - Take the guided flow again
 
-### B - Take the guided flow again (without erasing the profile)
+In **Settings**, section **General**, the **Danger Zone** block holds a **Reset Onboarding** button. It makes the welcome flow of the first launch run again.
 
-In **Settings → Danger Zone** (a separate entry in the Settings sidebar), the **Reset Onboarding** button restarts the guided flow without erasing what is already filled in. Useful if you only want to re-download a model, recalibrate an integration, or see the welcome screens again.
+It is not neutral for your profile: it also empties what your profile holds, even though the window says no data is deleted. Prefer path A when you only want to change a profile.
 
-It has one side effect the dialog does not mention: it also clears the guided tours. All six tour progressions go back to zero and the **Getting started** band comes back on the Home screen, even though the dialog says no data is deleted.
+### C - Erase all memories (profiles and agents)
 
-### C - Erase all memories (profile + agents + projects)
+In the same **Danger Zone** block, the **Clear Memories** button deletes **all** the memories of Apollia: your profile and the memory of every agent. This is broader than resetting a profile. Use it if you want to start from a completely blank slate on the memory side.
 
-In **Settings → Danger Zone**, the **Clear Memories** button deletes **all** Apollia memories, across every namespace: user profile, agent memory, project memory. This is broader than resetting the profile, use it if you want to start from a completely blank slate on the memory side (conversations, installed agents and permissions stay in place).
-
-> To go even further (erasing installed agents, permissions and system settings too), the option is **Factory Reset** at the bottom of the same Danger Zone.
+> To go even further (erasing installed agents, conversations, models and settings too), the option is **Factory Reset** at the bottom of the same block.
 
 ## Verification
 
-- Reload the page: the values you entered persist.
-- Start a new conversation with any agent and notice that it addresses you by your first name / adapts its tone to your role.
-- On a field you just changed, the chip switches to **you**.
+- Close the settings and open them again: the values you saved are there.
+- Start a new conversation with an agent whose **Profile** source is checked: it adapts to what the profile says.
+- A fact you added carries the **you** chip.
 
 ## If it does not work
 
-- **Fields stay empty after entry**: an agent may have been writing. Try again after a few seconds.
-- **The "Reset profile" button does not restart the onboarding**: use **Reset Onboarding** in Settings → Danger Zone instead. There is no Onboarding entry in the sidebar.
-- **An agent ignores your profile**: an agent reads your profile only when the **profile** source is checked for it. Its package may check it by default; you decide with `apollia-os agent set <agent> sources profile` (list every source you want kept, the list replaces the package's), and `apollia-os agent show <agent>` tells you where it stands. Each read is recorded in the trace of the execution, with the agent, the profile and the time. Once the source is checked, if the agent is third-party, open its code (or contact its author) to check that it reads `ctx.profile`.
+- **The fields come back as they were**: the change was not saved. Click **Save** before leaving the section.
+- **Delete… is refused on a profile**: it is the default profile. Set another one as default first.
+- **An agent ignores your profile**: an agent reads your profile only when the **Profile** source is checked for it. Open **Agents**, then the sheet of the agent, and look under **Sources**. From the command line, `apollia-os agent show <agent>` tells you where it stands and `apollia-os agent set <agent> sources profile` checks it (list every source you want kept, the list replaces the one of the package).
+- **An agent never proposes a fact**: its **Profile** source is not checked, or it found nothing lasting to propose.
 
-> **Technical reference:** [Apollia reference](/reference) - canonical field schema, single source of truth for the global profile, Python SDK contract `ctx.profile.*`.
+> **Technical reference:** [Apollia reference](/reference)

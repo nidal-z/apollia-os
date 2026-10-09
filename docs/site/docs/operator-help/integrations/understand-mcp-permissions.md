@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # Understand MCP permissions
 
-> For any operator who wants to know why a tool asks for an approval, how to change a rule, and what your organisation's policy forbids.
+> For any operator who wants to know why a tool asks for an approval, how to withdraw a consent, and what your organisation's policy forbids.
 
 ## Prerequisites
 
@@ -15,36 +15,32 @@ sidebar_position: 7
 
 ## Why this tool asks for an approval
 
-Every tool exposed by a connector or an MCP has an **approval policy**:
+Every tool exposed by a connector or an MCP belongs to an **action family**, and the family carries the rule:
 
-| Policy | Behaviour | Use case |
+| Family | Rule | Examples |
 |---|---|---|
-| `auto_approve` | The tool runs immediately. | Reads with no side effect, `gcal.list_events`, `gdrive.workspace_list`, `outlook.search`. |
-| `always_require_approval` | An HITL popup appears, you decide. | Writes, `gmail.send`, `outlook.send`, `gcal.create_event`. |
-| `confirm_phrase` | HITL popup + you have to type a confirmation phrase (the name of the thing to delete, for instance). | Irreversible deletions, `gcal.delete_event`, `outlook_cal.delete_event`. |
+| **Read** | **Without asking**: the tool runs immediately. | A tool of a server with no account, which the server declares read-only. |
+| **Read personal data**, **Write or delete**, **Send outside** | **Your consent is asked**: a card appears, you decide. | Reading a connected account, `gcal.list_events`, `outlook.search`. Writes and deletions, `gcal.create_event`, `gcal.delete_event`. Sends, `gmail.send`, `outlook.send`. |
+| **Run code** | **Consent every time**. | A command or a script the agent wants to run. |
 
-The card carries three buttons, **Allow once**, **Refuse** and **Always allow**. The scope is a separate choice, offered next to them: *For this session*, *Always for this assistant* or *Always, everywhere*. Answering **Always allow** on any scope but the session creates a **persistent rule** which you will find, and can revoke, under **Settings, Permissions**.
+The card carries three answers, **Once**, **Always for this agent** and **Refuse**. There is no scope to pick and nothing to type. **Always for this agent** holds for the agent that asked and for the action family of the tool; you find it, and withdraw it, on the **Permissions** screen. A refusal accepts an optional reason, passed to the agent. For code, the lasting answer is **Always allow this command**: it is offered with developer mode on, for a single simple command, and every other run asks again. A tool its server does not describe is treated as sensitive and asked each time.
 
-There is no MCP-specific approvals screen, and there is no queue of MCP requests to go through. A tool exposed by an MCP server goes through the same gate as a native tool, the one the execution loop opens: the card in the conversation while you are there, the **Inbox** for an agent task that is waiting. Everything the rest of this help centre says about approving an action applies to it unchanged.
-
-![Approval popup in the chat: the tool title, the exposed parameters, the Allow once, Refuse and Always allow buttons, and the scope picker](/img/operator-help/integration-comprendre-les-permissions-mcp-1.png)
+There is no MCP-specific approvals screen, and there is no queue of MCP requests to go through. A tool exposed by an MCP server goes through the same gate as a native tool, the one the execution loop opens: the card in the conversation while you are there, the **To review** screen for an agent task that is waiting. Everything the rest of this help centre says about approving an action applies to it unchanged.
 
 ## Viewing and changing the rules
 
-Open **Settings, Permissions**. Four sections:
+Open **Permissions** in the sidebar. The screen lists the agents, and for each one:
 
-- **Rules**: the persistent rules, created through the approval prompts, by the onboarding agent, or by hand. Filterable by scope (All, This project, Chat agent, Everywhere) and by tool. The rule's author is shown on each row but is not a filter.
-- **Active sessions**: permissions valid only for the current chat session.
-- **Apollia Chat**: the rules that apply to the free chat specifically.
+- **Accesses granted, by family**: what the agent may use, with the rule of each family.
+- **"Always" given**: the consents you answered **Always for this agent**, each with a **Withdraw** button.
+- **Fine rules**: the rules on one precise command or tool, each with a **Withdraw** button. The **Rules for every agent** are listed apart.
 - The decisions themselves are not listed on this screen: every consent answered and every refusal is an entry of the **Activity log**.
 
-A **Revoke** button on each rule. To revoke every rule of a scope at once, the **Revoke all** button asks you to pick the scope and shows how many rules it would remove, then Cancel or Revoke. It asks for no typed confirmation.
+To withdraw several at once, **Revoke all** asks what is withdrawn (the fine rules, the "always" consents or both) and for which scope (every agent or one agent), then shows how many are concerned. It asks for no typed confirmation. Every withdrawal is recorded in the **Activity log**.
 
-The per-server approval level is not on this page: it lives in **Connections**, on the server's own **Settings** tab. It offers two choices, *Allow automatically* and *Ask me every time*, and it applies to agent tasks only. A conversation does not read it: there, a call to a tool you have not authorized, for the session or by a rule, asks you first whichever choice the server carries. A read-only level was removed on purpose: it persisted the same byte as *Allow automatically*, so the most restrictive label produced the least protective setting.
+There is no approval level per server. In **Connections**, the **Settings** tab of a server holds its launch settings, its timeouts and **Disconnect**, and nothing about approval: a tool is decided by its action family, whichever server it comes from.
 
-![Settings, Permissions page: the permission rules stacked with a Revoke button on each row](/img/operator-help/integration-comprendre-les-permissions-mcp-2.png)
-
-Rules are created two ways. Most of the time they appear on their own, when you answer an approval popup with "Always allow". You can also create one by hand from this page, through the **Add rule** form, which is the way to authorize something before an agent ever asks for it.
+An "always" appears on its own, when you answer **Always for this agent** to a consent request. A fine rule can be written by hand from this screen, through **Add a fine rule**, with developer mode on.
 
 ## What the organisation policy forbids
 
@@ -55,7 +51,7 @@ is written in the signed policy IT may deploy on the computer, as
 - **No policy**: you are free. No connection is refused for being online.
 - **A policy with `connections.remote = "deny"`**: adding a connection to an online service is refused, a Google or Microsoft account or a remote MCP server alike. The dialog says "Refused by your organisation's policy" and nothing is sent.
 
-The policy is checked when a connection is added, not on each tool call: no agent receives a policy error on the tool path. Treat it as a gate on connecting, not as a network boundary.
+The policy is read when Apollia starts. A connection it forbids is not started: it is listed under **Forbidden by the policy** in **Connections**, and a call to one of its tools is refused. A policy can also forbid a kind of action or a tool by name, and that refusal holds whatever you answered before.
 
 ## What an MCP server can and cannot ask of you
 
@@ -69,19 +65,18 @@ answers none of them today, and advertises one.
 The last two are not advertised during the handshake, so a server discovers
 their absence at connection time rather than by sending a request that goes
 unanswered. Roots is the one case where the announcement runs ahead of the
-implementation; the three are planned, and all three will be gated by your
-approval when they arrive.
+implementation.
 
 ## Verification
 
-- Open **Settings, Permissions**, the four sections are displayed.
-- In the chat, trigger a write (sending a mail), the popup appears.
-- Answer **Always allow** with the *Always for this assistant* scope, confirm, and check that a new row appears under **Rules**.
+- Open **Permissions** in the sidebar, the list of agents is displayed.
+- In the chat, trigger a write (sending a mail), the consent request appears.
+- Answer **Always for this agent**, and check that a new row appears under **"Always" given** for that agent.
 
 ## If it does not work
 
-- **A read-only tool asks for an approval when it should not**: the default policy has been hardened. Check under **Permissions** and restore the `auto` mode.
-- **A sensitive tool runs without asking**: you answered **Always allow** on it one day, on a scope wider than the session. Go revoke that rule.
-- **An MCP server stops answering after a sovereignty change**: the profile is not the cause. It filters no MCP transport at all, local or remote. Look at the server itself, through [Test an MCP connection](test-an-mcp-connection.md).
+- **A tool that only reads asks for your agreement**: it reads a connected account, which is personal data, or its server did not describe it and it is treated as sensitive. Answer **Always for this agent** to stop the question for that agent.
+- **A sensitive tool runs without asking**: you answered **Always for this agent** on its family one day. Open **Permissions** and withdraw it.
+- **A connection stops answering after a policy was deployed**: check whether it is listed under **Forbidden by the policy** in **Connections**. If it is not, look at the server itself, through [Test an MCP connection](test-an-mcp-connection.md).
 
 > **Technical reference:** [Apollia reference](/reference) , full governance, audit trail, rule format in `governance.db`.

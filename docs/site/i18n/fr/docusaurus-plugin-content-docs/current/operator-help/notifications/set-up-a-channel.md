@@ -11,154 +11,143 @@ sidebar_position: 1
 ## Prérequis
 
 - Vous savez où vous voulez recevoir les notifications (bureau, Slack, Discord, endpoint personnalisé).
-- Pour un canal Webhook, vous avez l'URL d'envoi prête (par exemple une URL d'intégration entrante Slack).
+- Pour un appel web, vous avez sous la main l'URL de livraison (une URL de webhook entrant Slack, par exemple).
 
-> **Note :** la page **Notifications** est accessible directement depuis la sidebar en mode **Opérateur** comme en mode **Builder**. Plus besoin de basculer en Builder pour configurer vos canaux.
+> **Note :** les notifications sont une section des réglages. Dans la barre latérale, cliquez sur **Réglages**, puis sur **Notifications**. Chaque changement fait là est enregistré aussitôt : la section n'a pas de bouton **Enregistrer**.
 
 ## Le modèle à deux niveaux
 
-Le contrôle des notifications se joue sur deux étages, et les confondre est la
+Le contrôle des notifications se fait sur deux niveaux, et les confondre est la
 cause la plus fréquente d'un canal muet.
 
-1. **Événements globaux**, section en haut de la page **Notifications** : décide quels événements le système suit et route. Un événement décoché ici ne partira **sur aucun canal**, quoi qu'ait été réglé par ailleurs.
-2. **Événements par canal**, dans le dialogue Créer ou Modifier d'un canal : parmi les événements activés globalement, filtre ceux qui vont sur **ce canal**. Liste vide = ce canal reçoit tous les événements globaux.
+1. **Événements notifiés**, un bloc de la section **Notifications** : décide quels événements peuvent déclencher une notification. Un événement éteint ici ne part **sur aucun canal**, quel que soit le réglage fait ailleurs.
+2. **Événements du canal**, dans la fenêtre qui ajoute ou modifie un canal : parmi les événements notifiés, garde ceux qui partent vers **ce canal**. Par défaut, un canal reçoit tous les événements notifiés.
 
-Dans l'ordre : activez d'abord au global ce qui vous intéresse, affinez ensuite canal par canal.
+Dans l'ordre : allumez d'abord ce qui vous intéresse, puis affinez canal par canal.
 
 ## Les 7 événements disponibles
 
 | Identifiant | Libellé | Description |
 |---|---|---|
-| `task.completed` | **Tâche terminée avec succès** | Un agent vient d'achever sa mission. |
+| `task.completed` | **Tâche terminée** | Un agent vient d'achever sa mission. |
 | `task.failed` | **Tâche échouée** | Une tâche d'agent s'est interrompue sur un échec. |
-| `task.input_required` | **Approbation requise** | Un agent attend votre décision (HITL). |
-| `agent.degraded` | **Agent en mode dégradé** | L'agent tourne mais quelque chose d'optionnel n'est pas monté : soit un outil optionnel déclaré et non résolu, soit l'installation de son environnement Python qui a échoué. |
-| `trigger.error` | **Erreur de déclencheur** | Une automatisation programmée n'a pas pu se déclencher. |
-| `llm.backend_down` | **Fournisseur LLM indisponible** | Le fournisseur d'IA configuré ne répond plus. |
-| `chat.user_input_required` | **Question d'agent** | Un agent attend votre réponse à une question (`ask_user`). |
+| `task.input_required` | **Décision attendue** | Un agent attend votre décision. |
+| `agent.degraded` | **Agent en capacité réduite** | Un outil optionnel est indisponible ; l'agent continue avec des capacités réduites. |
+| `trigger.error` | **Automatisation non déclenchée** | Une automatisation programmée n'a pas pu se déclencher. |
+| `llm.backend_down` | **IA indisponible** | Le fournisseur d'IA configuré ne répond plus. |
+| `chat.user_input_required` | **Question d'un agent** | Un agent attend votre réponse à une question. |
 
-## Activer ou désactiver un événement globalement
+L'identifiant n'est pas affiché dans la section. C'est le nom de l'événement dans ce que reçoit un appel web.
 
-1. Dans la sidebar, cliquez sur **Notifications**.
-2. Repérez la section **Événements globaux** en haut de la page : une grille de cases à cocher, une par type, avec libellé, description courte et identifiant technique.
+## Allumer ou éteindre un événement
 
-   ![section Portée des notifications : la rangée de 7 sélecteurs d'événements, avec la liste des canaux et le bouton « Nouveau canal » en dessous](/img/operator-help/notifications-choisir-les-evenements-notifies-1.png)
-
-3. Cochez ou décochez selon ce que vous voulez voir remonter.
-4. Cliquez sur **Enregistrer**. Un toast *« Événements globaux enregistrés »* confirme. **Sans ce clic, rien n'est appliqué** : les coches restent locales à l'écran.
+1. Dans la barre latérale, cliquez sur **Réglages**, puis sur **Notifications**.
+2. Repérez le bloc **Événements notifiés** : une ligne par événement, avec son libellé, une courte description et un interrupteur.
+3. Basculez l'interrupteur de l'événement. Le changement est enregistré aussitôt.
 
 ## Au premier lancement
 
-Apollia crée automatiquement un canal **Bureau** par défaut au tout premier démarrage : il s'appelle *« Bureau de {votre prénom} »* (ou *« Bureau »* si votre profil ne contient pas encore de prénom). Vous le retrouvez dans la liste, activé, sans événements filtrés (il reçoit donc tous les événements globaux). Si vous le supprimez, il n'est pas recréé.
+Apollia crée un canal par défaut au tout premier démarrage, une notification sur ce poste. Il porte le prénom de votre profil, sous la forme *« Ada's desktop »*, ou *« Desktop »* si votre profil ne contient pas encore de nom. Vous le retrouvez dans la liste, allumé, recevant tous les événements notifiés. Si vous le supprimez, il n'est pas recréé.
 
-## Étapes - créer un nouveau canal
+## Étapes - ajouter un canal
 
-1. Dans la sidebar, cliquez sur **Notifications**. La liste affiche vos canaux existants, plus une section *« Événements globaux »* en haut.
+1. Dans la barre latérale, cliquez sur **Réglages**, puis sur **Notifications**. Le bloc **Canaux** liste vos canaux existants.
 
-2. Cliquez sur **+ Nouveau canal** en haut à droite. Le dialog **Créer un canal** s'ouvre.
-   ![page Notifications - section Portée des notifications, liste de canaux, bouton "Nouveau canal" en haut à droite](/img/operator-help/notifications-configurer-un-canal-1.png)
+2. Cliquez sur **Ajouter un canal**, dans l'en-tête du bloc **Canaux**. La fenêtre s'ouvre.
 
-3. **Nom** (premier champ, focus automatique) - saisissez un nom clair, libre (espaces, accents et emojis acceptés, 80 caractères max). Exemples : *Alertes Slack équipe*, *Webhook supervision*, *Bureau perso*. Ce nom apparaîtra dans la liste, dans l'historique d'envoi et dans les toasts.
+3. **Nom** : tapez un nom clair et libre (80 caractères au plus). Exemples : *Alertes Slack équipe*, *Webhook supervision*, *Bureau personnel*. Ce nom apparaît dans la liste et dans les derniers envois.
 
-4. **Identifiant technique** (section repliable, optionnelle) - au fur et à mesure que vous tapez le nom, Apollia génère automatiquement un identifiant en *kebab-case* (`alertes-slack-equipe`). Ouvrez le bloc *« Identifiant technique »* pour le voir et le personnaliser si nécessaire ; il reste validé sur la regex *minuscules + tirets*. Une fois posé, il ne change plus.
+4. **Identifiant technique (avancé)** (repliable, optionnel) : à mesure que vous tapez le nom, Apollia génère un identifiant en minuscules avec des tirets (`alertes-slack-equipe`). Ouvrez le bloc pour le voir et le changer si besoin. Il n'est proposé qu'à l'ajout d'un canal, et ne se change plus ensuite.
 
-5. **Type** - choisissez :
-   - **Desktop** - notification système de votre ordinateur (toast / centre de notifications natif).
-   - **Webhook** - POST HTTP JSON vers une URL externe. C'est la voie pour **Slack**, **Discord**, **Teams** ou tout endpoint maison ; collez simplement leur URL d'intégration entrante.
+5. **Type** : choisissez :
+   - **Notification sur ce poste** : une notification système de votre ordinateur.
+   - **Appel web** : un appel HTTP vers une URL externe. C'est la voie pour **Slack**, **Discord**, **Teams** ou tout endpoint maison ; collez leur URL de webhook entrant.
 
-6. Pour **Webhook** uniquement :
-   - **URL du webhook** - colle l'URL d'envoi.
-   - **En-têtes (JSON)** *(optionnel)* - un Textarea monospace qui accepte un objet JSON, par exemple `{"Authorization": "Bearer xyz"}`. Le format est validé à la frappe ; un message d'erreur s'affiche si le JSON est mal formé. Laissez vide si l'endpoint ne demande pas d'authentification supplémentaire.
+6. Pour un **Appel web** uniquement :
+   - **Adresse de l'appel web** : collez l'URL de livraison.
+   - **En-têtes (JSON)** *(repliable, optionnel)* : un objet JSON, par exemple `{"Authorization": "Bearer xyz"}`. Un message d'erreur s'affiche si le JSON est mal formé. Laissez vide si l'endpoint ne demande pas d'authentification supplémentaire.
 
-7. **Événements** *(visible dès que des événements globaux sont actifs)* - cochez les types d'événements qui doivent partir sur **ce canal**. Chaque ligne affiche :
-   - Un **libellé humain** (*Tâche échouée*, *Approbation requise*…).
-   - Une **description courte** sous le libellé.
-   - L'**identifiant technique** en monospace plus petit (utile si vous parsez le payload côté Slack/Discord).
+7. **Événements du canal** : **Tous les événements** est coché pour un nouveau canal, qui reçoit donc tous les événements notifiés. Décochez-le pour choisir les événements qui partent sur **ce canal**. Un événement éteint dans les événements notifiés est grisé et indique *Éteint dans les événements notifiés*.
 
-   Laissez tout décoché pour recevoir **tous les événements globaux** sur ce canal. Le détail des 7 types et la logique à deux niveaux sont en haut de cette page.
-
-8. **Limiter les notifications** *(anti-spam, par canal et par type d'événement)* - un sélecteur déroulant :
+8. **Fréquence maximale** *(par canal et par événement)* : un sélecteur déroulant :
    - **Aucune limite** (défaut).
-   - **1 par minute** (60 s).
-   - **1 toutes les 5 min** (300 s).
-   - **1 par heure** (3600 s).
-   - **Personnalisé…** - affiche un champ numérique pour saisir un intervalle entre 1 s et 86 400 s (24 h).
+   - **1 par minute (60 s)**.
+   - **1 toutes les 5 min (300 s)**.
+   - **1 par heure (3600 s)**.
+   - **Personnalisé…** : affiche le champ **Intervalle minimal (secondes)**, jusqu'à 86 400 s (24 h).
 
-   La limite est calculée **par couple (canal, type d'événement)**. Exemple : régler 60 s laisse passer la première *Tâche terminée*, ignore les suivantes pendant 60 s, et envoie en fin de fenêtre un **récapitulatif** du type *« 12 événements « task.completed » au cours des 60 dernières secondes »*. Pendant ce temps, les *Approbations requises* continuent à passer sans throttling (couple différent).
+   Au-delà de la limite, Apollia regroupe les notifications dans un récapitulatif. La section sur la limite, plus bas dans cette page, dit comment.
 
-9. **Activé** *(case cochée par défaut)* - décochez pour créer le canal en pause.
+9. **Activé** *(coché par défaut)* : décochez pour ajouter le canal éteint.
 
-10. Cliquez sur **Créer le canal**. Un toast confirme la création et le canal apparaît dans la liste.
+10. Cliquez sur **Ajouter un canal**. Un message le confirme et le canal apparaît dans la liste.
 
-## Anatomie d'une carte de canal
+## Anatomie d'une ligne de canal
 
-Une fois créé, chaque canal est rendu sous forme de carte avec :
+Chaque canal est une ligne du bloc **Canaux**, avec :
 
-- Une **fine barre d'accent horizontale en haut** - bleu *info* pour un Desktop, bleu *primary* pour un Webhook ; grisée si le canal est désactivé.
-- À gauche du titre, une **vignette colorée** avec l'icône du type (écran pour Desktop, prise webhook pour Webhook).
-- Le **nom** du canal en titre, son **identifiant technique** en monospace en sous-texte (si vous avez personnalisé le nom), puis un badge **Desktop** ou **Webhook**.
-- À droite du titre, le **toggle on/off** pour mettre en pause / réactiver.
-- En dessous, les **pastilles d'événements** filtrés (ou la mention *« Tous les événements »* si la liste est vide).
-- À l'extrême droite de la ligne d'événements, un petit indicateur **⏱ … s** apparaît si un throttling est configuré.
-- En pied de carte, séparé par un trait fin, **trois icônes d'action** côte à côte : avion en papier (Tester), crayon (Modifier), corbeille rouge (Supprimer). Survolez chaque icône pour voir son tooltip.
-
-![Carte d'un canal de notification, barre d'accent, icone du canal, nom et identifiant, et ses badges](/img/operator-help/notifications-configurer-un-canal-2.png)
+- L'**icône** de son type.
+- Le **nom** du canal.
+- Une **ligne de détail** : son type, les événements qu'il reçoit (**Tous les événements** ou leur nombre) et sa fréquence maximale.
+- Le bouton **Tester**.
+- Un **menu** qui contient **Modifier** et **Supprimer**.
+- L'**interrupteur** qui allume ou éteint le canal.
 
 ## Tester le canal
 
-Le test n'est pas dans le dialog de création ; il vit sur la **carte du canal** une fois créé.
+Le test n'est pas dans la fenêtre qui ajoute un canal ; il se trouve sur la **ligne** du canal.
 
-1. Repérez la carte du canal dans la liste.
-2. Cliquez sur l'**icône avion en papier** dans le pied de carte (tooltip *« Tester »*). Apollia envoie une notification de test générique.
-3. Un badge **OK · xxx ms** vert s'affiche dans le pied de carte pendant ~5 s + un toast *« Notification de test envoyée »*. En cas d'échec, un badge rouge porte le message d'erreur de l'endpoint.
+1. Repérez la ligne du canal dans la liste.
+2. Cliquez sur **Tester**. Apollia envoie une notification de test.
+3. La ligne indique *Envoi en cours…*, puis *Test réussi*, avec le temps pris, ou *Échec*, suivi de la raison.
 
-> **Note :** l'icône **Tester** est désactivée tant que le canal est en pause (toggle off).
+> **Note :** un canal éteint ne peut pas être testé.
 
 ## Mettre en pause un canal
 
-Le **toggle on/off** est directement en en-tête de la carte. Un clic suffit pour basculer ; le changement est persisté immédiatement (toast *« Canal {nom} activé »* / *« désactivé »*). La barre d'accent en haut de la carte passe de sa couleur de type au gris.
+L'**interrupteur** se trouve en bout de ligne. Un clic suffit à le basculer ; le changement est enregistré aussitôt. Un canal éteint ne reçoit rien.
 
 ## Modifier ou supprimer un canal
 
-- **Icône crayon** *(tooltip « Modifier »)* - ouvre le même dialog que la création, pré-rempli. Le nom reste éditable, l'identifiant technique non. Toute modification doit être confirmée par **Enregistrer**.
-- **Icône corbeille** rouge *(tooltip « Supprimer »)* - ouvre une modale de confirmation (*« Supprimer le canal {id} ? Cette action est irréversible »*). Aucun undo n'est proposé.
+- **Modifier**, dans le menu de la ligne, ouvre la même fenêtre que l'ajout, préremplie. Le nom reste modifiable, l'identifiant technique n'est pas affiché. Validez avec **Enregistrer**.
+- **Supprimer**, dans le même menu, ouvre une confirmation : le canal ne recevra plus rien, et les autres canaux et les événements notifiés ne changent pas.
 
 ## Ce que fait exactement une limite
 
-La limite agit **par couple (canal, type d'événement)**. Quand plusieurs
-notifications du même type tombent dans la fenêtre :
+La limite agit **par paire (canal, type d'événement)**. Quand plusieurs
+notifications du même type arrivent dans la fenêtre :
 
 - la **première** part normalement ;
 - les **suivantes** sont absorbées silencieusement ;
-- en fin de fenêtre, Apollia envoie un **récapitulatif**, *« 12 événements « task.completed » au cours des 60 dernières secondes »*.
+- à la fin de la fenêtre, Apollia envoie un **récapitulatif**, rédigé en anglais : *« 12 'task.completed' events over the last 60 seconds »*.
 
-Les autres types continuent de partir sans contrainte : un throttle agressif sur `task.completed` ne retiendra jamais une `task.input_required`. Dès qu'une limite est posée, la carte du canal affiche un indicateur **⏱ … s** à droite de la rangée des événements.
+Les autres types continuent de partir sans contrainte : une limite agressive sur `task.completed` ne retiendra jamais un `task.input_required`. La ligne de détail du canal affiche la limite en vigueur.
 
 ## Vérifier ce qui est réellement parti
 
-L'historique d'envoi n'est **pas** sur la page Notifications. Cette page ne porte
-plus qu'une ligne qui renvoie ailleurs. Ouvrez la **Boîte de réception**, puis
-l'onglet **Notifications envoyées**.
+En bas de la section **Notifications**, le bloc **Derniers envois** liste les
+cinq dernières notifications envoyées par Apollia, de la plus récente à la plus
+ancienne. Tant qu'il n'y a aucun envoi, une phrase le dit.
 
-La liste donne, pour chaque entrée, la date d'envoi, le canal qui l'a prise,
-l'événement déclencheur, et si l'envoi a réussi ou échoué.
+Chaque ligne donne l'événement, les canaux par lesquels il est passé, le moment
+de l'envoi, et s'il est arrivé : **Envoyée** ou **Échec**.
 
-Le motif d'erreur n'y figure pas. Pour l'obtenir, lancez **Tester** depuis la
-carte du canal, sur la page Notifications.
+Pour obtenir la raison d'un échec, lancez **Tester** depuis la ligne du canal :
+la ligne affiche alors la raison.
 
 ## Vérification
 
-- Après création, la carte du canal apparaît dans la liste avec sa **barre d'accent en haut** colorée selon le type et son **toggle activé** à droite du titre.
-- Cliquer sur l'**icône Tester** envoie un message qui arrive sur le canal cible en quelques secondes.
-- Le canal apparaît dans la **Boîte de réception**, onglet **Notifications envoyées**, dès le premier envoi réel.
+- Après l'ajout, le canal apparaît dans le bloc **Canaux** avec son interrupteur allumé.
+- Cliquer sur **Tester** envoie un message qui arrive sur la cible en quelques secondes, et la ligne indique *Test réussi*.
+- La première livraison réelle figure dans **Derniers envois**.
 
 ## Si ça ne marche pas
 
-- **Notification bureau invisible** : vérifiez que les notifications de l'application sont autorisées dans les réglages système (macOS : *Réglages → Notifications → Apollia* ; Windows 11 : *Paramètres → Système → Notifications*).
-- **Webhook en erreur 401 / 403** : l'URL ou l'en-tête d'authentification est incorrect. Re-générez l'URL côté Slack/Discord/Teams et collez-la à nouveau.
-- **Webhook en erreur 404 ou délai dépassé** : l'URL est mal recopiée ou l'endpoint est hors-ligne.
-- **Webhook bloqué (SSRF)** : si le message d'erreur contient *« SSRF blocked »*, l'URL pointe vers une adresse privée (`10.x.x.x`, `192.168.x.x`, `127.0.0.1`, ou un endpoint metadata cloud). Apollia Desktop refuse ces envois par sécurité ; utilisez uniquement des URLs publiques.
-- **Nom déjà utilisé** : le nom est libre mais l'identifiant technique doit être unique. Si la création échoue avec un conflit, ouvrez la section *« Identifiant technique »* et changez-le manuellement.
-- **Notification de test reçue mais pas les vraies** : vérifiez la section *Événements globaux* en haut de la page **Notifications** - un événement décoché globalement ne partira sur aucun canal, même si ce canal le coche localement.
+- **Notification de bureau invisible** : vérifiez que les notifications de l'application sont autorisées dans les réglages du système (macOS : *Réglages → Notifications → Apollia* ; Windows 11 : *Paramètres → Système → Notifications*).
+- **Appel web qui renvoie 401 / 403** : l'URL ou l'en-tête d'authentification est faux. Régénérez l'URL côté Slack/Discord/Teams et collez-la de nouveau.
+- **Appel web qui renvoie 404 ou expire** : l'URL a été mal copiée ou l'endpoint est hors ligne.
+- **Appel web bloqué (SSRF)** : si le message d'erreur contient *« SSRF blocked »*, l'URL pointe vers une adresse privée (`10.x.x.x`, `192.168.x.x`, `127.0.0.1`, ou un endpoint de métadonnées cloud). Apollia refuse ces livraisons par sécurité ; utilisez uniquement des URL publiques.
+- **Identifiant déjà pris** : le nom est libre mais l'identifiant technique doit être unique. Si l'ajout échoue sur un conflit, ouvrez le bloc **Identifiant technique (avancé)** et changez-le.
+- **Notification de test reçue mais pas les vraies** : vérifiez le bloc **Événements notifiés**. Un événement éteint là ne part sur aucun canal, même si ce canal le coche.
 
 > **Référence technique :** [Référence Apollia](/reference)

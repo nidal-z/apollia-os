@@ -21,8 +21,8 @@ pour cette plateforme :
 ## Pré-requis
 
 - macOS 13 (Ventura) ou plus récent.
-- Apple Silicon (M1, M2, M3, M4). Le support Intel via Rosetta n'est pas officiel pour v0.1.0.
-- 4 Go de RAM libres minimum. La liste curée proposée à l'accueil est Qwen3 en quatre tailles, 4B, 8B, 14B et 30B-A3B ; 8 Go est un plancher confortable pour le 8B.
+- Apple Silicon (M1, M2, M3, M4). Les Mac Intel ne sont pas pris en charge : aucun installeur n'est publié pour eux.
+- 4 Go de RAM libres minimum. Les modèles proposés au premier lancement sont classés pour votre machine ; 8 Go est un plancher confortable pour un modèle de 8 milliards de paramètres.
 - 10 Go d'espace disque pour le bundle + un modèle quantifié.
 
 ## Installation (DMG)

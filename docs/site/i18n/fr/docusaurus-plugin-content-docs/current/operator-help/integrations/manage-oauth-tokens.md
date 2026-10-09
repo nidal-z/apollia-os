@@ -15,7 +15,7 @@ sidebar_position: 10
 
 ## Où sont stockés mes tokens
 
-Apollia stocke tous les tokens OAuth dans le trousseau de votre système.
+Par défaut, Apollia stocke tous les tokens OAuth dans le trousseau de votre système.
 
 | Système | Backend | Comment inspecter |
 |---|---|---|
@@ -44,8 +44,8 @@ Un index `~/.apollia/connectors-index.json` énumère les comptes connectés par
 **Côté Apollia (trousseau local)** :
 
 1. Ouvrir **Connexions**.
-2. Sélectionner le compte.
-3. Cliquer **Déconnecter**. Le token est supprimé immédiatement du trousseau et de l'index.
+2. Ouvrir la fiche de la connexion, Google Workspace ou Microsoft 365.
+3. Sous l'onglet **Comptes**, cliquer sur **Déconnecter** à côté du compte et confirmer. Le token est supprimé immédiatement du coffre de secrets et de l'index.
 
 Le token reste valide côté Google ou Microsoft jusqu'à son expiration naturelle (typiquement une heure pour l'access token).
 
@@ -58,7 +58,7 @@ Cette opération invalide aussi le refresh token. Recommandé pour une révocati
 
 ## Multi-comptes
 
-Chaque compte vit dans une entrée trousseau distincte avec l'email comme user. Choisir le compte à l'appel n'est pas implémenté en `v0.1.0-preview` : aucun schéma d'outil natif ne déclare de paramètre `account`, donc un appel qui en nomme un le voit jeté en silence, et tout appel part sur le premier compte connecté. Avec plusieurs comptes stockés, le runtime journalise un avertissement d'ambiguïté et prend quand même le premier.
+Chaque compte vit dans une entrée trousseau distincte avec l'email comme user. Chaque compte connecté est une connexion à part entière : ses outils s'accordent à un agent compte par compte, sur la fiche de l'agent, et un appel s'exécute au nom du compte accordé et d'aucun autre.
 
 ## Refresh automatique
 
@@ -73,20 +73,20 @@ Vous ne pouvez pas. L'ensemble de scopes d'un connecteur natif est figé dans l'
 
 ## Vérification
 
-- Sur la carte du connecteur, le compte n'apparaît plus après déconnexion.
+- Sur la fiche de la connexion, le compte n'apparaît plus après déconnexion.
 - L'outil trousseau du système ne montre plus d'entrée correspondante.
 - Un appel d'outil natif sur le compte révoqué retourne `NotConnected`.
 
 <details>
 <summary>Configuration avancée</summary>
 
-### Linux headless : les tokens de connecteur exigent un trousseau
+### Linux headless : les tokens de connecteur sans trousseau
 
-Sur un Linux sans environnement graphique (container Docker, VM minimale, distribution serveur), le trousseau Secret Service n'est pas disponible, et **les comptes de connecteur ne peuvent pas être stockés en `v0.1.0-preview`**. Connecter Google ou Microsoft sur une telle machine échoue au moment d'enregistrer le token.
+Sur un Linux sans environnement graphique (container Docker, VM minimale, distribution serveur), le trousseau Secret Service n'est généralement pas disponible. Les tokens de connecteur passent par le même coffre de secrets que tous les autres secrets d'Apollia, et la variable d'environnement `APOLLIA_TOKEN_STORAGE` choisit ce coffre.
 
-Un backend fichier chiffré existe dans le code, sélectionné par `APOLLIA_TOKEN_STORAGE=file`, et il ne s'applique pas ici : le chemin de stockage des tokens de connecteur appelle le trousseau système en direct au lieu de passer par le store sélectionnable, donc poser la variable ne change rien pour les comptes Google ou Microsoft. Ne comptez pas dessus comme contournement.
+Définissez `APOLLIA_TOKEN_STORAGE=file` et `APOLLIA_TOKEN_PASSPHRASE` avant de démarrer Apollia : les tokens Google et Microsoft sont alors écrits dans des fichiers chiffrés sous `~/.apollia/secrets/`, un par compte, au lieu du trousseau. La phrase de passe est obligatoire dans ce mode. Sans elle, Apollia refuse le coffre plutôt que de se rabattre sur quelque chose de plus faible.
 
-Les options sur une machine headless sont de faire tourner une implémentation Secret Service (`gnome-keyring-daemon --components=secrets`, déverrouillée à l'ouverture de session), ou de connecter les comptes depuis une machine de bureau.
+L'autre option sur une machine headless est de faire tourner une implémentation Secret Service (`gnome-keyring-daemon --components=secrets`, déverrouillée à l'ouverture de session) et de garder le coffre par défaut. En mode fichier, les outils de trousseau cités plus haut ne montrent rien : les tokens sont les fichiers de ce dossier.
 
 ### Audit des actions
 
@@ -95,7 +95,7 @@ Chaque appel d'outil d'une exécution est enregistré dans le journal signé, `~
 
 ### Erreurs courantes mode fichier
 
-- **Le compte ne peut pas être enregistré sous Linux** : le daemon Secret Service n'est pas disponible. Voir la section Linux headless ci-dessus : il n'y a pas de contournement en `v0.1.0-preview`.
+- **Le compte ne peut pas être enregistré sous Linux** : aucun daemon Secret Service n'est disponible et le mode fichier n'est pas défini, ou il l'est sans sa phrase de passe. Voir la section Linux headless ci-dessus.
 - **Un rafraîchissement annonce qu'aucun refresh token n'est disponible** : le fournisseur n'en a pas rendu. Ce n'est pas un scope oublié : Apollia ajoute toujours `access_type=offline` pour Google et inclut toujours `offline_access` pour Microsoft, cette cause n'est donc pas atteignable depuis l'interface. L'explication habituelle est une autorisation déjà révoquée côté fournisseur. Déconnectez puis reconnectez.
 - **Refresh en boucle 401** : le refresh token a été révoqué côté provider. Déconnectez puis reconnectez.
 

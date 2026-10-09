@@ -10,7 +10,7 @@ sidebar_position: 16
 
 ## À quoi ça sert
 
-La première fois, Apollia vous fait passer par quelques étapes : la langue, le modèle qui répondra, un premier agent, une connexion et une première tâche. Seule l'étape du modèle est obligatoire.
+La première fois, Apollia vous fait passer par quelques étapes : la langue, le modèle qui répondra, le modèle qui cherche dans vos documents par le sens, quelques mots sur vous, un premier agent, une connexion et une première tâche. Seule l'étape du modèle est obligatoire.
 
 ## Ce que vous pouvez faire
 

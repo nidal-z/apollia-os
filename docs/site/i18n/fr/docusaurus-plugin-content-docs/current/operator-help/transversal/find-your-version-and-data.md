@@ -14,44 +14,41 @@ sidebar_position: 5
 
 ## Étapes
 
-1. Dans la barre latérale, cliquez sur **Réglages**, puis sur **À propos** (en bas de la navigation, dans le groupe **Aide**).
+1. Dans la barre latérale, cliquez sur **Réglages**. La fenêtre s'ouvre sur la section **Général**, qui contient tout ce dont cette page se sert.
 
-2. L'en-tête affiche la **version**, le **canal de diffusion** et la **plateforme**. Le canal est lu depuis la chaîne de version : une version portant un suffixe après le tiret, comme `0.1.0-preview`, est une préversion ; une version nue est une version stable. Ce numéro est celui du produit, et ce n'est pas celui gravé sur les fichiers d'installation : ceux-ci portent `0.1.0-1`, parce que le format d'installeur Windows refuse un identifiant de préversion non numérique. Les deux désignent le même build, et le numéro à citer est celui de cet écran.
-
-3. La section **Version et build** liste les valeurs qui identifient cette installation : version, plateforme, interpréteur Python, moteur d'inférence et moteur de transcription. Un clic sur une valeur la copie.
+2. Le bloc **Mise à jour de l'application** affiche la **Version installée**, et dessous le canal de mise à jour en vigueur : **Canal stable** ou **Canal préversion**. Le canal est celui choisi sur la ligne suivante, **Canal de mise à jour** ; il n'est pas déduit du numéro de version. Un clic sur la version la copie.
 
 <!-- claim:about-reports-resolved-data-dir -->
 
-4. La section **Où vivent vos données** affiche le **répertoire de données** : le dossier unique qui contient vos conversations, la mémoire des agents, les modèles, la configuration et le journal d'audit. Cliquez dessus pour copier le chemin complet.
+3. Le bloc **Application** affiche le **Répertoire de données** : le dossier unique qui contient vos conversations, la mémoire des agents, les modèles, la configuration et le journal d'audit. Cliquez dessus pour copier le chemin complet.
 
    > **Note :** le chemin affiché est celui que cette installation a réellement résolu, pas un exemple générique. Il se lit normalement `.apollia` dans votre répertoire personnel, et il suit le répertoire personnel avec lequel Apollia a été lancé. Fiez-vous à la valeur à l'écran plutôt qu'à un chemin écrit dans un guide.
 
-5. La section **Ce qui tourne sur cette machine** énonce, point par point, ce qui reste en local : l'inférence, la transcription vocale, le stockage et le journal d'audit.
+4. En bas de la section, le bloc **À propos** contient **Ce qui tourne sur cette machine**, qui énonce, point par point, ce qui reste en local : l'inférence, la transcription vocale, le stockage et le journal d'audit. Suivent la licence, les briques open-source sur lesquelles Apollia est bâti et les liens vers la documentation et le code source.
 
 ## Signaler un problème avec les bonnes informations
 
 1. Dans **Réglages**, ouvrez **Matériel** (groupe **Système**) et cliquez sur **Copier les infos** dans son en-tête. Cela copie un bloc de texte brut avec la version, le système d'exploitation, le processeur, la mémoire, chaque GPU, et chaque moteur avec sa version. En mode développeur, il porte aussi l'interpréteur Python, le fichier de configuration et le répertoire de données.
 
-2. Dans la section **Ressources**, cliquez sur **Signaler un problème**. Votre navigateur ouvre un nouveau ticket sur le dépôt public.
+2. De retour dans **Général**, dans le bloc **Application**, cliquez sur **Ouvrir dans le navigateur** sur la ligne **Signaler un problème**. Votre navigateur ouvre la page de signalement.
 
-3. Collez ce bloc dans le ticket, puis décrivez ce que vous faisiez et ce que vous attendiez à la place.
+3. Collez ce bloc dans le signalement, puis décrivez ce que vous faisiez et ce que vous attendiez à la place.
 
 > **Rien n'est envoyé automatiquement.** Le bloc part dans votre presse-papiers et nulle part ailleurs. Relisez-le avant de le coller, et retirez tout chemin que vous préférez ne pas publier.
 
 ## Sauvegarder ou tout effacer
 
-Le répertoire de données de l'étape 4 est un dossier ordinaire. Le copier ailleurs sauvegarde Apollia ; le supprimer remet l'application dans son état de premier lancement. Pour le parcours guidé, avec ses précautions, voir [Réinitialiser Apollia (factory reset)](../troubleshooting/factory-reset.md).
+Le répertoire de données de l'étape 3 est un dossier ordinaire. Le copier ailleurs sauvegarde Apollia ; le supprimer remet l'application dans son état de premier lancement. Pour le parcours guidé, avec ses précautions, voir [Réinitialiser Apollia (factory reset)](../troubleshooting/factory-reset.md).
 
 ## Pour aller plus loin
 
-Le manuel complet, avec les guides de chaque écran, est publié sur **docs.apollia.fr**. On y accède depuis **Réglages → Aide → Centre d'aide**, ou depuis **Réglages → À propos → Documentation**.
+Le manuel complet, avec les guides de chaque écran, est publié sur **docs.apollia.fr**. On y accède depuis **Réglages**, section **Général** : **Ouvrir le centre d'aide** dans le bloc **Aide**, ou **Documentation** sous **Ressources** dans le bloc **À propos**.
 
 ## Vérification
 
-La page **À propos** affiche une version, et le répertoire de données qu'elle indique existe sur votre disque à ce chemin exact.
+La section **Général** affiche une version, et le répertoire de données qu'elle indique existe sur votre disque à ce chemin exact.
 
 ## Si ça ne marche pas
 
-- **« Les informations système n'ont pas pu être chargées » :** l'interface a atteint la page avant que le runtime ne soit prêt. Quittez la page et revenez, ou relancez l'application.
+- **La version indique « Version inconnue » :** l'interface a atteint la section avant que le moteur ne soit prêt. Fermez les réglages et rouvrez-les, ou relancez l'application.
 - **Le répertoire de données indique que le répertoire personnel n'a pas pu être résolu :** Apollia a été lancé dans un environnement sans répertoire personnel (`HOME` sur macOS et Linux, `USERPROFILE` sur Windows). Cela arrive avec certains lanceurs de services. Relancez-le depuis votre session normale.
-- **La version indique « Version inconnue » :** même cause que le premier cas. Le reste de la page reste utilisable.

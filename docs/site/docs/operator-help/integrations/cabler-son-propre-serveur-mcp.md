@@ -16,62 +16,63 @@ sidebar_position: 9
 
 ## Steps
 
-1. In the **Connections** sidebar, click **Add a connector** at the bottom. A sheet opens on the **MCP catalogue** tab; switch to the **Custom MCP** tab.
+1. In **Connections**, click **Add a connection** at the top of the page. A sheet opens on the **Catalogue** tab; switch to the **Custom connection** tab.
 
-   ![Custom tab of the catalogue: the blank form](/img/operator-help/integration-cabler-son-propre-serveur-mcp-1.png)
+   ![Custom connection tab: the blank form, shown with developer mode on](/img/operator-help/integration-cabler-son-propre-serveur-mcp-1.png)
 
-2. Fill in the form according to the transport you chose (see the subsections below).
+2. Fill in the form. Without developer mode it asks for a name, an address and optional headers, which is the remote case below. With developer mode on, a **Transport** choice appears and opens the two other cases.
 
 3. Click **Test**. Apollia attempts a real connection and counts the tools declared by the server.
 
-4. If the test passes, click **Install**. The server appears in the sidebar.
+4. If the test passes, click **Install**. The server appears in the list of connections.
 
 ### stdio case (local command)
 
-- **Name**: unique identifier. The field never refuses what you type, it rewrites it: lowercased, and every run of characters outside `a-z`, `0-9`, `_` and `-` replaced by a single hyphen, leading and trailing hyphens dropped. Underscores are kept. A name left with nothing becomes `custom-mcp`. So `My Server!` is installed as `my-server`, silently; check the name the sidebar shows afterwards.
-- **Transport**: `stdio`.
+- **Name**: unique identifier. The field never refuses what you type, it rewrites it: lowercased, and every run of characters outside `a-z`, `0-9`, `_` and `-` replaced by a single hyphen, leading and trailing hyphens dropped. Underscores are kept. A name left with nothing becomes `custom-mcp`. So `My Server!` is installed as `my-server`, silently; check the name the list shows afterwards.
+- **Transport**: `stdio (local subprocess)`, offered with developer mode on.
 - **Command**: executable to launch (for example `npx`, `uvx`, or an absolute path).
 - **Arguments**: separated by spaces (for example `-y @modelcontextprotocol/server-filesystem ~/Documents`).
+- **Environment variables** (optional): one per line, in the `NAME=value` format.
 
 ![Custom form on stdio transport, with the command and the arguments filled in](/img/operator-help/integration-cabler-son-propre-serveur-mcp-2.png)
 
 ### streamable-http case (remote server)
 
 - **Name**: unique identifier.
-- **Transport**: `streamable-http`.
-- **URL**: HTTP endpoint of the server (`https://...`).
-- **Headers** (optional): one per line, in the `Header-Name=value` format. Example: `Authorization=Bearer sk-...` or `X-API-Key=...`.
+- **Transport**: `Streamable HTTP`. It is the only one without developer mode, and the choice is then not shown.
+- **Address**: HTTP endpoint of the server (`https://...`).
+- **HTTP headers** (optional): one per line, in the `NAME=value` format. Example: `Authorization=Bearer sk-...` or `X-API-Key=...`.
 
 ![Custom form on streamable-http transport, with the URL and the authentication headers](/img/operator-help/integration-cabler-son-propre-serveur-mcp-3.png)
 
 ### SSE case
 
-Identical to the streamable-http case but with **Transport**: `sse`. Used for servers that keep a persistent SSE connection open.
+Identical to the streamable-http case but with **Transport**: `SSE`, offered with developer mode on. Used for servers that keep a persistent SSE connection open.
 
-## OAuth 2.1, automatic
+## OAuth 2.1, from the catalogue only
 
-If your MCP server advertises an OAuth endpoint that conforms to the MCP authorization spec (RFC 9728 Protected Resource Metadata + RFC 8414 Authorization Server Metadata), Apollia handles it all on its own:
+When a server of the catalogue advertises an OAuth endpoint that conforms to the MCP authorization spec (RFC 9728 Protected Resource Metadata + RFC 8414 Authorization Server Metadata), the dialog that adds it handles the sign-in on its own:
 
 1. Metadata discovery (PRM, then OIDC fallback).
 2. Client identification through the Apollia CIMD, or Dynamic Client Registration (RFC 7591) as a fallback.
 3. Code exchange with PKCE S256 and Resource Indicators (RFC 8707).
 4. Token storage in the local keychain and proactive refresh with singleflight.
 
-You have nothing to configure on the Apollia side. The server triggers everything on the first 401.
+The custom form does not run this flow. When its **Test** meets a server that requires OAuth, it answers "This server requires OAuth authentication. Install it from the catalogue rather than via the custom form." A server that accepts a static token is wired here by putting the token in **HTTP headers**.
 
 ## Local mDNS discovery
 
-Apollia can discover MCP servers on your local network through mDNS (service type `_apollia-mcp._tcp.local.`). Enable the option in **Connections, Preferences** if your server advertises it.
+Apollia can scan your local network for MCP servers that advertise themselves through mDNS (service type `_apollia-mcp._tcp.local.`). No option of the interface runs that scan: it is a command, `apollia-os mcp list --discover`, which lists the configured servers and adds the ones it found on the network.
 
 ## Verification
 
-- Green dot next to the server in the sidebar.
-- The detail view shows the `tools`, `resources` and `prompts` sections filled in with what the server advertises.
+- The server is in the list of connections with an **active** badge.
+- The **Tools** tab of its page lists the tools the server advertises.
 - A test reports the server as working or reachable, with its tool count (see [Test an MCP connection](test-an-mcp-connection.md)). No latency is measured on the MCP path.
 
 ## Security, what Apollia applies by default
 
-- **Trust level**: a manually added server carries none. The level is an overlay that only the eighteen enriched catalogue entries hold, and no code assigns a `custom` level to anything, so your server shows no badge at all. That is consistent with the last section of this page: it appears in the list without the logo, the description or the trust badge.
+- **Presentation**: a manually added server is shown as a **Custom connection**. It appears in the list without the logo and the description that the entries of Apollia's selection carry.
 - **Approval**: the server carries no approval setting of its own. Each tool it publishes is decided on its action family: what the server declares in the tool's annotations sorts a read from a write, and a tool it does not describe is treated as sensitive. An agent that calls a sensitive tool asks first, and you answer once, always for this agent, or refuse.
 - **Roots**: Apollia advertises the capability during the handshake, and answers no `roots/list` request. No directory is declared, so roots bounds nothing today. What bounds a stdio server is the command and the arguments you gave it, which is why the filesystem path you pass in **Arguments** is the real perimeter.
 - **Sampling and elicitation**: not implemented. Apollia does not advertise these two capabilities during the handshake, so a server that supports them will not try to call back through them.
@@ -106,6 +107,6 @@ tool_search_limit = 20
 
 ## Getting your server to show up in the UI catalogue
 
-Your internal server appears in the list once connected, but without the logo, description and trust-level badge that the official entries carry. Customizing the catalogue is not possible in `v0.1.0-preview`: the override file is read by nothing.
+Your internal server appears in the list once connected, but without the logo and the description that the entries of Apollia's selection carry. Customizing the catalogue is not possible: the override file is read by nothing.
 
 > **Technical reference:** [Apollia reference](/reference) , full protocol schema, capabilities, transports, security.

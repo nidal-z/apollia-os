@@ -21,4 +21,4 @@ La Bibliothèque liste ce qui a été installé sur ce poste : agents, workflows
 ## Pour aller plus loin
 
 - [Installer un agent](/operator-help/agents/install-an-agent)
-- [Démarrer un agent ou un paquet](/operator-help/agents/start-an-agent)
+- [Confier une tâche à un agent](/operator-help/agents/start-an-agent)
