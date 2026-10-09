@@ -263,7 +263,9 @@ impl MemorySearchTool {
                 "fts5".to_string(),
                 "bm25".to_string(),
             ],
-            family: crate::descriptor::ActionFamily::ReadPersonal,
+            // The agent's own memory, a space the person opened for it by
+            // checking Memory on its sheet: the user's data is not reached.
+            family: crate::descriptor::ActionFamily::Exempt,
             family_source: crate::descriptor::FamilySource::Builtin,
             target_arg: None,
             is_read_only: true,

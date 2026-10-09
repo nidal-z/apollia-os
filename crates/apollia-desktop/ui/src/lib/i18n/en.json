@@ -4209,7 +4209,9 @@
       "notebook_edit": "Notebook editing",
       "tool_search": "Tool search",
       "mcp_resources_list": "Connector resources listing",
-      "mcp_resources_read": "Connector resource reading"
+      "mcp_resources_read": "Connector resource reading",
+      "memory_write": "Memory note",
+      "profile_propose": "Profile proposal"
     },
     "descriptions": {
       "file_read": "Reading {path}",
@@ -4252,7 +4254,9 @@
       "notebook_edit": "Editing a Jupyter notebook cell",
       "tool_search": "Searching the index of available external tools",
       "mcp_resources_list": "Listing the resources exposed by your connections",
-      "mcp_resources_read": "Reading a resource exposed by one of your connections"
+      "mcp_resources_read": "Reading a resource exposed by one of your connections",
+      "memory_write": "Noting \"{key}\" in memory",
+      "profile_propose": "Proposing a fact for your profile"
     },
     "output": {
       "web_read_truncated": "{chars_total} characters read (truncated, {duration_ms}ms)"
@@ -4269,7 +4273,9 @@
       "web_read": "{chars_total} characters read ({duration_ms}ms)",
       "memory_search": "{count} results found",
       "bash_executor": "Completed (exit code {exit_code}, {duration_ms}ms)",
-      "python_executor": "Completed (exit code {exit_code}, {duration_ms}ms)"
+      "python_executor": "Completed (exit code {exit_code}, {duration_ms}ms)",
+      "memory_write": "Memory updated",
+      "profile_propose": "Fact added to your profile"
     },
     "groups": {
       "files": {
@@ -4358,6 +4364,16 @@
         "label_operator": "Search memory",
         "desc_operator": "Look up information the agent has saved previously",
         "desc_builder": "memory_search - FTS5 full-text ranking, scoped per memory space, limit - SandboxProfile::ReadOnly"
+      },
+      "memory_write": {
+        "label_operator": "Keep notes in memory",
+        "desc_operator": "Keep or drop a note in the agent's own memory, to find it again in a later conversation",
+        "desc_builder": "memory_write - remember / forget by key, the agent's own memory space only - granted by the Memory source"
+      },
+      "profile_propose": {
+        "label_operator": "Propose facts for your profile",
+        "desc_operator": "Propose a lasting fact about you; nothing is written before you accept it",
+        "desc_builder": "profile_propose - one fact per call, asked every time, no standing consent - granted by the Profile source"
       }
     },
     "body": {
@@ -4470,7 +4486,9 @@
       "python_executor": "Run Python",
       "http_fetch": "Call a web address",
       "memory_search": "Search memory",
-      "todo_write": "Keep the task list"
+      "todo_write": "Keep the task list",
+      "memory_write": "Note in memory",
+      "profile_propose": "Propose for your profile"
     }
   },
   "project_migration": {

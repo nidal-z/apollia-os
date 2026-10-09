@@ -200,7 +200,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
     let sources =
         super::sources::source_access(wiring.chat_tools_config.as_deref(), &spec.agent_id).await;
     spec.granted_tools = super::sources::offered(granted, &sources);
-    let memory_namespace = super::sources::memory_namespace(&spec.agent_id, &task_id);
+    let memory_namespace = super::sources::memory_namespace(&spec.agent_id);
     let tool_turn_temperature = wiring
         .chat_tools_config
         .as_ref()

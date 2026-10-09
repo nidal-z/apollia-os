@@ -17,6 +17,10 @@ use crate::tools::python_executor::{PythonExecutor, PythonExecutorError, PythonI
 use crate::tools::http_fetch::{HttpFetch, HttpFetchError, HttpFetchInput};
 #[cfg(feature = "memory-search")]
 use crate::tools::memory_search::{MemorySearchInput, MemorySearchTool, MemorySearchToolError};
+#[cfg(feature = "memory-search")]
+use crate::tools::memory_write::{
+    MemoryWriteInput, MemoryWriteTool, MemoryWriteToolError, MEMORY_WRITE_TOOL,
+};
 #[cfg(feature = "web-read")]
 use crate::tools::web_read::{WebRead, WebReadError, WebReadInput};
 #[cfg(feature = "web-search")]
@@ -146,6 +150,79 @@ impl ToolExecutor for WebRead {
         })
     }
 }
+#[cfg(feature = "memory-search")]
+impl ToolExecutor for crate::tools::profile_propose::ProfileProposeTool {
+    fn name(&self) -> &str {
+        crate::tools::profile_propose::PROFILE_PROPOSE_TOOL
+    }
+
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        use crate::tools::profile_propose::{ProfileProposeError, ProfileProposeInput};
+        Box::pin(async move {
+            let typed: ProfileProposeInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    ProfileProposeError::InvalidKey(_) => "invalid_key",
+                    ProfileProposeError::InvalidFact => "invalid_fact",
+                    ProfileProposeError::WriteFailed(_) => "write_failed",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
+            })?;
+
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
+                message: e.to_string(),
+            })
+        })
+    }
+}
+
+#[cfg(feature = "memory-search")]
+impl ToolExecutor for MemoryWriteTool {
+    fn name(&self) -> &str {
+        MEMORY_WRITE_TOOL
+    }
+
+    fn execute(
+        &self,
+        input: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
+        Box::pin(async move {
+            let typed: MemoryWriteInput =
+                serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                    message: e.to_string(),
+                })?;
+
+            let output = self.run(typed).await.map_err(|e| {
+                let code = match &e {
+                    MemoryWriteToolError::InvalidKey => "invalid_key",
+                    MemoryWriteToolError::InvalidValue => "invalid_value",
+                    MemoryWriteToolError::WriteFailed(_) => "write_failed",
+                };
+                ToolExecutionError::ExecutionFailed {
+                    code: code.to_string(),
+                    message: e.to_string(),
+                }
+            })?;
+
+            serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
+                message: e.to_string(),
+            })
+        })
+    }
+}
+
 #[cfg(feature = "memory-search")]
 impl ToolExecutor for MemorySearchTool {
     fn name(&self) -> &str {

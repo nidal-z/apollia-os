@@ -288,6 +288,28 @@ pub fn build_dispatcher_with(
         }
     }
 
+    #[cfg(feature = "memory-search")]
+    if is_active(crate::tools::memory_write::MEMORY_WRITE_TOOL) && cfg.sources.memory {
+        if let Some(ns) = cfg.memory_namespace.as_ref() {
+            executors.push(Box::new(crate::tools::memory_write::MemoryWriteTool::new(
+                ns.clone(),
+                cfg.memory_base_dir.clone(),
+            )));
+        }
+    }
+
+    #[cfg(feature = "memory-search")]
+    if is_active(crate::tools::profile_propose::PROFILE_PROPOSE_TOOL) {
+        if let Some(store) = cfg.sources.profile.as_ref() {
+            executors.push(Box::new(
+                crate::tools::profile_propose::ProfileProposeTool::new(
+                    store.database.clone(),
+                    store.author.clone(),
+                ),
+            ));
+        }
+    }
+
     if is_active(crate::tools::source_search::SOURCE_SEARCH_TOOL) {
         if let Some(search) = cfg.sources.search.as_ref() {
             executors.push(Box::new(search.clone()));

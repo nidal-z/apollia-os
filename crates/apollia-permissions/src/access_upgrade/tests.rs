@@ -8,7 +8,7 @@ use tempfile::NamedTempFile;
 fn family_of(tool: &str) -> Option<ConsentFamily> {
     match tool {
         "file_read" => Some(ConsentFamily::Read),
-        "memory_search" => Some(ConsentFamily::ReadPersonal),
+        "gmail_read" => Some(ConsentFamily::ReadPersonal),
         "file_write" | "file_edit" => Some(ConsentFamily::WriteOrDelete),
         "http_fetch" | "gmail_send" => Some(ConsentFamily::SendExternal),
         "bash_executor" | "python_executor" => Some(ConsentFamily::ExecuteCode),
@@ -141,7 +141,7 @@ fn global_allow_without_prefix_becomes_an_always_of_apollia() {
 fn project_allow_without_prefix_becomes_an_always_of_apollia() {
     // GIVEN an Allow without prefix for one project
     let db = legacy_db(
-        &rule_row("memory_search", None, "allow", "project", None),
+        &rule_row("gmail_read", None, "allow", "project", None),
         "[]",
     );
 

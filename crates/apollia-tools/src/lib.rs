@@ -101,7 +101,10 @@ pub use project_repository::{
 };
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
-pub use source_access::{memory_is_checked, SourceAccess, MEMORY_SEARCH_TOOL};
+pub use source_access::{
+    granted_with_memory, granted_with_profile, memory_is_checked, SourceAccess, MEMORY_SEARCH_TOOL,
+    MEMORY_WRITE_TOOL, PROFILE_PROPOSE_TOOL,
+};
 pub use task_repository::{
     AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, HistoryRemoved, NewBatch,
     NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, TaskDetail, TaskRepoError,

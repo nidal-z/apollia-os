@@ -294,7 +294,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     let sources =
         super::sources::source_access(chat_tools_config_for_session.as_deref(), &agent_id).await;
     let available_tools = super::sources::offered(available_tools, &sources);
-    let memory_namespace = super::sources::memory_namespace(&agent_id, &session_id_str);
+    let memory_namespace = super::sources::memory_namespace(&agent_id);
 
     // The request settings of the conversation, above the three levels read
     // beside the data directory: the model, the package, and the preset of

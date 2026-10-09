@@ -13,6 +13,7 @@ import {
   BookOpen,
   Code,
   Database,
+  UserPen,
   FilePen,
   FileSearch,
   FileText,
@@ -63,6 +64,8 @@ const ACTION_KEYS: Record<string, string> = {
   python_executor: "tools.actions.python_executor",
   http_fetch: "tools.actions.http_fetch",
   memory_search: "tools.actions.memory_search",
+  memory_write: "tools.actions.memory_write",
+  profile_propose: "tools.actions.profile_propose",
   todo_write: "tools.actions.todo_write",
 };
 
@@ -119,6 +122,9 @@ export function stepTarget(item: ToolCallItem): StepTarget {
     case "web_search":
     case "memory_search":
       return textTarget(str(args, "query"));
+    case "memory_write":
+    case "profile_propose":
+      return textTarget(str(args, "key"));
     case "web_read":
     case "http_fetch": {
       const url = str(args, "url");
@@ -233,6 +239,8 @@ const STEP_ICONS: Record<string, ToolDisplayInfo["icon"]> = {
   python_executor: Code,
   http_fetch: ArrowLeftRight,
   memory_search: Database,
+  memory_write: Database,
+  profile_propose: UserPen,
   todo_write: ListChecks,
 };
 

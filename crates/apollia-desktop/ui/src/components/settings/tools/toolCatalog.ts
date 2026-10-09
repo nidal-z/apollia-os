@@ -63,7 +63,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
   {
     id: "memory",
     labelKey: "settings.tools_page.cat_memory",
-    tools: ["memory_search", "ask_user"],
+    tools: ["memory_search", "memory_write", "profile_propose", "ask_user"],
   },
 ];
 

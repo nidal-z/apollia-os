@@ -17,8 +17,12 @@ pub mod file_write;
 pub mod http_fetch;
 #[cfg(feature = "memory-search")]
 pub mod memory_search;
+#[cfg(feature = "memory-search")]
+pub mod memory_write;
 pub mod notebook_edit;
 pub mod notebook_read;
+#[cfg(feature = "memory-search")]
+pub mod profile_propose;
 pub mod python_discovery;
 pub mod python_executor;
 pub mod risk_classifier;
@@ -54,6 +58,10 @@ pub fn native_descriptors() -> Vec<crate::descriptor::ToolDescriptor> {
     d.push(http_fetch::HttpFetch::descriptor());
     #[cfg(feature = "memory-search")]
     d.push(memory_search::MemorySearchTool::descriptor());
+    #[cfg(feature = "memory-search")]
+    d.push(memory_write::MemoryWriteTool::descriptor());
+    #[cfg(feature = "memory-search")]
+    d.push(profile_propose::ProfileProposeTool::descriptor());
     #[cfg(feature = "web-read")]
     d.push(web_read::WebRead::descriptor());
     #[cfg(feature = "web-search")]

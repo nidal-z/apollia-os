@@ -71,7 +71,9 @@ pub struct ToolDescriptor {
 /// The five families are the vocabulary the agent sheet and the governance
 /// layer share. `Unclassified` is the state of a tool nobody has classified
 /// yet and is treated as sensitive; `Exempt` is reserved to a tool that acts on
-/// nothing but the conversation itself (`ask_user`).
+/// nothing but the conversation itself (`ask_user`) or on the agent's own
+/// memory (`memory_search`, `memory_write`), which the person opens by checking
+/// Memory on the sheet of the agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ActionFamily {

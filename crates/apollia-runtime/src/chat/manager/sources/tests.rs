@@ -70,7 +70,16 @@ async fn test_apollia_with_a_folder_and_its_memory_checked_is_offered_both_tools
     assert!(access.memory);
     let search = access.search.as_ref().unwrap();
     assert_eq!(search.sources(), [contracts]);
-    assert_eq!(offered(granted(), &access), granted());
+    assert_eq!(
+        offered(granted(), &access),
+        [
+            "file_read",
+            "source_search",
+            "web_search",
+            "memory_search",
+            "memory_write"
+        ]
+    );
 }
 
 #[tokio::test]
@@ -115,12 +124,13 @@ async fn test_apollia_with_nothing_checked_is_offered_no_source_tool() {
     // WHEN the sources of a turn of Apollia are read
     let access = source_access(Some(&cfg), APOLLIA_CHAT_AGENT_ID).await;
 
-    // THEN neither memory_search nor source_search is offered
+    // THEN neither a memory tool nor source_search is offered, and the
+    // profile checked lets it propose facts for it
     assert!(!access.memory);
     assert!(access.search.is_none());
     assert_eq!(
         offered(granted(), &access),
-        vec!["file_read".to_owned(), "web_search".to_owned()]
+        ["file_read", "web_search", "profile_propose"]
     );
 }
 
@@ -143,16 +153,38 @@ async fn test_without_a_registry_only_the_memory_can_be_checked() {
 }
 
 #[test]
-fn test_the_memory_of_apollia_is_one_space_across_its_conversations() {
-    // GIVEN two conversations of Apollia and one of another agent
+fn test_every_agent_keeps_one_memory_space_across_its_conversations() {
+    // GIVEN Apollia and another agent
     // WHEN the memory namespace of each is read
-    let first = memory_namespace(APOLLIA_CHAT_AGENT_ID, "s-1");
-    let second = memory_namespace(APOLLIA_CHAT_AGENT_ID, "s-2");
-    let other = memory_namespace("veille", "s-3");
+    let apollia = memory_namespace(APOLLIA_CHAT_AGENT_ID);
+    let other = memory_namespace("veille");
 
-    // THEN Apollia keeps one space, named after it, never the session's
-    assert_eq!(first, APOLLIA_MEMORY_NAMESPACE);
-    assert_eq!(first, second);
-    assert!(!first.contains("s-1"));
-    assert_eq!(other, "apollia:chat:s-3");
+    // THEN each has one space, named after the agent and after no
+    // conversation
+    assert_eq!(apollia, APOLLIA_MEMORY_NAMESPACE);
+    assert_eq!(other, "veille");
+}
+
+#[tokio::test]
+async fn test_the_memory_box_grants_both_memory_tools_whatever_the_access_lists() {
+    // GIVEN Apollia checking its memory, and an access that names no memory
+    // tool, then one that names both without the memory checked
+    let dir = tempfile::tempdir().unwrap();
+    check_for_apollia(dir.path(), &["memory"]);
+    let checked = source_access(Some(&config(dir.path(), None)), APOLLIA_CHAT_AGENT_ID).await;
+    let unchecked = source_access(None, APOLLIA_CHAT_AGENT_ID).await;
+    let naming_both = vec![
+        "file_read".to_owned(),
+        "memory_search".to_owned(),
+        "memory_write".to_owned(),
+    ];
+
+    // WHEN the tools of a turn are read in both cases
+    let with_memory = offered(vec!["file_read".to_owned()], &checked);
+    let without = offered(naming_both, &unchecked);
+
+    // THEN the memory checked adds the search and the write, and the memory
+    // unchecked keeps neither
+    assert_eq!(with_memory, ["file_read", "memory_search", "memory_write"]);
+    assert_eq!(without, ["file_read"]);
 }

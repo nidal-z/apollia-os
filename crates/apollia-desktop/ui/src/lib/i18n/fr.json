@@ -4209,7 +4209,9 @@
       "notebook_edit": "Modification de notebook",
       "tool_search": "Recherche d'outils",
       "mcp_resources_list": "Liste des ressources de connecteurs",
-      "mcp_resources_read": "Lecture de ressource de connecteur"
+      "mcp_resources_read": "Lecture de ressource de connecteur",
+      "memory_write": "Note en mémoire",
+      "profile_propose": "Proposition pour le profil"
     },
     "descriptions": {
       "file_read": "Lecture de {path}",
@@ -4252,7 +4254,9 @@
       "notebook_edit": "Modification d'une cellule de notebook Jupyter",
       "tool_search": "Recherche dans l'index des outils externes disponibles",
       "mcp_resources_list": "Liste des ressources exposées par vos connexions",
-      "mcp_resources_read": "Lecture d'une ressource exposée par une de vos connexions"
+      "mcp_resources_read": "Lecture d'une ressource exposée par une de vos connexions",
+      "memory_write": "Note « {key} » en mémoire",
+      "profile_propose": "Proposition d'un fait pour votre profil"
     },
     "output": {
       "web_read_truncated": "{chars_total} caractères lus (tronqué, {duration_ms}ms)"
@@ -4269,7 +4273,9 @@
       "web_read": "{chars_total} caractères lus ({duration_ms}ms)",
       "memory_search": "{count} résultats trouvés",
       "bash_executor": "Terminé (code {exit_code}, {duration_ms}ms)",
-      "python_executor": "Terminé (code {exit_code}, {duration_ms}ms)"
+      "python_executor": "Terminé (code {exit_code}, {duration_ms}ms)",
+      "memory_write": "Mémoire mise à jour",
+      "profile_propose": "Fait ajouté à votre profil"
     },
     "groups": {
       "files": {
@@ -4358,6 +4364,16 @@
         "label_operator": "Rechercher en mémoire",
         "desc_operator": "Retrouver des informations que l'agent a sauvegardées précédemment",
         "desc_builder": "memory_search - classement plein texte FTS5, cloisonné par espace de mémoire, limit - SandboxProfile::ReadOnly"
+      },
+      "memory_write": {
+        "label_operator": "Garder des notes en mémoire",
+        "desc_operator": "Garder ou retirer une note dans la mémoire propre de l'agent, pour la retrouver dans une conversation suivante",
+        "desc_builder": "memory_write - remember / forget par clé, espace mémoire de l'agent seulement - accordé par la source Mémoire"
+      },
+      "profile_propose": {
+        "label_operator": "Proposer des faits pour votre profil",
+        "desc_operator": "Proposer un fait durable vous concernant ; rien n'est écrit avant votre accord",
+        "desc_builder": "profile_propose - un fait par appel, demandé à chaque fois, aucun accord permanent - accordé par la source Profil"
       }
     },
     "body": {
@@ -4470,7 +4486,9 @@
       "python_executor": "Exécuter du Python",
       "http_fetch": "Appeler une adresse web",
       "memory_search": "Chercher en mémoire",
-      "todo_write": "Tenir la liste de tâches"
+      "todo_write": "Tenir la liste de tâches",
+      "memory_write": "Noter en mémoire",
+      "profile_propose": "Proposer pour votre profil"
     }
   },
   "project_migration": {

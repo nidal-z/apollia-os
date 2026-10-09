@@ -18,18 +18,68 @@ use crate::AgentRepository;
 /// Name of the memory search tool.
 pub const MEMORY_SEARCH_TOOL: &str = "memory_search";
 
+/// Name of the memory write tool.
+pub const MEMORY_WRITE_TOOL: &str = "memory_write";
+
+/// Name of the profile proposal tool.
+pub const PROFILE_PROPOSE_TOOL: &str = "profile_propose";
+
+/// Where an accepted fact for the profile is written, and in whose name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfileStore {
+    /// The database of the profiles (`user_memory.db`).
+    pub database: std::path::PathBuf,
+    /// The agent that proposes, recorded as the author of the fact.
+    pub author: String,
+}
+
+/// `tools` with the profile proposal tool present exactly when the agent's
+/// profile source is checked and its store is known: the tool is granted by
+/// the source, never by the access.
+#[must_use]
+pub fn granted_with_profile(mut tools: Vec<String>, profile_checked: bool) -> Vec<String> {
+    tools.retain(|t| t != PROFILE_PROPOSE_TOOL);
+    if profile_checked {
+        tools.push(PROFILE_PROPOSE_TOOL.to_owned());
+    }
+    tools
+}
+
+/// `tools`, the tools an agent's access grants, with the two memory tools
+/// present exactly when the agent's memory is checked.
+///
+/// The memory is granted by the source, never by the access: an access that
+/// names a memory tool without the memory checked does not keep it, and the
+/// memory checked adds both to an access that names neither. Checking Memory
+/// on the sheet of an agent is the one thing that opens its memory, to read
+/// and to write.
+#[must_use]
+pub fn granted_with_memory(mut tools: Vec<String>, memory_checked: bool) -> Vec<String> {
+    tools.retain(|t| t != MEMORY_SEARCH_TOOL && t != MEMORY_WRITE_TOOL);
+    if memory_checked {
+        tools.push(MEMORY_SEARCH_TOOL.to_owned());
+        tools.push(MEMORY_WRITE_TOOL.to_owned());
+    }
+    tools
+}
+
 /// The sources an agent may consult through its native tools.
 ///
 /// The default checks nothing: neither `memory_search` nor `source_search`
 /// is registered.
 #[derive(Debug, Clone, Default)]
 pub struct SourceAccess {
-    /// Whether the agent's memory is checked: `memory_search` is registered
-    /// only then.
+    /// Whether the agent's memory is checked: `memory_search` and
+    /// `memory_write` are registered only then.
     pub memory: bool,
     /// The search over the indexable sources checked; `None` when none is,
     /// which leaves `source_search` out.
     pub search: Option<SourceSearchTool>,
+    /// Whether the profile is checked for the agent.
+    pub profile_checked: bool,
+    /// The proposal of facts for the profile; `None` when the profile is not
+    /// checked or its store is unknown, which leaves `profile_propose` out.
+    pub profile: Option<ProfileStore>,
 }
 
 impl SourceAccess {
@@ -51,7 +101,20 @@ impl SourceAccess {
         Self {
             memory: checked.contains(&CheckedSource::Memory),
             search,
+            profile_checked: checked.contains(&CheckedSource::Profile),
+            profile: None,
         }
+    }
+
+    /// The same access, where an agent whose profile is checked may propose
+    /// facts for the profiles of `database`, in the name of `author`.
+    #[must_use]
+    pub fn with_profile_store(mut self, database: std::path::PathBuf, author: &str) -> Self {
+        self.profile = self.profile_checked.then(|| ProfileStore {
+            database,
+            author: author.to_owned(),
+        });
+        self
     }
 
     /// The access of an agent whose only possible source is its memory.
@@ -60,6 +123,8 @@ impl SourceAccess {
         Self {
             memory,
             search: None,
+            profile_checked: false,
+            profile: None,
         }
     }
 
@@ -70,9 +135,13 @@ impl SourceAccess {
         let mut withheld = Vec::new();
         if !self.memory {
             withheld.push(MEMORY_SEARCH_TOOL);
+            withheld.push(MEMORY_WRITE_TOOL);
         }
         if self.search.is_none() {
             withheld.push(SOURCE_SEARCH_TOOL);
+        }
+        if self.profile.is_none() {
+            withheld.push(PROFILE_PROPOSE_TOOL);
         }
         withheld
     }
@@ -144,7 +213,10 @@ mod tests {
         let search = access.search.as_ref().unwrap();
         assert_eq!(search.sources(), ["src-folder".to_owned()]);
         assert!(!access.memory);
-        assert_eq!(access.withheld_tools(), vec![MEMORY_SEARCH_TOOL]);
+        assert_eq!(
+            access.withheld_tools(),
+            vec![MEMORY_SEARCH_TOOL, MEMORY_WRITE_TOOL, PROFILE_PROPOSE_TOOL]
+        );
     }
 
     #[tokio::test]
@@ -161,7 +233,10 @@ mod tests {
         // THEN the memory is open, and no search exists in either case
         assert!(with.memory);
         assert!(with.search.is_none());
-        assert_eq!(with.withheld_tools(), vec![SOURCE_SEARCH_TOOL]);
+        assert_eq!(
+            with.withheld_tools(),
+            vec![SOURCE_SEARCH_TOOL, PROFILE_PROPOSE_TOOL]
+        );
         assert!(without.search.is_none());
     }
 

@@ -118,7 +118,7 @@ export const TOOL_GROUPS: ToolGroupMeta[] = [
     labelOperatorKey: "tools.groups.memory.label_operator",
     labelBuilderKey: "tools.groups.memory.label_builder",
     descOperatorKey: "tools.groups.memory.desc_operator",
-    tools: ["memory_search"],
+    tools: ["memory_search", "memory_write", "profile_propose"],
   },
 ];
 
@@ -249,7 +249,27 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.memory_search.label_operator",
     descOperatorKey: "tools.catalog.memory_search.desc_operator",
     descBuilderKey: "tools.catalog.memory_search.desc_builder",
-    family: "read_personal",
+    family: "exempt",
+    defaultEnabled: false,
+  },
+  {
+    id: "memory_write",
+    icon: Brain,
+    group: "memory",
+    labelOperatorKey: "tools.catalog.memory_write.label_operator",
+    descOperatorKey: "tools.catalog.memory_write.desc_operator",
+    descBuilderKey: "tools.catalog.memory_write.desc_builder",
+    family: "exempt",
+    defaultEnabled: false,
+  },
+  {
+    id: "profile_propose",
+    icon: Brain,
+    group: "memory",
+    labelOperatorKey: "tools.catalog.profile_propose.label_operator",
+    descOperatorKey: "tools.catalog.profile_propose.desc_operator",
+    descBuilderKey: "tools.catalog.profile_propose.desc_builder",
+    family: "write_or_delete",
     defaultEnabled: false,
   },
 ];

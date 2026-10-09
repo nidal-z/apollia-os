@@ -520,3 +520,30 @@ fn test_a_code_call_answered_once_goes_through_and_a_deny_rule_still_refuses() {
     assert!(is_once_grant(&once_grant("bash_executor")));
     assert!(!is_once_grant("bash_executor"));
 }
+
+// Line 5: a fact proposed for the profile is asked every time.
+#[test]
+fn test_a_profile_proposal_is_asked_whatever_consent_stands() {
+    // GIVEN an agent holding a standing consent for the writing family, and
+    // a run granted for it
+    let mut state = GovernanceState::default();
+    state
+        .consents
+        .insert((AGENT.into(), ConsentFamily::WriteOrDelete));
+    let mut proposal = call(
+        apollia_tools::PROFILE_PROPOSE_TOOL,
+        ActionFamily::WriteOrDelete,
+        Some("Prefers a table over prose."),
+    );
+    proposal.granted_for_run = true;
+    let write = call("file_write", ActionFamily::WriteOrDelete, None);
+
+    // WHEN the proposal and another write of the same family are decided
+    let asked = decide(&state, &proposal, NOW);
+    let allowed = decide(&state, &write, NOW);
+
+    // THEN the proposal is put to the person without "always", while the
+    // consent still covers the other write
+    assert_eq!(asked, asked_without_always());
+    assert!(matches!(allowed, AccessDecision::Allowed { .. }));
+}

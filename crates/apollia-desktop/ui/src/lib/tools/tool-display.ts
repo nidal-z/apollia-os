@@ -173,6 +173,8 @@ export const TOOL_ICONS: Record<string, SvelteComponentType> = {
   web_search: Compass,
   web_read: BookOpen,
   memory_search: Brain,
+  memory_write: Brain,
+  profile_propose: Brain,
 };
 
 /**
@@ -185,6 +187,30 @@ type ToolResolver = (
   toolCall: ToolCallView,
   icon: SvelteComponentType,
 ) => ToolDisplayInfo;
+
+function resolveMemoryWrite(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  const input = (toolCall.input ?? {}) as Record<string, unknown>;
+  const key = typeof input.key === "string" ? truncateString(input.key, 50) : "";
+  return {
+    icon,
+    labelKey: "tools.labels.memory_write",
+    descriptionKey: "tools.descriptions.memory_write",
+    templateParams: { key },
+    outputSummaryKey: "tools.outputs.memory_write",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
+
+function resolveProfilePropose(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
+  return {
+    icon,
+    labelKey: "tools.labels.profile_propose",
+    descriptionKey: "tools.descriptions.profile_propose",
+    templateParams: {},
+    outputSummaryKey: "tools.outputs.profile_propose",
+    outputParams: resolveOutputParams(toolCall),
+  };
+}
 
 function resolveFileRead(toolCall: ToolCallView, icon: SvelteComponentType): ToolDisplayInfo {
   const input = toolCall.input;
@@ -411,6 +437,8 @@ const TOOL_RESOLVERS: Record<string, ToolResolver> = {
   python_executor: resolvePythonExecutor,
   http_fetch: resolveHttpFetch,
   memory_search: resolveMemorySearch,
+  memory_write: resolveMemoryWrite,
+  profile_propose: resolveProfilePropose,
   web_search: resolveWebSearch,
   web_read: resolveWebRead,
 };

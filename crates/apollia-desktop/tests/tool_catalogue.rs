@@ -64,7 +64,16 @@ fn production_tools_fixture_matches_runtime_registration() {
         web_read_config: Default::default(),
         python_interpreter: None,
         max_output_chars: apollia_tools::executor::DEFAULT_MAX_OUTPUT_CHARS,
-        sources: apollia_tools::SourceAccess::memory_only(true),
+        // The memory and the profile checked: the tools a source grants are
+        // part of what the interface must be able to name.
+        sources: apollia_tools::SourceAccess::from_checked(
+            &[
+                apollia_sources::CheckedSource::Memory,
+                apollia_sources::CheckedSource::Profile,
+            ],
+            None,
+        )
+        .with_profile_store(std::env::temp_dir().join("user_memory.db"), "agent"),
     };
     let dispatcher = build_native_dispatcher(&cfg);
 

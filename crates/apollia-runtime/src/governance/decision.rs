@@ -12,8 +12,9 @@
 //!    simple command, in developer mode only; asked otherwise, with "always"
 //!    (which writes such a rule) only for a single simple command in
 //!    developer mode;
-//! 5. a standing consent of the agent for the family, or a grant of the run:
-//!    allowed;
+//! 5. the call proposes a fact for the profile: asked, without "always",
+//!    whatever consent stands; else a standing consent of the agent for the
+//!    family, or a grant of the run: allowed;
 //! 6. asked, with the three answers.
 //!
 //! A tool nobody classified skips line 5 and is asked without "always",
@@ -168,6 +169,12 @@ pub fn decide(state: &GovernanceState, call: &AccessCall<'_>, now: i64) -> Acces
         }
         return ask(call, &NO_ALWAYS_ANSWERS);
     };
+    // A fact proposed for the profile is put to the person every time: the
+    // profile follows them into every conversation, so no standing consent
+    // and no grant of a run covers it.
+    if call.access_id == apollia_tools::PROFILE_PROPOSE_TOOL {
+        return ask(call, &NO_ALWAYS_ANSWERS);
+    }
     let standing = state
         .consents
         .contains(&(call.agent_id.to_owned(), consent_family));

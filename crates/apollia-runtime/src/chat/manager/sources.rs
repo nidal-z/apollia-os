@@ -1,9 +1,9 @@
 //! The sources a turn may consult: those checked for the agent of the run.
 //!
 //! An agent consults a source through a tool it calls, never through its
-//! prompt (principle 6). `memory_search` is offered and registered only when
-//! the agent's memory is checked, `source_search` only when an indexable
-//! source is, bounded to those. The agent's resolved source list is read at
+//! prompt (principle 6). `memory_search` and `memory_write` are offered and
+//! registered exactly when the agent's memory is checked, whatever its access
+//! lists; `source_search` only when an indexable source is, bounded to those. The agent's resolved source list is read at
 //! every turn, so a box checked or cleared takes effect on the next message.
 
 use apollia_tools::SourceAccess;
@@ -15,14 +15,15 @@ use super::{ChatToolsConfig, APOLLIA_CHAT_AGENT_ID};
 /// wrote.
 pub(in crate::chat::manager) const APOLLIA_MEMORY_NAMESPACE: &str = "apollia";
 
-/// The memory namespace `memory_search` reads for `agent_id` in the session
-/// `session_id`: the stable space of Apollia, or the space of the session for
-/// another agent.
-pub(in crate::chat::manager) fn memory_namespace(agent_id: &str, session_id: &str) -> String {
+/// The memory namespace the memory tools read and write for `agent_id`: the
+/// space of Apollia, or the space named after the agent. One space per agent,
+/// kept across its conversations and its tasks: a note an agent keeps in one
+/// conversation is found again in the next.
+pub(in crate::chat::manager) fn memory_namespace(agent_id: &str) -> String {
     if agent_id == APOLLIA_CHAT_AGENT_ID {
         APOLLIA_MEMORY_NAMESPACE.to_owned()
     } else {
-        format!("apollia:chat:{session_id}")
+        agent_id.to_owned()
     }
 }
 
@@ -48,7 +49,13 @@ pub(in crate::chat::manager) async fn source_access(
         return SourceAccess::memory_only(memory);
     };
     match crate::agents::sources::checked_sources(&cfg.data_dir, registry, agent_id).await {
-        Ok(Some(checked)) => SourceAccess::from_checked(&checked, Some(registry)),
+        // An agent whose profile is checked may propose facts for it, each
+        // one put to the person before it is written.
+        Ok(Some(checked)) => SourceAccess::from_checked(&checked, Some(registry))
+            .with_profile_store(
+                apollia_core::paths::DataFile::UserMemory.path(&cfg.data_dir),
+                &memory_namespace(agent_id),
+            ),
         Ok(None) => SourceAccess::default(),
         Err(e) => {
             tracing::event!(
@@ -63,17 +70,21 @@ pub(in crate::chat::manager) async fn source_access(
     }
 }
 
-/// `available` without the source tools `access` leaves out, so that the
-/// model is offered no tool the dispatcher does not register.
+/// `available` as the sources `access` leave it, so that the model is offered
+/// exactly the source tools the dispatcher registers: the memory tools when
+/// the memory is checked and only then, `source_search` only when a source
+/// can be searched.
 pub(in crate::chat::manager) fn offered(
     available: Vec<String>,
     access: &SourceAccess,
 ) -> Vec<String> {
     let withheld = access.withheld_tools();
-    available
+    let kept = available
         .into_iter()
         .filter(|name| !withheld.contains(&name.as_str()))
-        .collect()
+        .collect();
+    let kept = apollia_tools::granted_with_memory(kept, access.memory);
+    apollia_tools::granted_with_profile(kept, access.profile.is_some())
 }
 
 #[cfg(test)]
