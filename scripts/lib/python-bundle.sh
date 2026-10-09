@@ -45,11 +45,38 @@ python_bundle_resolve() {
 
 # Export PYO3_PYTHON and RUSTFLAGS so cargo links against the bundle, and make
 # the bundle reachable from target/debug. Returns 1 when there is no bundle.
+# Bring the SDK a bundle carries up to the one in this tree.
+#
+# A bundle is built once and reused for weeks, and its `apollia` package is
+# the one `pip` copied that day. The packages the application ships are written
+# against the SDK of the tree: with a bundle built before an SDK change, each
+# of them fails to load on its first import ("cannot import name ... from
+# 'apollia'"). The SDK is pure Python with no dependency, so the folder is
+# copied over; nothing is downloaded. A bundle already up to date is left
+# alone.
+python_bundle_sync_sdk() {
+    local root="$1" site
+    for site in "$root/lib/python3.13/site-packages" "$root/Lib/site-packages"; do
+        [ -d "$site" ] || continue
+        if diff -rq -x __pycache__ "$PWD/sdk/apollia" "$site/apollia" >/dev/null 2>&1; then
+            continue
+        fi
+        rm -rf "$site/apollia" || return 1
+        cp -R "$PWD/sdk/apollia" "$site/apollia" || return 1
+        find "$site/apollia" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
+        echo "python bundle: SDK refreshed from sdk/apollia in $site" >&2
+    done
+}
+
 python_bundle_activate() {
     local root
     root="$(python_bundle_resolve)" || return 1
     bundle_python_env "$root" || return 1
     bundle_python_link_dev "$root" "$PWD/target/debug/python" || return 1
+    python_bundle_sync_sdk "$root" || return 1
+    if [ -d "$PWD/target/debug/python" ] && [ ! "$root" -ef "$PWD/target/debug/python" ]; then
+        python_bundle_sync_sdk "$PWD/target/debug/python" || return 1
+    fi
     export PYO3_PYTHON="$BUNDLE_PY"
     # The bundle is relocatable but its sysconfig still names its build path,
     # so PyO3 emits `-L /install/lib` and the link fails on "library
