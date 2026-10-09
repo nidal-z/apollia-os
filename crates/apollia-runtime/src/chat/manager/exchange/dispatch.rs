@@ -59,13 +59,7 @@ impl ChatSessionManager {
                 .saturating_sub(usize::from(answer_prefill.is_some()));
             let is_first_message = session.history.len() == 1;
             let history: Vec<ChatMessage> = session.history[..answered.saturating_sub(1)].to_vec();
-            // The conversation that creates an agent: a free chat created with
-            // the draft tool in its list. It drafts and does nothing else, so
-            // it never plans.
-            let agent_draft = declarative.is_none()
-                && session.mode == ChatMode::Libre
-                && crate::chat::agent_draft_tool::is_draft_session(&session.available_tools);
-            let session_plan_mode = session.plan_mode && !agent_draft;
+            let session_plan_mode = session.plan_mode;
             let turn_id = session
                 .active_exchange
                 .as_ref()
@@ -82,10 +76,7 @@ impl ChatSessionManager {
             };
             // A declarative agent is isolated as the companion is: no
             // principle 6 injection, no prefix rule of Apollia.
-            // So is the conversation that creates an agent: it describes an
-            // agent, not the person.
-            let is_companion =
-                session.mode == ChatMode::Companion || declarative.is_some() || agent_draft;
+            let is_companion = session.mode == ChatMode::Companion || declarative.is_some();
             // The principle 6 injections gathered here (the profile of the
             // conversation while its switch is on, and the past sessions block
             // on the first message) are made by the executor for the Apollia
@@ -126,9 +117,6 @@ impl ChatSessionManager {
             // default.
             let available_tools = match &declarative {
                 Some(agent) => apollia_tools::AgentAccess::of(agent),
-                // The draft tool belongs to the loop; no access is offered
-                // beside it.
-                None if agent_draft => apollia_tools::AgentAccess::Listed(Vec::new()),
                 None => {
                     super::super::apollia_agent::apollia_access(self.governance_db_path.as_deref())
                         .unwrap_or_else(|| {
@@ -234,8 +222,7 @@ impl ChatSessionManager {
                 run_id: run_id.clone(),
                 user_msg,
                 tx,
-                // A draft keeps no task list.
-                todo: self.todo_handle.clone().filter(|_| !agent_draft),
+                todo: self.todo_handle.clone(),
                 plan: self.plan_handle.clone(),
                 session_plan_mode,
                 session_plan_phase,
@@ -246,7 +233,6 @@ impl ChatSessionManager {
                 preferred_backend,
                 turn_id,
                 turn_images,
-                agent_draft,
             }));
         }
 

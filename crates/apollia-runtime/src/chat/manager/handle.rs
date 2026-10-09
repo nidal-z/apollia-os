@@ -419,6 +419,20 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// What the draft of an agent may hold: the accesses, the sources and
+    /// the models that exist on the machine now.
+    pub async fn agent_draft_offer(&self) -> Result<crate::agents::draft::DraftOffer, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::AgentDraftOffer { reply: reply_tx })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))
+    }
+
     /// List all currently pending `ask_user` requests.
     pub async fn list_pending_user_inputs(&self) -> Result<Vec<PendingUserInputView>, ChatError> {
         let (reply_tx, reply_rx) = oneshot::channel();

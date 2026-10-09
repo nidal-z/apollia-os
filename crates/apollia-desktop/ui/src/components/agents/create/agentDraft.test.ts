@@ -1,18 +1,26 @@
 import { describe, test, expect, vi } from "vitest";
 import type { ResolvedAgent } from "$lib/ipc/agentSheet";
-import type { ChatMessageView, ToolCallView } from "$lib/types";
+import type { DraftOffer } from "$lib/ipc/agentCreate";
+import type { PendingDecision } from "$lib/ipc/pendingDecisions";
+import type { WorkflowStep } from "$lib/ipc/workflows";
 import type { ModelOption } from "../sheet/agentAdjust";
 import {
-  AGENT_DRAFT_TOOL,
-  DRAFT_SESSION_REQUEST,
+  WORKSHOP_WORKFLOW,
+  canPrepare,
   canSave,
-  draftFields,
-  extractDraft,
+  draftOfChecked,
+  emptyForm,
+  offeredRights,
+  questionOf,
   reviewOf,
   saveDraft,
   sheetOf,
+  sheetOfRun,
+  stepViews,
   unavailableViews,
+  workshopInputs,
   type ProposedAgent,
+  type WorkshopForm,
 } from "./agentDraft";
 
 function proposed(over: Partial<ProposedAgent> = {}): ProposedAgent {
@@ -32,28 +40,41 @@ function proposed(over: Partial<ProposedAgent> = {}): ProposedAgent {
   };
 }
 
-function call(
-  output: unknown,
-  status: ToolCallView["status"] = "executed",
-  tool = AGENT_DRAFT_TOOL,
-): ToolCallView {
-  return {
-    tool_name: tool,
-    input: {},
-    output: typeof output === "string" ? output : JSON.stringify(output),
-    status,
-  };
+const OFFER: DraftOffer = {
+  accesses: [
+    { id: "file_read", description: "Read a file.", family: "read", sensitive: false, by_default: true },
+    { id: "mail_send", description: "Send a mail.", family: "send_external", sensitive: true, by_default: false },
+    { id: "file_write", description: "Write a file.", family: "write_or_delete", sensitive: true, by_default: false },
+  ],
+  sources: [
+    { id: "profile", label: "the profile of the person" },
+    { id: "src-notes", label: "Notes" },
+  ],
+  models: ["qwen"],
+};
+
+function filled(over: Partial<WorkshopForm> = {}): WorkshopForm {
+  return { ...emptyForm(), purpose: "Read the quotes of suppliers.", ...over };
 }
 
-function message(seq: number, calls: ToolCallView[] | null, content = ""): ChatMessageView {
+function step(name: string, status: WorkflowStep["status"], rank = 0): WorkflowStep {
+  return { rank, name, status, startedAt: null, endedAt: null, output: null, error: null };
+}
+
+function decision(over: Partial<PendingDecision> = {}): PendingDecision {
   return {
-    id: `m${seq}`,
-    role: "assistant",
-    content,
-    tool_calls: calls,
-    tool_name: null,
-    seq,
-    created_at: "2026-10-05T00:00:00Z",
+    id: "workflow-question:r1",
+    kind: "question",
+    agentId: null,
+    summary: "Which form?",
+    access: null,
+    family: null,
+    answers: ["answer", "refuse"],
+    questions: [{ id: "answer", question: "Which form?", type: "single_choice", options: ["A table", "A list"] }],
+    allowOther: true,
+    origin: { requestId: "r1", runId: "run-1", workflowId: WORKSHOP_WORKFLOW, step: "ask" },
+    askedAt: null,
+    ...over,
   };
 }
 
@@ -82,151 +103,183 @@ function created(over: Partial<ResolvedAgent> = {}): ResolvedAgent {
   };
 }
 
-describe("the conversation that drafts an agent", () => {
-  test("it is a conversation with Apollia whose tool list names the draft tool", () => {
-    // GIVEN the request the Agents screen sends
-    // WHEN it is read
-    // THEN it asks for a free conversation offering the draft tool alone
-    expect(DRAFT_SESSION_REQUEST).toEqual({ mode: "libre", tools: ["propose_agent"] });
+describe("the form the workshop is launched on", () => {
+  test("only what the agent is for is needed to launch", () => {
+    // GIVEN an empty form, one with blanks, and one saying what the agent is for
+    // WHEN asking whether each can be launched
+    // THEN only the last one can
+    expect(canPrepare(emptyForm())).toBe(false);
+    expect(canPrepare(filled({ purpose: "   " }))).toBe(false);
+    expect(canPrepare(filled())).toBe(true);
+  });
+
+  test("the rights offered are the families a tool of the machine belongs to", () => {
+    // GIVEN a machine holding a reading, a sending and a writing tool
+    // WHEN the rights of the form are read, then those of a machine that says nothing
+    // THEN sending and writing are offered, in the fixed order, and nothing without an offer
+    expect(offeredRights(OFFER)).toEqual(["write_or_delete", "send_external"]);
+    expect(offeredRights(null)).toEqual([]);
+  });
+
+  test("the inputs carry the filled fields, the language and what the machine holds", () => {
+    // GIVEN a form with a result, a blank rule, a source and a right that exist,
+    // and a source and a right the machine no longer offers
+    const form = filled({
+      purpose: "  Read the quotes of suppliers. ",
+      result: "A table.",
+      rules: "   ",
+      sources: ["src-notes", "src-gone"],
+      rights: ["send_external", "execute_code"],
+    });
+
+    // WHEN the inputs of the launch are built, the interface in French
+    const inputs = workshopInputs(form, OFFER, "fr-FR");
+
+    // THEN the blank field is left out, what the machine lacks too, and the
+    // offer goes as JSON without the models
+    expect(inputs).toEqual({
+      purpose: "Read the quotes of suppliers.",
+      result: "A table.",
+      sources: ["src-notes"],
+      rights: ["send_external"],
+      language: "fr",
+      offer: JSON.stringify({ accesses: OFFER.accesses, sources: OFFER.sources }),
+    });
+  });
+
+  test("without an offer the launch carries the text and the language only", () => {
+    // GIVEN a form with a source checked, on a machine that could not say what it holds
+    // WHEN the inputs are built, the language unknown
+    const inputs = workshopInputs(filled({ sources: ["profile"] }), null, null);
+
+    // THEN no source, no right and no offer are sent, and the language is English
+    expect(inputs).toEqual({ purpose: "Read the quotes of suppliers.", language: "en" });
   });
 });
 
-describe("extractDraft - the draft is read in the conversation", () => {
-  test("a conversation where Apollia has not proposed holds no draft", () => {
-    // GIVEN an exchange of plain messages
-    const messages = [message(1, null, "Hello"), message(2, [], "What is it for?")];
-
-    // WHEN the draft is looked for
-    // THEN there is none
-    expect(extractDraft(messages)).toBeNull();
-  });
-
-  test("the draft is the output of the tool call, with its six fields", () => {
-    // GIVEN a message whose call answered with a draft
-    const messages = [message(1, [call({ ok: true, draft: proposed() })], "Here is a draft.")];
-
-    // WHEN the draft is read
-    const draft = extractDraft(messages);
-
-    // THEN it carries the structured sheet
-    expect(draft).toEqual(proposed());
-  });
-
-  test("the latest draft wins over an earlier one", () => {
-    // GIVEN two proposals in the same conversation
-    const messages = [
-      message(1, [call({ ok: true, draft: proposed({ name: "First" }) })]),
-      message(2, null, "Call it otherwise"),
-      message(3, [call({ ok: true, draft: proposed({ name: "Second" }) })]),
-    ];
-
-    // WHEN the draft is read
-    // THEN it is the last one
-    expect(extractDraft(messages)?.name).toBe("Second");
-  });
-
-  test("a call that failed, another tool and an unreadable output propose nothing", () => {
-    // GIVEN a failed call, a call of another tool, and outputs that are no draft
-    const messages = [
-      message(1, [call({ ok: true, draft: proposed() }, "failed")]),
-      message(2, [call({ ok: true, draft: proposed() }, "executed", "web_search")]),
-      message(3, [call("not json")]),
-      message(4, [call({ ok: false, error: "invalid payload" })]),
-      message(5, [call({ ok: true, draft: { name: "No mission" } })]),
-    ];
-
-    // WHEN the draft is looked for
-    // THEN there is none
-    expect(extractDraft(messages)).toBeNull();
-  });
-
-  test("a sensitive access is never read as checked, whatever the answer says", () => {
-    // GIVEN an answer that marks a sensitive access as checked
-    const answer = {
-      ok: true,
-      draft: proposed({
-        access: [{ id: "mail_send", checked: true, sensitive: true, by_default: false }],
-      }),
+describe("what the workshop hands back", () => {
+  test("the output of a finished run is read as a sheet", () => {
+    // GIVEN the output of a run, with fields a sheet does not hold
+    const output = {
+      name: "Quote reader",
+      mission: "You read quotes.",
+      examples: ["Compare these."],
+      access: ["web_search", 3],
+      sources: ["profile"],
+      answers: [{ question: "Which form?", answer: "A table" }],
     };
 
-    // WHEN the draft is read
-    const draft = extractDraft([message(1, [call(answer)])]);
+    // WHEN it is read, as an object then as the text of that object
+    const sheet = sheetOfRun(output);
 
-    // THEN the access is listed, unchecked
+    // THEN the sheet holds the five fields the runtime checks, and nothing else
+    expect(sheet).toEqual({
+      name: "Quote reader",
+      mission: "You read quotes.",
+      examples: ["Compare these."],
+      access: ["web_search"],
+      sources: ["profile"],
+    });
+    expect(sheetOfRun(JSON.stringify(output))).toEqual(sheet);
+  });
+
+  test("an output without a name or a mission is not a sheet", () => {
+    // GIVEN outputs that are nothing, not JSON, a list, or a sheet with a blank mission
+    // WHEN each is read
+    // THEN none is a sheet
+    for (const output of [null, "not json", [], { name: "Quotes" }, { name: "Quotes", mission: "  " }]) {
+      expect(sheetOfRun(output)).toBeNull();
+    }
+  });
+
+  test("a checked sheet is read as a draft, a sensitive access never checked by the sheet", () => {
+    // GIVEN the answer of the runtime, one sensitive access marked checked
+    // without the default granting it
+    const checked = {
+      name: "Quotes",
+      mission: "Read the quotes.",
+      examples: [],
+      model: "",
+      access: [
+        { id: "mail_send", checked: true, sensitive: true, by_default: false },
+        { id: "file_read", checked: true, sensitive: false, by_default: true },
+        { checked: true },
+      ],
+      sources: ["profile"],
+      unavailable: ["source:src-gone"],
+    };
+
+    // WHEN it is read
+    const draft = draftOfChecked(checked);
+
+    // THEN the sensitive access is unchecked, the nameless one dropped, the
+    // empty model read as the default
     expect(draft?.access).toEqual([
       { id: "mail_send", checked: false, sensitive: true, by_default: false },
+      { id: "file_read", checked: true, sensitive: false, by_default: true },
     ]);
-  });
-
-  test("a sensitive access the default access grants opens checked, and is sent", () => {
-    // GIVEN an answer where the runtime marks a sensitive access as a default
-    const answer = {
-      ok: true,
-      draft: proposed({
-        access: [
-          { id: "file_write", checked: true, sensitive: true, by_default: true },
-          { id: "mail_send", checked: true, sensitive: true, by_default: false },
-        ],
-      }),
-    };
-
-    // WHEN the draft is read and its form opened
-    const draft = extractDraft([message(1, [call(answer)])]);
-    const review = reviewOf(draft, []);
-
-    // THEN the default one is checked and still marked sensitive, the other
-    // one stays the choice of the person, and the sheet sends the first alone
-    expect(draft?.access.map((a) => [a.id, a.checked])).toEqual([
-      ["file_write", true],
-      ["mail_send", false],
-    ]);
-    expect(review.checked).toEqual(["file_write"]);
-    expect(review.notes).toEqual({ file_write: "sensitive", mail_send: "sensitive" });
-    expect(sheetOf(review.name, review.form).access).toEqual(["file_write"]);
+    expect(draft?.model).toBeNull();
+    expect(draft?.unavailable).toEqual(["source:src-gone"]);
+    expect(draftOfChecked({ name: "Quotes" })).toBeNull();
   });
 });
 
-describe("draftFields - the draft beside the conversation", () => {
-  test("before the first proposal every field is to come", () => {
-    // GIVEN no draft and a conversation at rest
-    // WHEN the fields are read
-    const fields = draftFields(null, false);
+describe("the run, while it goes on", () => {
+  test("before the run reports anything, the first step is in progress", () => {
+    // GIVEN a run that reported no step
+    // WHEN its steps are shown
+    // THEN the first is in progress and the others are to come
+    expect(stepViews([]).map((v) => v.state)).toEqual(["current", "upcoming", "upcoming"]);
+  });
 
-    // THEN the six fields of a sheet are listed, none filled
-    expect(fields.map((f) => f.field)).toEqual([
-      "name",
-      "mission",
-      "examples",
-      "model",
-      "access",
-      "sources",
+  test("a step done is marked, the next one is in progress", () => {
+    // GIVEN a run whose first step is done and second running
+    const steps = [step("understand", "completed"), step("ask", "running", 1), step("write", "pending", 2)];
+
+    // WHEN its steps are shown
+    // THEN they read done, in progress, to come
+    expect(stepViews(steps)).toEqual([
+      { step: "understand", state: "done" },
+      { step: "ask", state: "current" },
+      { step: "write", state: "upcoming" },
     ]);
-    expect(fields.every((f) => f.state === "upcoming")).toBe(true);
   });
 
-  test("while Apollia answers, the first field still empty is being written", () => {
-    // GIVEN no draft and Apollia answering
-    // WHEN the fields are read
-    const states = draftFields(null, true).map((f) => f.state);
-
-    // THEN the name is being written and the rest is to come
-    expect(states).toEqual(["writing", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming"]);
+  test("a step that failed says so", () => {
+    // GIVEN a run whose first step failed
+    // WHEN its steps are shown
+    // THEN the first reads failed
+    expect(stepViews([step("understand", "failed")])[0].state).toBe("failed");
   });
 
-  test("a draft fills its fields, and a draft without a model follows the default", () => {
-    // GIVEN a draft that names no model and no example
-    const draft = proposed({ examples: [], model: null });
+  test("the question shown is the one the run waits on", () => {
+    // GIVEN the decisions waiting for the user: a consent, the question of
+    // another run, and the question of this run
+    const decisions = [
+      decision({ id: "consent:1", kind: "consent", origin: { sessionId: "s1" } }),
+      decision({ id: "workflow-question:other", origin: { runId: "run-2" } }),
+      decision(),
+    ];
 
-    // WHEN the fields are read at rest
-    const fields = draftFields(draft, false);
-    const byField = Object.fromEntries(fields.map((f) => [f.field, f]));
+    // WHEN the question of the run is read
+    const question = questionOf(decisions, "run-1");
 
-    // THEN every field it holds is filled, the model as the default one
-    expect(byField.name).toMatchObject({ state: "filled", lines: ["Press watch"] });
-    expect(byField.examples.state).toBe("upcoming");
-    expect(byField.model).toMatchObject({ state: "filled", lines: [], defaultModel: true });
-    expect(byField.access.lines).toEqual(["notes_lookup", "mail_send", "web_search"]);
-    expect(byField.sources.lines).toEqual(["profile"]);
+    // THEN it is the question of this run, with its proposed answers
+    expect(question).toEqual({ id: "workflow-question:r1", question: "Which form?", options: ["A table", "A list"] });
+    expect(questionOf(decisions, "run-3")).toBeNull();
+  });
+
+  test("a question without choices is asked open, by its summary when it has no text", () => {
+    // GIVEN a waiting question whose payload holds nothing
+    const waiting = decision({ questions: null, summary: "How do you want it?" });
+
+    // WHEN it is read
+    // THEN the summary is the question, with no proposed answer
+    expect(questionOf([waiting], "run-1")).toEqual({
+      id: "workflow-question:r1",
+      question: "How do you want it?",
+      options: [],
+    });
   });
 });
 
@@ -297,9 +350,8 @@ describe("saveDraft - nothing is written before the form is saved", () => {
     // GIVEN the effects of a save
     const effects = { create: vi.fn(), setModel: vi.fn() };
 
-    // WHEN the draft is read, shown and opened in the form
-    const draft = extractDraft([message(1, [call({ ok: true, draft: proposed() })])]);
-    draftFields(draft, false);
+    // WHEN a checked sheet is read and opened in the form
+    const draft = draftOfChecked(proposed());
     reviewOf(draft, OPTIONS);
 
     // THEN nothing was written

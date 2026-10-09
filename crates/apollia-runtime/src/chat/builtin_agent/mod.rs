@@ -38,7 +38,6 @@ use super::types::{
     ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, InjectedInstruction,
     PendingChatApprovals, PlanPhase, ToolCallRecord, ToolCallStatus, ToolDecision, TurnOutcome,
 };
-use crate::chat::agent_draft_tool::{agent_draft_spec, DraftOffer, AGENT_DRAFT_TOOL_NAME};
 use crate::chat::plan_actor::PlanHandle;
 use crate::chat::plan_tool::{
     self, PLAN_ADD_STEP_TOOL_NAME, PLAN_MODIFY_STEP_TOOL_NAME, PLAN_PROPOSE_TOOL_NAME,
@@ -57,7 +56,6 @@ mod builder;
 mod call_journal;
 mod catalog;
 mod context_window;
-mod draft;
 mod governed;
 mod helpers;
 mod hitl;
@@ -295,9 +293,6 @@ pub struct BuiltInChatAgent {
     todo: Option<TodoHandle>,
     /// Optional per-session plan store. `None` disables the `plan_*` tools.
     plan: Option<PlanHandle>,
-    /// What a draft of an agent may hold. `Some` only in the conversation
-    /// that creates an agent, where it enables the `propose_agent` tool.
-    agent_draft: Option<DraftOffer>,
     /// Whether the owning session has plan mode enabled.
     ///
     /// This is the real gate consulted by [`plan_mode_active`](Self::plan_mode_active):

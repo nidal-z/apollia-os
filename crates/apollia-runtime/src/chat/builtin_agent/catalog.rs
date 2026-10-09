@@ -57,9 +57,6 @@ impl BuiltInChatAgent {
         if self.todo.is_some() {
             specs.push(todo_write_spec());
         }
-        if self.agent_draft.is_some() {
-            specs.push(agent_draft_spec());
-        }
         // Phase-aware: once a plan is approved the proposal tools are withheld
         // so the agent executes the approved plan instead of re-proposing it.
         if self.plan_mode_active() {

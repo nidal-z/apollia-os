@@ -15,6 +15,7 @@ from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
 from .added_permission_rule import AddedPermissionRule
 from .advance_phase_body import AdvancePhaseBody
+from .agent_draft import AgentDraft
 from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
@@ -157,6 +158,8 @@ from .dictation_models_response_reason_type_0 import DictationModelsResponseReas
 from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .document_attachment import DocumentAttachment
+from .draft_access import DraftAccess
+from .draft_offer import DraftOffer
 from .drive_folder_status import DriveFolderStatus
 from .edit_answer_request import EditAnswerRequest
 from .embedding_default_response import EmbeddingDefaultResponse
@@ -337,6 +340,8 @@ from .oauth_client_test_result import OauthClientTestResult
 from .oauth_client_value_body import OauthClientValueBody
 from .oauth_client_written import OauthClientWritten
 from .observability_settings import ObservabilitySettings
+from .offered_access import OfferedAccess
+from .offered_source import OfferedSource
 from .ok_response import OkResponse
 from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
@@ -402,6 +407,7 @@ from .profile_update_fields import ProfileUpdateFields
 from .project_outcome import ProjectOutcome
 from .prompt_template_source import PromptTemplateSource
 from .proposed_rule_view import ProposedRuleView
+from .proposed_sheet import ProposedSheet
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .python_interpreter_request import PythonInterpreterRequest
@@ -622,6 +628,7 @@ __all__ = (
     "AddFolderBody",
     "AddPermissionRuleBody",
     "AdvancePhaseBody",
+    "AgentDraft",
     "AgentListResponse",
     "AgentMessageDto",
     "AgentMessageDtoPayload",
@@ -764,6 +771,8 @@ __all__ = (
     "DirectoryRemoved",
     "DismissedProposal",
     "DocumentAttachment",
+    "DraftAccess",
+    "DraftOffer",
     "DriveFolderStatus",
     "EditAnswerRequest",
     "EmbeddingDefaultResponse",
@@ -944,6 +953,8 @@ __all__ = (
     "OauthClientValueBody",
     "OauthClientWritten",
     "ObservabilitySettings",
+    "OfferedAccess",
+    "OfferedSource",
     "OkResponse",
     "OnboardingDismissed",
     "OnboardingFinalized",
@@ -1007,6 +1018,7 @@ __all__ = (
     "ProjectOutcome",
     "PromptTemplateSource",
     "ProposedRuleView",
+    "ProposedSheet",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
     "PythonInterpreterRequest",

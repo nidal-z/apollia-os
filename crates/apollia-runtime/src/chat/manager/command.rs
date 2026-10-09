@@ -451,6 +451,12 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Read what the draft of an agent may hold: the accesses, the sources
+    /// and the models that exist on the machine.
+    AgentDraftOffer {
+        /// Response channel.
+        reply: oneshot::Sender<crate::agents::draft::DraftOffer>,
+    },
     /// List all currently pending `ask_user` requests (for inbox / reconnection).
     ListPendingUserInputs {
         /// Response channel.

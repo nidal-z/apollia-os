@@ -21,9 +21,10 @@ agent. Apollia runs every agent with the same engine.
 
 You get an agent in three ways, all from the Agents screen:
 
-- **Create one by describing it.** "Create an agent" opens a conversation:
-  you say what the agent should do, Apollia drafts its sheet, and you read and
-  correct it before it is created.
+- **Create one by describing it.** "Create an agent" opens a short form: you
+  say what the agent is for, Apollia asks a question or two about what is
+  missing and writes its sheet, and you read and correct it before it is
+  created.
 - **Install a package** someone sent you, or one of the examples the screen
   proposes.
 - **Adjust an existing agent** on its sheet. Your adjustments are kept when

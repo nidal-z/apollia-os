@@ -252,8 +252,6 @@ mod types;
 mod user_input;
 
 #[cfg(test)]
-mod agent_draft_tests;
-#[cfg(test)]
 mod answers_tests;
 #[cfg(test)]
 mod documents_tests;

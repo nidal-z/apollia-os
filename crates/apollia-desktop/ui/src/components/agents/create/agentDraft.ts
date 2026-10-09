@@ -1,17 +1,20 @@
 /**
- * The draft of an agent, between the conversation that writes it and the
- * form the person reads it over in.
+ * The draft of an agent, between the form that asks for it and the form the
+ * person reads it over in.
  *
- * In the conversation "Create an agent" opens, the Apollia agent calls its
- * tool `propose_agent`, which answers with a draft and stores nothing. The
- * draft stays in the conversation as the output of that call. These helpers
- * read it there, lay it over the form of an agent sheet, and say what a save
- * sends. Kept out of the Svelte components so the decisions run under Vitest
- * (node environment). Nothing here calls the runtime.
+ * "Create an agent" opens a short form. The agent workshop, a workflow shipped
+ * with Apollia, takes the form with what the machine holds, asks the person
+ * what the form leaves unsaid, and hands a sheet back. The runtime checks
+ * that sheet, and the draft it answers opens in the form of an agent sheet.
+ * These helpers build what the workshop is launched on, read what it hands
+ * back, and say what a save sends. Kept out of the Svelte components so the
+ * decisions run under Vitest (node environment). Nothing here calls the
+ * runtime.
  */
-import type { AgentSheetDraft } from "$lib/ipc/agentCreate";
+import type { AgentSheetDraft, DraftOffer, ProposedSheet } from "$lib/ipc/agentCreate";
 import type { ResolvedAgent } from "$lib/ipc/agentSheet";
-import type { ChatMessageView, CreateSessionRequest } from "$lib/types";
+import type { PendingDecision } from "$lib/ipc/pendingDecisions";
+import type { WorkflowStep } from "$lib/ipc/workflows";
 import {
   chooseModel,
   cleanExamples,
@@ -20,17 +23,8 @@ import {
   type ModelOption,
 } from "../sheet/agentAdjust";
 
-/** The tool of the Apollia agent that drafts a sheet, as the runtime names it. */
-export const AGENT_DRAFT_TOOL = "propose_agent";
-
-/**
- * The conversation that drafts an agent: a conversation with Apollia whose
- * tool list names the draft tool, which is how the runtime recognises it.
- */
-export const DRAFT_SESSION_REQUEST: CreateSessionRequest = {
-  mode: "libre",
-  tools: [AGENT_DRAFT_TOOL],
-};
+/** The workflow of the agent workshop, as `<package>/<workflow>`. */
+export const WORKSHOP_WORKFLOW = "agent-builder/draft";
 
 /** One access of a draft. */
 export interface ProposedAccess {
@@ -45,7 +39,7 @@ export interface ProposedAccess {
   by_default: boolean;
 }
 
-/** The draft of an agent, as `propose_agent` answers it. */
+/** The draft of an agent, as the runtime answers it once a sheet is checked. */
 export interface ProposedAgent {
   name: string;
   mission: string;
@@ -58,10 +52,104 @@ export interface ProposedAgent {
   unavailable: string[];
 }
 
-// ── Reading the draft in the conversation ────────────────────────────────
+// ── The form the workshop is launched on ─────────────────────────────────
+
+/** The form of the creation, as the person fills it. */
+export interface WorkshopForm {
+  /** What the agent is for; the one field a launch needs. */
+  purpose: string;
+  /** What it must give back, and in what form. */
+  result: string;
+  /** What it must always or never do. */
+  rules: string;
+  /** Requests it will receive, one per line. */
+  examples: string;
+  /** The sources checked. */
+  sources: string[];
+  /** The action families checked beyond plain reading. */
+  rights: string[];
+}
+
+/** An empty form. */
+export function emptyForm(): WorkshopForm {
+  return { purpose: "", result: "", rules: "", examples: "", sources: [], rights: [] };
+}
+
+/** Whether the form holds what a launch needs: what the agent is for. */
+export function canPrepare(form: WorkshopForm): boolean {
+  return form.purpose.trim().length > 0;
+}
+
+/**
+ * The action families the form offers beyond plain reading, in a fixed
+ * order: only those a tool of the machine belongs to, so a box never grants
+ * nothing.
+ */
+export const RIGHT_FAMILIES = ["read_personal", "write_or_delete", "send_external", "execute_code"] as const;
+export type RightFamily = (typeof RIGHT_FAMILIES)[number];
+
+export function offeredRights(offer: DraftOffer | null): RightFamily[] {
+  const held = new Set((offer?.accesses ?? []).map((a) => a.family));
+  return RIGHT_FAMILIES.filter((family) => held.has(family));
+}
+
+/**
+ * The inputs the workshop is launched on: the fields the person filled, the
+ * empty ones left out, the language of the interface, and what the machine
+ * holds, as JSON. A source or a right the machine no longer offers is left
+ * out.
+ */
+export function workshopInputs(
+  form: WorkshopForm,
+  offer: DraftOffer | null,
+  locale: string | null | undefined,
+): Record<string, unknown> {
+  const inputs: Record<string, unknown> = { purpose: form.purpose.trim() };
+  for (const field of ["result", "rules", "examples"] as const) {
+    const text = form[field].trim();
+    if (text) inputs[field] = text;
+  }
+  const held = new Set((offer?.sources ?? []).map((s) => s.id));
+  const sources = form.sources.filter((id) => held.has(id));
+  if (sources.length > 0) inputs.sources = sources;
+  const offered: readonly string[] = offeredRights(offer);
+  const rights = form.rights.filter((family) => offered.includes(family));
+  if (rights.length > 0) inputs.rights = rights;
+  inputs.language = (locale ?? "").toLowerCase().startsWith("fr") ? "fr" : "en";
+  if (offer) inputs.offer = JSON.stringify({ accesses: offer.accesses, sources: offer.sources });
+  return inputs;
+}
+
+// ── What the workshop hands back ─────────────────────────────────────────
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
+/**
+ * The sheet a finished run hands back, as the runtime is asked to check it;
+ * `null` when the output is not a sheet with a name and a mission.
+ */
+export function sheetOfRun(output: unknown): ProposedSheet | null {
+  let read = output;
+  if (typeof read === "string") {
+    try {
+      read = JSON.parse(read);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof read !== "object" || read === null || Array.isArray(read)) return null;
+  const raw = read as Record<string, unknown>;
+  if (typeof raw.name !== "string" || typeof raw.mission !== "string") return null;
+  if (raw.name.trim().length === 0 || raw.mission.trim().length === 0) return null;
+  return {
+    name: raw.name,
+    mission: raw.mission,
+    examples: strings(raw.examples),
+    access: strings(raw.access),
+    sources: strings(raw.sources),
+  };
 }
 
 function accessOf(value: unknown): ProposedAccess[] {
@@ -76,7 +164,7 @@ function accessOf(value: unknown): ProposedAccess[] {
     out.push({
       id: raw.id,
       // A sensitive access reads as checked only when the default access
-      // grants it: the runtime sets that mark, never the conversation.
+      // grants it: the runtime sets that mark, never the sheet.
       checked: raw.checked === true && (!sensitive || byDefault),
       sensitive,
       by_default: byDefault,
@@ -85,18 +173,10 @@ function accessOf(value: unknown): ProposedAccess[] {
   return out;
 }
 
-function draftOf(output: string | null): ProposedAgent | null {
-  if (!output) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(output);
-  } catch {
-    return null;
-  }
-  if (typeof parsed !== "object" || parsed === null) return null;
-  const raw = (parsed as { draft?: unknown }).draft;
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
-  const draft = raw as Record<string, unknown>;
+/** The draft the runtime answers for a checked sheet; `null` when it is not one. */
+export function draftOfChecked(checked: unknown): ProposedAgent | null {
+  if (typeof checked !== "object" || checked === null || Array.isArray(checked)) return null;
+  const draft = checked as Record<string, unknown>;
   if (typeof draft.name !== "string" || typeof draft.mission !== "string") return null;
   return {
     name: draft.name,
@@ -109,77 +189,63 @@ function draftOf(output: string | null): ProposedAgent | null {
   };
 }
 
-/**
- * The latest draft of a conversation, or `null` when Apollia has not
- * proposed yet. Only a call that ran counts: a failed call proposes nothing.
- */
-export function extractDraft(messages: ChatMessageView[]): ProposedAgent | null {
-  for (let m = messages.length - 1; m >= 0; m -= 1) {
-    const calls = messages[m].tool_calls ?? [];
-    for (let c = calls.length - 1; c >= 0; c -= 1) {
-      const call = calls[c];
-      if (call.tool_name !== AGENT_DRAFT_TOOL || call.status !== "executed") continue;
-      const draft = draftOf(call.output);
-      if (draft) return draft;
-    }
-  }
-  return null;
-}
+// ── The run, while it goes on ────────────────────────────────────────────
 
-// ── The draft beside the conversation ────────────────────────────────────
+/** The steps of the workshop, in the order they run. */
+export const WORKSHOP_STEPS = ["understand", "ask", "write"] as const;
+export type WorkshopStep = (typeof WORKSHOP_STEPS)[number];
 
-/** The fields of a sheet, in the order the draft shows them. */
-export const DRAFT_FIELDS = ["name", "mission", "examples", "model", "access", "sources"] as const;
-export type DraftField = (typeof DRAFT_FIELDS)[number];
+/** Where a step of the run stands, as the progress shows it. */
+export type StepState = "done" | "current" | "upcoming" | "failed";
 
-/** Where a field of the draft stands while the conversation goes on. */
-export type DraftFieldState = "filled" | "writing" | "upcoming";
-
-/** One field of the draft, as shown beside the conversation. */
-export interface DraftFieldView {
-  field: DraftField;
-  state: DraftFieldState;
-  /** The lines the field holds; empty until it is filled. */
-  lines: string[];
-  /** The model field only: the draft follows the default model. */
-  defaultModel: boolean;
-}
-
-function fieldLines(draft: ProposedAgent, field: DraftField): string[] {
-  switch (field) {
-    case "name":
-      return draft.name.trim() ? [draft.name.trim()] : [];
-    case "mission":
-      return draft.mission.trim() ? [draft.mission.trim()] : [];
-    case "examples":
-      return cleanExamples(draft.examples);
-    case "model":
-      return draft.model ? [draft.model] : [];
-    case "access":
-      return draft.access.map((a) => a.id);
-    case "sources":
-      return draft.sources;
-  }
+/** One step of the run, as shown while the workshop works. */
+export interface StepView {
+  step: WorkshopStep;
+  state: StepState;
 }
 
 /**
- * The fields of the draft, each filled, being written or still to come.
- * Before the first proposal every field is to come, the first one being
- * written while Apollia answers. Once a draft exists the model is always
- * filled: with no model named, it follows the default.
+ * The three steps, each done, in progress, still to come or failed. Before
+ * the run reports anything, the first one is in progress.
  */
-export function draftFields(draft: ProposedAgent | null, answering: boolean): DraftFieldView[] {
-  let writingGiven = false;
-  return DRAFT_FIELDS.map((field) => {
-    const lines = draft ? fieldLines(draft, field) : [];
-    const defaultModel = field === "model" && draft !== null && draft.model === null;
-    if (lines.length > 0 || defaultModel) return { field, state: "filled", lines, defaultModel };
-    if (answering && !writingGiven) {
-      writingGiven = true;
-      return { field, state: "writing", lines, defaultModel };
+export function stepViews(steps: WorkflowStep[]): StepView[] {
+  const byName = new Map(steps.map((s) => [s.name, s.status]));
+  let currentGiven = false;
+  return WORKSHOP_STEPS.map((step) => {
+    const status = byName.get(step);
+    if (status === "completed") return { step, state: "done" };
+    if (status === "failed" || status === "canceled") return { step, state: "failed" };
+    if (!currentGiven) {
+      currentGiven = true;
+      return { step, state: "current" };
     }
-    return { field, state: "upcoming", lines, defaultModel };
+    return { step, state: "upcoming" };
   });
+}
+
+/** The question the run waits on, as the creation shows it. */
+export interface WorkshopQuestion {
+  /** Identifier the answer is sent by. */
+  id: string;
+  question: string;
+  /** The proposed answers; empty for a free answer only. */
+  options: string[];
+}
+
+/**
+ * The question the run `runId` waits on, among the decisions waiting for the
+ * user; `null` when it waits on none.
+ */
+export function questionOf(decisions: PendingDecision[], runId: string): WorkshopQuestion | null {
+  const waiting = decisions.find((d) => d.kind === "question" && d.origin.runId === runId);
+  if (!waiting) return null;
+  const first = Array.isArray(waiting.questions) ? (waiting.questions[0] as unknown) : null;
+  const raw = typeof first === "object" && first !== null ? (first as Record<string, unknown>) : {};
+  return {
+    id: waiting.id,
+    question: typeof raw.question === "string" && raw.question.trim() ? raw.question : waiting.summary,
+    options: strings(raw.options),
+  };
 }
 
 // ── The draft in the form ────────────────────────────────────────────────
@@ -315,14 +381,19 @@ export async function saveDraft(
 
 // ── Catalogue keys ───────────────────────────────────────────────────────
 
-/** Label of each field of the draft. */
-export const DRAFT_FIELD_LABEL: Record<DraftField, string> = {
-  name: "agent_create.name_label",
-  mission: "agent_adjust.mission_label",
-  examples: "agent_create.field_examples",
-  model: "agent_sheet.model_title",
-  access: "agent_sheet.access_title",
-  sources: "agent_sheet.sources_title",
+/** Label of each right the form offers. */
+export const RIGHT_LABEL: Record<RightFamily, string> = {
+  read_personal: "agent_create.right_read_personal",
+  write_or_delete: "agent_create.right_write",
+  send_external: "agent_create.right_send",
+  execute_code: "agent_create.right_execute",
+};
+
+/** Label of each step of the workshop. */
+export const STEP_LABEL: Record<WorkshopStep, string> = {
+  understand: "agent_create.step_understand",
+  ask: "agent_create.step_ask",
+  write: "agent_create.step_write",
 };
 
 /** Badge of each note an access carries in the form. */

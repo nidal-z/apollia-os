@@ -24,6 +24,12 @@ export interface PendingOrigin {
   /** Position of a batch item in its source, from 0. */
   rank?: number;
   requestId?: string;
+  /** The workflow run that asked a question. */
+  runId?: string;
+  /** Its workflow, `<package>/<workflow>`. */
+  workflowId?: string;
+  /** The step the run waits in. */
+  step?: string;
 }
 
 /** One decision waiting for the user. */

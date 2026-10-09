@@ -5,6 +5,7 @@ use apollia_core::{AutonomyConfig, AutonomyLevel};
 
 pub mod apollia;
 pub mod available;
+pub mod draft;
 pub mod overrides;
 pub mod sources;
 pub mod task;

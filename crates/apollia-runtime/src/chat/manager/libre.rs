@@ -216,7 +216,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         preferred_backend,
         turn_id,
         turn_images,
-        agent_draft,
     } = params;
 
     let available_tools = available_tools
@@ -227,17 +226,9 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         .await;
     // The conversation takes accesses out of the agent's list and may propose
     // some the agent does not hold, for itself alone: nothing is written to
-    // the agent or to governance. The conversation that creates an agent is
-    // offered its draft tool and nothing else.
-    let (available_tools, proposed_accesses) = if agent_draft {
-        (available_tools, Vec::new())
-    } else {
-        let proposed = session_settings.proposed_beyond(&available_tools);
-        (
-            session_settings.apply_to_accesses(available_tools),
-            proposed,
-        )
-    };
+    // the agent or to governance.
+    let proposed_accesses = session_settings.proposed_beyond(&available_tools);
+    let available_tools = session_settings.apply_to_accesses(available_tools);
     // A conversation limited to a list of accesses is offered nothing a
     // source of its agent would add.
     let available_tools = if session_settings.is_limited() {
@@ -305,26 +296,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     let available_tools = super::sources::offered(available_tools, &sources);
     let memory_namespace = super::sources::memory_namespace(&agent_id, &session_id_str);
 
-    // The conversation that creates an agent runs under its own instructions,
-    // which list what exists on the machine when the message is sent.
-    let agent_draft = if agent_draft {
-        Some(
-            super::agent_draft::offer(
-                &tool_registry,
-                &disabled,
-                chat_tools_config_for_session.as_deref(),
-                llm_router.backend_names(),
-            )
-            .await,
-        )
-    } else {
-        None
-    };
-    let system_prompt = match &agent_draft {
-        Some(offer) => crate::chat::agent_draft_tool::creation_prompt(offer),
-        None => system_prompt,
-    };
-
     // The request settings of the conversation, above the three levels read
     // beside the data directory: the model, the package, and the preset of
     // the conversation or of the agent.
@@ -386,11 +357,10 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     };
 
     // `Some` only in deferred mode, so `build_tool_specs` injects `tool_search`.
-    // Eager keeps `None` and the legacy spec path, and so does the
-    // conversation that creates an agent, which searches no tool.
+    // Eager keeps `None` and the legacy spec path.
     let agent_mcp_index = match mcp_loading {
-        LoadingMode::Deferred if agent_draft.is_none() => Some(mcp_index),
-        LoadingMode::Deferred | LoadingMode::Eager => None,
+        LoadingMode::Deferred => Some(mcp_index),
+        LoadingMode::Eager => None,
     };
     // The session runs its agent: Apollia, whose stored prompt is the mission,
     // whose session tools are its granted tools and whose stored backend is
@@ -435,7 +405,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             shared_budget: None,
             composition: composer.map(|composer| Composition { composer, depth: 1 }),
             turn_id,
-            agent_draft,
             session,
         },
         &runtime_budget,

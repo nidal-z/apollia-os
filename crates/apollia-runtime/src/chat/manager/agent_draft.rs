@@ -1,11 +1,11 @@
-//! What the conversation that creates an agent may propose.
+//! What the draft of an agent may hold, read from what the chat is wired to.
 
 use apollia_tools::ToolRegistryHandle;
 
 use super::ChatToolsConfig;
-use crate::chat::agent_draft_tool::{DraftOffer, OfferedSource};
+use crate::agents::draft::{DraftOffer, OfferedSource};
 
-/// The offer of a draft, read when a message is sent: the tools of
+/// The offer of a draft, read when it is asked for: the tools of
 /// `registry` without the `disabled` ones, the default access of `cfg`, the
 /// sources of the registry of `cfg`, and `models`. A registry of sources that is absent or cannot be
 /// listed leaves the profile and the memory, which every agent may be given.

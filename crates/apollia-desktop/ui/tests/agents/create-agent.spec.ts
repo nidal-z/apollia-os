@@ -1,19 +1,17 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Creating an agent by describing it.
+ * Creating an agent from a short form.
  *
  * Boots the UI bundle with the Tauri bridge stubbed, as
  * `tests/agents/workflow-launch.spec.ts` does, and plays the whole journey
- * from the Agents screen: "Create an agent" opens a conversation with
- * Apollia, a scripted model stands in for the real one and answers the
- * description with a call of `propose_agent`, the draft fills up beside the
- * conversation, opens in the form of an agent sheet, and is saved.
+ * from the Agents screen: "Create an agent" opens a form, the agent workshop
+ * is launched on it, asks one question, hands a sheet back, the runtime
+ * checks it, the draft opens in the form of an agent sheet, and is saved.
  *
- * The scripted model lives in the stub: the first message of a conversation
- * gets a question, the second one gets the draft, as the output of the tool
- * call the runtime would have run. The stub records every command it is sent,
- * so the spec can tell what was written, and when.
+ * The workshop lives in the stub: its run waits on a question until it is
+ * answered, then completes with a sheet. The stub records every command it
+ * is sent, so the spec can tell what was written, and when.
  */
 
 type InvokeStub = (cmd: string, args: unknown) => unknown;
@@ -31,11 +29,6 @@ interface Call {
 
 async function installTauriStub(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    interface ToolCall { tool_name: string; input: unknown; output: string; status: string }
-    interface Message {
-      id: string; role: string; content: string; tool_calls: ToolCall[] | null;
-      tool_name: null; seq: number; created_at: string;
-    }
     const families: Record<string, string> = {
       web_search: "read",
       notes_lookup: "read",
@@ -54,14 +47,28 @@ async function installTauriStub(page: Page): Promise<void> {
       sources: ["profile"],
       unavailable: ["calendar_read"],
     };
-    const sessions = new Map<string, Message[]>();
-    let stored: Record<string, unknown> | null = null;
-    const say = (messages: Message[], role: string, content: string, calls: ToolCall[] | null = null) => {
-      messages.push({
-        id: `m${messages.length + 1}`, role, content, tool_calls: calls, tool_name: null,
-        seq: messages.length + 1, created_at: "2026-10-05T09:00:00Z",
-      });
+    const offer = {
+      accesses: [
+        { id: "web_search", description: "Does web_search", family: "read", sensitive: false, by_default: true },
+        { id: "notes_lookup", description: "Does notes_lookup", family: "read", sensitive: false, by_default: false },
+        { id: "mail_send", description: "Does mail_send", family: "send_external", sensitive: true, by_default: false },
+      ],
+      sources: [
+        { id: "profile", label: "the profile of the person" },
+        { id: "memory", label: "the memory the agent keeps across its runs" },
+      ],
+      models: [],
     };
+    // The run of the workshop: waiting on its question until it is answered.
+    let answered = false;
+    let stored: Record<string, unknown> | null = null;
+    const step = (rank: number, name: string, status: string) => ({
+      rank, name, status, startedAt: null, endedAt: null, output: null, error: null,
+    });
+    const run = (status: string, output: unknown) => ({
+      runId: "run-1", workflowId: "agent-builder/draft", parentRunId: null, depth: 0, inputs: {},
+      status, output, error: null, startedAt: "2026-10-05T09:00:00Z", endedAt: null,
+    });
     const calls: Call[] = [];
     (globalThis as unknown as { __createCalls: Call[] }).__createCalls = calls;
     const handlers: Record<string, (args: unknown) => unknown> = {
@@ -74,48 +81,51 @@ async function installTauriStub(page: Page): Promise<void> {
       ],
       create_chat_session: (args) => {
         const request = (args as { request: { mode: string; agent_name?: string } }).request;
-        const id = `session-${sessions.size + 1}`;
-        sessions.set(id, []);
         return {
-          id, mode: request.mode, agent_name: request.agent_name ?? null, status: "active",
+          id: "session-1", mode: request.mode, agent_name: request.agent_name ?? null, status: "active",
           last_message_preview: null, message_count: 0, created_at: "2026-10-05T09:00:00Z",
           closed_at: null, title: null,
         };
       },
-      // The scripted model: a question first, then the draft.
-      send_chat_message: (args) => {
-        const { sessionId, content } = args as { sessionId: string; content: string };
-        const messages = sessions.get(sessionId);
-        if (!messages) throw "no such session";
-        say(messages, "user", content);
-        const turn = messages.filter((m) => m.role === "user").length;
-        if (turn === 1) {
-          say(messages, "assistant", "What should this agent do for you?");
-        } else {
-          say(messages, "assistant", "Here is a first draft of the sheet.", [{
-            tool_name: "propose_agent",
-            input: {},
-            output: JSON.stringify({ ok: true, draft }),
-            status: "executed",
-          }]);
-        }
-        return `m${messages.length}`;
+      agent_draft_offer: () => offer,
+      launch_workflow: () => {
+        answered = false;
+        return run("running", null);
       },
-      get_chat_session: (args) => {
-        const id = (args as { sessionId: string }).sessionId;
-        const messages = sessions.get(id);
-        if (!messages) return null;
-        return {
-          id, mode: "libre", agent_name: null, system_prompt: "", status: "active",
-          available_tools: ["propose_agent"], authorized_tools: [], messages,
-          created_at: "2026-10-05T09:00:00Z", closed_at: null, llm_backend: null, title: null,
-          plan_mode: false, plan_phase: "done",
-        };
+      get_workflow_run: () => ({
+        run: answered
+          ? run("completed", {
+              name: draft.name, mission: draft.mission, examples: draft.examples,
+              access: ["notes_lookup", "mail_send", "calendar_read"], sources: ["profile"], answers: [],
+            })
+          : run("running", null),
+        steps: [
+          step(0, "understand", "completed"),
+          step(1, "ask", answered ? "completed" : "running"),
+          step(2, "write", answered ? "completed" : "pending"),
+        ],
+      }),
+      list_pending_decisions: () => ({
+        items: answered
+          ? []
+          : [{
+              id: "workflow-question:r1", kind: "question", agentId: null,
+              summary: "How long should the summary be?", access: null, family: null,
+              answers: ["answer", "refuse"],
+              questions: [{
+                id: "answer", question: "How long should the summary be?", type: "single_choice",
+                options: ["Five lines", "One page"],
+              }],
+              allowOther: true, origin: { requestId: "r1", runId: "run-1" }, askedAt: null,
+            }],
+      }),
+      decide_pending_decision: () => {
+        answered = true;
+        return { id: "workflow-question:r1", answer: "answer", resumed: 1, batchItemsResumed: 0, message: "" };
       },
-      delete_chat_session: (args) => {
-        sessions.delete((args as { sessionId: string }).sessionId);
-        return null;
-      },
+      cancel_workflow_run: () => run("canceled", null),
+      // The runtime checks the sheet: what the machine lacks is named.
+      check_agent_draft: () => draft,
       describe_tool: (args) => {
         const name = (args as { name: string }).name;
         return families[name]
@@ -174,7 +184,7 @@ async function openCreation(page: Page): Promise<void> {
   await page.getByTestId("nav-agents").first().click();
   await expect(page.getByTestId("agents-page")).toBeVisible();
   await page.getByTestId("agents-create-button").click();
-  await expect(page.getByTestId("agent-create")).toHaveAttribute("data-phase", "conversation");
+  await expect(page.getByTestId("agent-create")).toHaveAttribute("data-phase", "form");
 }
 
 async function sent(page: Page, cmd: string): Promise<Record<string, unknown>[]> {
@@ -187,51 +197,79 @@ async function sent(page: Page, cmd: string): Promise<Record<string, unknown>[]>
   );
 }
 
-/** Answer Apollia's question, which makes the scripted model propose. */
-async function describeTheAgent(page: Page): Promise<void> {
-  const conversation = page.getByTestId("agent-create-conversation");
-  await expect(conversation).toContainText("What should this agent do for you?");
-  await conversation.locator("textarea").fill("Read the press every morning and mail me a summary");
-  await conversation.getByTestId("chat-send-button").click();
+/** Fill the form, launch the workshop and answer its question. */
+async function prepareTheSheet(page: Page): Promise<void> {
+  await page.getByTestId("agent-create-purpose").fill("Read the press every morning and mail me a summary");
+  await page.getByTestId("agent-create-prepare").click();
+  await expect(page.getByTestId("agent-create-question-text")).toContainText("How long should the summary be?");
+  await page.getByTestId("agent-create-question-option").first().click();
+  await expect(page.getByTestId("agent-create-review")).toBeVisible();
 }
 
-test.describe("creating an agent by describing it", () => {
+test.describe("creating an agent from a form", () => {
   test.beforeEach(async ({ page }) => {
     await installTauriStub(page);
   });
 
-  test("the journey: a conversation with Apollia, a draft, the form, then the agent", async ({ page }) => {
+  test("the journey: a form, a question of the workshop, the sheet, then the agent", async ({ page }) => {
     // GIVEN the Agents screen
     // WHEN "Create an agent" is chosen
     await openCreation(page);
 
-    // THEN a conversation with Apollia opens, offering the draft tool alone,
-    //      and the draft beside it is empty and cannot be reviewed yet
-    expect(await sent(page, "create_chat_session")).toEqual([
-      { request: { mode: "libre", tools: ["propose_agent"] } },
+    // THEN a form opens, which cannot be launched while it says nothing,
+    //      and lists the sources of the machine and the rights it offers
+    await expect(page.getByTestId("agent-create-prepare")).toBeDisabled();
+    await expect(page.getByTestId("agent-create-source")).toHaveCount(2);
+    await expect(page.getByTestId("agent-create-right")).toHaveCount(1);
+    expect(await sent(page, "launch_workflow")).toEqual([]);
+
+    // WHEN the person says what the agent is for, checks a source and a right,
+    //      and launches the workshop
+    await page.getByTestId("agent-create-purpose").fill("Read the press every morning and mail me a summary");
+    await page.getByTestId("agent-create-source").first().click();
+    await page.getByTestId("agent-create-right").first().click();
+    await page.getByTestId("agent-create-prepare").click();
+
+    // THEN the workshop is launched on the form, with what the machine holds
+    await expect(page.getByTestId("agent-create")).toHaveAttribute("data-phase", "drafting");
+    const [launch] = (await sent(page, "launch_workflow")) as [{ workflowId: string; inputs: Record<string, unknown> }];
+    expect(launch.workflowId).toBe("agent-builder/draft");
+    expect(launch.inputs.purpose).toBe("Read the press every morning and mail me a summary");
+    expect(launch.inputs.sources).toEqual(["profile"]);
+    expect(launch.inputs.rights).toEqual(["send_external"]);
+    expect(JSON.parse(launch.inputs.offer as string).accesses).toHaveLength(3);
+
+    // AND it asks its question here, with its proposed answers
+    await expect(page.getByTestId("agent-create-question-text")).toContainText("How long should the summary be?");
+    await expect(page.getByTestId("agent-create-question-option")).toHaveCount(2);
+    await expect(page.locator('[data-testid="agent-create-step"][data-step="ask"]')).toHaveAttribute(
+      "data-state",
+      "current",
+    );
+
+    // WHEN the person picks an answer
+    await page.getByTestId("agent-create-question-option").first().click();
+
+    // THEN the answer goes to the run, the sheet it hands back is checked by
+    //      the runtime, and the draft opens in the form of a sheet: each
+    //      access in its family, the sensitive one unchecked, the default one
+    //      checked, what the machine lacks named
+    expect(await sent(page, "decide_pending_decision")).toEqual([
+      { request: { id: "workflow-question:r1", answer: "answer", value: "Five lines" } },
     ]);
-    const draft = page.getByTestId("agent-create-draft");
-    await expect(draft.getByTestId("agent-create-draft-field")).toHaveCount(6);
-    await expect(draft.locator('[data-state="filled"]')).toHaveCount(0);
-    await expect(page.getByTestId("agent-create-review-open")).toBeDisabled();
-
-    // WHEN the person describes the agent and the model proposes a draft
-    await describeTheAgent(page);
-
-    // THEN the draft fills up: name, mission, examples, model, accesses, sources
-    await expect(draft.locator('[data-field="name"]')).toHaveAttribute("data-state", "filled");
-    await expect(draft.locator('[data-field="name"]')).toContainText("Press watch");
-    await expect(draft.locator('[data-field="mission"]')).toContainText("Summarise the press");
-    await expect(draft.locator('[data-state="filled"]')).toHaveCount(6);
-    await expect(draft.getByTestId("agent-create-unavailable")).toContainText("calendar_read");
-
-    // WHEN the draft is reviewed
-    await page.getByTestId("agent-create-review-open").click();
-
-    // THEN it opens in the form of a sheet: the name, the mission, each access
-    //      in its family, the sensitive one unchecked, the default one checked
     const review = page.getByTestId("agent-create-review");
     await expect(review).toBeVisible();
+    expect(await sent(page, "check_agent_draft")).toEqual([
+      {
+        sheet: {
+          name: "Press watch",
+          mission: "Summarise the press every morning.",
+          examples: ["What is new today?"],
+          access: ["notes_lookup", "mail_send", "calendar_read"],
+          sources: ["profile"],
+        },
+      },
+    ]);
     await expect(review.getByTestId("agent-create-name")).toHaveValue("Press watch");
     await expect(review.getByTestId("agent-adjust-mission")).toHaveValue("Summarise the press every morning.");
     const row = (id: string) => review.locator(`[data-testid="agent-adjust-access-row"][data-access="${id}"]`);
@@ -242,6 +280,7 @@ test.describe("creating an agent by describing it", () => {
     await expect(row("mail_send").getByTestId("agent-adjust-access-note")).toBeVisible();
     await expect(review.locator('[data-family="send_external"]')).toContainText("Does mail_send");
     await expect(review.locator('[data-testid="agent-adjust-access-row"][data-access="calendar_read"]')).toHaveCount(0);
+    await expect(page.getByTestId("agent-create-unavailable")).toContainText("calendar_read");
 
     // AND nothing was written so far
     expect(await sent(page, "create_agent_definition")).toEqual([]);
@@ -276,21 +315,23 @@ test.describe("creating an agent by describing it", () => {
       .toEqual({ request: { mode: "agent", agent_name: "press-watch" } });
   });
 
-  test("the edits of the form survive a look back at the conversation", async ({ page }) => {
-    // GIVEN a draft opened in the form, its sensitive access checked by hand
+  test("the edits of the sheet survive a look back at the form", async ({ page }) => {
+    // GIVEN a sheet opened in the form, its sensitive access checked by hand
     await openCreation(page);
-    await describeTheAgent(page);
-    await expect(page.getByTestId("agent-create-review-open")).toBeEnabled();
-    await page.getByTestId("agent-create-review-open").click();
+    await prepareTheSheet(page);
     const review = page.getByTestId("agent-create-review");
     const mail = review.locator('[data-testid="agent-adjust-access-row"][data-access="mail_send"]');
     await mail.getByRole("switch").click();
     await expect(mail.getByRole("switch")).toHaveAttribute("aria-checked", "true");
 
-    // WHEN the person goes back to the conversation, then reviews again
+    // WHEN the person goes back to the form, which kept what was typed, then
+    //      returns to the sheet
     await page.getByTestId("agent-create-review-back").click();
-    await expect(page.getByTestId("agent-create")).toHaveAttribute("data-phase", "conversation");
-    await page.getByTestId("agent-create-review-open").click();
+    await expect(page.getByTestId("agent-create")).toHaveAttribute("data-phase", "form");
+    await expect(page.getByTestId("agent-create-purpose")).toHaveValue(
+      "Read the press every morning and mail me a summary",
+    );
+    await page.getByTestId("agent-create-review-resume").click();
 
     // THEN the access is still checked, and saving sends it
     await expect(mail.getByRole("switch")).toHaveAttribute("aria-checked", "true");
@@ -300,20 +341,19 @@ test.describe("creating an agent by describing it", () => {
     expect(sheet.access).toEqual(["notes_lookup", "web_search", "mail_send"]);
   });
 
-  test("leaving before the save creates no agent and drops the conversation", async ({ page }) => {
-    // GIVEN a draft read over in the form
+  test("leaving while the workshop works stops its run and creates no agent", async ({ page }) => {
+    // GIVEN the workshop launched, waiting on its question
     await openCreation(page);
-    await describeTheAgent(page);
-    await expect(page.getByTestId("agent-create-review-open")).toBeEnabled();
-    await page.getByTestId("agent-create-review-open").click();
-    await expect(page.getByTestId("agent-create-review")).toBeVisible();
+    await page.getByTestId("agent-create-purpose").fill("Read the press every morning");
+    await page.getByTestId("agent-create-prepare").click();
+    await expect(page.getByTestId("agent-create-question")).toBeVisible();
 
-    // WHEN the person leaves without saving
+    // WHEN the person leaves without answering
     await page.getByTestId("agent-create-back").click();
 
-    // THEN the list is back, no agent was created, and the conversation is removed
+    // THEN the list is back, the run was stopped and no agent was created
     await expect(page.getByTestId("agents-list")).toBeVisible();
+    await expect.poll(async () => await sent(page, "cancel_workflow_run")).toEqual([{ runId: "run-1" }]);
     expect(await sent(page, "create_agent_definition")).toEqual([]);
-    await expect.poll(async () => await sent(page, "delete_chat_session")).toEqual([{ sessionId: "session-1" }]);
   });
 });

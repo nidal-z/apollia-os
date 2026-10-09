@@ -1,54 +1,75 @@
 <script lang="ts">
   /**
-   * CreateAgent - an agent created by describing it, in place of the list of
+   * CreateAgent - an agent created from a short form, in place of the list of
    * the Agents screen.
    *
-   * Three moments, one after the other:
+   * Four moments, one after the other:
    *
-   *   - the conversation: a short exchange with the Apollia agent, which
-   *     drafts the sheet as it goes; the draft fills up beside it;
-   *   - the review: the draft opens in the form of an agent sheet, where
-   *     everything stays editable;
+   *   - the form: what the agent is for, and what the person already knows
+   *     about it;
+   *   - the workshop: a workflow shipped with Apollia turns the form into a
+   *     sheet, asking here what the form leaves unsaid;
+   *   - the review: the sheet, checked by the runtime, opens in the form of
+   *     an agent sheet, where everything stays editable;
    *   - the saved agent: its sheet, read as any other, with a way to try it.
    *
-   * Nothing is written before "Save the agent": the conversation proposes,
-   * the draft is read in the conversation, and the form lives in this
-   * component. Leaving at any moment before the save leaves no agent behind;
-   * the conversation itself is removed when the screen is left.
+   * Nothing is written before "Save the agent". Leaving at any moment before
+   * the save leaves no agent behind; a run of the workshop still going is
+   * stopped when the screen is left.
    *
-   * The first launch mounts the first two moments inside its own step: it
-   * passes `oncreated`, which takes the saved agent in place of the third
+   * The first launch mounts the first three moments inside its own step: it
+   * passes `oncreated`, which takes the saved agent in place of the last
    * moment, and `embedded`, which leaves the breadcrumb of the Agents screen
    * out.
    */
   import { onDestroy } from "svelte";
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
   import { Bot, ChevronRight, MessageSquare } from "lucide-svelte";
   import { DetailHeader, ErrorBanner, PageHeader } from "$lib/components/operator";
-  import { LoadingSpinner } from "$lib/components/feedback";
   import { Banner } from "$lib/components/ui/banner";
   import { Button } from "$lib/components/ui/button";
   import { llmBackends } from "$lib/stores/llm";
-  import { createChatSession } from "$lib/ipc/agents";
-  import { deleteChatSession, getChatSession, sendChatMessage } from "$lib/ipc/chat";
   import { setAgentModel } from "$lib/ipc/agentAdjust";
-  import { createAgentDefinition } from "$lib/ipc/agentCreate";
+  import {
+    agentDraftOffer,
+    checkAgentDraft,
+    createAgentDefinition,
+    type DraftOffer,
+  } from "$lib/ipc/agentCreate";
   import type { ResolvedAgent } from "$lib/ipc/agentSheet";
-  import ChatConversation from "../../chat/ChatConversation.svelte";
+  import { decidePendingDecision, listPendingDecisions } from "$lib/ipc/pendingDecisions";
+  import {
+    cancelWorkflowRun,
+    getWorkflowRun,
+    launchWorkflow,
+    type WorkflowStep,
+  } from "$lib/ipc/workflows";
   import AgentSheet from "../sheet/AgentSheet.svelte";
   import { modelOptions, type AdjustDraft } from "../sheet/agentAdjust";
   import { navigateTo } from "$lib/stores/navigation";
-  import CreateAgentDraft from "./CreateAgentDraft.svelte";
+  import CreateAgentForm from "./CreateAgentForm.svelte";
+  import CreateAgentProgress from "./CreateAgentProgress.svelte";
   import { modelReadiness } from "./modelReady";
   import CreateAgentReview from "./CreateAgentReview.svelte";
   import {
-    DRAFT_SESSION_REQUEST,
+    UNAVAILABLE_LABEL,
+    WORKSHOP_WORKFLOW,
+    canPrepare,
     canSave,
-    extractDraft,
+    draftOfChecked,
+    emptyForm,
+    questionOf,
     reviewOf,
     saveDraft,
+    sheetOfRun,
+    stepViews,
+    unavailableViews,
+    workshopInputs,
     type AccessNote,
     type ProposedAgent,
+    type UnavailableView,
+    type WorkshopForm,
+    type WorkshopQuestion,
   } from "./agentDraft";
 
   interface Props {
@@ -74,18 +95,24 @@
     embedded = false,
   }: Props = $props();
 
-  /** How often the conversation is read for a new draft, in milliseconds. */
-  const POLL_MS = 1500;
+  /** How often the run of the workshop is read, in milliseconds. */
+  const POLL_MS = 1000;
 
-  type Phase = "conversation" | "review" | "saved";
+  type Phase = "form" | "drafting" | "review" | "saved";
 
-  let phase = $state<Phase>("conversation");
-  let sessionId = $state<string | null>(null);
-  let starting = $state(true);
-  let startError = $state<string | null>(null);
+  let phase = $state<Phase>("form");
+  let wish = $state<WorkshopForm>(emptyForm());
+  let offer = $state<DraftOffer | null>(null);
+  let launching = $state(false);
+  // Why the workshop could not start or did not hand a sheet back.
+  let runError = $state<string | null>(null);
   // The declared server of the default model, when it does not answer.
   let serverDown = $state<string | null>(null);
-  let draft = $state<ProposedAgent | null>(null);
+
+  // The run of the workshop, while it goes on.
+  let runId = $state<string | null>(null);
+  let steps = $state<WorkflowStep[]>([]);
+  let question = $state<WorkshopQuestion | null>(null);
   let answering = $state(false);
 
   // The form of the review, filled from the draft when the review opens.
@@ -94,8 +121,11 @@
   let listed = $state<string[]>([]);
   let checked = $state<string[]>([]);
   let notes = $state<Record<string, AccessNote>>({});
+  let missing = $state<UnavailableView[]>([]);
   // The draft the form was last filled from, `null` before the first review.
   let reviewedKey: string | null = null;
+  // A sheet was opened already: the form offers the way back to it.
+  let reviewed = $state(false);
 
   let saving = $state(false);
   let saveError = $state<string | null>(null);
@@ -103,6 +133,7 @@
   let modelError = $state<string | null>(null);
 
   let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let following = false;
 
   function message(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
@@ -115,49 +146,121 @@
     }
   }
 
-  /** Read the latest draft the conversation holds, if any. */
-  async function readDraft(): Promise<void> {
-    if (!sessionId) return;
+  // What the machine holds, for the boxes of the form. A machine that cannot
+  // say leaves the form with its text fields.
+  void agentDraftOffer()
+    .then((read) => (offer = read))
+    .catch(() => undefined);
+
+  /** Back to the form, saying why the workshop handed no sheet. */
+  function fail(reason: string): void {
+    stopPolling();
+    runId = null;
+    question = null;
+    runError = reason;
+    phase = "form";
+  }
+
+  /** Read the run: its steps, the question it waits on, then its sheet. */
+  async function follow(): Promise<void> {
+    const run = runId;
+    if (!run || following) return;
+    following = true;
     try {
-      const detail = await getChatSession(sessionId);
-      answering = detail.status === "processing";
-      const latest = extractDraft(detail.messages);
-      if (latest && JSON.stringify(latest) !== JSON.stringify(draft)) draft = latest;
+      const detail = await getWorkflowRun(run);
+      if (runId !== run) return;
+      steps = detail.steps;
+      if (detail.run.status === "running") {
+        question = questionOf(await listPendingDecisions().catch(() => []), run);
+        return;
+      }
+      stopPolling();
+      question = null;
+      if (detail.run.status !== "completed") {
+        fail(detail.run.error ?? $t("agent_create.run_stopped"));
+        return;
+      }
+      const sheet = sheetOfRun(detail.run.output);
+      if (!sheet) {
+        fail($t("agent_create.run_no_sheet"));
+        return;
+      }
+      let draft: ProposedAgent | null;
+      try {
+        draft = draftOfChecked(await checkAgentDraft(sheet));
+      } catch (err) {
+        fail(message(err));
+        return;
+      }
+      if (!draft) {
+        fail($t("agent_create.run_no_sheet"));
+        return;
+      }
+      runId = null;
+      openReview(draft);
     } catch {
       // Read again on the next tick.
-    }
-  }
-
-  async function start(): Promise<void> {
-    starting = true;
-    startError = null;
-    serverDown = null;
-    const model = await modelReadiness();
-    if (!model.ready) {
-      serverDown = model.server;
-      starting = false;
-      return;
-    }
-    try {
-      const session = await createChatSession(DRAFT_SESSION_REQUEST);
-      sessionId = session.id;
-      // The first message is translated, and not for cosmetics: it is what the
-      // model reads to choose the language it answers in.
-      await sendChatMessage(session.id, $t("agent_create.kick_message")).catch(() => undefined);
-      pollTimer = setInterval(() => void readDraft(), POLL_MS);
-    } catch (err) {
-      startError = message(err);
     } finally {
-      starting = false;
+      following = false;
     }
   }
 
-  void start();
+  /** Launch the workshop on the form. */
+  async function prepare(): Promise<void> {
+    if (launching || !canPrepare(wish)) return;
+    launching = true;
+    runError = null;
+    serverDown = null;
+    try {
+      const model = await modelReadiness();
+      if (!model.ready) {
+        serverDown = model.server;
+        return;
+      }
+      // Read again at launch: a source added since the form opened counts.
+      offer = await agentDraftOffer().catch(() => offer);
+      const run = await launchWorkflow(WORKSHOP_WORKFLOW, workshopInputs(wish, offer, $locale));
+      runId = run.runId;
+      steps = [];
+      question = null;
+      phase = "drafting";
+      pollTimer = setInterval(() => void follow(), POLL_MS);
+    } catch (err) {
+      runError = message(err);
+    } finally {
+      launching = false;
+    }
+  }
+
+  /** Answer the question the run waits on; `null` passes it. */
+  async function answer(text: string | null): Promise<void> {
+    const asked = question;
+    if (!asked || answering) return;
+    answering = true;
+    try {
+      await decidePendingDecision(
+        text === null ? { id: asked.id, answer: "refuse" } : { id: asked.id, answer: "answer", value: text },
+      );
+      question = null;
+    } catch (err) {
+      runError = message(err);
+    } finally {
+      answering = false;
+    }
+  }
+
+  /** Stop the run and go back to the form, which keeps what was typed. */
+  function backToForm(): void {
+    stopPolling();
+    if (runId) void cancelWorkflowRun(runId).catch(() => undefined);
+    runId = null;
+    question = null;
+    phase = "form";
+  }
 
   onDestroy(() => {
     stopPolling();
-    // The conversation only served the draft: it is not kept among the chats.
-    if (sessionId) void deleteChatSession(sessionId).catch(() => undefined);
+    if (runId) void cancelWorkflowRun(runId).catch(() => undefined);
   });
 
   /** Open the form on `proposal`, or empty for a sheet written by hand. */
@@ -172,15 +275,12 @@
       listed = review.listed;
       checked = review.checked;
       notes = review.notes;
+      missing = unavailableViews(review.unavailable);
       reviewedKey = key;
     }
     saveError = null;
+    reviewed = true;
     phase = "review";
-  }
-
-  async function review(): Promise<void> {
-    await readDraft();
-    openReview(draft);
   }
 
   async function save(): Promise<void> {
@@ -193,7 +293,6 @@
         setModel: (agent, model) => setAgentModel(agent, model.model_source, model.model_id, model.preset_id),
       });
       if (!outcome) return;
-      stopPolling();
       if (oncreated) {
         oncreated(outcome.agent);
         return;
@@ -209,6 +308,8 @@
   }
 
   const savable = $derived(canSave(name, form));
+  const preparable = $derived(canPrepare(wish));
+  const progress = $derived(stepViews(steps));
 </script>
 
 <div class="flex h-full min-h-0 flex-col" data-testid="agent-create" data-phase={phase}>
@@ -269,21 +370,15 @@
       subtitle={$t("agent_create.review_subtitle")}
     >
       {#snippet actions()}
-        {#if sessionId}
-          <Button
-            variant="outline"
-            size="sm"
-            onclick={() => (phase = "conversation")}
-            disabled={saving}
-            data-testid="agent-create-review-back"
-          >
-            {$t("agent_create.review_back")}
-          </Button>
-        {:else}
-          <Button variant="outline" size="sm" onclick={onback} disabled={saving} data-testid="agent-create-cancel">
-            {$t("common.cancel")}
-          </Button>
-        {/if}
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => (phase = "form")}
+          disabled={saving}
+          data-testid="agent-create-review-back"
+        >
+          {$t("agent_create.review_back")}
+        </Button>
         <Button
           variant="primary-solid"
           size="sm"
@@ -302,7 +397,40 @@
           <p class="text-caption opacity-90">{saveError}</p>
         </ErrorBanner>
       {/if}
+      {#if missing.length > 0}
+        <Banner variant="warning" surface="card" data-testid="agent-create-unavailable">
+          <p class="m-0 font-medium">{$t("agent_create.unavailable_title")}</p>
+          <ul class="m-0 mt-1 list-none space-y-0.5 p-0">
+            {#each missing as entry (entry.kind + entry.name)}
+              <li class="text-caption">
+                {$t(UNAVAILABLE_LABEL[entry.kind], { values: { name: entry.name } })}
+              </li>
+            {/each}
+          </ul>
+          <p class="m-0 mt-1 text-caption opacity-90">{$t("agent_create.unavailable_hint")}</p>
+        </Banner>
+      {/if}
       <CreateAgentReview bind:name {form} {listed} {checked} {notes} />
+    </div>
+  {:else if phase === "drafting"}
+    <PageHeader
+      kicker={$t("agent_create.kicker")}
+      title={$t("agent_create.drafting_title")}
+      subtitle={$t("agent_create.drafting_subtitle")}
+    >
+      {#snippet actions()}
+        <Button variant="outline" size="sm" onclick={backToForm} data-testid="agent-create-drafting-back">
+          {$t("agent_create.review_back")}
+        </Button>
+      {/snippet}
+    </PageHeader>
+    <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-8 pb-8 pt-5">
+      {#if runError}
+        <ErrorBanner data-testid="agent-create-answer-error">
+          <p class="text-caption opacity-90">{runError}</p>
+        </ErrorBanner>
+      {/if}
+      <CreateAgentProgress steps={progress} {question} {answering} onanswer={(text) => void answer(text)} />
     </div>
   {:else}
     <PageHeader
@@ -314,82 +442,54 @@
         <Button variant="outline" size="sm" onclick={onback} data-testid="agent-create-cancel">
           {$t("common.cancel")}
         </Button>
+        {#if reviewed}
+          <Button variant="outline" size="sm" onclick={() => (phase = "review")} data-testid="agent-create-review-resume">
+            {$t("agent_create.review_resume")}
+          </Button>
+        {/if}
+        <Button variant="outline" size="sm" onclick={() => openReview(null)} data-testid="agent-create-by-hand">
+          {$t("agent_create.write_by_hand")}
+        </Button>
         <Button
           variant="primary-solid"
           size="sm"
-          onclick={() => void review()}
-          disabled={draft === null}
-          data-testid="agent-create-review-open"
+          onclick={() => void prepare()}
+          disabled={!preparable || launching}
+          data-testid="agent-create-prepare"
         >
-          {$t("agent_create.review_open")}
+          {launching ? $t("agent_create.preparing") : $t("agent_create.prepare")}
         </Button>
       {/snippet}
     </PageHeader>
-    <div class="grid min-h-0 flex-1 grid-cols-1 gap-6 px-8 pb-6 pt-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <section
-        class="flex min-h-0 flex-col"
-        data-testid="agent-create-conversation"
-        aria-label={$t("agent_create.conversation_title")}
-      >
-        <h3 class="m-0 pb-2 text-body-sm font-semibold text-foreground">
-          {$t("agent_create.conversation_title")}
-        </h3>
-        <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/60">
-          {#if starting}
-            <div class="flex flex-1 items-center justify-center gap-2 text-body-xs text-muted-foreground">
-              <LoadingSpinner size={14} />
-              {$t("agent_create.starting")}
-            </div>
-          {:else if serverDown !== null}
-            <div class="space-y-3 p-4" data-testid="agent-create-server-down">
-              <ErrorBanner>
-                <p class="font-medium">{$t("agent_create.server_down_title")}</p>
-                <p class="text-caption opacity-90">
-                  {$t("agent_create.server_down_body", { values: { server: serverDown } })}
-                </p>
-              </ErrorBanner>
-              <div class="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onclick={() => void start()} data-testid="agent-create-server-retry">
-                  {$t("common.retry")}
-                </Button>
-                {#if !embedded}
-                  <Button variant="outline" size="sm" onclick={() => navigateTo("llm")} data-testid="agent-create-open-ai">
-                    {$t("agent_create.open_ai")}
-                  </Button>
-                {/if}
-                <Button variant="outline" size="sm" onclick={() => openReview(null)} data-testid="agent-create-server-by-hand">
-                  {$t("agent_create.write_by_hand")}
-                </Button>
-              </div>
-            </div>
-          {:else if startError !== null}
-            <div class="space-y-3 p-4" data-testid="agent-create-start-error">
-              <ErrorBanner>
-                <p class="font-medium">{$t("agent_create.start_failed")}</p>
-                <p class="text-caption opacity-90">{startError}</p>
-              </ErrorBanner>
-              <div class="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onclick={() => void start()} data-testid="agent-create-retry">
-                  {$t("common.retry")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onclick={() => openReview(null)}
-                  data-testid="agent-create-by-hand"
-                >
-                  {$t("agent_create.write_by_hand")}
-                </Button>
-              </div>
-            </div>
-          {:else if sessionId}
-            <ChatConversation {sessionId} onclose={() => undefined} embedded={true} hideConfig={true} />
-          {/if}
+    <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-8 pb-8 pt-5">
+      {#if serverDown !== null}
+        <div class="max-w-3xl space-y-3" data-testid="agent-create-server-down">
+          <ErrorBanner>
+            <p class="font-medium">{$t("agent_create.server_down_title")}</p>
+            <p class="text-caption opacity-90">
+              {$t("agent_create.server_down_body", { values: { server: serverDown } })}
+            </p>
+          </ErrorBanner>
+          <div class="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onclick={() => void prepare()} data-testid="agent-create-server-retry">
+              {$t("common.retry")}
+            </Button>
+            {#if !embedded}
+              <Button variant="outline" size="sm" onclick={() => navigateTo("llm")} data-testid="agent-create-open-ai">
+                {$t("agent_create.open_ai")}
+              </Button>
+            {/if}
+          </div>
         </div>
-      </section>
-      <div class="min-h-0 overflow-y-auto">
-        <CreateAgentDraft {draft} {answering} />
-      </div>
+      {:else if runError !== null}
+        <div class="max-w-3xl" data-testid="agent-create-run-error">
+          <ErrorBanner>
+            <p class="font-medium">{$t("agent_create.run_failed")}</p>
+            <p class="text-caption opacity-90">{runError}</p>
+          </ErrorBanner>
+        </div>
+      {/if}
+      <CreateAgentForm form={wish} {offer} />
     </div>
   {/if}
 </div>

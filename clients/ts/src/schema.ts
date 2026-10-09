@@ -193,6 +193,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/agent-drafts`: check a proposed sheet, write nothing. */
+        post: operations["check_agent_draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-drafts/offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/agent-drafts/offer`: what the draft of an agent may hold. */
+        get: operations["get_agent_draft_offer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent-packages/installed": {
         parameters: {
             query?: never;
@@ -6340,6 +6374,29 @@ export interface components {
             /** @description The phase to move to, in its snake_case name (`ai_setup`...). */
             phase: string;
         };
+        /** @description The draft of an agent, as the form opens it. Nothing of it is stored. */
+        AgentDraft: {
+            /**
+             * @description The accesses proposed, then the reading family, each one existing on
+             *     the machine.
+             */
+            access: components["schemas"]["DraftAccess"][];
+            /** @description Example requests. */
+            examples: string[];
+            /** @description What the agent is for, used as its instructions. */
+            mission: string;
+            /** @description The model proposed, `None` for the default model of the machine. */
+            model?: string | null;
+            /** @description Display name. */
+            name: string;
+            /** @description The sources proposed, each one existing on the machine. */
+            sources: string[];
+            /**
+             * @description What the sheet asked for and the machine does not hold: accesses,
+             *     sources (`source:<id>`) and a model (`model:<name>`).
+             */
+            unavailable: string[];
+        };
         /** @description Response body for agent list. */
         AgentListResponse: {
             /** @description All registered agents. */
@@ -7694,6 +7751,38 @@ export interface components {
             data: string;
             /** @description File name of the document, with its extension, such as `invoice.pdf`. */
             name: string;
+        };
+        /** @description One access of a draft. */
+        DraftAccess: {
+            /**
+             * @description Whether it is there because an agent created without code is granted
+             *     it by default, rather than because the sheet asked for it.
+             */
+            by_default: boolean;
+            /**
+             * @description Whether the form opens with it granted. A sensitive access is only
+             *     when the default grants it to every new agent.
+             */
+            checked: boolean;
+            /** @description The identifier the agent would be granted it by. */
+            id: string;
+            /** @description Whether its family is anything but plain reading. */
+            sensitive: boolean;
+        };
+        /**
+         * @description What a draft may hold: the accesses, the sources and the models that exist
+         *     on the machine when it is read.
+         */
+        DraftOffer: {
+            /**
+             * @description The tools of the registry, the disabled ones left out, and the code
+             *     context, which a checked code folder grants rather than an access.
+             */
+            accesses: components["schemas"]["OfferedAccess"][];
+            /** @description The models an agent can be assigned, by the name the router routes by. */
+            models: string[];
+            /** @description The profile, the memory, then the sources of the registry. */
+            sources: components["schemas"]["OfferedSource"][];
         };
         /** @description The Drive folder of one connected Google account. */
         DriveFolderStatus: {
@@ -9305,6 +9394,29 @@ export interface components {
              */
             retention_days: number;
         };
+        /** @description One access that exists on the machine. */
+        OfferedAccess: {
+            /**
+             * @description Whether an agent created without code is granted it by default: a
+             *     tool of a family the default grants, or one the default names.
+             */
+            by_default: boolean;
+            /** @description What it does, in one line. */
+            description: string;
+            /** @description Its action family, as the journal names it. */
+            family: string;
+            /** @description The identifier an agent is granted it by. */
+            id: string;
+            /** @description Whether its family is anything but plain reading. */
+            sensitive: boolean;
+        };
+        /** @description One source that exists on the machine. */
+        OfferedSource: {
+            /** @description The identifier an agent's source list names it by. */
+            id: string;
+            /** @description The name the person sees. */
+            label: string;
+        };
         /** @description Response for enable/disable. */
         OkResponse: {
             /** @description Confirmation flag. */
@@ -9941,6 +10053,21 @@ export interface components {
             scope: string;
             /** @description Tool the rule targets. */
             tool_name: string;
+        };
+        /** @description A sheet as it is proposed, before it is checked: every list optional. */
+        ProposedSheet: {
+            /** @description Identifiers of the accesses asked for. */
+            access?: string[];
+            /** @description Example requests. */
+            examples?: string[];
+            /** @description What the agent is for, used as its instructions. */
+            mission: string;
+            /** @description A model to assign; absent for the default model of the machine. */
+            model?: string | null;
+            /** @description Display name. */
+            name: string;
+            /** @description Identifiers of the sources asked for. */
+            sources?: string[];
         };
         /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/purge`. */
         PurgeMemoryBody: {
@@ -12510,6 +12637,77 @@ export interface operations {
                 };
             };
             /** @description Audit journal not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    check_agent_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposedSheet"];
+            };
+        };
+        responses: {
+            /** @description The draft the form opens: what the machine does not hold left out and named, the sensitive accesses unchecked, the default access added */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentDraft"];
+                };
+            };
+            /** @description The sheet has no name or no mission */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat, which holds the registries, is not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_agent_draft_offer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The accesses, the sources and the models that exist on the machine */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftOffer"];
+                };
+            };
+            /** @description The chat, which holds the registries, is not available */
             503: {
                 headers: {
                     [name: string]: unknown;

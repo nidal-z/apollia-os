@@ -182,6 +182,8 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::agent_adjust::set_agent_model,
         commands::agent_adjust::clear_agent_model,
         commands::agent_adjust::list_model_presets,
+        commands::agent_create::agent_draft_offer,
+        commands::agent_create::check_agent_draft,
         commands::agent_create::create_agent_definition,
         commands::agent_export::export_agent,
         commands::package_files::preview_package_file,

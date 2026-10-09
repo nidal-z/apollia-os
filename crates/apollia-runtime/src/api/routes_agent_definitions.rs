@@ -497,6 +497,14 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
             get(get_agent_definition::<B>),
         )
         .route(
+            "/api/v1/agent-drafts/offer",
+            get(draft::get_agent_draft_offer::<B>),
+        )
+        .route(
+            "/api/v1/agent-drafts",
+            axum::routing::post(draft::check_agent_draft::<B>),
+        )
+        .route(
             "/api/v1/agent-definitions/:name/overrides",
             axum::routing::delete(reset_agent_overrides::<B>),
         )
@@ -511,11 +519,14 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
 }
 
 pub mod create;
+pub mod draft;
 pub mod export;
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_create;
+#[cfg(test)]
+mod tests_draft;
 #[cfg(test)]
 mod tests_export;

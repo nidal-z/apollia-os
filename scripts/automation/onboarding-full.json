@@ -794,12 +794,6 @@
       "testid": "first-agent-skip"
     },
     {
-      "kind": "stubInvoke",
-      "command": "create_chat_session",
-      "reject": "no model is configured for the conversation",
-      "once": true
-    },
-    {
       "kind": "click",
       "testid": "first-agent-card-create",
       "timeoutMs": 3000
@@ -811,17 +805,16 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-create-start-error",
-      "contains": "no model is configured",
+      "testid": "agent-create-form",
       "timeoutMs": 6000
     },
     {
       "kind": "expect",
-      "testid": "agent-create-conversation"
+      "testid": "agent-create-purpose"
     },
     {
       "kind": "expect",
-      "testid": "agent-create-draft"
+      "testid": "agent-create-prepare"
     },
     {
       "kind": "expect",

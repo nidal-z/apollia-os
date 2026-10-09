@@ -138,10 +138,6 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// The turn the exchange answers: the identifier its answer is persisted
     /// under.
     pub(in crate::chat::manager) turn_id: Option<String>,
-    /// Whether the conversation is the one that creates an agent: Apollia is
-    /// then offered `propose_agent` and nothing else, under the instructions
-    /// of that conversation.
-    pub(in crate::chat::manager) agent_draft: bool,
     /// Images of the message answered and of the earlier user messages in
     /// the window, read back from disk.
     pub(in crate::chat::manager) turn_images: crate::chat::images::TurnImages,

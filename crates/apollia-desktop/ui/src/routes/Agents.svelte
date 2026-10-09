@@ -51,6 +51,7 @@
   import AgentDetailPane from "../components/agents/AgentDetailPane.svelte";
   import WorkflowSheet from "../components/workflows/WorkflowSheet.svelte";
   import CreateAgent from "../components/agents/create/CreateAgent.svelte";
+  import { WORKSHOP_WORKFLOW } from "../components/agents/create/agentDraft";
   import { filterWorkflows, splitWorkflowId } from "../components/workflows/workflowRuns";
   import { createAgentActions } from "../components/agents/useAgentActions.svelte";
   import type {
@@ -91,7 +92,9 @@
   // whose runs cannot be read is listed without one.
   async function refreshWorkflows(): Promise<void> {
     try {
-      const listed = await listWorkflows();
+      // The agent workshop is the workflow behind "Create an agent": it is
+      // launched from there, on a form of its own, and is not listed.
+      const listed = (await listWorkflows()).filter((workflow) => workflow.workflowId !== WORKSHOP_WORKFLOW);
       workflows = listed;
       const runs = await Promise.all(
         listed.map((workflow) =>

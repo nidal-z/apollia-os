@@ -1,11 +1,19 @@
-//! Tauri IPC command behind the creation of an agent without code.
+//! Tauri IPC commands behind the creation of an agent without code.
 //!
-//! The Agents screen opens a short conversation in which the Apollia agent
-//! drafts a sheet; the person reads the draft over in the form of a sheet and
-//! saves it. Only that save reaches this command, which sends the validated
-//! sheet to `POST /api/v1/agent-definitions`: the runtime stores the agent
-//! with the origin `interface` and records its creation, whether it runs in
-//! this process or as a daemon. The answer is the agent in force.
+//! The Agents screen shows a short form; the agent workshop, a workflow
+//! shipped with Apollia, turns it into a sheet; the person reads the sheet
+//! over in the form of an agent and saves it. Three commands serve that path,
+//! each a call to the runtime, whether it runs in this process or as a
+//! daemon:
+//!
+//! - `agent_draft_offer` reads what a sheet may hold, which the workshop is
+//!   handed (`GET /api/v1/agent-drafts/offer`);
+//! - `check_agent_draft` has the sheet the workshop wrote checked against the
+//!   machine (`POST /api/v1/agent-drafts`); nothing is written;
+//! - `create_agent_definition` sends the sheet the person saved to
+//!   `POST /api/v1/agent-definitions`: the runtime stores the agent with the
+//!   origin `interface` and records its creation. The answer is the agent in
+//!   force.
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -15,6 +23,12 @@ use crate::attached::RuntimeLink;
 
 /// Route of the stored agents.
 const DEFINITIONS_PATH: &str = "/api/v1/agent-definitions";
+
+/// Route of what the draft of an agent may hold.
+const DRAFT_OFFER_PATH: &str = "/api/v1/agent-drafts/offer";
+
+/// Route that checks a proposed sheet.
+const DRAFT_CHECK_PATH: &str = "/api/v1/agent-drafts";
 
 /// The sheet the person validated.
 #[derive(Debug, Deserialize)]
@@ -52,6 +66,23 @@ pub(crate) async fn create_on(
         .unwrap_or_default();
     tracing::event!(tracing::Level::INFO, agent = %id, "agent.create.saved");
     Ok(created)
+}
+
+/// What the draft of an agent may hold: the accesses, the sources and the
+/// models that exist on the machine.
+#[tauri::command]
+pub async fn agent_draft_offer(link: State<'_, RuntimeLink>) -> Result<Value, String> {
+    link.get_json(DRAFT_OFFER_PATH).await
+}
+
+/// Has the proposed `sheet` checked against the machine and answers the
+/// draft the form opens. Nothing is written.
+#[tauri::command]
+pub async fn check_agent_draft(
+    link: State<'_, RuntimeLink>,
+    sheet: Value,
+) -> Result<Value, String> {
+    link.post_json(DRAFT_CHECK_PATH, &sheet).await
 }
 
 /// Creates the agent the validated `sheet` describes, and answers the agent
@@ -134,13 +165,40 @@ mod tests {
         assert!(refused.contains("mission"), "{refused}");
     }
 
-    #[test]
-    fn test_the_command_is_served_in_attached_mode() {
-        // GIVEN the desktop attached to a daemon
-        // WHEN the gate is asked about the creation command
-        let verdict = gate(LinkMode::Attached, "create_agent_definition");
+    #[tokio::test]
+    async fn test_a_proposed_sheet_is_sent_to_the_check_route_as_it_is() {
+        // GIVEN a daemon that checks the sheet it is sent
+        let server = MockServer::start().await;
+        let proposed = json!({"name": "Quotes", "mission": "Read the quotes.", "access": ["x"]});
+        Mock::given(method("POST"))
+            .and(path(DRAFT_CHECK_PATH))
+            .and(body_json(proposed.clone()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "name": "Quotes", "access": [], "unavailable": ["x"],
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
 
-        // THEN it lets the command through
-        assert!(verdict.is_ok());
+        // WHEN the sheet is checked
+        let draft = link.post_json(DRAFT_CHECK_PATH, &proposed).await.unwrap();
+
+        // THEN the answer is the draft of the runtime
+        assert_eq!(draft["unavailable"], json!(["x"]));
+    }
+
+    #[test]
+    fn test_the_commands_are_served_in_attached_mode() {
+        // GIVEN the desktop attached to a daemon
+        // WHEN the gate is asked about each command of the creation
+        let verdicts = [
+            gate(LinkMode::Attached, "agent_draft_offer"),
+            gate(LinkMode::Attached, "check_agent_draft"),
+            gate(LinkMode::Attached, "create_agent_definition"),
+        ];
+
+        // THEN it lets each through
+        assert!(verdicts.iter().all(Result::is_ok));
     }
 }

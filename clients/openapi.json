@@ -672,6 +672,88 @@
         }
       }
     },
+    "/api/v1/agent-drafts": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`POST /api/v1/agent-drafts`: check a proposed sheet, write nothing.",
+        "operationId": "check_agent_draft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposedSheet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The draft the form opens: what the machine does not hold left out and named, the sensitive accesses unchecked, the default access added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDraft"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The sheet has no name or no mission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The chat, which holds the registries, is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-drafts/offer": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`GET /api/v1/agent-drafts/offer`: what the draft of an agent may hold.",
+        "operationId": "get_agent_draft_offer",
+        "responses": {
+          "200": {
+            "description": "The accesses, the sources and the models that exist on the machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftOffer"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The chat, which holds the registries, is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agent-packages/installed": {
       "get": {
         "tags": [
@@ -19070,6 +19152,63 @@
           }
         }
       },
+      "AgentDraft": {
+        "type": "object",
+        "description": "The draft of an agent, as the form opens it. Nothing of it is stored.",
+        "required": [
+          "name",
+          "mission",
+          "examples",
+          "access",
+          "sources",
+          "unavailable"
+        ],
+        "properties": {
+          "access": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftAccess"
+            },
+            "description": "The accesses proposed, then the reading family, each one existing on\nthe machine."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Example requests."
+          },
+          "mission": {
+            "type": "string",
+            "description": "What the agent is for, used as its instructions."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model proposed, `None` for the default model of the machine."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The sources proposed, each one existing on the machine."
+          },
+          "unavailable": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the sheet asked for and the machine does not hold: accesses,\nsources (`source:<id>`) and a model (`model:<name>`)."
+          }
+        }
+      },
       "AgentListResponse": {
         "type": "object",
         "description": "Response body for agent list.",
@@ -22198,6 +22337,66 @@
           "name": {
             "type": "string",
             "description": "File name of the document, with its extension, such as `invoice.pdf`."
+          }
+        }
+      },
+      "DraftAccess": {
+        "type": "object",
+        "description": "One access of a draft.",
+        "required": [
+          "id",
+          "checked",
+          "sensitive",
+          "by_default"
+        ],
+        "properties": {
+          "by_default": {
+            "type": "boolean",
+            "description": "Whether it is there because an agent created without code is granted\nit by default, rather than because the sheet asked for it."
+          },
+          "checked": {
+            "type": "boolean",
+            "description": "Whether the form opens with it granted. A sensitive access is only\nwhen the default grants it to every new agent."
+          },
+          "id": {
+            "type": "string",
+            "description": "The identifier the agent would be granted it by."
+          },
+          "sensitive": {
+            "type": "boolean",
+            "description": "Whether its family is anything but plain reading."
+          }
+        }
+      },
+      "DraftOffer": {
+        "type": "object",
+        "description": "What a draft may hold: the accesses, the sources and the models that exist\non the machine when it is read.",
+        "required": [
+          "accesses",
+          "sources",
+          "models"
+        ],
+        "properties": {
+          "accesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferedAccess"
+            },
+            "description": "The tools of the registry, the disabled ones left out, and the code\ncontext, which a checked code folder grants rather than an access."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The models an agent can be assigned, by the name the router routes by."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferedSource"
+            },
+            "description": "The profile, the memory, then the sources of the registry."
           }
         }
       },
@@ -25718,6 +25917,57 @@
           }
         }
       },
+      "OfferedAccess": {
+        "type": "object",
+        "description": "One access that exists on the machine.",
+        "required": [
+          "id",
+          "description",
+          "family",
+          "sensitive",
+          "by_default"
+        ],
+        "properties": {
+          "by_default": {
+            "type": "boolean",
+            "description": "Whether an agent created without code is granted it by default: a\ntool of a family the default grants, or one the default names."
+          },
+          "description": {
+            "type": "string",
+            "description": "What it does, in one line."
+          },
+          "family": {
+            "type": "string",
+            "description": "Its action family, as the journal names it."
+          },
+          "id": {
+            "type": "string",
+            "description": "The identifier an agent is granted it by."
+          },
+          "sensitive": {
+            "type": "boolean",
+            "description": "Whether its family is anything but plain reading."
+          }
+        }
+      },
+      "OfferedSource": {
+        "type": "object",
+        "description": "One source that exists on the machine.",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identifier an agent's source list names it by."
+          },
+          "label": {
+            "type": "string",
+            "description": "The name the person sees."
+          }
+        }
+      },
       "OkResponse": {
         "type": "object",
         "description": "Response for enable/disable.",
@@ -27233,6 +27483,52 @@
           "tool_name": {
             "type": "string",
             "description": "Tool the rule targets."
+          }
+        }
+      },
+      "ProposedSheet": {
+        "type": "object",
+        "description": "A sheet as it is proposed, before it is checked: every list optional.",
+        "required": [
+          "name",
+          "mission"
+        ],
+        "properties": {
+          "access": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the accesses asked for."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Example requests."
+          },
+          "mission": {
+            "type": "string",
+            "description": "What the agent is for, used as its instructions."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A model to assign; absent for the default model of the machine."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the sources asked for."
           }
         }
       },

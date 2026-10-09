@@ -374,6 +374,27 @@ impl ChatSessionManager {
                     let result = self.reject_user_input_internal(&request_id, reason);
                     let _ = reply.send(result);
                 }
+                ChatCommand::AgentDraftOffer { reply } => {
+                    // Read off the actor: the registries are asked, and the
+                    // actor goes on serving the conversations meanwhile.
+                    let registry = self.tool_registry.clone();
+                    let cfg = self.chat_tools_config.clone();
+                    let models = self
+                        .llm_router
+                        .as_ref()
+                        .map(|router| router.backend_names())
+                        .unwrap_or_default();
+                    tokio::spawn(async move {
+                        let disabled = cfg
+                            .as_deref()
+                            .map(super::dispatcher::effective_disabled_tools)
+                            .unwrap_or_default();
+                        let offer =
+                            super::agent_draft::offer(&registry, &disabled, cfg.as_deref(), models)
+                                .await;
+                        let _ = reply.send(offer);
+                    });
+                }
                 ChatCommand::ListPendingUserInputs { reply } => {
                     let views = self
                         .pending_user_replies
