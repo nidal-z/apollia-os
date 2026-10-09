@@ -16,15 +16,14 @@ reality.
 
 | Area | The honest limit |
 |---|---|
-| **Verification checks** | The critic pass is wired on the orchestrated path, but running an agent's declared shell `check_commands` under governance is not; that invoker is a no-op today. The LLM critic is real; the deterministic shell checks are a follow-up. |
+| **Verification checks** | The critic pass is wired on the orchestrated path. The manifest type carries a `check_commands` field for shell checks, and nothing runs it. The LLM critic is real; no deterministic shell check is. |
 | **Speech-to-text** | Batch only. Transcribe and translate work; there is no streaming transcription. The feature is local-CPU and returns a service-unavailable response when the model is absent. |
 | **Connectors** | Google is scoped to non-restricted, free-tier scopes (Gmail send and draft creation only, no restricted scopes; Calendar, Drive-file, and the sensitive document scopes). This is a deliberate free-tier posture, not a bug, but it bounds what an agent can do on Google. |
-| **Desktop orchestrated path** | The orchestrated execution path is a no-op in the desktop app; the direct path is bounded and wired. |
-| **Token cost budget** | The step budget (steps, tool calls, wall-clock) is enforced, but the token-cost threshold is not: it defaults to effectively unlimited. Cost ceilings are not yet a hard stop. |
-| **Runtime budget from config** | The step ceiling is enforced with a safe default, but reading that ceiling from `apollia.toml` at runtime is still to wire. |
-| **Inbound MCP server** | Apollia as an MCP client is solid across three transports. The inbound MCP server (Apollia exposing itself) is partial: stdio only. |
-| **Model recommendation** | Onboarding ranks models for the local machine, but three of its inputs are judgement rather than measurement: the capability scores in the curated generation table (`families.toml`), the capability each quantization retains, and the memory bandwidth figures behind the speed term. Memory costs, compatibility and layer placement are computed from the files themselves. The catalogue is fetched live, so a machine with no network is offered no list. Split GGUF files are not offered, because the downloader fetches one URL. |
-| **Triggers** | Cron, interval, one-shot, and file-watch sources are wired. The webhook trigger source is a no-op stub. There is no email or Slack trigger. |
+| **Token cost budget** | The step budget (steps, tool calls, wall-clock) is enforced, but the token-cost threshold is not: it defaults to effectively unlimited. Cost ceilings are not a hard stop. |
+| **Runtime budget from config** | The ceiling of an agent run is fixed in the code, at 100 reasoning steps, 200 tool calls and 1200 seconds, and no key of `apollia.toml` changes it. A workflow run reads its own bounds, `[workflows] max_steps` and `wall_clock_secs`. |
+| **MCP server** | Apollia as an MCP client is solid across three transports. The server side is a stdio bridge only, off by default, and it serves the agents and workflows the user exposed, not the native tools. |
+| **Model recommendation** | Onboarding ranks models for the local machine, but three of its inputs are judgement rather than measurement: the capability scores in the curated generation table (`families.toml`), the capability each quantization retains, and the memory bandwidth figures behind the speed term. Memory costs, compatibility and layer placement are computed from the files themselves. The catalogue reads a signed online index and falls back to the index shipped in the binary, so a machine with no network is offered the cards its build knew, which are as old as that build. Split GGUF files are not offered, because the downloader fetches one URL. |
+| **Triggers** | Cron, interval, one-shot, file-watch and webhook sources are wired. There is no email or Slack trigger. |
 | **Copilot / meta-LLM layer** | The "more transparent than a cloud assistant" ambition is roughly a third wired. Of the meta commands, only Next Steps is a live LLM call end to end; the coach engine is real and the connector wizard reaches it at its coaching step, and the rest are heuristics or templates. The contracts are in place; the secondary LLM is largely still to connect. |
 | **Streaming usage** | Token streaming is real, but the stream's done event carries no usage figures. |
 
@@ -33,9 +32,7 @@ reality.
 | Area | Reality |
 |---|---|
 | **Sharded GGUF loading** | Missing. The embedded `llama-server` engine loads a single-file GGUF model per server process. A code comment suggesting sharded loading does not reflect a wired path. |
-| **Embeddings** | Missing. The embeddings path is a stub, not a delivered capability. |
-| **Inference health monitor and auto-restart** | Missing. The daemon spawns and load-locks the embedded `llama-server` inference process, but there is no health monitoring or automatic restart. A code comment claiming otherwise is wrong. |
-| **Actor restart policy** | The actor supervisor defines a restart policy, but it is not enforced. It is effectively dead code today. |
+| **Actor restart** | None, by decision. An actor that dies is not restarted: the runtime reports the loss and degrades the capability that actor served (see [supervision](/architecture/decisions#supervision)). The inference engines and the speech-to-text runner are separate processes, and the daemon does respawn those. |
 | **Direct execute via the unified path** | The `execute()` direct-via-unified path is a stub. The real direct path runs through a separate entry point; the stub is secondary. |
 
 ## Documentation drift this cartography corrects
@@ -45,11 +42,12 @@ reader trusts the stale version:
 
 - The SDK contract is `sdk/apollia/types.py`, not an `sdk/apollia/stubs/`
   directory (which does not exist).
-- The runtime context `ctx` is fifteen services, not the earlier flat shape.
+- The runtime context `ctx` is seventeen services, not the earlier flat shape.
   See the [SDK reference](/reference/sdk).
-- Sharded GGUF, runner auto-restart, and the actor restart policy were described
-  as working; they are not, as stated above.
-- Replay was described as a fidelity feature; it was abandoned by decision.
+- Sharded GGUF loading and an actor restart policy were described as working;
+  neither exists, as stated above.
+- Replay was described as running a run again; what exists steps through the
+  captured trace and runs nothing again.
 
 ## What this means for an adopter
 
@@ -60,6 +58,6 @@ shell commands, and a governed tool path that native and MCP tools both pass
 through. Prompt-injection detection is **not** part of that list, and no
 component of the tree provides it: what the guard above screens is shell
 injection. The debt is
-mostly at the edges: hardening the inference sidecar, closing the shell-check
-half of verification, wiring cost ceilings, and finishing the copilot layer.
+mostly at the edges: the shell-check
+half of verification, cost ceilings, and the copilot layer.
 Knowing exactly where those edges are is the point of this page.

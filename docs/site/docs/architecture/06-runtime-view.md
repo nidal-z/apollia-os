@@ -6,7 +6,7 @@ format: mdx
 
 # 6. Runtime view
 
-Four end-to-end scenarios show how the building blocks cooperate at run time.
+Five end-to-end scenarios show how the building blocks cooperate at run time.
 Each is anchored to a real, wired capability; where a step is only partly wired,
 it is called out here and in [Risks and technical debt](/architecture/risks-and-technical-debt).
 
@@ -43,8 +43,8 @@ sequenceDiagram
 ```
 
 The budget increment is wired into the actor loop, so the ceiling actually stops
-the agent. The critic runs; running an agent's declared shell checks under
-governance is a later step. See [the execution model](/architecture/decisions#execution-model)
+the agent. The critic runs; no shell check is run on behalf of an agent.
+See [the execution model](/architecture/decisions#execution-model)
 (verification and critic).
 
 <!-- claim:plan-step-decided-by-governance -->
@@ -127,86 +127,111 @@ sequenceDiagram
     Journal-->>Auditor: intact or tampered
 ```
 
-The signed journal and verification are wired. Replay (re-execution and
-comparison) was abandoned by decision; accountability rests on the journal and
-verification. The narrative is
+The signed journal and verification are wired. A captured run can also be
+replayed: `apollia-os audit replay <RUN>`, or `POST /api/v1/audit/replay/{run_id}`,
+reads the trace of the run from the journal and steps through it offline, each
+captured model response followed by the captured outputs of the tool calls it
+asked for, then answers identical, diverged (with every divergence) or
+incomplete trace. It calls no model and runs no tool: it checks the capture
+against itself. It does not run the agent again, because the journal does not
+hold the prompt the run started from. Accountability rests on the journal and
+its verification. The narrative is
 [the accountability model](/explanation/accountability-model).
 
-## Scenario E: how a tool call is governed in chat
+## Scenario E: how a tool call is governed
 
-<!-- claim:chat-tool-governance-path -->
-
-This is the path that actually decides whether a tool runs when a user is
-talking to the runtime. It is worth reading in full, because it is the one most
-often described wrongly: there is no central permission engine sitting in front
-of tool calls, and no injection classifier in the decision. The gate is a set
-membership, and what fills that set is what matters.
+This is the path that decides whether a tool runs, for every agent and wherever
+the call is made: a conversation, a task, a step of a plan, an item of a batch.
+It is one function, `decide`, in `apollia-runtime` (`governance/decision.rs`).
+It reads what governance holds (the refusals of the organisation policy, the
+fine rules and the standing consents of `governance.db`, and the developer
+mode) and answers one call. There is no injection classifier in the decision,
+and no set of tool names authorized in advance: the stored rules are matched
+against each call.
 
 ```mermaid
 sequenceDiagram
-    actor User
-    participant Chat as Chat manager
-    participant Rules as Prefix rules (governance.db)
-    participant Loop as ReAct loop
+    actor Person
+    participant Run as Agent run
+    participant Gov as Governance decision
     participant Tool
-    Chat->>Rules: allow-rules for this agent, and global ones
-    Rules-->>Chat: tool names to pre-authorize
-    Note over Chat: code executors are filtered out here
-    User->>Loop: message
-    Loop->>Loop: model asks for a tool
-    alt tool name is in the authorized set
-        Loop->>Tool: invoke
-    else not authorized
-        Loop-->>User: ChatApprovalRequired (5 minute timeout)
-        User-->>Loop: allow once, always allow, or refuse
-        alt refused, or the timeout expires
-            Loop->>Loop: nothing runs, the model is told
-        else allowed
-            Loop->>Tool: invoke
+    Run->>Run: model asks for a tool
+    Run->>Gov: agent, tool, first argument, family
+    alt policy or deny rule
+        Gov-->>Run: refused
+        Run->>Run: nothing runs, the model is told
+    else reads only, or acts on the conversation
+        Gov-->>Run: allowed
+        Run->>Tool: invoke
+    else standing consent, grant of the run, or allow rule on one command
+        Gov-->>Run: allowed
+        Run->>Tool: invoke
+    else nothing covers it
+        Gov-->>Run: ask
+        Run-->>Person: ChatApprovalRequired
+        Person-->>Run: once, always or refuse
+        alt refused
+            Run->>Run: nothing runs, the model is told
+        else once or always
+            Run->>Tool: invoke
         end
-    end
-    Tool-->>Loop: result
-    opt always allow
-        Loop->>Rules: persist an allow rule at the chosen scope
     end
 ```
 
-Four properties follow from that shape, and each one is a deliberate choice
+The decision reads six lines in order, and the first that applies decides.
+
+1. The organisation policy refuses the tool, its connection or its family of
+   action: refused.
+2. A fine rule `deny` matches the call: refused.
+3. The family only reads, or acts on nothing but the conversation or the
+   agent's own memory: allowed.
+4. The call executes code: allowed by a fine rule `allow` on a single simple
+   command, in developer mode only, and asked otherwise.
+5. The call proposes a fact for the profile: asked, every time. Any other call
+   is allowed by a standing consent of the agent for the family of the tool, or
+   by a grant of the run.
+6. Anything left is asked, with the answers once, always and refuse.
+
+Five properties follow from that order, and each one is a deliberate choice
 rather than an accident.
 
-**Rules are evaluated by argument, the name set by name, and deny wins.** The
-stored prefix rules are evaluated first, against the call's argument, per
-invocation: a matching deny refuses the call without a prompt, even when the
-tool sits in the name-only pre-authorization set, so a standing refusal cannot
-be bypassed by a broader "always allow". A matching allow runs the call
-without widening the set. Otherwise, authorizing `file_read` once with "always
-allow" still authorizes it for every path it will ever be given at that scope:
-the pre-authorization set is name-only, and argument-level prefix rules are
-kept out of it (they cannot be represented there) precisely because they are
-evaluated per invocation. Anything left raises the approval prompt.
+**A consent covers a family, a rule covers an argument.** Every tool declares a
+family of action: reading, reading personal data, writing or deleting, sending
+outside the machine, executing code. "Always" on the consent card records a
+standing consent of one agent for one family, never for a tool name. A fine
+rule is narrower: it names a tool and an optional prefix of its first argument,
+it is matched on each call, and it carries one of two scopes, one agent or
+every agent. No consent and no rule is scoped to a session or to a project. A
+tool nobody classified is asked every time, without "always".
 
-**Code executors are exempt from every blanket authorization.** `bash_executor`
-and its siblings are filtered out of the pre-authorized set on both routes that
-fill it: agent-scoped allow rules and global allow rules. "Always allow" on one
-is refused at persistence time as well. Outside a
-targeted prefix rule, which only ever covers a single simple command, every
-invocation asks, every time. This is the single invariant that survives all the
-paths above, and it exists because a blanket allow on a shell is a blanket allow
-on everything.
+**Refusals come first.** The policy and a `deny` rule are read before anything
+that allows, so a standing consent or a grant of the run cannot get around a
+standing refusal.
 
-**No answer is treated as a refusal.** An approval prompt that goes unanswered
-for five minutes resolves to a refusal, and no tool runs. The timeout is fixed
-in the code and is not configurable.
+<!-- claim:chat-tool-governance-path -->
+**Executing code asks, outside one narrow case.** No standing consent covers a
+code executor such as `bash_executor`. In developer mode, a fine rule that
+allows a tool under an argument prefix lets through a single simple command,
+one that does not chain, pipe, redirect or substitute, and "always" on such a
+command is what writes that rule. Everywhere else each execution asks, with
+once and refuse as the only answers. This invariant exists because a blanket
+allow on a shell is a blanket allow on everything.
 
-**"Always allow" means one of five stickinesses.** The operator picks the scope:
-this tool for the turn, this session, this agent, this project, or machine-wide.
-The default is the session, the least sticky of the five. Anything above the
-session is written to `governance.db` and comes back on the next run, which is
-what makes the first step of the diagram non-empty.
+**No answer is treated as a refusal.** In a conversation, a prompt that goes
+unanswered for five minutes resolves to a refusal, and no tool runs. The
+timeout is fixed in the code and is not configurable. A run nobody watches,
+such as an item of a batch, does not prompt: the first call that would ask
+stops the run, and the decision is listed with the others waiting for the
+person (`GET /api/v1/pending-decisions`, answered with
+`POST /api/v1/pending-decisions/decide`).
+
+**Governance that cannot read refuses.** When `governance.db` cannot be read,
+or a deposited organisation policy is refused, every sensitive call is refused
+and reading continues. A failure never becomes a permission.
 
 ## State machines
 
-The four scenarios above move things between states. The states themselves are
+The scenarios above move things between states. The states themselves are
 enumerated in the code and, in two cases, the transitions are enforced there
 rather than merely intended.
 

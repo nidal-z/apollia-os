@@ -37,17 +37,19 @@ permissions. The TCP listener is bound on Windows exactly as it is elsewhere:
 ## Inference runs local
 
 Apollia carries its own local inference. A model in GGUF format runs through a
-supervised local engine (the embedded `llama-server`, upstream llama.cpp), so the
+supervised local engine (the embedded `llama-server`, upstream llama.cpp), and
+on macOS Apple Silicon a model in the MLX format runs through a second embedded
+engine, so the
 reasoning that drives an agent can happen entirely on your machine with no external
 LLM call. This is the piece that makes
 the rest meaningful: local storage is not much of a guarantee if every thought
 the agent has is a round trip to someone else's server.
 
-Two honest bounds on the local inference available today. The local engine loads a
-single-file GGUF model. And the delivered local capability is text generation:
-Apollia does not present a local embeddings pipeline as a shipped feature. Stated
-plainly so you can plan around what is there rather than around what a roadmap
-implies.
+One honest bound on the local inference available today: `llama-server` loads a
+single-file GGUF model, so a model split across several files is not offered.
+Embeddings are local too. An embeddings model you choose is served by the same
+engine on the loopback interface, and it is what indexes your sources and
+memory for search; with none chosen, search falls back to keywords alone.
 
 ## Zero external dependency
 
@@ -61,8 +63,11 @@ also have to run."
 
 ## The cloud is a choice, never a default
 
-Cloud inference exists, and it is opt-in on your own key. Nothing reaches a cloud
-provider until you configure one, and the local model stays the default.
+A remote model exists as a choice. There is no dedicated cloud provider: a
+remote model is reached through one generic connection to an OpenAI-compatible
+server, at an address you designate, such as a server you host or a gateway you
+run. Nothing reaches a remote server until you configure one, and the local
+model stays the default.
 
 What the opt-in buys is worth stating precisely, because it is the one place where
 the runtime decides on its own. If you enable hybrid routing
@@ -79,7 +84,9 @@ you inherit.
 ## Your memory stays yours
 
 An agent's memory, its episodic, semantic, and procedural layers, can be exported
-and imported by you. That is not a convenience feature; it is the concrete form
+and imported by you. Each agent has one space of its own, named after it, which
+it reads and writes itself when Memory is checked on its sheet; nothing is put
+there on its behalf. That is not a convenience feature; it is the concrete form
 of ownership. Data you can take out, inspect, and move is data that is yours in a
 way a privacy policy cannot promise. Portability is what turns "we store it
 locally" into "you hold it."

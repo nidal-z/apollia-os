@@ -25,7 +25,9 @@ from the eight principles that govern the project.
 5. **One actor, one responsibility.** The runtime core is a set of Tokio actors
    with no shared mutable state between them. They communicate only by message.
 6. **Memory at agent initiative.** The runtime never auto-injects memory context
-   into an agent's prompt. An agent recalls when it chooses to. The built-in
+   into an agent's prompt, and writes nothing to memory on its behalf. An agent
+   recalls with the tool `memory_search` and keeps a note with `memory_write`,
+   when it chooses to; checking Memory on its sheet grants both. The built-in
    conversational assistant is the one place that does inject, in two ways, and
    [the eight principles](/explanation/the-8-principles) says which.
 7. **Non-negotiable safeguards.** A step budget is enforced by the runtime and
@@ -46,13 +48,15 @@ Unix-socket-only.
 - **Language and runtime.** The core is Rust (1.89+) on Tokio. Errors use
   `thiserror` enums, not `anyhow`, so failures stay typed and map to exit codes
   and structured traces. No `unwrap`, `panic`, or `println` in production paths.
-- **Python bridge.** Agents are Python (3.12+), executed through a PyO3 bridge
-  with `pyo3-async-runtimes`. The Rust side owns the process; Python is the
-  guest.
+- **Python bridge.** The Python a package brings (its tools and its workflows)
+  is executed in-process through a PyO3 bridge with `pyo3-async-runtimes`. The
+  Rust side owns the process; Python is the guest. The SDK source floor is
+  Python 3.10, and the runtime embeds its own CPython 3.13.
 - **Inference.** Local inference is the embedded `llama-server` (upstream
   llama.cpp), on GGUF models, over its OpenAI-compatible HTTP API. The backend is
   not fixed, it is chosen per published artifact: Metal on macOS, and CPU, Vulkan
-  or CUDA on Linux and Windows. Local speech-to-text is `whisper`.
+  or CUDA on Linux and Windows. On macOS Apple Silicon a second embedded engine,
+  vllm-mlx, serves models in the MLX format. Local speech-to-text is `whisper`.
 - **Persistence.** SQLite with FTS5, in WAL mode. No external database.
 - **Transport.** The HTTP API is served on a Unix socket and on TCP with a
   bearer token. `apollia-os start` binds both, taking port 7771 when `--port` is
@@ -63,12 +67,13 @@ Unix-socket-only.
   `0600`.
 - **No unjustified dependency.** Every third-party dependency, Rust or Python, is
   a sovereignty surface and is added only with an architecture decision behind
-  it. Agents and workers are standard-library-only by default.
+  it. The Python SDK is standard-library-only.
 
 ## Organizational constraints
 
 - **Documentation is code-derived.** The API, CLI, and SDK references are
   generated from the source of truth and never hand-written. This architecture
   section links to them rather than restating them.
-- **Decisions are recorded.** Structural choices are captured as numbered
-  architecture decision records. See [Architecture decisions](/architecture/decisions).
+- **Decisions are recorded.** Structural choices are stated in the present
+  tense, one section per subject under a stable anchor. See
+  [Architecture decisions](/architecture/decisions).

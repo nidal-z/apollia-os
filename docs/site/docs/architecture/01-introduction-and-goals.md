@@ -7,11 +7,12 @@ title: 1. Introduction and goals
 
 ## What Apollia is
 
-Apollia OS is a sovereign runtime for autonomous AI agents. It runs any Python
-agent (LangGraph, CrewAI, or a custom one) in isolation, locally, with tools,
-and without a cloud dependency. An agent here is not a scripted LLM pipeline: it
-is a process that reasons and acts on its own, in a ReAct loop, under governance
-the runtime enforces.
+Apollia OS is a sovereign runtime for autonomous AI agents. An agent is a
+record: a mission, a model, tools, sources and rights, declared in the manifest
+of a package or created in the application. The engine built into the runtime
+runs it in a ReAct loop, locally, under governance the runtime enforces, and
+without a cloud dependency. A package may also bring Python: tools an agent
+calls, and workflows whose steps their author fixes.
 
 It is built to be **embedded**. The primary consumer is a host product that
 drives an Apollia instance to do agent work over its own data, without moving
@@ -37,7 +38,7 @@ by these three. Where a trade-off arises, sovereignty and accountability win.
 | Stakeholder | What they need from Apollia | Where they read |
 |---|---|---|
 | **Host integrator** (beachhead) | Drive and embed the runtime from their product without reverse-engineering it | [Driving contract how-to](/how-to/integrate-via-driving-contract), [HTTP API reference](/reference/api/apollia-os-runtime-api) |
-| **Agent author** (Python) | Write a typed agent or worker against a stable contract | [SDK / `ctx` reference](/reference/sdk) |
+| **Package author** (Python) | Declare agents in a manifest, and write typed tools and workflows against a stable contract | [SDK / `ctx` reference](/reference/sdk) |
 | **Operator** | Run and supervise agents day to day | [Operator help](/operator-help) |
 | **Contributor** | Change the runtime without breaking its invariants | This section, plus the in-repo agent rulebook |
 

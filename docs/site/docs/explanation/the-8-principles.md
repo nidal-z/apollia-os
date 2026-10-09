@@ -6,8 +6,8 @@ description: The eight principles Apollia is built on, from local-first to safeg
 
 # The 8 principles
 
-Apollia is a sovereign runtime for autonomous AI agents. It runs any Python agent
-in isolation, locally, with tools, and without a cloud dependency. Eight
+Apollia is a sovereign runtime for autonomous AI agents. It runs agents
+locally, under governance it enforces, with tools, and without a cloud dependency. Eight
 principles hold that promise together. They are not style preferences; each one
 was forced by a real constraint, and each one shapes a default you can rely on as
 an adopter. This page explains what each principle is and why it matters to you.
@@ -76,13 +76,23 @@ behind this is in [Solution strategy](/architecture/solution-strategy).
 ## 6. Memory at agent initiative
 
 <!-- claim:memory-injection-confined-to-builtin-assistant -->
-Apollia never injects memory into an agent's prompt. An agent recalls what it
-decides to recall, when it decides to, through `ctx.memory`. Automatic memory
+Apollia never injects memory into an agent's prompt, and writes nothing to
+memory on its behalf. An agent recalls what it decides to recall, when it
+decides to, with the tool `memory_search`, and keeps a note with
+`memory_write`. Both tools come from one gesture, checking Memory on the sheet
+of the agent, and neither asks for consent: the space is the agent's own, one
+space named after it and kept across its conversations and its tasks, which
+reaches neither your data nor the machine. Automatic memory
 injection is convenient and quietly corrosive: it makes a run's inputs opaque and
 its behaviour hard to attribute. Leaving recall to the agent's initiative keeps
 the record of what fed a decision honest.
 
-Three exceptions exist, and none is reachable from a Python agent you install.
+Your profile is the opposite case. It follows you into every conversation it is
+switched on for, so an agent never writes it. An agent whose Profile source is
+checked may propose a fact with `profile_propose`, and the proposal is put to
+you every time, with no "always".
+
+Three exceptions exist, and none is reachable from an agent you install.
 The first two are confined to the built-in conversational assistant, the one
 behind the chat window, and live in its own prompt builder and chat manager. The
 third lives elsewhere, in the desktop prompt-rewrite command, which never touches
@@ -134,12 +144,12 @@ sovereignty as much as to agency.
 
 Every autonomous run is bounded by a step budget the runtime enforces: a ceiling
 on reasoning steps, tool calls, and wall-clock time. An agent cannot raise or
-remove it from its own code. Autonomy is only delegable if it has a hard edge, so
+remove it. Autonomy is only delegable if it has a hard edge, so
 the edge lives in the runtime rather than in the agent's good intentions. This
 page does not re-explain the mechanism; it is one of the pillars of the
 [accountability model](/explanation/accountability-model). One honest detail: the
-ceiling ships with a safe default, and reading a custom ceiling from `apollia.toml`
-at runtime is a follow-up rather than a finished path. The full ledger of what is
+ceiling of an agent run is fixed in the code, and no key of `apollia.toml`
+changes it. The full ledger of what is
 partial is in [Risks and technical debt](/architecture/risks-and-technical-debt).
 
 ## 8. Human CLI, machine API

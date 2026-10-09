@@ -22,7 +22,7 @@ entries by role.
 |---|---|
 | `crates/` | The Rust workspace. Each subdirectory is one crate with a single responsibility. Members and their shared dependency versions are declared in the root `Cargo.toml`. |
 | `sdk/` | The Python SDK (`apollia` package, "AgentKit"): the `@tool` and `@workflow` decorators, the `Ctx` type contract, and the `describe` command that writes the tool and workflow descriptors of a package into its `apollia.toml`. Packaged with `pyproject.toml`. This is the kit for *authoring* the Python of packages that run *inside* the runtime. |
-| `agents/` | Bundled packages. `agents/system/` holds the packages Apollia ships with (the onboarding agent, the in-app guide); `agents/starters/` holds the declarative agents the application proposes, each an `apollia.toml` with no code; `agents/examples/` holds two small samples, `hello` (an agent with one Python tool) and `word-count` (a Python tool with no agent). Treat these as illustrations, not canonical templates. |
+| `agents/` | Bundled packages. `agents/system/` holds the packages Apollia ships with (the onboarding agent, the in-app guide, the agent workshop); `agents/starters/` holds the declarative agents the application proposes, each an `apollia.toml` with no code; `agents/examples/` holds two small samples, `hello` (an agent with one Python tool) and `word-count` (a Python tool with no agent). Treat these as illustrations, not canonical templates. |
 | `clients/` | Typed API clients a *host application* uses to *drive* a running Apollia runtime over its HTTP API (submit tasks, stream results, read the audit trail). TypeScript (`clients/ts`) and Python (`clients/python`) clients are generated from `clients/openapi.json` via `clients/regen.sh`, so they cannot drift from the wire contract. This is the opposite direction from `sdk/`. |
 | `tests/` | The workspace-level integration and end-to-end test crate (`apollia-e2e-tests`), plus the CLI suite (`tests/cli/`) that exercises the runtime across crate boundaries. Per-crate unit tests live inside each crate instead. |
 | `fuzz/` | The `cargo-fuzz` crate: libFuzzer targets (`fuzz/fuzz_targets/`) and their corpora (`fuzz/seeds/`). Built on its own with a nightly toolchain and excluded from the stable workspace, so the normal gates never try to compile it. |
@@ -36,7 +36,7 @@ entries by role.
 |---|---|
 | `docs/site/` | The public documentation site (Docusaurus, English + French, Diataxis structure). This page lives here. |
 | `docs/agents/` | The long-form rulebook for contributors (human and LLM): coding patterns, naming, testing, security, and the forbidden-practices list. English only. |
-| `docs/internal/` | Release planning and internal notes. Gitignored and never shipped, so any path under it that appears in a decision record is provenance only, not something you can open. |
+| `docs/internal/` | Release planning and internal notes. Gitignored and never shipped: a public checkout does not hold it. |
 
 ## The Rust workspace (`crates/`)
 
@@ -50,14 +50,14 @@ built in isolation under special flags (`apollia-loom-models` and the top-level
 | `apollia-core` | Shared types and the public contract used by every other crate. |
 | `apollia-runtime` | The event bus, the Tokio actor supervisor, and the axum HTTP API (Unix socket + TCP 7771). |
 | `apollia-oria` | The ORIA execution engine: classify, plan, gate, execute, verify, with the enforced `StepBudget`. |
-| `apollia-aip` | The PyO3 bridge that runs Python agents in-process (`Bound<'py, T>`, `pyo3-async-runtimes`). |
-| `apollia-llm` | Local and cloud LLM routing (the embedded llama-server, upstream llama.cpp, for local GGUF inference; OpenAI-compatible and Anthropic cloud backends behind a feature). |
+| `apollia-aip` | The PyO3 bridge that runs the Python tools and workflows of installed packages in-process (`Bound<'py, T>`, `pyo3-async-runtimes`). |
+| `apollia-llm` | LLM routing: the embedded llama-server (upstream llama.cpp) for local GGUF inference, and remote backends reached through one OpenAI-compatible client. Also the embeddings client, the model cards and the model recommender. |
 | `apollia-runner` | The out-of-process speech-to-text runner sidecar (whisper). Local LLM inference no longer runs here; it goes through the embedded llama-server. |
 | `apollia-stt` | Local speech-to-text (whisper). |
 | `apollia-mcp` | The Model Context Protocol client (stdio / HTTP / SSE transports, untrusted-response caps). |
 | `apollia-tools` | Built-in tool implementations. |
 | `apollia-memory` | Agent memory persistence (SQLite + FTS5). |
-| `apollia-permissions` | Persisted permission rules, the code-executor guard, and the decision log. |
+| `apollia-permissions` | What governance decides from: the persisted fine rules, the standing consents by family of action, the organisation policy, and the code-executor guard. |
 | `apollia-auth` | Authentication and OAuth2 (PKCE), secret storage via the OS keychain. |
 | `apollia-connectors` | External service connectors. |
 | `apollia-triggers` | Scheduled and event-driven triggers (cron, filesystem watch). |
@@ -66,6 +66,7 @@ built in isolation under special flags (`apollia-loom-models` and the top-level
 | `apollia-prompts` | Centralized prompt templates. |
 | `apollia-eval` | Agent evaluation harness. |
 | `apollia-sources` | The sources an agent may consult once checked (folders, files, mailboxes, the profile, memory): the actor that owns their registry in `system.db`. |
+| `apollia-signing` | Offline signatures: Ed25519 for agent packages and organisation policies, and the verification of the minisign signatures on distribution metadata. |
 | `apollia-cli` | The `apollia-os` command-line binary (clap, noun-verb, exit codes 0-5). `apollia`, without the suffix, is a different command: the SDK's own Python entry point. The only crate where `anyhow` and user-facing stdout are allowed. |
 | `apollia-desktop` | The Tauri v2 + Svelte 5 desktop app (its UI lives in `crates/apollia-desktop/ui/`). |
 
@@ -106,14 +107,14 @@ actually configures in this repository.
 | `Cargo.toml` | The workspace root: crate members, shared dependency versions (each crate uses `{ workspace = true }` rather than inline versions), workspace lints (`unsafe_code = "deny"`, `unwrap_used = "deny"`), and the release/dev profiles. |
 | `Cargo.lock` | The exact resolved dependency graph. Committed so every build and CI run compiles the identical versions. |
 | `rust-toolchain.toml` | Pins the build toolchain to Rust `1.95.0` with `rustfmt`, `clippy`, `rust-src`, and `rust-analyzer`, so local and CI output match byte for byte. The declared MSRV floor (`rust-version = 1.89` in `Cargo.toml`) is lower and separate. |
-| `clippy.toml` | Clippy thresholds: MSRV `1.89`, cognitive-complexity `30`, type-complexity `250`, at most `5` function arguments, and a `800`-line limit per function. |
+| `clippy.toml` | Clippy thresholds: MSRV `1.89`, type-complexity `250`, and at most `5` function arguments. |
 | `rustfmt.toml` | Formatting: edition 2021, `max_width = 100`, reordered imports, field-init and try shorthands, Unix newlines. |
 | `deny.toml` | `cargo-deny` policy: an allowlist of acceptable licenses, denial of unknown registries, a warning on duplicate dependency versions, and a documented, per-release list of ignored security advisories (each with its lift condition). |
 | `Cross.toml` | `cross-rs` cross-compilation: `pre-build` steps that install the Linux system libraries (ALSA, PulseAudio, JACK, CMake, clang) into the build container for the x86_64 and aarch64 GNU/Linux targets. |
 | `justfile` | `just` task recipes: the canonical commands for building, testing, linting, and running the desktop automaton. `just` alone lists them by group and `just doctor` checks the toolchain. Its settings are environment variables, listed with their defaults in `.env.example`; personal recipes go in an untracked `justfile.local`, after the model of `justfile.local.example`. |
-| `.pre-commit-config.yaml` | The hook list, and the file to read for it rather than a copy of it: file hygiene and secret detection, `ruff` on `sdk/`, `rustfmt` and `cargo check` on the workspace, nine of the repository guards under `scripts/` (the prose rules among them), and the documentation-site build. Two entries run outside the commit itself: `clippy` on push, and the commit-message convention at `commit-msg`. Not to be bypassed. |
+| `.pre-commit-config.yaml` | The hook list, and the file to read for it rather than a copy of it: file hygiene and secret detection, `ruff` on `sdk/`, `rustfmt` and `cargo check` on the workspace, repository guards under `scripts/` (the prose rules among them), and the documentation-site build. Two entries run outside the commit itself: `clippy` on push, and the commit-message convention at `commit-msg`. Not to be bypassed. |
 | `.editorconfig` | Editor-agnostic whitespace rules: LF endings, final newline, and per-language indent sizes (4 for Rust/Python/TOML, 2 for web and Markdown). |
-| `.python-version` | Pins the local Python interpreter (`3.13.7`) for tooling like `pyenv`. |
+| `.python-version` | Pins the local Python interpreter (`3.13.13`) for tooling like `pyenv`. |
 | `.cargo/` | Cargo defaults: `config.toml` sets build environment (macOS deployment target, an accelerated dev profile) and `audit.toml` holds the `cargo-audit` advisory ignores (mirrored from `deny.toml`). |
 | `.github/` | GitHub configuration: CI, CodeQL, weekly deep-check, and release workflows (`.github/workflows/`), plus `CODEOWNERS`, issue and PR templates, `dependabot.yml`, and `FUNDING.yml`. |
 | `.gitignore` | Paths git does not track (see below). |

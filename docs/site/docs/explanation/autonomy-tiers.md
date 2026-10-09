@@ -18,8 +18,8 @@ companion that explains the tier, not the guardrails.
 ## The tier, not the agent
 
 Separating "what the agent can do" from "how far it may go unattended" is the key
-idea, and the tier only ever answers the second half. An agent declares the tools
-it needs; the tier decides whether its plan waits for approval and whether its
+idea, and the tier only ever answers the second half. The sheet of an agent grants its
+tools; the tier decides whether its plan waits for approval and whether its
 result is verified afterwards. It decides nothing about permissions: no tier
 grants a tool, refuses one, or adds a human checkpoint to a tool call. That
 separation is what lets you deploy the same agent conservatively in a sensitive
@@ -99,9 +99,11 @@ autonomous tiers only when the work is well scoped, the permissions are tight, a
 the interruptions of a lower tier would cost more than they protect. The tier is
 easy to change, so treat it as a per-run judgment, not a permanent setting.
 
-The tier is set for a run, with `--autonomy` on `apollia-os run`. There is no
+The tier of an agent is set on the agent:
+`apollia-os agent set <AGENT_ID> autonomy <tier>` overrides what its package
+recommends, and `apollia-os run` takes `--autonomy` for one run. There is no
 `[autonomy]` section in `apollia.toml` that the runtime reads, and the desktop
-offers no tier control.
+offers no control that changes the tier.
 
 ## Related
 

@@ -1,43 +1,56 @@
 ---
 sidebar_position: 6
 title: Le modèle de confiance de l'agent
-description: Un agent est du Python arbitraire. Ce qu'Apollia isole et ce qu'il n'isole pas, quelles frontières sont réelles aujourd'hui, et ce que cela implique.
+description: Un agent est une fiche et ne porte aucun code ; le Python d'un paquet est du code de confiance. Ce qu'Apollia confine, ce qu'il décide appel par appel, et ce qu'il laisse au choix d'installer un paquet.
 ---
 
 # Le modèle de confiance de l'agent
 
-Un agent est du code Python arbitraire. Apollia l'exécute dans le même
-processus que le runtime, avec les mêmes droits que la personne qui a démarré
-Apollia. Cette page énonce clairement ce que cela signifie, ce qui confine
-l'agent et ce qui ne le confine pas, et ce qu'un opérateur, en particulier un
-opérateur soumis à régulation, doit supposer avant de déployer un agent qu'il
-n'a pas écrit lui-même.
+Un agent est une fiche : une mission, un modèle, les outils qui lui sont
+accordés, les sources qu'il peut lire. Il ne porte aucun code. Le moteur
+intégré au runtime l'exécute, et chaque appel d'outil qu'il fait est décidé par
+la gouvernance avant de s'exécuter. Le code qui s'exécute avec vos droits est
+ailleurs : le Python qu'un paquet apporte, ses outils et ses workflows. Cette
+page énonce clairement ce qui confine chacun des deux, ce qui ne le confine
+pas, et ce qu'un opérateur, en particulier un opérateur soumis à régulation,
+doit supposer avant d'installer un paquet qu'il n'a pas écrit lui-même.
 
 Surestimer l'isolation serait pire qu'inutile ici : un adoptant soumis à
-régulation qui croit qu'un agent est confiné dans un sandbox alors qu'il ne
+régulation qui croit qu'un code est confiné dans un sandbox alors qu'il ne
 l'est pas prend ses décisions sur une prémisse fausse. Cette page est donc
 délibérément prudente sur ce qu'Apollia garantit.
 
 ## Ce qui s'exécute où
 
-Deux corps de code se situent à des niveaux de confiance différents.
+Trois choses se situent à des niveaux de confiance différents.
 
-**Le code Python de l'agent est du code de confiance.** Il est chargé dans le
-même processus via le pont PyO3, et s'exécute avec l'intégralité des droits
-du processus runtime : le système de fichiers, le réseau, le lancement de
-processus, et l'accès en lecture aux identifiants dans le trousseau
-(keyring). Il n'y a aucun sandbox au niveau du système d'exploitation autour
-de l'agent lui-même, aucune isolation par processus dédié par agent, et aucun
-confinement au niveau du langage. Un agent malveillant ou bogué peut faire
-tout ce que l'utilisateur courant peut faire. Il s'agit d'une décision
-délibérée pour la v0.1.0 (voir [outils et confinement](/architecture/decisions#tools-and-sandbox)) : le public visé est
-celui des builders qui écrivent ou auditent les agents qu'ils exécutent.
+**Un agent est une donnée, et ses appels d'outils sont décidés un par un.** Un
+paquet déclare un agent comme une entrée `[[agents]]` de son `apollia.toml`, ou
+la personne en crée un dans l'application. Ce qu'il peut atteindre est ce que
+sa fiche accorde : des outils, des sources, des dossiers. Le modèle choisit
+l'appel suivant, et c'est le runtime, pas le modèle, qui décide si cet appel
+s'exécute (voir plus bas). Un agent n'a aucun moyen d'exécuter quoi que ce soit
+en dehors des outils qui lui ont été accordés.
+
+**Le Python d'un paquet est du code de confiance.** Un paquet peut apporter des
+outils (`@tool`) et des workflows (`@workflow`). Ils sont chargés dans le
+processus via le pont PyO3 et s'exécutent avec l'intégralité des droits du
+processus runtime : le système de fichiers, le réseau, le lancement de
+processus, et tous les identifiants que le compte utilisateur peut lire. Il n'y
+a aucun sandbox au niveau du système d'exploitation autour de ce code, aucun
+processus dédié par paquet, et aucun confinement au niveau du langage. L'objet
+`ctx` qu'un outil de paquet reçoit ne porte ni modèle, ni proxy d'outils, ni
+mémoire, et un workflow y ajoute `ctx.llm`, `ctx.agents`, `ctx.workflows` et
+`ctx.user` ; c'est la surface que le runtime prend en charge, pas un mur. Un
+code de paquet malveillant ou bogué peut faire tout ce que l'utilisateur
+courant peut faire. Un paquet sans Python, un manifeste et rien d'autre,
+n'apporte aucun code de ce genre.
 
 <!-- claim:tool-sandbox-covers-child-processes-only -->
 **Deux outils constituent la surface confinée, et seulement leur processus
 enfant.** Quand un agent appelle `bash_executor` ou `python_executor`, cet
-outil lance un processus enfant, et c'est ce processus enfant, pas l'agent,
-qu'Apollia confine :
+outil lance un processus enfant, et c'est ce processus enfant qu'Apollia
+confine :
 
 - Sur Linux, les commandes d'outil s'exécutent à l'intérieur d'espaces de
   noms (namespaces) PID et mount, via `unshare`.
@@ -59,108 +72,91 @@ qu'Apollia confine :
   POSIX présent dans `PATH` (Git Bash, WSL ou MSYS2), et échoue en son
   absence.
 
-Tous les autres outils s'exécutent sans confinement dans le processus
+Tous les autres outils natifs s'exécutent sans confinement dans le processus
 runtime. Les outils de système de fichiers sont bornés par une vérification
 de préfixe de chemin : une racine canonicalisée qu'ils refusent de quitter,
 échappatoires par lien symbolique incluses. Cette racine est **l'union des
-dossiers accordés à l'agent**, dans une session de chat comme pour un agent
-installé ; un agent sans dossier accordé n'en atteint aucun. Les outils réseau
-sont bornés par une
-liste d'autorisation (allowlist) au niveau applicatif. Ni l'une ni l'autre
-n'est une frontière du système d'exploitation.
+dossiers accordés à l'agent**, dans une conversation comme dans une tâche ; un
+agent sans dossier accordé n'en atteint aucun. Les outils qui récupèrent par
+HTTP passent par une vérification d'adresse qui refuse les destinations de
+bouclage, privées et de lien local, sur la première URL et à chaque
+redirection. Ni l'une ni l'autre n'est une frontière du système
+d'exploitation.
 
 Trois conséquences à retenir. Un namespace mount sans `pivot_root` n'est pas
 une prison de système de fichiers (filesystem jail) : le processus enfant
 voit le même système de fichiers que vous. Une vérification de préfixe de
-chemin est une garantie applicative, pas une garantie du noyau, et ne
-survit pas à un outil qui l'ignore. Et rien de tout cela ne s'applique au
-code propre de l'agent, qui peut atteindre directement ce que les outils lui
-refusent.
+chemin est une garantie applicative, pas une garantie du noyau, et elle lie
+les outils du runtime, pas le code d'un paquet. Et un exécuteur de code
+accordé à un agent exécute ce que le modèle a écrit, avec le confinement de sa
+plateforme et rien de plus.
 
 **Dans cette documentation, le mot sandbox n'a qu'un seul sens : le
 confinement au niveau du système d'exploitation du processus enfant d'un
-outil.** Il ne désigne jamais l'agent, jamais la racine de chemin des outils
+outil.** Il ne désigne jamais un agent, jamais la racine de chemin des outils
 de système de fichiers, et jamais un environnement de test jetable.
 
 ## Ce qui tient réellement la ligne
 
-Parce que l'agent n'est pas confiné dans un sandbox, les contrôles réels sont
-procéduraux et reposent sur l'humain dans la boucle, superposés en défense en
-profondeur.
+Les contrôles sont superposés, et ils ne couvrent pas tous la même chose.
 
-- **Audit avant installation.** L'opérateur est responsable de la relecture
-  d'un agent avant de l'installer. L'installation en ligne de commande
-  affiche un avis rappelant que l'agent s'exécutera avec l'intégralité des
-  droits de l'utilisateur et sans sandbox.
-- **Approbation humaine (HITL).** Dans une session de chat, les écritures de
-  fichiers, les modifications, ainsi que l'exécution shell et Python passent
-  par la décision de consentement de la boucle de l'agent, qui demande par
-  défaut : l'action remonte à l'opérateur sur la carte d'approbation plutôt que
-  de s'exécuter silencieusement.
+- **L'aperçu avant une installation.** Un paquet s'installe depuis un fichier
+  `.apo`, et quoi qui apporte le fichier, il est d'abord présenté en aperçu :
+  ce qu'il contient, qui l'a signé, ce que chacun de ses agents demande. Rien
+  n'est écrit avant que la personne accepte. L'aperçu porte des avis : le
+  paquet n'est pas signé, la clé qui l'a signé n'est pas parmi les clés de
+  confiance, une connexion dont un agent a besoin manque, un serveur MCP du
+  même nom existe déjà. Une politique d'organisation peut refuser un paquet
+  sans signature valide (`[packages] require_signature`). C'est le contrôle qui
+  couvre le code d'un paquet, et il est humain : relire le Python d'un paquet
+  avant de l'installer relève de la responsabilité de l'opérateur.
+- **La décision de gouvernance sur chaque appel d'outil.**
   <!-- claim:hitl-wired-in-chat-path-only -->
-  **Cette décision n'est pas placée sur le dispatcher d'un agent installé.** Les
-  propres appels `ctx.tools` d'un agent ne rencontrent aucun point de
-  contrôle humain, ce qui est cohérent avec le reste de cette page : un
-  agent exécute déjà du code Python arbitraire sous votre compte, donc une
-  barrière sur un seul chemin d'appel ne contiendrait pas un chemin
-  hostile. Considérez le HITL comme une supervision du chemin
-  conversationnel, pas comme un confinement de l'agent.
-- **Déclarations de capacités.** Le manifest d'un agent déclare les outils,
-  secrets, sources de données et messagerie qu'il prévoit d'utiliser, et les
-  interfaces `ctx.*` correspondantes font respecter ces listes d'autorisation
-  par défaut. C'est de l'ergonomie de moindre privilège, pas une frontière du
-  système d'exploitation : un agent non confiné dans un sandbox peut ignorer
-  `ctx.secrets` et lire l'environnement directement. Considérez ces listes
-  d'autorisation comme un mécanisme de clarté et de confort, pas comme un
-  confinement.
-- **Garde-fous du runtime.** Le budget de pas et le journal d'audit sont
-  appliqués par le runtime, indépendamment du modèle de confiance du système
-  d'exploitation, et ne peuvent pas être désactivés par reconfiguration
-  depuis l'agent. Les règles de permission persistées s'appliquent sur le
-  chemin du chat, évaluées à chaque invocation ; les exécuteurs de code sont
-  exclus de toute autorisation globale, et ne correspondent que via une
-  règle de préfixe restreinte à une seule commande simple.
+  Avant qu'un outil demandé par un agent ne s'exécute, une seule décision y
+  répond, dans une conversation, dans une tâche, dans une étape de plan et
+  dans un élément de lot : la politique de l'organisation et une règle de
+  refus le refusent, un outil qui ne fait que lire s'exécute, et tout ce qui
+  est sensible (écrire, envoyer hors de la machine, lire des données
+  personnelles, exécuter du code) s'exécute sur un accord permanent de cet
+  agent pour cette famille d'action, ou demande à une personne, qui répond
+  une fois, toujours ou refuser. Un outil de paquet est décidé de la même
+  façon, par la famille que son auteur a déclarée. Ce que la décision
+  gouverne, c'est l'appel ; ce qu'un outil de paquet fait une fois lancé,
+  c'est son propre code.
+- **Les accords de la fiche.** Ce qu'un paquet déclare pour un agent est un
+  ensemble de valeurs par défaut. La personne change un outil, une source ou
+  un dossier depuis la fiche de l'agent, et un agent n'atteint que ce qui y
+  est accordé.
+- **Garde-fous du runtime.** Le budget d'étapes et la piste d'audit sont
+  appliqués par le runtime et ne peuvent pas être reconfigurés par un agent.
+  Les exécuteurs de code ne sont jamais couverts par un accord permanent :
+  chaque exécution demande, sauf une commande simple et unique qu'une règle
+  autorise en mode développeur.
+- **La politique de l'organisation.** Une politique signée déposée dans un
+  dossier système refuse des familles d'action, des outils ou des connexions
+  pour tous les agents de la machine, avant tout accord.
 
 ## Ce qu'un opérateur doit supposer
 
-Si vous déployez un agent que vous n'avez ni écrit ni audité, supposez qu'il
-peut lire et exfiltrer tout ce que votre compte utilisateur peut atteindre
-sur la machine, y compris les identifiants. Les mesures d'atténuation sont la
-relecture de la chaîne d'installation et les invites d'approbation, pas un
-mur technique autour de l'agent. Pour un déploiement soumis à régulation,
-cela signifie : exécuter Apollia sous un compte utilisateur restreint au
-strict nécessaire pour la charge de travail, garder la barrière d'approbation
-active pour tout ce qui est sensible, et auditer les agents avant de les
-installer.
-
-## Vers où l'isolation se dirige
-
-La posture de la v0.1.0 est honnête sur ses limites, et plusieurs d'entre
-elles sont sur la feuille de route plutôt que livrées :
-
-- Une exécution hors processus, confinée par sandbox au niveau OS, pour les
-  agents non fiables.
-- Une application par profil pour les outils (namespace réseau et listes
-  d'autorisation de sortie, un montage à portée d'écriture délimitée), afin
-  que le profil de sandbox déclaré devienne une contrainte réelle plutôt
-  qu'une simple métadonnée.
-- Une véritable prison de système de fichiers pour les exécuteurs shell et
-  Python.
-- Une politique d'organisation qui interdit le cloud sur tous les chemins
-  sortants. Aujourd'hui, sa règle `connections.remote = "deny"` refuse l'ajout
-  d'une connexion à un service en ligne, vérifiée par le runtime ; elle ne
-  couvre pas encore les points d'accès d'inférence.
-
-Tant que ces éléments ne sont pas livrés, le modèle de confiance décrit
-ci-dessus est toute l'histoire. Quand ils le seront, cette page et le
-registre de décision seront mis à jour en conséquence, jamais en avance sur
-le code.
+Si vous installez un paquet qui porte du Python que vous n'avez ni écrit ni
+audité, supposez que ce code peut lire et exfiltrer tout ce que votre compte
+utilisateur peut atteindre sur la machine, identifiants compris. Les
+atténuations sont la relecture avant installation et la signature d'un auteur
+en qui vous avez confiance, pas un mur technique autour du code. Un agent sans
+code est un cas différent : ce qu'il peut faire est ce que font ses outils, et
+chacun de ces appels passe par la décision ci-dessus. Pour un déploiement
+soumis à régulation, cela veut dire : exécuter Apollia sous un compte
+utilisateur limité à ce dont la charge de travail a besoin, exiger par
+politique des paquets signés, auditer le code d'un paquet avant de
+l'installer, et accorder les exécuteurs de code avec parcimonie.
 
 ## Voir aussi
 
-- [Outils et confinement](/architecture/decisions#tools-and-sandbox) énonce la décision relative au confinement et à la confiance
-  envers l'agent, ainsi que les alternatives rejetées.
+- [Outils et confinement](/architecture/decisions#tools-and-sandbox) énonce la décision de confinement et les
+  alternatives écartées.
+- [Le modèle de permissions](/architecture/decisions#permission-model) énonce
+  l'ordre de la décision de gouvernance.
 - [Le modèle de responsabilité](/explanation/accountability-model) couvre
-  l'audit et l'approbation en détail.
-- [Souveraineté et local-first](/explanation/sovereignty-and-local-first)
-  couvre la posture de résidence des données.
+  l'audit et l'approbation en profondeur.
+- [Souveraineté et local-first](/explanation/sovereignty-and-local-first) couvre
+  la posture de résidence des données.

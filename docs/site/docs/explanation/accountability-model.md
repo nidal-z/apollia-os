@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 title: The accountability model
-description: "Who did what, and on whose authority: how Apollia records an agent's actions so a run can be replayed and answered for after the fact."
+description: "Who did what, and on whose authority: how Apollia records an agent's actions so a run can be verified and answered for after the fact."
 ---
 
 # The accountability model
@@ -59,18 +59,21 @@ For the commands behind these two, see
 
 Undoing what an agent wrote is deliberately absent. A reversible journal exists
 in the codebase, but nothing installs it on the tools that write files, so no
-`v0.1.0-preview` install records anything to undo. Shipping the command anyway
+install records anything to undo. Shipping the command anyway
 would have been worse than shipping nothing: an empty result is indistinguishable
 from a clean session, so an operator would read "nothing to revert" as a working
 safety net and delegate accordingly. Treat every filesystem change an agent makes
-as final, and give it a sandbox root you are willing to lose.
+as final, and grant it for writing only folders you are willing to lose.
 
 ### Permissions and human oversight
 
 <!-- claim:hitl-wired-in-chat-path-only -->
-Before a tool call runs in a chat session, persisted permission rules classify
-it, a guard refuses a shell command that chains or redirects, and anything left
-raises an approval request that an operator resolves with one of three answers:
+Before a tool call of an agent runs, one decision answers it, wherever the call
+is made: a conversation, a task, a step of a plan, an item of a batch. The
+organisation policy and a deny rule refuse it, a tool that only reads runs, a
+guard keeps a rule from covering a shell command that chains or redirects, and
+anything sensitive that no standing consent covers raises an approval request
+that a person resolves with one of three answers:
 once, always for this agent, or refuse with an optional reason the agent reads.
 An "always" is granted to one agent for one family of actions, never to a tool
 name, a project or a session.
@@ -79,24 +82,23 @@ The decision itself is written down: the answer to a consent prompt, a refusal
 by the organisation policy and a refusal by a rule each become an entry of the
 signed journal, naming the agent, the tool and its family of action, never the
 argument of the call. The journal also keeps the call the decision let through,
-since the chat loop captures the tool call and its output.
+since the loop of the agent captures the tool call and its output.
 
-Which surface can answer a request depends on the kind. An approval keyed by tool
-name is answerable over the HTTP API, with `POST /api/v1/sessions/:id/authorize`,
-as well as from the desktop. The other two are desktop-only: a filesystem
-approval is resolved through a Tauri command and so is an `ask_user` question,
-and the API exposes a read route for pending approvals but no route that
-answers either. On a headless `apollia-os start`, a risky write therefore
-waits out its five-minute timeout and is refused, and an `ask_user` waits with no
-timeout at all.
+Every decision waiting for a person is listed in one place and answered from
+it. `GET /api/v1/pending-decisions` lists the tool consents of the
+conversations and of the runs outside any conversation, the pauses of tasks,
+the batch items stopped on an access and the questions asked of the user, and
+`POST /api/v1/pending-decisions/decide` answers one, through the very call that
+answers it where it was born. The desktop reads the same list, so a decision is
+the same decision whether it is given there or over the API. In a
+conversation, a consent left five minutes without an answer is refused.
 
-One boundary worth stating plainly. The approval wrapper is placed on the
-**chat** dispatcher only: the tool calls an
-installed Python agent makes through `ctx.tools` meet no human checkpoint. That
-is a deliberate position rather than an oversight, and the
-[agent trust model](/explanation/agent-trust-model) explains why: an installed
-agent already executes arbitrary Python under your account, so a gate on one call
-path would not contain a hostile one.
+One boundary worth stating plainly. The decision governs the tool calls of
+agents. It does not see inside the Python of a package: a package tool is
+decided when an agent calls it, and what its code then does runs with the
+rights of the runtime process. The
+[agent trust model](/explanation/agent-trust-model) explains why installing a
+package is the act of trust, and what covers it.
 
 ### Autonomy tiers
 
@@ -108,9 +110,12 @@ widens how far a run goes before it stops to ask.
 <!-- claim:plan-gate-yields-to-the-per-run-override -->
 The plan gate is the conditional one. The tier decides it only when the run
 carries no per-run override, and `apollia-os run` always sends one, so on that
-path `--plan` decides and the tier does not. The tier itself is set per run,
-through `--autonomy`: `apollia.toml` has no `[autonomy]` section the runtime
-reads, and the desktop offers no tier control. Free chat does not vary it
+path `--plan` decides and the tier does not. The tier of an agent is the one
+its package recommends, then the override of the person
+(`apollia-os agent set <AGENT_ID> autonomy <tier>`), then the global default,
+and `apollia-os run` takes `--autonomy` for one run. `apollia.toml` has no
+`[autonomy]` section the runtime reads, and the desktop offers no control that
+changes the tier. Free chat does not vary it
 either, every exchange running at the default tier.
 
 ### Non-negotiable safeguards
@@ -131,9 +136,7 @@ the filter blocks no command in the shipped runtime. When a standing prefix
 rule is consulted for a code executor, a stricter guard refuses any command
 that chains, pipes, redirects or substitutes, so an authorisation granted for
 one command cannot smuggle a second; outside a matching rule, every code
-executor invocation requires its own approval. The screening is not recorded
-either, and for the same reason as the approval decision above: nothing writes to
-the permission decision log.
+executor invocation requires its own approval.
 
 This screens **shell** injection. Apollia ships no defence against prompt
 injection, and nothing here should be read as one.
@@ -147,9 +150,9 @@ of the record. On a failing verdict the engine can re-plan and re-run within a
 bounded number of attempts, under the same shared budget, which is how an
 orchestrated agent corrects itself without escaping its ceiling.
 
-One honest limit: this pass currently runs the LLM critic; running an agent's
-own declared shell checks under governance is a later step, not yet wired. The
-critic is active; the deterministic shell checks are still to come.
+One honest limit: this pass runs the LLM critic, and no shell check is run on
+behalf of an agent. The critic is active; a deterministic shell check is not
+part of the pass.
 
 ## How it maps to the EU AI Act
 
@@ -164,7 +167,7 @@ With that framing, the mapping is direct:
 | Requirement (theme) | Apollia primitive |
 |---|---|
 | Article 10, data provenance and quality | the signed, hash-chained audit trail plus verification, which records and lets you confirm what data and actions a run touched |
-| Article 14, human oversight | persisted permission rules, the code-executor guard, human-in-the-loop approvals **on the chat path**, and autonomy tiers, which keep a person in control of consequential actions. An installed agent's own tool calls are outside this loop, see above |
+| Article 14, human oversight | the governance decision on every tool call of an agent (organisation policy, rules, consent by family of action, human approval), the code-executor guard, and autonomy tiers, which keep a person in control of consequential actions. The Python of an installed package is outside this loop, see above |
 | Article 16, documentation and traceability | the audit journal and run trace, which document what happened |
 
 The value is that these are wired into the runtime and demonstrable today, not

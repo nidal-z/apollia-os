@@ -21,15 +21,15 @@ Key terms used across this section and the rest of the documentation.
 | **StepBudget** | The non-bypassable ceiling on reasoning steps, tool calls, and wall-clock time the runtime enforces on every run. |
 | **ctx** | The runtime context passed to every tool and every workflow of a package, exposing seventeen typed services. The contract is `sdk/apollia/types.py`. See the [SDK reference](/reference/sdk). |
 | **AgentKit** | The Python SDK (`apollia`): the two decorators, the schemas, the test doubles and the helpers the Python of a package is written against. |
-| **MCP** | Model Context Protocol. Apollia is an MCP client that discovers and calls external tools, and can expose a limited inbound MCP server. |
+| **MCP** | Model Context Protocol. Apollia is an MCP client that discovers and calls external tools, and it serves the agents and workflows the user exposed to an MCP client through a stdio bridge, off by default. |
 | **Autonomy tier** | The per-run setting that governs the plan gate and the post-run verification pass. It governs no permission and no approval, so it changes how far a run goes unattended, not what an agent may touch. |
-| **HITL** | Human-in-the-loop: an approval a person resolves before a consequential action runs. The decision is recorded. |
+| **HITL** | Human-in-the-loop: the answer a person gives (once, always or refuse) when the governance decision asks about a tool call. The answer is recorded in the journal. |
 | **Audit journal** | The append-only, hash-chained, signed record of governed actions, used for verification. |
 | **Verify** | Checking a run's audit hash chain and signatures to confirm the record was not altered. |
 | **Rollback** | Undoing filesystem changes made in a chat session. The journal format and the replay logic exist in the codebase, but nothing writes to the journal, so this is not a capability of this release. |
-| **Replay** | Re-executing and comparing a run. Abandoned by decision; not a capability. |
+| **Replay** | Stepping offline through the trace the journal captured for a run and reporting it identical to its record, diverged or incomplete (`apollia-os audit replay`). It calls no model, runs no tool, and does not run the agent again. |
 | **Runner** | The out-of-process sidecar (`apollia-runner`) that runs local speech-to-text (whisper). Local LLM inference is served by the embedded `llama-server` (upstream llama.cpp), which the daemon supervises. |
-| **GGUF** | The single-file local model format the runner loads. |
+| **GGUF** | The single-file local model format the embedded `llama-server` loads. |
 | **Driving contract** | The stable, versioned HTTP API plus generated host SDKs a host product uses to drive the runtime. See the [HTTP API reference](/reference/api/apollia-os-runtime-api). |
 | **EventBus** | The runtime's structured event stream, which the audit journal and observability share. |
 | **Sovereignty** | The property that no user data leaves the machine without an explicit action, with local inference and storage by default. |

@@ -6,7 +6,7 @@ format: mdx
 
 # 6. Vue d'exécution
 
-Quatre scénarios de bout en bout montrent comment les blocs de construction
+Cinq scénarios de bout en bout montrent comment les blocs de construction
 coopèrent à l'exécution. Chacun s'appuie sur une capacité réelle et effectivement
 câblée ; lorsqu'une étape n'est que partiellement câblée, cela est signalé ici et
 dans [Risques et dette technique](/architecture/risks-and-technical-debt).
@@ -45,10 +45,10 @@ sequenceDiagram
 ```
 
 L'incrément de budget est câblé dans la boucle de l'acteur, si bien que le
-plafond arrête réellement l'agent. Le critique s'exécute ; l'exécution des
-vérifications shell déclarées par l'agent sous gouvernance est une étape
-ultérieure. Voir [le modèle d'exécution](/architecture/decisions#execution-model) (vérification et
-critique).
+plafond arrête réellement l'agent. Le critique s'exécute ; aucune vérification
+shell n'est exécutée pour le compte d'un agent.
+Voir [le modèle d'exécution](/architecture/decisions#execution-model)
+(vérification et critique).
 
 <!-- claim:plan-step-decided-by-governance -->
 
@@ -136,93 +136,117 @@ sequenceDiagram
     Journal-->>Auditor: intact or tampered
 ```
 
-Le journal signé et la vérification sont câblés. Le rejeu (ré-exécution et
-comparaison) a été abandonné par décision ; la redevabilité repose sur le
-journal et la vérification. Le récit correspondant est
+Le journal signé et la vérification sont câblés. Une exécution capturée peut
+aussi être rejouée : `apollia-os audit replay <RUN>`, ou
+`POST /api/v1/audit/replay/{run_id}`, lit la trace de l'exécution dans le journal
+et la parcourt hors ligne, chaque réponse de modèle capturée suivie des sorties
+capturées des appels d'outils qu'elle demandait, puis répond identique,
+divergente (avec chaque divergence) ou trace incomplète. Le rejeu n'appelle
+aucun modèle et n'exécute aucun outil : il confronte la capture à elle-même. Il
+ne relance pas l'agent, parce que le journal ne conserve pas le prompt dont
+l'exécution est partie. La redevabilité repose sur le journal et sa
+vérification. Le récit correspondant est
 [le modèle de responsabilité](/explanation/accountability-model).
 
-## Scénario E : comment un appel d'outil est gouverné dans le chat
+## Scénario E : comment un appel d'outil est gouverné
 
-<!-- claim:chat-tool-governance-path -->
-
-C'est le chemin qui décide réellement si un outil s'exécute lorsqu'un
-utilisateur parle au runtime. Il mérite d'être lu en entier, car c'est celui le
-plus souvent décrit à tort : il n'y a pas de moteur de permission central placé
-devant les appels d'outils, ni de classificateur d'injection dans la décision.
-La barrière est une appartenance à un ensemble, et ce qui remplit cet ensemble
-est ce qui compte.
+C'est le chemin qui décide si un outil s'exécute, pour chaque agent et où que
+l'appel soit fait : une conversation, une tâche, une étape de plan, un élément
+de lot. C'est une seule fonction, `decide`, dans `apollia-runtime`
+(`governance/decision.rs`). Elle lit ce que la gouvernance détient (les refus de
+la politique de l'organisation, les règles fines et les accords permanents de
+`governance.db`, et le mode développeur) et répond à un appel. Il n'y a pas de
+classificateur d'injection dans la décision, ni d'ensemble de noms d'outils
+autorisés d'avance : les règles stockées sont confrontées à chaque appel.
 
 ```mermaid
 sequenceDiagram
-    actor User
-    participant Chat as Chat manager
-    participant Rules as Prefix rules (governance.db)
-    participant Loop as ReAct loop
+    actor Person
+    participant Run as Agent run
+    participant Gov as Governance decision
     participant Tool
-    Chat->>Rules: allow-rules for this agent, and global ones
-    Rules-->>Chat: tool names to pre-authorize
-    Note over Chat: code executors are filtered out here
-    User->>Loop: message
-    Loop->>Loop: model asks for a tool
-    alt tool name is in the authorized set
-        Loop->>Tool: invoke
-    else not authorized
-        Loop-->>User: ChatApprovalRequired (5 minute timeout)
-        User-->>Loop: allow once, always allow, or refuse
-        alt refused, or the timeout expires
-            Loop->>Loop: nothing runs, the model is told
-        else allowed
-            Loop->>Tool: invoke
+    Run->>Run: model asks for a tool
+    Run->>Gov: agent, tool, first argument, family
+    alt policy or deny rule
+        Gov-->>Run: refused
+        Run->>Run: nothing runs, the model is told
+    else reads only, or acts on the conversation
+        Gov-->>Run: allowed
+        Run->>Tool: invoke
+    else standing consent, grant of the run, or allow rule on one command
+        Gov-->>Run: allowed
+        Run->>Tool: invoke
+    else nothing covers it
+        Gov-->>Run: ask
+        Run-->>Person: ChatApprovalRequired
+        Person-->>Run: once, always or refuse
+        alt refused
+            Run->>Run: nothing runs, the model is told
+        else once or always
+            Run->>Tool: invoke
         end
-    end
-    Tool-->>Loop: result
-    opt always allow
-        Loop->>Rules: persist an allow rule at the chosen scope
     end
 ```
 
-Quatre propriétés découlent de cette forme, et chacune est un choix délibéré
+La décision lit six lignes dans l'ordre, et la première qui s'applique décide.
+
+1. La politique de l'organisation refuse l'outil, sa connexion ou sa famille
+   d'action : refusé.
+2. Une règle fine `deny` correspond à l'appel : refusé.
+3. La famille ne fait que lire, ou n'agit que sur la conversation ou sur la
+   mémoire propre de l'agent : autorisé.
+4. L'appel exécute du code : autorisé par une règle fine `allow` sur une
+   commande simple et unique, en mode développeur seulement, et demandé sinon.
+5. L'appel propose un fait pour le profil : demandé, à chaque fois. Tout autre
+   appel est autorisé par un accord permanent de l'agent pour la famille de
+   l'outil, ou par un accord donné pour l'exécution.
+6. Tout ce qui reste est demandé, avec les réponses une fois, toujours et
+   refuser.
+
+Cinq propriétés découlent de cet ordre, et chacune est un choix délibéré
 plutôt qu'un accident.
 
-**Les règles sont évaluées par argument, l'ensemble de noms par nom, et le
-refus l'emporte.** Les règles de préfixe stockées sont évaluées en premier, par
-rapport à l'argument de l'appel, à chaque invocation : un refus correspondant
-refuse l'appel sans invite, même quand l'outil se trouve dans l'ensemble de
-pré-autorisation par nom seul, si bien qu'un refus permanent ne peut pas être
-contourné par un « toujours autoriser » plus large. Une autorisation
-correspondante exécute l'appel sans élargir l'ensemble. Autrement, autoriser
-`file_read` une fois avec « toujours autoriser » l'autorise quand même pour
-chaque chemin qui lui sera jamais donné à cette portée : l'ensemble de
-pré-autorisation ne porte que sur le nom, et les règles de préfixe au niveau
-des arguments en sont tenues à l'écart (elles ne peuvent pas y être
-représentées) précisément parce qu'elles sont évaluées à chaque invocation.
-Tout ce qui reste déclenche l'invite d'approbation.
+**Un accord couvre une famille, une règle couvre un argument.** Chaque outil
+déclare une famille d'action : lire, lire des données personnelles, écrire ou
+supprimer, envoyer hors de la machine, exécuter du code. « Toujours » sur la
+carte d'accord enregistre un accord permanent d'un agent pour une famille,
+jamais pour un nom d'outil. Une règle fine est plus étroite : elle nomme un
+outil et un préfixe optionnel de son premier argument, elle est confrontée à
+chaque appel, et elle porte l'une de deux portées, un agent ou tous les
+agents. Aucun accord et aucune règle n'a pour portée une session ou un projet.
+Un outil que personne n'a classé est demandé à chaque fois, sans « toujours ».
 
-**Les exécuteurs de code sont exemptés de toute autorisation globale.**
-`bash_executor` et ses semblables sont filtrés hors de l'ensemble
-pré-autorisé sur les deux chemins qui l'alimentent : les règles
-d'autorisation à l'échelle de l'agent et les règles d'autorisation globales.
-« Toujours autoriser » sur l'un d'eux est également
-refusé au moment de la persistance. En dehors d'une règle de préfixe ciblée,
-qui ne couvre jamais qu'une seule commande simple, chaque invocation demande,
-à chaque fois. C'est le seul invariant qui survit à tous les chemins
-ci-dessus, et il existe parce qu'une autorisation globale sur un shell est une
-autorisation globale sur tout.
+**Les refus passent en premier.** La politique et une règle `deny` sont lues
+avant tout ce qui autorise, si bien qu'un accord permanent ou un accord donné
+pour l'exécution ne peut pas contourner un refus permanent.
 
-**L'absence de réponse est traitée comme un refus.** Une invite d'approbation
-restée sans réponse pendant cinq minutes se résout en refus, et aucun outil ne
-s'exécute. Le délai est fixé dans le code et n'est pas configurable.
+<!-- claim:chat-tool-governance-path -->
+**Exécuter du code demande, hors d'un cas étroit.** Aucun accord permanent ne
+couvre un exécuteur de code comme `bash_executor`. En mode développeur, une
+règle fine qui autorise un outil sous un préfixe d'argument laisse passer une
+commande simple et unique, qui n'enchaîne pas, ne redirige pas, n'utilise ni
+tube ni substitution, et « toujours » sur une telle commande est ce qui écrit
+cette règle. Partout ailleurs chaque exécution demande, avec une fois et
+refuser pour seules réponses. Cet invariant existe parce qu'une autorisation
+globale sur un shell est une autorisation globale sur tout.
 
-**« Toujours autoriser » signifie l'un de cinq niveaux de persistance.**
-L'opérateur choisit la portée : cet outil pour ce tour, cette session, cet
-agent, ce projet, ou toute la machine. Par défaut, la portée est la session,
-la moins persistante des cinq. Tout ce qui dépasse la session est écrit dans
-`governance.db` et revient lors de l'exécution suivante, ce qui explique que
-la première étape du diagramme ne soit pas vide.
+**L'absence de réponse est traitée comme un refus.** Dans une conversation,
+une demande restée sans réponse pendant cinq minutes se résout en refus, et
+aucun outil ne s'exécute. Le délai est fixé dans le code et n'est pas
+configurable. Une exécution que personne ne regarde, comme un élément de lot,
+ne demande pas : le premier appel qui demanderait arrête l'exécution, et la
+décision est listée avec celles qui attendent la personne
+(`GET /api/v1/pending-decisions`, répondue par
+`POST /api/v1/pending-decisions/decide`).
+
+**Une gouvernance qui ne peut pas lire refuse.** Quand `governance.db` ne peut
+pas être lu, ou qu'une politique d'organisation déposée est refusée, chaque
+appel sensible est refusé et la lecture continue. Une défaillance ne devient
+jamais une permission.
 
 ## Machines à états
 
-Les quatre scénarios ci-dessus font transiter des éléments entre des états.
+Les scénarios ci-dessus font transiter des éléments entre des états.
 Les états eux-mêmes sont énumérés dans le code et, dans deux cas, les
 transitions y sont imposées plutôt que simplement voulues.
 

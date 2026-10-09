@@ -50,8 +50,13 @@ déclare rien. Un paquet dont le manifeste ne valide pas n'est ni construit ni
 installé.
 
 Le runtime remet à chaque outil et à chaque workflow un objet `ctx` qui expose
-les services dont il peut se servir : le routeur LLM, la mémoire, les outils,
-les autres agents et workflows, les notifications et un logger. `ctx` est toute
+les services dont il peut se servir. Ce qu'il porte dépend de l'appelant. Un
+outil de paquet reçoit un logger et l'identité de l'agent qui l'a appelé, sans
+modèle, sans proxy d'outils et sans mémoire : c'est le moteur de l'agent
+appelant qui les fait tourner, pas l'outil. Un workflow de paquet y ajoute les
+modèles (`ctx.llm`), les agents et les workflows qu'il peut lancer
+(`ctx.agents`, `ctx.workflows`) et une question à l'utilisateur (`ctx.user`).
+`ctx` est toute
 la surface du runtime. Un code qui passe à côté utilise quelque chose que le
 runtime ne garantit pas.
 
@@ -147,7 +152,7 @@ d'une exécution.
 
 Le jeu d'outils natifs couvre l'exécution shell, la lecture et l'écriture de
 fichiers confinées à un chemin, l'exécution Python dans un environnement virtuel
-propre à l'agent, la récupération HTTP, la recherche web et la recherche en
+propre à l'agent, la récupération HTTP, la recherche web, et la recherche et l'écriture en
 mémoire. Les outils de fichiers sont confinés à une racine résolue : le chemin
 est canonisé puis revérifié contre la racine après résolution, donc un lien
 symbolique ne permet pas d'en sortir.
@@ -195,7 +200,7 @@ tomber la vérification d'adresse.
 
 Tenir les deux règles dans `apollia-core` est ce qui met `reqwest` et `url` dans
 la crate dont toutes les autres dépendent. Elles sont derrière une option de
-compilation `net`. Neuf des crates qui dépendent d'`apollia-core` l'activent ;
+compilation `net`. Certaines des crates qui dépendent d'`apollia-core` l'activent ;
 les autres gardent la fermeture de dépendances qu'elles avaient, et aucune des
 deux n'est nouvelle dans l'arbre : les deux étaient déjà des dépendances de
 l'espace de travail, et le fichier de verrouillage n'a gagné aucun paquet. Le
@@ -207,35 +212,40 @@ tout simplement absente partout où sa copie n'avait pas été faite.
 ## Modèle de permissions {#permission-model}
 
 <!-- claim:prefix-rules-evaluated-per-invocation -->
-Sur le chemin du chat, un appel d'outil est décidé dans un ordre fixe. Les
-règles persistées de l'opérateur sont évaluées en premier, à chaque invocation,
-contre le premier argument de cet appel-ci : règles de projet, puis règles
-portant sur l'agent du chat, puis règles globales, le préfixe d'argument le plus
-long gagnant. Un refus qui correspond rejette l'appel sur-le-champ, y compris un
-appel que le tour avait déjà autorisé par son nom. Sinon l'appel s'exécute si le
-nom de l'outil est dans l'ensemble autorisé du tour ou si une règle l'autorise,
-et une autorisation venue d'une règle n'est pas mémorisée : l'appel suivant est
-réévalué avec son propre argument. Ce qui reste déclenche une demande
-d'approbation et attend une personne ; un refus, ou cinq minutes sans réponse,
-n'exécute rien.
+Un appel d'outil d'un agent est décidé dans un ordre fixe, le même dans une
+conversation, dans une tâche, dans une étape de plan et dans un élément de lot.
+La politique de l'organisation est lue en premier, puis les règles fines, qui
+sont évaluées à chaque invocation contre le premier argument de cet appel-ci :
+un refus qui correspond rejette l'appel sur-le-champ. Un outil dont la famille
+ne fait que lire s'exécute ensuite. Tout ce qui est sensible s'exécute sur un
+accord permanent de l'agent pour la famille de l'outil, ou sur un accord donné
+pour l'exécution. Ce qui reste déclenche une demande d'approbation et attend une
+personne, qui répond une fois, toujours ou refuser ; un refus n'exécute rien, et
+une demande restée cinq minutes sans réponse dans une conversation non plus.
 
-Une règle persistée porte l'une des trois portées suivantes : projet, agent ou
-globale. La portée session est refusée à l'écriture et ne vit qu'en mémoire, et
-le chemin du chat ne transmet aucune règle de session en mémoire.
+Une règle fine porte l'une de deux portées : un agent, ou tous les agents. Un
+accord permanent appartient à un agent et à une famille d'action. Rien n'a pour
+portée un projet ou une session ; ce qui dure le temps d'une exécution est
+l'accord qu'une réponse donne à cette exécution.
 
-Les exécuteurs de code ne sont jamais autorisés en bloc. Une règle qui
-accorderait tous les outils n'accorde pas l'exécution shell ni l'exécution
-Python ; celles-ci exigent leur propre autorisation explicite. Une autorisation
-en bloc est en général une décision de confort à propos de la lecture de
-fichiers, et elle ne doit pas devenir en silence le droit d'exécuter du code
-arbitraire.
+Le coût est une granularité grossière, et elle est choisie : « toujours »
+couvre une famille, pas un outil, si bien que la personne répond à une question
+qu'elle peut garder en tête (cet agent peut-il écrire des fichiers) plutôt qu'à
+une question par nom d'outil, et qu'un outil accordé plus tard dans une famille
+déjà consentie s'exécute sans demander.
+
+Les exécuteurs de code ne sont jamais couverts par un accord permanent.
+Consentir à une famille est en général une décision de confort à propos de la
+lecture ou de l'écriture de fichiers, et elle ne doit pas devenir en silence le
+droit d'exécuter du code arbitraire.
 
 <!-- claim:executor-guard-blocks-command-chaining -->
-Une règle ne dispense une commande shell d'approbation que lorsque cette
-commande est une commande simple et unique, sans chaînage, tube, redirection,
-substitution ni exécution en arrière-plan. Cette garde décide d'une dispense
-d'approbation ; ce n'est pas un filtre placé devant l'exécution, et un exécuteur
-de code sans règle correspondante demande une personne à chaque invocation.
+Une règle ne dispense une commande shell d'approbation qu'en mode développeur,
+et lorsque cette commande est une commande simple et unique, sans chaînage,
+tube, redirection, substitution ni exécution en arrière-plan. Cette garde décide
+d'une dispense d'approbation ; ce n'est pas un filtre placé devant l'exécution,
+et un exécuteur de code sans règle correspondante demande une personne à chaque
+invocation.
 
 <!-- claim:permission-decision-is-journaled -->
 La décision de permission est écrite dans le journal signé. Une réponse à une
@@ -276,6 +286,24 @@ BM25.
 La mémoire est lue à l'initiative de l'agent. Le runtime n'injecte jamais de
 contenu mémoire dans le prompt d'un agent. Un agent qui veut du contexte le
 demande, ce qui garde le prompt sous le contrôle de l'auteur de l'agent.
+
+La mémoire est écrite à l'initiative de l'agent, elle aussi. Un agent sans code
+garde une note avec l'outil `memory_write` et la retrouve avec `memory_search` ;
+rien n'est écrit à sa place. Cocher Mémoire sur la fiche d'un agent est la seule
+chose qui ouvre les deux outils, quoi que listent ses accès, et aucun ne demande
+d'accord : l'espace est celui de l'agent, ouvert par la personne, et il n'atteint
+ni ses données ni la machine. Cet espace est nommé d'après l'agent et gardé d'une
+conversation et d'une tâche à l'autre : un espace par conversation ne laisserait
+aucune note survivre à la conversation qui l'a écrite. Les deux outils sont tenus
+hors de la famille qui lit les données personnelles, parce qu'un accord donné
+pour cette famille couvre aussi la messagerie et les agendas.
+
+Le profil est le cas inverse. Il suit la personne dans chaque conversation où il
+est activé, donc un agent ne l'écrit jamais. Un agent dont le profil est coché
+peut proposer un fait avec `profile_propose` ; l'appel est soumis à la personne à
+chaque fois, le fait affiché, et aucun accord permanent ni accord d'exécution ne
+le couvre. Un fait accepté est gardé parmi les faits du profil, avec l'agent pour
+auteur. Les champs du formulaire de profil ne sont pas des faits et sont refusés.
 
 Trois exceptions existent, et aucune n'est atteignable depuis un chemin
 d'exécution d'agent. Deux vivent à l'intérieur de l'assistant conversationnel
@@ -741,11 +769,17 @@ d'outil fait dans une conversation est annoncé avec son exécution, il est donc
 enregistré ; un appel qu'aucun événement n'annonce avec une exécution ne l'est
 pas.
 
-Rejouer une exécution puis la comparer à son enregistrement n'est délibérément
-pas construit. Une réexécution prouve qu'une seconde exécution s'est comportée
-d'une certaine façon, pas que la première l'a fait, et la responsabilité repose
-déjà sur la chaîne signée. C'est nommé ici pour que cette absence se lise comme
-un choix et non comme un manque.
+Une exécution capturée peut être rejouée contre son propre enregistrement.
+`apollia-os audit replay` et `POST /api/v1/audit/replay/{run_id}` parcourent ce
+que le journal a capturé pour l'exécution, chaque réponse de modèle suivie des
+sorties des appels d'outils qu'elle demandait, sans appel de modèle ni exécution
+d'outil, et répondent identique, divergente ou trace incomplète. Lancer l'agent
+une seconde fois et comparer les deux exécutions n'est délibérément pas
+construit : le journal ne conserve pas le prompt dont l'exécution est partie, et
+une seconde exécution prouve comment la seconde s'est comportée, pas la
+première. La responsabilité repose sur la chaîne signée, et le coût est qu'un
+rejeu dit si une capture est cohérente, pas si l'agent agirait de la même façon
+une nouvelle fois.
 
 ## Secrets et authentification de l'API {#secrets-and-api-auth}
 
@@ -963,7 +997,7 @@ des commandes routées, avec la raison pour laquelle elle ne lit aucun état du
 runtime, et le même script refuse une entrée sans raison. Quitter le bureau
 rattaché laisse le démon servir.
 
-La version 0.3.0 livre les deux modes.
+Les deux modes sont livrés.
 
 ### Une seule application, et un fichier de paquet qui l'ouvre {#desktop-single-instance}
 
@@ -1065,8 +1099,8 @@ et fait de `zlib-rs` l'implémentation deflate de `flate2` dans tout le
 programme. Les deux ont été acceptées plutôt qu'écrire le classeur à la main
 avec `zip` seul. Les bornes de lecture ci-dessus ne changent pas.
 
-Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
-d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à
+Les paquets qu'Apollia livre dans son propre binaire (le guide de l'application,
+l'onboarding et l'atelier d'agents) ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à
 partir de fichiers embarqués à la compilation et l'installe par le même chemin
 que tout paquet. L'installation les reconnaît comme embarqués parce que le
 bureau le dit, jamais parce qu'une archive le dit : rien dans un fichier ne peut

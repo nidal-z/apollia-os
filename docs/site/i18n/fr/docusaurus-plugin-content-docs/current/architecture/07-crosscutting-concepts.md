@@ -11,14 +11,14 @@ Ces préoccupations n'appartiennent à aucun crate en particulier : elles traver
 
 <!-- claim:daemon-binds-tcp-by-default -->
 Le chemin par défaut ne quitte jamais la machine. L'inférence peut s'exécuter
-entièrement en local sur un modèle GGUF, le stockage est du SQLite local, et
-l'API se lie à une socket Unix et au TCP de bouclage, que le daemon ouvre à
-chaque démarrage. C'est le bouclage qui garde le défaut local : joindre l'API
-depuis une autre machine demande une adresse de liaison hors bouclage,
-configurée volontairement, et le daemon refuse celle qui ne porte aucun jeton
-porteur. L'inférence
-cloud est optionnelle, sur la clé propre de l'utilisateur, et même dans ce cas
-le modèle local reste le choix par défaut, avec une escalade sous contrôle. La
+entièrement en local, sur un modèle que sert le moteur embarqué, le stockage est
+du SQLite local, et l'API se lie à une socket Unix et au TCP de bouclage, que le
+daemon ouvre à chaque démarrage. C'est le bouclage qui garde le défaut local :
+joindre l'API depuis une autre machine demande une adresse de liaison hors
+bouclage, configurée volontairement, et le daemon refuse celle qui ne porte
+aucun jeton porteur. Un modèle distant est optionnel, atteint à une adresse que
+l'utilisateur configure, et même dans ce cas le modèle local reste le choix par
+défaut. La
 mémoire peut être exportée et importée par l'utilisateur, si bien que les
 données lui appartiennent. Ce n'est pas une fonctionnalité rapportée après
 coup : c'est la contrainte qui façonne chaque défaut. Voir
@@ -48,38 +48,39 @@ le temps réel écoulé. Il est imposé par le runtime, pas par l'agent, et ne
 peut pas être contourné. Les exécutions directes comme les exécutions
 orchestrées sont toutes deux bornées, avec un défaut prudent plutôt qu'un
 budget illimité. C'est la limite dure qui empêche une exécution de boucler ou
-de dépenser sans borne. Un point reste à câbler : lire le plafond depuis
-`apollia.toml` au moment de l'exécution, ce qui dispose aujourd'hui d'un
-défaut prudent en attendant.
+de dépenser sans borne. Le plafond d'une exécution d'agent est fixé dans le
+code, et aucune clé d'`apollia.toml` ne le change ; une exécution de workflow a
+ses propres bornes, `[workflows] max_steps` et `wall_clock_secs`.
 
-Le code de l'agent lui-même s'exécute in-process comme du code de confiance,
-si bien que ce sont ces garde-fous du runtime et le verrou d'approbation
-humaine, et non un bac à sable du système d'exploitation, qui tiennent la
-ligne autour d'un agent. Le
+Un agent ne porte aucun code : ce sont donc ces garde-fous du runtime et la
+décision de gouvernance sur chacun de ses appels d'outils qui tiennent la ligne
+autour de lui. Le Python qu'un paquet apporte est une autre affaire : il
+s'exécute dans le processus comme du code de confiance, sans bac à sable du
+système d'exploitation autour de lui. Le
 [modèle de confiance de l'agent](/explanation/agent-trust-model) explique
 cette posture et ses limites en détail.
 
 ## Permissions et paliers d'autonomie
 
 <!-- claim:executor-guard-blocks-command-chaining -->
-Avant qu'une action ne s'exécute, le chemin de dispatch du chat dans
-`apollia-runtime` la classe en trois étapes. La première porte est un
-**ensemble d'autorisation par nom d'outil** : des règles d'autorisation
-persistées, portant uniquement sur le nom, l'amorcent, et les exécuteurs de
-code en sont exclus sur toutes les routes. En cas d'absence de correspondance,
-la boucle consulte les **règles de préfixe** par invocation : l'argument de
-l'appel est comparé aux règles permanentes de l'opérateur, préfixe le plus
-long d'abord, et pour un exécuteur de code la correspondance passe en plus par
+Avant qu'un appel d'outil d'un agent ne s'exécute, une seule décision dans
+`apollia-runtime` y répond, dans un ordre fixe : un refus de la politique de
+l'organisation, puis une règle fine `deny`, puis la famille de l'outil (un outil
+qui ne fait que lire s'exécute), puis, pour tout ce qui est sensible, un accord
+permanent de l'agent pour cette famille, ou une demande à laquelle une personne
+répond par une fois, toujours ou refuser. La réponse est enregistrée dans le
+journal signé. Une règle fine nomme un outil et un préfixe optionnel de son
+premier argument, et pour un exécuteur de code la correspondance passe par
 le garde-fou (`is_single_simple_command`) qui refuse une commande shell qui
 chaîne, redirige, pipe ou substitue, de sorte qu'une approbation accordée pour
-une commande ne puisse pas en faire passer une seconde en douce. Ce qui reste
-déclenche une **approbation humaine dans la boucle** que l'opérateur résout,
-et cette décision est enregistrée. Ce que ce garde-fou surveille est l'injection
-**shell**, pas l'injection de prompt : Apollia ne livre aucune défense contre
-l'injection de prompt.
+une commande ne puisse pas en faire passer une seconde en douce. Ce que ce
+garde-fou surveille est l'injection **shell**, pas l'injection de prompt :
+Apollia ne livre aucune défense contre l'injection de prompt. La
+[vue d'exécution](/architecture/runtime-view) donne l'ordre ligne par ligne.
 
-Les permissions se portent sur toute l'installation, sur un projet, ou sur une
-seule session. Séparément, un palier d'autonomie est choisi pour une exécution :
+Une règle a pour portée un agent ou tous les agents, et un accord permanent un
+agent et une famille d'action ; rien n'a pour portée un projet ou une session.
+Séparément, un palier d'autonomie s'applique à une exécution :
 il gouverne la porte du plan et la passe de vérification après exécution, et il
 ne gouverne aucune règle de permission ni aucun point de contrôle humain sur un
 appel d'outil. Un palier n'élargit jamais ce qu'un agent a le droit de toucher,
@@ -91,10 +92,16 @@ demander.
 <!-- claim:memory-injection-confined-to-builtin-assistant -->
 
 Le runtime n'injecte jamais automatiquement de contexte mémoire dans le prompt
-d'un agent. Un agent se remémore quand il le décide, via `ctx.memory`. Cela
-garde l'assemblage du contexte explicite et auditable plutôt que de le
-transformer en effet de bord caché, et c'est un principe délibéré, pas un
-oubli.
+d'un agent, et n'écrit rien en mémoire à sa place. Un agent se remémore quand il
+le décide, avec l'outil `memory_search`, et garde une note avec `memory_write`.
+Cocher Mémoire sur la fiche de l'agent est la seule chose qui accorde les deux
+outils, et aucun ne demande d'accord. La mémoire d'un agent est un espace nommé
+d'après lui, gardé d'une conversation et d'une tâche à l'autre. Un agent dont la
+source Profil est cochée peut proposer un fait pour le profil avec
+`profile_propose`, et cet appel est soumis à la personne à chaque fois. Le
+Python d'un paquet ne reçoit pas de `ctx.memory`. Cela garde l'assemblage du
+contexte explicite et auditable plutôt que de le transformer en effet de bord
+caché, et c'est un principe délibéré, pas un oubli.
 
 Trois voies échappent à cette règle : un résumé du profil de la conversation, à
 tous les paliers d'autonomie tant que l'interrupteur de profil de cette

@@ -16,35 +16,39 @@ runtime sequence diagrams, see the [Runtime view](/architecture/runtime-view).
 
 ## Direct versus orchestrated
 
-Every request is first classified into one of two execution modes. **Direct** is
-single-step execution for simple work. **Orchestrated** is multi-step execution
-with planning, for work that needs several tool calls driven by reasoning.
+An agent runs in one of two execution modes. **Direct**: the model answers and
+calls tools as it goes. **Orchestrated**: a plan is built first and its steps
+are executed, for work that needs several tool calls driven by reasoning.
 
-The classification is deterministic, and there is no LLM call in it: it is a pure
-function of what the agent and the request declare, which keeps it predictable.
+What chooses is the planning setting of the agent: `planning`, under
+`[agents.defaults]` in the manifest of its package, which the person may
+override. `never` runs direct, `always` plans first, and `auto`, the value when
+neither says anything, lets the runtime judge the request. That judgement is
+deterministic, and there is no LLM call in it. A conversation in plan mode is
+apart: its plan is approved in the conversation, and the setting does not apply.
 
 <!-- claim:execution-mode-classification-weights -->
 
-An agent's manifest can set `execution_mode` to `direct` or `orchestrated`, and
-that decides outright. Only `auto`, or an unrecognised value, reaches the
-heuristic. The heuristic adds seven independent weights and compares the total
-against a threshold:
+Under `auto`, a run plans when the request itself reads as several steps, which
+is the case when it holds a planning cue (`plan`, `etape`, `step`, `sequence`,
+`workflow`, `pipeline`), or when a score over the agent and the request reaches
+a threshold. The score adds independent weights:
 
 | Weight | Added when |
 | --- | --- |
-| 0.40 | the manifest carries the `multi-step` tag |
-| 0.30 | the declared step budget exceeds 15 |
+| 0.30 | the step budget of the run exceeds 15 |
 | 0.20 | the request has more than 3 input parts |
-| 0.20 | the agent requires more than 4 tools |
+| 0.20 | the agent is granted more than 4 tools |
 | 0.10 | the input text exceeds 500 characters |
-| 0.10 | the episodic memory snapshot holds more than 5 episodes |
-| 0.10 | the system prompt contains planning keywords |
+| 0.10 | the mission of the agent contains a planning cue |
 
-The threshold is `[oria] orchestrated_threshold`, and it defaults to 0.40. Two
-consequences follow from the numbers rather than from the prose. The
-`multi-step` tag alone reaches the default threshold, so tagging an agent
-`multi-step` is equivalent to declaring it orchestrated. And no single other
-factor does: below that tag, orchestration needs at least two signals to agree.
+The threshold is 0.40, fixed in the code: the `[oria]` section of `apollia.toml`
+is withdrawn and nothing reads it. Two consequences follow from the numbers
+rather than from the prose. A planning cue in the request reaches the threshold
+alone. And no single weight of the table does: without a cue, planning needs at
+least two signals to agree. The scoring function also holds a weight for a
+`multi-step` tag and one for the depth of episodic memory; the run of an agent
+supplies neither, so they never apply.
 
 ## The plan cache
 
@@ -88,16 +92,15 @@ others, and those dependencies are the graph's edges. Because the plan is
 explicit, it can be shown, approved, audited, and revised.
 
 <!-- claim:orchestrated-parallelism-not-active -->
-The graph is what would make parallelism possible. The engine walks the plan in
-topological levels, and steps in the same level may run concurrently when they
-are read-only tool calls needing no approval.
+The graph is what makes parallelism possible. The engine walks the plan in
+topological levels, and the steps of one level run concurrently when there are
+at least two of them and each one calls a tool that only reads.
 
-**In the shipped runtime they never do.** Deciding that a step is read-only is
-delegated to the tool proxy, and the one production implementation keeps the
-trait default, which answers no for every tool. Every step therefore runs
-sequentially. The levels still matter, they order the plan and express what
-depends on what, but they buy no speed today. Treat the plan as a dependency
-graph, not as a scheduler.
+**Every other level runs its steps one after the other.** That covers a step
+the model answers itself, a tool that writes, and a level of one step. Whether
+a tool only reads is asked of the tool proxy of the run, which answers from the
+descriptor of each tool granted to the agent. The levels order the plan and
+express what depends on what; they buy speed only where the work is reading.
 
 ## The plan gate
 
@@ -131,9 +134,8 @@ self-correction cannot escape the run's ceiling.
 Two honest bounds. This verification pass is dark in the default Assisted tier and
 becomes active from Supervised upward, so it is a property of the tier you choose
 (see [Autonomy tiers](/explanation/autonomy-tiers)). And within that pass, the LLM
-critic is the wired, working part; running an agent's own declared shell checks
-under governance is not yet wired, that invoker is a no-op today. The self-check
-is real; the deterministic shell checks are a follow-up. The audit side of this,
+critic is the wired, working part; no shell check is run on behalf of an
+agent. The audit side of this,
 the signed journal and the verdict event, is covered by the
 [accountability model](/explanation/accountability-model) and is not repeated here.
 

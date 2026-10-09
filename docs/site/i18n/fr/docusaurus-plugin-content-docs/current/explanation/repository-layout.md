@@ -24,7 +24,7 @@ rôle.
 |---|---|
 | `crates/` | L'espace de travail Rust. Chaque sous-répertoire est une crate avec une responsabilité unique. Les membres et leurs versions de dépendances partagées sont déclarés dans le `Cargo.toml` racine. |
 | `sdk/` | Le SDK Python (paquet `apollia`, « AgentKit ») : les décorateurs `@tool` et `@workflow`, le contrat de type `Ctx`, et la commande `describe` qui écrit les descripteurs d'outils et de workflows d'un paquet dans son `apollia.toml`. Empaqueté avec `pyproject.toml`. C'est le kit pour *écrire* le Python des paquets qui s'exécutent *à l'intérieur* du runtime. |
-| `agents/` | Paquets fournis avec le projet. `agents/system/` contient les paquets livrés avec Apollia (l'agent d'onboarding, le guide intégré à l'application) ; `agents/starters/` contient les agents déclaratifs que l'application propose, chacun un `apollia.toml` sans code ; `agents/examples/` contient deux petits exemples, `hello` (un agent avec un outil Python) et `word-count` (un outil Python sans agent). À considérer comme des illustrations, pas des modèles canoniques. |
+| `agents/` | Paquets fournis avec le projet. `agents/system/` contient les paquets livrés avec Apollia (l'agent d'onboarding, le guide intégré à l'application, l'atelier d'agents) ; `agents/starters/` contient les agents déclaratifs que l'application propose, chacun un `apollia.toml` sans code ; `agents/examples/` contient deux petits exemples, `hello` (un agent avec un outil Python) et `word-count` (un outil Python sans agent). À considérer comme des illustrations, pas des modèles canoniques. |
 | `clients/` | Des clients d'API typés qu'une *application hôte* utilise pour *piloter* un runtime Apollia en cours d'exécution via son API HTTP (soumettre des tâches, streamer des résultats, lire le journal d'audit). Les clients TypeScript (`clients/ts`) et Python (`clients/python`) sont générés à partir de `clients/openapi.json` via `clients/regen.sh`, de sorte qu'ils ne peuvent pas diverger du contrat de communication. C'est la direction opposée de `sdk/`. |
 | `tests/` | La crate de tests d'intégration et de bout en bout au niveau de l'espace de travail (`apollia-e2e-tests`), ainsi que la suite CLI (`tests/cli/`) qui exerce le runtime à travers les frontières des crates. Les tests unitaires par crate vivent quant à eux à l'intérieur de chaque crate. |
 | `fuzz/` | La crate `cargo-fuzz` : les cibles libFuzzer (`fuzz/fuzz_targets/`) et leurs corpus (`fuzz/seeds/`). Compilée à part avec une chaîne d'outils nightly et exclue de l'espace de travail stable, de sorte que les contrôles habituels n'essaient jamais de la compiler. |
@@ -38,7 +38,7 @@ rôle.
 |---|---|
 | `docs/site/` | Le site de documentation public (Docusaurus, anglais + français, structure Diataxis). Cette page se trouve ici. |
 | `docs/agents/` | Le corpus de règles détaillé pour les contributeurs (humains et LLM) : patterns de code, nomenclature, tests, sécurité, et la liste des pratiques interdites. Anglais uniquement. |
-| `docs/internal/` | Planification des releases et notes internes. Ignoré par git et jamais livré, donc tout chemin sous ce répertoire mentionné dans un enregistrement de décision n'est qu'une provenance, pas quelque chose que vous pouvez ouvrir. |
+| `docs/internal/` | Planification des releases et notes internes. Ignoré par git et jamais livré : un checkout public ne le contient pas. |
 
 ## L'espace de travail Rust (`crates/`)
 
@@ -53,14 +53,14 @@ principales :
 | `apollia-core` | Types partagés et contrat public utilisé par toutes les autres crates. |
 | `apollia-runtime` | Le bus d'événements, le superviseur d'acteurs Tokio, et l'API HTTP axum (socket Unix + TCP 7771). |
 | `apollia-oria` | Le moteur d'exécution ORIA : classifier, planifier, contrôler, exécuter, vérifier, avec le `StepBudget` imposé par le runtime. |
-| `apollia-aip` | Le pont PyO3 qui exécute les agents Python in-process (`Bound<'py, T>`, `pyo3-async-runtimes`). |
-| `apollia-llm` | Routage des LLM locaux et cloud (le llama-server embarqué, basé sur llama.cpp amont, pour l'inférence GGUF locale ; les backends cloud compatibles OpenAI et Anthropic derrière un feature flag). |
+| `apollia-aip` | Le pont PyO3 qui exécute dans le processus les outils et les workflows Python des paquets installés (`Bound<'py, T>`, `pyo3-async-runtimes`). |
+| `apollia-llm` | Routage des LLM : le llama-server embarqué (basé sur llama.cpp amont) pour l'inférence GGUF locale, et les backends distants atteints par un seul client compatible OpenAI. Aussi le client d'embeddings, les fiches de modèles et le moteur de recommandation de modèles. |
 | `apollia-runner` | Le sidecar runner hors-processus pour la reconnaissance vocale (whisper). L'inférence LLM locale ne passe plus par ici : elle transite désormais par le llama-server embarqué. |
 | `apollia-stt` | Reconnaissance vocale locale (whisper). |
 | `apollia-mcp` | Le client Model Context Protocol (transports stdio / HTTP / SSE, plafonds de taille sur les réponses non fiables). |
 | `apollia-tools` | Implémentations des outils intégrés. |
 | `apollia-memory` | Persistance de la mémoire des agents (SQLite + FTS5). |
-| `apollia-permissions` | Les règles de permission persistées, le garde-fou de l'exécuteur de code, et le journal des décisions. |
+| `apollia-permissions` | Ce à partir de quoi la gouvernance décide : les règles fines persistées, les accords permanents par famille d'action, la politique de l'organisation, et le garde-fou de l'exécuteur de code. |
 | `apollia-auth` | Authentification et OAuth2 (PKCE), stockage des secrets via le trousseau du système d'exploitation. |
 | `apollia-connectors` | Connecteurs vers des services externes. |
 | `apollia-triggers` | Déclencheurs planifiés et événementiels (cron, surveillance du système de fichiers). |
@@ -69,6 +69,7 @@ principales :
 | `apollia-prompts` | Templates de prompts centralisés. |
 | `apollia-eval` | Harnais d'évaluation des agents. |
 | `apollia-sources` | Les sources qu'un agent peut consulter une fois cochées (dossiers, fichiers, boîtes mail, profil, mémoire) : l'acteur qui possède leur registre dans `system.db`. |
+| `apollia-signing` | Signatures hors ligne : Ed25519 pour les paquets d'agents et les politiques d'organisation, et la vérification des signatures minisign des métadonnées de distribution. |
 | `apollia-cli` | Le binaire en ligne de commande `apollia-os` (clap, schéma nom-verbe, codes de sortie 0-5). `apollia`, sans le suffixe, est une autre commande : le point d'entrée Python du SDK. La seule crate où `anyhow` et une sortie stdout destinée à l'utilisateur sont autorisés. |
 | `apollia-desktop` | L'application desktop Tauri v2 + Svelte 5 (son interface vit dans `crates/apollia-desktop/ui/`). |
 
@@ -109,14 +110,14 @@ décrivent ce qu'il configure réellement dans ce dépôt.
 | `Cargo.toml` | La racine de l'espace de travail : les crates membres, les versions de dépendances partagées (chaque crate utilise `{ workspace = true }` plutôt que des versions inline), les lints de l'espace de travail (`unsafe_code = "deny"`, `unwrap_used = "deny"`), et les profils release/dev. |
 | `Cargo.lock` | Le graphe de dépendances résolu de manière exacte. Versionné pour que chaque build et chaque run de CI compile des versions identiques. |
 | `rust-toolchain.toml` | Fige la chaîne d'outils de build sur Rust `1.95.0` avec `rustfmt`, `clippy`, `rust-src`, et `rust-analyzer`, de sorte que la sortie locale et celle de la CI correspondent octet pour octet. Le plancher MSRV déclaré (`rust-version = 1.89` dans `Cargo.toml`) est plus bas et distinct. |
-| `clippy.toml` | Seuils Clippy : MSRV `1.89`, complexité cognitive `30`, complexité de type `250`, au plus `5` arguments par fonction, et une limite de `800` lignes par fonction. |
+| `clippy.toml` | Seuils Clippy : MSRV `1.89`, complexité de type `250`, et au plus `5` arguments par fonction. |
 | `rustfmt.toml` | Formatage : édition 2021, `max_width = 100`, imports réordonnés, raccourcis field-init et try, fins de ligne Unix. |
 | `deny.toml` | Politique `cargo-deny` : une liste blanche de licences acceptables, le refus des registres inconnus, un avertissement sur les versions de dépendances dupliquées, et une liste documentée, par release, des avis de sécurité ignorés (chacun avec sa condition de levée). |
 | `Cross.toml` | Cross-compilation `cross-rs` : les étapes `pre-build` qui installent les bibliothèques système Linux (ALSA, PulseAudio, JACK, CMake, clang) dans le conteneur de build pour les cibles GNU/Linux x86_64 et aarch64. |
 | `justfile` | Recettes de tâches `just` : les commandes canoniques pour construire, tester, linter, et exécuter l'automate desktop. `just` seul les liste par groupe et `just doctor` vérifie la chaîne d'outils. Ses réglages sont des variables d'environnement, listées avec leurs valeurs par défaut dans `.env.example` ; les recettes personnelles vont dans un `justfile.local` non suivi, sur le modèle de `justfile.local.example`. |
-| `.pre-commit-config.yaml` | La liste des hooks, et le fichier à lire pour la connaître plutôt qu'une copie de celle-ci : hygiène des fichiers et détection de secrets, `ruff` sur `sdk/`, `rustfmt` et `cargo check` sur l'espace de travail, neuf des gardes du dépôt sous `scripts/` (dont les règles de prose), et le build du site de documentation. Deux entrées tournent en dehors du commit lui-même : `clippy` au push, et la convention de message de commit à `commit-msg`. À ne jamais contourner. |
+| `.pre-commit-config.yaml` | La liste des hooks, et le fichier à lire pour la connaître plutôt qu'une copie de celle-ci : hygiène des fichiers et détection de secrets, `ruff` sur `sdk/`, `rustfmt` et `cargo check` sur l'espace de travail, des gardes du dépôt sous `scripts/` (dont les règles de prose), et le build du site de documentation. Deux entrées tournent en dehors du commit lui-même : `clippy` au push, et la convention de message de commit à `commit-msg`. À ne jamais contourner. |
 | `.editorconfig` | Règles d'espacement indépendantes de l'éditeur : fins de ligne LF, ligne finale vide, et tailles d'indentation par langage (4 pour Rust/Python/TOML, 2 pour le web et Markdown). |
-| `.python-version` | Fige l'interpréteur Python local (`3.13.7`) pour des outils comme `pyenv`. |
+| `.python-version` | Fige l'interpréteur Python local (`3.13.13`) pour des outils comme `pyenv`. |
 | `.cargo/` | Réglages par défaut de Cargo : `config.toml` fixe l'environnement de build (cible de déploiement macOS, un profil dev accéléré) et `audit.toml` contient les avis ignorés par `cargo-audit` (reflet de `deny.toml`). |
 | `.github/` | Configuration GitHub : les workflows CI, CodeQL, de vérifications hebdomadaires, et de release (`.github/workflows/`), plus `CODEOWNERS`, les templates d'issue et de PR, `dependabot.yml`, et `FUNDING.yml`. |
 | `.gitignore` | Chemins que git ne suit pas (voir ci-dessous). |

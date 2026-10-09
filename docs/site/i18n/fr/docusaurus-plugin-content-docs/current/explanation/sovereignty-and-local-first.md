@@ -41,18 +41,21 @@ Windows exactement comme ailleurs : `apollia-os start` passe toujours un port.
 
 Apollia embarque sa propre inférence locale. Un modèle au format GGUF
 s'exécute via un moteur local supervisé (le `llama-server` embarqué, fondé
-sur llama.cpp en amont), de sorte que le raisonnement qui pilote un agent
+sur llama.cpp en amont), et sur macOS Apple Silicon un modèle au format MLX
+s'exécute via un second moteur embarqué, de sorte que le raisonnement qui
+pilote un agent
 peut se dérouler entièrement sur votre machine, sans aucun appel à un LLM
 externe. C'est cette pièce qui donne du sens au reste : un stockage local ne
 garantit pas grand-chose si chaque pensée de l'agent implique un
 aller-retour vers le serveur de quelqu'un d'autre.
 
-Deux limites honnêtes sur l'inférence locale disponible aujourd'hui. Le
-moteur local charge un modèle GGUF en fichier unique. Et la capacité locale
-livrée est la génération de texte : Apollia ne présente pas de pipeline
-d'embeddings local comme fonctionnalité livrée. Énoncé clairement pour que
-vous puissiez planifier en fonction de ce qui existe réellement, plutôt
-qu'en fonction de ce qu'une feuille de route laisse entendre.
+Une limite honnête sur l'inférence locale disponible aujourd'hui :
+`llama-server` charge un modèle GGUF en fichier unique, si bien qu'un modèle
+réparti sur plusieurs fichiers n'est pas proposé. Les embeddings sont locaux
+eux aussi. Un modèle d'embeddings que vous choisissez est servi par le même
+moteur sur l'interface de bouclage, et c'est lui qui indexe vos sources et la
+mémoire pour la recherche ; si aucun n'est choisi, la recherche se rabat sur
+les mots-clés seuls.
 
 ## Zéro dépendance externe
 
@@ -67,9 +70,12 @@ plus cinq autres choses à faire tourner en plus ».
 
 ## Le cloud est un choix, jamais un défaut
 
-L'inférence cloud existe, et son activation est volontaire, avec votre
-propre clé. Rien n'atteint un fournisseur cloud tant que vous n'en avez pas
-configuré un, et le modèle local reste le défaut.
+Un modèle distant existe comme un choix. Il n'y a pas de fournisseur cloud
+dédié : un modèle distant est atteint par une connexion générique à un serveur
+compatible OpenAI, à une adresse que vous désignez, comme un serveur que vous
+hébergez ou une passerelle que vous exploitez. Rien n'atteint un serveur
+distant tant que vous n'en avez pas configuré un, et le modèle local reste le
+défaut.
 
 Ce que cette activation volontaire autorise mérite d'être énoncé
 précisément, car c'est le seul endroit où le runtime décide de lui-même. Si
@@ -89,7 +95,9 @@ comme une dépendance dont vous hériteriez.
 ## Votre mémoire vous appartient
 
 La mémoire d'un agent, ses couches épisodique, sémantique et procédurale,
-peut être exportée et importée par vos soins. Ce n'est pas une
+peut être exportée et importée par vos soins. Chaque agent a un espace à lui,
+nommé d'après lui, qu'il lit et écrit lui-même quand Mémoire est cochée sur sa
+fiche ; rien n'y est mis à sa place. Ce n'est pas une
 fonctionnalité de confort ; c'est la forme concrète de la propriété. Des
 données que vous pouvez extraire, inspecter et déplacer sont des données qui
 vous appartiennent d'une manière qu'une politique de confidentialité ne peut

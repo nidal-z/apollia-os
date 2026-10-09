@@ -22,7 +22,7 @@ reformuler, afin qu'il n'existe qu'une seule source par fait :
 
 - [Référence de l'API HTTP](/reference/api/apollia-os-runtime-api) pour le contrat de pilotage côté hôte.
 - [Référence CLI](/reference/cli) pour la surface de commandes.
-- [Contrat SDK / `ctx`](/reference/sdk) pour ce qu'un auteur d'agent appelle.
+- [Contrat SDK / `ctx`](/reference/sdk) pour ce que le Python d'un paquet appelle.
 - [Configuration](/reference/configuration) et le
   [catalogue d'outils natifs](/reference/native-tools).
 

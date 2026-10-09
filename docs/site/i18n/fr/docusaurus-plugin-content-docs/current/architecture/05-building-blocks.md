@@ -7,7 +7,7 @@ format: mdx
 # 5. Vue de construction
 
 Il s'agit de la vue C4 conteneurs et composants. Apollia est un workspace Rust
-de vingt crates plus un SDK Python, regroupés en cinq domaines. Chaque crate
+plus un SDK Python, ses crates regroupés en cinq domaines. Chaque crate
 ci-dessous porte un rôle en une ligne qui correspond à ce que le code fait
 réellement. Pour les formes exactes de l'API, de la CLI et du SDK, cette page
 renvoie vers la référence générée plutôt que de la reformuler.
@@ -38,6 +38,7 @@ flowchart TB
         stt[apollia-stt]
         workspace[apollia-workspace]
         auth[apollia-auth]
+        sources[apollia-sources]
     end
 
     subgraph gov [Governance]
@@ -45,6 +46,7 @@ flowchart TB
         notif[apollia-notifications]
         triggers[apollia-triggers]
         eval[apollia-eval]
+        signing[apollia-signing]
     end
 
     subgraph surfaces [Surfaces]
@@ -70,10 +72,11 @@ flowchart TB
 ```
 
 Les flèches indiquent les principales directions d'appel, pas la totalité des
-liens. La gouvernance (`apollia-permissions`) et le journal d'audit (à
-l'intérieur d'`apollia-runtime`) se trouvent sur le chemin de chaque appel
-d'outil gouverné, ce que la [vue d'exécution](/architecture/runtime-view)
-rend concret.
+liens. La décision de gouvernance et le journal d'audit, tous deux à
+l'intérieur d'`apollia-runtime`, se trouvent sur le chemin de chaque appel
+d'outil d'un agent ; la décision lit les règles, les accords et la politique
+de l'organisation que stocke `apollia-permissions`. La
+[vue d'exécution](/architecture/runtime-view) rend cela concret.
 
 ## Socle souverain
 
@@ -81,9 +84,9 @@ rend concret.
 |---|---|
 | **apollia-runtime** | Le démon. Héberge le superviseur d'acteurs Tokio, l'EventBus, l'API HTTP axum, la gestion du chat et des plans, ainsi que le journal d'audit signé avec vérification. |
 | **apollia-runner** | Le sidecar de reconnaissance vocale : `whisper` (via `whisper-rs`) hors processus, un backend GPU par build. L'inférence LLM locale ne s'exécute plus ici : elle passe par le `llama-server` embarqué (upstream llama.cpp) que le démon supervise, via une API HTTP compatible OpenAI avec appel d'outils natif `--jinja` et traitement par lots en continu. |
-| **apollia-llm** | Le routeur LLM multi-backend : local et distant (Anthropic, OpenAI, Mistral, et tout point d'entrée compatible OpenAI, Ollama compris), suivi quotidien des coûts, un registre GGUF Hugging Face, la détection matérielle, et le moteur de recommandation qui classe les fichiers GGUF pour la machine locale à partir de leur en-tête, de leur coût mémoire et d'une table de générations tenue à la main. |
+| **apollia-llm** | Le routeur LLM : le moteur local et les backends distants atteints par un seul client compatible OpenAI (un serveur auto-hébergé, une passerelle, Ollama), suivi quotidien des coûts, le client d'embeddings du moteur local, les fiches de modèles et l'index de leur registre, un registre GGUF Hugging Face, la détection matérielle, et le moteur de recommandation qui classe les fichiers GGUF pour la machine locale à partir de leur en-tête, de leur coût mémoire et d'une table de générations tenue à la main. |
 | **apollia-core** | Types partagés : le modèle de plan unifié, la configuration, les hooks de cycle de vie, et la configuration de routage hybride qui permet à une exécution d'escalader vers un modèle de pointe sur une clé utilisateur. |
-| **apollia-aip** | Le pont PyO3 et le chemin A2A qui permet aux agents de s'appeler mutuellement par skill. |
+| **apollia-aip** | Le pont PyO3 : il importe les outils et les workflows Python des paquets installés, les exécute dans le processus, et construit le `ctx` que chacun reçoit. |
 | **apollia-prompts** | Le corpus de prompts anglais avec un pied de page de langue, partagé dans tout le moteur. |
 | **apollia (SDK Python)** | AgentKit : les deux décorateurs avec lesquels s'écrit le Python d'un paquet (`@tool` et `@workflow`), les schémas `TypedDict`, la commande `describe` qui écrit les descripteurs d'outils et de workflows d'un paquet dans son `apollia.toml`, et les doublures de test (`MockContext`). Il ne déclare aucun agent : un agent est une donnée dans `apollia.toml`. Le contexte d'exécution est le `ctx` à dix-sept services. |
 
@@ -99,14 +102,14 @@ sont liés que pendant l'exécution d'un workflow.
 | Crate | Rôle |
 |---|---|
 | **apollia-oria** | Le moteur autonome. Il exécute une boucle ReAct selon deux modes, direct et orchestré, avec un observateur qui classifie et un raisonneur qui planifie et re-planifie. Il porte le budget d'étapes non contournable, la résilience des outils, la passe de vérification et de critique, la compaction de contexte à trois niveaux, et la parallélisation des outils en lecture seule sur un graphe de dépendances. Le déversement sur disque des résultats volumineux d'outils est implémenté mais n'est installé sur aucun chemin d'exécution : la compaction reste donc uniquement en mémoire. |
-| **apollia-memory** | Trois couches de mémoire (épisodique, sémantique, procédurale) au-dessus de SQLite FTS5 avec classement BM25, un traqueur d'injection, une purge TTL, un magasin des choix de plan, et un export/import souverain. Le rappel se produit à l'initiative de l'agent, jamais injecté automatiquement. |
+| **apollia-memory** | Trois couches de mémoire (épisodique, sémantique, procédurale) au-dessus de SQLite FTS5 avec classement BM25, un traqueur d'injection, une purge TTL, un magasin des choix de plan, et un export/import souverain. Un agent atteint son propre espace, nommé d'après lui et gardé d'une conversation et d'une tâche à l'autre, avec les outils `memory_search` et `memory_write` : rien n'est injecté dans son prompt et rien n'est écrit à sa place. |
 
 ## Outils et intégrations
 
 | Crate | Rôle |
 |---|---|
-| **apollia-tools** | La bibliothèque d'outils natifs (shell, Python, opérations sur fichiers, notebook, récupération HTTP, recherche et lecture web, recherche mémoire, demande à l'utilisateur), avec un bac à sable de chemins, une garde SSRF, des règles de permission, un audit SHA-256 de chaque appel, et un filtre de commandes shell dont les listes de motifs sont livrées vides et qu'aucun code de production ne remplit, si bien qu'il ne bloque aucune commande. |
-| **apollia-mcp** | Le client MCP (initialize plus tools/list via stdio, Streamable HTTP, et SSE, avec des approbations HITL et une découverte mDNS optionnelle). Les agents invoquent les outils MCP via le chemin d'outil gouverné. Un serveur MCP entrant existe mais reste partiel (stdio uniquement). |
+| **apollia-tools** | La bibliothèque d'outils natifs (shell, Python, opérations sur fichiers, notebook, récupération HTTP, recherche et lecture web, recherche et écriture en mémoire, proposition d'un fait pour le profil, demande à l'utilisateur), la famille d'action que chaque outil déclare, le schéma du manifeste d'un paquet, avec un bac à sable de chemins, une garde SSRF, un audit SHA-256 de chaque appel, et un filtre de commandes shell dont les listes de motifs sont livrées vides et qu'aucun code de production ne remplit, si bien qu'il ne bloque aucune commande. |
+| **apollia-mcp** | Le client MCP (initialize plus tools/list via stdio, Streamable HTTP, et SSE, avec une découverte mDNS optionnelle). Les agents invoquent les outils MCP via le chemin d'outil gouverné. Le côté serveur est un pont stdio vers le daemon en cours d'exécution, qui sert les agents et les workflows que l'utilisateur a marqués comme exposés, et il est désactivé par défaut. |
 | **apollia-connectors** | Des connecteurs natifs Google et Microsoft agissant sur le mail, le calendrier et les fichiers. Google est limité aux scopes non restreints du niveau gratuit ; Microsoft est plus large. Les jetons vont dans le trousseau ou dans un fichier chiffré age. |
 | **apollia-stt** | Reconnaissance vocale locale sur `whisper` : transcription et traduction par lots, plus une chaîne de traitement audio. Uniquement par lots, sans diffusion en continu. |
 | **apollia-workspace** | Le contexte projet (Git, un fournisseur de règles `APOLLIA.md`, une arborescence de fichiers, un fournisseur de scripts) et des commandes slash personnalisées : la couche harnais autour d'un agent. |
@@ -120,10 +123,11 @@ natifs](/reference/native-tools).
 
 | Crate | Rôle |
 |---|---|
-| **apollia-permissions** | Types et décisions de permission, à l'échelle installation, projet ou session, avec quatre paliers d'autonomie et un registre des approbations. Ce qui est activé par défaut est le moteur de règles par préfixe, consulté à chaque invocation sur le chemin du chat, et le garde-fou qui tient un exécuteur de code hors de toute autorisation globale (voir [concepts transversaux](./07-crosscutting-concepts.md)). |
+| **apollia-permissions** | Ce à partir de quoi la gouvernance décide : les règles fines (un outil et un préfixe d'argument optionnel, à la portée d'un agent ou de tous les agents), les accords permanents qu'un agent détient par famille d'action, la politique de l'organisation et sa vérification, et le garde-fou qui ne laisse une règle s'appliquer à un exécuteur de code que sur une commande simple et unique. La décision elle-même est prise dans `apollia-runtime` (voir [concepts transversaux](./07-crosscutting-concepts.md)) ; les paliers d'autonomie sont définis dans `apollia-core`. |
 | **apollia-notifications** | Notifications opérateur sur desktop, terminal et webhook, avec niveaux de gravité, HITL, et un observateur d'inactivité. |
-| **apollia-triggers** | Démarrages d'agent planifiés et réactifs : cron, intervalle, ponctuel, et surveillance de fichiers sont câblés ; la source webhook est une ébauche. |
+| **apollia-triggers** | Démarrages d'agent planifiés et réactifs : sources cron, intervalle, ponctuelle et surveillance de fichiers, et déclencheurs webhook, que le runtime reçoit sur `POST /webhooks/:id` et accepte sous une signature HMAC-SHA256. |
 | **apollia-eval** | Évaluation souveraine : suites TOML déclaratives et métriques de succès, de longueur, de durée réelle, et de coût. Une assertion `llm_judge` existe dans le schéma de suite, mais aucun juge n'est installé par la CLI, si bien qu'une telle assertion échoue au lieu d'être notée. |
+| **apollia-signing** | Signatures hors ligne : Ed25519 sur une liste d'empreintes pour les paquets d'agents et les politiques d'organisation, et la vérification des signatures minisign que la chaîne de publication appose sur les métadonnées de distribution. |
 
 Le journal d'audit et la vérification qui soutiennent la redevabilité
 résident dans `apollia-runtime`. Voir [le modèle de

@@ -22,7 +22,7 @@ fact:
 
 - [HTTP API reference](/reference/api/apollia-os-runtime-api) for the host driving contract.
 - [CLI reference](/reference/cli) for the command surface.
-- [SDK / `ctx` contract](/reference/sdk) for what an agent author calls.
+- [SDK / `ctx` contract](/reference/sdk) for what the Python of a package calls.
 - [Configuration](/reference/configuration) and the
   [native tool catalog](/reference/native-tools).
 

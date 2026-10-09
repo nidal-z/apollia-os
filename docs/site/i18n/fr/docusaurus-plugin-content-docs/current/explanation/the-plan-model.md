@@ -18,38 +18,43 @@ et pour les diagrammes de séquence du runtime, voir la
 
 ## Direct contre orchestré
 
-Chaque requête est d'abord classifiée selon l'un de deux modes d'exécution.
-**Direct** est une exécution en une seule étape pour un travail simple.
-**Orchestré** est une exécution multi-étapes avec planification, pour un travail
-qui nécessite plusieurs appels d'outils pilotés par le raisonnement.
+Un agent s'exécute selon l'un de deux modes d'exécution. **Direct** : le modèle
+répond et appelle des outils au fil de l'eau. **Orchestré** : un plan est
+d'abord construit puis ses étapes sont exécutées, pour un travail qui nécessite
+plusieurs appels d'outils pilotés par le raisonnement.
 
-La classification est déterministe et ne fait appel à aucun LLM : c'est une
-fonction pure de ce que l'agent et la requête déclarent, ce qui la rend
-prévisible.
+Ce qui choisit, c'est le réglage de planification de l'agent : `planning`, sous
+`[agents.defaults]` dans le manifeste de son paquet, que la personne peut
+remplacer. `never` s'exécute en direct, `always` planifie d'abord, et `auto`, la
+valeur quand ni l'un ni l'autre ne dit rien, laisse le runtime juger la requête.
+Ce jugement est déterministe et ne fait appel à aucun LLM. Une conversation en
+mode plan est à part : son plan est approuvé dans la conversation, et le réglage
+ne s'y applique pas.
 
 <!-- claim:execution-mode-classification-weights -->
 
-Le manifeste d'un agent peut fixer `execution_mode` à `direct` ou `orchestrated`,
-ce qui tranche directement. Seule la valeur `auto`, ou une valeur non reconnue,
-atteint l'heuristique. L'heuristique additionne sept poids indépendants et
-compare le total à un seuil :
+Sous `auto`, une exécution planifie quand la requête elle-même se lit comme
+plusieurs étapes, ce qui est le cas lorsqu'elle contient un mot-clé de
+planification (`plan`, `etape`, `step`, `sequence`, `workflow`, `pipeline`), ou
+quand un score calculé sur l'agent et la requête atteint un seuil. Le score
+additionne des poids indépendants :
 
 | Poids | Ajouté quand |
 | --- | --- |
-| 0.40 | le manifeste porte le tag `multi-step` |
-| 0.30 | le budget d'étapes déclaré dépasse 15 |
+| 0.30 | le budget d'étapes de l'exécution dépasse 15 |
 | 0.20 | la requête comporte plus de 3 parties en entrée |
-| 0.20 | l'agent nécessite plus de 4 outils |
+| 0.20 | l'agent se voit accorder plus de 4 outils |
 | 0.10 | le texte en entrée dépasse 500 caractères |
-| 0.10 | l'instantané de mémoire épisodique contient plus de 5 épisodes |
-| 0.10 | le prompt système contient des mots-clés de planification |
+| 0.10 | la mission de l'agent contient un mot-clé de planification |
 
-Le seuil est `[oria] orchestrated_threshold`, et vaut 0.40 par défaut. Deux
-conséquences découlent des chiffres plutôt que du texte. Le tag `multi-step` à
-lui seul atteint le seuil par défaut, donc étiqueter un agent `multi-step`
-équivaut à le déclarer orchestré. Aucun autre facteur pris isolément n'y
-parvient : en dessous de ce tag, l'orchestration exige qu'au moins deux signaux
-concordent.
+Le seuil est 0.40, fixé dans le code : la section `[oria]` d'`apollia.toml` est
+retirée et rien ne la lit. Deux conséquences découlent des chiffres plutôt que
+du texte. Un mot-clé de planification dans la requête atteint le seuil à lui
+seul. Aucun poids du tableau pris isolément n'y parvient : sans mot-clé, la
+planification exige qu'au moins deux signaux concordent. La fonction de score
+porte aussi un poids pour un tag `multi-step` et un autre pour la profondeur de
+la mémoire épisodique ; l'exécution d'un agent ne fournit ni l'un ni l'autre,
+ils ne s'appliquent donc jamais.
 
 ## Le cache de plan
 
@@ -100,18 +105,17 @@ Parce que le plan est explicite, il peut être affiché, approuvé, audité et
 révisé.
 
 <!-- claim:orchestrated-parallelism-not-active -->
-C'est ce graphe qui rendrait le parallélisme possible. Le moteur parcourt le
-plan par niveaux topologiques, et les étapes d'un même niveau peuvent
-s'exécuter simultanément lorsqu'il s'agit d'appels d'outils en lecture seule ne
-nécessitant aucune approbation.
+C'est ce graphe qui rend le parallélisme possible. Le moteur parcourt le
+plan par niveaux topologiques, et les étapes d'un même niveau s'exécutent
+simultanément lorsqu'il y en a au moins deux et que chacune appelle un outil
+qui ne fait que lire.
 
-**Dans le runtime livré, elles ne le font jamais.** Décider qu'une étape est en
-lecture seule est délégué au proxy d'outils, et l'unique implémentation en
-production conserve le comportement par défaut du trait, qui répond non pour
-chaque outil. Chaque étape s'exécute donc de façon séquentielle. Les niveaux
-gardent leur utilité : ils ordonnent le plan et expriment ce qui dépend de quoi,
-mais ils n'apportent aucun gain de vitesse aujourd'hui. Traitez le plan comme un
-graphe de dépendances, pas comme un ordonnanceur.
+**Tout autre niveau exécute ses étapes l'une après l'autre.** Cela couvre une
+étape à laquelle le modèle répond lui-même, un outil qui écrit, et un niveau
+d'une seule étape. Savoir si un outil ne fait que lire est demandé au proxy
+d'outils de l'exécution, qui répond d'après le descripteur de chaque outil
+accordé à l'agent. Les niveaux ordonnent le plan et expriment ce qui dépend de
+quoi ; ils n'apportent de la vitesse que là où le travail consiste à lire.
 
 ## La porte d'approbation du plan
 
@@ -151,10 +155,8 @@ Deux limites, dans un souci de transparence. Cette passe de vérification est
 inactive dans le palier Assisted par défaut et devient active à partir de
 Supervised, ce qui en fait une propriété du palier que vous choisissez (voir
 [Paliers d'autonomie](/explanation/autonomy-tiers)). Et au sein de cette passe,
-le critique LLM est la partie câblée et opérationnelle ; l'exécution des propres
-vérifications shell déclarées par l'agent sous gouvernance n'est pas encore
-câblée, cet invocateur est aujourd'hui un no-op. L'auto-vérification est réelle ;
-les vérifications shell déterministes restent à faire. Le volet audit de tout
+le critique LLM est la partie câblée et opérationnelle ; aucune vérification
+shell n'est exécutée pour le compte d'un agent. Le volet audit de tout
 cela, le journal signé et l'événement de verdict, est couvert par le
 [modèle de responsabilité](/explanation/accountability-model) et n'est pas
 repris ici.

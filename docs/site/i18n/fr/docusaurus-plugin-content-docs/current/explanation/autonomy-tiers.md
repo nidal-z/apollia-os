@@ -20,7 +20,7 @@ est le complément qui explique le palier, pas les garde-fous.
 
 Séparer « ce que l'agent peut faire » de « jusqu'où il peut aller sans
 surveillance » est l'idée centrale, et le palier ne répond jamais qu'à la
-seconde moitié. Un agent déclare les outils dont il a besoin ; le palier décide
+seconde moitié. La fiche d'un agent accorde ses outils ; le palier décide
 si son plan attend une approbation et si son résultat est vérifié ensuite. Il ne
 décide rien des permissions : aucun palier n'accorde un outil, n'en refuse un,
 ni n'ajoute un point de contrôle humain sur un appel d'outil. Cette séparation
@@ -110,9 +110,11 @@ strictes, et les interruptions d'un palier inférieur coûteraient plus
 qu'elles ne protègent. Le palier se change facilement, traitez-le donc comme
 un jugement propre à chaque exécution, pas comme un réglage permanent.
 
-Le palier se pose pour une exécution, avec `--autonomy` sur `apollia-os run`. Il
+Le palier d'un agent se pose sur l'agent :
+`apollia-os agent set <AGENT_ID> autonomy <tier>` remplace ce que son paquet
+recommande, et `apollia-os run` accepte `--autonomy` pour une exécution. Il
 n'existe aucune section `[autonomy]` dans `apollia.toml` que le runtime lise, et
-le bureau n'offre aucun réglage de palier.
+le bureau n'offre aucun réglage qui change le palier.
 
 ## Voir aussi
 

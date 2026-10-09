@@ -45,8 +45,12 @@ package tool the package does not deliver, a package that declares nothing. A
 package whose manifest does not validate is neither built nor installed.
 
 The runtime hands each tool and each workflow a `ctx` object exposing the
-services it may use: the LLM router, memory, tools, other agents and workflows,
-notifications, and a logger. `ctx` is the whole runtime surface. Code reaching
+services it may use. What it carries depends on the caller. A package tool gets
+a logger and the identity of the agent that called it, with no model, no tool
+proxy and no memory: the engine of the calling agent runs those, not the tool. A
+package workflow adds the models (`ctx.llm`), the agents and workflows it may
+run (`ctx.agents`, `ctx.workflows`) and a question to the user (`ctx.user`).
+`ctx` is the whole runtime surface. Code reaching
 around it is using something the runtime does not guarantee.
 
 Payload schemas are `TypedDict`, read when a function is decorated to build the
@@ -133,7 +137,7 @@ tool is a startup error rather than a failure in the middle of a run.
 
 The native tool set covers shell execution, path-confined file reads and writes,
 Python execution in a per-agent virtual environment, HTTP fetch, web search, and
-memory search. File tools are confined to a resolved root: the path is
+memory search and write. File tools are confined to a resolved root: the path is
 canonicalized and re-checked against the root after resolution, so a symlink
 cannot walk out of it.
 
@@ -178,7 +182,7 @@ constructor that keeps the body cap and drops the address check.
 
 Holding both rules in `apollia-core` is what puts `reqwest` and `url` in the
 crate every other crate depends on. They sit behind an optional `net` feature.
-Nine of the crates that depend on `apollia-core` turn it on; the others keep the
+Some of the crates that depend on `apollia-core` turn it on; the others keep the
 dependency closure they had, and neither crate is new to the tree: both were
 already workspace dependencies, and the lockfile gained no package. The cost is
 that the foundation crate is no longer dependency-free in every configuration.
@@ -189,31 +193,36 @@ copy had not been made.
 ## Permission model {#permission-model}
 
 <!-- claim:prefix-rules-evaluated-per-invocation -->
-On the chat path a tool call is decided in a fixed order. The operator's
-persisted rules are evaluated first, per invocation, against this call's own
-first argument: project rules, then rules scoped to the chat agent, then global
-rules, longest argument prefix first. A matching deny refuses the call outright,
-even one the turn had already authorized by name. Otherwise the call runs when
-the tool's name is in the turn's authorization set or a rule allows it, and a
-rule-based allow is not remembered, so the next call is evaluated again with its
-own argument. Anything left raises an approval request and waits for a person; a
-refusal, or five minutes without an answer, runs nothing.
+A tool call of an agent is decided in a fixed order, the same in a
+conversation, in a task, in a step of a plan and in an item of a batch. The
+organisation policy is read first, then the fine rules, which are evaluated per
+invocation against this call's own first argument: a matching deny refuses the
+call outright. A tool whose family only reads then runs. Anything sensitive runs
+on a standing consent of the agent for the family of the tool, or on a grant
+given for the run. Anything left raises an approval request and waits for a
+person, who answers once, always or refuse; a refusal runs nothing, and neither
+does a request left five minutes without an answer in a conversation.
 
-A persisted rule carries one of three scopes: project, agent, or global. The
-session scope is refused at write time and lives in memory only, and the chat
-path passes no in-memory session rule.
+A fine rule carries one of two scopes: one agent, or every agent. A standing
+consent belongs to one agent and one family of action. Nothing is scoped to a
+project or to a session; what lasts as long as a run is the grant an answer
+gives to that run.
 
-Code executors are never blanket-authorized. A rule that would grant every tool
-does not grant shell or Python execution; those require their own explicit
-grant. A blanket grant is usually a convenience decision about reading files,
-and it must not silently become permission to run arbitrary code.
+The cost is coarseness, and it is chosen: "always" covers a family, not a tool,
+so the person answers a question they can keep in mind (may this agent write
+files) rather than one per tool name, and a tool granted later in a family
+already consented to runs unasked.
+
+Code executors are never covered by a standing consent. Consenting to a family
+is usually a convenience decision about reading or writing files, and it must
+not silently become permission to run arbitrary code.
 
 <!-- claim:executor-guard-blocks-command-chaining -->
-A rule only lets a shell command skip approval when that command is a single
-simple command, with no chaining, pipe, redirection, substitution, or
-backgrounding. That guard decides whether a call may skip approval; it is not a
-filter placed in front of execution, and a code executor with no matching rule
-asks a person on every invocation.
+A rule only lets a shell command skip approval in developer mode, and when that
+command is a single simple command, with no chaining, pipe, redirection,
+substitution, or backgrounding. That guard decides whether a call may skip
+approval; it is not a filter placed in front of execution, and a code executor
+with no matching rule asks a person on every invocation.
 
 <!-- claim:permission-decision-is-journaled -->
 The permission decision is written to the signed journal. An answer to a consent
@@ -250,6 +259,25 @@ ranking.
 Memory is read at the agent's initiative. The runtime never injects memory
 content into an agent's prompt. An agent that wants context asks for it, which
 keeps the prompt something the agent author controls and can reason about.
+
+Memory is written at the agent's initiative too. An agent without code keeps a
+note with the tool `memory_write` and finds it again with `memory_search`;
+nothing is written on its behalf. Checking Memory on the sheet of an agent is
+the one thing that opens both tools, whatever its access lists, and neither asks
+for consent: the space is the agent's own, opened by the person, and it reaches
+neither their data nor the machine. That space is named after the agent and kept
+across its conversations and its tasks: a space per conversation would let no
+note outlive the conversation that wrote it. The two tools are kept out of the
+family that reads personal data, because a consent given for that family also
+covers mail and calendars.
+
+The profile is the opposite case. It follows the person into every conversation
+it is switched on for, so an agent never writes it. An agent whose profile is
+checked may propose one fact with `profile_propose`; the call is put to the
+person each time, with the fact shown, and no standing consent or grant of a
+run covers it. An accepted fact is kept among the facts of the profile with the
+agent as its author. The fields of the profile form are not facts and are
+refused.
 
 Three exceptions exist, and none of them is reachable from an agent execution
 path. Two are inside the built-in conversational assistant: a brief of the
@@ -680,10 +708,16 @@ The journal records a run through the events the run emits. A tool call made in
 a conversation is announced with its run and is therefore recorded; a call no
 event announces with a run is not.
 
-Replaying a run and comparing it against its record is deliberately not built.
-Re-execution proves that a second run behaved a certain way, not that the first
-one did, and accountability already rests on the signed chain. It is named here
-so its absence reads as a choice rather than a gap.
+A captured run can be replayed against its own record. `apollia-os audit
+replay` and `POST /api/v1/audit/replay/{run_id}` step through what the journal
+captured for the run, each model response followed by the outputs of the tool
+calls it asked for, with no model call and no tool execution, and report
+identical, diverged or an incomplete trace. Running the agent a second time and
+comparing the two runs is deliberately not built: the journal does not hold the
+prompt the run started from, and a second run proves how the second run
+behaved, not the first. Accountability rests on the signed chain, and the cost
+is that a replay says whether a capture is coherent, not whether the agent
+would act the same way again.
 
 ## Secrets and API authentication {#secrets-and-api-auth}
 
@@ -882,7 +916,7 @@ in a list beside the routed ones, with the reason it reads no runtime state,
 and the same script refuses an entry without one. Quitting the attached
 desktop leaves the daemon serving.
 
-Version 0.3.0 delivers both modes.
+Both modes are delivered.
 
 ### One application, and a package file that opens it {#desktop-single-instance}
 
@@ -980,7 +1014,8 @@ two pure-Rust crates, `zopfli` (Apache-2.0) and `zlib-rs` (Zlib), and makes
 rather than writing the workbook by hand over `zip` alone. The read bounds
 above are unchanged.
 
-The packages Apollia ships inside its own binary, the in-app guide first, are
+The packages Apollia ships inside its own binary (the in-app guide, the
+onboarding and the agent workshop) are
 not signed. The desktop assembles each of them on start from files embedded at
 compile time and installs it through the same path as any package. The
 installation knows them as embedded because the desktop says so, never because

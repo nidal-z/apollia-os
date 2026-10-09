@@ -7,12 +7,13 @@ title: 1. Introduction et objectifs
 
 ## Ce qu'est Apollia
 
-Apollia OS est un runtime souverain pour agents IA autonomes. Il exécute
-n'importe quel agent Python (LangGraph, CrewAI, ou un agent personnalisé) en
-isolation, localement, avec des outils, et sans dépendance au cloud. Un agent,
-ici, n'est pas un pipeline LLM scripté : c'est un processus qui raisonne et
-agit de façon autonome, dans une boucle ReAct, sous la gouvernance imposée par
-le runtime.
+Apollia OS est un runtime souverain pour agents IA autonomes. Un agent est une
+fiche : une mission, un modèle, des outils, des sources et des droits, déclarés
+dans le manifeste d'un paquet ou créés dans l'application. Le moteur intégré au
+runtime l'exécute dans une boucle ReAct, localement, sous la gouvernance imposée
+par le runtime, et sans dépendance au cloud. Un paquet peut aussi apporter du
+Python : des outils qu'un agent appelle, et des workflows dont l'auteur fixe les
+étapes.
 
 Il est conçu pour être **embarqué**. Son principal consommateur est un produit
 hôte qui pilote une instance Apollia pour effectuer du travail d'agent sur ses
@@ -40,7 +41,7 @@ souveraineté et la redevabilité l'emportent.
 | Partie prenante | Ce qu'elle attend d'Apollia | Où elle se documente |
 |---|---|---|
 | **Intégrateur hôte** (tête de pont) | Piloter et embarquer le runtime depuis son propre produit sans avoir à en faire de la rétro-ingénierie | [Guide pratique du contrat pilote](/how-to/integrate-via-driving-contract), [Référence de l'API HTTP](/reference/api/apollia-os-runtime-api) |
-| **Auteur d'agent** (Python) | Écrire un agent ou un worker typé contre un contrat stable | [Référence SDK / `ctx`](/reference/sdk) |
+| **Auteur de paquet** (Python) | Déclarer des agents dans un manifeste, et écrire des outils et des workflows typés contre un contrat stable | [Référence SDK / `ctx`](/reference/sdk) |
 | **Opérateur** | Exécuter et superviser les agents au quotidien | [Aide opérateur](/operator-help) |
 | **Contributeur** | Faire évoluer le runtime sans en rompre les invariants | Cette section, ainsi que le corpus de règles pour agents versionné dans le dépôt |
 

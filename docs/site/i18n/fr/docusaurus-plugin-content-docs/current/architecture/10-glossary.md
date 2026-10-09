@@ -21,15 +21,15 @@ Termes clés utilisés dans cette section et dans le reste de la documentation.
 | **StepBudget** | Le plafond non contournable d'étapes de raisonnement, d'appels d'outils et de temps réel que le runtime impose à chaque exécution. |
 | **ctx** | Le contexte runtime transmis à chaque outil et à chaque workflow d'un paquet, exposant dix-sept services typés. Le contrat est `sdk/apollia/types.py`. Voir la [référence du SDK](/reference/sdk). |
 | **AgentKit** | Le SDK Python (`apollia`) : les deux décorateurs, les schémas, les doublures de test et les fonctions utilitaires contre lesquels s'écrit le Python d'un paquet. |
-| **MCP** | Model Context Protocol. Apollia est un client MCP qui découvre et appelle des outils externes, et peut exposer un serveur MCP entrant limité. |
+| **MCP** | Model Context Protocol. Apollia est un client MCP qui découvre et appelle des outils externes, et elle sert à un client MCP les agents et les workflows que l'utilisateur a exposés, par un pont stdio désactivé par défaut. |
 | **Palier d'autonomie** | Le réglage propre à une exécution qui gouverne la porte du plan et la passe de vérification après exécution. Il ne gouverne aucune permission ni aucune approbation : il change la distance qu'une exécution parcourt sans surveillance, pas ce qu'un agent peut toucher. |
-| **HITL** | Humain dans la boucle : une approbation qu'une personne doit trancher avant l'exécution d'une action à conséquences. La décision est enregistrée. |
+| **HITL** | Humain dans la boucle : la réponse qu'une personne donne (une fois, toujours ou refuser) quand la décision de gouvernance demande pour un appel d'outil. La réponse est enregistrée dans le journal. |
 | **Journal d'audit** | Le registre en ajout seul, chaîné par hachage et signé, des actions gouvernées, utilisé pour la vérification. |
 | **Vérification** | Contrôler la chaîne de hachage d'audit et les signatures d'une exécution pour confirmer que l'enregistrement n'a pas été altéré. |
 | **Rollback** | Annuler les modifications du système de fichiers effectuées au cours d'une session de chat. Le format du journal et la logique de replay existent dans le code, mais rien n'écrit dans ce journal : ce n'est donc pas une capacité de cette version. |
-| **Replay** | Rejouer et comparer une exécution. Abandonné par décision ; ce n'est pas une capacité. |
+| **Replay** | Parcourir hors ligne la trace que le journal a capturée pour une exécution et la déclarer identique à son enregistrement, divergente ou incomplète (`apollia-os audit replay`). Le rejeu n'appelle aucun modèle, n'exécute aucun outil et ne relance pas l'agent. |
 | **Runner** | Le sidecar hors processus (`apollia-runner`) qui exécute la reconnaissance vocale locale (whisper). L'inférence LLM locale est assurée par le `llama-server` embarqué (upstream llama.cpp), que le démon supervise. |
-| **GGUF** | Le format de modèle local à fichier unique que charge le runner. |
+| **GGUF** | Le format de modèle local à fichier unique que charge le `llama-server` embarqué. |
 | **Contrat pilote** | L'API HTTP stable et versionnée, ainsi que les SDK hôtes générés, qu'un produit hôte utilise pour piloter le runtime. Voir la [référence de l'API HTTP](/reference/api/apollia-os-runtime-api). |
 | **EventBus** | Le flux d'événements structurés du runtime, partagé par le journal d'audit et l'observabilité. |
 | **Souveraineté** | La propriété qu'aucune donnée utilisateur ne quitte la machine sans une action explicite, avec inférence et stockage locaux par défaut. |

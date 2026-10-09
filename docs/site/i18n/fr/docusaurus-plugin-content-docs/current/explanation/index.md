@@ -25,10 +25,10 @@ référence), ces pages y renvoient plutôt que de le répéter.
 - [Le modèle de plan et d'exécution orchestrée](/explanation/the-plan-model) :
   comment Apollia classe, planifie, verrouille, exécute et vérifie une
   exécution.
-- [Le modèle de confiance des agents](/explanation/agent-trust-model) : les
-  agents s'exécutent in-process en tant que code de confiance, ce qui
-  confine les outils qu'ils appellent, et ce qu'un opérateur doit
-  présupposer avant d'installer un agent.
+- [Le modèle de confiance des agents](/explanation/agent-trust-model) : un
+  agent est une fiche dont les appels d'outils sont décidés un par un, le
+  Python d'un paquet est du code de confiance, et ce qu'un opérateur doit
+  présupposer avant d'installer un paquet.
 - [Organisation du dépôt](/explanation/repository-layout) : à quoi sert
   chaque fichier et répertoire de premier niveau dans l'arborescence
   source, des crates Rust à la configuration de build et de qualité.

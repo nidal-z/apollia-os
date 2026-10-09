@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 title: Le modèle de redevabilité
-description: "Qui a fait quoi, et sur quelle autorité : comment Apollia consigne les actions d'un agent pour qu'une exécution se rejoue et se justifie après coup."
+description: "Qui a fait quoi, et sur quelle autorité : comment Apollia consigne les actions d'un agent pour qu'une exécution se vérifie et se justifie après coup."
 ---
 
 # Le modèle de redevabilité
@@ -69,50 +69,51 @@ Pour les commandes derrière ces deux mécanismes, voir
 
 L'annulation de ce qu'un agent a écrit est délibérément absente. Un journal
 réversible existe dans la base de code, mais rien ne l'installe sur les outils
-qui écrivent des fichiers, si bien qu'aucune installation `v0.1.0-preview`
+qui écrivent des fichiers, si bien qu'aucune installation
 n'enregistre quoi que ce soit à annuler. Livrer la commande quand même aurait
 été pire que de ne rien livrer : un résultat vide est indiscernable d'une
 session propre, si bien qu'un opérateur lirait « rien à annuler » comme un
 filet de sécurité opérationnel et déléguerait en conséquence. Traitez chaque
 modification de système de fichiers faite par un agent comme définitive, et
-donnez-lui une racine de bac à sable que vous acceptez de perdre.
+ne lui accordez en écriture que des dossiers que vous acceptez de perdre.
 
 ### Permissions et supervision humaine
 
 <!-- claim:hitl-wired-in-chat-path-only -->
-Avant qu'un appel d'outil ne s'exécute dans une session de chat, des règles de
-permission persistées le classent, un garde-fou refuse une commande shell qui
-enchaîne ou redirige, et tout ce qui reste soulève une demande d'approbation
-qu'un opérateur résout par l'une de trois réponses : une fois, toujours pour cet
-agent, ou refuser avec une raison facultative que l'agent lit. Un « toujours »
-est accordé à un agent pour une famille d'actions, jamais à un nom d'outil, à
-un projet ni à une session.
+Avant qu'un appel d'outil d'un agent ne s'exécute, une seule décision y répond,
+où que l'appel soit fait : une conversation, une tâche, une étape de plan, un
+élément de lot. La politique de l'organisation et une règle de refus le
+refusent, un outil qui ne fait que lire s'exécute, un garde-fou empêche une
+règle de couvrir une commande shell qui enchaîne ou redirige, et tout ce qui
+est sensible et qu'aucun accord permanent ne couvre soulève une demande
+d'approbation qu'une personne résout par l'une de trois réponses : une fois,
+toujours pour cet agent, ou refuser avec une raison facultative que l'agent
+lit. Un « toujours » est accordé à un agent pour une famille d'actions, jamais
+à un nom d'outil, à un projet ni à une session.
 
 La décision elle-même est consignée : la réponse à une demande de consentement,
 un refus par la politique de l'organisation et un refus par une règle deviennent
 chacun une entrée du journal signé, qui nomme l'agent, l'outil et sa famille
 d'action, jamais l'argument de l'appel. Le journal garde aussi l'appel que la
-décision a laissé passer, la boucle de chat capturant l'appel d'outil et sa
+décision a laissé passer, la boucle de l'agent capturant l'appel d'outil et sa
 sortie.
 
-La surface qui peut répondre à une demande dépend de sa nature. Une approbation
-portant sur un nom d'outil se répond par l'API HTTP, avec
-`POST /api/v1/sessions/:id/authorize`, aussi bien que depuis le bureau. Les deux
-autres ne se répondent que depuis le bureau : une approbation de système de
-fichiers passe par une commande Tauri, une question `ask_user` aussi, et l'API
-expose une route de lecture pour les approbations en attente, mais aucune route
-qui réponde à l'une ou l'autre. Sur un `apollia-os start` sans
-interface, une écriture risquée attend donc l'expiration de ses cinq minutes
-puis est refusée, et un `ask_user` attend sans délai d'expiration du tout.
+Chaque décision qui attend une personne est listée à un seul endroit et se
+répond depuis cet endroit. `GET /api/v1/pending-decisions` liste les accords
+d'outils des conversations et des exécutions hors conversation, les pauses de
+tâches, les éléments de lot arrêtés sur un accès et les questions posées à
+l'utilisateur, et `POST /api/v1/pending-decisions/decide` répond à l'une
+d'elles, par l'appel même qui y répond là où elle est née. Le bureau lit la
+même liste, si bien qu'une décision est la même décision, qu'elle soit donnée
+là ou par l'API. Dans une conversation, un accord resté cinq minutes sans
+réponse est refusé.
 
-Une limite, à énoncer clairement. L'enveloppe d'approbation n'est
-posée que sur le dispatcher du **chat** : les appels d'outil qu'un agent Python
-installé effectue via `ctx.tools` ne rencontrent aucun point de contrôle
-humain. C'est une position délibérée, pas un oubli, et le
+Une limite, à énoncer clairement. La décision gouverne les appels d'outils des
+agents. Elle ne voit pas l'intérieur du Python d'un paquet : un outil de paquet
+est décidé quand un agent l'appelle, et ce que son code fait ensuite s'exécute
+avec les droits du processus runtime. Le
 [modèle de confiance des agents](/explanation/agent-trust-model) explique
-pourquoi : un agent installé exécute déjà du Python arbitraire sous votre
-compte, si bien qu'une porte sur un seul chemin d'appel ne contiendrait pas un
-agent hostile.
+pourquoi installer un paquet est l'acte de confiance, et ce qui le couvre.
 
 ### Paliers d'autonomie
 
@@ -127,9 +128,12 @@ la distance qu'une exécution parcourt avant de s'arrêter pour demander.
 La porte du plan est celle qui est conditionnelle. Le palier ne la décide que
 lorsque l'exécution ne porte aucune surcharge propre à l'exécution, et
 `apollia-os run` en envoie toujours une : sur ce chemin, c'est `--plan` qui
-décide, pas le palier. Le palier lui-même se pose par exécution, via
-`--autonomy` : `apollia.toml` n'a aucune section `[autonomy]` que le runtime
-lise, et le bureau n'offre aucun réglage de palier. Le chat libre ne le fait pas
+décide, pas le palier. Le palier d'un agent est celui que son paquet
+recommande, puis le réglage de la personne
+(`apollia-os agent set <AGENT_ID> autonomy <tier>`), puis le défaut global, et
+`apollia-os run` accepte `--autonomy` pour une exécution. `apollia.toml` n'a
+aucune section `[autonomy]` que le runtime lise, et le bureau n'offre aucun
+réglage qui change le palier. Le chat libre ne le fait pas
 varier non plus, chaque échange s'exécutant au palier par défaut.
 
 ### Garde-fous non négociables
@@ -155,9 +159,7 @@ de code, un garde-fou plus strict refuse toute commande qui enchaîne, met en
 pipe, redirige ou substitue, si bien qu'une autorisation accordée pour une
 commande ne peut pas en faire passer une seconde en contrebande ; en dehors
 d'une règle correspondante, chaque invocation d'exécuteur de code exige sa
-propre approbation. Le filtrage n'est pas enregistré non plus, et pour la même
-raison que la décision d'approbation ci-dessus : rien n'écrit dans le journal
-des décisions de permission.
+propre approbation.
 
 Ce mécanisme filtre l'injection **shell**. Apollia n'embarque aucune défense
 contre l'injection de prompt, et rien ici ne doit être lu comme tel.
@@ -173,10 +175,9 @@ relancer l'exécution, dans la limite d'un nombre borné de tentatives, sous le
 même budget partagé : c'est ainsi qu'un agent orchestré se corrige lui-même
 sans échapper à son plafond.
 
-Une limite honnête à signaler : cette passe exécute aujourd'hui le critique
-LLM ; faire tourner sous gouvernance les propres contrôles shell déclarés par
-un agent est une étape ultérieure, pas encore câblée. Le critique est actif ;
-les contrôles shell déterministes restent à venir.
+Une limite honnête à signaler : cette passe exécute le critique LLM, et aucun
+contrôle shell n'est exécuté pour le compte d'un agent. Le critique est actif ;
+un contrôle shell déterministe ne fait pas partie de la passe.
 
 ## Correspondance avec l'AI Act européen
 
@@ -192,7 +193,7 @@ Avec ce cadrage, la correspondance est directe :
 | Exigence (thème) | Primitive Apollia |
 |---|---|
 | Article 10, provenance et qualité des données | le journal d'audit signé et chaîné par hachage, plus sa vérification, qui enregistrent et permettent de confirmer quelles données et quelles actions une exécution a touchées |
-| Article 14, supervision humaine | les règles de permission persistées, le garde-fou de l'exécuteur de code, les approbations humaines dans la boucle **sur le chemin du chat**, et les paliers d'autonomie, qui gardent une personne au contrôle des actions à conséquences. Les propres appels d'outil d'un agent installé sont en dehors de cette boucle, voir ci-dessus |
+| Article 14, supervision humaine | la décision de gouvernance sur chaque appel d'outil d'un agent (politique de l'organisation, règles, accord par famille d'action, approbation humaine), le garde-fou de l'exécuteur de code, et les paliers d'autonomie, qui gardent une personne au contrôle des actions à conséquences. Le Python d'un paquet installé est en dehors de cette boucle, voir ci-dessus |
 | Article 16, documentation et traçabilité | le journal d'audit et la trace d'exécution, qui documentent ce qui s'est passé |
 
 L'intérêt est que ces mécanismes sont câblés dans le runtime et démontrables

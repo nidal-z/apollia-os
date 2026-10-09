@@ -23,9 +23,9 @@ pages link to it rather than restate it.
   gate policy, and how an operator chooses.
 - [The plan and orchestrated execution model](/explanation/the-plan-model): how
   Apollia classifies, plans, gates, executes, and verifies a run.
-- [The agent trust model](/explanation/agent-trust-model): agents run in-process
-  as trusted code, what confines the tools they call, and what an operator must
-  assume before installing an agent.
+- [The agent trust model](/explanation/agent-trust-model): an agent is a record
+  whose tool calls are decided one by one, the Python of a package is trusted
+  code, and what an operator must assume before installing a package.
 - [Repository layout](/explanation/repository-layout): what every top-level file
   and directory in the source tree is for, from the Rust crates to the build and
   quality configuration.

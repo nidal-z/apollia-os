@@ -6,9 +6,9 @@ description: Les huit principes sur lesquels Apollia est construit, du local-fir
 
 # Les 8 principes
 
-Apollia est un runtime souverain pour agents IA autonomes. Il exécute n'importe
-quel agent Python en isolation, localement, avec des outils, et sans dépendance
-au cloud. Huit principes tiennent cette promesse ensemble. Ce ne sont pas des
+Apollia est un runtime souverain pour agents IA autonomes. Il exécute des
+agents localement, sous une gouvernance qu'il impose, avec des outils, et sans
+dépendance au cloud. Huit principes tiennent cette promesse ensemble. Ce ne sont pas des
 préférences de style : chacun a été imposé par une contrainte réelle, et chacun
 façonne un comportement par défaut sur lequel vous pouvez compter en tant
 qu'adoptant. Cette page explique ce qu'est chaque principe et pourquoi il compte
@@ -87,14 +87,24 @@ analyser. La stratégie derrière ce choix se trouve dans
 ## 6. Mémoire à l'initiative de l'agent
 
 <!-- claim:memory-injection-confined-to-builtin-assistant -->
-Apollia n'injecte jamais de mémoire dans le prompt d'un agent. Un agent
-rappelle ce qu'il décide de rappeler, quand il décide de le faire, via
-`ctx.memory`. L'injection automatique de mémoire est pratique et discrètement
+Apollia n'injecte jamais de mémoire dans le prompt d'un agent, et n'écrit rien
+en mémoire à sa place. Un agent rappelle ce qu'il décide de rappeler, quand il
+décide de le faire, avec l'outil `memory_search`, et garde une note avec
+`memory_write`. Les deux outils viennent d'un seul geste, cocher Mémoire sur la
+fiche de l'agent, et aucun ne demande d'accord : l'espace est celui de l'agent,
+un espace nommé d'après lui et gardé d'une conversation et d'une tâche à
+l'autre, qui n'atteint ni vos données ni la machine. L'injection automatique de
+mémoire est pratique et discrètement
 corrosive : elle rend les entrées d'une exécution opaques et son comportement
 difficile à attribuer. Laisser le rappel à l'initiative de l'agent garde
 honnête la trace de ce qui a nourri une décision.
 
-Trois exceptions existent, et aucune n'est atteignable depuis un agent Python
+Votre profil est le cas inverse. Il vous suit dans chaque conversation où il
+est activé, donc un agent ne l'écrit jamais. Un agent dont la source Profil est
+cochée peut proposer un fait avec `profile_propose`, et la proposition vous est
+soumise à chaque fois, sans « toujours ».
+
+Trois exceptions existent, et aucune n'est atteignable depuis un agent
 que vous installez. Les deux premières sont confinées à l'assistant
 conversationnel intégré, celui qui se trouve derrière la fenêtre de chat, et
 vivent dans son générateur de prompt et son gestionnaire de chat. La troisième
@@ -152,15 +162,14 @@ qu'elle relève autant de la souveraineté que de l'agentivité.
 
 Chaque exécution autonome est bornée par un budget d'étapes que le runtime
 impose : un plafond sur les étapes de raisonnement, les appels d'outils, et
-le temps d'horloge écoulé. Un agent ne peut ni l'augmenter ni le supprimer
-depuis son propre code. L'autonomie n'est délégable que si elle possède une
+le temps d'horloge écoulé. Un agent ne peut ni l'augmenter ni le
+supprimer. L'autonomie n'est délégable que si elle possède une
 limite dure, et c'est pourquoi cette limite vit dans le runtime plutôt que
 dans les bonnes intentions de l'agent. Cette page ne réexplique pas le
 mécanisme : c'est l'un des piliers du
 [modèle de redevabilité](/explanation/accountability-model). Un détail
-honnête : le plafond est livré avec une valeur par défaut sûre, et la lecture
-d'un plafond personnalisé depuis `apollia.toml` au moment de l'exécution reste
-un chantier à venir plutôt qu'un chemin achevé. Le registre complet de ce qui
+honnête : le plafond d'une exécution d'agent est fixé dans le code, et aucune
+clé d'`apollia.toml` ne le change. Le registre complet de ce qui
 est partiel se trouve dans
 [Risques et dette technique](/architecture/risks-and-technical-debt).
 

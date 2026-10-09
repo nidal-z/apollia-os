@@ -36,21 +36,22 @@ Le batching continu décode plusieurs requêtes dans une même passe, et suivre
 l'upstream llama.cpp élargit la gamme d'architectures de modèles prises en
 charge.
 
-La supervision actuelle assume ses limites : le daemon lance le processus
-d'inférence, mais la surveillance de santé et le redémarrage automatiques ne
-sont pas encore câblés. Voir
-[Risques et dette technique](/architecture/risks-and-technical-debt). La
+Le daemon supervise ce processus : il sonde la vie de chaque instance du moteur
+et relance celle qui est morte, avec un délai d'attente qui croît d'une seconde
+à trente. Un modèle évincé volontairement n'est pas relancé.
 Voir [l'inférence locale](/architecture/decisions#local-inference).
 
 ## Un pont PyO3 avec des services découplés par traits
 
-Les agents sont écrits en Python ; le runtime est écrit en Rust. Le pont est
-PyO3, avec `pyo3-async-runtimes` pour l'interopérabilité asynchrone. Le
+Le code qu'un paquet apporte est en Python ; le runtime est écrit en Rust. Le
+pont est PyO3, avec `pyo3-async-runtimes` pour l'interopérabilité asynchrone. Le
 runtime ne livre pas ses structures internes brutes à Python : il expose un
 ensemble de services (l'objet `ctx`) derrière des traits Rust, ce qui découple
-le contrat de l'agent de son implémentation et le rend simulable (mock) pour
-les tests. Côté agent, on ne voit qu'un contexte typé regroupant quinze
-services ; côté Rust, l'implémentation peut évoluer derrière cette façade.
+le contrat de son implémentation et le rend simulable (mock) pour les tests. Le
+contrat de types nomme dix-sept services, et ce qu'un appel reçoit dépend de ce
+qu'il est : un outil de paquet s'exécute avec un contexte qui ne porte ni
+modèle, ni proxy d'outils, ni mémoire, et un workflow de paquet y ajoute
+`ctx.llm`, `ctx.agents`, `ctx.workflows` et `ctx.user`.
 
 Voir [socle technique et runtime](/architecture/decisions#stack-and-runtime) et [le contrat d'agent](/architecture/decisions#agent-contract) ; `ctx` est
 est documenté dans la [référence du SDK](/reference/sdk).
@@ -82,13 +83,19 @@ exécution orchestrée de la même façon que le budget, par le moteur qui la
 planifie et l'exécute.
 
 <!-- claim:hitl-wired-in-chat-path-only -->
-Les règles de permission et les approbations à supervision humaine sont plus
-étroites, et énoncer la frontière compte davantage que la formule : elles ne
-sont branchées que sur le chemin du chat. Les appels d'outils qu'un agent Python
-installé effectue via `ctx.tools` ne rencontrent aucune règle de permission ni
-aucun point de contrôle humain. C'est une position délibérée et non un oubli, et
-le [modèle de confiance des agents](/explanation/agent-trust-model) en explique
-la raison. Le tableau complet se trouve dans
+Les règles de permission et l'approbation humaine vivent au même endroit. Chaque
+appel d'outil d'un agent est tranché avant de s'exécuter par une seule décision
+de gouvernance, dans une conversation, dans une tâche, dans une étape de plan
+comme dans un élément de lot : la politique de l'organisation et une règle de
+refus le refusent, un outil qui ne fait que lire s'exécute, et tout ce qui est
+sensible s'exécute sur un accord permanent de l'agent ou demande à une
+personne. Un agent est une fiche et ne porte aucun code : il n'a donc aucun
+chemin pour contourner cette décision. Ce que la décision ne voit pas, c'est le
+Python d'un paquet : une fois qu'un outil de paquet est autorisé à s'exécuter,
+son code tourne dans le processus du runtime avec les droits de ce processus,
+et c'est pourquoi installer un paquet est l'acte de confiance. Le
+[modèle de confiance des agents](/explanation/agent-trust-model) énonce cette
+frontière. Le tableau complet se trouve dans
 [Concepts transversaux](/architecture/crosscutting-concepts) et dans le
 [modèle de responsabilité](/explanation/accountability-model).
 

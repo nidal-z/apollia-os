@@ -32,19 +32,21 @@ speak to the engine over a narrow interface. Continuous batching decodes several
 requests in the same pass, and tracking upstream llama.cpp widens the range of
 supported model architectures.
 
-The current supervision is honest about its limits: the daemon spawns the
-inference process, but automatic health monitoring and restart are not yet
-wired. See [Risks and technical debt](/architecture/risks-and-technical-debt).
+The daemon supervises that process: it polls the liveness of each engine
+instance and respawns one that died, under a backoff that grows from one second
+to thirty. A model evicted on purpose is not brought back.
 See [local inference](/architecture/decisions#local-inference).
 
 ## A PyO3 bridge with trait-decoupled services
 
-Agents are Python; the runtime is Rust. The bridge is PyO3 with
+The code a package brings is Python; the runtime is Rust. The bridge is PyO3 with
 `pyo3-async-runtimes` for async interop. The runtime does not hand Python raw
 internals: it exposes a set of services (the `ctx` object) behind Rust traits,
-so the agent contract is decoupled from the implementation and can be mocked for
-testing. The agent side sees one typed context with fifteen services; the Rust
-side can evolve behind it.
+so the contract is decoupled from the implementation and can be mocked for
+testing. The type contract names seventeen services, and what a call receives
+depends on what it is: a package tool runs with a context that carries no model,
+no tool proxy and no memory, and a package workflow adds `ctx.llm`,
+`ctx.agents`, `ctx.workflows` and `ctx.user` to it.
 
 See [stack and runtime](/architecture/decisions#stack-and-runtime) and [the agent contract](/architecture/decisions#agent-contract); `ctx` is documented
 in the [SDK reference](/reference/sdk).
@@ -71,12 +73,17 @@ tier reaches an orchestrated run the same way as the budget, through the engine
 that plans and executes it.
 
 <!-- claim:hitl-wired-in-chat-path-only -->
-Permission rules and human-in-the-loop approvals are narrower, and stating the
-boundary matters more than the slogan: they are wired on the chat path only. The
-tool calls an installed Python agent makes through `ctx.tools` meet no
-permission rule and no human checkpoint. That is a deliberate position rather
-than an oversight, and the [agent trust
-model](/explanation/agent-trust-model) explains why. The whole picture is in
+Permission rules and human approval live in the same place. Every tool call an
+agent makes is decided before it runs by one governance decision, in a
+conversation, in a task, in a step of a plan and in an item of a batch alike:
+the organisation policy and a deny rule refuse it, a tool that only reads runs,
+and anything sensitive runs on a standing consent of the agent or asks a
+person. An agent is a record and holds no code, so it has no path around that
+decision. What the decision does not see into is the Python of a package: once
+a package tool is allowed to run, its code executes in the runtime process with
+the rights of that process, which is why installing a package is the act of
+trust. The [agent trust model](/explanation/agent-trust-model) states that
+boundary. The whole picture is in
 [Cross-cutting concepts](/architecture/crosscutting-concepts) and the
 [accountability model](/explanation/accountability-model).
 
