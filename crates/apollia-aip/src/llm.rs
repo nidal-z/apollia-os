@@ -523,6 +523,11 @@ impl LlmProxy {
     /// optional sampling overrides; each one left `None` is not sent, and the
     /// engine keeps its own default.
     ///
+    /// `thinking` says whether the model reasons before it answers. Left
+    /// `None`, the chat template of the model decides. A model that reasons
+    /// spends the token cap on its reasoning first: a short, constrained call
+    /// passes `False`.
+    ///
     /// # Structured output
     ///
     /// `schema` is a JSON Schema the answer must satisfy. It changes three
@@ -543,7 +548,7 @@ impl LlmProxy {
     // Flat parameters mirror the Python-facing signature (see `chat`).
     // REASON: mirrors the Python keyword signature of `ctx.llm.complete`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None, top_p = None, top_k = None, min_p = None, presence_penalty = None, frequency_penalty = None, repeat_penalty = None, stop = None, schema = None))]
+    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None, top_p = None, top_k = None, min_p = None, presence_penalty = None, frequency_penalty = None, repeat_penalty = None, stop = None, schema = None, thinking = None))]
     fn complete<'py>(
         &self,
         py: Python<'py>,
@@ -560,6 +565,7 @@ impl LlmProxy {
         repeat_penalty: Option<f32>,
         stop: Option<Vec<String>>,
         schema: Option<PyObject>,
+        thinking: Option<bool>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let sampling = RequestSampling {
             temperature,
@@ -572,6 +578,7 @@ impl LlmProxy {
             frequency_penalty,
             repeat_penalty,
             stop,
+            thinking,
         };
         // Synchronous conversion before crossing the async boundary.
         let chat_messages = messages

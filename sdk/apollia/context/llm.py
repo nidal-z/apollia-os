@@ -86,6 +86,7 @@ class LlmProxy(Protocol):
         repeat_penalty: float | None = None,
         stop: list[str] | None = None,
         schema: dict[str, Any] | None = None,
+        thinking: bool | None = None,
     ) -> LlmResponse | StructuredValue:
         """Run a single-shot completion over a message list.
 
@@ -121,6 +122,11 @@ class LlmProxy(Protocol):
                 ``number``, ``integer``, ``boolean``, ``null``, ``enum``,
                 ``required``. ``anyOf``, ``oneOf``, ``allOf`` and ``$ref`` are
                 refused by name.
+            thinking: Whether the model reasons before it answers, or None to
+                leave the choice to the chat template of the model. A model
+                that reasons spends ``max_tokens`` on its reasoning first: a
+                short call that must fit its cap passes ``False``. A model
+                without a reasoning mode ignores it.
 
         Returns:
             The completed response, with its content, latency and usage; or the

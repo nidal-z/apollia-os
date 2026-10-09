@@ -42,7 +42,7 @@ itself, so an agent that needs structure never parses a string::
 #### `complete`
 
 ```python
-async def complete(self, messages: list[dict[str, Any]], *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None, top_p: float | None=None, top_k: int | None=None, min_p: float | None=None, presence_penalty: float | None=None, frequency_penalty: float | None=None, repeat_penalty: float | None=None, stop: list[str] | None=None, schema: dict[str, Any] | None=None) -> LlmResponse | StructuredValue
+async def complete(self, messages: list[dict[str, Any]], *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None, top_p: float | None=None, top_k: int | None=None, min_p: float | None=None, presence_penalty: float | None=None, frequency_penalty: float | None=None, repeat_penalty: float | None=None, stop: list[str] | None=None, schema: dict[str, Any] | None=None, thinking: bool | None=None) -> LlmResponse | StructuredValue
 ```
 
 Run a single-shot completion over a message list.
@@ -79,6 +79,11 @@ Args:
         ``number``, ``integer``, ``boolean``, ``null``, ``enum``,
         ``required``. ``anyOf``, ``oneOf``, ``allOf`` and ``$ref`` are
         refused by name.
+    thinking: Whether the model reasons before it answers, or None to
+        leave the choice to the chat template of the model. A model
+        that reasons spends ``max_tokens`` on its reasoning first: a
+        short call that must fit its cap passes ``False``. A model
+        without a reasoning mode ignores it.
 
 Returns:
     The completed response, with its content, latency and usage; or the

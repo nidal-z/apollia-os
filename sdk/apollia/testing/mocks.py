@@ -259,6 +259,7 @@ class MockLlmProxy:
         repeat_penalty: float | None = None,
         stop: list[str] | None = None,
         schema: dict[str, Any] | None = None,
+        thinking: bool | None = None,
     ) -> MockLlmResponse | StructuredValue:
         """Consume and return the next queued response.
 
@@ -291,6 +292,7 @@ class MockLlmProxy:
                     "frequency_penalty": frequency_penalty,
                     "repeat_penalty": repeat_penalty,
                     "stop": stop,
+                    "thinking": thinking,
                 }.items()
                 if value is not None
             }

@@ -199,6 +199,7 @@ async def test_mock_llm_proxy_complete_accepts_every_request_sampling_setting():
         frequency_penalty=-0.5,
         repeat_penalty=1.125,
         stop=["END"],
+        thinking=False,
     )
     plain = await proxy.complete([{"role": "user", "content": "x"}])
 
@@ -215,6 +216,7 @@ async def test_mock_llm_proxy_complete_accepts_every_request_sampling_setting():
             "frequency_penalty": -0.5,
             "repeat_penalty": 1.125,
             "stop": ["END"],
+            "thinking": False,
         },
         {},
     ]

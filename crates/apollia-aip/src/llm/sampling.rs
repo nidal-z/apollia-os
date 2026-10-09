@@ -26,6 +26,9 @@ pub(super) struct RequestSampling {
     pub frequency_penalty: Option<f32>,
     pub repeat_penalty: Option<f32>,
     pub stop: Option<Vec<String>>,
+    /// Whether the model reasons before it answers; `None` leaves the choice
+    /// to the chat template of the model.
+    pub thinking: Option<bool>,
 }
 
 /// Build the request `ctx.llm.complete` sends, from its messages, its sampling
@@ -50,6 +53,7 @@ pub(super) fn complete_request(
         frequency_penalty: sampling.frequency_penalty,
         repeat_penalty: sampling.repeat_penalty,
         stop: sampling.stop,
+        thinking: sampling.thinking,
         ..Default::default()
     };
     defaults.apply_to(&mut req);
@@ -78,6 +82,7 @@ mod tests {
             frequency_penalty: Some(-0.5),
             repeat_penalty: Some(1.125),
             stop: Some(vec!["END".to_string()]),
+            thinking: Some(false),
         };
 
         // WHEN the bridge builds the request it hands to the router
@@ -99,6 +104,7 @@ mod tests {
         assert_eq!(req.frequency_penalty, Some(-0.5));
         assert_eq!(req.repeat_penalty, Some(1.125));
         assert_eq!(req.stop, Some(vec!["END".to_string()]));
+        assert_eq!(req.thinking, Some(false));
         assert!(req.response_schema.is_none());
     }
 
@@ -124,6 +130,7 @@ mod tests {
         assert_eq!(req.frequency_penalty, None);
         assert_eq!(req.repeat_penalty, None);
         assert_eq!(req.stop, None);
+        assert_eq!(req.thinking, None);
         assert_eq!(req.max_tokens, Some(DEFAULT_COMPLETE_MAX_TOKENS));
     }
 
