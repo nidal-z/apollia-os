@@ -77,7 +77,10 @@ pub(crate) async fn uninstall_package<B: ExecutionBackend + Clone>(
     Path(name): Path<String>,
     Json(request): Json<UninstallRequest>,
 ) -> Result<Json<UninstallReport>, ApiError> {
-    run(&state, Subject::Package(&name), &request).await
+    let report = run(&state, Subject::Package(&name), &request).await?;
+    // The workflows and the tools of the package leave with it.
+    crate::packages::reload_package_code().await;
+    Ok(report)
 }
 
 /// `POST /api/v1/agents/installed/{name}/uninstall`: uninstall an agent

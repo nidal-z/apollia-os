@@ -169,12 +169,9 @@ curl -s http://127.0.0.1:7771/api/v1/health
 apollia-os status
 
 # De bout en bout : construire le paquet de départ, l'installer et exécuter son agent.
-# Le runtime lit les outils des paquets installés à son démarrage,
-# d'où le redémarrage entre l'installation et l'exécution.
 apollia-os package new postcheck
 apollia-os package build postcheck
 apollia-os package install postcheck-0.1.0.apo
-sudo systemctl restart apollia
 apollia-os run postcheck "post-deploy check"
 ```
 

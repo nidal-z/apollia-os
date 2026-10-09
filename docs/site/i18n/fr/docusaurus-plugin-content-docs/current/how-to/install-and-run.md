@@ -286,10 +286,8 @@ apollia-os package build hello
 apollia-os package install hello-0.1.0.apo
 ```
 
-Le paquet de départ apporte un agent et un outil Python. Le runtime lit les
-outils des paquets installés à son démarrage : redémarrez-le donc, avec
-`apollia-os stop`, puis en le relançant dans le premier terminal par la
-commande de l'étape 4. Envoyez ensuite une tâche à l'agent :
+Le paquet de départ apporte un agent et un outil Python. Envoyez ensuite une
+tâche à l'agent :
 
 ```sh
 apollia-os run hello "hello from Apollia"

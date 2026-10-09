@@ -429,3 +429,32 @@ async fn test_unknown_agent_keeps_the_coordinator_path() {
     // THEN
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn test_the_autonomy_a_run_names_wins_over_the_tier_of_the_agent() {
+    // GIVEN a stored agent that runs no code, at its own tier
+    let fx = fixture(false).await;
+    let agent = resolve_without_code(fx._dir.path(), None, AGENT)
+        .unwrap()
+        .expect("the agent is stored");
+    let own = agent.autonomy;
+    let asked = if own == apollia_core::AutonomyLevel::Supervised {
+        apollia_core::AutonomyLevel::BoundedAutonomous
+    } else {
+        apollia_core::AutonomyLevel::Supervised
+    };
+
+    // WHEN a run is prepared with no option, then with an autonomy tier
+    let untouched = for_this_run(agent.clone(), &apollia_core::RunOptions::default());
+    let overridden = for_this_run(
+        agent,
+        &apollia_core::RunOptions {
+            plan_gate: None,
+            autonomy_level: Some(asked),
+        },
+    );
+
+    // THEN the run takes the tier it names, and the agent's own otherwise
+    assert_eq!(untouched.autonomy, own);
+    assert_eq!(overridden.autonomy, asked);
+}

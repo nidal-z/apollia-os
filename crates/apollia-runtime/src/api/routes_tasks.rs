@@ -288,6 +288,7 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
     Json(req): Json<SubmitTaskRequest>,
 ) -> Result<(StatusCode, Json<TaskResponse>), (StatusCode, Json<ErrorResponse>)> {
     if let Some(agent) = declarative::stored_agent_without_code(&state, &req.agent_id)? {
+        let agent = declarative::for_this_run(agent, &req.run_options);
         let task_id = declarative::launch(&state, &agent, req.input).await?;
         return Ok((StatusCode::ACCEPTED, Json(TaskResponse::submitted(task_id))));
     }

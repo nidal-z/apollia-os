@@ -44,6 +44,7 @@ mod export;
 mod install;
 mod preview;
 mod preview_access;
+mod reload;
 mod uninstall;
 
 #[cfg(test)]
@@ -75,6 +76,7 @@ pub use install::{
     commit, prepare, CommitTargets, InstallOptions, InstallReport, McpServerAdder, StagedInstall,
 };
 pub(crate) use preview_access::family_name;
+pub use reload::{install_package_reload, reload_package_code, PackageReload};
 pub(crate) use uninstall::starts_item_of;
 
 pub use preview::{

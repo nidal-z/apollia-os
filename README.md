@@ -121,19 +121,14 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 apollia-os package build clients/examples/echo
 apollia-os package install echo-0.1.0.apo
 
-# 6. Restart the runtime: it reads the workflows of the installed packages
-#    when it starts. Stop it here, then start it again in the first terminal
-#    with the command of step 4.
-apollia-os stop
-
-# 7. Run the workflow and follow it to its end.
+# 6. Run the workflow and follow it to its end.
 apollia-os workflow run echo/echo --input message="hello from Apollia" --wait
 
-# 8. Stop the runtime (graceful drain).
+# 7. Stop the runtime (graceful drain).
 apollia-os stop
 ```
 
-Expected output for step 7 (the run id and the timestamps are fresh each time):
+Expected output for step 6 (the run id and the timestamps are fresh each time):
 
 ```
 Run        : 96e20c50-...
@@ -300,13 +295,11 @@ async def word_count(
   reads the manifest without running the code.
 
 `apollia-os package new coach` writes this starting folder. Build the archive
-and install it, restart the runtime (it reads the tools of the installed
-packages when it starts), then talk to the agent:
+and install it, then talk to the agent:
 
 ```bash
 apollia-os package build coach
 apollia-os package install coach-0.1.0.apo
-apollia-os stop                    # then `apollia-os start` again
 apollia-os run coach "Is this release note too long? ..."
 ```
 

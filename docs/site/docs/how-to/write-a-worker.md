@@ -149,9 +149,7 @@ apollia-os package install pdf-reader-0.1.0.apo --confirm-deps
 
 `package build` validates the manifest and writes the archive without running
 any Python. `package install` needs the runtime; `--confirm-deps` accepts the
-Python dependencies the package installs. The runtime reads the tools of the
-installed packages when it starts, so restart it: run `apollia-os stop`, then
-start it again. Then send the agent a request:
+Python dependencies the package installs. Then send the agent a request:
 
 ```bash
 apollia-os run pdf-reader "How many pages are in /tmp/report.pdf?"

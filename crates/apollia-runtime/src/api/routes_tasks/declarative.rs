@@ -54,6 +54,19 @@ pub(super) fn stored_agent_without_code<B: ExecutionBackend + Clone>(
         .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 
+/// `agent` as one run asks for it: the autonomy tier the submission names
+/// (`--autonomy` on the command line) wins over the agent's own, for this run
+/// only. Nothing is written to the agent.
+pub(super) fn for_this_run(
+    mut agent: ResolvedAgent,
+    options: &apollia_core::RunOptions,
+) -> ResolvedAgent {
+    if let Some(level) = options.autonomy_level {
+        agent.autonomy = level;
+    }
+    agent
+}
+
 /// Run `agent` on the message `input` carries.
 ///
 /// # Errors

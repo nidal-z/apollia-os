@@ -299,21 +299,18 @@ fn use_tree_sdk() {
     .expect("sys.path accepts the SDK");
 }
 
-/// The package `books` stored with its five workflows linked, and the engine
-/// attached to them.
-async fn fixture() -> Fixture {
-    use_tree_sdk();
-    let dir = tempfile::tempdir().expect("temp dir");
-    let root = dir.path().join("packages").join("books");
+/// Stores the package `books` under `dir`, its six workflows linked.
+fn store_books(dir: &Path) -> PackageRepository {
+    let root = dir.join("packages").join("books");
     std::fs::create_dir_all(&root).expect("package dir");
-    let marker = format!("{:?}", dir.path().join("marker.txt").to_string_lossy());
+    let marker = format!("{:?}", dir.join("marker.txt").to_string_lossy());
     std::fs::write(
         root.join("flows.py"),
         FLOWS_MODULE.replace("__MARKER__", &marker),
     )
     .expect("write the module");
     let manifest = apollia_aip::apollia_manifest::parse(BOOKS_MANIFEST).expect("valid manifest");
-    let packages = PackageRepository::open(&dir.path().join("agents.db")).expect("open the store");
+    let packages = PackageRepository::open(&dir.join("agents.db")).expect("open the store");
     packages
         .save(&InstalledPackage {
             name: "books".into(),
@@ -329,6 +326,15 @@ async fn fixture() -> Fixture {
             .link_item("books", PackageItemKind::Workflow, workflow)
             .expect("link the workflow");
     }
+    packages
+}
+
+/// The package `books` stored with its five workflows linked, and the engine
+/// attached to them.
+async fn fixture() -> Fixture {
+    use_tree_sdk();
+    let dir = tempfile::tempdir().expect("temp dir");
+    let packages = store_books(dir.path());
     let model = Arc::new(Model::default());
     let mut backends: std::collections::HashMap<String, Arc<dyn CompletionModel>> =
         std::collections::HashMap::new();
@@ -830,4 +836,53 @@ async fn a_package_workflow_is_stopped_at_its_budget_of_model_calls() {
         fx.model.requests.lock().expect("requests").len(),
         MODEL_CALLS_PER_RUN as usize
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_package_installed_while_the_runtime_runs_brings_its_workflows_at_once() {
+    // GIVEN a runtime started on an empty package store, its workflow host
+    // attached with nothing to run
+    use_tree_sdk();
+    let dir = tempfile::tempdir().expect("temp dir");
+    drop(PackageRepository::open(&dir.path().join("agents.db")).expect("open the store"));
+    let repository = Arc::new(
+        TaskRepository::open(&dir.path().join("hitl.db"))
+            .await
+            .expect("open hitl.db"),
+    );
+    let (bus, _events) = broadcast::channel(256);
+    let engine = WorkflowHandle::spawn(repository, bus, StepBudgetConfig::default(), None);
+    let attached =
+        apollia_aip::package_tools::workflows::attach(dir.path(), Some(&engine), None).await;
+    let before = engine
+        .run_to_end("books/stamp", json!({"day": "2026-10-09"}))
+        .await;
+    let registry = apollia_tools::ToolRegistryHandle::start();
+
+    // WHEN a package is stored, then the hook the host leaves the runtime
+    // re-reads the package code
+    drop(store_books(dir.path()));
+    let reload = apollia_aip::package_tools::reload_hook(
+        dir.path().to_path_buf(),
+        registry.clone(),
+        None,
+        Vec::new(),
+        Some(engine.clone()),
+        None,
+    );
+    reload().await;
+    let after = engine
+        .run_to_end("books/stamp", json!({"day": "2026-10-09"}))
+        .await
+        .expect("the run ends");
+
+    // THEN the workflow that did not exist before runs, with no restart
+    assert_eq!(attached, 0);
+    assert!(before.is_err(), "no workflow before the package is stored");
+    assert_eq!(after.status, "completed", "{:?}", after.error);
+    assert_eq!(
+        after.output,
+        Some(json!({"weekday": 5, "day": "2026-10-09"}))
+    );
+    registry.shutdown().await;
 }

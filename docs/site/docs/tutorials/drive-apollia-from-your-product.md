@@ -84,10 +84,7 @@ In the second terminal, install the archive into the running daemon:
 apollia-os package install echo-0.1.0.apo
 ```
 
-An unsigned package installs with a notice. The daemon reads the workflows of
-the installed packages when it starts, so restart it: run `apollia-os stop`,
-then start it again in the first terminal with the command of step 3. Confirm
-the workflow is there:
+An unsigned package installs with a notice. Confirm the workflow is there:
 
 ```sh
 apollia-os workflow show echo/echo

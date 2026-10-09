@@ -35,13 +35,10 @@ Installing needs the runtime (`apollia-os start`).
 ```sh
 apollia-os package preview hello-0.1.0.apo
 apollia-os package install hello-0.1.0.apo
-apollia-os stop
 ```
 
 `preview` shows what the package contains and asks for, before anything is
-written. The runtime reads the tools and workflows of the installed packages
-when it starts, so stop it after the install and start it again with
-`apollia-os start`. Then talk to the agent:
+written. Then talk to the agent:
 
 ```sh
 apollia-os run hello "Say hello to Ada."
@@ -59,10 +56,7 @@ granted it.
 ```sh
 apollia-os package build agents/examples/word-count
 apollia-os package install word-count-0.1.0.apo
-apollia-os stop
 ```
-
-Start the runtime again (`apollia-os start`) so that it reads the new tool.
 
 Create an agent in the application, on the Agents screen, then open its sheet
 and grant it the tool `count_words`. From a terminal, the same grant is one

@@ -259,10 +259,8 @@ apollia-os package build hello
 apollia-os package install hello-0.1.0.apo
 ```
 
-The starting package brings one agent and one Python tool. The runtime reads
-the tools of the installed packages when it starts, so restart it: run
-`apollia-os stop`, then start it again in the first terminal with the command
-of step 4. Then send the agent a task:
+The starting package brings one agent and one Python tool. Then send the agent
+a task:
 
 ```sh
 apollia-os run hello "hello from Apollia"

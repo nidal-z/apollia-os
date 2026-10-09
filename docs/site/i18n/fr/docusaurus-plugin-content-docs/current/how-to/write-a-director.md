@@ -147,9 +147,7 @@ apollia-os package install invoices-1.2.0.apo
 décorateur : nom, module, description, famille d'action, schéma d'entrée et
 étapes.
 
-Le runtime lit les workflows des paquets installés à son démarrage :
-redémarrez-le donc après l'installation, avec `apollia-os stop`, puis en le
-relançant. Lisez ensuite le workflow tel qu'Apollia le voit, puis lancez-le :
+Lisez ensuite le workflow tel qu'Apollia le voit, puis lancez-le :
 
 ```bash
 apollia-os workflow show invoices/monthly-reminders

@@ -217,9 +217,19 @@ pub async fn run(
     apollia_aip::package_tools::workflows::attach(
         &data_dir_for_package_tools,
         handles.workflows.as_ref(),
-        workflow_models,
+        workflow_models.clone(),
     )
     .await;
+    // A package installed from now on brings its tools and its workflows at
+    // once.
+    apollia_runtime::packages::install_package_reload(apollia_aip::package_tools::reload_hook(
+        data_dir_for_package_tools.clone(),
+        handles.tool_registry_handle.clone(),
+        handles.chat_manager.clone(),
+        vec![apollia_aip::package_tools::ProfileGrant::onboarding()],
+        handles.workflows.clone(),
+        workflow_models,
+    ));
 
     let elapsed = start.elapsed();
     // Query the registry for an accurate count instead of hard-coding the old

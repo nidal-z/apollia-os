@@ -382,10 +382,7 @@ apollia-os package install meeting-prep-0.1.0.apo
 ```
 
 `preview` lists, for each agent, the accesses it asks for and what each one
-permits. The runtime reads the tools and the workflows of the installed
-packages when it starts, so restart it: run `apollia-os stop`, then start it
-again in its terminal with `apollia-os start --port 7771`. Then read the
-workflow as the runtime sees it:
+permits. Then read the workflow as the runtime sees it:
 
 ```sh
 apollia-os workflow show meeting-prep/prepare-meeting

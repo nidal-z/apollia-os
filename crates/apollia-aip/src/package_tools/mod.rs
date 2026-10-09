@@ -251,6 +251,9 @@ impl PackageTools {
             let name = descriptor.name.clone();
             match registry.register(descriptor).await {
                 Ok(()) => registered += 1,
+                // Read again after an installation, the tools already there
+                // are refused by name: nothing to report.
+                Err(apollia_tools::ToolRegistryError::AlreadyRegistered(_)) => {}
                 Err(error) => tracing::event!(
                     tracing::Level::WARN,
                     tool = %name,
@@ -361,6 +364,44 @@ pub async fn attach(
     idle: Duration,
     grants: &[ProfileGrant],
 ) -> usize {
+    read_and_attach(data_dir, registry, chat, Some(idle), grants).await
+}
+
+/// What a host leaves the runtime to re-read the package code after an
+/// installation: the tools, as [`attach`] reads them, then the workflows, as
+/// [`workflows::attach`] does. The tools read again are not watched for
+/// idleness, which the first reading set up for the life of the runtime.
+pub fn reload_hook(
+    data_dir: std::path::PathBuf,
+    registry: ToolRegistryHandle,
+    chat: Option<ChatSessionManagerHandle>,
+    grants: Vec<ProfileGrant>,
+    engine: Option<apollia_runtime::workflows::WorkflowHandle>,
+    models: Option<workflows::WorkflowModels>,
+) -> apollia_runtime::packages::PackageReload {
+    Arc::new(move || {
+        let data_dir = data_dir.clone();
+        let registry = registry.clone();
+        let chat = chat.clone();
+        let grants = grants.clone();
+        let engine = engine.clone();
+        let models = models.clone();
+        Box::pin(async move {
+            read_and_attach(&data_dir, &registry, chat.as_ref(), None, &grants).await;
+            workflows::attach(&data_dir, engine.as_ref(), models).await;
+        })
+    })
+}
+
+/// Reads the package tools and enters them; `idle` set, the packages read
+/// are unloaded once idle for that long.
+async fn read_and_attach(
+    data_dir: &Path,
+    registry: &ToolRegistryHandle,
+    chat: Option<&ChatSessionManagerHandle>,
+    idle: Option<Duration>,
+    grants: &[ProfileGrant],
+) -> usize {
     let agents_db = DataFile::Agents.path(data_dir);
     if !agents_db.exists() {
         return 0;
@@ -380,7 +421,7 @@ pub async fn attach(
         }
     };
     let registered = tools.register(registry).await;
-    if !tools.tools.is_empty() {
+    if let (false, Some(idle)) = (tools.tools.is_empty(), idle) {
         tokio::spawn(unload_idle_packages(tools.clone(), idle));
     }
     if let Some(chat) = chat {

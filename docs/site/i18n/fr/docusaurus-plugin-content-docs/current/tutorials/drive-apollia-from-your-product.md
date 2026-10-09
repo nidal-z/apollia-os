@@ -88,10 +88,8 @@ Dans le second terminal, installez l'archive dans le daemon en cours :
 apollia-os package install echo-0.1.0.apo
 ```
 
-Un paquet non signé s'installe avec un avertissement. Le daemon lit les
-workflows des paquets installés à son démarrage : redémarrez-le donc, avec
-`apollia-os stop`, puis en le relançant dans le premier terminal par la
-commande de l'étape 3. Vérifiez que le workflow est présent :
+Un paquet non signé s'installe avec un avertissement. Vérifiez que le workflow
+est présent :
 
 ```sh
 apollia-os workflow show echo/echo

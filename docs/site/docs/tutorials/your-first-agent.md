@@ -221,10 +221,7 @@ apollia-os package preview coach-0.1.0.apo
 apollia-os package install coach-0.1.0.apo
 ```
 
-An unsigned package installs with a notice. The runtime reads the tools of the
-installed packages when it starts, so restart it: run `apollia-os stop`, then
-start it again in its terminal with `apollia-os start --port 7771`. Confirm the
-agent is there:
+An unsigned package installs with a notice. Confirm the agent is there:
 
 ```sh
 apollia-os agent list --definitions

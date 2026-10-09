@@ -269,8 +269,24 @@ fn main() {
                     apollia_core::WorkflowsConfig::default().max_steps,
                 )
             });
-            apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref(), models)
-                .await;
+            apollia_aip::package_tools::workflows::attach(
+                &data_dir,
+                workflows.as_ref(),
+                models.clone(),
+            )
+            .await;
+            // A package installed from now on brings its tools and its
+            // workflows at once.
+            apollia_runtime::packages::install_package_reload(
+                apollia_aip::package_tools::reload_hook(
+                    data_dir.clone(),
+                    registry.clone(),
+                    chat.clone(),
+                    vec![apollia_aip::package_tools::ProfileGrant::onboarding()],
+                    workflows.clone(),
+                    models,
+                ),
+            );
         });
     }
     // Open a second AgentRepository instance for Tauri IPC commands.

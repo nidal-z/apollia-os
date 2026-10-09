@@ -158,12 +158,9 @@ curl -s http://127.0.0.1:7771/api/v1/health
 apollia-os status
 
 # End-to-end: build the starting package, install it and run its agent.
-# The runtime reads the tools of the installed packages when it starts,
-# hence the restart between the install and the run.
 apollia-os package new postcheck
 apollia-os package build postcheck
 apollia-os package install postcheck-0.1.0.apo
-sudo systemctl restart apollia
 apollia-os run postcheck "post-deploy check"
 ```
 

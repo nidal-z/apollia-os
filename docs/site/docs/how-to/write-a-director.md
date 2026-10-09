@@ -143,9 +143,7 @@ apollia-os package install invoices-1.2.0.apo
 `describe` writes the `[[workflows]]` entry of `apollia.toml` from the
 decorator: name, module, description, action family, input schema and steps.
 
-The runtime reads the workflows of the installed packages when it starts, so
-restart it after the install: run `apollia-os stop`, then start it again. Then
-read the workflow as Apollia sees it, and run it:
+Then read the workflow as Apollia sees it, and run it:
 
 ```bash
 apollia-os workflow show invoices/monthly-reminders
