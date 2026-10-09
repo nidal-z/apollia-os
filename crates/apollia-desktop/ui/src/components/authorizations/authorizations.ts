@@ -294,16 +294,30 @@ export function isSimpleCommand(command: string): boolean {
 }
 
 /** Why a draft cannot be saved. */
-export type DraftProblem = "tool_missing" | "agent_missing" | "executor_needs_command" | "command_not_simple";
+export type DraftProblem =
+  | "tool_missing"
+  | "agent_missing"
+  | "executor_needs_command"
+  | "command_not_simple"
+  | "allow_without_effect";
 
 /**
  * What keeps a draft from being saved, `null` when nothing does. Allowing a
  * tool that runs code needs one simple command: never the tool as a whole,
  * never a chained or redirected command.
+ *
+ * `toolFamily` is the family of the tool of the draft, empty when it has
+ * none. A rule that allows changes a decision only for a tool that runs code
+ * and for a tool of no family: a tool of a family is let through by the
+ * "always" the person gives when the agent asks, never by a rule. Such a rule
+ * would be stored and do nothing, so it is refused here.
  */
-export function draftProblem(draft: RuleDraft): DraftProblem | null {
+export function draftProblem(draft: RuleDraft, toolFamily: FamilyKey | "" = ""): DraftProblem | null {
   if (draft.tool.trim().length === 0) return "tool_missing";
   if (draft.scope === "agent" && draft.agentId.trim().length === 0) return "agent_missing";
+  if (draft.action === "allow" && !isCodeExecutor(draft.tool) && toolFamily !== "" && toolFamily !== "execute_code") {
+    return "allow_without_effect";
+  }
   if (isCodeExecutor(draft.tool)) {
     const command = draft.argPrefix.trim();
     if (draft.action === "allow" && command.length === 0) return "executor_needs_command";
@@ -401,6 +415,7 @@ export const DRAFT_PROBLEM_LABEL: Record<DraftProblem, string> = {
   agent_missing: "dev.authorizations.problem_agent_missing",
   executor_needs_command: "dev.authorizations.problem_executor_needs_command",
   command_not_simple: "dev.authorizations.problem_command_not_simple",
+  allow_without_effect: "dev.authorizations.problem_allow_without_effect",
 };
 
 /** Title of the dialog of a fine rule. */

@@ -59,7 +59,7 @@
   const offered = $derived(
     draft.family === "" ? tools : tools.filter((tool) => tool.family === draft.family),
   );
-  const problem = $derived(draftProblem(draft));
+  const problem = $derived(draftProblem(draft, familyOfTool(draft.tool)));
   const origin = $derived.by(() => {
     if (original === null) return null;
     const sentence = ruleSentence(

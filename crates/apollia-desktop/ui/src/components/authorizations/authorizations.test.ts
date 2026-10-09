@@ -273,6 +273,23 @@ describe("authorizations - fine rules and the developer mode", () => {
     expect(draftProblem(first)).toBeNull();
   });
 
+  test("a rule that allows a tool of a family is refused, since it would decide nothing", () => {
+    // GIVEN drafts that allow a writing tool, refuse it, allow a tool of no
+    // family, and allow the shell on one simple command
+    const base = { family: "" as const, argPrefix: "", scope: "all" as const, agentId: "writer" };
+    const allowWrite = { ...base, action: "allow" as const, tool: "file_write" };
+    const denyWrite = { ...base, action: "deny" as const, tool: "file_write" };
+    const allowUnclassified = { ...base, action: "allow" as const, tool: "mcp:notes/lookup" };
+    const allowCommand = { ...base, action: "allow" as const, tool: "bash_executor", argPrefix: "git status" };
+
+    // WHEN each is checked with the family of its tool
+    // THEN only the rule that allows a tool of a family is refused
+    expect(draftProblem(allowWrite, "write_or_delete")).toBe("allow_without_effect");
+    expect(draftProblem(denyWrite, "write_or_delete")).toBeNull();
+    expect(draftProblem(allowUnclassified, "")).toBeNull();
+    expect(draftProblem(allowCommand, "execute_code")).toBeNull();
+  });
+
   test("allowing a tool that runs code needs one simple command", () => {
     // GIVEN drafts that allow the shell: as a whole, with a chained command,
     // with a simple command; and one that refuses it as a whole

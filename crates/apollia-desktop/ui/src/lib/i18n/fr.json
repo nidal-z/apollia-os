@@ -2278,10 +2278,10 @@
       "confirm_input_aria": "Saisissez {word} pour confirmer",
       "reset_onboarding": {
         "title": "Réinitialiser l'onboarding",
-        "description": "Efface le drapeau d'onboarding : le wizard de bienvenue s'affichera au prochain lancement.",
+        "description": "Relance le parcours de premier lancement au prochain démarrage, et vide votre profil par défaut.",
         "button": "Réinitialiser l'onboarding",
         "dialog_title": "Réinitialiser l'onboarding ?",
-        "dialog_desc": "Le drapeau d'onboarding sera effacé et vous serez ramené au wizard de bienvenue. Aucune donnée n'est supprimée.",
+        "dialog_desc": "Le parcours de premier lancement sera rejoué au prochain démarrage. Votre profil par défaut est vidé, ses champs comme ses faits, pour que le parcours reparte de zéro. Vos agents, conversations et modèles sont conservés.",
         "success": "Onboarding réinitialisé. Le wizard s'affichera au prochain démarrage."
       },
       "clear_memories": {
@@ -4955,7 +4955,8 @@
       "problem_agent_missing": "Choisissez un agent.",
       "problem_executor_needs_command": "Autoriser un outil qui exécute du code demande une commande simple en préfixe.",
       "problem_command_not_simple": "La commande doit être simple : sans enchaînement, redirection ni substitution.",
-      "rule_saved": "Règle enregistrée, inscrite au Journal."
+      "rule_saved": "Règle enregistrée, inscrite au Journal.",
+      "problem_allow_without_effect": "Autoriser par une règle n'a d'effet que sur un outil qui exécute du code, pour une commande simple. Pour cet outil, répondez « Toujours pour cet agent » quand l'agent le demande ; une règle ne peut que le refuser."
     },
     "workflows": {
       "technical_title": "Détail technique · mode développeur",

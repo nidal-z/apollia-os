@@ -2278,10 +2278,10 @@
       "confirm_input_aria": "Type {word} to confirm",
       "reset_onboarding": {
         "title": "Reset Onboarding",
-        "description": "Clears the onboarding flag so the Welcome wizard runs on next launch.",
+        "description": "Runs the first-launch journey again at the next launch, and empties your default profile.",
         "button": "Reset Onboarding",
         "dialog_title": "Reset onboarding?",
-        "dialog_desc": "This will clear the onboarding flag and take you back to the Welcome wizard. No data is deleted.",
+        "dialog_desc": "The first-launch journey will run again at the next launch. Your default profile is emptied, its fields and its facts, so that the journey starts from scratch. Your agents, conversations and models are kept.",
         "success": "Onboarding state cleared. Next launch will show Welcome."
       },
       "clear_memories": {
@@ -4955,7 +4955,8 @@
       "problem_agent_missing": "Choose an agent.",
       "problem_executor_needs_command": "Allowing a tool that runs code needs a simple command as its prefix.",
       "problem_command_not_simple": "The command must be simple: no chaining, redirection or substitution.",
-      "rule_saved": "Rule saved, recorded in the Activity log."
+      "rule_saved": "Rule saved, recorded in the Activity log.",
+      "problem_allow_without_effect": "Allowing by a rule has an effect only on a tool that runs code, for one simple command. For this tool, answer \"Always for this agent\" when the agent asks; a rule can only refuse it."
     },
     "workflows": {
       "technical_title": "Technical detail · developer mode",

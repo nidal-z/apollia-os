@@ -43,7 +43,7 @@ version installée, le panneau de mise à jour et le **Canal de mise à jour**,
    **Nouveautés** les notes de cette version quand la publication en porte.
    Sinon, ce qu'apporte cette version est sur la page de publication.
 3. Cliquez sur **Installer et relancer**. Une barre de progression suit le téléchargement.
-4. Quittez Apollia et rouvrez-la une fois l'installation terminée.
+4. Une fois l'installation terminée, Apollia se ferme et se rouvre sur la nouvelle version.
 
 ## Depuis la ligne de commande
 

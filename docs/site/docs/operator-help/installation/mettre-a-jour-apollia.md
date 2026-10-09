@@ -42,7 +42,7 @@ version, the update panel and the **Update channel**, **Stable** or
    **What's new** the notes of that version when the release carries some.
    Otherwise what to expect from that version is on the published release page.
 3. Click **Install and restart**. A progress bar tracks the download.
-4. Quit Apollia and open it again once the installation is finished.
+4. Once the installation is finished, Apollia closes and opens again on the new version.
 
 ## From the command line
 

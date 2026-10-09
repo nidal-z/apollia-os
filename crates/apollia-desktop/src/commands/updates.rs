@@ -363,6 +363,11 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| UpdateError::Install(e.to_string()).to_string())?;
 
+    // The new version is on disk and the old one still runs: restart, as the
+    // button says. The request goes through the exit of the application, so
+    // the model server and the runner are stopped before the new one starts.
+    tracing::event!(tracing::Level::INFO, "update.installed.restarting");
+    app.request_restart();
     Ok(())
 }
 
