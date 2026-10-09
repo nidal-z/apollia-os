@@ -150,9 +150,9 @@ Rules :
 ## 4. Code patterns
 
 **Newtypes for semantic IDs.** `AgentId(String)`, `TaskId(String)`,
-`SkillId(String)`, `StepId(String)`, `SessionId(String)`. Each implements
-`Display`, `From<&str>`, `AsRef<str>`, `PartialEq`, `Eq`, `Hash`. Source :
-`crates/apollia-core/src/events/`.
+`RunId(String)` in `crates/apollia-core/src/events/ids.rs`, and
+`AccountId(String)` in `crates/apollia-auth/src/multi_account.rs`. A skill, a
+step and a session are identified by a bare `String` today.
 
 **Typestate with `PhantomData<State>`** when an API has a required call order
 (e.g. builder must observe `with_socket` before `build`).

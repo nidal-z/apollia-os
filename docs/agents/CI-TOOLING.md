@@ -143,6 +143,7 @@ Actual structure :
 │                     #   deep-audit, geiger (unsafe surface), loom, miri, kani, fuzz-deep
 ├── release.yml       # tag-triggered: build binaries, attach to release
 ├── engines.yml       # manual: sign and publish the engine channel
+├── preview-channel.yml  # on a published pre-release: copy its manifests to the `preview` release
 └── auto-close-prs.yml
 ```
 
@@ -158,6 +159,9 @@ Actual structure :
 8. `coverage` : `cargo llvm-cov --workspace --fail-under-lines $COVERAGE_FLOOR`
 9. `deny` : `cargo-deny check advisories bans licenses sources`
 10. `vitest` (frontend), `prose-guard`, `links` (lychee)
+11. `msrv` (the 1.89 floor compiles), `cli-e2e` (offline track of the CLI
+    suite), `docs-generated` (generated reference drift), `claims`
+    (`scripts/check_claims.py`), `docs-build` (the documentation site)
 
 Non-blocking (`continue-on-error`) advisory jobs :
 
@@ -176,6 +180,8 @@ blocking.
 - `clippy-stable` : same clippy gate on `@stable`, surfaces future lints.
 - `semver-checks` : `cargo semver-checks` on `apollia-core` / `apollia-runtime`
   against `origin/main`. Informative while the crates are unpublished / pre-1.0.
+- `links-online` : the link check against the network, advisory because a
+  remote host that is down is not a defect of the tree.
 - `fuzz` : `cargo +nightly fuzz run` over each seed corpus for ~60s (nightly,
   libFuzzer). A short regression smoke on the untrusted-input parsers; the long
   session is `fuzz-deep` in `weekly.yml`. See `docs/agents/TESTING.md` 8b.
@@ -379,7 +385,7 @@ just linux-test x86           # x86_64-unknown-linux-gnu, emulated, cost unmeasu
 ```
 
 It runs `cargo test --workspace --no-fail-fast --locked`, the first of the two
-steps of the `Rust Tests` job of `.github/workflows/ci.yml:143-146`, in the same
+steps of the `Rust Tests` job of `.github/workflows/ci.yml`, in the same
 container, on the same read-only mount, sharing the same target volume as
 `linux-check`. The default target differs from `linux-check` on purpose: this
 question is the slow one, and `aarch64` is the only one that has been measured.

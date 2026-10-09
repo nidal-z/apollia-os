@@ -151,20 +151,22 @@ status = "wired"
 proof = "crates/apollia-runtime/src/chat/builtin_agent/tools.rs"
 evidence = ""
 note = """
-Human approval is real and it covers the built-in agent loop only. `decide_call`
-is called by that loop before every tool call, file writes and code included,
-and a call it does not allow is asked on the consent card. An installed Python
-agent's `ctx.tools` calls go through the dispatcher without that loop, so they
-meet no checkpoint.
+Human approval is real and it covers every agent. `decide_call` is called by
+the agent loop before every tool call, file writes and code included, and a
+call it does not allow is asked on the consent card. An agent is a record, and
+every agent runs through that one loop, in a conversation, in a batch and from
+a trigger alike, so no agent has a path to a tool that skips the decision. An
+unattended run waits where an attended one would ask.
 
-Three pages presented HITL as the primary gate for anything leaving a mark, one
-of them mapping it to Article 14 of the EU AI Act. The scope is a deliberate
-position, not a defect: an installed agent already runs arbitrary Python under
-the user account and can write a file without going through `ctx.tools` at all,
-so a gate on one call path would not contain a hostile agent. Wiring it is v0.2
-work. What this claim guards is that the documentation keeps saying which path is
-covered. If the `ctx.tools` path gains a call to the decision, the pages get to
-promise more.
+What stays outside the decision is the Python a package brings. A `@tool` or
+`@workflow` function runs in-process under the user account, with no tool
+proxy on its context, and can write a file with plain Python: installing a
+package that brings code is trusting its author, and the pages must keep saying
+so rather than presenting the approval as a containment of package code.
+
+The id of this claim dates from the time an installed agent was Python code
+that called tools through a proxy of its own, past the loop. That contract was
+removed. The id is kept because the markers of three pages carry it.
 """
 
 [[claim]]
@@ -448,20 +450,24 @@ status = "wired"
 proof = "crates/apollia-llm/src/types.rs"
 evidence = "pub seed: Option<u64>"
 note = """
-The request struct is the whole sampling contract: messages, tools, model,
-temperature, max_tokens, seed, grammar. `top_p`, `top_k` and
-`repetition_penalty` are not fields of it and reach no backend, while the page
-documented a four-level resolution precedence for them, hard-fallback values
-included. `seed` is a field and is read by nobody, so the reproducibility section
-promised something the code cannot deliver.
+The request struct is the whole sampling contract, and its fields reach a
+backend: temperature, max_tokens, seed, top_p, top_k, min_p, presence_penalty,
+frequency_penalty, repeat_penalty, stop, and the reasoning switches. The
+OpenAI-compatible client writes the protocol fields onto the wire, `seed`
+included, and sends the llama-server fields (`top_k`, `min_p`,
+`repeat_penalty`) under the names that server reads.
 
-More than half the page described machinery that is written and never applied:
-the curated table and the user override file are populated at download time, and
-the resolver that would consult them has no caller outside test code.
+What a call starts from is resolved by `request_defaults` in three levels, four
+inside a conversation: the defaults the publisher of the model recommends, the
+`request` of the model defaults the package of the agent declares, the preset
+the user chose, then the settings typed for one conversation. A level wins field
+by field, and a value the call itself sets is never replaced.
 
-The evidence string pins `seed` deliberately. It is the field whose presence
-makes the struct look like it supports reproducibility; if a backend ever reads
-it, this claim fails and the page gets rewritten in the other direction.
+The evidence string pins `seed`: it is the field a reproducibility promise
+stands on. The id of this claim dates from the time only the temperature
+reached a backend and the resolver had no caller; the page it guards has to
+describe the fields above. The id is kept because the marker of the page
+carries it.
 """
 
 [[claim]]

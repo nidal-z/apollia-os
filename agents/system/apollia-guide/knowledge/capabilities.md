@@ -76,7 +76,7 @@ Each agent can be given its own model; otherwise it uses the default model.
 
 The Connections screen lists everything an agent can reach: the built-in
 tools (web search, reading a page, files of the folders you chose, running
-code in a sandbox), MCP servers, Google or Microsoft accounts, a mailbox over
+code), MCP servers, Google or Microsoft accounts, a mailbox over
 IMAP in read-only mode, and folders of this computer. A connection is added
 from a curated selection, then granted to an agent family of action by family
 of action.
@@ -92,15 +92,22 @@ files and mail are read. An agent only reads the sources checked on its sheet.
 Every action belongs to one of five families: read, read personal data, write
 or delete, send to the outside, run code. Reading asks nothing. For the
 others, the first sensitive use asks you, with three answers: once, always
-for this agent, or refuse. What waits for your answer is on the To review
+for this agent, or refuse. Running code asks every time, with once or refuse:
+"always" is offered for it only in developer mode, for a single simple
+command. What waits for your answer is on the To review
 screen. An agent cannot grant itself a right. An organisation may add a
 signed policy that fixes some settings; without one, you decide everything.
 
 ## Memory
 
-Each agent keeps its own memory and reads it when it decides to: nothing is
-slipped into its prompt behind your back. You read, search and erase what an
-agent remembers on its sheet.
+Check Memory among the sources of an agent and it keeps its own memory: it
+notes what it will need again, a decision, a preference you stated for its
+work, and finds it in a later conversation. It writes and reads when it decides
+to: nothing is slipped into its prompt behind your back. You read, search and
+erase what an agent remembers on its sheet.
+
+An agent never writes your profile. With Profile checked, it may propose a fact
+about you; you see the fact and accept or refuse it, every time.
 
 ## Automations
 

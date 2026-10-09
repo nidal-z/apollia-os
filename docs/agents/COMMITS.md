@@ -73,7 +73,7 @@ docs(help): operator article for OAuth setup
 **SDK scope** :
 
 ```
-feat(sdk): add @on_message decorator
+feat(sdk): add the steps argument to @workflow
 fix(sdk): TypedDict required_keys handling
 ```
 
@@ -120,7 +120,7 @@ The previous mpsc::channel size of 64 was hitting backpressure under
 sustained CLI batch invocations (apollia agent list --json piped through
 jq). 256 absorbs the burst without measurable memory cost.
 
-Reproduced with `tests/cli/cli-e2e.sh --stress`.
+Reproduced with `bash tests/cli/cli-e2e.sh`.
 ```
 
 ---

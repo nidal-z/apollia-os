@@ -123,7 +123,8 @@ needs, measured rather than assumed:
   `target/python-bundle/<triple>/python`, any triple. Without it the embedded
   interpreter is absent and every agent fails to load at boot, which reds a
   large share of the books for a reason that is not the product. Build it with
-  `bash packaging/build-python-bundle.sh <triple>`; the script covers
+  `bash packaging/build-python-bundle.sh <triple> target/python-bundle/<triple>`;
+  the script covers
   `*-unknown-linux-gnu` and `*-pc-windows-msvc` as well as Darwin.
 - **The Tauri CLI**, which every desktop recipe drives:
   `cargo install tauri-cli --version '^2'`, the version the release uses. The
@@ -213,9 +214,10 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
 ## The canonical suite
 
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
-  (operator + builder walk, empty/error states, dialogs opened then cancelled,
-  mutating controls driven to the boundary). `master-det.json` runs all 20 in one
-  boot and is the release gate (3989 steps); `just automation-verdict` reads its report.
+  (the walk with developer mode off and on, empty/error states, dialogs opened
+  then cancelled, mutating controls driven to the boundary). `master-det.json`
+  runs the 18 books of `regen_master.py`'s `ORDER` in one boot and is the
+  release gate (4847 steps); `just automation-verdict` reads its report.
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
   and four books written against the coverage report below, none of them in
   `regen_master.py`'s `ORDER` yet because none has been through a runtime round:
@@ -230,10 +232,14 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   dialog cancelled, refused and accepted, the empty state and the unreadable
   list). Fold one into `master-det` by adding it to `ORDER`
   and re-running `regen_master.py --write`, after its first green solo run.
+  Eight more books sit outside `ORDER` as well: `agent-create-det`,
+  `agent-examples-det`, `example-trial-det`, `batch-launch-det`,
+  `batch-view-det`, `workflows-det`, `developer-det` and `design-det`.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
   config, plan mode, ask_user), `hitl-critical`, `coach-llm`,
-  `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, and `master-llm` (an
-  aggregate of chat/hitl/coach, 192 steps).
+  `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, `hitl-always-llm`,
+  `plan-gate-llm`, and `master-llm` (an
+  aggregate of chat/hitl/coach, 191 steps).
 - **First launch** (needs `automation-first-run`, a blank home and
   two model files): `first-run-llm`, the timed first launch described above.
   Written against the source and statically validated; its first runtime
@@ -417,8 +423,10 @@ language buttons itself.
 
 ## What a run writes into this repository
 
-The seeded run redirects `HOME`, not the chat workspace: the seed's
-`apollia.toml` pins the workspace to this checkout, so a file the model is
+The seeded run redirects `HOME`, not the chat workspace: the seed's database
+fragments point the seeded project and its governance rows at this checkout
+(`__APOLLIA_SEED_WORKSPACE__`, expanded by `tests/cli/seed/build-seed.sh`), so
+a file the model is
 asked to create lands here rather than in the throwaway home. The model books
 write under `tmp/` and `notes/`, both ignored by git. Four of those files were
 once committed and read as leftovers in a public tree; nothing creates them but
@@ -502,10 +510,11 @@ a run, and nothing reads them back.
   first port as a file name, errors on it, and prints nothing at all, so it
   reports every port as free. That form is worse than useless: it is a check
   that always passes.
-- **The plan gate has two cards.** `ChatPlanHost` renders `ChatPlanReview` for the
-  operator (`chat-plan-review`, request-changes plus an adjust textarea) and
-  `ChatPlanReviewBuilder` for the builder (`chat-plan-review-builder`, approve or
-  reject only). A script that asserts one must pin the mode first, and it should
+- **The plan gate has two cards.** `ChatPlanHost` renders `ChatPlanReview` with
+  developer mode off (`chat-plan-review`, request-changes plus an adjust
+  textarea) and `ChatPlanReviewBuilder` with developer mode on
+  (`chat-plan-review-builder`, approve or reject only). A script that asserts
+  one must pin developer mode first, and it should
   end on an approval: leaving the plan pending never exercises the gate.
 - **`ask_user` cannot be answered by a fixed step.** The model picks the question
   type (open, single, multi) and `ask-user-submit` stays disabled until every

@@ -109,8 +109,8 @@ that introduces it and update this file.
 | `tool_name` | `&str` | tool invoked |
 | `backend` | `&str` | LLM or MCP backend name |
 | `provider` | `&str` | upstream provider (`llama-cpp`, `openai`, `ollama`) |
-| `scope` | `&str` | permission scope (`session`, `project`, `global`) |
-| `decision` | `&str` | permission decision (`allow`, `ask`, `deny`) |
+| `scope` | `&str` | scope of a permission rule (`agent`, `global`) |
+| `decision` | `&str` | governance decision (`allowed`, `ask_user`, `pending`, `denied`) |
 | `reason` | `&str` | why the event happened, when the label cannot say it |
 | `detail` | `&str` | the consequence the label does not carry (`"agent starts degraded"`) |
 
@@ -338,9 +338,12 @@ category no listener reads reaches the interface and is dropped in silence.
 
 The audit journal persists events to SQLite as a hash-chained,
 append-only ledger. Module : `crates/apollia-runtime/src/audit_journal/`.
-Retention is `retention_days` under `[observability]` in the config
-(`crates/apollia-core/src/observability.rs`), default 90 days. There is no
-`[audit]` table.
+Retention belongs to the signed organisation policy: `journal.retention_days`
+is the only thing that removes entries, after a signed `journal_purged` entry
+(`crates/apollia-runtime/src/audit_journal/actor/purge.rs`). Without a policy,
+or without that key, nothing is removed. `retention_days` under
+`[observability]` in `apollia.toml` (default 90) bounds the run history, not
+the journal. There is no `[audit]` table.
 
 CLI surface (`apollia-os audit ...`) : `journal`, `export`, `verify`,
 `anchor`, `replay`, `show`.

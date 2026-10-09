@@ -123,8 +123,8 @@ Use Pydantic only when runtime validation of external API responses is unavoidab
 and state the reason inline with a `# REASON:` comment.
 
 **NEVER add a third-party dependency without a decision stated in
-`docs/site/docs/architecture/08-decisions.md`.** Workers and agents are
-stdlib-only by default. Each dep is a sovereignty surface and a maintenance liability.
+`docs/site/docs/architecture/08-decisions.md`.** The SDK and the code of a
+package are stdlib-only by default. Each dep is a sovereignty surface and a maintenance liability.
 
 **NEVER `from typing import *`.** Import explicit symbols.
 
@@ -162,9 +162,11 @@ The three families, and how to recognise a new one:
   `meta_orchestrator.rs`. These are LLM prompts. `include_str!` resolves at
   compile time, so removing a file is a compilation error, and rewording one
   changes model behaviour with no test to catch it.
-- `agents/system/apollia-guide/knowledge/*.md`, also `include_str!`, and
-  additionally written to disk at first run. These are what the companion agent
-  answers with. Stale content here is a product defect, not a stale document.
+- `agents/system/apollia-guide/knowledge/*.md`, also `include_str!`, from
+  `crates/apollia-desktop/src/bundled_packages.rs`, which appends them to the
+  mission of the guide when the desktop assembles its package at start. These
+  are what the guide agent answers with. Stale content here is a product
+  defect, not a stale document.
 - `tests/cli/seed/files/**/*.md`, copied by `build-seed.sh` into the
   throwaway `HOME` of the end-to-end automaton. Removing one breaks the suite.
 

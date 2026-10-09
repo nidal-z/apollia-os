@@ -4,8 +4,8 @@
 > Pair with `sdk/AGENTS.md` for SDK-internal patterns and the relevant
 > `agents/<name>/AGENTS.md` if present.
 
-Apollia is stdlib-only by default. Every third-party dependency in an agent or
-worker is a sovereignty surface and a maintenance liability. State each one in
+Apollia is stdlib-only by default. Every third-party dependency in the SDK or
+in the code of a package is a sovereignty surface and a maintenance liability. State each one in
 `docs/site/docs/architecture/08-decisions.md` before adding it.
 
 ---
@@ -51,8 +51,9 @@ async def send_email(
 **Do not use PEP 695 syntax** (`type X = ...`, `class Foo[T]:`). The SDK
 source floor is Python 3.10 (`requires-python = ">=3.10"`), and ruff's
 `target-version = "py310"` exists to stop it proposing 3.12-only generics.
-The runtime embeds a 3.12+ interpreter, which is what the installation
-prerequisite refers to; the source the SDK ships must still parse on 3.10.
+The runtime embeds CPython 3.13.13 (`.python-version`), which is what the
+installation prerequisite refers to; the source the SDK ships must still parse
+on 3.10.
 
 **Use `typing.Self` for fluent return types.** `typing.override` (PEP 698)
 and `LiteralString` are 3.11+ and 3.11+ respectively, so they are out of reach
@@ -142,8 +143,10 @@ AgentError            # carries `code`, `message`, `details`
 ├── DomainError       # business-level failure, retry is meaningless
 ├── PayloadError      # malformed input, fail-fast to the caller
 ├── NeedHumanInput    # a pause awaiting a human
+├── ToolApprovalDenied  # the user refused the approval of a tool call
 ├── QuestionDeclined  # the user declined a question `ctx.user.ask` asked
 ├── SchemaError       # a tool signature that cannot be turned into a schema
+├── StructuredOutputError  # a `ctx.llm` call with a `schema` got no valid value
 └── AgentConfigError  # a `@tool` or `@workflow` declaration is malformed
 ```
 
@@ -175,7 +178,7 @@ from my_agent.schemas import EmailPayload
 from my_agent.util import normalize
 ```
 
-Reason : the runtime loads agents into ad-hoc namespaces. Relative imports
+Reason : the runtime loads the modules of a package into ad-hoc namespaces. Relative imports
 fail intermittently depending on load order. Absolute imports are
 deterministic.
 
@@ -191,7 +194,7 @@ deterministic.
   `ctx.logger.info(...)`.
 - Format : Ruff format (replaces Black). `target-version = "py310"`,
   `line-length = 100`.
-- Lint : Ruff with a curated `select` list in `sdk/pyproject.toml` (thirteen
+- Lint : Ruff with a curated `select` list in `sdk/pyproject.toml` (a set of
   families, not `ALL`) plus a short ignore list. See
   `docs/agents/CI-TOOLING.md`, and read the manifest rather than a copy of
   it: the list moves.

@@ -1,8 +1,10 @@
 # AGENTS.md
 
-Apollia OS is a sovereign Rust runtime for autonomous AI agents. It runs any
-Python agent (LangGraph, CrewAI, custom) in isolation, locally, with tools, and
-without a cloud dependency.
+Apollia OS is a sovereign Rust runtime for autonomous AI agents. An agent is a
+record declared in the `apollia.toml` of a package (mission, model, accesses,
+sources, autonomy, planning), and the runtime runs every agent with the same
+engine, locally, with tools, and without a cloud dependency. The Python of a
+package brings `@tool` and `@workflow` functions, and nothing else.
 
 This file is the standard entry point for LLM coding assistants (Codex, Claude
 Code, Cursor, Gemini CLI, Aider, Continue, Windsurf, GitHub Copilot, and
@@ -195,9 +197,13 @@ conflict. The nearest one wins.
 |---|---|
 | `crates/apollia-cli/AGENTS.md` | CLI binary, noun-verb taxonomy, exit codes 0-5 |
 | `crates/apollia-aip/AGENTS.md` | PyO3 bridge, `Bound<'py, T>`, `pyo3-async-runtimes` |
+| `crates/apollia-core/AGENTS.md` | Shared types every crate depends on, public API stability |
+| `crates/apollia-desktop/AGENTS.md` | Rust half of the desktop application: Tauri commands, event bridge, tray, bundled packages |
+| `crates/apollia-llm/AGENTS.md` | LLM clients, backend router, retry policy, schema sanitizer, meta routines |
 | `crates/apollia-mcp/AGENTS.md` | MCP client transports, untrusted-response byte cap |
 | `crates/apollia-oria/AGENTS.md` | ORIA engine, StepBudget, ResilienceLayer, plan cache |
 | `crates/apollia-runtime/AGENTS.md` | EventBus, actor supervisor, axum API |
+| `crates/apollia-tools/AGENTS.md` | Native tools, tool registry, audit trail, agent and package repositories |
 | `crates/apollia-desktop/ui/AGENTS.md` | Tauri v2 + Svelte 5, design system, i18n |
 | `sdk/AGENTS.md` | Apollia AgentKit decorators, schemas, minimal contract |
 

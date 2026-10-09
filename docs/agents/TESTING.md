@@ -123,8 +123,8 @@ Per-crate `tests/` directory. Each file is its own integration binary.
 crates/apollia-permissions/
 ├── src/
 └── tests/
-    ├── integration_governance.rs
-    └── integration_audit_trail.rs
+    ├── fixtures/
+    └── integration_governance.rs
 ```
 
 Rules :
@@ -246,8 +246,9 @@ Rules :
 
 Rules :
 - A Vitest test must not call Tauri IPC. Mock the IPC wrapper instead.
-- An E2E test does call Tauri IPC. It runs against a built app with a
-  scratch profile (`APOLLIA_HOME=$(mktemp -d)`).
+- An E2E test does call Tauri IPC. It runs against a dev build of the
+  application with a scratch profile: a seeded, throwaway `HOME`, never the
+  real `~/.apollia`. No `APOLLIA_HOME` variable exists.
 
 ---
 

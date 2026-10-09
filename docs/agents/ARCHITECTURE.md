@@ -20,7 +20,7 @@ action.
 want to try, but our customer data cannot leave our premises." The fix was
 not better contracts. It was making the cloud technically unnecessary.
 
-**How.** SQLite (FTS5 + sqlite-vec) replaces PostgreSQL + Qdrant + Redis. No
+**How.** SQLite with FTS5, and vectors kept in SQLite tables, replace PostgreSQL + Qdrant + Redis. No
 telemetry. No phone home. Every external service is optional and degrades
 gracefully.
 
@@ -33,11 +33,13 @@ infrastructure services. Each one was install friction, attack surface, and
 maintenance burden.
 
 **How.** Single Rust binary. PyO3 embeds the Python interpreter. Linux
-namespaces replace Docker. `cargo install apollia-os` is the install.
+namespaces replace Docker. The install is a release archive or a desktop
+installer: no package is published on crates.io or PyPI.
 
 ### 3. Minimal contract, zero friction
 
-**Rule.** An agent is a record: a mission, a model, tools, sources, rights.
+**Rule.** An agent is a record: a mission, a model, accesses, sources, an
+autonomy tier, a planning mode.
 Code is optional: a package brings `@tool` and `@workflow` functions, and
 nothing else. The runtime refuses a package whose manifest does not validate.
 
@@ -63,10 +65,12 @@ gone, with the `manifest()` plus `run()` duck typing before it. See
 **Why.** An agent that starts successfully and crashes on its third step of
 its second task because a tool is missing is a production disaster.
 
-**How.** Manifest validation, `tools_required` resolution, Python package
-install, and MCP server reachability all happen in `INITIALIZING`. The agent
-transitions to `ACTIVE` only when everything is ready. `DEGRADED` vs
-`STOPPED` is the explicit fork for missing optional vs required pieces.
+**How.** The manifest of a package is validated with a strict schema when the
+package is built and when it is installed: an unknown key is named with its
+full path, and an agent default that grants a `pkg:` tool the package does not
+bring is an error. An agent starts in `Initializing` and becomes `Active` only
+when it is ready; `Degraded` is the explicit state of an agent that runs with
+something it relies on missing or failing.
 
 ### 5. One actor, one responsibility
 
@@ -88,8 +92,14 @@ prompt.
 **Why.** Auto-injected memory pollutes the prompt with stale or irrelevant
 content, costs tokens, and surprises the agent author.
 
-**How.** The agent calls `ctx.memory.recall(...)` when it wants context. The
-runtime provides the capability, never the policy.
+**How.** The agent calls the tool `memory_search` when it wants context, and
+`memory_write` to keep or drop a note. Both are registered exactly when Memory
+is checked among the sources of the agent
+(`crates/apollia-tools/src/source_access.rs`), and neither asks for consent:
+the memory of an agent is one space named after it. The profile is never
+written by an agent: with the Profile source checked, the tool
+`profile_propose` proposes one fact, and governance asks the person every
+time. The runtime provides the capability, never the policy.
 
 **Scope of the rule.** Say "an agent's prompt", not "a prompt". The built-in
 conversational assistant injects in two places, and neither is reachable from an
@@ -106,9 +116,10 @@ the code contradicts.
 **Why.** A guard-rail an agent can bypass is not a guard-rail. Cost control,
 loop prevention, and runaway containment require runtime authority.
 
-**How.** ORIA enforces the budget on every step. `crates/apollia-oria/`.
-Crossing the budget terminates the task with `task.budget_exceeded` and a
-final event on the EventBus.
+**How.** ORIA enforces the budget on every step
+(`crates/apollia-oria/src/budget.rs`). A budget that is exhausted stays
+exhausted, and the run ends with the dimension that ran out (steps or tool
+calls) as its reason.
 
 ### 8. Human CLI, machine API
 
@@ -185,10 +196,11 @@ Source : `crates/apollia-runtime/src/eventbus.rs`.
 
 ### ContextProvider
 
-`trait ContextProvider: Send + Sync` exposes `async fn collect(...)` with a
-fail-silent contract. The provider returns `Option<Vec<ContextSnippet>>` and
-swallows recoverable errors internally. TTL cache and priority ordering at
-the runtime layer. Implementations : `Git`, `Folder`, `Workspace`, ...
+`trait ContextProvider: Send + Sync` exposes `async fn collect(&self, cwd)`
+with a fail-silent contract. The provider returns a `ContextSnapshot` and
+reports a failure inside it (`ContextSnapshot::with_error`) instead of
+propagating an error. Each provider has a name, used as the cache key, and a
+display priority.
 
 Source : `crates/apollia-core/src/context.rs`.
 
@@ -203,13 +215,25 @@ Source : `crates/apollia-core/src/budget.rs`,
 
 ### Permissions
 
-Live in the shipped runtime :
+One decision per tool call, taken by `decide` in
+`crates/apollia-runtime/src/governance/decision.rs` from the action family of
+the tool. The first line that applies decides :
 
-1. `PrefixRuleEngine` : prefix-scoped rules at three scopes (session, project,
-   global).
-2. `executor_guard` : code executors are never blanket-authorised, and a prefix
-   rule only matches a single simple command.
-3. HITL approval for everything not auto-approved.
+1. the organisation policy refuses the tool, its connection or its family :
+   refused;
+2. a fine rule `deny` matches : refused;
+3. the family reads only, or acts on the conversation alone : allowed;
+4. the family executes code : allowed by a fine rule `allow` on a single simple
+   command, in developer mode only; asked otherwise;
+5. a fact proposed for the profile : asked every time; else a standing consent
+   of the agent for the family, or a grant of the run : allowed;
+6. asked, with the three answers (once, always, refuse).
+
+The pieces it reads live in `apollia-permissions` : `PrefixRuleEngine` holds
+the fine rules, which have two scopes, one agent or every agent
+(`PermissionScope::Agent`, `PermissionScope::Global`); `executor_guard` keeps
+code executors from being blanket-authorised, a prefix rule matching a single
+simple command only.
 
 Details and rationale in `docs/agents/SECURITY.md`.
 
@@ -219,7 +243,8 @@ a rule. `governance.db` holds the rules and the standing consents, not the
 decisions; the `permission_audit` table an older file carries is dropped when
 the file is opened.
 
-Source : `crates/apollia-permissions/`.
+Source : `crates/apollia-runtime/src/governance/`,
+`crates/apollia-permissions/`.
 
 ### SecretStore
 
@@ -240,7 +265,7 @@ Source : `crates/apollia-mcp/`.
 
 ### LlmRouter
 
-Config-driven backend selection. `[llm.routing]` in the agent TOML drives
+Config-driven backend selection. `[llm.routing]` in `apollia.toml` drives
 routing. Backends : the embedded `llama-server` (local, upstream llama.cpp),
 an OpenAI-compatible server at a designated address, and Ollama.
 
@@ -249,12 +274,13 @@ Source : `crates/apollia-llm/src/router.rs`.
 ### SQLite persistence
 
 - WAL journal mode workspace-wide.
-- `CREATE TABLE IF NOT EXISTS` migrations applied at first connection.
+- Numbered migrations per database file, applied when the file is opened.
 - FTS5 for full-text search (chat sessions, memory).
-- Schema versioning per database file (`schema_version` table).
+- Schema versioning per database file, in `PRAGMA user_version`; a file
+  written by a newer binary is refused.
 
-Source : `crates/apollia-runtime/src/chat/repository.rs`,
-`crates/apollia-permissions/src/prefix_rule_engine.rs`.
+Source : `crates/apollia-core/src/schema.rs`,
+`crates/apollia-permissions/src/governance_schema.rs`.
 
 ### PyO3 bridge
 
@@ -318,11 +344,12 @@ either locale resolves.
 
 | Looking for | Read |
 |---|---|
-| Shared types and IDs | `crates/apollia-core/src/{events,result,budget,context}.rs` |
+| Shared types and IDs | `crates/apollia-core/src/events/` (`ids.rs`, `runtime_event.rs`), `crates/apollia-core/src/{result,budget,context}.rs` |
 | HTTP API surface | `crates/apollia-runtime/src/api/routes_*.rs` |
 | EventBus implementation | `crates/apollia-runtime/src/eventbus.rs` |
 | Actor supervisor | `crates/apollia-runtime/src/supervisor/` |
 | Step budget enforcement | `crates/apollia-oria/src/engine.rs` |
+| Decision on a tool call | `crates/apollia-runtime/src/governance/decision.rs` |
 | Permission rules | `crates/apollia-permissions/src/` |
 | SecretStore backends | `crates/apollia-auth/src/secret_storage.rs` |
 | MCP client manager | `crates/apollia-mcp/src/` |

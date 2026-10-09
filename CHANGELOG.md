@@ -88,8 +88,20 @@ at the end of this entry. From this version on, tags no longer carry the
   overridable by the user.
 - An agent is always available: loaded on demand and unloaded when idle.
 - Agents and workflows are listed and invoked on the A2A card.
-- The guide and the first-launch assistant ship as declarative agents in an
-  embedded package.
+- The guide and the first-launch assistant ship as declarative agents, each
+  in an embedded package.
+- An agent is created from a short form: what it is for, what it gives back,
+  what it never does, what it may consult. The agent workshop, a workflow
+  shipped in a third embedded package, asks up to three questions about what
+  the form leaves unsaid, each with answers to pick, and writes the sheet for
+  review.
+- An agent whose Memory is checked keeps notes of its own with `memory_write`
+  and finds them again with `memory_search`, across its conversations. An
+  agent whose Profile is checked may propose a fact for the profile; each
+  proposal is put to the person.
+- The steps of a package workflow call the model through `ctx.llm`, each run
+  within a budget of calls, and `ctx.llm.complete` says whether the model
+  reasons before it answers.
 - A help icon on every screen opens the guide on that screen, in a side panel.
 - A workflow stops on a question to the user and goes on with the answer.
 - Example agents are proposed in the Agents screen and installed on demand:

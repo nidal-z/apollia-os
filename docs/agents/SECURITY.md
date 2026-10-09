@@ -11,26 +11,41 @@ is not implicit. Every crossing must be explicit, logged, and revocable.
 
 ## 0. The agent trust model (read this first)
 
-Agent Python code runs in-process through the PyO3 bridge, with the full rights
-of the runtime process, which are the rights of the current user. There is no
-OS sandbox around agent code: no process-per-agent isolation, no seccomp, no
-namespaces confining the agent itself. A deliberately malicious or buggy agent
-can read the filesystem, open sockets, spawn processes, and read credentials
-from the keyring, regardless of what it declares in its manifest. This is the
-recorded trust model, and it is deliberate: the audience is
-advanced builders who write or audit their own agents.
+An agent is a record, not code: a mission, a model, accesses, sources, an
+autonomy tier, declared in the `apollia.toml` of a package or created in the
+desktop application. It acts only by calling tools, and every tool call gets
+one governance decision before it runs (section 5). An agent cannot grant
+itself a right.
+
+The code a package brings is another matter. Its `@tool` and `@workflow`
+functions run in-process through the PyO3 bridge, with the full rights of the
+runtime process, which are the rights of the current user. There is no OS
+sandbox around package code: no process-per-package isolation, no seccomp, no
+namespaces confining it. A deliberately malicious or buggy package tool can
+read the filesystem, open sockets, spawn processes, and read credentials from
+the keyring, regardless of the action family it declares in its manifest. This
+is the recorded trust model, and it is deliberate: installing a package that
+brings code is trusting its author.
 
 What this means in practice:
 
-- Security is procedural before it is technical. The operator audits an agent
-  before installing it. The install path prints a trust banner to that effect.
-- The real gate for sensitive actions is HITL: the chat path asks by default,
-  so a write or an external call surfaces an approval rather than executing
-  silently. See section 5.
-- Manifest capability allowlists (`tools_required`, `secrets`, `datasources`,
-  `mailbox`) gate the `ctx.*` convenience interfaces. They are least-privilege
-  ergonomics, not an OS boundary: an unsandboxed agent can bypass `ctx.secrets`
-  with raw `os.environ` or `open()`. Never describe them as isolation.
+- Security is procedural before it is technical. The operator reads what a
+  package contains before installing it. The preview shows the agents, the
+  tools and the workflows, what each agent asks to use, and its notices:
+  `unsigned`, `untrusted_publisher`, `missing_connection`,
+  `server_already_present`
+  (`crates/apollia-cli/src/commands/package/remote.rs`).
+- The real gate for sensitive actions is the governance decision: every tool
+  call of every agent, in the chat and outside it, asks for a sensitive family
+  unless a standing consent covers it, so a write or an external call surfaces
+  an approval rather than executing silently. See section 5.
+- The context handed to package code is narrow, and that is ergonomics, not an
+  OS boundary. A tool gets no model, no tool proxy and no memory
+  (`RuntimeContext::for_package_tool`,
+  `crates/apollia-aip/src/context/runtime_ops.rs`); a workflow adds `ctx.llm`,
+  `ctx.agents`, `ctx.workflows` and `ctx.user`. Unsandboxed Python can still
+  reach the machine with raw `os.environ` or `open()`. Never describe the
+  context as isolation.
 - Native tools (`bash_executor`, `python_executor`) are the confined surface,
   not the agent. On Linux they run under PID and mount namespaces via `unshare`;
   on macOS there is no OS sandbox and a per-invocation warning is emitted. On
@@ -41,7 +56,7 @@ What this means in practice:
   `PATH` (Git Bash, MSYS2 or WSL), refusing with an actionable error without
   one. See sections 6 and 7.
 
-Never imply, in code, comments, or public docs, that agent code is sandboxed.
+Never imply, in code, comments, or public docs, that package code is sandboxed.
 The honest posture is a feature for a regulated adopter; overstating it is a
 liability.
 
@@ -54,7 +69,8 @@ the runtime. There is no per-user sovereignty switch that gates a call.
 
 State :
 - The runtime reads the signed organisation policy once at boot
-  (`read_org_policy` in `crates/apollia-runtime/src/supervisor/boot.rs`) and
+  (`read_org_policy` in
+  `crates/apollia-runtime/src/supervisor/boot/governance.rs`) and
   hands the verdict to `PolicyAdmission`
   (`crates/apollia-runtime/src/governance/policy_admission.rs`), the connection
   admission every place that adds a connection calls.
@@ -69,15 +85,20 @@ State :
   read.
 - The decision never comes from the renderer. A value a caller hands the
   runtime is not a gate, since any caller can choose it.
-- `inference.remote_endpoints = "deny"` is parsed but gates no inference call
-  yet. Treat the inference path as governed by permission rules and HITL only.
+- The `[inference]` section of the policy is read where an inference server is
+  added and where a request is sent to one
+  (`crates/apollia-runtime/src/governance/inference_policy.rs`): a non-empty
+  `allowed_servers` refuses every address it does not list, and
+  `remote_endpoints = "deny"` refuses every address outside this machine that
+  `allowed_servers` does not list.
 
 Rules :
 - A new place that adds a connection calls the connection admission before it
   stores anything, and stops on a refusal.
-- A new external call site should route through the chat approval gate (HITL) so
-  the operator can deny it. Do not claim the policy blocks a call outside the
-  connection admission until a check is wired there.
+- A new external call site should be a tool call, so the governance decision of
+  section 5 applies and the operator can refuse it. Do not claim the policy
+  blocks a call outside the connection admission and the inference check until
+  a check is wired there.
 
 ---
 
@@ -150,15 +171,19 @@ See `crates/apollia-auth/src/` (OAuth2 PKCE, keyring token storage).
 
 ## 4. MCP and connector credentials
 
-MCP servers may require credentials (API keys, OAuth tokens). They are
-stored via `SecretStore` under `mcp:<server_name>:<env_var>` keys.
+MCP servers may require credentials (API keys, OAuth tokens). A static secret
+is stored via `SecretStore` under the service `apollia-mcp`
+(`MCP_STATIC_SECRET_SERVICE`), with the key `<server_name>:<KEY>`.
 
 Rules :
-- An MCP server config in `~/.apollia/mcp.json` references environment
-  variables by name, never values.
-- The runtime resolves the env vars at spawn time from `SecretStore`.
-- A failed resolution puts the MCP server in `ProcessState::DEGRADED`,
-  not `STOPPED`. Operator action required.
+- An MCP server config (`~/.apollia/mcp.toml`, or a row of `mcp.db`) references
+  a secret by placeholder, never by value: `${APOLLIA_SECRET:KEY}` for a static
+  secret, `${APOLLIA_OAUTH}` for an OAuth bearer, `${VAR}` for a variable of
+  the system environment.
+- The runtime resolves the placeholders when the server starts
+  (`McpServerConfig::resolve_env`, `crates/apollia-mcp/src/config.rs`).
+- A placeholder that cannot be resolved fails the start of the server with
+  `McpConfigError::UnresolvedEnvVar`. Operator action required.
 
 Native SaaS connectors (Gmail, Calendar, Drive, Outlook, OneDrive) reuse
 the OAuth flow above. See `crates/apollia-connectors/`.
@@ -346,8 +371,8 @@ by risk level and no confirmation word to type.
 This jail applies to those tools only. `bash_executor` and `python_executor`
 spawn child processes that dereference paths themselves, so a string-level jail
 cannot constrain them; they rely on the Linux namespaces, rlimits, and HITL
-described in section 0 instead. And an in-process agent can touch the filesystem
-directly with raw Python, bypassing the tool layer entirely.
+described in section 0 instead. And the Python of a package can touch the
+filesystem directly, bypassing the tool layer entirely.
 
 Rules :
 - Prefer the file tools for agent filesystem access so the jail and the
@@ -379,9 +404,9 @@ Residual (not yet mitigated) : the check is name-level only, so DNS rebinding
 host that rebinds between the policy check and the socket connect are not
 closed. That requires a custom resolver that pins the resolved IP for the
 connection. The organisation policy is not checked here (see section 1).
-And because agent code is unsandboxed, an agent can open a raw
+And because package code is unsandboxed, a package tool can open a raw
 socket directly, bypassing the guard; it protects tool-mediated fetches, not
-the agent process. Tool child processes on Linux share the host network
+the Python of a package. Tool child processes on Linux share the host network
 namespace (no `--net` isolation yet).
 
 Rules, held by `scripts/check_http_clients.py` :
@@ -430,7 +455,7 @@ Rules, held by `scripts/check_http_clients.py` :
 
 - `.env`, `.apollia/`, `.keyfile`, `*credentials*`, `*token*` are in
   `.gitignore`. CI enforces.
-- Apollia reads runtime config from `~/.apollia/config.toml`. Never read
+- Apollia reads runtime config from `~/.apollia/apollia.toml`. Never read
   secrets from environment variables in production code (except the
   documented `APOLLIA_*` selectors).
 - `APOLLIA_*` env vars : selectors only (which backend, which path),
@@ -442,13 +467,13 @@ Rules, held by `scripts/check_http_clients.py` :
 
 | Threat | Mitigation |
 |---|---|
-| Local file exfiltration by a deliberately malicious agent | Not technically prevented: agent code runs in-process (section 0). Defense is the install-chain audit plus HITL on tool actions. The filesystem sandbox and audit journal apply to native tool calls, not to raw agent Python |
+| Local file exfiltration by the code of a deliberately malicious package | Not technically prevented: package code runs in-process (section 0). Defense is reading the package preview before installing, plus the governance decision on tool calls. The filesystem jail and the audit journal apply to tool calls, not to raw package Python |
 | Buggy agent writing outside its intent via file tools | File-tool path jail (`SandboxRoot`), the "write or delete" consent, asked on each write until the user answers "always" for the agent, audit journal. No write can be undone: the rollback journal is not wired (section 6) |
 | Credential leak via prompt injection | **Not mitigated.** No prompt-injection defence exists: fetched content feeds the model context as data with no output-side scanning (`web_read` documents this in-module). The only barrier is that any resulting tool call still goes through the prefix rules, the code-executor guard and HITL, so injected instructions cannot silently execute |
-| Network exfiltration | Profile gating, host pinning, audit log |
+| Network exfiltration | Tool-mediated only: the "send to the outside" family asks for consent, the SSRF guard checks every hop (section 7), the organisation policy can refuse remote connections and inference servers (section 1), and the call is in the audit journal. A shell command or the Python of a package can still reach the network |
 | Token theft from disk | OS keyring or age-encrypted file |
 | Replay of OAuth state | Signed state parameter |
-| MCP server hijack | TLS validation, server cert pinning where applicable |
+| MCP server hijack | TLS validation on HTTP transports; a server's tools are granted to an agent family by family, and each call goes through the governance decision |
 | Crash / DoS via a crafted parser input (LLM output, web content, automation text, tool specs) | `cargo-fuzz` targets on the untrusted-input parsers, char-boundary-safe slicing, panic-free parse contract (see `docs/agents/TESTING.md` 8b) |
 
 The agent trust model and sandbox posture are covered in
@@ -467,7 +492,7 @@ The agent trust model and sandbox posture are covered in
 - Need to add a new secret kind : define its `(service, user)` naming
   convention, update the `SecretStore` doc-comment, and document the key
   naming in this file.
-- Need to bypass profile gating for a legitimate reason : the answer is
-  no. If you genuinely believe a bypass is required, the `#permission-model`
+- Need to bypass the governance decision for a legitimate reason : the answer
+  is no. If you genuinely believe a bypass is required, the `#permission-model`
   section of `docs/site/docs/architecture/08-decisions.md` is what has to
   change first.

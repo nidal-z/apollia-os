@@ -33,20 +33,20 @@ Learn more at [apollia.fr](https://apollia.fr).
 
 ## What is Apollia OS?
 
-Apollia OS is a Rust runtime that executes autonomous Python AI agents in an isolated, local environment. Agents run in-process: the PyO3 bridge translates async Rust futures to Python coroutines directly, with no per-agent subprocess.
+Apollia OS is a Rust runtime that executes autonomous AI agents locally. An agent is a record, not a program: a mission, a model, the accesses it is granted, the sources it may read, its autonomy. The runtime runs every agent with the same engine. Python is optional: a package brings tools (`@tool`) and workflows (`@workflow`), which run in-process, the PyO3 bridge translating async Rust futures to Python coroutines directly, with no subprocess per package.
 
 Sovereign means self-contained, not feature-poor. The runtime is a single binary, the Python SDK has zero third-party dependencies, SQLite is vendored, the API binds to loopback by default, and there is no telemetry and no phone-home. Nothing is required from the cloud to run an agent. Every external host Apollia can reach (an inference server, a Google or Microsoft account, an MCP server) is a backend or connector you configure yourself.
 
 **Key capabilities:**
 
 - **Local-first LLM inference** - run GGUF models locally through the embedded `llama-server` (CPU, Metal, Vulkan, CUDA depending on the platform), or connect to an OpenAI-compatible server or to Ollama
-- **Persistent memory** - three-tier SQLite store (episodic, semantic, procedural) with FTS5 full-text search per agent
+- **Persistent memory** - one SQLite memory space per agent, with FTS5 full-text search. An agent whose Memory source is checked reads it with the `memory_search` tool and writes it with `memory_write`; nothing is injected into its prompt
 - **Native tools** - bash (Linux PID/mount namespaces), path-confined file I/O, Python execution with per-agent venv isolation, HTTP fetch, web search, and more
 - **Step budget** - `max_steps` / `max_tool_calls` / wall-clock timeout enforced at the runtime level, not bypassable by agent code
 - **Circuit breaker** - per-tool resilience layer with exponential backoff and jitter
 - **Triggers** - cron, interval, oneshot, file watch, and authenticated webhooks (HMAC-SHA256)
-- **Multi-agent orchestration** - directors coordinate specialized workers over the A2A skill protocol, with human-in-the-loop suspension and resume
-- **Human-in-the-Loop (HITL)** - any tool can require human approval before execution; the runtime suspends and resumes transparently
+- **Workflows** - a `@workflow` function coordinates agents, model calls and other workflows step by step, and can stop on a question to the user and resume with the answer
+- **Human-in-the-Loop (HITL)** - every tool call gets one governance decision, by action family; a sensitive call asks for approval before execution, and the run suspends and resumes
 - **Apollia Desktop** - the desktop application, a native Tauri v2 + Svelte 5 UI, kept live for every subsystem by the Tauri event bus
 - **REST API + CLI** - full management via the `apollia-os` CLI or HTTP on `127.0.0.1:7771`
 
@@ -170,8 +170,8 @@ flowchart TB
         tools["Tool registry<br/>+ sandbox"]
         mem["Memory engine<br/>SQLite / FTS5"]
         llm["LLM router<br/>embedded engine · designated server"]
-        side["TriggerEngine · NotificationEngine · PermissionsEngine"]
-        aip["AIP bridge (PyO3)<br/>Rust and Python async · ToolProxy · MemoryInterface"]
+        side["TriggerEngine · NotificationEngine · Governance"]
+        aip["AIP bridge (PyO3)<br/>Rust and Python async"]
     end
     agent["Package Python<br/>@tool / @workflow"]
 
@@ -299,12 +299,14 @@ async def word_count(
   descriptor, written by `python -m apollia describe coach`, so the runtime
   reads the manifest without running the code.
 
-`apollia-os package new coach` writes this starting folder. Build the archive,
-install it, and talk to the agent:
+`apollia-os package new coach` writes this starting folder. Build the archive
+and install it, restart the runtime (it reads the tools of the installed
+packages when it starts), then talk to the agent:
 
 ```bash
 apollia-os package build coach
 apollia-os package install coach-0.1.0.apo
+apollia-os stop                    # then `apollia-os start` again
 apollia-os run coach "Is this release note too long? ..."
 ```
 
@@ -318,10 +320,13 @@ agent, the author for a workflow. A **workflow** is an async function under
 `@workflow` whose steps are declared ahead; a step can run an agent, a tool or
 another workflow.
 
-Inside a tool or a workflow, `ctx` is the whole runtime surface: `ctx.llm` for
-the model, `ctx.memory` for what is remembered, `ctx.tools` for the native tools
-(filesystem, shell, HTTP, search), `ctx.logger` for the trace. Every tool call
-goes through the permission engine and lands in the audit journal.
+Inside package code, `ctx` is deliberately small. A tool gets `ctx.logger` for
+the trace, reported under the name of the agent that called it: no model, no
+tool proxy and no memory, because the engine of the calling agent runs those. A workflow adds
+`ctx.llm` for the model, `ctx.agents.run` to hand a message to an agent,
+`ctx.workflows.run` for another workflow and `ctx.user.ask` to stop on a
+question. Every tool call an agent makes gets one governance decision and lands
+in the audit journal.
 
 - [Your first agent](https://docs.apollia.fr/tutorials/your-first-agent/)
 - [Package and distribute an agent](https://docs.apollia.fr/how-to/package-and-distribute-an-agent/)
@@ -350,10 +355,12 @@ The trigger types and their options:
 
 ## Human-in-the-Loop
 
-An agent that reaches a boundary stops and asks. Filesystem writes outside its
-workspace, a tool marked as requiring approval, a question it cannot answer on
-its own: each one becomes a request you answer, in the application or from the
-CLI, and each answer is recorded in the audit journal.
+An agent that reaches a boundary stops and asks. Every tool call belongs to an
+action family: reading asks nothing, while reading personal data, writing or
+deleting, sending outside the machine and running code ask first, with the
+answers once, always for this agent, or refuse. A workflow can also stop on a
+question of its own. Each one becomes a request you answer, in the application
+or from the CLI, and each answer is recorded in the audit journal.
 
 How approvals are asked, scoped and revoked:
 [human in the loop](https://docs.apollia.fr/how-to/human-in-the-loop/).
@@ -376,8 +383,11 @@ not enforced:
   path that resolves outside the root is rejected (path-traversal safe).
 - **Step budget.** `max_steps`, `max_tool_calls`, and a wall-clock timeout are
   enforced by the runtime and cannot be bypassed by agent code.
-- **Human-in-the-Loop.** Sensitive tools can require explicit human approval
-  before execution.
+- **Human-in-the-Loop.** A tool call of a sensitive action family asks for
+  explicit human approval before execution, unless a standing consent of that
+  agent for that family already covers it. Running code is asked every time:
+  only a rule on a single simple command, in developer mode, lets it run
+  unasked.
 - **Secrets.** Credentials are stored through the OS keychain or an encrypted
   age file, never in plaintext config.
 
@@ -403,7 +413,7 @@ rather than as a startup error.
 The recipe needs that bundle to exist: build it once with
 `bash packaging/build-python-bundle.sh <target-triple> target/python-bundle/<target-triple>`.
 
-**Screens:** Home · Agents (with their batch runs) · Chat · Inbox · Connections · LLM models · Library · Automations · Memory · Transcriptions · Observability · Organization policy · Permissions · Journal · Settings
+**Screens:** Chat · Agents (with their batch runs) · Connections · AI · To review · Library · Automations · Permissions · Activity log · Settings · Transcriptions · Observability · Memory · Organization policy, and Developer once developer mode is on
 
 Views update in real time over the Tauri event bus, not over SSE; the HTTP API is where SSE lives, on `GET /api/v1/tasks/{id}/stream`. The system tray shows the pending approval count and supports graceful quit.
 
@@ -416,7 +426,8 @@ Views update in real time over the Tauri event bus, not over SSE; the HTTP API i
 `apollia-os` covers the same surface as the desktop application: agents, tasks,
 chat, memory, triggers, permissions, models, connectors and the audit journal.
 Every command answers `--json` for scripting, and exit codes are part of the
-contract (0 success, 1 usage, 2 runtime unavailable).
+contract (0 success, 1 usage, 2 runtime unavailable, 3 task failed, 4 timeout,
+5 interrupted).
 
 The full command tree: [CLI reference](https://docs.apollia.fr/reference/cli/).
 
