@@ -145,6 +145,16 @@ impl RuntimeContext {
         Self::bare(caller.to_string())
     }
 
+    /// The context a package workflow runs with: the one of a package tool,
+    /// with `ctx.llm` attached. A workflow is its own caller, so the steps of
+    /// its body call the models themselves, each call charged to the budget
+    /// the proxy was built with.
+    pub fn for_package_workflow(workflow: &str, llm: LlmProxy) -> Self {
+        let mut context = Self::bare(workflow.to_string());
+        context.llm = Some(llm);
+        context
+    }
+
     /// Builds a minimal context for intra-crate unit tests.
     ///
     /// All optional fields are `None`. Must never be called in production code.

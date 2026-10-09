@@ -186,6 +186,7 @@ pub async fn run(
         workflows_config: file_config.workflows,
         config_channels: Some(config_channels),
     };
+    let workflow_max_steps = config.workflows_config.max_steps;
     let supervisor = Supervisor::new(config);
 
     // An agent is a definition: the supervisor registers the stored ones, and
@@ -204,9 +205,19 @@ pub async fn run(
     )
     .await;
     // The workflows of the installed packages, read from the same manifests.
+    // Their steps call the models through the router of the runtime, each
+    // run bounded by the step limit of `[workflows]`.
+    let workflow_models = handles.llm_router.clone().map(|router| {
+        apollia_aip::package_tools::workflows::WorkflowModels::new(
+            router,
+            Some(handles.event_sender.clone()),
+            workflow_max_steps,
+        )
+    });
     apollia_aip::package_tools::workflows::attach(
         &data_dir_for_package_tools,
         handles.workflows.as_ref(),
+        workflow_models,
     )
     .await;
 

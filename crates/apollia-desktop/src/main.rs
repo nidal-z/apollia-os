@@ -260,7 +260,17 @@ fn main() {
                 &[apollia_aip::package_tools::ProfileGrant::onboarding()],
             )
             .await;
-            apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref()).await;
+            // The steps of a workflow call the models through the router of
+            // the runtime, each run bounded by the step limit of `[workflows]`.
+            let models = runtime.llm_router.clone().map(|router| {
+                apollia_aip::package_tools::workflows::WorkflowModels::new(
+                    router,
+                    Some(runtime.event_sender.clone()),
+                    apollia_core::WorkflowsConfig::default().max_steps,
+                )
+            });
+            apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref(), models)
+                .await;
         });
     }
     // Open a second AgentRepository instance for Tauri IPC commands.

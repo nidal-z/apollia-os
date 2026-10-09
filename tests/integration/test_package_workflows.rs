@@ -16,8 +16,14 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use apollia_aip::package_tools::workflows::PackageWorkflows;
+use std::pin::Pin;
+
+use apollia_aip::package_tools::workflows::{PackageWorkflows, WorkflowModels};
 use apollia_core::{RuntimeEvent, StepBudgetConfig};
+use apollia_llm::types::{
+    CompletionRequest, CompletionResponse, FinishReason, StreamChunk, TokenUsage,
+};
+use apollia_llm::{CompletionModel, LlmError, LlmRouter};
 use apollia_runtime::agents::task::Nesting;
 use apollia_runtime::workflows::{
     AgentRunner, BoxFuture, InputErrorCode, UserReply, WorkflowError, WorkflowHandle,
@@ -108,6 +114,26 @@ class Pay(TypedDict):
     choices: NotRequired[int]
 
 
+class Think(TypedDict):
+    calls: int
+
+
+ANSWER = {"type": "object", "required": ["answer"], "properties": {"answer": {"type": "string"}}}
+
+
+@workflow("think", "Ask the model.", inputs=Think, steps=["think"], action="read")
+async def think(ctx: WorkflowCtx, inputs: Think) -> dict:
+    async with ctx.step("think"):
+        for _ in range(inputs["calls"]):
+            value = await ctx.llm.complete(
+                [{"role": "user", "content": "The answer?"}],
+                max_tokens=64,
+                schema=ANSWER,
+                thinking=False,
+            )
+    return value
+
+
 @workflow("pay", "Pay a supplier.", inputs=Pay, steps=["validate", "pay"], action="send_external")
 async def pay(ctx: WorkflowCtx, inputs: Pay) -> dict:
     async with ctx.step("validate"):
@@ -172,7 +198,58 @@ description = "Pay a supplier."
 action = "send_external"
 steps = ["validate", "pay"]
 inputs = { type = "object", properties = { supplier = { type = "string" }, choices = { type = "integer" } }, required = ["supplier"], additionalProperties = false, x-order = ["supplier", "choices"] }
+
+[[workflows]]
+name = "think"
+module = "flows.py"
+description = "Ask the model."
+action = "read"
+steps = ["think"]
+inputs = { type = "object", properties = { calls = { type = "integer" } }, required = ["calls"], additionalProperties = false, x-order = ["calls"] }
 "#;
+
+/// Answers every call with the same JSON object, and remembers each request.
+#[derive(Default)]
+struct Model {
+    requests: Mutex<Vec<CompletionRequest>>,
+}
+
+#[async_trait::async_trait]
+impl CompletionModel for Model {
+    async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        self.requests.lock().expect("requests").push(req);
+        Ok(CompletionResponse {
+            engine_timings: None,
+            content: r#"{"answer": "42"}"#.into(),
+            tool_calls: vec![],
+            usage: TokenUsage::default(),
+            finish_reason: FinishReason::Stop,
+            latency_ms: 1,
+            ttft_ms: None,
+        })
+    }
+
+    async fn stream(
+        &self,
+        _req: CompletionRequest,
+    ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+    {
+        Ok(Box::pin(futures::stream::empty()))
+    }
+
+    fn is_available(&self) -> bool {
+        true
+    }
+    fn backend_name(&self) -> &str {
+        "model"
+    }
+    fn model_id(&self) -> &str {
+        "model"
+    }
+}
+
+/// How many model calls a run of the fixture may make.
+const MODEL_CALLS_PER_RUN: u32 = 2;
 
 /// Answers every agent with `answer to <message>`, and remembers each call.
 #[derive(Default)]
@@ -201,6 +278,7 @@ struct Fixture {
     repository: Arc<TaskRepository>,
     events: broadcast::Receiver<RuntimeEvent>,
     agents: Arc<Agents>,
+    model: Arc<Model>,
 }
 
 impl Fixture {
@@ -246,13 +324,22 @@ async fn fixture() -> Fixture {
             updated_at: "2026-10-02T00:00:00Z".into(),
         })
         .expect("save the package");
-    for workflow in ["close", "file", "remind", "stamp", "pay"] {
+    for workflow in ["close", "file", "remind", "stamp", "pay", "think"] {
         packages
             .link_item("books", PackageItemKind::Workflow, workflow)
             .expect("link the workflow");
     }
-    let workflows =
-        PackageWorkflows::read(&packages, dir.path().join("venvs")).expect("read the workflows");
+    let model = Arc::new(Model::default());
+    let mut backends: std::collections::HashMap<String, Arc<dyn CompletionModel>> =
+        std::collections::HashMap::new();
+    backends.insert("model".into(), model.clone());
+    let workflows = PackageWorkflows::read(&packages, dir.path().join("venvs"))
+        .expect("read the workflows")
+        .with_models(Some(WorkflowModels::new(
+            Arc::new(LlmRouter::with_backends(backends, "model")),
+            None,
+            MODEL_CALLS_PER_RUN,
+        )));
     assert_eq!(
         workflows.ids(),
         vec![
@@ -260,7 +347,8 @@ async fn fixture() -> Fixture {
             "books/file",
             "books/remind",
             "books/stamp",
-            "books/pay"
+            "books/pay",
+            "books/think"
         ]
     );
 
@@ -287,6 +375,7 @@ async fn fixture() -> Fixture {
         repository,
         events,
         agents,
+        model,
     }
 }
 
@@ -695,4 +784,50 @@ async fn a_question_whose_choices_are_not_text_is_refused_before_it_is_asked() {
         .await
         .expect("read questions")
         .is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_package_workflow_calls_the_model_through_ctx_llm() {
+    // GIVEN the package `books`, its host given the models
+    let fx = fixture().await;
+
+    // WHEN the workflow `think` runs, one constrained call made without
+    // reasoning
+    let run = fx
+        .engine
+        .run_to_end("books/think", json!({"calls": 1}))
+        .await
+        .expect("the run ends");
+
+    // THEN the run returns the validated value, and the model was asked once,
+    // with the cap, the schema and the reasoning switch of the call
+    assert_eq!(run.status, "completed", "{:?}", run.error);
+    assert_eq!(run.output, Some(json!({"answer": "42"})));
+    let requests = fx.model.requests.lock().expect("requests");
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].max_tokens, Some(64));
+    assert_eq!(requests[0].thinking, Some(false));
+    assert!(requests[0].response_schema.is_some());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_package_workflow_is_stopped_at_its_budget_of_model_calls() {
+    // GIVEN a host whose runs may call the model twice
+    let fx = fixture().await;
+
+    // WHEN the workflow `think` asks for three calls
+    let run = fx
+        .engine
+        .run_to_end("books/think", json!({"calls": 3}))
+        .await
+        .expect("the run ends");
+
+    // THEN the run fails on its third call, which never reaches the model
+    assert_eq!(run.status, "failed");
+    let reason = run.error.unwrap_or_default();
+    assert!(reason.contains("step budget exhausted"), "{reason}");
+    assert_eq!(
+        fx.model.requests.lock().expect("requests").len(),
+        MODEL_CALLS_PER_RUN as usize
+    );
 }

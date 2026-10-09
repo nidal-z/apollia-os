@@ -6,18 +6,23 @@
 //! manifests the package store holds, running no Python; the module of a
 //! workflow is imported on its first run, the way a package tool's is.
 //!
-//! A run calls the decorated function with a `ctx` that adds four things to
-//! the context a package tool gets: `ctx.agents.run`, `ctx.workflows.run`,
+//! A run calls the decorated function with a `ctx` that adds five things to
+//! the context a package tool gets: `ctx.llm`, when the host was given the
+//! models ([`WorkflowModels`]), `ctx.agents.run`, `ctx.workflows.run`,
 //! `ctx.user.ask`, which stops the run on a question until the user answers,
-//! and the private hook the SDK calls each time a step opens or closes. Each goes
-//! back to the workflow engine of the runtime through
+//! and the private hook the SDK calls each time a step opens or closes. The
+//! last four go back to the workflow engine of the runtime through
 //! [`WorkflowServices`]. Cancelling the run's token cancels the coroutine at
 //! its next await point, inside whatever step it is in.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use std::sync::atomic::AtomicU32;
+
+use apollia_core::events::EventBusSender;
 use apollia_core::paths::DataFile;
+use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView};
 use apollia_runtime::workflows::{
     BoxFuture, QuestionAsked, UserReply, WorkflowCall, WorkflowDescriptor, WorkflowHandle,
     WorkflowHost, WorkflowServices,
@@ -34,6 +39,7 @@ use super::{dotted_module, manifest_of};
 use crate::apollia_manifest::WorkflowDecl;
 use crate::cancel;
 use crate::context::RuntimeContext;
+use crate::llm::LlmProxy;
 
 /// The `ctx` of a workflow, built around the runtime context. `agents`,
 /// `workflows` and `user` reach the engine; `_apollia_step_hook` is what the SDK's
@@ -256,11 +262,49 @@ impl PackageWorkflow {
     }
 }
 
+/// What the steps of a workflow call the models through, `ctx.llm`.
+///
+/// Each run gets a proxy of its own over `router`, with a budget of
+/// `max_calls` model calls: a body that loops on `ctx.llm` is stopped there,
+/// as the loop of an agent is stopped by its step budget.
+#[derive(Clone)]
+pub struct WorkflowModels {
+    router: Arc<LlmRouter>,
+    events: Option<EventBusSender>,
+    max_calls: u32,
+}
+
+impl WorkflowModels {
+    /// The models behind `router`, at most `max_calls` calls per run, each
+    /// call announced on `events` when a bus is given.
+    pub fn new(router: Arc<LlmRouter>, events: Option<EventBusSender>, max_calls: u32) -> Self {
+        Self {
+            router,
+            events,
+            max_calls,
+        }
+    }
+
+    /// The proxy of one run, its budget untouched.
+    fn proxy(&self) -> LlmProxy {
+        LlmProxy::new(
+            Arc::clone(&self.router),
+            Arc::new(StepBudgetView::new(
+                Arc::new(AtomicU32::new(0)),
+                self.max_calls,
+            )),
+            Arc::new(ObservabilityConfig::default()),
+            self.events.clone(),
+        )
+    }
+}
+
 /// The Python workflows of every installed package.
 #[derive(Clone)]
 pub struct PackageWorkflows {
     workflows: Vec<Arc<PackageWorkflow>>,
     venvs: PathBuf,
+    models: Option<WorkflowModels>,
 }
 
 impl PackageWorkflows {
@@ -301,7 +345,19 @@ impl PackageWorkflows {
                 }
             }
         }
-        Ok(Self { workflows, venvs })
+        Ok(Self {
+            workflows,
+            venvs,
+            models: None,
+        })
+    }
+
+    /// The same workflows, whose runs reach the models through `models`.
+    /// Without them `ctx.llm` is absent from a run.
+    #[must_use]
+    pub fn with_models(mut self, models: Option<WorkflowModels>) -> Self {
+        self.models = models;
+        self
     }
 
     /// The identifiers of the workflows, `<package>/<workflow>`.
@@ -332,7 +388,7 @@ impl WorkflowHost for PackageWorkflows {
             &self.venvs,
             &workflow.package,
         );
-        Box::pin(run(workflow, site_packages, call))
+        Box::pin(run(workflow, site_packages, call, self.models.clone()))
     }
 }
 
@@ -342,6 +398,7 @@ async fn run(
     workflow: Arc<PackageWorkflow>,
     site_packages: Vec<PathBuf>,
     call: WorkflowCall,
+    models: Option<WorkflowModels>,
 ) -> Result<Value, String> {
     let WorkflowCall {
         run_id,
@@ -361,7 +418,11 @@ async fn run(
     let inputs = inputs.to_string();
     let mut blocking = tokio::task::spawn_blocking(move || {
         Python::with_gil(|py| {
-            let services = PythonServices { services, inputs };
+            let services = PythonServices {
+                services,
+                inputs,
+                models,
+            };
             run_in_python(py, &workflow, &site_packages, services, &slot)
         })
     });
@@ -390,6 +451,7 @@ async fn run(
 struct PythonServices {
     services: Arc<dyn WorkflowServices>,
     inputs: String,
+    models: Option<WorkflowModels>,
 }
 
 /// Import the workflow if needed, call it, and return the JSON text of what
@@ -401,7 +463,11 @@ fn run_in_python(
     call: PythonServices,
     slot: &Py<PyDict>,
 ) -> Result<String, String> {
-    let PythonServices { services, inputs } = call;
+    let PythonServices {
+        services,
+        inputs,
+        models,
+    } = call;
     let id = workflow.id();
     let fail = |e: PyErr| format!("{id}: {e}");
     let function = workflow
@@ -409,7 +475,11 @@ fn run_in_python(
         .get_or_try_init(py, || load(py, workflow, site_packages))
         .map_err(|e| format!("{id}: cannot load the workflow: {e}"))?
         .bind(py);
-    let inner = Py::new(py, RuntimeContext::for_package_tool(&id)).map_err(fail)?;
+    let context = match &models {
+        Some(models) => RuntimeContext::for_package_workflow(&id, models.proxy()),
+        None => RuntimeContext::for_package_tool(&id),
+    };
+    let inner = Py::new(py, context).map_err(fail)?;
     let services = Py::new(py, PyWorkflowServices { services }).map_err(fail)?;
     let json = py.import("json").map_err(fail)?;
     let inputs = json
@@ -476,8 +546,14 @@ fn load(
 ///
 /// Called once the runtime is up. Without a store or an engine there is
 /// nothing to attach; a store that cannot be read is reported and the engine
-/// is attached with no workflow. Returns how many workflows were attached.
-pub async fn attach(data_dir: &std::path::Path, engine: Option<&WorkflowHandle>) -> usize {
+/// is attached with no workflow. `models` is what the runs call the models
+/// through; without it `ctx.llm` is absent. Returns how many workflows were
+/// attached.
+pub async fn attach(
+    data_dir: &std::path::Path,
+    engine: Option<&WorkflowHandle>,
+    models: Option<WorkflowModels>,
+) -> usize {
     let Some(engine) = engine else {
         return 0;
     };
@@ -497,6 +573,7 @@ pub async fn attach(data_dir: &std::path::Path, engine: Option<&WorkflowHandle>)
                 PackageWorkflows {
                     workflows: Vec::new(),
                     venvs: data_dir.join("venvs"),
+                    models: None,
                 }
             }
         }
@@ -504,8 +581,10 @@ pub async fn attach(data_dir: &std::path::Path, engine: Option<&WorkflowHandle>)
         PackageWorkflows {
             workflows: Vec::new(),
             venvs: data_dir.join("venvs"),
+            models: None,
         }
-    };
+    }
+    .with_models(models);
     let count = workflows.workflows.len();
     if let Err(error) = engine.set_host(Arc::new(workflows)).await {
         tracing::event!(
