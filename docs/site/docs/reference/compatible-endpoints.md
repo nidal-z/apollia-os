@@ -21,7 +21,7 @@ touches the runtime or the desktop.
 
 ## Off by default
 
-The server listens only once someone turns it on. Four keys of `apollia.toml`
+The server listens only once someone turns it on. Five keys of `apollia.toml`
 hold its state:
 
 ```toml

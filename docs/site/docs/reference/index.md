@@ -30,8 +30,8 @@ from it. Edit the source, never the page.
 - **[Environment variables](/reference/environment-variables)** what the runtime
   reads from its environment: the local engine, secret storage, connector OAuth
   clients, diagnostics.
-- **[Sampling defaults](/reference/sampling-defaults)** which sampling parameter
-  reaches a model, and what is written but not applied.
+- **[Sampling defaults](/reference/sampling-defaults)** the sampling fields a
+  request sends to a model, and the levels of defaults that fill them.
 - **[Evaluation suite schema](/reference/eval-suites)** the TOML an
   `apollia-os eval run` suite accepts, field by field and assertion by assertion.
 - **[Compatible endpoints](/reference/compatible-endpoints)** the second

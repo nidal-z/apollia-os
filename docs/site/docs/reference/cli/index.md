@@ -311,12 +311,12 @@ Apollia OS CLI binary (apollia-os)
 * `stop` - Stop a running runtime
 * `status` - Display runtime and agent status
 * `run` - Submit a task to an agent and wait for the result
-* `agent` - Agent management (list, start, stop, show, install, uninstall, enable, disable, update, create, package, logs, validate, repair)
+* `agent` - Agent management (list, start, stop, show, set, reset, export, status, messages, uninstall, enable, disable, package, logs)
 * `a2a` - Agent-to-Agent skill discovery and direct invocation
 * `task` - Task management (list, status, cancel, inspect, resume, approvals)
 * `eval` - Evaluation harness (run a TOML suite against the runtime, report a JSONL)
 * `tools` - Native tool governance (list, enable, disable, config, reload, credentials, show, approvals)
-* `audit` - Audit trail (list, stats, export, verify, show, replay)
+* `audit` - Audit trail (journal, export, verify, anchor, replay, show)
 * `hooks` - Lifecycle hooks (list)
 * `memory` - Memory management
 * `llm` - LLM backend diagnostics (status, ping, chat, costs, backends, reload)
@@ -405,7 +405,7 @@ Display runtime and agent status
 
 Submit a task to an agent and wait for the result.
 
-Use the positional `<INPUT>` for free-text input (react/conversational agents). For worker agents that expect a typed skill payload, use `apollia-os a2a invoke <skill_id> --args '<JSON>'` instead, or pass `--input-json '<JSON>'` here to override the default text wrapping.
+Use the positional `<INPUT>` for free-text input. To send a structured payload, pass `--input-json '<JSON>'` here, which overrides the default text wrapping. To invoke a typed skill by its identifier, use `apollia-os a2a invoke <skill_id> --args '<JSON>'` instead.
 
 **Usage:** `apollia-os run [OPTIONS] <AGENT_ID> [INPUT]`
 
@@ -434,7 +434,7 @@ Use the positional `<INPUT>` for free-text input (react/conversational agents). 
 
 ## `apollia-os agent`
 
-Agent management (list, start, stop, show, install, uninstall, enable, disable, update, create, package, logs, validate, repair)
+Agent management (list, start, stop, show, set, reset, export, status, messages, uninstall, enable, disable, package, logs)
 
 **Usage:** `apollia-os agent <COMMAND>`
 
@@ -1105,7 +1105,7 @@ List approvals pending decision (tasks in `input_required`)
 
 ## `apollia-os audit`
 
-Audit trail (list, stats, export, verify, show, replay)
+Audit trail (journal, export, verify, anchor, replay, show)
 
 **Usage:** `apollia-os audit <COMMAND>`
 

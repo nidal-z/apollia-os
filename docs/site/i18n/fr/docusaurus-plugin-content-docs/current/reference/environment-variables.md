@@ -52,7 +52,7 @@ changement fait depuis celle-ci.
 
 | Variable | Valeur par défaut | Effet |
 |---|---|---|
-| `APOLLIA_TOKEN_STORAGE` | `keyring` | `keyring` utilise le trousseau du système d'exploitation. `file` stocke les secrets sous forme de fichiers chiffrés avec `age` dans `~/.apollia/secrets/`, pour un hôte Linux sans interface où aucun démon de trousseau n'est accessible. Les jetons OAuth des connecteurs échappent à ce commutateur : ils sont écrits dans le trousseau du système quelle que soit la valeur posée ici, si bien qu'un hôte sans trousseau accessible ne peut pas les détenir. |
+| `APOLLIA_TOKEN_STORAGE` | `keyring` | `keyring` utilise le trousseau du système d'exploitation. `file` stocke les secrets sous forme de fichiers chiffrés avec `age` dans `~/.apollia/secrets/`, pour un hôte Linux sans interface où aucun démon de trousseau n'est accessible. Les jetons OAuth des connecteurs suivent ce commutateur comme tous les autres secrets : avec `file`, les jetons Google et Microsoft y sont écrits aussi. Toute autre valeur est refusée. |
 | `APOLLIA_TOKEN_PASSPHRASE` | aucune | Phrase secrète pour le backend `file`. **Obligatoire quand `APOLLIA_TOKEN_STORAGE=file`** : le démarrage échoue immédiatement en son absence, plutôt que de se replier sur une solution moins sûre. |
 
 ## Clients OAuth des connecteurs
@@ -73,16 +73,20 @@ client qu'un binaire distribué ne peut pas détenir. Voir
 [Se connecter à Google Workspace](/operator-help/integrations/connect-google-workspace)
 et [Configurer un client OAuth Google](/how-to/set-up-a-google-oauth-client).
 
-Dans les deux cas, la voie prise en charge est Réglages → Intégrations OAuth,
-qui écrit dans `~/.apollia/oauth-clients.toml`.
+Dans les deux cas, la voie prise en charge est la fiche de la connexion, dans
+Connexions. L'identifiant client saisi là est écrit dans
+`~/.apollia/oauth-clients.toml` ; le secret client et la clé API Google vont
+dans le coffre de secrets choisi ci-dessus, jamais dans ce fichier.
 
 <!-- claim:oauth-client-resolution-order -->
-Les variables ci-dessous constituent la troisième voie d'accès, prioritaire
-sur ce fichier, pour une session shell, un job CI, ou un hôte sans interface.
-Elles sont lues au démarrage du processus, donc elles n'atteignent qu'une
-instance d'Apollia lancée depuis le shell qui les a exportées. Ordre de
-résolution pour chaque identifiant : variable d'environnement, puis
-`oauth-clients.toml`, puis la constante définie à la compilation.
+Les variables ci-dessous constituent l'autre voie d'accès, prioritaire sur ce
+que la fiche a enregistré, pour une session shell, un job CI, ou un hôte sans
+interface. Elles sont lues au démarrage du processus, donc elles n'atteignent
+qu'une instance d'Apollia lancée depuis le shell qui les a exportées. Ordre de
+résolution pour chaque identifiant : variable d'environnement, puis la valeur
+enregistrée depuis la fiche (`oauth-clients.toml` pour un identifiant client,
+le coffre de secrets pour un secret ou une clé API), puis la constante définie
+à la compilation.
 
 | Variable | Effet |
 |---|---|
@@ -94,11 +98,32 @@ résolution pour chaque identifiant : variable d'environnement, puis
 | `APOLLIA_MICROSOFT_API_KEY` | Clé API, même rôle que ci-dessus. Inutilisée à ce jour. |
 | `APOLLIA_FIGMA_CLIENT_ID` | Identifiant client pour le connecteur Figma. |
 
+## Connexions
+
+| Variable | Valeur par défaut | Effet |
+|---|---|---|
+| `APOLLIA_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | Adresse du registre MCP dans lequel le catalogue public est lu. Définissez-la pour pointer Apollia vers un registre privé. Une valeur vide laisse la valeur par défaut en place. |
+| `APOLLIA_IMAP_PASSWORD` | aucune | Mot de passe d'application lu par `apollia-os connector imap` quand `--password-stdin` n'est pas donné. Le mot de passe n'est jamais pris sur la ligne de commande. |
+
+## Python et le moteur MLX
+
+Des chemins qui dépendent de la machine. Une installation empaquetée les
+définit ou les trouve seule ; ils comptent quand Apollia tourne depuis un arbre
+de sources ou à côté d'un bundle qui n'est pas là où il l'attend.
+
+| Variable | Valeur par défaut | Effet |
+|---|---|---|
+| `APOLLIA_BUNDLED_PYTHON` | trouvé à côté de l'exécutable | Chemin absolu de l'interpréteur Python embarqué. L'application desktop l'exporte au démarrage. |
+| `APOLLIA_PYTHON_BUNDLE_DIR` | trouvé à côté de l'exécutable | Dossier où se trouve l'interpréteur Python embarqué. Les lanceurs en ligne de commande l'exportent à la place de la variable ci-dessus ; les deux sont lues. |
+| `APOLLIA_MLX_ENGINE_DIR` | l'environnement MLX installé le plus récent, sinon celui embarqué | Dossier contenant les paquets du moteur MLX. |
+| `APOLLIA_MLX_PYTHON` | l'interpréteur embarqué | Interpréteur Python sur lequel tourne le moteur MLX. |
+
 ## Diagnostics
 
 | Variable | Valeur par défaut | Effet |
 |---|---|---|
 | `APOLLIA_PERF_TRACE` | non définie | Chemin d'un fichier recevant un enregistrement de performance par tour. Non définie signifie qu'aucun fichier n'est écrit et qu'aucune provenance n'est collectée ; le résumé est de toute façon émis au niveau `INFO`. |
+| `APOLLIA_PERF_MODEL_SHA256` | non définie | Empreinte du fichier du modèle, écrite telle quelle dans l'enregistrement de performance au lieu d'être calculée. Pour une campagne de mesure qui recharge de nombreuses fois le même gros modèle. |
 | `RUST_LOG` | `apollia=info` | Filtre `tracing` standard. C'est `apollia=trace` qui rend visible `[llm.observability] debug_log_prompt` ; voir [Configuration](/reference/configuration). |
 
 ## Automatisation desktop
@@ -106,12 +131,17 @@ résolution pour chaque identifiant : variable d'environnement, puis
 `APOLLIA_AUTOMATION`, `APOLLIA_AUTOMATION_OUT` et
 `APOLLIA_AUTOMATION_ALLOW_DESTRUCTIVE` pilotent le harnais de test gestuel
 réservé au développement. Elles n'ont aucun effet dans une version de
-production, où le harnais est exclu à la compilation.
+production, où le harnais est exclu à la compilation. `APOLLIA_POLICY_DIR`,
+qui pointe le runtime vers un autre dossier de politique de l'organisation,
+suit la même règle : elle n'est lue que dans les versions de débogage.
 
 ## Non lues par le runtime
 
 Les variables `APOLLIA_BUILD_*` sont lues au moment de la compilation, pas à
 l'exécution ; en définir une avant de lancer Apollia n'a aucun effet.
+`APOLLIA_PYTHON` est de la même nature : elle nomme l'interpréteur Python que
+la compilation de l'application desktop lance pour empaqueter la documentation
+que l'application embarque.
 
 Elles offrent un point d'accroche pour recompiler Apollia depuis les sources
 avec votre propre application enregistrée, un déploiement en flotte étant le

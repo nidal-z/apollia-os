@@ -160,21 +160,23 @@ commitez jamais dans un dépôt.
 
 ## Étape 5. Transmettre le client à Apollia
 
-1. Dans Apollia, ouvrez **Paramètres**, puis **Intégrations OAuth**.
-2. Sur la carte **Google Workspace**, cliquez sur **Importer un JSON** et
-   sélectionnez le fichier téléchargé. Le client ID et le client secret
-   en sont extraits puis écrits dans `~/.apollia/oauth-clients.toml`, un
-   fichier lisible par votre utilisateur uniquement.
-3. Cliquez sur **Tester la configuration**. Le résultat attendu confirme
-   que le client est présent, bien formé, et que le serveur
-   d'autorisation de Google est joignable.
+1. Dans Apollia, ouvrez **Connexions**, cliquez sur **Ajouter une connexion**
+   et choisissez **Google Workspace**. Sa fiche s'ouvre sur l'onglet
+   **Comptes**, qui porte la section **Client Google**.
+2. Cliquez sur **Importer le JSON du client** et sélectionnez le fichier
+   téléchargé. Le client ID et le client secret en sont extraits : le client
+   ID est écrit dans `~/.apollia/oauth-clients.toml`, le client secret dans le
+   trousseau du système, jamais dans un fichier.
+3. Cliquez sur **Tester le client**. La réponse attendue est **La
+   configuration semble valide.**
 
-Si vous préférez saisir les deux valeurs à la main, les champs de la même
-carte les acceptent directement. Le client ID se termine par
-`.apps.googleusercontent.com` et le secret commence par `GOCSPX-`.
+Si vous préférez saisir les deux valeurs à la main, les champs **Client ID**
+et **Secret client** de la même section les acceptent directement. Le client
+ID se termine par `.apps.googleusercontent.com` et le secret commence par
+`GOCSPX-`.
 
-Vous avez terminé dans la console. Pour connecter un compte, allez dans
-**Connexions**, sélectionnez **Google Workspace**, et suivez
+Vous avez terminé dans la console. Pour connecter un compte, restez sur la
+fiche **Google Workspace** et suivez
 [Connecter Google Workspace](/operator-help/integrations/connect-google-workspace).
 
 ## Ce que coûte le statut Testing
@@ -236,7 +238,7 @@ peut ralentir ou faire suspendre.
   changer le type d'un client existant.
 - **Apollia refuse de se connecter et signale un secret manquant** : le
   client ID a été saisi à la main sans son secret. Importez plutôt le
-  fichier JSON, ou collez le secret dans le second champ.
+  fichier JSON, ou collez le secret dans le champ **Secret client**.
 - **Un agent obtient une erreur de permission sur un seul service** :
   l'API de ce service n'a jamais été activée à l'étape 2. Activez-la et
   réessayez, aucune reconnexion n'est nécessaire.

@@ -32,9 +32,9 @@ qu'une page ne peut pas s'en écarter. On modifie la source, jamais la page.
 - **[Variables d'environnement](/reference/environment-variables)** ce que le
   runtime lit dans son environnement : le moteur local, le stockage des secrets,
   les clients OAuth des connecteurs, les diagnostics.
-- **[Paramètres d'échantillonnage par défaut](/reference/sampling-defaults)** quel
-  paramètre d'échantillonnage atteint effectivement un modèle, et ce qui est
-  écrit mais non appliqué.
+- **[Paramètres d'échantillonnage par défaut](/reference/sampling-defaults)** les
+  champs d'échantillonnage qu'une requête envoie à un modèle, et les niveaux de
+  valeurs par défaut qui les remplissent.
 - **[Schéma des suites d'évaluation](/reference/eval-suites)** le TOML qu'accepte
   une suite `apollia-os eval run`, champ par champ et assertion par assertion.
 - **[Points d'accès compatibles](/reference/compatible-endpoints)** le second

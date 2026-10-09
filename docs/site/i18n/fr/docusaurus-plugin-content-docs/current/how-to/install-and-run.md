@@ -22,7 +22,7 @@ Chaque commande s'exécute depuis la racine du dépôt, sauf mention contraire.
 
 ## Prérequis
 
-Le runtime a besoin d'une chaîne d'outils Rust, de Python et de Git sur
+La compilation a besoin d'une chaîne d'outils Rust, de Python et de Git sur
 toutes les plateformes. L'application desktop ajoute Node.js, le CLI `cargo
 tauri`, et une chaîne d'outils webview propre à chaque OS. Installez d'abord
 les outils communs, puis la section spécifique à votre plateforme.
@@ -36,10 +36,10 @@ les outils communs, puis la section spécifique à votre plateforme.
   première compilation dans le clone, vous n'avez donc pas à choisir de
   version manuellement.
 - **Python 3.13**, disponible en tant que `python3`. Le runtime embarque
-  Python pour charger les agents, et le SDK s'y installe. Le clone déclare la
+  Python pour exécuter les outils et les workflows des paquets, et le SDK s'y
+  installe. Le clone déclare la
   version exacte dans `.python-version`.
-- **Git.** Nécessaire pour cloner le dépôt et, plus tard, pour installer des
-  agents depuis une URL Git.
+- **Git.** Nécessaire pour cloner le dépôt.
 - **Pour l'application desktop uniquement : Node.js 20 ou plus récent** (le
   projet construit l'interface avec Node 22) avec `npm`, ainsi que le CLI
   `cargo tauri` :
@@ -180,14 +180,16 @@ votre `PATH`, ce qui est couvert dans la dernière section.
 
 ## Étape 2 : installer le SDK
 
-Les agents sont écrits en Python. Installez le paquet `apollia` en mode
-éditable dans le même interpréteur que celui utilisé par le runtime.
+Un agent est une fiche déclarée dans le `apollia.toml` d'un paquet ; le Python
+qu'un paquet apporte, ce sont ses outils et ses workflows, écrits avec le SDK.
+Installez le paquet `apollia` en mode éditable dans le même interpréteur que
+celui utilisé par le runtime.
 
 Créez d'abord un environnement virtuel. Homebrew, Debian et Fedora
 distribuent Python comme un environnement géré de manière externe (PEP 668) :
 installer directement dedans s'arrête avec
-`error: externally-managed-environment`, et le runtime charge les agents
-depuis l'interpréteur qu'il trouve sur le `PATH`, donc l'environnement que
+`error: externally-managed-environment`, et le runtime exécute le Python des paquets
+avec l'interpréteur qu'il trouve sur le `PATH`, donc l'environnement que
 vous activez ici est celui qu'il utilisera.
 
 ```sh
@@ -275,13 +277,21 @@ du socket.
 
 ## Étape 5 : exécuter un agent
 
-Un agent se livre dans un paquet. Écrivez le paquet de départ, construisez-le,
-installez-le, puis envoyez une tâche à son agent :
+Un agent se livre dans un paquet. Écrivez le paquet de départ, construisez-le
+et installez-le :
 
 ```sh
 apollia-os package new hello
 apollia-os package build hello
 apollia-os package install hello-0.1.0.apo
+```
+
+Le paquet de départ apporte un agent et un outil Python. Le runtime lit les
+outils des paquets installés à son démarrage : redémarrez-le donc, avec
+`apollia-os stop`, puis en le relançant dans le premier terminal par la
+commande de l'étape 4. Envoyez ensuite une tâche à l'agent :
+
+```sh
 apollia-os run hello "hello from Apollia"
 ```
 
@@ -347,7 +357,7 @@ Chaque recette accepte deux arguments optionnels :
 | Argument | Rôle | Valeur par défaut (macOS / Linux / Windows) |
 |---|---|---|
 | `target` | Triplet Rust passé à `cargo tauri build` | `aarch64-apple-darwin` / `x86_64-unknown-linux-gnu` / `x86_64-pc-windows-msvc` |
-| `runners` | Liste, séparée par des espaces, des backends d'exécuteurs à compiler et inclure dans le bundle | `cpu metal` / `cpu` / `cpu vulkan` |
+| `runners` | Liste, séparée par des espaces, des backends d'exécuteurs à compiler et inclure dans le bundle | `cpu metal` / `cpu` / `cpu` |
 
 La valeur `runners` contrôle deux choses :
 
@@ -455,8 +465,11 @@ Il n'existe aucune commande de téléchargement de modèles. Procurez-vous un
 fichier `.gguf` vous-même (par exemple depuis un hub de modèles) et
 placez-le dans `~/.apollia/models/`, puis pointez un backend local dessus
 avec `apollia-os llm setup --local --model <path.gguf>`. Les sous-commandes
-`model` (`list`, `search`, `show`, `hardware`, `delete`) inspectent et gèrent
-les modèles déjà présents ; voir la [référence CLI](/reference/cli).
+`model` listent et suppriment les fichiers déjà présents (`list`, `delete`),
+interrogent le registre Hugging Face (`search`, `show`), décrivent le matériel
+et classent les modèles que cette machine devrait exécuter (`hardware`,
+`recommend`), et choisissent le modèle d'embeddings (`embeddings`) ; voir la
+[référence CLI](/reference/cli).
 
 La reconnaissance vocale est un composant séparé, optionnel. Le sidecar
 `apollia-runner`, construit avec une fonctionnalité `local-*`

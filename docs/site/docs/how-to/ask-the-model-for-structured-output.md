@@ -14,11 +14,11 @@ expression to maintain.
 ## Where `ctx.llm` is reachable
 
 `ctx.llm` is a service the runtime may leave unattached, and it is then `None`:
-the [`ctx.llm` reference](/reference/sdk/llm) says so. On the binaries shipped
-today it is not attached to the context of a tool or of a workflow, where the
-model is reached through an agent, with `ctx.agents.run`. This page describes
-the contract of the call where the service is attached, which is also what
-`MockContext` serves in a unit test.
+the [`ctx.llm` reference](/reference/sdk/llm) says so. It is attached to the
+context of a workflow whenever the runtime has a model configured, and not to
+the context of a tool, which reaches the model through the agent that called
+it. This page describes the contract of the call where the service is attached,
+which is also what `MockContext` serves in a unit test.
 
 ## Pass a schema, receive a value
 

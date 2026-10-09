@@ -28,9 +28,12 @@ conserve en outre l'enregistrement d'appel d'outil porté par son message
 d'assistant, sérialisé dans la colonne `tool_calls_json` de `chat_messages`, qui
 n'est pas un enregistrement audité.
 
-Un agent accède à ces outils via `ctx.tools`, ou se les voit transmis dans
-une boucle ReAct via `ctx.tools.describe(<name>)`. Chaque appel est distribué
-par le nom canonique de l'outil listé ci-dessous.
+Un agent se voit accorder ces outils par leur nom, dans sa liste d'accès :
+`access` sous `[agents.defaults]` dans le
+[manifeste de paquet](/reference/package-manifest), que la personne peut
+modifier sur la fiche de l'agent. Chaque appel est distribué par le nom
+canonique de l'outil listé ci-dessous. Le Python d'un paquet ne les appelle
+pas : `ctx.tools` vaut `None` dans un outil comme dans un workflow.
 
 ## Lister l'état effectif
 
@@ -68,7 +71,7 @@ outil lit un identifiant optionnel.
 | `http_fetch` | `http` | aucun |
 | `web_search` | `web-search` | `brave.api_key` (optionnel ; repli sur DuckDuckGo) |
 | `web_read` | `web-read` | aucun |
-| `memory_search` | `memory-search` | aucun |
+| `memory_search`, `memory_write`, `profile_propose` | `memory-search` | aucun |
 | tous les autres outils natifs | toujours compilé | aucun |
 
 `python_executor` requiert un Python 3 système sur l'hôte (voir les notes de
@@ -194,12 +197,18 @@ non fiables et est traité comme des données, jamais comme des instructions.
 | Outil | Objectif | Paramètres clés |
 |---|---|---|
 | `memory_search` | Recherche plein texte (FTS5, classement BM25) sur l'espace de noms propre de l'agent et les espaces de noms partagés déclarés. Les opérateurs FTS5 sont échappés automatiquement. | `query`, `namespace`, `limit`, `source` |
+| `memory_write` | Garde une note dans la mémoire propre de l'agent sous une clé (`remember`), en remplaçant ce que la clé contenait, ou la retire (`forget`). Seul l'espace de noms propre de l'agent est écrit. | `action`, `key`, `value` |
+| `profile_propose` | Propose un fait durable sur la personne pour son profil. L'appel est soumis à la personne à chaque fois, le fait affiché ; rien n'est écrit avant son accord. Un champ du formulaire de profil est refusé. | `key`, `fact` |
 | `source_search` | Recherche dans les dossiers et fichiers indexés cochés pour l'agent, par mots-clés, et par le sens quand un modèle d'embeddings est installé. Chaque résultat porte son extrait, son document, son emplacement, son score et sa source, et la réponse dit comment elle a été classée. Une source non cochée est refusée. | `query`, `sources`, `limit` (de 1 à 50) |
 
 Chacun de ces outils n'est proposé à un agent que si sa source est cochée pour
-lui : `memory_search` quand sa mémoire l'est, `source_search` quand au moins un
-dossier ou un fichier indexé l'est. La mémoire de l'agent Apollia est un seul
-espace, gardé d'une conversation à l'autre.
+lui, quoi que listent ses accès : `memory_search` et `memory_write` quand sa
+mémoire l'est, `profile_propose` quand le profil l'est, `source_search` quand au
+moins un dossier ou un fichier indexé l'est. Cocher Mémoire sur la fiche d'un
+agent est ce qui ouvre sa mémoire, en lecture et en écriture, et aucun des deux
+outils de mémoire ne demande d'accord : ils agissent sur l'espace propre de
+l'agent. La mémoire d'un agent est un seul espace, nommé d'après l'agent et
+gardé d'une conversation et d'une tâche à l'autre.
 
 La récupération de mémoire est toujours à l'initiative de l'agent : le
 runtime n'injecte jamais de mémoire dans le prompt d'un agent. L'assistant

@@ -60,9 +60,9 @@ Choisissez la surface adaptée à votre déploiement :
   permissions réservées au propriétaire. Votre hôte lit ce fichier et
   transmet le jeton.
 
-Quand le runtime est embarqué, il ne se lie par défaut qu'au socket Unix et
-n'ouvre aucun port TCP sauf si vous en configurez un. S'il se lie tout de
-même à TCP, le jeton y est exigé aussi.
+Le runtime que l'application desktop embarque se lie lui aussi aux deux
+surfaces : le socket Unix, et un port TCP sur `127.0.0.1` (`[api] port`, 7771
+par défaut) où le jeton est exigé.
 
 ## Utiliser un client généré
 
@@ -84,10 +84,7 @@ propres sources TypeScript : dépendez de `clients/ts` par chemin (une dépendan
 compiler ; il tire `openapi-fetch`. `clients/python` est généré avec `--meta none` : il ne porte donc pas de
 `pyproject.toml` et `pip install` n'a rien à lire. Placez son répertoire parent
 sur `PYTHONPATH` ou copiez `clients/python/apollia_runtime_client` dans votre
-projet, et installez `httpx` et `attrs` vous-même. Une étape vient avant, car un
-clone frais ne porte pas tout le paquet : une règle `models/` du `.gitignore`
-exclut le répertoire `models/` du client, exécutez donc `bash clients/regen.sh`
-pour le générer avant le premier import.
+projet, et installez `httpx` et `attrs` vous-même.
 
 ### TypeScript
 
@@ -103,14 +100,16 @@ const health = await apollia.GET("/api/v1/health");
 
 const submit = await apollia.POST("/api/v1/tasks", {
   body: {
-    agent_id: "echo",
+    agent_id: "coach",
     input: { parts: [{ type: "text", text: "hello from the host" }] },
   },
 });
 ```
 
 Chaque opération est typée contre le contrat, si bien que la forme des
-requêtes et des réponses est vérifiée à la compilation.
+requêtes et des réponses est vérifiée à la compilation. `agent_id` nomme un
+agent installé ; `coach` est celui que construit
+[Votre premier agent](/tutorials/your-first-agent).
 
 ### Python
 
@@ -124,7 +123,7 @@ token = (pathlib.Path.home() / ".apollia" / "api-token").read_text().strip()
 client = AuthenticatedClient(base_url="http://127.0.0.1:7771", token=token)
 
 resp = submit_task.sync(client=client, body=SubmitTaskRequest(
-    agent_id="echo",
+    agent_id="coach",
     input_=SubmitTaskRequestInput.from_dict(
         {"parts": [{"type": "text", "text": "hello"}]}
     ),
@@ -153,14 +152,6 @@ bash clients/regen.sh
 # Ou actualisez d'abord la spécification depuis un daemon en cours d'exécution :
 bash clients/regen.sh --from-daemon
 ```
-
-## Limitation connue
-
-Trois endpoints acceptent un corps de requête brut, sans schéma JSON, et ne
-sont donc pas exposés comme des méthodes de client typées :
-`PUT /api/v1/stt/config`, `POST /api/v1/stt/transcribe` et
-`POST /webhooks/{id}`. Ils restent présents dans la spécification et peuvent
-être appelés directement avec un client HTTP classique si besoin.
 
 ## Voir aussi
 

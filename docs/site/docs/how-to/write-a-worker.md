@@ -96,9 +96,9 @@ Notes on the contract:
 ## What `ctx` gives a tool
 
 A tool runs with a bare context: `ctx.logger`, which reports under the name of
-the agent that called it, and `ctx.agent_name`. It carries no memory and no user
-profile, and `ctx.llm` and `ctx.tools` are `None`: reasoning and calling other
-tools belong to the agent, which runs the loop. A tool does one thing and returns.
+the agent that called it. It carries no memory and no user profile, and
+`ctx.llm` and `ctx.tools` are `None`: reasoning and calling other tools belong
+to the agent, which runs the loop. A tool does one thing and returns.
 
 ## Describe the tool in the manifest
 
@@ -145,14 +145,21 @@ and key is in the [package manifest reference](/reference/package-manifest).
 ```bash
 apollia-os package build pdf-reader
 apollia-os package install pdf-reader-0.1.0.apo --confirm-deps
-apollia-os run pdf-reader "How many pages are in /tmp/report.pdf?"
 ```
 
 `package build` validates the manifest and writes the archive without running
 any Python. `package install` needs the runtime; `--confirm-deps` accepts the
-Python dependencies the package installs. The agent then answers by calling
-`count_pages`. Because the family is `read_personal`, the call is a sensitive
-one: you are asked before it runs, unless you already authorised it.
+Python dependencies the package installs. The runtime reads the tools of the
+installed packages when it starts, so restart it: run `apollia-os stop`, then
+start it again. Then send the agent a request:
+
+```bash
+apollia-os run pdf-reader "How many pages are in /tmp/report.pdf?"
+```
+
+The agent answers by calling `count_pages`. Because the family is
+`read_personal`, the call is a sensitive one: you are asked before it runs,
+unless you already authorised it.
 
 ## Variation: an optional input
 

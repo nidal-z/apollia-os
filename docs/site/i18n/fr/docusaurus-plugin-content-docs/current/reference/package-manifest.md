@@ -189,7 +189,7 @@ enfreinte est signalée, et le paquet n'est ni construit ni installé.
 | Règle | Message |
 | --- | --- |
 | Le paquet déclare au moins un agent, un workflow ou un outil. | `the package declares no agent, no workflow and no tool` |
-| Le nom du paquet, chaque identifiant et chaque nom de serveur MCP respectent `[a-z0-9_-]+`. | `` `<field>` value `<value>` must match [a-z0-9_-]+ `` |
+| Le nom du paquet, chaque identifiant et chaque nom de serveur MCP respectent `[a-z0-9_-]+`. | `` `<field>` value `<value>` must match [a-z0-9_-]+ ``, ou `` MCP server name `<name>` must match [a-z0-9_-]+ `` pour un serveur MCP |
 | `version` est semver. | `` package version `<value>` is not semver `` |
 | `sdk` est une contrainte semver. | `` sdk requirement `<value>` is not a semver requirement `` |
 | Agents, outils et workflows partagent un seul espace de noms, sans doublon. Les identifiants de déclencheur sont uniques, les noms de serveur MCP aussi. | `` identifier `<id>` is declared more than once `` |

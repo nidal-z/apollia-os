@@ -230,8 +230,10 @@ apollia-os package preview coach-0.1.0.apo
 apollia-os package install coach-0.1.0.apo
 ```
 
-Un paquet non signé s'installe avec un avertissement. Vérifiez que l'agent est
-là :
+Un paquet non signé s'installe avec un avertissement. Le runtime lit les outils
+des paquets installés à son démarrage : redémarrez-le donc, avec
+`apollia-os stop`, puis en le relançant dans son terminal par
+`apollia-os start --port 7771`. Vérifiez que l'agent est là :
 
 ```sh
 apollia-os agent list --definitions

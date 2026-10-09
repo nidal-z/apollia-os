@@ -97,7 +97,7 @@ Remarques sur le contrat :
 ## Ce que `ctx` donne à un outil
 
 Un outil s'exécute avec un contexte nu : `ctx.logger`, qui journalise sous le
-nom de l'agent qui l'a appelé, et `ctx.agent_name`. Il ne porte ni mémoire ni
+nom de l'agent qui l'a appelé. Il ne porte ni mémoire ni
 profil de l'utilisateur, et `ctx.llm` et `ctx.tools` valent `None` : raisonner et
 appeler d'autres outils reviennent à l'agent, qui tient la boucle. Un outil fait
 une chose et rend la main.
@@ -148,13 +148,19 @@ Chaque table et chaque clé figurent dans la
 ```bash
 apollia-os package build pdf-reader
 apollia-os package install pdf-reader-0.1.0.apo --confirm-deps
-apollia-os run pdf-reader "How many pages are in /tmp/report.pdf?"
 ```
 
 `package build` valide le manifeste et écrit l'archive sans exécuter de Python.
 `package install` a besoin du runtime ; `--confirm-deps` accepte les
-dépendances Python que le paquet installe. L'agent répond alors en appelant
-`count_pages`. Comme la famille est `read_personal`, l'appel est sensible : une
+dépendances Python que le paquet installe. Le runtime lit les outils des
+paquets installés à son démarrage : redémarrez-le donc, avec `apollia-os stop`,
+puis en le relançant. Envoyez ensuite une demande à l'agent :
+
+```bash
+apollia-os run pdf-reader "How many pages are in /tmp/report.pdf?"
+```
+
+L'agent répond en appelant `count_pages`. Comme la famille est `read_personal`, l'appel est sensible : une
 question vous est posée avant qu'il ne s'exécute, sauf si vous l'avez déjà
 autorisé.
 

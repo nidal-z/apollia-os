@@ -47,8 +47,7 @@ resubscribe. They keep the half of the rule that is reachable, the `WARN`.
 ## The catalogue
 
 Before the table, one caveat it does not carry. `HookDecisionRecorded` reports
-the decision of a `PreToolUse` hook, and `PreToolUse` is outside the supported
-surface of `v0.1.0-preview`. Its decision is applied best effort: a handler that
+the decision of a `PreToolUse` hook. That decision is applied best effort: a handler that
 times out, fails to deliver, or answers with something unparseable falls back to
 `allow`, and the tool call proceeds.
 

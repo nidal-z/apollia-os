@@ -113,10 +113,11 @@ The form follows the order in which the `TypedDict` declares its inputs.
 
 ## What a step can do
 
-The `ctx` of a workflow carries four things beyond the logger:
+The `ctx` of a workflow carries five things beyond the logger:
 
 | Call | Does |
 | --- | --- |
+| `await ctx.llm.complete(messages, ...)` | Calls the model once, on the messages given. With `schema` the answer is constrained and validated; `max_tokens` bounds it; `thinking=False` keeps a model that reasons from spending that bound on its reasoning. Each run may make as many model calls as `[workflows] max_steps` allows. |
 | `await ctx.agents.run(agent_id, message)` | Hands `message` to an installed agent as the first turn of a fresh conversation, under the grants of that agent, and returns its final answer. |
 | `await ctx.workflows.run(workflow_id, inputs)` | Runs another workflow and returns what it returned. `workflow_id` is `<package>/<workflow>`, or the bare name of a workflow of the same package. Three levels deep at most. |
 | `await ctx.user.ask(question, options=..., hint=...)` | Stops the run on a question until the user answers. See [Pause a workflow for human input](/how-to/human-in-the-loop). |
@@ -125,10 +126,11 @@ The `ctx` of a workflow carries four things beyond the logger:
 An agent or a workflow started from a step runs nested in the run: it is stopped
 with it and spends from its budget.
 
-`ctx.llm` and `ctx.tools` are `None` in a workflow: the model and the tools are
-reached through an agent. A step that needs reasoning, or a tool, hands the
-message to an agent with `ctx.agents.run`, and that agent works with the tools
-it was granted.
+`ctx.tools` is `None` in a workflow: the tools are reached through an agent. A
+step that needs a tool hands the message to an agent with `ctx.agents.run`, and
+that agent works with the tools it was granted. A step that only needs the
+model calls `ctx.llm` itself. `ctx.llm` is `None` when the runtime has no model
+configured at all.
 
 ## Describe, build and run
 
@@ -141,7 +143,9 @@ apollia-os package install invoices-1.2.0.apo
 `describe` writes the `[[workflows]]` entry of `apollia.toml` from the
 decorator: name, module, description, action family, input schema and steps.
 
-Then read the workflow as Apollia sees it, and run it:
+The runtime reads the workflows of the installed packages when it starts, so
+restart it after the install: run `apollia-os stop`, then start it again. Then
+read the workflow as Apollia sees it, and run it:
 
 ```bash
 apollia-os workflow show invoices/monthly-reminders

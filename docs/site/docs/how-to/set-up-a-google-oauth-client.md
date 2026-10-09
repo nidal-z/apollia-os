@@ -134,19 +134,21 @@ do not commit it to a repository.
 
 ## Step 5. Hand the client to Apollia
 
-1. In Apollia, open **Settings**, then **OAuth integrations**.
-2. On the **Google Workspace** card, click **Import JSON** and select the file
-   you downloaded. The client ID and the client secret are read from it and
-   written to `~/.apollia/oauth-clients.toml`, a file readable by your user only.
-3. Click **Test configuration**. It should report the client present,
-   well-formed, and Google's authorization server reachable.
+1. In Apollia, open **Connections**, click **Add a connection** and choose
+   **Google Workspace**. Its page opens on the **Accounts** tab, which carries
+   the **Google client** section.
+2. Click **Import the client JSON** and select the file you downloaded. The
+   client ID and the client secret are read from it: the client ID is written to
+   `~/.apollia/oauth-clients.toml`, the client secret to the system keychain,
+   never to a file.
+3. Click **Test the client**. It should answer **Configuration looks valid.**
 
-If you would rather type the two values by hand, the fields on the same card
-accept them directly. The client ID ends in `.apps.googleusercontent.com` and the
-secret starts with `GOCSPX-`.
+If you would rather type the two values by hand, the **Client ID** and **Client
+secret** fields of the same section accept them directly. The client ID ends in
+`.apps.googleusercontent.com` and the secret starts with `GOCSPX-`.
 
-You are done in the console. To connect an account, go to **Connections**,
-select **Google Workspace**, and follow
+You are done in the console. To connect an account, stay on the **Google
+Workspace** page and follow
 [Connect Google Workspace](/operator-help/integrations/connect-google-workspace).
 
 ## What Testing status costs you
@@ -199,7 +201,7 @@ no one else's usage can throttle or get suspended.
   type; you cannot change the type of an existing one.
 - **Apollia refuses to connect and names a missing secret**: the client ID was
   entered by hand without its secret. Import the JSON file instead, or paste the
-  secret into the second field.
+  secret into the **Client secret** field.
 - **An agent gets a permission error on one service only**: that service's API
   was never enabled in step 2. Enable it and retry, no reconnection needed.
 - **You are asked to reconnect every week**: expected in Testing status, see

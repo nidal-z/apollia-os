@@ -118,7 +118,7 @@ forme `YYYY-MM-DD` est lue comme une `date`. Lancez ces tests avec `pytest`,
 comme n'importe quels tests Python.
 
 `MockContext` simule plus de services que le runtime n'en attache aujourd'hui à
-un outil ou à un workflow : `ctx.llm` et `ctx.tools` y valent `None`. Un test qui
+un outil ou à un workflow : `ctx.tools` vaut `None` dans les deux, et `ctx.llm` dans un outil. Un test qui
 passe par eux prouve la logique de votre fonction, pas que le service est
 joignable là où la fonction s'exécute.
 

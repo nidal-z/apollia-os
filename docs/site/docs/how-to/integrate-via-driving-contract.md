@@ -55,9 +55,9 @@ Choose the surface that fits your deployment:
   `~/.apollia/api-token` with owner-only permissions. Your host reads that file
   and sends the token.
 
-When the runtime is embedded, it binds the Unix socket only by default and does
-not open a TCP port unless you configure one. If it does bind TCP, the token is
-enforced there too.
+The runtime the desktop application embeds binds both surfaces too: the Unix
+socket, and a TCP port on `127.0.0.1` (`[api] port`, 7771 by default) where the
+token is enforced.
 
 ## Use a generated client
 
@@ -78,10 +78,7 @@ declares its entry point as its own TypeScript sources, so depend on
 bundler compile it; it pulls `openapi-fetch`. `clients/python` is generated with `--meta none`, so it carries
 no `pyproject.toml` and `pip install` has nothing to read: put its parent
 directory on `PYTHONPATH` or copy `clients/python/apollia_runtime_client` into
-your project, and install `httpx` and `attrs` yourself. One step comes first,
-because a fresh clone does not carry the whole package: a `models/` rule in
-`.gitignore` excludes the client's own `models/` directory, so run
-`bash clients/regen.sh` to generate it before the first import.
+your project, and install `httpx` and `attrs` yourself.
 
 ### TypeScript
 
@@ -97,14 +94,15 @@ const health = await apollia.GET("/api/v1/health");
 
 const submit = await apollia.POST("/api/v1/tasks", {
   body: {
-    agent_id: "echo",
+    agent_id: "coach",
     input: { parts: [{ type: "text", text: "hello from the host" }] },
   },
 });
 ```
 
 Every operation is typed against the contract, so request and response shapes
-are checked at compile time.
+are checked at compile time. `agent_id` names an installed agent; `coach` is
+the one [Your first agent](/tutorials/your-first-agent) builds.
 
 ### Python
 
@@ -118,7 +116,7 @@ token = (pathlib.Path.home() / ".apollia" / "api-token").read_text().strip()
 client = AuthenticatedClient(base_url="http://127.0.0.1:7771", token=token)
 
 resp = submit_task.sync(client=client, body=SubmitTaskRequest(
-    agent_id="echo",
+    agent_id="coach",
     input_=SubmitTaskRequestInput.from_dict(
         {"parts": [{"type": "text", "text": "hello"}]}
     ),
@@ -145,14 +143,6 @@ bash clients/regen.sh
 # Or refresh the spec from a running daemon first:
 bash clients/regen.sh --from-daemon
 ```
-
-## Known limitation
-
-Three endpoints take a raw, non-JSON-schema request body and are therefore not
-exposed as typed client methods: `PUT /api/v1/stt/config`,
-`POST /api/v1/stt/transcribe`, and `POST /webhooks/{id}`. They remain in the
-specification and can be called directly with a plain HTTP client if you need
-them.
 
 ## Related
 

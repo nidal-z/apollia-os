@@ -14,9 +14,9 @@ analyser et aucune expression régulière à maintenir.
 ## Où `ctx.llm` est joignable
 
 `ctx.llm` est un service que le runtime peut laisser non attaché, et il vaut
-alors `None` : la [référence `ctx.llm`](/reference/sdk/llm) le dit. Sur les
-binaires livrés aujourd'hui, il n'est pas attaché au contexte d'un outil ni à
-celui d'un workflow, où le modèle se joint par un agent, avec `ctx.agents.run`.
+alors `None` : la [référence `ctx.llm`](/reference/sdk/llm) le dit. Il est
+attaché au contexte d'un workflow dès que le runtime a un modèle configuré, et
+pas à celui d'un outil, qui joint le modèle par l'agent qui l'a appelé.
 Cette page décrit le contrat de l'appel là où le service est attaché, et c'est
 aussi ce que sert `MockContext` dans un test unitaire.
 

@@ -50,7 +50,7 @@ pinning it would defeat every switch made there.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `APOLLIA_TOKEN_STORAGE` | `keyring` | `keyring` uses the OS keychain. `file` stores secrets as `age`-encrypted files under `~/.apollia/secrets/`, for a headless Linux host where no keyring daemon is reachable. Connector OAuth tokens are outside this switch: they are written to the OS keyring whatever the value here, so a host with no reachable keyring cannot hold them. |
+| `APOLLIA_TOKEN_STORAGE` | `keyring` | `keyring` uses the OS keychain. `file` stores secrets as `age`-encrypted files under `~/.apollia/secrets/`, for a headless Linux host where no keyring daemon is reachable. Connector OAuth tokens follow this switch like every other secret: with `file`, the Google and Microsoft tokens are written there too. Any other value is refused. |
 | `APOLLIA_TOKEN_PASSPHRASE` | none | Passphrase for the `file` backend. **Mandatory when `APOLLIA_TOKEN_STORAGE=file`**: startup fails fast without it, rather than falling back to something weaker. |
 
 ## Connector OAuth clients
@@ -69,15 +69,18 @@ cannot hold. See
 [Connect Google Workspace](/operator-help/integrations/connect-google-workspace)
 and [Set up a Google OAuth client](/how-to/set-up-a-google-oauth-client).
 
-Either way, the supported route is Settings → OAuth integrations, which writes
-`~/.apollia/oauth-clients.toml`.
+Either way, the supported route is the page of the connection, in Connections.
+The client id entered there is written to `~/.apollia/oauth-clients.toml`; the
+client secret and the Google API key go to the secret store selected above,
+never to that file.
 
 <!-- claim:oauth-client-resolution-order -->
-The variables below are the third way in, ahead of that file, for a shell
-session, a CI job, or a host with no interface. They are read at process start,
-so they only reach an Apollia launched from the shell that exported them.
-Resolution order for each credential: environment variable, then
-`oauth-clients.toml`, then the build-time constant.
+The variables below are the other way in, ahead of what the page saved, for a
+shell session, a CI job, or a host with no interface. They are read at process
+start, so they only reach an Apollia launched from the shell that exported them.
+Resolution order for each credential: environment variable, then the value the
+page saved (`oauth-clients.toml` for a client id, the secret store for a secret
+or an API key), then the build-time constant.
 
 | Variable | Effect |
 |---|---|
@@ -89,11 +92,32 @@ Resolution order for each credential: environment variable, then
 | `APOLLIA_MICROSOFT_API_KEY` | API key, same role as above. Unused today. |
 | `APOLLIA_FIGMA_CLIENT_ID` | Client id for the Figma connector. |
 
+## Connections
+
+| Variable | Default | Effect |
+|---|---|---|
+| `APOLLIA_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | Address of the MCP registry the public catalogue is read from. Set it to point Apollia at a private registry. An empty value leaves the default in place. |
+| `APOLLIA_IMAP_PASSWORD` | none | Application password read by `apollia-os connector imap` when `--password-stdin` is not given. The password is never taken from the command line. |
+
+## Python and the MLX engine
+
+Paths that depend on the machine. A packaged install sets or finds them on its
+own; they matter when Apollia runs from a source tree or beside a bundle that is
+not where it expects it.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `APOLLIA_BUNDLED_PYTHON` | found beside the executable | Absolute path of the bundled Python interpreter. The desktop application exports it at startup. |
+| `APOLLIA_PYTHON_BUNDLE_DIR` | found beside the executable | Directory the bundled Python interpreter sits in. The command-line launchers export it instead of the variable above; both are read. |
+| `APOLLIA_MLX_ENGINE_DIR` | the newest MLX environment installed, else the bundled one | Directory holding the packages of the MLX engine. |
+| `APOLLIA_MLX_PYTHON` | the bundled interpreter | Python interpreter the MLX engine runs on. |
+
 ## Diagnostics
 
 | Variable | Default | Effect |
 |---|---|---|
 | `APOLLIA_PERF_TRACE` | unset | Path to a file receiving a per-turn performance record. Unset means no file is written and no provenance is gathered; the summary is emitted at `INFO` either way. |
+| `APOLLIA_PERF_MODEL_SHA256` | unset | Digest of the model file, written as given into the performance record instead of being computed. For a measurement campaign that reloads the same large model many times. |
 | `RUST_LOG` | `apollia=info` | Standard `tracing` filter. `apollia=trace` is what makes `[llm.observability] debug_log_prompt` visible; see [Configuration](/reference/configuration). |
 
 ## Desktop automation
@@ -101,12 +125,15 @@ Resolution order for each credential: environment variable, then
 `APOLLIA_AUTOMATION`, `APOLLIA_AUTOMATION_OUT` and
 `APOLLIA_AUTOMATION_ALLOW_DESTRUCTIVE` drive the development-only gestural test
 harness. They have no effect in a release build, where the harness is compiled
-out.
+out. `APOLLIA_POLICY_DIR`, which points the runtime at another organisation
+policy folder, follows the same rule: it is read in debug builds only.
 
 ## Not read by the runtime
 
 `APOLLIA_BUILD_*` variables are read at compile time, not at runtime; setting
-one before launching Apollia does nothing.
+one before launching Apollia does nothing. `APOLLIA_PYTHON` is of the same kind:
+it names the Python interpreter the desktop build runs to pack the documentation
+the application embeds.
 
 They are a hook for rebuilding Apollia from source against your own registered
 application, a fleet deployment being the obvious case: set them in the build

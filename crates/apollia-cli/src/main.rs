@@ -110,10 +110,10 @@ enum Commands {
 
     /// Submit a task to an agent and wait for the result.
     ///
-    /// Use the positional `<INPUT>` for free-text input (react/conversational
-    /// agents). For worker agents that expect a typed skill payload, use
-    /// `apollia-os a2a invoke <skill_id> --args '<JSON>'` instead, or pass
-    /// `--input-json '<JSON>'` here to override the default text wrapping.
+    /// Use the positional `<INPUT>` for free-text input. To send a structured
+    /// payload, pass `--input-json '<JSON>'` here, which overrides the default
+    /// text wrapping. To invoke a typed skill by its identifier, use
+    /// `apollia-os a2a invoke <skill_id> --args '<JSON>'` instead.
     Run {
         /// Agent identifier.
         agent_id: String,
@@ -158,7 +158,7 @@ enum Commands {
         autonomy: Option<String>,
     },
 
-    /// Agent management (list, start, stop, show, install, uninstall, enable, disable, update, create, package, logs, validate, repair).
+    /// Agent management (list, start, stop, show, set, reset, export, status, messages, uninstall, enable, disable, package, logs).
     Agent {
         /// Agent subcommand.
         #[command(subcommand)]
@@ -197,7 +197,7 @@ enum Commands {
         command: ToolsCommand,
     },
 
-    /// Audit trail (list, stats, export, verify, show, replay).
+    /// Audit trail (journal, export, verify, anchor, replay, show).
     Audit {
         /// Audit subcommand.
         #[command(subcommand)]

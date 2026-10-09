@@ -116,10 +116,11 @@ Le formulaire suit l'ordre dans lequel le `TypedDict` déclare ses entrées.
 
 ## Ce qu'une étape peut faire
 
-Le `ctx` d'un workflow porte quatre choses en plus du journal :
+Le `ctx` d'un workflow porte cinq choses en plus du journal :
 
 | Appel | Effet |
 | --- | --- |
+| `await ctx.llm.complete(messages, ...)` | Appelle le modèle une fois, sur les messages donnés. Avec `schema`, la réponse est contrainte et validée ; `max_tokens` la borne ; `thinking=False` évite qu'un modèle qui raisonne dépense cette borne dans son raisonnement. Chaque exécution peut faire autant d'appels au modèle que `[workflows] max_steps` le permet. |
 | `await ctx.agents.run(agent_id, message)` | Confie `message` à un agent installé comme premier tour d'une conversation neuve, sous les accès de cet agent, et renvoie sa réponse finale. |
 | `await ctx.workflows.run(workflow_id, inputs)` | Lance un autre workflow et renvoie ce qu'il a renvoyé. `workflow_id` vaut `<paquet>/<workflow>`, ou le nom seul d'un workflow du même paquet. Trois niveaux d'imbrication au plus. |
 | `await ctx.user.ask(question, options=..., hint=...)` | Arrête l'exécution sur une question jusqu'à la réponse de l'utilisateur. Voir [Mettre un workflow en pause pour une décision humaine](/how-to/human-in-the-loop). |
@@ -128,10 +129,11 @@ Le `ctx` d'un workflow porte quatre choses en plus du journal :
 Un agent ou un workflow lancé depuis une étape s'exécute imbriqué dans
 l'exécution : il est arrêté avec elle et puise dans son budget.
 
-`ctx.llm` et `ctx.tools` valent `None` dans un workflow : le modèle et les outils
-se joignent par un agent. Une étape qui a besoin de raisonnement, ou d'un outil,
-confie le message à un agent avec `ctx.agents.run`, et cet agent travaille avec
-les outils qui lui ont été accordés.
+`ctx.tools` vaut `None` dans un workflow : les outils se joignent par un agent.
+Une étape qui a besoin d'un outil confie le message à un agent avec
+`ctx.agents.run`, et cet agent travaille avec les outils qui lui ont été
+accordés. Une étape qui n'a besoin que du modèle appelle `ctx.llm` elle-même.
+`ctx.llm` vaut `None` quand le runtime n'a aucun modèle configuré.
 
 ## Décrire, construire et exécuter
 
@@ -145,7 +147,9 @@ apollia-os package install invoices-1.2.0.apo
 décorateur : nom, module, description, famille d'action, schéma d'entrée et
 étapes.
 
-Lisez ensuite le workflow tel qu'Apollia le voit, puis lancez-le :
+Le runtime lit les workflows des paquets installés à son démarrage :
+redémarrez-le donc après l'installation, avec `apollia-os stop`, puis en le
+relançant. Lisez ensuite le workflow tel qu'Apollia le voit, puis lancez-le :
 
 ```bash
 apollia-os workflow show invoices/monthly-reminders

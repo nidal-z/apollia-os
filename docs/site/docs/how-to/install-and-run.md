@@ -19,7 +19,7 @@ Every command runs from the repository root unless stated otherwise.
 
 ## Prerequisites
 
-The runtime needs a Rust toolchain, Python, and Git on every platform. The
+The build needs a Rust toolchain, Python, and Git on every platform. The
 desktop app adds Node.js, the `cargo tauri` CLI, and a per-OS webview toolchain.
 Install the shared tools first, then the OS-specific section for your machine.
 
@@ -30,11 +30,10 @@ Install the shared tools first, then the OS-specific section for your machine.
   `rust-toolchain.toml`; `rustup` reads that pin and installs the matching
   toolchain automatically the first time you build inside the checkout, so you do
   not select a version by hand.
-- **Python 3.13**, available as `python3`. The runtime embeds Python to load
-  agents, and the SDK installs into it. The checkout declares the exact version in
+- **Python 3.13**, available as `python3`. The runtime embeds Python to run
+  the tools and workflows of packages, and the SDK installs into it. The checkout declares the exact version in
   `.python-version`.
-- **Git.** Required to clone the repository and to install agents from a Git URL
-  later.
+- **Git.** Required to clone the repository.
 - **For the desktop app only: Node.js 20 or newer** (the project builds the UI on
   Node 22) with `npm`, and the `cargo tauri` CLI:
 
@@ -160,12 +159,14 @@ that engine has to be on your `PATH`, covered in the last section.
 
 ## Step 2: install the SDK
 
-Agents are Python. Install the `apollia` package in editable mode into the same
-interpreter the runtime uses.
+An agent is a record declared in the `apollia.toml` of a package; the Python a
+package brings is its tools and its workflows, written with the SDK. Install
+the `apollia` package in editable mode into the same interpreter the runtime
+uses.
 
 Create a virtual environment first. Homebrew, Debian and Fedora ship Python as an
 externally managed environment (PEP 668): installing into it directly stops with
-`error: externally-managed-environment`, and the runtime loads agents from the
+`error: externally-managed-environment`, and the runtime runs the Python of packages with the
 interpreter it finds on `PATH`, so the environment you activate here is the one it
 will use.
 
@@ -249,13 +250,21 @@ descriptor rather than the socket's `0600`.
 
 ## Step 5: run an agent
 
-An agent ships in a package. Write the starting package, build it, install it,
-then send its agent a task:
+An agent ships in a package. Write the starting package, build it and install
+it:
 
 ```sh
 apollia-os package new hello
 apollia-os package build hello
 apollia-os package install hello-0.1.0.apo
+```
+
+The starting package brings one agent and one Python tool. The runtime reads
+the tools of the installed packages when it starts, so restart it: run
+`apollia-os stop`, then start it again in the first terminal with the command
+of step 4. Then send the agent a task:
+
+```sh
 apollia-os run hello "hello from Apollia"
 ```
 
@@ -314,7 +323,7 @@ Each recipe accepts two optional arguments:
 | Argument | Role | Default (macOS / Linux / Windows) |
 |---|---|---|
 | `target` | Rust triple passed to `cargo tauri build` | `aarch64-apple-darwin` / `x86_64-unknown-linux-gnu` / `x86_64-pc-windows-msvc` |
-| `runners` | Space-separated list of runner backends to build and bundle | `cpu metal` / `cpu` / `cpu vulkan` |
+| `runners` | Space-separated list of runner backends to build and bundle | `cpu metal` / `cpu` / `cpu` |
 
 The `runners` value controls two things:
 
@@ -414,8 +423,10 @@ engine on your `PATH` to resolve it.
 There is no download command for models. Obtain a `.gguf` file yourself (for
 example from a model hub) and place it in `~/.apollia/models/`, then point a local
 backend at it with `apollia-os llm setup --local --model <path.gguf>`. The `model`
-subcommands (`list`, `search`, `show`, `hardware`, `delete`) inspect and manage the
-models already present; see the [CLI reference](/reference/cli).
+subcommands list and delete the files already present (`list`, `delete`),
+query the Hugging Face registry (`search`, `show`), report the hardware and
+rank the models this machine should run (`hardware`, `recommend`), and choose
+the embeddings model (`embeddings`); see the [CLI reference](/reference/cli).
 
 Speech-to-text is a separate, optional component. The `apollia-runner` sidecar,
 built with a `local-*` feature (`local-metal`, `local-cpu`, `local-cuda`,

@@ -189,7 +189,7 @@ reported, and the package is neither built nor installed.
 | Rule | Message |
 | --- | --- |
 | The package declares at least one agent, workflow or tool. | `the package declares no agent, no workflow and no tool` |
-| The package name, every identifier and every MCP server name match `[a-z0-9_-]+`. | `` `<field>` value `<value>` must match [a-z0-9_-]+ `` |
+| The package name, every identifier and every MCP server name match `[a-z0-9_-]+`. | `` `<field>` value `<value>` must match [a-z0-9_-]+ ``, or `` MCP server name `<name>` must match [a-z0-9_-]+ `` for an MCP server |
 | `version` is semver. | `` package version `<value>` is not semver `` |
 | `sdk` is a semver requirement. | `` sdk requirement `<value>` is not a semver requirement `` |
 | Agents, tools and workflows share one namespace with no duplicate. Trigger identifiers are unique, and so are MCP server names. | `` identifier `<id>` is declared more than once `` |

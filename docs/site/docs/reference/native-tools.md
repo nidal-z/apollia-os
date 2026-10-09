@@ -26,9 +26,11 @@ append-only register, readable with `audit show <run>` and checkable with
 assistant message carries, serialized into the `tool_calls_json` column of
 `chat_messages`, which is not an audited record.
 
-An agent reaches these tools through `ctx.tools`, or has them handed to a ReAct
-loop via `ctx.tools.describe(<name>)`. Each call is dispatched by the canonical
-tool name listed below.
+An agent is granted these tools by name, in its access list: `access` under
+`[agents.defaults]` in the [package manifest](/reference/package-manifest),
+which the person can change on the sheet of the agent. Each call is dispatched
+by the canonical tool name listed below. The Python of a package does not call
+them: `ctx.tools` is `None` in a tool and in a workflow.
 
 ## List the effective state
 
@@ -66,7 +68,7 @@ credential.
 | `http_fetch` | `http` | none |
 | `web_search` | `web-search` | `brave.api_key` (optional; falls back to DuckDuckGo) |
 | `web_read` | `web-read` | none |
-| `memory_search` | `memory-search` | none |
+| `memory_search`, `memory_write`, `profile_propose` | `memory-search` | none |
 | all other native tools | always compiled | none |
 
 `python_executor` requires a system Python 3 on the host (see the platform
@@ -184,12 +186,17 @@ and is treated as data, not instructions.
 | Tool | Purpose | Key parameters |
 |---|---|---|
 | `memory_search` | Full-text search (FTS5, BM25 ranking) over the agent's own namespace and declared shared namespaces. FTS5 operators are escaped automatically. | `query`, `namespace`, `limit`, `source` |
+| `memory_write` | Keeps a note in the agent's own memory under a key (`remember`), replacing what the key held, or drops it (`forget`). Only the agent's own namespace is written. | `action`, `key`, `value` |
+| `profile_propose` | Proposes one lasting fact about the person for their profile. The call is put to the person every time, with the fact shown; nothing is written before they accept. A field of the profile form is refused. | `key`, `fact` |
 | `source_search` | Search of the indexed folders and files checked for the agent, by keywords, and by meaning when an embeddings model is installed. Each result carries its excerpt, document, location, score and source, and the answer says how it was ranked. A source that is not checked is refused. | `query`, `sources`, `limit` (1 to 50) |
 
 Each of these tools is offered to an agent only when its source is checked
-for it: `memory_search` when its memory is, `source_search` when at least one
-indexed folder or file is. The Apollia agent's memory is one space, kept across
-its conversations.
+for it, whatever its access lists: `memory_search` and `memory_write` when its
+memory is, `profile_propose` when the profile is, `source_search` when at least
+one indexed folder or file is. Checking Memory on the sheet of an agent is what
+opens its memory, to read and to write, and neither memory tool asks for
+consent: they act on the agent's own space. The memory of an agent is one
+space, named after the agent and kept across its conversations and its tasks.
 
 Memory retrieval is always agent-initiated: the runtime never injects memory into
 an agent's prompt. The built-in conversational assistant is the exception, and

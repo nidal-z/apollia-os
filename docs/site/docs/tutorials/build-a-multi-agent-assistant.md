@@ -379,12 +379,20 @@ With the runtime started and a model configured, as in the first tutorial:
 ```sh
 apollia-os package preview meeting-prep-0.1.0.apo
 apollia-os package install meeting-prep-0.1.0.apo
-apollia-os workflow show meeting-prep/prepare-meeting
 ```
 
 `preview` lists, for each agent, the accesses it asks for and what each one
-permits. `workflow show` prints the steps and each input with its type, read
-from the manifest.
+permits. The runtime reads the tools and the workflows of the installed
+packages when it starts, so restart it: run `apollia-os stop`, then start it
+again in its terminal with `apollia-os start --port 7771`. Then read the
+workflow as the runtime sees it:
+
+```sh
+apollia-os workflow show meeting-prep/prepare-meeting
+```
+
+`workflow show` prints the steps and each input with its type, read from the
+manifest.
 
 ## Step 6: run it
 

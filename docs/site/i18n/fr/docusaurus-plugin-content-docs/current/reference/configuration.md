@@ -104,7 +104,7 @@ avertissement `config.key.retired`.
 | `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), la présence de réglages de chargement dans un preset (`preset_load_settings`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
 | `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, `chat_auto_naming` (`never`, `auto` ou `always`), `chat_debug_blocks`, `resource_widget`, les comportements du chat `chat_single_empty`, `chat_double_click_edit`, `chat_double_click_rename` et `chat_regenerate_shortcut`, les comportements généraux `model_load_window` et `preset_save_confirm`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
-| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, et `separate_reasoning_content`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`, `cors`, `serve_on_lan`, `allow_request_mcp`, et le chargement à la demande : `jit_loading`, `jit_auto_unload`, `jit_idle_ttl_minutes`, `jit_keep_last_only`, et `separate_reasoning_content`. |
 | `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`, `gguf`, `mlx`, `auto_update`, `auto_purge`). |
 | `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
@@ -732,7 +732,7 @@ finir avec des orthographes différentes de la même langue.
 
 <!-- claim:stt-api-language-is-per-request -->
 
-`POST /stt/transcribe` accepte aussi un champ `language`, qui ne s'applique
+`POST /api/v1/stt/transcribe` accepte aussi un champ `language`, qui ne s'applique
 qu'à cette requête et écrase la valeur enregistrée ; l'envoyer vide signifie
 détection automatique pour cette requête.
 

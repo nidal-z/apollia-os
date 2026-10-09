@@ -114,7 +114,7 @@ decorator did not declare is refused, and a date input given as `YYYY-MM-DD` is
 read as a `date`. Run these with `pytest` like any Python tests.
 
 `MockContext` mocks more services than the runtime attaches to a tool or to a
-workflow today: `ctx.llm` and `ctx.tools` are `None` there. A test that passes
+workflow today: `ctx.tools` is `None` in both, and `ctx.llm` in a tool. A test that passes
 through them proves the logic of your function, not that the service is
 reachable where the function runs.
 

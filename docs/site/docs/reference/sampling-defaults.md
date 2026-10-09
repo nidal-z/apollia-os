@@ -7,34 +7,84 @@ title: LLM sampling defaults
 
 <!-- claim:sampling-only-temperature-reaches-the-backend -->
 
-**One sampling parameter reaches a model: `temperature`.** A request carries
-`temperature`, `max_tokens`, `seed`, `model`, `messages`, `tools` and an optional
-grammar, and nothing else. `top_p`, `top_k` and `repetition_penalty` are not
-fields of a request; a backend never receives them. When a caller passes no
-`temperature`, the runtime sets none and the provider or `llama-server` applies
-its own default.
+A request to a model carries its sampling settings as optional fields. A field
+that is set is sent to the backend; a field left unset is not sent, and the
+provider or `llama-server` applies its own default. This page lists the fields,
+the names they travel under, and the levels of defaults that fill the fields a
+call leaves unset.
 
-That is the whole of what governs sampling today. The rest of this page describes
-machinery that exists and is not yet consumed, listed here because it is visible
-on disk and would otherwise look like a setting that works.
+## Request fields
 
-## Setting temperature
+Every backend is reached through the OpenAI-compatible chat completions
+protocol, the embedded `llama-server` included.
 
-Per call, through the SDK:
+| Field | Sent as | Protocol |
+|---|---|---|
+| `temperature` | `temperature` | OpenAI |
+| `max_tokens` | `max_tokens` | OpenAI |
+| `seed` | `seed` | OpenAI |
+| `top_p` | `top_p` | OpenAI |
+| `presence_penalty` | `presence_penalty` | OpenAI |
+| `frequency_penalty` | `frequency_penalty` | OpenAI |
+| `stop` | `stop` | OpenAI. An empty list sends nothing. |
+| `top_k` | `top_k` | `llama-server` extension |
+| `min_p` | `min_p` | `llama-server` extension |
+| `repeat_penalty` | `repeat_penalty` | `llama-server` extension |
+| `thinking`, `reasoning_effort` | `chat_template_kwargs` | `llama-server` extension, read by the chat template of the model |
+
+The three sampling extensions are written into the request body under the
+names `llama-server` reads, and they are sent to every backend when set, not
+only to the embedded engine. A remote server that does not know `top_k`,
+`min_p` or `repeat_penalty` does what it does with an unknown field, refusal
+included. Leave them unset for such a server.
+
+## Per call, from a workflow step
+
+`ctx.llm.complete` takes every field of the table except `reasoning_effort` as
+a keyword:
 
 ```python
-await ctx.llm.complete(messages=..., temperature=0.3)
+await ctx.llm.complete(messages, temperature=0.3, top_p=0.9, seed=7, stop=["END"])
 ```
 
-Per chat session, `[chat] tool_turn_temperature` applies to a turn that
-advertises tools, where a lower value makes tool selection steadier. See
+A call of a workflow step belongs to no agent, so none of the levels below
+applies to it: what the call sets is what is sent. One bound is added:
+`complete` sends `max_tokens = 4096` when the call sets none. `ctx.llm.chat`
+and `ctx.llm.stream` take `temperature`, `max_tokens` and `seed` only.
+
+## Levels of defaults for an agent
+
+Each model call of an agent turn starts from request settings resolved field
+by field. A level wins over the ones below it; a field it leaves unset keeps
+the value of the level below.
+
+| Level | Source | Fields |
+|---|---|---|
+| 4. Conversation | The settings typed for one conversation, which hold for it alone | `temperature`, `max_tokens` |
+| 3. Preset | The preset chosen for the conversation, else the one chosen for the agent, else the default preset of the model of the agent. A preset belongs to one model and counts only when the call runs on it | `temperature`, `max_tokens`, `top_p`, `top_k`, `min_p`, `presence_penalty`, `repeat_penalty`, `stop` |
+| 2. Package | `[agents.defaults.model.request]` in the [package manifest](/reference/package-manifest) | `temperature`, `top_p`, `top_k`, `repetition_penalty`, `max_tokens`, `seed` |
+| 1. Model | The defaults its publisher recommends, see the next section | `temperature`, `top_p`, `top_k`, `min_p`, `presence_penalty`, `repetition_penalty` |
+
+`temperature` has one more rule. When neither the conversation nor the preset
+sets it, a call that offers tools to the model uses `[chat]
+tool_turn_temperature` (0.3 when the key is unset), ahead of the package and
+the model levels. A lower value makes tool selection steadier. See
 [Configuration](/reference/configuration).
 
-## What exists but is not wired
+## Model defaults
 
-Downloading a GGUF from HuggingFace reads the model's published
-`generation_config.json` and writes the hyperparameters it finds into
-`~/.apollia/models/sampling-defaults.json`, a flat map from model key to fields:
+The model level is itself resolved from three sources, field by field, the
+first that answers winning:
+
+1. The model card copied next to the model file when it was downloaded.
+2. `~/.apollia/models/sampling-defaults.json`. A download from Hugging Face
+   reads the `generation_config.json` the model publishes and writes the
+   values it finds there, under the file name of the model. The file can also
+   be edited by hand.
+3. A table of twelve model families embedded in the binary, matched on the
+   architecture the GGUF header declares and on the name of the model.
+
+The file is a flat map from model file name to fields:
 
 ```json
 {
@@ -47,19 +97,16 @@ Downloading a GGUF from HuggingFace reads the model's published
 }
 ```
 
-The runtime also embeds a curated table of twelve entries covering the same
-families. **Neither is read at inference time.** The resolver that would consult
-them has no caller outside test code, so editing the file changes nothing today.
-It is written, not applied.
+A model none of the three knows gets no default from this level.
 
 ## Reproducibility
 
-**A run is not reproducible.** `ctx.llm.complete`, `chat` and `stream` accept a
-`seed`, and the value is carried as far as the request struct, but no backend
-reads it: there is no occurrence of `seed` in any backend implementation. Passing
-one is accepted and has no effect.
+`seed` reaches the backend, from a call or from the package level. Whether two
+runs with the same seed produce the same text depends on the engine and on the
+server behind the backend: the runtime sends the value and guarantees nothing
+beyond that. Without a seed, two runs of the same prompt on the same model can
+differ.
 
-Two runs of the same prompt on the same model can therefore differ. What is
-recorded is not the generation itself. The hash-chained journal holds the
-tool-call and LLM-call entries of a run, a conversation included. See
+What is recorded is not the generation itself. The hash-chained journal holds
+the tool-call and LLM-call entries of a run, a conversation included. See
 [Audit and verify a run](/how-to/audit-and-verify).

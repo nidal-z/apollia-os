@@ -21,7 +21,7 @@ l'arrêter ne touche jamais au runtime ni au bureau.
 
 ## Éteint par défaut
 
-Le serveur n'écoute qu'une fois que quelqu'un l'allume. Quatre clés
+Le serveur n'écoute qu'une fois que quelqu'un l'allume. Cinq clés
 d'`apollia.toml` portent son état :
 
 ```toml

@@ -388,11 +388,19 @@ tutoriel :
 ```sh
 apollia-os package preview meeting-prep-0.1.0.apo
 apollia-os package install meeting-prep-0.1.0.apo
-apollia-os workflow show meeting-prep/prepare-meeting
 ```
 
 `preview` liste, pour chaque agent, les accès qu'il demande et ce que chacun
-permet. `workflow show` affiche les étapes et chaque entrée avec son type, lus
+permet. Le runtime lit les outils et les workflows des paquets installés à son
+démarrage : redémarrez-le donc, avec `apollia-os stop`, puis en le relançant
+dans son terminal par `apollia-os start --port 7771`. Lisez ensuite le workflow
+tel que le runtime le voit :
+
+```sh
+apollia-os workflow show meeting-prep/prepare-meeting
+```
+
+`workflow show` affiche les étapes et chaque entrée avec son type, lus
 dans le manifeste.
 
 ## Étape 6 : le lancer
