@@ -302,6 +302,7 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // search by meaning uses, over `/api/v1/llm/embeddings`.
     "get_embeddings_recommendation",
     "set_default_embeddings_model",
+    "test_embeddings_model",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
     // Models: the picture of each publisher, read at its source once and

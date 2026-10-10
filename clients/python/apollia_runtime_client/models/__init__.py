@@ -166,6 +166,7 @@ from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
+from .embeddings_test_response import EmbeddingsTestResponse
 from .engine_channel import EngineChannel
 from .engine_check_response import EngineCheckResponse
 from .engine_entry import EngineEntry
@@ -779,6 +780,7 @@ __all__ = (
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
+    "EmbeddingsTestResponse",
     "EngineChannel",
     "EngineCheckResponse",
     "EngineEntry",

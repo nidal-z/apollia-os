@@ -1,10 +1,13 @@
 <!--
-  Onboarding step 3, the model search by meaning uses.
+  Onboarding step 3, the two models beside the one that converses: the one
+  search by meaning uses, and the one dictation uses.
 
-  A second model, distinct from the one that converses: the one recommended
-  for this machine, its size, a download and an import from a file. Passing
-  the step shows what is lost without it and where to install it later. The
-  decisions are in `embeddingsSetup.ts`; this component draws them.
+  For each: the model recommended for this machine, its size, a download and
+  an import from a file, then a trial on the spot, so the person sees the
+  model answer before leaving the step. Passing the step shows what is lost
+  without the search model and where to install it later; dictation is never
+  required. The decisions are in `embeddingsSetup.ts` and `dictationSetup.ts`;
+  this component and `OnboardingDictationSetup` draw them.
 -->
 <script lang="ts">
   import { onMount } from "svelte";
@@ -16,6 +19,8 @@
   import { ProgressBar, Spinner } from "$lib/components/ui/progress";
   import { ErrorBanner } from "$lib/components/operator";
   import { embeddingsSetup } from "./embeddingsSetupLive";
+  import OnboardingDictationSetup from "./OnboardingDictationSetup.svelte";
+  import OnboardingEmbeddingsTest from "./OnboardingEmbeddingsTest.svelte";
   import {
     UNAVAILABLE_WITHOUT_EMBEDDINGS,
     embeddingsStepView,
@@ -175,6 +180,10 @@
           {$t(view.downloadDisabledReasonKey)}
         </p>
       {/if}
+
+      {#if view.showReady}
+        <OnboardingEmbeddingsTest />
+      {/if}
     </section>
   {/if}
 
@@ -203,6 +212,8 @@
       </div>
     </ErrorBanner>
   {/if}
+
+  <OnboardingDictationSetup {online} />
 
   <footer class="setup-footer">
     <Button variant="ghost" size="sm" class="btn-secondary" onclick={onback} data-testid="embeddings-back">

@@ -7,7 +7,7 @@ sidebar_position: 4
 # Configurer votre profil au premier lancement
 
 > Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.
-> Il vous fait passer en sept étapes - la langue, l'IA, le modèle qui cherche par le sens, une courte conversation qui propose votre profil, un premier agent, une connexion dont cet agent a besoin, une première tâche avec lui - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur, un interrupteur dans **Réglages → Développeur**, éteint par défaut.
+> Il vous fait passer en sept étapes - la langue, l'IA, les modèles de recherche par le sens et de dictée, une courte conversation qui propose votre profil, un premier agent, une connexion dont cet agent a besoin, une première tâche avec lui - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur, un interrupteur dans **Réglages → Développeur**, éteint par défaut.
 > Durée totale : 3 à 8 minutes selon le téléchargement des modèles.
 >
 > Cette page couvre **le parcours initial uniquement**. Pour éditer votre profil au quotidien depuis l'application installée, voir **[Mon profil](../memoire/manage-my-profile.md)**.
@@ -19,13 +19,13 @@ sidebar_position: 4
 
 ## Vue d'ensemble du parcours
 
-Le parcours est rythmé par un rail de progression visible en haut de la fenêtre, surmonté du compte des étapes : **Langue · IA · Recherche · Qui je suis · Premier agent · Connexion · Première tâche**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en haut à droite de la fenêtre, à chaque étape, pour ajourner l'ensemble.
+Le parcours est rythmé par un rail de progression visible en haut de la fenêtre, surmonté du compte des étapes : **Langue · IA · Recherche, voix · Qui je suis · Premier agent · Connexion · Première tâche**. Vous pouvez revenir en arrière à toute étape, et **Configurer plus tard** est disponible en haut à droite de la fenêtre, à chaque étape, pour ajourner l'ensemble.
 
 | Étape | Ce qui s'y passe |
 |---|---|
 | **Langue** | Un mot de bienvenue et le choix de la langue de l'interface. |
 | **IA** | Le modèle de langage avec lequel vos agents travaillent : un modèle sur votre poste, avec téléchargement embarqué, ou un serveur que vous utilisez déjà. C'est la seule étape que vous ne pouvez pas passer. |
-| **Recherche** | Un second modèle, plus petit, qui permet à vos agents de retrouver un document par son sens. Elle peut être passée. |
+| **Recherche, voix** | Deux modèles plus petits, à côté de celui qui converse : l'un permet à vos agents de retrouver un document par son sens, l'autre transcrit votre voix pour que vous puissiez dicter. Chacun se télécharge ou s'importe depuis un fichier, puis s'essaie sur place : **Essayer** fait répondre le modèle de recherche, et le bloc de dictée enregistre quelques mots et affiche leur transcription. L'étape peut être passée ; la dictée est facultative. |
 | **Qui je suis** | Une courte conversation avec un agent, dont chaque question peut être passée. L'agent propose ensuite un profil, que vous relisez et corrigez avant qu'il soit enregistré. |
 | **Premier agent** | Trois façons d'obtenir un agent prêt à travailler : installer un paquet, en créer un en décrivant votre besoin, ou partir d'un exemple. Elle peut être passée. |
 | **Connexion** | Les connexions dont votre premier agent a besoin et que vous n'avez pas encore, chacune ajoutée sur place. Elle n'apparaît que s'il en manque une, et elle peut être passée. |
@@ -41,7 +41,7 @@ Choisissez **Français** ou **English** : la fenêtre bascule aussitôt, et tout
 
 ### Étape 2 - Choisir l'IA
 
-C'est la seule étape que vous ne pouvez pas passer : sans modèle ni serveur, aucun agent ne peut répondre. Un bandeau d'informations système (RAM, OS, GPU) apparaît en haut pour vous aider à choisir. Rien d'autre n'est demandé ici. La fenêtre de contexte suit le défaut du modèle, et la dictée vocale se règle plus tard dans **Réglages → Dictée**.
+C'est la seule étape que vous ne pouvez pas passer : sans modèle ni serveur, aucun agent ne peut répondre. Un bandeau d'informations système (RAM, OS, GPU) apparaît en haut pour vous aider à choisir. Rien d'autre n'est demandé ici. La fenêtre de contexte suit le défaut du modèle, et la dictée vocale se règle plus tard dans **Réglages → Dictée** ; son modèle s'installe et s'essaie à l'étape suivante.
 
 Deux cartes ouvrent l'étape : **Sur ce poste** et **Utiliser un serveur**. Quatre chemins possibles, selon votre situation, les trois premiers sur ce poste :
 

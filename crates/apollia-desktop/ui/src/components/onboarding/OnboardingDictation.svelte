@@ -19,6 +19,13 @@
   import SttEssentialSection from "../settings/stt/SttEssentialSection.svelte";
   import SttTestCard from "../settings/stt/SttTestCard.svelte";
 
+  interface Props {
+    /** Opened from the start, when the block sits right under its model. */
+    open?: boolean;
+  }
+
+  const { open = false }: Props = $props();
+
   let config = $state<SttConfigView | null>(null);
   let inputDevices = $state<string[]>([]);
   let devicesRead = $state(false);
@@ -61,7 +68,7 @@
   });
 </script>
 
-<Disclosure testid="onboarding-dictation">
+<Disclosure testid="onboarding-dictation" {open}>
   {#snippet summary()}
     <span class="flex min-w-0 flex-1 items-center gap-2">
       <Mic size={14} class="shrink-0 text-muted-foreground" aria-hidden="true" />

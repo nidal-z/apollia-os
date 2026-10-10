@@ -1952,6 +1952,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/embeddings/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/llm/embeddings/test` */
+        post: operations["test_embeddings_model"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/hardware": {
         parameters: {
             query?: never;
@@ -7832,6 +7849,18 @@ export interface components {
             reason?: Record<string, never> | null;
             /** @description Identifier of the entry recommended for this machine. */
             recommended?: string | null;
+        };
+        /** @description What the embeddings model answered to the test. */
+        EmbeddingsTestResponse: {
+            /** @description Number of values of the vector it returned. */
+            dimensions: number;
+            /**
+             * Format: int64
+             * @description Time from the request to the vector, loading included, in milliseconds.
+             */
+            elapsed_ms: number;
+            /** @description Identifier of the model that answered, an entry of the registry. */
+            model: string;
         };
         /**
          * @description An update channel.
@@ -17103,6 +17132,44 @@ export interface operations {
             };
             /** @description system.db could not be written */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    test_embeddings_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model answered: its identifier, the size of the vector and the time taken */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingsTestResponse"];
+                };
+            };
+            /** @description No embeddings model is chosen, its file is not installed, or no local engine can serve it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model was loaded and failed to answer */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

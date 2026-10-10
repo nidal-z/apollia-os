@@ -6187,6 +6187,47 @@
         }
       }
     },
+    "/api/v1/llm/embeddings/test": {
+      "post": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`POST /api/v1/llm/embeddings/test`",
+        "operationId": "test_embeddings_model",
+        "responses": {
+          "200": {
+            "description": "The model answered: its identifier, the size of the vector and the time taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsTestResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No embeddings model is chosen, its file is not installed, or no local engine can serve it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The model was loaded and failed to answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/hardware": {
       "get": {
         "tags": [
@@ -22508,6 +22549,32 @@
               "null"
             ],
             "description": "Identifier of the entry recommended for this machine."
+          }
+        }
+      },
+      "EmbeddingsTestResponse": {
+        "type": "object",
+        "description": "What the embeddings model answered to the test.",
+        "required": [
+          "model",
+          "dimensions",
+          "elapsed_ms"
+        ],
+        "properties": {
+          "dimensions": {
+            "type": "integer",
+            "description": "Number of values of the vector it returned.",
+            "minimum": 0
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Time from the request to the vector, loading included, in milliseconds.",
+            "minimum": 0
+          },
+          "model": {
+            "type": "string",
+            "description": "Identifier of the model that answered, an entry of the registry."
           }
         }
       },

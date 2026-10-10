@@ -12,6 +12,7 @@ use tauri::State;
 
 const EMBEDDINGS_PATH: &str = "/api/v1/llm/embeddings";
 const DEFAULT_PATH: &str = "/api/v1/llm/embeddings/default";
+const TEST_PATH: &str = "/api/v1/llm/embeddings/test";
 
 /// The route that recommends beside a language model of `language_model_bytes`
 /// bytes, or beside the largest installed one when the size is absent.
@@ -49,6 +50,17 @@ pub async fn set_default_embeddings_model(
     model: String,
 ) -> Result<serde_json::Value, String> {
     link.put_json(DEFAULT_PATH, &default_body(&model)).await
+}
+
+/// Tries the embeddings model search uses on one sentence: the model is
+/// loaded and answers a vector. The answer names the model, the size of the
+/// vector and the time taken; a machine that is not ready rejects with the
+/// runtime's reason.
+#[tauri::command]
+pub async fn test_embeddings_model(
+    link: State<'_, RuntimeLink>,
+) -> Result<serde_json::Value, String> {
+    link.post_json(TEST_PATH, &serde_json::json!({})).await
 }
 
 #[cfg(test)]

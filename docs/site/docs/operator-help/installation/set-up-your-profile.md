@@ -7,7 +7,7 @@ sidebar_position: 4
 # Set up your profile on first launch
 
 > On the first start of Apollia (or after a reset), a configuration flow opens automatically.
-> It walks you through seven steps - the language, the AI, the model that searches by meaning, a short conversation that proposes your profile, a first agent, a connection that agent needs, a first task with it - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode, a switch in **Settings → Developer**, off by default.
+> It walks you through seven steps - the language, the AI, the models for search by meaning and for dictation, a short conversation that proposes your profile, a first agent, a connection that agent needs, a first task with it - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode, a switch in **Settings → Developer**, off by default.
 > Total duration: 3 to 8 minutes depending on model downloads.
 >
 > This page covers **the initial flow only**. To edit your profile day to day from the installed application, see **[My profile](../memoire/manage-my-profile.md)**.
@@ -19,13 +19,13 @@ sidebar_position: 4
 
 ## Flow overview
 
-The flow is paced by a progress rail visible at the top of the window, with the count of the steps above it: **Language · AI · Search · About me · First agent · Connection · First task**. You can go back at any step, and **Configure later** is available at the top right of the window, on every step, to postpone the whole thing.
+The flow is paced by a progress rail visible at the top of the window, with the count of the steps above it: **Language · AI · Search, voice · About me · First agent · Connection · First task**. You can go back at any step, and **Configure later** is available at the top right of the window, on every step, to postpone the whole thing.
 
 | Step | What happens there |
 |---|---|
 | **Language** | A word of welcome and the choice of the interface language. |
 | **AI** | The language model your agents work with: a model on your computer, with a built-in download, or a server you already use. It is the only step you cannot skip. |
-| **Search** | A second, smaller model that lets your agents find a document by its meaning. It can be skipped. |
+| **Search, voice** | Two smaller models beside the one that converses: one lets your agents find a document by its meaning, the other transcribes your voice so you can dictate. Each is downloaded or imported from a file, then tried on the spot: **Try it** has the search model answer, and the dictation block records a few words and shows their transcription. The step can be skipped; dictation is optional. |
 | **About me** | A short conversation with an agent, every question of which can be skipped. The agent then proposes a profile, which you read over and correct before it is saved. |
 | **First agent** | Three ways to an agent that is ready to work: install a package, create one by describing your need, or start from an example. It can be skipped. |
 | **Connection** | The connections your first agent needs and you do not have yet, each one added in place. It is shown only when one is missing, and it can be skipped. |
@@ -41,7 +41,7 @@ Pick **Français** or **English**: the window switches at once, and every step a
 
 ### Step 2 - Choose the AI
 
-This is the only step you cannot skip: without a model or a server, no agent can answer. A system information banner (RAM, OS, GPU) appears at the top to help you choose. Nothing else is asked here. The context window follows the default of the model, and voice dictation is set up later in **Settings → Dictation**.
+This is the only step you cannot skip: without a model or a server, no agent can answer. A system information banner (RAM, OS, GPU) appears at the top to help you choose. Nothing else is asked here. The context window follows the default of the model, and voice dictation is set up later in **Settings → Dictation**; its model is installed and tried at the next step.
 
 Two cards open the step: **On this computer** and **Use a server**. Four possible paths, depending on your situation, the first three on this computer:
 

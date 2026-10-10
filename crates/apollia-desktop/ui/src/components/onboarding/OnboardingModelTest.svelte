@@ -1,9 +1,9 @@
 <script lang="ts">
   /**
    * The acquaintance step of the first launch: the model chosen two steps
-   * earlier answers one question, so the person sees it work, dictation can
-   * be set up and tried, then the profile is filled by hand in the form of
-   * Settings > Profile.
+   * earlier answers one question, so the person sees it work, then the
+   * profile is filled by hand in the form of Settings > Profile. Dictation is
+   * set up and tried one step earlier, beside the search model.
    *
    * Nothing here is required. The test runs once the model is there, in a
    * conversation of its own that is deleted as soon as the answer is read; the
@@ -21,7 +21,6 @@
   import { isInFlight } from "./llmDownload";
   import { llmDownload } from "./llmDownloadLive";
   import { MODEL_TEST_POLL_MS, modelTestOutcome } from "./modelTest";
-  import OnboardingDictation from "./OnboardingDictation.svelte";
   import OnboardingProfileReview from "./OnboardingProfileReview.svelte";
 
   interface Props {
@@ -150,10 +149,6 @@
       </p>
     {/if}
   </section>
-
-  <div class="mx-6 mt-3 max-h-[45%] shrink-0 overflow-y-auto" data-testid="onboarding-dictation-block">
-    <OnboardingDictation />
-  </div>
 
   <OnboardingProfileReview proposal={null} ondone={onclose} {onback} />
 </div>

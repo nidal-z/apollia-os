@@ -3355,7 +3355,11 @@
       "error_download": "Le téléchargement a échoué.",
       "error_import": "Le fichier n'a pas pu être importé.",
       "error_not_offered": "{file} n'est pas le fichier d'un modèle de recherche par le sens proposé par Apollia.",
-      "error_default": "Le modèle est installé mais n'a pas pu être retenu pour la recherche par le sens."
+      "error_default": "Le modèle est installé mais n'a pas pu être retenu pour la recherche par le sens.",
+      "test": "Essayer",
+      "test_running": "Essai en cours…",
+      "test_answered": "Le modèle répond en {seconds} s (vecteur de {dimensions} valeurs).",
+      "test_failed": "L'essai a échoué :"
     },
     "first_task": {
       "intro_title": "{name}, votre premier agent",
@@ -3393,6 +3397,15 @@
       "present": "Présente",
       "add_later": "À ajouter depuis l'écran Connexions",
       "skip": "Passer"
+    },
+    "dictation_model": {
+      "title": "Dicter au lieu de taper",
+      "subtitle": "Facultatif. Un troisième modèle transcrit votre voix sur ce poste ; rien n'est envoyé ailleurs.",
+      "loading": "Recherche du modèle de dictée adapté à votre poste…",
+      "unavailable": "Aucun modèle de dictée n'a pu être proposé pour ce poste. Vous pourrez en installer un plus tard depuis l'écran IA.",
+      "import_title": "Choisir le fichier du modèle de dictée",
+      "error": "Le modèle de dictée n'a pas pu être installé.",
+      "error_not_offered": "{file} n'est pas le fichier d'un modèle de dictée proposé par Apollia."
     }
   },
   "agent_detail": {
@@ -4163,7 +4176,7 @@
     "progress_label": "Progression de l'onboarding",
     "skip_later": "Configurer plus tard",
     "skip_optional": "Passer les questions",
-    "step_search": "Recherche",
+    "step_search": "Recherche, voix",
     "step_about": "Qui je suis",
     "step_count": "Étape {current} sur {total} · {label}",
     "step_language": "Langue",
@@ -6852,7 +6865,7 @@
   },
   "onboarding_dictation": {
     "title": "Dictée",
-    "hint": "facultatif : choisissez un modèle, un micro, et essayez",
+    "hint": "choisissez un micro, puis essayez",
     "apply": "Appliquer ces réglages",
     "applied": "Réglages appliqués, vous pouvez tester."
   }

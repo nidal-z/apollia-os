@@ -370,6 +370,75 @@
       "label": "08d-onb-embeddings-offer"
     },
     {
+      "kind": "expect",
+      "testid": "onboarding-dictation-setup"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dictation-model-card",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "dictation-model-name"
+    },
+    {
+      "kind": "expect",
+      "testid": "dictation-recommended"
+    },
+    {
+      "kind": "expect",
+      "testid": "dictation-model-size",
+      "contains": "tourne sur votre poste"
+    },
+    {
+      "kind": "expect",
+      "testid": "dictation-import"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_model_download",
+      "reject": "automation: start_model_download refused (seeded fault, dictation)",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "dictation-download",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dictation-error",
+      "timeoutMs": 6000,
+      "contains": "start_model_download refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_model_download",
+      "resolve": "automation-dictation-download",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "dictation-download",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dictation-download-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "dictation-download-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "dictation-download-progress",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "stubInvoke",
       "command": "plugin:dialog|open",
       "resolve": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
@@ -474,6 +543,12 @@
       "once": true
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_dictation_models",
+      "reject": "automation: get_dictation_models refused (seeded fault, registry unreadable)",
+      "once": true
+    },
+    {
       "kind": "click",
       "testid": "ai-setup-continue",
       "timeoutMs": 6000
@@ -487,6 +562,14 @@
       "kind": "expect",
       "testid": "embeddings-error",
       "contains": "get_embeddings_recommendation refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "dictation-unavailable"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_dictation_models"
     },
     {
       "kind": "expect",
@@ -516,6 +599,58 @@
       "once": true
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_dictation_models",
+      "resolve": {
+        "models": [
+          {
+            "id": "whisper-small",
+            "label": "Whisper small",
+            "publisher": "OpenAI",
+            "released": "2022-09-21",
+            "license": "MIT",
+            "repo": "ggerganov/whisper.cpp",
+            "file": "ggml-small-q5_1.bin",
+            "quantization": "q5_1",
+            "size_bytes": 190000000,
+            "sha256": "aa",
+            "card": "whisper/small",
+            "footprint_gb": 0.6,
+            "fits": true
+          }
+        ],
+        "recommended": "whisper-small"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_stt_config",
+      "resolve": {
+        "enabled": true,
+        "model_path": "/models/ggml-small-q5_1.bin",
+        "hotkey": "F9",
+        "clipboard_mode": "paste",
+        "clipboard_restore": true,
+        "silence_threshold_db": -40,
+        "max_recording_sec": 60,
+        "language": null,
+        "trigger_mode": "hold",
+        "input_device": null
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_stt_models",
+      "resolve": [
+        {
+          "name": "ggml-small-q5_1.bin",
+          "path": "/models/ggml-small-q5_1.bin",
+          "size_mb": 181,
+          "language": null
+        }
+      ]
+    },
+    {
       "kind": "click",
       "testid": "ai-setup-continue",
       "timeoutMs": 6000
@@ -533,6 +668,83 @@
     {
       "kind": "screenshot",
       "label": "08f2-onb-embeddings-installed"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_embeddings_model",
+      "resolve": {
+        "model": "multilingual-e5-small",
+        "dimensions": 384,
+        "elapsed_ms": 1200
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-test-run",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-test-answered",
+      "timeoutMs": 6000,
+      "contains": "384"
+    },
+    {
+      "kind": "expect",
+      "testid": "embeddings-test"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_embeddings_model",
+      "reject": "the embeddings engine could not start: automation",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "embeddings-test-run",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "embeddings-test-failed",
+      "timeoutMs": 6000,
+      "contains": "could not start"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dictation-ready",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "dictation-model-name",
+      "contains": "Whisper small"
+    },
+    {
+      "kind": "expect",
+      "testid": "dictation-test-block"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-dictation-apply",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08f3-onb-dictation-installed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_dictation_models"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_stt_config"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_stt_models"
     },
     {
       "kind": "clearStubs",
@@ -613,25 +825,6 @@
     {
       "kind": "expect",
       "testid": "onboarding-model-test"
-    },
-    {
-      "kind": "expect",
-      "testid": "onboarding-dictation-block"
-    },
-    {
-      "kind": "click",
-      "testid": "onboarding-dictation-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-dictation-apply",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "onboarding-dictation-toggle",
-      "timeoutMs": 3000
     },
     {
       "kind": "sleep",

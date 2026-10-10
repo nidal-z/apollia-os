@@ -31,6 +31,7 @@ use crate::coordinator::ExecutionBackend;
 pub mod cards;
 pub mod dictation;
 pub mod embedding_default;
+pub mod embedding_test;
 pub mod embeddings;
 pub mod installed;
 pub mod usage;
@@ -451,6 +452,10 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             "/api/v1/llm/embeddings/default",
             get(embedding_default::get_embedding_default::<B>)
                 .put(embedding_default::set_embedding_default::<B>),
+        )
+        .route(
+            "/api/v1/llm/embeddings/test",
+            axum::routing::post(embedding_test::test_embeddings_model::<B>),
         )
         .route(
             "/api/v1/llm/dictation",

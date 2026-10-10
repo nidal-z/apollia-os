@@ -3355,7 +3355,11 @@
       "error_download": "The download failed.",
       "error_import": "The file could not be imported.",
       "error_not_offered": "{file} is not the file of a search-by-meaning model Apollia offers.",
-      "error_default": "The model is installed but could not be set for search by meaning."
+      "error_default": "The model is installed but could not be set for search by meaning.",
+      "test": "Try it",
+      "test_running": "Trying…",
+      "test_answered": "The model answers in {seconds} s (a vector of {dimensions} values).",
+      "test_failed": "The trial failed:"
     },
     "first_task": {
       "intro_title": "{name}, your first agent",
@@ -3393,6 +3397,15 @@
       "present": "Present",
       "add_later": "To add from the Connections screen",
       "skip": "Skip"
+    },
+    "dictation_model": {
+      "title": "Dictate instead of typing",
+      "subtitle": "Optional. A third model transcribes your voice on this machine; nothing is sent elsewhere.",
+      "loading": "Looking for the dictation model suited to this machine…",
+      "unavailable": "No dictation model could be offered for this machine. You can install one later from the AI screen.",
+      "import_title": "Choose the file of the dictation model",
+      "error": "The dictation model could not be installed.",
+      "error_not_offered": "{file} is not the file of a dictation model Apollia offers."
     }
   },
   "agent_detail": {
@@ -4163,7 +4176,7 @@
     "progress_label": "Onboarding progress",
     "skip_later": "Configure later",
     "skip_optional": "Skip the questions",
-    "step_search": "Search",
+    "step_search": "Search, voice",
     "step_about": "About me",
     "step_count": "Step {current} of {total} · {label}",
     "step_language": "Language",
@@ -6852,7 +6865,7 @@
   },
   "onboarding_dictation": {
     "title": "Dictation",
-    "hint": "optional: pick a model, a microphone, and try it",
+    "hint": "choose a microphone, then try it",
     "apply": "Apply these settings",
     "applied": "Settings applied, you can test."
   }

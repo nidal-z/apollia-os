@@ -57,6 +57,25 @@ export function getEmbeddingsRecommendation(
 }
 
 /** Makes `model` the embeddings model search by meaning uses. */
+/** What the embeddings model answered to its trial. */
+export interface EmbeddingsTest {
+  /** Identifier of the model that answered. */
+  model: string;
+  /** Number of values of the vector it returned. */
+  dimensions: number;
+  /** Time from the request to the vector, loading included. */
+  elapsed_ms: number;
+}
+
+/**
+ * Tries the embeddings model search uses on one sentence: it is loaded and
+ * answers a vector. Rejects with the runtime's reason when the machine is not
+ * ready (no model chosen, file absent, no local engine) or the model failed.
+ */
+export function testEmbeddingsModel(): Promise<EmbeddingsTest> {
+  return invoke<EmbeddingsTest>("test_embeddings_model");
+}
+
 export function setDefaultEmbeddingsModel(model: string): Promise<EmbeddingDefault> {
   return invoke<EmbeddingDefault>("set_default_embeddings_model", { model });
 }
