@@ -73,6 +73,73 @@
       ]
     },
     {
+      "id": "aya/tiny-aya-earth",
+      "kind": "language",
+      "label": "Tiny Aya Earth",
+      "publisher": "Cohere",
+      "license": {
+        "id": "cc-by-nc-4.0",
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-earth"
+      },
+      "source_url": "https://huggingface.co/CohereLabs/tiny-aya-earth",
+      "description": {
+        "fr": "Tiny Aya Earth de Cohere est la variante régionale de Tiny Aya que son éditeur recommande pour les langues d'Asie de l'Ouest et d'Afrique. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (cc-by-nc-4.0) interdit l'usage commercial.",
+        "en": "Tiny Aya Earth from Cohere is the regional variant of Tiny Aya its publisher recommends for West Asian and African languages. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (cc-by-nc-4.0) forbids commercial use."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-earth-GGUF/blob/main/tiny-aya-earth-q4_k_m.gguf"
+      },
+      "memory": {
+        "min_gb": 2.2,
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-earth-GGUF/blob/main/tiny-aya-earth-q4_k_m.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "CohereLabs/tiny-aya-earth",
+        "CohereLabs/tiny-aya-earth-GGUF"
+      ]
+    },
+    {
+      "id": "aya/tiny-aya-fire",
+      "kind": "language",
+      "label": "Tiny Aya Fire",
+      "publisher": "Cohere",
+      "license": {
+        "id": "cc-by-nc-4.0",
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-fire"
+      },
+      "source_url": "https://huggingface.co/CohereLabs/tiny-aya-fire",
+      "description": {
+        "fr": "Tiny Aya Fire de Cohere est la variante régionale de Tiny Aya que son éditeur recommande pour les langues d'Asie du Sud. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (cc-by-nc-4.0) interdit l'usage commercial.",
+        "en": "Tiny Aya Fire from Cohere is the regional variant of Tiny Aya its publisher recommends for South Asian languages. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (cc-by-nc-4.0) forbids commercial use."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-fire-GGUF/blob/main/tiny-aya-fire-q4_k_m.gguf"
+      },
+      "memory": {
+        "min_gb": 2.2,
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-fire-GGUF/blob/main/tiny-aya-fire-q4_k_m.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "CohereLabs/tiny-aya-fire",
+        "CohereLabs/tiny-aya-fire-GGUF",
+        "mlx-community/tiny-aya-fire-4bit"
+      ]
+    },
+    {
       "id": "aya/tiny-aya-global",
       "kind": "language",
       "label": "Tiny Aya Global",
@@ -103,6 +170,72 @@
       "repos": [
         "CohereLabs/tiny-aya-global",
         "CohereLabs/tiny-aya-global-GGUF"
+      ]
+    },
+    {
+      "id": "aya/tiny-aya-water",
+      "kind": "language",
+      "label": "Tiny Aya Water",
+      "publisher": "Cohere",
+      "license": {
+        "id": "cc-by-nc-4.0",
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-water"
+      },
+      "source_url": "https://huggingface.co/CohereLabs/tiny-aya-water",
+      "description": {
+        "fr": "Tiny Aya Water de Cohere est la variante régionale de Tiny Aya que son éditeur recommande pour les langues d'Europe et d'Asie-Pacifique. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (cc-by-nc-4.0) interdit l'usage commercial.",
+        "en": "Tiny Aya Water from Cohere is the regional variant of Tiny Aya its publisher recommends for European and Asia Pacific languages. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (cc-by-nc-4.0) forbids commercial use."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-water-GGUF/blob/main/tiny-aya-water-q4_k_m.gguf"
+      },
+      "memory": {
+        "min_gb": 2.2,
+        "source": "https://huggingface.co/CohereLabs/tiny-aya-water-GGUF/blob/main/tiny-aya-water-q4_k_m.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "CohereLabs/tiny-aya-water",
+        "CohereLabs/tiny-aya-water-GGUF"
+      ]
+    },
+    {
+      "id": "bge-m3",
+      "kind": "embeddings",
+      "label": "BGE-M3",
+      "publisher": "BAAI",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/BAAI/bge-m3"
+      },
+      "source_url": "https://huggingface.co/BAAI/bge-m3",
+      "description": {
+        "fr": "Modèle d'embeddings multilingue de BAAI pour la recherche par le sens, dans plus de cent langues selon sa fiche. Il lit des passages longs, jusqu'à 8 192 jetons, et ne demande aucune consigne devant la question. Compter autour de 1 Go de mémoire.",
+        "en": "A multilingual embeddings model from BAAI for search by meaning, in more than a hundred languages according to its card. It reads long passages, up to 8,192 tokens, and needs no instruction before the query. Plan for around 1 GB of memory."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/BAAI/bge-m3"
+      },
+      "memory": {
+        "min_gb": 0.7,
+        "source": "https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/blob/main/bge-m3-q8_0.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "ggml-org/bge-m3-Q8_0-GGUF",
+        "BAAI/bge-m3"
       ]
     },
     {
@@ -2435,6 +2568,40 @@
         "bartowski/openai_gpt-oss-20b-GGUF",
         "lmstudio-community/gpt-oss-20b-GGUF",
         "ggml-org/gpt-oss-20b-GGUF"
+      ]
+    },
+    {
+      "id": "granite-embedding-107m-multilingual",
+      "kind": "embeddings",
+      "label": "Granite Embedding 107M multilingual",
+      "publisher": "IBM",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/ibm-granite/granite-embedding-107m-multilingual"
+      },
+      "source_url": "https://huggingface.co/ibm-granite/granite-embedding-107m-multilingual",
+      "description": {
+        "fr": "Petit modèle d'embeddings d'IBM pour la recherche par le sens, sous licence Apache 2.0. Sa fiche annonce douze langues, dont le français, l'anglais, l'allemand, l'espagnol et l'italien. Il lit des passages de 512 jetons au plus, ce qui impose de découper les longs documents. Léger, il tient sur toute machine.",
+        "en": "A small embeddings model from IBM for search by meaning, under the Apache 2.0 licence. Its card lists twelve languages, among them French, English, German, Spanish and Italian. It reads passages of 512 tokens at most, so long documents have to be split. Light, it fits any machine."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/ibm-granite/granite-embedding-107m-multilingual"
+      },
+      "memory": {
+        "min_gb": 0.2,
+        "source": "https://huggingface.co/bartowski/granite-embedding-107m-multilingual-GGUF/blob/main/granite-embedding-107m-multilingual-Q8_0.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "bartowski/granite-embedding-107m-multilingual-GGUF",
+        "lmstudio-community/granite-embedding-107m-multilingual-GGUF",
+        "ibm-granite/granite-embedding-107m-multilingual"
       ]
     },
     {
@@ -5041,6 +5208,41 @@
       ]
     },
     {
+      "id": "nemotron-cascade/Nemotron-Cascade-2-30B-A3B",
+      "kind": "language",
+      "label": "Nemotron Cascade 2 30B-A3B",
+      "publisher": "NVIDIA",
+      "license": {
+        "id": "nvidia-open-model-license",
+        "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+      },
+      "source_url": "https://huggingface.co/nvidia/Nemotron-Cascade-2-30B-A3B",
+      "description": {
+        "fr": "Nemotron Cascade 2 de NVIDIA est dérivé de Nemotron 3 Nano 30B et réentraîné pour le raisonnement et les agents : mathématiques, programmation et appel d'outils, avec une réflexion qui peut être coupée. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 48 Go de mémoire en quantification Q4.",
+        "en": "Nemotron Cascade 2 from NVIDIA is derived from Nemotron 3 Nano 30B and retrained for reasoning and agents: mathematics, programming and tool calling, with thinking that can be turned off. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 48 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/nvidia/Nemotron-Cascade-2-30B-A3B/tree/main"
+      },
+      "memory": {
+        "min_gb": 24.8,
+        "source": "https://huggingface.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF/blob/main/nvidia_Nemotron-Cascade-2-30B-A3B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "nvidia/Nemotron-Cascade-2-30B-A3B",
+        "bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF",
+        "mlx-community/Nemotron-Cascade-2-30B-A3B-4bit",
+        "mlx-community/Nemotron-Cascade-2-30B-A3B-8bit"
+      ]
+    },
+    {
       "id": "nemotron/Llama-3.1-Nemotron-70B-Instruct-HF",
       "kind": "language",
       "label": "Llama 3.1 Nemotron 70B",
@@ -5075,6 +5277,42 @@
         "mlx-community/Llama-3.1-Nemotron-70B-Instruct-HF-4bit",
         "lmstudio-community/Llama-3.1-Nemotron-70B-Instruct-HF-GGUF",
         "mlx-community/Llama-3.1-Nemotron-70B-Instruct-HF-8bit"
+      ]
+    },
+    {
+      "id": "nemotron/Llama-3.1-Nemotron-Nano-4B-v1.1",
+      "kind": "language",
+      "label": "Llama 3.1 Nemotron Nano 4B v1.1",
+      "publisher": "NVIDIA",
+      "license": {
+        "id": "nvidia-open-model-license",
+        "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+      },
+      "source_url": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-4B-v1.1",
+      "description": {
+        "fr": "Llama 3.1 Nemotron Nano 4B v1.1 de NVIDIA est une version comprimée de Llama 3.1 8B, réentraînée pour le raisonnement, les réponses fondées sur des documents fournis et l'appel d'outils. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+        "en": "Llama 3.1 Nemotron Nano 4B v1.1 from NVIDIA is a compressed version of Llama 3.1 8B, retrained for reasoning, answers grounded in supplied documents and tool calling. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-4B-v1.1/tree/main"
+      },
+      "memory": {
+        "min_gb": 2.8,
+        "source": "https://huggingface.co/bartowski/nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-GGUF/blob/main/nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "nvidia/Llama-3.1-Nemotron-Nano-4B-v1.1",
+        "bartowski/nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-GGUF",
+        "lmstudio-community/Llama-3.1-Nemotron-Nano-4B-v1.1-GGUF",
+        "mlx-community/Llama-3.1-Nemotron-Nano-4B-v1.1-4bit",
+        "mlx-community/Llama-3.1-Nemotron-Nano-4B-v1.1-8bit"
       ]
     },
     {
@@ -5455,6 +5693,42 @@
         "lmstudio-community/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
         "ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
         "mlx-community/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-8bit"
+      ]
+    },
+    {
+      "id": "north/North-Mini-Code-1.0",
+      "kind": "language",
+      "label": "North Mini Code 1.0",
+      "publisher": "Cohere",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/CohereLabs/North-Mini-Code-1.0"
+      },
+      "source_url": "https://huggingface.co/CohereLabs/North-Mini-Code-1.0",
+      "description": {
+        "fr": "North Mini Code de Cohere est un modèle de programmation publié en diffusion de recherche : écriture de code, travail d'agent sur un dépôt et tâches de terminal, avec appel d'outils et une réflexion dont l'effort se règle. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+        "en": "North Mini Code from Cohere is a programming model published as a research release: code writing, agent work on a repository and terminal tasks, with tool calling and a thinking effort that can be set. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/CohereLabs/North-Mini-Code-1.0/tree/main"
+      },
+      "memory": {
+        "min_gb": 18.8,
+        "source": "https://huggingface.co/bartowski/North-Mini-Code-1.0-GGUF/blob/main/North-Mini-Code-1.0-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "CohereLabs/North-Mini-Code-1.0",
+        "bartowski/North-Mini-Code-1.0-GGUF",
+        "unsloth/North-Mini-Code-1.0-GGUF",
+        "mlx-community/North-Mini-Code-1.0-4bit",
+        "mlx-community/North-Mini-Code-1.0-6bit"
       ]
     },
     {
@@ -6361,6 +6635,41 @@
       ]
     },
     {
+      "id": "qwen2.5/Qwen2.5-14B-Instruct-1M",
+      "kind": "language",
+      "label": "Qwen2.5 14B Instruct 1M",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-1M"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-1M",
+      "description": {
+        "fr": "Version à long contexte de Qwen2.5 d'Alibaba, entraînée pour lire jusqu'à un million de jetons : réponses directes sans mode de réflexion et appel d'outils. Un contexte aussi long demande bien plus de mémoire que le modèle seul. Taille intermédiaire, plus précise sur les documents longs et les tâches en plusieurs étapes ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+        "en": "The long-context version of Qwen2.5 from Alibaba, trained to read up to one million tokens: direct answers with no thinking mode and tool calling. A context that long needs far more memory than the model alone. An intermediate size, more precise on long documents and multi-step tasks; plan for a machine with at least 16 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-1M/tree/main"
+      },
+      "memory": {
+        "min_gb": 9.0,
+        "source": "https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF/blob/main/Qwen2.5-14B-Instruct-1M-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "Qwen/Qwen2.5-14B-Instruct-1M",
+        "bartowski/Qwen2.5-14B-Instruct-1M-GGUF",
+        "lmstudio-community/Qwen2.5-14B-Instruct-1M-GGUF",
+        "mlx-community/Qwen2.5-14B-Instruct-1M-4bit"
+      ]
+    },
+    {
       "id": "qwen2.5/Qwen2.5-32B-Instruct",
       "kind": "language",
       "label": "Qwen2.5 32B",
@@ -6532,6 +6841,41 @@
       ]
     },
     {
+      "id": "qwen2.5/Qwen2.5-7B-Instruct-1M",
+      "kind": "language",
+      "label": "Qwen2.5 7B Instruct 1M",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-1M"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-1M",
+      "description": {
+        "fr": "Version à long contexte de Qwen2.5 d'Alibaba, entraînée pour lire jusqu'à un million de jetons : réponses directes sans mode de réflexion et appel d'outils. Un contexte aussi long demande bien plus de mémoire que le modèle seul. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+        "en": "The long-context version of Qwen2.5 from Alibaba, trained to read up to one million tokens: direct answers with no thinking mode and tool calling. A context that long needs far more memory than the model alone. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-1M/tree/main"
+      },
+      "memory": {
+        "min_gb": 4.7,
+        "source": "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-1M-GGUF/blob/main/Qwen2.5-7B-Instruct-1M-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "Qwen/Qwen2.5-7B-Instruct-1M",
+        "bartowski/Qwen2.5-7B-Instruct-1M-GGUF",
+        "lmstudio-community/Qwen2.5-7B-Instruct-1M-GGUF",
+        "mlx-community/Qwen2.5-7B-Instruct-1M-4bit"
+      ]
+    },
+    {
       "id": "qwen3-coder/Qwen3-Coder-30B-A3B-Instruct",
       "kind": "language",
       "label": "Qwen3 Coder 30B-A3B",
@@ -6655,6 +6999,39 @@
       "repos": [
         "Qwen/Qwen3-Embedding-0.6B-GGUF",
         "Qwen/Qwen3-Embedding-0.6B"
+      ]
+    },
+    {
+      "id": "qwen3-embedding-4b",
+      "kind": "embeddings",
+      "label": "Qwen3 Embedding 4B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3-Embedding-4B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3-Embedding-4B",
+      "description": {
+        "fr": "Grand modèle d'embeddings de Qwen pour la recherche par le sens, dans une centaine de langues. Plus précis que la version 0.6B, il lit des passages jusqu'à 32 000 jetons et produit des vecteurs de 2 560 dimensions, si bien que l'index pèse deux fois et demie plus lourd. Compter autour de 3 Go de mémoire : il s'adresse aux machines qui ont de la marge à côté du modèle de langage.",
+        "en": "A large embeddings model from Qwen for search by meaning, in about a hundred languages. More precise than the 0.6B version, it reads passages up to 32,000 tokens and produces vectors of 2,560 dimensions, so the index weighs two and a half times as much. Plan for around 3 GB of memory: it is meant for machines with room to spare beside the language model."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen3-Embedding-4B"
+      },
+      "memory": {
+        "min_gb": 2.5,
+        "source": "https://huggingface.co/Qwen/Qwen3-Embedding-4B-GGUF/blob/main/Qwen3-Embedding-4B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "Qwen/Qwen3-Embedding-4B-GGUF",
+        "Qwen/Qwen3-Embedding-4B"
       ]
     },
     {
@@ -8754,6 +9131,38 @@
       "author_fields": [],
       "repos": [
         "bofenghuang/whisper-large-v3-french"
+      ]
+    },
+    {
+      "id": "whisper-large-v3-french-distil",
+      "kind": "dictation",
+      "label": "Whisper Large-v3 French Distil",
+      "publisher": "bofenghuang",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16"
+      },
+      "source_url": "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16",
+      "description": {
+        "fr": "Version distillée de Whisper Large-v3 French par Bofeng Huang : le décodeur passe de 32 à 16 couches, pour une dictée plus rapide et moins gourmande en mémoire. Elle ne sert que pour le français. Le moteur de dictée prévient que la qualité d'un modèle distillé peut être moindre sur les longs enregistrements. Compter environ 0,8 Go de mémoire.",
+        "en": "A distilled version of Whisper Large-v3 French by Bofeng Huang: the decoder goes from 32 to 16 layers, for faster dictation that needs less memory. It serves French only. The dictation engine warns that the quality of a distilled model can be lower on long recordings. Plan for about 0.8 GB of memory."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16"
+      },
+      "memory": {
+        "min_gb": 0.8,
+        "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16/blob/main/ggml-model-q5_0.bin"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "bofenghuang/whisper-large-v3-french-distil-dec16"
       ]
     },
     {

@@ -17,7 +17,9 @@
 //! The recommendation picks the largest entry that still fits beside the
 //! language model the machine runs, through the same estimator every other
 //! "fits" verdict goes through ([`super::fit::estimate_memory`]); otherwise the
-//! smallest.
+//! smallest. An entry marked `by_request` is listed and never recommended: it
+//! is there for whoever picks it, and changing what a first launch downloads is
+//! a decision, not a side effect of adding a file to the table.
 
 use serde::{Deserialize, Serialize};
 
@@ -101,6 +103,9 @@ pub struct EmbeddingModel {
     pub passage_prefix: String,
     /// URL the facts were read from.
     pub source: String,
+    /// Listed for whoever picks it, and left out of the recommendation.
+    #[serde(default)]
+    pub by_request: bool,
     /// Free prose for whoever edits the table.
     #[serde(default)]
     pub notes: Option<String>,
@@ -253,12 +258,13 @@ impl EmbeddingCatalogue {
     }
 
     /// The entry this machine should get: the largest that fits in memory at
-    /// the same time as the language model, the smallest otherwise.
+    /// the same time as the language model, the smallest otherwise. Entries
+    /// marked `by_request` are not considered.
     ///
     /// `language_model_bytes` is the size of the language model's weights;
     /// `None` counts no language model. Both footprints come from
     /// [`estimate_memory`], and they are added because each model is served by
-    /// its own engine process. `None` only when the catalogue is empty.
+    /// its own engine process. `None` only when no entry can be recommended.
     #[must_use]
     pub fn recommend(
         &self,
@@ -278,7 +284,8 @@ impl EmbeddingCatalogue {
             .total_gb
         });
 
-        let mut by_size: Vec<&EmbeddingModel> = self.models.iter().collect();
+        let mut by_size: Vec<&EmbeddingModel> =
+            self.models.iter().filter(|m| !m.by_request).collect();
         by_size.sort_by_key(|m| std::cmp::Reverse(m.size_bytes));
         let smallest = *by_size.last()?;
         let largest = *by_size.first()?;

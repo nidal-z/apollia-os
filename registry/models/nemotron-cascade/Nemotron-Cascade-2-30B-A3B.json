@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "nemotron-cascade/Nemotron-Cascade-2-30B-A3B",
+  "kind": "language",
+  "label": "Nemotron Cascade 2 30B-A3B",
+  "publisher": "NVIDIA",
+  "license": {
+    "id": "nvidia-open-model-license",
+    "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+  },
+  "source_url": "https://huggingface.co/nvidia/Nemotron-Cascade-2-30B-A3B",
+  "description": {
+    "fr": "Nemotron Cascade 2 de NVIDIA est dérivé de Nemotron 3 Nano 30B et réentraîné pour le raisonnement et les agents : mathématiques, programmation et appel d'outils, avec une réflexion qui peut être coupée. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 48 Go de mémoire en quantification Q4.",
+    "en": "Nemotron Cascade 2 from NVIDIA is derived from Nemotron 3 Nano 30B and retrained for reasoning and agents: mathematics, programming and tool calling, with thinking that can be turned off. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 48 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/nvidia/Nemotron-Cascade-2-30B-A3B/tree/main"
+  },
+  "memory": {
+    "min_gb": 24.8,
+    "source": "https://huggingface.co/bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF/blob/main/nvidia_Nemotron-Cascade-2-30B-A3B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "nvidia/Nemotron-Cascade-2-30B-A3B",
+    "bartowski/nvidia_Nemotron-Cascade-2-30B-A3B-GGUF",
+    "mlx-community/Nemotron-Cascade-2-30B-A3B-4bit",
+    "mlx-community/Nemotron-Cascade-2-30B-A3B-8bit"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "qwen2.5/Qwen2.5-14B-Instruct-1M",
+  "kind": "language",
+  "label": "Qwen2.5 14B Instruct 1M",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-1M"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-1M",
+  "description": {
+    "fr": "Version à long contexte de Qwen2.5 d'Alibaba, entraînée pour lire jusqu'à un million de jetons : réponses directes sans mode de réflexion et appel d'outils. Un contexte aussi long demande bien plus de mémoire que le modèle seul. Taille intermédiaire, plus précise sur les documents longs et les tâches en plusieurs étapes ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The long-context version of Qwen2.5 from Alibaba, trained to read up to one million tokens: direct answers with no thinking mode and tool calling. A context that long needs far more memory than the model alone. An intermediate size, more precise on long documents and multi-step tasks; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-1M/tree/main"
+  },
+  "memory": {
+    "min_gb": 9.0,
+    "source": "https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-1M-GGUF/blob/main/Qwen2.5-14B-Instruct-1M-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen2.5-14B-Instruct-1M",
+    "bartowski/Qwen2.5-14B-Instruct-1M-GGUF",
+    "lmstudio-community/Qwen2.5-14B-Instruct-1M-GGUF",
+    "mlx-community/Qwen2.5-14B-Instruct-1M-4bit"
+  ]
+}

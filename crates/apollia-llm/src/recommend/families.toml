@@ -90,6 +90,10 @@
 #   query_prefix    text put before a search query, as its model card asks
 #   passage_prefix  text put before a passage to index, as its model card asks
 #   source          URL the facts above were read from
+#   by_request      optional, true for an entry that is listed and never
+#                   recommended: the machine is offered the largest of the
+#                   others, so adding a file here does not change what a first
+#                   launch downloads
 #
 # ── Dictation ─────────────────────────────────────────────────────────────
 #
@@ -472,6 +476,69 @@ passage_prefix = ""
 source = "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B"
 notes = "Its header names the qwen3 architecture, the same as the chat models of that generation: only its pooling key tells it apart, which is why the gate reads that key."
 
+[[embedding]]
+id = "granite-embedding-107m-multilingual"
+label = "Granite Embedding 107M multilingual"
+publisher = "IBM"
+released = "2024-12-04"
+license = "apache-2.0"
+repo = "bartowski/granite-embedding-107m-multilingual-GGUF"
+file = "granite-embedding-107m-multilingual-Q8_0.gguf"
+quantization = "Q8_0"
+size_bytes = 121020096
+sha256 = "15691dfe830257f569a1e3521977351d16eac18e48e414908dc98ed9b8455e07"
+architecture = "bert"
+dimensions = 384
+context_length = 512
+pooling = "cls"
+query_prefix = ""
+passage_prefix = ""
+source = "https://huggingface.co/ibm-granite/granite-embedding-107m-multilingual"
+by_request = true
+notes = "Twelve languages on its card, against about a hundred for multilingual-e5-small at the same weight, which is why it is listed and not recommended."
+
+[[embedding]]
+id = "bge-m3"
+label = "BGE-M3"
+publisher = "BAAI"
+released = "2024-01-27"
+license = "mit"
+repo = "ggml-org/bge-m3-Q8_0-GGUF"
+file = "bge-m3-q8_0.gguf"
+quantization = "Q8_0"
+size_bytes = 634553760
+sha256 = "aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173"
+architecture = "bert"
+dimensions = 1024
+context_length = 8192
+pooling = "cls"
+query_prefix = ""
+passage_prefix = ""
+source = "https://huggingface.co/BAAI/bge-m3"
+by_request = true
+notes = "Its card describes dense, sparse and multi-vector retrieval; the engine serves the dense vector, the only one used here."
+
+[[embedding]]
+id = "qwen3-embedding-4b"
+label = "Qwen3 Embedding 4B"
+publisher = "Qwen"
+released = "2025-06-03"
+license = "apache-2.0"
+repo = "Qwen/Qwen3-Embedding-4B-GGUF"
+file = "Qwen3-Embedding-4B-Q4_K_M.gguf"
+quantization = "Q4_K_M"
+size_bytes = 2496703776
+sha256 = "2b0cf8f17b4c723c27303015383c27ec4bf2d8314bb677d05e920dd70bb0f16b"
+architecture = "qwen3"
+dimensions = 2560
+context_length = 32768
+pooling = "last"
+query_prefix = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"
+passage_prefix = ""
+source = "https://huggingface.co/Qwen/Qwen3-Embedding-4B"
+by_request = true
+notes = "Same architecture, pooling and prefixes as the 0.6B entry. Its vectors are two and a half times as long, so an index built with it weighs as much more."
+
 # ── Dictation ─────────────────────────────────────────────────────────────
 #
 # Listed with the French fine-tune first: on a tie in size the file met first
@@ -504,6 +571,20 @@ size_bytes = 1081140203
 sha256 = "d8da7cb6cdadfac47829abf46fe8cd36fcfef06db5601bfd8acbcd40579010a5"
 card = "whisper-large-v3-french"
 source = "https://huggingface.co/bofenghuang/whisper-large-v3-french/tree/main"
+
+[[dictation]]
+id = "whisper-large-v3-french-distil-q5_0"
+label = "Whisper Large-v3 French Distil Q5_0"
+publisher = "bofenghuang"
+released = "2023-12-13"
+license = "mit"
+repo = "bofenghuang/whisper-large-v3-french-distil-dec16"
+file = "ggml-model-q5_0.bin"
+quantization = "Q5_0"
+size_bytes = 791369259
+sha256 = "a804330f5cd369fb7447ad2935eb7bf5b1d628ba246a067255ac70775df720e4"
+card = "whisper-large-v3-french-distil"
+source = "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16/tree/main"
 
 [[dictation]]
 id = "whisper-tiny"

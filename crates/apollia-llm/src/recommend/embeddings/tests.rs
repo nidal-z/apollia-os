@@ -91,9 +91,9 @@ fn the_registry_carries_both_embeddings_entries_with_their_technical_facts() {
         .get("qwen3-embedding-0.6b")
         .expect("Qwen3 Embedding is in the category");
 
-    // THEN it holds the two entries, each pinned to one file by its digest and
-    // declaring dimension, context, pooling and both prefixes
-    assert_eq!(catalogue.models().len(), 2);
+    // THEN it holds them, each pinned to one file by its digest and declaring
+    // dimension, context, pooling and both prefixes
+    assert_eq!(catalogue.models().len(), 5);
     assert_eq!(e5.repo, "cstr/multilingual-e5-small-GGUF");
     assert_eq!(e5.quantization, "Q8_0");
     assert_eq!(e5.size_bytes, 131_624_960);
@@ -347,4 +347,60 @@ fn with_no_language_model_counted_the_larger_entry_is_offered_when_it_fits() {
         recommendation.reason,
         EmbeddingReason::FitsBeside { language_gb, .. } if language_gb == 0.0
     ));
+}
+
+#[test]
+fn an_entry_listed_by_request_is_never_the_one_recommended() {
+    // GIVEN the shipped table, whose largest file is an entry listed by
+    // request, and a machine with room for every entry
+    let catalogue = catalogue();
+    let largest = catalogue
+        .models()
+        .iter()
+        .max_by_key(|m| m.size_bytes)
+        .expect("the category is not empty");
+    assert!(largest.by_request);
+    let profile = apple(128.0);
+
+    // WHEN the category recommends an entry
+    let recommendation = catalogue
+        .recommend(&profile, None)
+        .expect("a non-empty category recommends");
+
+    // THEN it is the largest of the entries not listed by request
+    assert_eq!(recommendation.model, "qwen3-embedding-0.6b");
+    assert!(catalogue
+        .models()
+        .iter()
+        .filter(|m| m.by_request)
+        .all(|m| m.id != recommendation.model));
+}
+
+#[test]
+fn the_entries_listed_by_request_carry_the_pooling_their_header_declares() {
+    // GIVEN the three entries added beside the two recommended ones
+    let catalogue = catalogue();
+
+    // WHEN each is read
+    let granite = catalogue
+        .get("granite-embedding-107m-multilingual")
+        .expect("Granite Embedding is in the category");
+    let bge = catalogue.get("bge-m3").expect("BGE-M3 is in the category");
+    let qwen = catalogue
+        .get("qwen3-embedding-4b")
+        .expect("Qwen3 Embedding 4B is in the category");
+
+    // THEN the two BERT models pool on the first token with no prefix, and the
+    // Qwen3 one on the last token with the query instruction of its family
+    assert_eq!(granite.pooling, Pooling::Cls);
+    assert_eq!((granite.dimensions, granite.context_length), (384, 512));
+    assert_eq!(bge.pooling, Pooling::Cls);
+    assert_eq!((bge.dimensions, bge.context_length), (1024, 8192));
+    assert_eq!(
+        (bge.query_prefix.as_str(), bge.passage_prefix.as_str()),
+        ("", "")
+    );
+    assert_eq!(qwen.pooling, Pooling::Last);
+    assert_eq!((qwen.dimensions, qwen.context_length), (2560, 32_768));
+    assert!(qwen.query_prefix.ends_with("\nQuery:"));
 }

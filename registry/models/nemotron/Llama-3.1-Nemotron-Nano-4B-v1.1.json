@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "nemotron/Llama-3.1-Nemotron-Nano-4B-v1.1",
+  "kind": "language",
+  "label": "Llama 3.1 Nemotron Nano 4B v1.1",
+  "publisher": "NVIDIA",
+  "license": {
+    "id": "nvidia-open-model-license",
+    "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
+  },
+  "source_url": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-4B-v1.1",
+  "description": {
+    "fr": "Llama 3.1 Nemotron Nano 4B v1.1 de NVIDIA est une version comprimée de Llama 3.1 8B, réentraînée pour le raisonnement, les réponses fondées sur des documents fournis et l'appel d'outils. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "Llama 3.1 Nemotron Nano 4B v1.1 from NVIDIA is a compressed version of Llama 3.1 8B, retrained for reasoning, answers grounded in supplied documents and tool calling. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-4B-v1.1/tree/main"
+  },
+  "memory": {
+    "min_gb": 2.8,
+    "source": "https://huggingface.co/bartowski/nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-GGUF/blob/main/nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "nvidia/Llama-3.1-Nemotron-Nano-4B-v1.1",
+    "bartowski/nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-GGUF",
+    "lmstudio-community/Llama-3.1-Nemotron-Nano-4B-v1.1-GGUF",
+    "mlx-community/Llama-3.1-Nemotron-Nano-4B-v1.1-4bit",
+    "mlx-community/Llama-3.1-Nemotron-Nano-4B-v1.1-8bit"
+  ]
+}

@@ -42,7 +42,7 @@ fn indexed(models_dir: &Path) {
 }
 
 #[tokio::test]
-async fn the_route_lists_both_entries_and_recommends_one_beside_the_given_model() {
+async fn the_route_lists_every_entry_and_recommends_one_beside_the_given_model() {
     // GIVEN a runtime whose data directory holds no model
     let tmp = tempfile::tempdir().expect("tempdir");
     let state = app_state(tmp.path().to_path_buf());
@@ -56,8 +56,8 @@ async fn the_route_lists_both_entries_and_recommends_one_beside_the_given_model(
     )
     .await;
 
-    // THEN it lists the two entries with their technical facts, recommends one
-    // of them with its reason, and says which language model it counted
+    // THEN it lists every entry with its technical facts, recommends one of
+    // them with its reason, and says which language model it counted
     assert_eq!(status, axum::http::StatusCode::OK, "{body}");
     let ids: Vec<&str> = body["models"]
         .as_array()
@@ -65,7 +65,16 @@ async fn the_route_lists_both_entries_and_recommends_one_beside_the_given_model(
         .iter()
         .filter_map(|m| m["id"].as_str())
         .collect();
-    assert_eq!(ids, vec!["multilingual-e5-small", "qwen3-embedding-0.6b"]);
+    assert_eq!(
+        ids,
+        vec![
+            "multilingual-e5-small",
+            "qwen3-embedding-0.6b",
+            "granite-embedding-107m-multilingual",
+            "bge-m3",
+            "qwen3-embedding-4b",
+        ]
+    );
     assert_eq!(body["models"][0]["dimensions"], 384);
     assert_eq!(body["models"][0]["pooling"], "mean");
     assert_eq!(body["models"][0]["query_prefix"], "query: ");

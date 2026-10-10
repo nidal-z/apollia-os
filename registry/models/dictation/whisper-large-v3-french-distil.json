@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "whisper-large-v3-french-distil",
+  "kind": "dictation",
+  "label": "Whisper Large-v3 French Distil",
+  "publisher": "bofenghuang",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16"
+  },
+  "source_url": "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16",
+  "description": {
+    "fr": "Version distillée de Whisper Large-v3 French par Bofeng Huang : le décodeur passe de 32 à 16 couches, pour une dictée plus rapide et moins gourmande en mémoire. Elle ne sert que pour le français. Le moteur de dictée prévient que la qualité d'un modèle distillé peut être moindre sur les longs enregistrements. Compter environ 0,8 Go de mémoire.",
+    "en": "A distilled version of Whisper Large-v3 French by Bofeng Huang: the decoder goes from 32 to 16 layers, for faster dictation that needs less memory. It serves French only. The dictation engine warns that the quality of a distilled model can be lower on long recordings. Plan for about 0.8 GB of memory."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16"
+  },
+  "memory": {
+    "min_gb": 0.8,
+    "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16/blob/main/ggml-model-q5_0.bin"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "bofenghuang/whisper-large-v3-french-distil-dec16"
+  ],
+  "selection_files": [
+    "https://huggingface.co/bofenghuang/whisper-large-v3-french-distil-dec16/resolve/main/ggml-model-q5_0.bin"
+  ]
+}

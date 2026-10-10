@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "bge-m3",
+  "kind": "embeddings",
+  "label": "BGE-M3",
+  "publisher": "BAAI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/BAAI/bge-m3"
+  },
+  "source_url": "https://huggingface.co/BAAI/bge-m3",
+  "description": {
+    "fr": "Modèle d'embeddings multilingue de BAAI pour la recherche par le sens, dans plus de cent langues selon sa fiche. Il lit des passages longs, jusqu'à 8 192 jetons, et ne demande aucune consigne devant la question. Compter autour de 1 Go de mémoire.",
+    "en": "A multilingual embeddings model from BAAI for search by meaning, in more than a hundred languages according to its card. It reads long passages, up to 8,192 tokens, and needs no instruction before the query. Plan for around 1 GB of memory."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/BAAI/bge-m3"
+  },
+  "memory": {
+    "min_gb": 0.7,
+    "source": "https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/blob/main/bge-m3-q8_0.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "ggml-org/bge-m3-Q8_0-GGUF",
+    "BAAI/bge-m3"
+  ]
+}
