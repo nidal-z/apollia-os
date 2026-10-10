@@ -93,7 +93,7 @@ fn the_registry_carries_both_embeddings_entries_with_their_technical_facts() {
 
     // THEN it holds them, each pinned to one file by its digest and declaring
     // dimension, context, pooling and both prefixes
-    assert_eq!(catalogue.models().len(), 5);
+    assert_eq!(catalogue.models().len(), 6);
     assert_eq!(e5.repo, "cstr/multilingual-e5-small-GGUF");
     assert_eq!(e5.quantization, "Q8_0");
     assert_eq!(e5.size_bytes, 131_624_960);

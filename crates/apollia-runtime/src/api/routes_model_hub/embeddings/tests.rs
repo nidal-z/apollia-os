@@ -73,6 +73,7 @@ async fn the_route_lists_every_entry_and_recommends_one_beside_the_given_model()
             "granite-embedding-107m-multilingual",
             "bge-m3",
             "qwen3-embedding-4b",
+            "embeddinggemma-2",
         ]
     );
     assert_eq!(body["models"][0]["dimensions"], 384);

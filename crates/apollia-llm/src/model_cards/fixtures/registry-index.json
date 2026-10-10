@@ -972,6 +972,39 @@
       ]
     },
     {
+      "id": "embeddinggemma-2",
+      "kind": "embeddings",
+      "label": "EmbeddingGemma 2",
+      "publisher": "Google",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/google/embeddinggemma-2"
+      },
+      "source_url": "https://huggingface.co/google/embeddinggemma-2",
+      "description": {
+        "fr": "Modèle d'embeddings léger de Google pour la recherche par le sens, sous licence Apache 2.0. Il lit des passages jusqu'à 8 192 jetons et produit des vecteurs de 768 dimensions. Apollia s'en sert pour le texte ; sa lecture des images, de l'audio et de la vidéo demande un second fichier qui n'est pas utilisé ici. Compter autour de 0,5 Go de mémoire.",
+        "en": "A light embeddings model from Google for search by meaning, under the Apache 2.0 licence. It reads passages up to 8,192 tokens and produces vectors of 768 dimensions. Apollia uses it for text; its reading of images, audio and video needs a second file that is not used here. Plan for around 0.5 GB of memory."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/google/embeddinggemma-2"
+      },
+      "memory": {
+        "min_gb": 0.4,
+        "source": "https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/blob/main/embeddinggemma-2-Q8_0.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "ggml-org/embeddinggemma-2-GGUF",
+        "google/embeddinggemma-2"
+      ]
+    },
+    {
       "id": "falcon-h1/Falcon-H1-0.5B-Instruct",
       "kind": "language",
       "label": "Falcon-H1 0.5B",
@@ -5418,6 +5451,42 @@
       ]
     },
     {
+      "id": "muse/Muse-Glimmer-30B",
+      "kind": "language",
+      "label": "Muse Glimmer 30B",
+      "publisher": "Meta",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/meta-models/Muse-Glimmer-30B"
+      },
+      "source_url": "https://huggingface.co/meta-models/Muse-Glimmer-30B",
+      "description": {
+        "fr": "Muse Glimmer de Meta est un modèle conçu pour les agents sur une machine personnelle, sous licence Apache 2.0 : tâches en plusieurs étapes, appel d'outils avec reprise après un échec, réflexion avant de répondre, et lecture d'images, de captures d'écran et de documents. Son projecteur de vision est un second fichier d'environ 1,4 Go. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+        "en": "Muse Glimmer from Meta is a model built for agents on a personal machine, under the Apache 2.0 licence: multi-step tasks, tool calling with recovery after a failure, thinking before answering, and reading images, screenshots and documents. Its vision projector is a second file of about 1.4 GB. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/meta-models/Muse-Glimmer-30B/tree/main"
+      },
+      "memory": {
+        "min_gb": 16.8,
+        "source": "https://huggingface.co/meta-models/Muse-Glimmer-30B-GGUF/blob/main/Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "meta-models/Muse-Glimmer-30B",
+        "meta-models/Muse-Glimmer-30B-GGUF",
+        "lmstudio-community/Muse-Glimmer-30B-GGUF",
+        "unsloth/Muse-Glimmer-30B-GGUF",
+        "mlx-community/Muse-Glimmer-30B-4bit"
+      ]
+    },
+    {
       "id": "nemotron-cascade/Nemotron-Cascade-2-30B-A3B",
       "kind": "language",
       "label": "Nemotron Cascade 2 30B-A3B",
@@ -8520,6 +8589,43 @@
         "lmstudio-community/Qwen3.8-27B-MLX-5bit",
         "lmstudio-community/Qwen3.8-27B-MLX-6bit",
         "lmstudio-community/Qwen3.8-27B-MLX-8bit"
+      ]
+    },
+    {
+      "id": "qwen3.8/Qwen3.8-Flash-Next",
+      "kind": "language",
+      "label": "Qwen3.8 Flash Next",
+      "publisher": "Qwen",
+      "license": {
+        "id": "qwen-community-1.0",
+        "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next/blob/main/LICENSE"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next",
+      "description": {
+        "fr": "Qwen3.8 Flash Next d'Alibaba est un aperçu expérimental de l'architecture prévue pour Qwen4 : il lit les images, appelle des outils et règle l'effort de réflexion. Son fichier Q4 pèse 119 Go en trois morceaux : très grande taille, réservée aux stations de travail ; compter une machine d'au moins 192 Go de mémoire en quantification Q4. Sa licence (Qwen Community License 1.0) demande une licence séparée à qui exploite un service de modèles ou un assistant de travail commercial ; lisez-la avant un usage professionnel.",
+        "en": "Qwen3.8 Flash Next from Alibaba is an experimental preview of the architecture planned for Qwen4: it reads images, calls tools and sets the thinking effort. Its Q4 file weighs 119 GB in three parts: a very large size, for workstations only; plan for a machine with at least 192 GB of memory at Q4 quantization. Its licence (Qwen Community License 1.0) asks for a separate licence from whoever runs a model service or a commercial work assistant; read it before professional use."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next/tree/main"
+      },
+      "memory": {
+        "min_gb": 119.2,
+        "source": "https://huggingface.co/lmstudio-community/Qwen3.8-Flash-Next-GGUF/blob/main/Qwen3.8-Flash-Next-Q4_K_M-00001-of-00003.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "Qwen/Qwen3.8-Flash-Next",
+        "lmstudio-community/Qwen3.8-Flash-Next-GGUF",
+        "unsloth/Qwen3.8-Flash-Next-GGUF",
+        "bartowski/Qwen3.8-Flash-Next-GGUF",
+        "ggml-org/Qwen3.8-Flash-Next-GGUF",
+        "mlx-community/Qwen3.8-Flash-Next-4bit"
       ]
     },
     {

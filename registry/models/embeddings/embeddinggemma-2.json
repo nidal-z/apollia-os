@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "embeddinggemma-2",
+  "kind": "embeddings",
+  "label": "EmbeddingGemma 2",
+  "publisher": "Google",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/google/embeddinggemma-2"
+  },
+  "source_url": "https://huggingface.co/google/embeddinggemma-2",
+  "description": {
+    "fr": "Modèle d'embeddings léger de Google pour la recherche par le sens, sous licence Apache 2.0. Il lit des passages jusqu'à 8 192 jetons et produit des vecteurs de 768 dimensions. Apollia s'en sert pour le texte ; sa lecture des images, de l'audio et de la vidéo demande un second fichier qui n'est pas utilisé ici. Compter autour de 0,5 Go de mémoire.",
+    "en": "A light embeddings model from Google for search by meaning, under the Apache 2.0 licence. It reads passages up to 8,192 tokens and produces vectors of 768 dimensions. Apollia uses it for text; its reading of images, audio and video needs a second file that is not used here. Plan for around 0.5 GB of memory."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/google/embeddinggemma-2"
+  },
+  "memory": {
+    "min_gb": 0.4,
+    "source": "https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/blob/main/embeddinggemma-2-Q8_0.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "ggml-org/embeddinggemma-2-GGUF",
+    "google/embeddinggemma-2"
+  ]
+}

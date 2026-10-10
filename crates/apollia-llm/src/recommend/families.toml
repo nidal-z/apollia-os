@@ -539,6 +539,27 @@ source = "https://huggingface.co/Qwen/Qwen3-Embedding-4B"
 by_request = true
 notes = "Same architecture, pooling and prefixes as the 0.6B entry. Its vectors are two and a half times as long, so an index built with it weighs as much more."
 
+[[embedding]]
+id = "embeddinggemma-2"
+label = "EmbeddingGemma 2"
+publisher = "Google"
+released = "2026-09-14"
+license = "apache-2.0"
+repo = "ggml-org/embeddinggemma-2-GGUF"
+file = "embeddinggemma-2-Q8_0.gguf"
+quantization = "Q8_0"
+size_bytes = 309855456
+sha256 = "2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135"
+architecture = "gemma-embedding2"
+dimensions = 768
+context_length = 8192
+pooling = "mean"
+query_prefix = "task: search result | query: "
+passage_prefix = "title: none | text: "
+source = "https://huggingface.co/google/embeddinggemma-2"
+by_request = true
+notes = "Loads from llama.cpp b11541 on; the pinned engine before that did not know its architecture. Text only here: its projector for images, audio and video is a separate file the embeddings instance is not given."
+
 # ── Dictation ─────────────────────────────────────────────────────────────
 #
 # Listed with the French fine-tune first: on a tie in size the file met first
