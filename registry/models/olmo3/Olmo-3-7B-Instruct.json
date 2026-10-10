@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "olmo3/Olmo-3-7B-Instruct",
+  "kind": "language",
+  "label": "Olmo 3 7B Instruct",
+  "publisher": "Ai2",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/allenai/Olmo-3-7B-Instruct"
+  },
+  "source_url": "https://huggingface.co/allenai/Olmo-3-7B-Instruct",
+  "description": {
+    "fr": "Famille Olmo 3 d'Ai2, un institut de recherche qui publie aussi ses données et sa recette d'entraînement, sous licence Apache 2.0. Olmo 3 7B Instruct répond directement, sans mode de réflexion, et appelle des outils. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The Olmo 3 family from Ai2, a research institute that also publishes its data and training recipe, under the Apache 2.0 licence. Olmo 3 7B Instruct answers directly, with no thinking mode, and calls tools. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/allenai/Olmo-3-7B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 4.5,
+    "source": "https://huggingface.co/bartowski/allenai_Olmo-3-7B-Instruct-GGUF/blob/main/allenai_Olmo-3-7B-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "allenai/Olmo-3-7B-Instruct",
+    "bartowski/allenai_Olmo-3-7B-Instruct-GGUF",
+    "lmstudio-community/Olmo-3-7B-Instruct-GGUF",
+    "unsloth/Olmo-3-7B-Instruct-GGUF",
+    "lmstudio-community/Olmo-3-7B-Instruct-MLX-4bit"
+  ]
+}

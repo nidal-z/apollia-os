@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "minicpm5/MiniCPM5-2B",
+  "kind": "language",
+  "label": "MiniCPM5 2B",
+  "publisher": "OpenBMB",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/openbmb/MiniCPM5-2B"
+  },
+  "source_url": "https://huggingface.co/openbmb/MiniCPM5-2B",
+  "description": {
+    "fr": "Famille MiniCPM5 d'OpenBMB, conçue pour tourner sur l'appareil, sous licence Apache 2.0 : appel d'outils et réflexion qui peut être coupée. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "The MiniCPM5 family from OpenBMB, built to run on the device, under the Apache 2.0 licence: tool calling and thinking that can be turned off. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/openbmb/MiniCPM5-2B/tree/main"
+  },
+  "memory": {
+    "min_gb": 1.6,
+    "source": "https://huggingface.co/openbmb/MiniCPM5-2B-GGUF/blob/main/MiniCPM5-2B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "openbmb/MiniCPM5-2B",
+    "openbmb/MiniCPM5-2B-GGUF",
+    "bartowski/MiniCPM5-2B-GGUF",
+    "openbmb/MiniCPM5-2B-MLX",
+    "mlx-community/MiniCPM5-2B-8bit"
+  ]
+}

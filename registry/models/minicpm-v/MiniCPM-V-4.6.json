@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "minicpm-v/MiniCPM-V-4.6",
+  "kind": "language",
+  "label": "MiniCPM-V 4.6",
+  "publisher": "OpenBMB",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/openbmb/MiniCPM-V-4.6"
+  },
+  "source_url": "https://huggingface.co/openbmb/MiniCPM-V-4.6",
+  "description": {
+    "fr": "MiniCPM-V 4.6 d'OpenBMB, sous licence Apache 2.0, est un très petit modèle qui lit les images, seules ou à plusieurs, et la vidéo ; il est bâti sur Qwen3.5 0.8B. Son projecteur de vision est un second fichier d'environ 1,1 Go. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "MiniCPM-V 4.6 from OpenBMB, under the Apache 2.0 licence, is a very small model that reads images, one or several, and video; it is built on Qwen3.5 0.8B. Its vision projector is a second file of about 1.1 GB. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/openbmb/MiniCPM-V-4.6/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.6,
+    "source": "https://huggingface.co/openbmb/MiniCPM-V-4.6-gguf/blob/main/MiniCPM-V-4_6-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "openbmb/MiniCPM-V-4.6",
+    "openbmb/MiniCPM-V-4.6-gguf",
+    "ggml-org/MiniCPM-V-4.6-GGUF",
+    "mlx-community/MiniCPM-V-4.6-4bit"
+  ]
+}

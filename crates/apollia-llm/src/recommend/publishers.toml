@@ -39,7 +39,7 @@ orgs = ["google"]
 
 [[official]]
 publisher = "Meta"
-orgs = ["meta-llama"]
+orgs = ["meta-llama", "meta-models"]
 
 [[official]]
 publisher = "Microsoft"
@@ -88,3 +88,15 @@ orgs = ["HuggingFaceTB"]
 [[official]]
 publisher = "TII"
 orgs = ["tiiuae"]
+
+[[official]]
+publisher = "Ai2"
+orgs = ["allenai"]
+
+[[official]]
+publisher = "OpenBMB"
+orgs = ["openbmb"]
+
+[[official]]
+publisher = "Swiss AI Initiative"
+orgs = ["swiss-ai"]

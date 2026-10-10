@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "apertus/Apertus-70B-Instruct-2509",
+  "kind": "language",
+  "label": "Apertus 70B Instruct",
+  "publisher": "Swiss AI Initiative",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/swiss-ai/Apertus-70B-Instruct-2509"
+  },
+  "source_url": "https://huggingface.co/swiss-ai/Apertus-70B-Instruct-2509",
+  "description": {
+    "fr": "Apertus de la Swiss AI Initiative est un modèle européen entièrement ouvert, sous licence Apache 2.0 : poids, données et recette d'entraînement sont publiés, et sa fiche annonce plus de mille langues. Il appelle des outils. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
+    "en": "Apertus from the Swiss AI Initiative is a fully open European model, under the Apache 2.0 licence: weights, data and training recipe are published, and its card states more than a thousand languages. It calls tools. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/swiss-ai/Apertus-70B-Instruct-2509/tree/main"
+  },
+  "memory": {
+    "min_gb": 43.8,
+    "source": "https://huggingface.co/bartowski/swiss-ai_Apertus-70B-Instruct-2509-GGUF/blob/main/swiss-ai_Apertus-70B-Instruct-2509-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "swiss-ai/Apertus-70B-Instruct-2509",
+    "bartowski/swiss-ai_Apertus-70B-Instruct-2509-GGUF",
+    "unsloth/Apertus-70B-Instruct-2509-GGUF"
+  ]
+}

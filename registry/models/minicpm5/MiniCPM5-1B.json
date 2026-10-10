@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "minicpm5/MiniCPM5-1B",
+  "kind": "language",
+  "label": "MiniCPM5 1B",
+  "publisher": "OpenBMB",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/openbmb/MiniCPM5-1B"
+  },
+  "source_url": "https://huggingface.co/openbmb/MiniCPM5-1B",
+  "description": {
+    "fr": "Famille MiniCPM5 d'OpenBMB, conçue pour tourner sur l'appareil, sous licence Apache 2.0 : appel d'outils et réflexion qui peut être coupée. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+    "en": "The MiniCPM5 family from OpenBMB, built to run on the device, under the Apache 2.0 licence: tool calling and thinking that can be turned off. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/openbmb/MiniCPM5-1B/tree/main"
+  },
+  "memory": {
+    "min_gb": 0.7,
+    "source": "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/blob/main/MiniCPM5-1B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "openbmb/MiniCPM5-1B",
+    "openbmb/MiniCPM5-1B-GGUF",
+    "openbmb/MiniCPM5-1B-MLX",
+    "mlx-community/MiniCPM5-1B-4bit"
+  ]
+}

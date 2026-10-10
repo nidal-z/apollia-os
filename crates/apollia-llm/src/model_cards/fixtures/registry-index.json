@@ -2,6 +2,75 @@
   "schema_version": 1,
   "cards": [
     {
+      "id": "apertus/Apertus-70B-Instruct-2509",
+      "kind": "language",
+      "label": "Apertus 70B Instruct",
+      "publisher": "Swiss AI Initiative",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/swiss-ai/Apertus-70B-Instruct-2509"
+      },
+      "source_url": "https://huggingface.co/swiss-ai/Apertus-70B-Instruct-2509",
+      "description": {
+        "fr": "Apertus de la Swiss AI Initiative est un modèle européen entièrement ouvert, sous licence Apache 2.0 : poids, données et recette d'entraînement sont publiés, et sa fiche annonce plus de mille langues. Il appelle des outils. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
+        "en": "Apertus from the Swiss AI Initiative is a fully open European model, under the Apache 2.0 licence: weights, data and training recipe are published, and its card states more than a thousand languages. It calls tools. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/swiss-ai/Apertus-70B-Instruct-2509/tree/main"
+      },
+      "memory": {
+        "min_gb": 43.8,
+        "source": "https://huggingface.co/bartowski/swiss-ai_Apertus-70B-Instruct-2509-GGUF/blob/main/swiss-ai_Apertus-70B-Instruct-2509-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "swiss-ai/Apertus-70B-Instruct-2509",
+        "bartowski/swiss-ai_Apertus-70B-Instruct-2509-GGUF",
+        "unsloth/Apertus-70B-Instruct-2509-GGUF"
+      ]
+    },
+    {
+      "id": "apertus/Apertus-8B-Instruct-2509",
+      "kind": "language",
+      "label": "Apertus 8B Instruct",
+      "publisher": "Swiss AI Initiative",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/swiss-ai/Apertus-8B-Instruct-2509"
+      },
+      "source_url": "https://huggingface.co/swiss-ai/Apertus-8B-Instruct-2509",
+      "description": {
+        "fr": "Apertus de la Swiss AI Initiative est un modèle européen entièrement ouvert, sous licence Apache 2.0 : poids, données et recette d'entraînement sont publiés, et sa fiche annonce plus de mille langues. Il appelle des outils. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+        "en": "Apertus from the Swiss AI Initiative is a fully open European model, under the Apache 2.0 licence: weights, data and training recipe are published, and its card states more than a thousand languages. It calls tools. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/swiss-ai/Apertus-8B-Instruct-2509/tree/main"
+      },
+      "memory": {
+        "min_gb": 5.1,
+        "source": "https://huggingface.co/bartowski/swiss-ai_Apertus-8B-Instruct-2509-GGUF/blob/main/swiss-ai_Apertus-8B-Instruct-2509-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "swiss-ai/Apertus-8B-Instruct-2509",
+        "bartowski/swiss-ai_Apertus-8B-Instruct-2509-GGUF",
+        "unsloth/Apertus-8B-Instruct-2509-GGUF",
+        "mlx-community/Apertus-8B-Instruct-2509-4bit"
+      ]
+    },
+    {
       "id": "aya/aya-expanse-32b",
       "kind": "language",
       "label": "Aya Expanse 32B",
@@ -4527,6 +4596,147 @@
       ]
     },
     {
+      "id": "minicpm-v/MiniCPM-V-4.6",
+      "kind": "language",
+      "label": "MiniCPM-V 4.6",
+      "publisher": "OpenBMB",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/openbmb/MiniCPM-V-4.6"
+      },
+      "source_url": "https://huggingface.co/openbmb/MiniCPM-V-4.6",
+      "description": {
+        "fr": "MiniCPM-V 4.6 d'OpenBMB, sous licence Apache 2.0, est un très petit modèle qui lit les images, seules ou à plusieurs, et la vidéo ; il est bâti sur Qwen3.5 0.8B. Son projecteur de vision est un second fichier d'environ 1,1 Go. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+        "en": "MiniCPM-V 4.6 from OpenBMB, under the Apache 2.0 licence, is a very small model that reads images, one or several, and video; it is built on Qwen3.5 0.8B. Its vision projector is a second file of about 1.1 GB. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/openbmb/MiniCPM-V-4.6/tree/main"
+      },
+      "memory": {
+        "min_gb": 0.6,
+        "source": "https://huggingface.co/openbmb/MiniCPM-V-4.6-gguf/blob/main/MiniCPM-V-4_6-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openbmb/MiniCPM-V-4.6",
+        "openbmb/MiniCPM-V-4.6-gguf",
+        "ggml-org/MiniCPM-V-4.6-GGUF",
+        "mlx-community/MiniCPM-V-4.6-4bit"
+      ]
+    },
+    {
+      "id": "minicpm4/MiniCPM4.1-8B",
+      "kind": "language",
+      "label": "MiniCPM4.1 8B",
+      "publisher": "OpenBMB",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/openbmb/MiniCPM4.1-8B"
+      },
+      "source_url": "https://huggingface.co/openbmb/MiniCPM4.1-8B",
+      "description": {
+        "fr": "MiniCPM4.1 8B d'OpenBMB, sous licence Apache 2.0, est un modèle à réflexion débrayable conçu pour tourner sur l'appareil, avec une attention allégée pour les longs contextes. Son gabarit de conversation ne prévoit pas l'appel d'outils. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+        "en": "MiniCPM4.1 8B from OpenBMB, under the Apache 2.0 licence, is a model with thinking that can be turned off, built to run on the device, with a lighter attention for long contexts. Its chat template has no tool calling. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/openbmb/MiniCPM4.1-8B/tree/main"
+      },
+      "memory": {
+        "min_gb": 5.0,
+        "source": "https://huggingface.co/openbmb/MiniCPM4.1-8B-GGUF/blob/main/MiniCPM4.1-8B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openbmb/MiniCPM4.1-8B",
+        "openbmb/MiniCPM4.1-8B-GGUF",
+        "openbmb/MiniCPM4.1-8B-MLX",
+        "mlx-community/MiniCPM4.1-8B-4bit"
+      ]
+    },
+    {
+      "id": "minicpm5/MiniCPM5-1B",
+      "kind": "language",
+      "label": "MiniCPM5 1B",
+      "publisher": "OpenBMB",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/openbmb/MiniCPM5-1B"
+      },
+      "source_url": "https://huggingface.co/openbmb/MiniCPM5-1B",
+      "description": {
+        "fr": "Famille MiniCPM5 d'OpenBMB, conçue pour tourner sur l'appareil, sous licence Apache 2.0 : appel d'outils et réflexion qui peut être coupée. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+        "en": "The MiniCPM5 family from OpenBMB, built to run on the device, under the Apache 2.0 licence: tool calling and thinking that can be turned off. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/openbmb/MiniCPM5-1B/tree/main"
+      },
+      "memory": {
+        "min_gb": 0.7,
+        "source": "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/blob/main/MiniCPM5-1B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openbmb/MiniCPM5-1B",
+        "openbmb/MiniCPM5-1B-GGUF",
+        "openbmb/MiniCPM5-1B-MLX",
+        "mlx-community/MiniCPM5-1B-4bit"
+      ]
+    },
+    {
+      "id": "minicpm5/MiniCPM5-2B",
+      "kind": "language",
+      "label": "MiniCPM5 2B",
+      "publisher": "OpenBMB",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/openbmb/MiniCPM5-2B"
+      },
+      "source_url": "https://huggingface.co/openbmb/MiniCPM5-2B",
+      "description": {
+        "fr": "Famille MiniCPM5 d'OpenBMB, conçue pour tourner sur l'appareil, sous licence Apache 2.0 : appel d'outils et réflexion qui peut être coupée. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
+        "en": "The MiniCPM5 family from OpenBMB, built to run on the device, under the Apache 2.0 licence: tool calling and thinking that can be turned off. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/openbmb/MiniCPM5-2B/tree/main"
+      },
+      "memory": {
+        "min_gb": 1.6,
+        "source": "https://huggingface.co/openbmb/MiniCPM5-2B-GGUF/blob/main/MiniCPM5-2B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openbmb/MiniCPM5-2B",
+        "openbmb/MiniCPM5-2B-GGUF",
+        "bartowski/MiniCPM5-2B-GGUF",
+        "openbmb/MiniCPM5-2B-MLX",
+        "mlx-community/MiniCPM5-2B-8bit"
+      ]
+    },
+    {
       "id": "ministral-3/Ministral-3-14B-Instruct-2512",
       "kind": "language",
       "label": "Ministral 3 14B",
@@ -5729,6 +5939,150 @@
         "unsloth/North-Mini-Code-1.0-GGUF",
         "mlx-community/North-Mini-Code-1.0-4bit",
         "mlx-community/North-Mini-Code-1.0-6bit"
+      ]
+    },
+    {
+      "id": "olmo3/Olmo-3-7B-Instruct",
+      "kind": "language",
+      "label": "Olmo 3 7B Instruct",
+      "publisher": "Ai2",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/allenai/Olmo-3-7B-Instruct"
+      },
+      "source_url": "https://huggingface.co/allenai/Olmo-3-7B-Instruct",
+      "description": {
+        "fr": "Famille Olmo 3 d'Ai2, un institut de recherche qui publie aussi ses données et sa recette d'entraînement, sous licence Apache 2.0. Olmo 3 7B Instruct répond directement, sans mode de réflexion, et appelle des outils. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+        "en": "The Olmo 3 family from Ai2, a research institute that also publishes its data and training recipe, under the Apache 2.0 licence. Olmo 3 7B Instruct answers directly, with no thinking mode, and calls tools. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/allenai/Olmo-3-7B-Instruct/tree/main"
+      },
+      "memory": {
+        "min_gb": 4.5,
+        "source": "https://huggingface.co/bartowski/allenai_Olmo-3-7B-Instruct-GGUF/blob/main/allenai_Olmo-3-7B-Instruct-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "allenai/Olmo-3-7B-Instruct",
+        "bartowski/allenai_Olmo-3-7B-Instruct-GGUF",
+        "lmstudio-community/Olmo-3-7B-Instruct-GGUF",
+        "unsloth/Olmo-3-7B-Instruct-GGUF",
+        "lmstudio-community/Olmo-3-7B-Instruct-MLX-4bit"
+      ]
+    },
+    {
+      "id": "olmo3/Olmo-3-7B-Think",
+      "kind": "language",
+      "label": "Olmo 3 7B Think",
+      "publisher": "Ai2",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/allenai/Olmo-3-7B-Think"
+      },
+      "source_url": "https://huggingface.co/allenai/Olmo-3-7B-Think",
+      "description": {
+        "fr": "Famille Olmo 3 d'Ai2, un institut de recherche qui publie aussi ses données et sa recette d'entraînement, sous licence Apache 2.0. Olmo 3 7B Think réfléchit longuement avant de répondre, ce qui sert les mathématiques et la programmation. Son gabarit de conversation ne prévoit pas l'appel d'outils. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+        "en": "The Olmo 3 family from Ai2, a research institute that also publishes its data and training recipe, under the Apache 2.0 licence. Olmo 3 7B Think thinks at length before answering, which serves mathematics and programming. Its chat template has no tool calling. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/allenai/Olmo-3-7B-Think/tree/main"
+      },
+      "memory": {
+        "min_gb": 4.5,
+        "source": "https://huggingface.co/bartowski/allenai_Olmo-3-7B-Think-GGUF/blob/main/allenai_Olmo-3-7B-Think-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "allenai/Olmo-3-7B-Think",
+        "bartowski/allenai_Olmo-3-7B-Think-GGUF",
+        "lmstudio-community/Olmo-3-7B-Think-GGUF",
+        "unsloth/Olmo-3-7B-Think-GGUF",
+        "lmstudio-community/Olmo-3-7B-Think-MLX-4bit"
+      ]
+    },
+    {
+      "id": "olmo3/Olmo-3.1-32B-Instruct",
+      "kind": "language",
+      "label": "Olmo 3.1 32B Instruct",
+      "publisher": "Ai2",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/allenai/Olmo-3.1-32B-Instruct"
+      },
+      "source_url": "https://huggingface.co/allenai/Olmo-3.1-32B-Instruct",
+      "description": {
+        "fr": "Famille Olmo 3 d'Ai2, un institut de recherche qui publie aussi ses données et sa recette d'entraînement, sous licence Apache 2.0. Olmo 3.1 32B Instruct répond directement, sans mode de réflexion, et appelle des outils. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+        "en": "The Olmo 3 family from Ai2, a research institute that also publishes its data and training recipe, under the Apache 2.0 licence. Olmo 3.1 32B Instruct answers directly, with no thinking mode, and calls tools. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/allenai/Olmo-3.1-32B-Instruct/tree/main"
+      },
+      "memory": {
+        "min_gb": 19.5,
+        "source": "https://huggingface.co/bartowski/allenai_Olmo-3.1-32B-Instruct-GGUF/blob/main/allenai_Olmo-3.1-32B-Instruct-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "allenai/Olmo-3.1-32B-Instruct",
+        "bartowski/allenai_Olmo-3.1-32B-Instruct-GGUF",
+        "lmstudio-community/Olmo-3.1-32B-Instruct-GGUF",
+        "unsloth/Olmo-3.1-32B-Instruct-GGUF",
+        "lmstudio-community/Olmo-3.1-32B-Instruct-MLX-4bit"
+      ]
+    },
+    {
+      "id": "olmo3/Olmo-3.1-32B-Think",
+      "kind": "language",
+      "label": "Olmo 3.1 32B Think",
+      "publisher": "Ai2",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/allenai/Olmo-3.1-32B-Think"
+      },
+      "source_url": "https://huggingface.co/allenai/Olmo-3.1-32B-Think",
+      "description": {
+        "fr": "Famille Olmo 3 d'Ai2, un institut de recherche qui publie aussi ses données et sa recette d'entraînement, sous licence Apache 2.0. Olmo 3.1 32B Think réfléchit longuement avant de répondre, ce qui sert les mathématiques et la programmation. Son gabarit de conversation ne prévoit pas l'appel d'outils. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
+        "en": "The Olmo 3 family from Ai2, a research institute that also publishes its data and training recipe, under the Apache 2.0 licence. Olmo 3.1 32B Think thinks at length before answering, which serves mathematics and programming. Its chat template has no tool calling. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/allenai/Olmo-3.1-32B-Think/tree/main"
+      },
+      "memory": {
+        "min_gb": 19.5,
+        "source": "https://huggingface.co/bartowski/allenai_Olmo-3.1-32B-Think-GGUF/blob/main/allenai_Olmo-3.1-32B-Think-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "allenai/Olmo-3.1-32B-Think",
+        "bartowski/allenai_Olmo-3.1-32B-Think-GGUF",
+        "lmstudio-community/Olmo-3.1-32B-Think-GGUF",
+        "unsloth/Olmo-3.1-32B-Think-GGUF",
+        "mlx-community/Olmo-3.1-32B-Think-4bit"
       ]
     },
     {
@@ -9527,7 +9881,8 @@
       {
         "publisher": "Meta",
         "orgs": [
-          "meta-llama"
+          "meta-llama",
+          "meta-models"
         ]
       },
       {
@@ -9600,6 +9955,24 @@
         "publisher": "TII",
         "orgs": [
           "tiiuae"
+        ]
+      },
+      {
+        "publisher": "Ai2",
+        "orgs": [
+          "allenai"
+        ]
+      },
+      {
+        "publisher": "OpenBMB",
+        "orgs": [
+          "openbmb"
+        ]
+      },
+      {
+        "publisher": "Swiss AI Initiative",
+        "orgs": [
+          "swiss-ai"
         ]
       }
     ],

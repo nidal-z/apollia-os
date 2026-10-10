@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "olmo3/Olmo-3-7B-Think",
+  "kind": "language",
+  "label": "Olmo 3 7B Think",
+  "publisher": "Ai2",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/allenai/Olmo-3-7B-Think"
+  },
+  "source_url": "https://huggingface.co/allenai/Olmo-3-7B-Think",
+  "description": {
+    "fr": "Famille Olmo 3 d'Ai2, un institut de recherche qui publie aussi ses données et sa recette d'entraînement, sous licence Apache 2.0. Olmo 3 7B Think réfléchit longuement avant de répondre, ce qui sert les mathématiques et la programmation. Son gabarit de conversation ne prévoit pas l'appel d'outils. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
+    "en": "The Olmo 3 family from Ai2, a research institute that also publishes its data and training recipe, under the Apache 2.0 licence. Olmo 3 7B Think thinks at length before answering, which serves mathematics and programming. Its chat template has no tool calling. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/allenai/Olmo-3-7B-Think/tree/main"
+  },
+  "memory": {
+    "min_gb": 4.5,
+    "source": "https://huggingface.co/bartowski/allenai_Olmo-3-7B-Think-GGUF/blob/main/allenai_Olmo-3-7B-Think-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "allenai/Olmo-3-7B-Think",
+    "bartowski/allenai_Olmo-3-7B-Think-GGUF",
+    "lmstudio-community/Olmo-3-7B-Think-GGUF",
+    "unsloth/Olmo-3-7B-Think-GGUF",
+    "lmstudio-community/Olmo-3-7B-Think-MLX-4bit"
+  ]
+}
