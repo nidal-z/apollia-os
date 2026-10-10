@@ -68,8 +68,8 @@ fn test_each_load_setting_reaches_its_flag() {
             "--no-kv-offload",
             "--no-kv-offload",
         ),
-        ("mlock", json!(true), "--mlock", "--mlock"),
-        ("mmap", json!(false), "--no-mmap", "--no-mmap"),
+        ("mlock", json!(true), "--load-mode", "mmap+mlock"),
+        ("mmap", json!(false), "--load-mode", "none"),
         ("seed", json!(42), "--seed", "42"),
         ("spec_type", json!("draft-mtp"), "--spec-type", "draft-mtp"),
         ("flash_attn", json!("off"), "--flash-attn", "off"),
@@ -349,4 +349,19 @@ fn test_every_load_key_is_read_and_every_field_has_its_key() {
     // reaches, would leave a `None`
     assert_eq!(map.len(), LOAD_KEYS.len());
     assert!(!read.contains("None"), "{read}");
+}
+
+#[test]
+fn test_a_locked_model_that_is_not_memory_mapped_asks_for_one_load_mode() {
+    // GIVEN a preset that locks the model in memory and turns mapping off
+    let load = settings(json!({ "mlock": true, "mmap": false }));
+
+    // WHEN the launch line is built
+    let args = args_under(&load, None);
+
+    // THEN the engine is given one loading mode, and neither of the two flags
+    // it used to take and now refuses
+    assert_eq!(value_of(&args, "--load-mode").as_deref(), Some("mlock"));
+    assert_eq!(args.iter().filter(|a| *a == "--load-mode").count(), 1);
+    assert!(!args.iter().any(|a| a == "--mlock" || a == "--no-mmap"));
 }

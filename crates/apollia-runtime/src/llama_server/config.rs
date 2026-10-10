@@ -233,9 +233,10 @@ pub struct LlamaServerConfig {
     pub rope_freq_scale: Option<f32>,
     /// Keep the key/value cache off the accelerator (`--no-kv-offload`).
     pub no_kv_offload: bool,
-    /// Keep the model in memory rather than letting it be swapped (`--mlock`).
+    /// Keep the model in memory rather than letting it be swapped
+    /// (`--load-mode`, see [`load_mode`]).
     pub mlock: bool,
-    /// Load the model without memory-mapping it (`--no-mmap`).
+    /// Load the model without memory-mapping it (`--load-mode`).
     pub no_mmap: bool,
     /// Engine seed (`--seed`). `None` leaves the engine default, a random seed.
     pub seed: Option<u32>,
@@ -449,14 +450,26 @@ fn push_load_args(config: &LlamaServerConfig, args: &mut Vec<String>) {
     push("--model-draft", config.draft_model.clone());
     push("--spec-type", config.spec_type.map(|v| v.to_string()));
     push("--chat-template-file", config.chat_template_file.clone());
-    for (set, flag) in [
-        (config.no_kv_offload, "--no-kv-offload"),
-        (config.mlock, "--mlock"),
-        (config.no_mmap, "--no-mmap"),
-    ] {
-        if set {
-            args.push(flag.to_owned());
-        }
+    if config.no_kv_offload {
+        args.push("--no-kv-offload".to_owned());
+    }
+    if let Some(mode) = load_mode(config.mlock, config.no_mmap) {
+        args.push("--load-mode".to_owned());
+        args.push(mode.to_owned());
+    }
+}
+
+/// The `--load-mode` value for the two loading switches, `None` when both are
+/// left as the engine has them (memory-mapped, not locked).
+///
+/// The engine took `--mlock` and `--no-mmap` until it folded them into this
+/// one argument, and it now refuses the two former flags.
+fn load_mode(mlock: bool, no_mmap: bool) -> Option<&'static str> {
+    match (mlock, no_mmap) {
+        (false, false) => None,
+        (true, false) => Some("mmap+mlock"),
+        (true, true) => Some("mlock"),
+        (false, true) => Some("none"),
     }
 }
 
@@ -886,7 +899,7 @@ mod tests {
     #[test]
     fn test_resolve_env_extra_args_are_appended_last() {
         // GIVEN APOLLIA_LLAMA_EXTRA_ARGS carrying two tokens
-        let config = with_env(ENV_EXTRA_ARGS, "--mlock --no-warmup");
+        let config = with_env(ENV_EXTRA_ARGS, "--swa-full --no-warmup");
 
         // WHEN the argument vector is built
         let args = build_args(&config, PORT);
@@ -895,7 +908,7 @@ mod tests {
         assert_eq!(
             args,
             baseline_with(|v| {
-                v.push("--mlock".to_owned());
+                v.push("--swa-full".to_owned());
                 v.push("--no-warmup".to_owned());
             })
         );
@@ -1003,7 +1016,7 @@ mod tests {
             cache_type_k: Some("q8_0".to_owned()),
             cache_type_v: Some("q8_0".to_owned()),
             cache_reuse: Some(256),
-            extra_args: vec!["--mlock".to_owned()],
+            extra_args: vec!["--swa-full".to_owned()],
             ..LlamaServerConfig::default()
         };
 
@@ -1042,7 +1055,7 @@ mod tests {
             "127.0.0.1",
             "--port",
             "8080",
-            "--mlock",
+            "--swa-full",
         ]
         .iter()
         .map(|s| (*s).to_owned())

@@ -40,7 +40,7 @@ DEST="${2:?usage: fetch-llama-server.sh <backend> <dest_runners_dir>}"
 
 # Pinned upstream llama.cpp release. Bump deliberately (new architectures land
 # here); re-fill the checksums file when you do.
-LLAMA_CPP_TAG="${LLAMA_CPP_TAG:-b10092}"
+LLAMA_CPP_TAG="${LLAMA_CPP_TAG:-b11541}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CHECKSUMS="${SCRIPT_DIR}/llama-server-checksums.txt"
@@ -159,7 +159,7 @@ case "${uname_s}:${uname_m}:${BACKEND}" in
     Darwin:x64:*)               asset="llama-${LLAMA_CPP_TAG}-bin-macos-x64.tar.gz" ;;
     Linux:x64:cpu)              asset="llama-${LLAMA_CPP_TAG}-bin-ubuntu-x64.tar.gz" ;;
     Linux:x64:vulkan)           asset="llama-${LLAMA_CPP_TAG}-bin-ubuntu-vulkan-x64.tar.gz" ;;
-    Linux:x64:rocm)             asset="llama-${LLAMA_CPP_TAG}-bin-ubuntu-rocm-7.2-x64.tar.gz" ;;
+    Linux:x64:rocm)             asset="llama-${LLAMA_CPP_TAG}-bin-ubuntu-rocm-10.0-x64.tar.gz" ;;
     Linux:arm64:cpu)            asset="llama-${LLAMA_CPP_TAG}-bin-ubuntu-arm64.tar.gz" ;;
     MINGW*:x64:cpu | MSYS*:x64:cpu)   asset="llama-${LLAMA_CPP_TAG}-bin-win-cpu-x64.zip" ;;
     MINGW*:x64:vulkan | MSYS*:x64:vulkan) asset="llama-${LLAMA_CPP_TAG}-bin-win-vulkan-x64.zip" ;;

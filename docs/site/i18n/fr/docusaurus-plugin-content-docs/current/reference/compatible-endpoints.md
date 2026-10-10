@@ -588,7 +588,7 @@ La table liste chaque chemin que sert le serveur compatible.
 | `POST` | `/v1/messages` | Anthropic. Relayé au moteur du modèle ; sur un modèle `apollia/...`, ou avec `mcp_servers`, exécuté par Apollia |
 | `POST` | `/v1/messages/count_tokens` | Anthropic. Relayé au moteur du modèle (`llama-server` seulement) |
 
-Mesuré sur `llama-server` à la version qu'épingle Apollia (`b10092`) : les
+Mesuré sur `llama-server` à la version qu'épingle Apollia (`b11541`) : les
 quatre points d'accès de conversation répondent `200` sur un modèle de
 conversation, et `/v1/embeddings` ne répond que sur l'instance lancée pour la
 recherche par le sens.

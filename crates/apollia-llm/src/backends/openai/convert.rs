@@ -366,7 +366,7 @@ pub(super) fn with_structured_output(
 ///
 /// `top_k`, `min_p` and `repeat_penalty` have no place in the typed builder, so
 /// they are added to the serialized body under the names llama-server reads
-/// (`tools/server/README.md` at llama.cpp `b10092`). Each one is written only
+/// (`tools/server/README.md` at llama.cpp `b11541`). Each one is written only
 /// when the caller fixed it: an unset field leaves the body as the protocol
 /// shapes it, so a server that knows none of the three never sees them.
 ///
@@ -436,9 +436,10 @@ fn with_earlier_reasoning(
 /// The `chat_template_kwargs` object that carries the reasoning settings a
 /// caller fixed, `None` when it fixed none.
 ///
-/// It is the one per-request form both local engines read: llama-server at
-/// `b10092` (`chat_template_kwargs` in its request parser, where
-/// `reasoning_effort` is not a request field of its own) and vllm-mlx 0.5.0
+/// It is the one per-request form both local engines read: llama-server
+/// (`chat_template_kwargs` in its request parser; at `b10092`
+/// `reasoning_effort` was not a request field of its own, at `b11541` it is,
+/// and the template arguments are read as before) and vllm-mlx 0.5.0
 /// (`ChatCompletionRequest.chat_template_kwargs`, merged into the template
 /// arguments). Each variable is written only when fixed, so the template keeps
 /// its own default otherwise. `preserve_thinking` is written only when it is

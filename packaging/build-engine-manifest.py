@@ -37,7 +37,7 @@ here: a run where the two hold the same value is refused.
 
 Usage:
     build-engine-manifest.py --channel stable --sequence 1760000000 \\
-        --llama-tag b10092 --out dist/engines-stable
+        --llama-tag b11541 --out dist/engines-stable
     build-engine-manifest.py ... --require llama-server/cuda/windows-x64
     build-engine-manifest.py ... --offline-dir downloads --no-sign
 

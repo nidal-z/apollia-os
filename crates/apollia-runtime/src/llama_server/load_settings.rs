@@ -52,9 +52,10 @@ pub struct LoadSettings {
     /// Whether the key/value cache goes to the accelerator; `false` passes
     /// `--no-kv-offload`.
     pub kv_offload: Option<bool>,
-    /// Keep the model in memory (`--mlock`).
+    /// Keep the model in memory (`--load-mode mmap+mlock`, or `mlock` when
+    /// it is not memory-mapped).
     pub mlock: Option<bool>,
-    /// Memory-map the model; `false` passes `--no-mmap`.
+    /// Memory-map the model; `false` passes `--load-mode none`.
     pub mmap: Option<bool>,
     /// Engine seed (`--seed`).
     pub seed: Option<u32>,

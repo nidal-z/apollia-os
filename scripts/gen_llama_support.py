@@ -209,12 +209,14 @@ def extract_attention(tag: str, arch_source: str):
         if kinds:
             pattern = None
             dense_first = False
-            literal = re.search(
-                r"set_swa_pattern\(\s*(\d+)\s*(?:,\s*(true))?\s*\)", head
-            )
-            via_var = re.search(
-                r"set_swa_pattern\(\s*(\w+)\s*(?:,\s*(true))?\s*\)", head
-            )
+            # Upstream sets the pattern either directly (`set_swa_pattern(6)`)
+            # or through `load_swa_pattern(ml, 6)`, which takes the same value
+            # as a default the file may override with its own
+            # `attention.sliding_window_pattern`.
+            call = r"(?:set_swa_pattern\(|load_swa_pattern\(\s*ml\s*,)"
+            dense = r"(?:,\s*(?:/\*.*?\*/\s*)?(true))?\s*\)"
+            literal = re.search(call + r"\s*(\d+)\s*" + dense, head)
+            via_var = re.search(call + r"\s*(\w+)\s*" + dense, head)
             if literal:
                 pattern, dense_first = int(literal.group(1)), bool(literal.group(2))
             elif via_var:
