@@ -367,28 +367,41 @@ pub async fn attach(
     read_and_attach(data_dir, registry, chat, Some(idle), grants).await
 }
 
+/// What reading the package code again takes: where the packages are, where
+/// their tools are entered, and what their workflows run with.
+#[derive(Clone)]
+pub struct PackageCode {
+    /// The data directory holding the package store and the environments.
+    pub data_dir: std::path::PathBuf,
+    /// The registry the tools are entered in.
+    pub registry: ToolRegistryHandle,
+    /// The chat manager told which tools exist, when there is one.
+    pub chat: Option<ChatSessionManagerHandle>,
+    /// The profile accesses granted to named packages.
+    pub grants: Vec<ProfileGrant>,
+    /// The workflow engine, when the runtime has one.
+    pub engine: Option<apollia_runtime::workflows::WorkflowHandle>,
+    /// What a workflow calls a model with.
+    pub models: Option<workflows::WorkflowModels>,
+}
+
 /// What a host leaves the runtime to re-read the package code after an
 /// installation: the tools, as [`attach`] reads them, then the workflows, as
 /// [`workflows::attach`] does. The tools read again are not watched for
 /// idleness, which the first reading set up for the life of the runtime.
-pub fn reload_hook(
-    data_dir: std::path::PathBuf,
-    registry: ToolRegistryHandle,
-    chat: Option<ChatSessionManagerHandle>,
-    grants: Vec<ProfileGrant>,
-    engine: Option<apollia_runtime::workflows::WorkflowHandle>,
-    models: Option<workflows::WorkflowModels>,
-) -> apollia_runtime::packages::PackageReload {
+pub fn reload_hook(code: PackageCode) -> apollia_runtime::packages::PackageReload {
     Arc::new(move || {
-        let data_dir = data_dir.clone();
-        let registry = registry.clone();
-        let chat = chat.clone();
-        let grants = grants.clone();
-        let engine = engine.clone();
-        let models = models.clone();
+        let code = code.clone();
         Box::pin(async move {
-            read_and_attach(&data_dir, &registry, chat.as_ref(), None, &grants).await;
-            workflows::attach(&data_dir, engine.as_ref(), models).await;
+            read_and_attach(
+                &code.data_dir,
+                &code.registry,
+                code.chat.as_ref(),
+                None,
+                &code.grants,
+            )
+            .await;
+            workflows::attach(&code.data_dir, code.engine.as_ref(), code.models).await;
         })
     })
 }

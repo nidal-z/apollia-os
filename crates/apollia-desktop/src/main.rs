@@ -278,14 +278,14 @@ fn main() {
             // A package installed from now on brings its tools and its
             // workflows at once.
             apollia_runtime::packages::install_package_reload(
-                apollia_aip::package_tools::reload_hook(
-                    data_dir.clone(),
-                    registry.clone(),
-                    chat.clone(),
-                    vec![apollia_aip::package_tools::ProfileGrant::onboarding()],
-                    workflows.clone(),
+                apollia_aip::package_tools::reload_hook(apollia_aip::package_tools::PackageCode {
+                    data_dir: data_dir.clone(),
+                    registry: registry.clone(),
+                    chat: chat.clone(),
+                    grants: vec![apollia_aip::package_tools::ProfileGrant::onboarding()],
+                    engine: workflows.clone(),
                     models,
-                ),
+                }),
             );
         });
     }

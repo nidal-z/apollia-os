@@ -223,12 +223,14 @@ pub async fn run(
     // A package installed from now on brings its tools and its workflows at
     // once.
     apollia_runtime::packages::install_package_reload(apollia_aip::package_tools::reload_hook(
-        data_dir_for_package_tools.clone(),
-        handles.tool_registry_handle.clone(),
-        handles.chat_manager.clone(),
-        vec![apollia_aip::package_tools::ProfileGrant::onboarding()],
-        handles.workflows.clone(),
-        workflow_models,
+        apollia_aip::package_tools::PackageCode {
+            data_dir: data_dir_for_package_tools.clone(),
+            registry: handles.tool_registry_handle.clone(),
+            chat: handles.chat_manager.clone(),
+            grants: vec![apollia_aip::package_tools::ProfileGrant::onboarding()],
+            engine: handles.workflows.clone(),
+            models: workflow_models,
+        },
     ));
 
     let elapsed = start.elapsed();
