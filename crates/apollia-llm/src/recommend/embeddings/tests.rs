@@ -262,14 +262,14 @@ fn the_recommendation_follows_the_room_left_beside_the_language_model() {
             name: "32 GB unified",
             profile: apple(32.0),
             language_model_bytes: Some(9 * GIB),
-            expected: "qwen3-embedding-0.6b",
+            expected: "bge-m3",
         },
         Case {
             // an 8 GB card in a 16 GB machine running an 8B at four bits
             name: "8 GB card, 16 GB system",
             profile: cuda(8.0, 16.0),
             language_model_bytes: Some(5 * GIB),
-            expected: "qwen3-embedding-0.6b",
+            expected: "bge-m3",
         },
     ];
     let catalogue = catalogue();
@@ -289,7 +289,7 @@ fn the_recommendation_follows_the_room_left_beside_the_language_model() {
                 embeddings_gb,
                 capacity_gb,
             } => {
-                assert_eq!(case.expected, "qwen3-embedding-0.6b", "{}", case.name);
+                assert_eq!(case.expected, "bge-m3", "{}", case.name);
                 assert!(language_gb + embeddings_gb <= *capacity_gb, "{}", case.name);
             }
             EmbeddingReason::NoRoomBeside {
@@ -298,7 +298,7 @@ fn the_recommendation_follows_the_room_left_beside_the_language_model() {
                 larger_gb,
                 capacity_gb,
             } => {
-                assert_eq!(larger, "qwen3-embedding-0.6b", "{}", case.name);
+                assert_eq!(larger, "bge-m3", "{}", case.name);
                 assert!(language_gb + larger_gb > *capacity_gb, "{}", case.name);
             }
         }
@@ -342,7 +342,7 @@ fn with_no_language_model_counted_the_larger_entry_is_offered_when_it_fits() {
         .expect("a non-empty category recommends");
 
     // THEN the larger entry fits on its own
-    assert_eq!(recommendation.model, "qwen3-embedding-0.6b");
+    assert_eq!(recommendation.model, "bge-m3");
     assert!(matches!(
         recommendation.reason,
         EmbeddingReason::FitsBeside { language_gb, .. } if language_gb == 0.0
@@ -368,7 +368,7 @@ fn an_entry_listed_by_request_is_never_the_one_recommended() {
         .expect("a non-empty category recommends");
 
     // THEN it is the largest of the entries not listed by request
-    assert_eq!(recommendation.model, "qwen3-embedding-0.6b");
+    assert_eq!(recommendation.model, "bge-m3");
     assert!(catalogue
         .models()
         .iter()
@@ -377,8 +377,8 @@ fn an_entry_listed_by_request_is_never_the_one_recommended() {
 }
 
 #[test]
-fn the_entries_listed_by_request_carry_the_pooling_their_header_declares() {
-    // GIVEN the three entries added beside the two recommended ones
+fn the_later_entries_carry_the_pooling_their_header_declares() {
+    // GIVEN the three entries added after the first two
     let catalogue = catalogue();
 
     // WHEN each is read

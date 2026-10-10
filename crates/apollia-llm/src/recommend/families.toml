@@ -474,6 +474,7 @@ pooling = "last"
 query_prefix = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"
 passage_prefix = ""
 source = "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B"
+by_request = true
 notes = "Its header names the qwen3 architecture, the same as the chat models of that generation: only its pooling key tells it apart, which is why the gate reads that key."
 
 [[embedding]]
@@ -515,8 +516,7 @@ pooling = "cls"
 query_prefix = ""
 passage_prefix = ""
 source = "https://huggingface.co/BAAI/bge-m3"
-by_request = true
-notes = "Its card describes dense, sparse and multi-vector retrieval; the engine serves the dense vector, the only one used here."
+notes = "The entry recommended when it fits beside the language model. Its card describes dense, sparse and multi-vector retrieval; the engine serves the dense vector, the only one used here."
 
 [[embedding]]
 id = "qwen3-embedding-4b"
