@@ -207,16 +207,14 @@ interface SelectionSize {
 }
 
 function selectionSizes(families: readonly SelectionFamily[]): SelectionSize[] {
-  return families
-    .filter((family) => !family.superseded)
-    .flatMap((family) =>
-      family.variants.map((variant) => ({
-        family,
-        name: variant.name,
-        paramsB: variant.params_b,
-        repos: [...variant.gguf_repos, ...variant.mlx_repos],
-      })),
-    );
+  return families.flatMap((family) =>
+    family.variants.map((variant) => ({
+      family,
+      name: variant.name,
+      paramsB: variant.params_b,
+      repos: [...variant.gguf_repos, ...variant.mlx_repos],
+    })),
+  );
 }
 
 /**

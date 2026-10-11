@@ -67,7 +67,6 @@ function family(over: Partial<SelectionFamily> = {}): SelectionFamily {
     released: "2026-04-29",
     license: "apache-2.0",
     tool_calling: "native",
-    superseded: false,
     variants: [
       { name: "Qwen3 8B", params_b: 8, gguf_repos: ["Qwen/Qwen3-8B-GGUF"], mlx_repos: ["mlx-community/Qwen3-8B-4bit"] },
       { name: "Qwen3 30B", params_b: 30, gguf_repos: ["Qwen/Qwen3-30B-GGUF"], mlx_repos: [] },
@@ -197,8 +196,8 @@ describe("the selection the window opens on", () => {
   test("without any card the shipped selection is still listed", () => {
     // GIVEN no card, as when the registry was never reached
     // WHEN the selection is listed
-    const entries = selectionEntries([], [family(), family({ id: "old", superseded: true })]);
-    // THEN every current size of the shipped selection is there
+    const entries = selectionEntries([], [family()]);
+    // THEN every size of the shipped selection is there
     expect(entries.map((e) => e.key)).toEqual(["selection:qwen3/Qwen3 8B", "selection:qwen3/Qwen3 30B"]);
   });
 

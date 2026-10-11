@@ -114,7 +114,7 @@ fn test_the_manifest_groups_the_suggested_cards_and_names_their_repositories() {
     assert_eq!(variants.len(), expected);
     assert!(variants.len() > 50);
     for variant in &variants {
-        assert!(variant.rule_score.is_some(), "{}", variant.hf_name);
+        assert!(variant.score.is_finite(), "{}", variant.hf_name);
         assert!(!variant.gguf_repos.is_empty(), "{}", variant.hf_name);
     }
     let qwen = manifest.family("qwen3.5").expect("Qwen3.5 is suggested");
@@ -130,15 +130,14 @@ fn test_a_newer_generation_of_the_same_size_is_ordered_first() {
     // GIVEN the manifest of the shipped cards
     let manifest = manifest_from_cards(&shipped_cards()).expect("the cards group");
     let score_of = |family: &str, name: &str| {
-        let family = manifest.family(family).expect("the family is suggested");
-        let variant = family
+        manifest
+            .family(family)
+            .expect("the family is suggested")
             .variants
             .iter()
             .find(|v| v.hf_name == name)
-            .expect("the size is suggested");
-        manifest
-            .base_score(family, variant)
-            .expect("a registry entry is scored")
+            .expect("the size is suggested")
+            .score
     };
 
     // WHEN two generations of one publisher at the same size are compared

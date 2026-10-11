@@ -59,7 +59,8 @@ async fn test_the_recommendation_outcome_is_served_with_its_status() {
     //       so no Hub is asked
     let dir = TempDir::new().unwrap();
     let profile = apollia_llm::hardware::detect();
-    let manifest = apollia_llm::recommend::FamilyManifest::embedded().unwrap();
+    let index = apollia_llm::model_cards::shipped_index().unwrap();
+    let manifest = apollia_llm::recommend::selection_from_cards(&index.cards).unwrap();
     let outcome = RecommendOutcome::Ok {
         models: Vec::new(),
         hardware: crate::api::routes_model_hub::HardwareResponse::from(profile),

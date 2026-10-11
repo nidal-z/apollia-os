@@ -29,19 +29,13 @@ export interface Localisable {
 const BYTES_PER_GIB = 1024 * 1024 * 1024;
 
 /**
- * The label a model row carries, for example `"Qwen3 14B"`.
- *
- * The name the registry card gives the model when there is one; else built
- * from the family label and the parameter count. Never from the file name: a
- * file is called `Qwen_Qwen3-14B-Q4_K_M.gguf` when bartowski published it,
- * which names the quantiser more prominently than the model.
+ * The label a model row carries, for example `"Qwen3 14B"`: the name the
+ * registry card gives the model. Never the file name: a file is called
+ * `Qwen_Qwen3-14B-Q4_K_M.gguf` when bartowski published it, which names the
+ * quantiser more prominently than the model.
  */
 export function modelDisplayName(model: RecommendedModel): string {
-  if (model.model_label) return model.model_label;
-  const params = Number.isInteger(model.params_b)
-    ? String(model.params_b)
-    : model.params_b.toFixed(1);
-  return `${model.family_label} ${params}B`;
+  return model.model_label;
 }
 
 /**
@@ -188,11 +182,6 @@ export function reasonLabel(reason: RecommendReason): Localisable {
       };
     case "native_tool_calling":
       return { key: "onboarding.ai_setup.reason_native_tools" };
-    case "supersedes_generation":
-      return {
-        key: "onboarding.ai_setup.reason_supersedes",
-        values: { replaces: reason.replaces },
-      };
     case "trained_context":
       return {
         key: "onboarding.ai_setup.reason_trained_context",

@@ -13,16 +13,18 @@
 //! 2. **Will it fit here.** [`fit`] sizes the weights, the key/value cache at
 //!    the runtime's own context length, and the engine's overhead, against the
 //!    machine's memory budget.
-//! 3. **Is it the best available.** [`manifest`] holds the curated generation
-//!    table, and [`rank`] orders what survived the first two.
+//! 3. **Is it the best available.** [`registry_source`] takes the candidates
+//!    from the model registry and orders them by a stated rule, and [`rank`]
+//!    orders what survived the first two for this machine.
 //!
-//! The same table is also the editorial selection an operator sees first
+//! The registry is also the editorial selection an operator sees first
 //! ([`catalogue`]), and [`publishers`] says which HuggingFace owners are the
-//! official publishers and which are recognised converters. The same file
-//! holds the embeddings category ([`embeddings`]): models that turn a text into
-//! a vector, refused as chat engines and offered on their own, and the
-//! dictation category ([`dictation`]): the whisper.cpp files of the dictation
-//! engine, pinned by digest and sized by the same capacity.
+//! official publishers and which are recognised converters. One file,
+//! `pinned_models.toml`, holds the embeddings category ([`embeddings`]): models
+//! that turn a text into a vector, refused as chat engines and offered on
+//! their own, the dictation category ([`dictation`]): the whisper.cpp files of
+//! the dictation engine, and the character-recognition data ([`ocr`]), each
+//! pinned by digest.
 //!
 //! The division of labour with the Hub is the point. `hf_registry` is the
 //! catalogue: which repositories exist, what their files weigh, which are
@@ -30,7 +32,7 @@
 //! quality-adjacent signals, downloads and likes, are cumulative and therefore
 //! favour whatever has been published longest, which would rank Qwen2.5 above
 //! Qwen3 for as long as the counter runs. So the Hub supplies the catalogue and
-//! `families.toml` supplies the order.
+//! the registry supplies the order.
 
 pub mod catalogue;
 pub mod dictation;

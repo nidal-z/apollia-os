@@ -7,7 +7,7 @@
 //! Embedding names the same `qwen3` architecture as the chat models).
 //!
 //! What this module adds is the other side of that gate. The `[[embedding]]`
-//! entries of `families.toml` are the embeddings category of the registry: each
+//! entries of `pinned_models.toml` are the embeddings category of the registry: each
 //! is pinned to one GGUF file by its SHA-256, so it downloads through the same
 //! verified path as any model (its `repo` and `file` are what the downloader is
 //! given, and the digest the Hub publishes for that file is the pinned one), and

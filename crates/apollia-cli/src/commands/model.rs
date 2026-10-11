@@ -282,13 +282,9 @@ fn recommend_lines(body: &str) -> Vec<String> {
     let mut out = Vec::new();
     for (index, model) in models.iter().enumerate() {
         let label = model
-            .get("family_label")
+            .get("model_label")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
-        let params = model
-            .get("params_b")
-            .and_then(serde_json::Value::as_f64)
-            .unwrap_or_default();
         let needs = model
             .get("estimate")
             .and_then(|e| e.get("total_gb"))
@@ -309,7 +305,7 @@ fn recommend_lines(body: &str) -> Vec<String> {
         // marked here too rather than leaving the reader to infer it.
         let marker = if index == 0 { "*" } else { " " };
         out.push(format!(
-            "{marker} {label} {params:.0}B {quant}  {needs:.1} GB  {badge}  {repo}"
+            "{marker} {label} {quant}  {needs:.1} GB  {badge}  {repo}"
         ));
 
         // Where the layers land decides the speed far more than the size does,
@@ -1202,7 +1198,7 @@ mod tests {
         let body = serde_json::json!({
             "models": [
                 {
-                    "family_label": "Qwen3",
+                    "model_label": "Qwen3 14B",
                     "params_b": 14.0,
                     "badge": "might_fit",
                     "estimate": { "total_gb": 13.82 },
@@ -1210,7 +1206,7 @@ mod tests {
                     "verdict": { "status": "supported" }
                 },
                 {
-                    "family_label": "Qwen3",
+                    "model_label": "Qwen3 8B",
                     "params_b": 8.0,
                     "badge": "fits",
                     "estimate": { "total_gb": 7.1 },
@@ -1237,7 +1233,7 @@ mod tests {
         // GIVEN a model that carries a caveat
         let body = serde_json::json!({
             "models": [{
-                "family_label": "Qwen3",
+                "model_label": "Qwen3 4B",
                 "params_b": 4.0,
                 "badge": "fits",
                 "estimate": { "total_gb": 3.2 },

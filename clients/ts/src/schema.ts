@@ -2261,9 +2261,9 @@ export interface paths {
         };
         /**
          * `GET /api/v1/llm/recommend?limit=...&n_ctx=...`
-         * @description Ranks the models this machine should run: plans against the embedded
-         *     generation table, resolves the survivors on HuggingFace, reads each
-         *     finalist's GGUF header over a range request, and orders what is left.
+         * @description Ranks the models this machine should run: plans against the suggested
+         *     cards of the model registry, resolves the survivors on HuggingFace, reads
+         *     each finalist's GGUF header over a range request, and orders what is left.
          *
          *     Answers `503` when the Hub cannot be reached, which is deliberately not the
          *     same as an empty `200`. The catalogue is fetched live, so no network means

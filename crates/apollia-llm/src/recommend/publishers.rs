@@ -1,6 +1,6 @@
 //! Which HuggingFace organisations Apollia recognises, and as what.
 //!
-//! `publishers.toml` is embedded beside `families.toml` and holds two lists:
+//! `publishers.toml` is embedded beside `pinned_models.toml` and holds two lists:
 //! the organisations that train models (official publishers) and the short
 //! list of converters whose republished files the runtime trusts to load. A
 //! repository is classified by its owner alone, before any file is read, so a
@@ -32,7 +32,7 @@ pub enum PublisherKind {
 /// One training organisation and the HuggingFace handles it publishes under.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OfficialPublisher {
-    /// The name `families.toml` uses in its `publisher` field.
+    /// The name a registry card uses in its `publisher` field.
     pub publisher: String,
     /// Its HuggingFace organisations, exact handles.
     pub orgs: Vec<String>,
@@ -139,7 +139,6 @@ pub fn publisher_kind(repo_or_owner: &str) -> Option<PublisherKind> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::recommend::FamilyManifest;
 
     #[test]
     fn the_embedded_lists_name_the_required_publishers_and_converters() {
@@ -179,8 +178,12 @@ mod tests {
 
     #[test]
     fn every_family_publisher_is_an_official_publisher() {
-        // GIVEN the curated generation table and the publisher lists
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
+        // GIVEN the language models of the shipped registry and the publisher
+        // lists
+        let manifest = {
+            let index = crate::model_cards::shipped_index().expect("the shipped index loads");
+            crate::recommend::selection_from_cards(&index.cards).expect("the cards group")
+        };
         let lists = PublisherLists::embedded().expect("the shipped lists must be valid");
 
         // WHEN each family's publisher is looked up

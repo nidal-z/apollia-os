@@ -28,6 +28,7 @@ function model(overrides: Partial<RecommendedModel> = {}): RecommendedModel {
     },
     family_id: "qwen3",
     family_label: "Qwen3",
+    model_label: "Qwen3 14B",
     params_b: 14,
     quant: "Q4_K_M",
     verdict: { status: "supported" },
@@ -71,19 +72,11 @@ describe("modelDisplayName", () => {
     // WHEN the row label is built
     const label = modelDisplayName(m);
 
-    // THEN it reads as the family and size, not as the file on disk
+    // THEN it reads as the name of the model, not as the file on disk
     expect(label).toBe("Qwen3 14B");
   });
 
-  it("keeps a fractional size class readable", () => {
-    // GIVEN a size class that is not a whole number of billions
-    const m = model({ family_label: "Gemma 3", params_b: 1.5 });
-
-    // WHEN the row label is built
-    // THEN one decimal is kept rather than the number being rounded away
-    expect(modelDisplayName(m)).toBe("Gemma 3 1.5B");
-  });
-  it("reads the name of the registry card when the model carries one", () => {
+  it("reads the name of the registry card, not the raw parameter count", () => {
     // GIVEN a model whose registry card names it, at a size that is not round
     const m = model({ family_label: "Granite 4.2", model_label: "Granite 4.2 30B", params_b: 29.28 });
 
@@ -143,7 +136,6 @@ describe("reasonLabel", () => {
       { reason: "tight", needs_gb: 13.8, budget_gb: 16, pool: "system" },
       { reason: "split_across_memory", gpu_gb: 15.1, vram_gb: 16, system_gb: 3.2 },
       { reason: "native_tool_calling" },
-      { reason: "supersedes_generation", replaces: "Qwen2.5" },
       { reason: "trained_context", tokens: 8192, asked_tokens: 65536 },
       { reason: "reduced_context", tokens: 20480, default_tokens: 32768 },
       { reason: "fully_accelerated", layers: 40 },

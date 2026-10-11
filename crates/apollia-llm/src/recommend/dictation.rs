@@ -2,7 +2,7 @@
 //!
 //! A dictation model is a whisper.cpp file: the dictation engine loads it by
 //! path and nothing about that engine changes here. What this module adds is
-//! the registry side. The `[[dictation]]` entries of `families.toml` are the
+//! the registry side. The `[[dictation]]` entries of `pinned_models.toml` are the
 //! dictation category: each is pinned to one file of a HuggingFace repository
 //! by its SHA-256, so it downloads through the same verified path as any model,
 //! and each names the card that describes it.

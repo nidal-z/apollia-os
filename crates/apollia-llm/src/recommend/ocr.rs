@@ -2,7 +2,7 @@
 //!
 //! The engine that reads a scanned page is compiled into the binary; what it
 //! reads with is one `<language>.traineddata` file per language. The `[[ocr]]`
-//! entries of `families.toml` pin each of those files by its SHA-256, so it
+//! entries of `pinned_models.toml` pin each of those files by its SHA-256, so it
 //! downloads through the same verified path as any model, and a copy brought
 //! from a disk is recognised by its digest. A file whose digest is not pinned
 //! here is never handed to the engine.

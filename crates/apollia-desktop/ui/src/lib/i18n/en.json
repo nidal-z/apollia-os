@@ -3298,7 +3298,6 @@
       "memory_breakdown": "Needs {total} GB: {weights} GB of weights, {cache} GB of context cache and {overhead} GB for the engine",
       "memory_breakdown_approx": "Needs about {total} GB: {weights} GB of weights, roughly {cache} GB of context cache and {overhead} GB for the engine",
       "reason_native_tools": "Calls tools natively",
-      "reason_supersedes": "Newer generation, replaces {replaces}",
       "reason_reduced_context": "Fits at {tokens}k context instead of {defaultTokens}k",
       "caveat_no_chat_template": "No chat template: this model answers questions but cannot run agents",
       "caveat_unverified_architecture": "Architecture {architecture} is newer than our compatibility table; it will probably work",

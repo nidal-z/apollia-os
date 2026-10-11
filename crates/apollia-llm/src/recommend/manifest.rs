@@ -1,574 +1,200 @@
-//! The curated generation table, parsed and made queryable.
+//! The model families a recommendation orders, and the entries pinned by digest.
 //!
-//! `families.toml` is embedded in the binary and its documentation lives in the
-//! file itself. This module turns it into types, checks the two things a hand
-//! edited table gets wrong, and answers the questions the ranker asks of it.
+//! A family is a group of registry cards, a variant one card of it:
+//! [`super::registry_source`] builds both from the model registry and gives
+//! each variant the score it is ordered by before the machine is taken into
+//! account. This module holds the types, checks that no two families share an
+//! identifier, and answers the questions the resolver and the ranker ask.
 //!
-//! The checks are: every `supersedes` id resolves, and the supersession graph
-//! is acyclic. A dangling id silently drops a generation out of the ordering; a
-//! cycle would make "newer than" meaningless and hang a naive walk. Both are
-//! caught once, at load, rather than producing a subtly wrong ranking later.
+//! It also holds the errors of the pinned entries (`pinned_models.toml`: the
+//! embeddings, dictation and character-recognition files), which load beside
+//! it.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// The table as shipped in the binary.
-pub(super) static EMBEDDED_TOML: &str = include_str!("families.toml");
+/// The pinned entries as shipped in the binary.
+pub(super) static EMBEDDED_TOML: &str = include_str!("pinned_models.toml");
 
-/// Failure to load or validate the generation table.
+/// Failure to load a set of families or the pinned entries.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum ManifestError {
-    /// The TOML did not parse or did not match the schema.
-    #[error("model family table did not parse: {0}")]
+    /// The TOML itself is malformed or does not match the schema.
+    #[error("the pinned entries did not parse: {0}")]
     Parse(#[from] toml::de::Error),
 
-    /// A `supersedes` entry names a family the table does not define.
-    #[error("family '{family}' supersedes '{missing}', which the table does not define")]
-    DanglingSupersedes {
-        /// The family carrying the bad reference.
-        family: String,
-        /// The id it named.
-        missing: String,
-    },
-
-    /// Two families share an id.
-    #[error("family id '{0}' is defined twice")]
+    /// Two entries share an id.
+    #[error("id '{0}' is defined twice")]
     DuplicateId(String),
 
-    /// The supersession graph loops.
-    #[error("supersession cycle through family '{0}'")]
-    Cycle(String),
-
-    /// An `[[embedding]]` entry carries a value no download can be checked
-    /// against.
+    /// An embeddings entry cannot be used: its digest is not a SHA-256, or its
+    /// file has no size.
     #[error("embeddings entry '{id}' is invalid: {reason}")]
     InvalidEmbedding {
-        /// The entry's id.
+        /// The entry.
         id: String,
         /// What is wrong with it.
         reason: String,
     },
 
-    /// A `[[dictation]]` entry carries a value no download can be checked
-    /// against.
+    /// A dictation entry cannot be used: its digest is not a SHA-256, or its
+    /// file has no size.
     #[error("dictation entry '{id}' is invalid: {reason}")]
     InvalidDictation {
-        /// The entry's id.
+        /// The entry.
         id: String,
         /// What is wrong with it.
         reason: String,
     },
 
-    /// An `[[ocr]]` entry carries a value no download can be checked against.
+    /// A character-recognition entry cannot be used: its language code is not
+    /// a file stem, its digest is not a SHA-256, or its file has no size.
     #[error("ocr entry '{language}' is invalid: {reason}")]
     InvalidOcr {
-        /// The entry's language code.
+        /// The entry.
         language: String,
         /// What is wrong with it.
         reason: String,
     },
 
-    /// The table declares a schema version this build does not read.
-    #[error("model family table declares schema version {found}, this build reads {expected}")]
+    /// A file was written for a different schema than this build reads.
+    #[error("the file declares schema version {found}, this build reads {expected}")]
     SchemaVersion {
-        /// The version in the file.
+        /// Version declared in the file.
         found: u32,
-        /// The version this build understands.
+        /// Version this build reads.
         expected: u32,
     },
 }
 
-/// Schema version this build reads.
-const SCHEMA_VERSION: u32 = 1;
-
-/// How a family's published chat template handles tool calls.
+/// Whether the models of a family call tools.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolCalling {
-    /// No tool-call support in the template at all.
+    /// No card of the family declares tool calling.
     None,
     /// Calls have to be asked for in the prompt and parsed out of prose.
     Prompted,
-    /// The template emits tool calls that the `--jinja` path parses.
+    /// The chat template emits tool calls that the `--jinja` path parses.
     Native,
 }
 
-impl ToolCalling {
-    /// Weight applied to a family's agentic score, since an agent runtime is
-    /// what this recommendation serves.
-    fn weight(self) -> f64 {
-        match self {
-            Self::Native => 1.0,
-            Self::Prompted => 0.75,
-            Self::None => 0.45,
-        }
-    }
-}
-
-/// One size within a generation.
+/// One model of a family: one registry card.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Variant {
     /// Parameter count in billions.
     pub params_b: f64,
-    /// Upstream repository name, expanded into the family's repo patterns.
+    /// Name of the publisher's repository.
     pub hf_name: String,
-    /// Tool use and instruction following, 0 to 100. The ranking key.
-    pub agentic: Option<u32>,
-    /// General capability, 0 to 100. Breaks agentic ties.
-    pub reasoning: Option<u32>,
-    /// Where the two scores were read from.
-    pub source: Option<String>,
-    /// MLX conversions of this size, full repository ids in preference order.
-    /// Empty when none exists.
-    #[serde(default)]
-    pub mlx_repos: Vec<String>,
-    /// GGUF repositories of this size, spelt out in preference order. Set when
-    /// the entry comes from a registry card, which names its repositories;
-    /// empty for an entry of the table, whose family patterns are expanded.
+    /// The name of the model as its registry card gives it.
+    pub label: String,
+    /// What the model is ordered by before the machine is taken into account:
+    /// see [`super::registry_source::rule_score`].
+    pub score: f64,
+    /// GGUF repositories of this model, in preference order.
     #[serde(default)]
     pub gguf_repos: Vec<String>,
-    /// The ordering key of an entry that comes from a registry card, which
-    /// carries no benchmark score: see [`super::registry_source`]. `None` for
-    /// an entry of the table, ordered by `agentic`.
+    /// MLX conversions of this model, in preference order. Empty when none
+    /// exists.
     #[serde(default)]
-    pub rule_score: Option<f64>,
-    /// The name of this size as its registry card gives it. `None` for an
-    /// entry of the table, named by its family and its parameter count.
-    #[serde(default)]
-    pub label: Option<String>,
+    pub mlx_repos: Vec<String>,
 }
 
-/// One model generation.
+/// One group of registry cards.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Family {
-    /// Stable key, referenced by `supersedes`.
+    /// Stable key: what comes before the `/` of its cards' identifiers.
     pub id: String,
-    /// What the operator reads.
+    /// Human-readable name.
     pub label: String,
     /// The organisation that trained it.
     pub publisher: String,
-    /// ISO date of the generation's first public release.
+    /// ISO date of its most recent model.
     pub released: String,
-    /// `general.architecture` values its GGUF files carry.
-    pub architectures: Vec<String>,
-    /// Ids of the generations this one replaces.
-    #[serde(default)]
-    pub supersedes: Vec<String>,
-    /// How its template handles tool calls.
+    /// Whether its models call tools.
     pub tool_calling: ToolCalling,
-    /// SPDX identifier, or the publisher's own licence name.
+    /// SPDX identifier, or the identifier the publisher declares.
     pub license: String,
-    /// GGUF publishers in preference order, with `{model}` as the placeholder.
-    #[serde(default)]
-    pub repo_patterns: Vec<String>,
-    /// Free prose shown to the operator or read by whoever edits the table.
-    #[serde(default)]
-    pub notes: Option<String>,
-    /// The sizes this generation ships.
-    #[serde(default, rename = "variant")]
+    /// Its models.
     pub variants: Vec<Variant>,
 }
 
-impl Family {
-    /// Expand the repo patterns for one variant, in preference order.
-    #[must_use]
-    pub fn candidate_repos(&self, variant: &Variant) -> Vec<String> {
-        if !variant.gguf_repos.is_empty() {
-            return variant.gguf_repos.clone();
-        }
-        self.repo_patterns
-            .iter()
-            .map(|p| p.replace("{model}", &variant.hf_name))
-            .collect()
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct RawManifest {
-    schema_version: u32,
-    #[serde(default, rename = "family")]
-    families: Vec<Family>,
-}
-
-struct RawFamilies {
-    families: Vec<Family>,
-}
-
-/// The generation table, validated and indexed.
+/// A set of families, queryable by identifier.
 #[derive(Debug, Clone)]
 pub struct FamilyManifest {
     families: Vec<Family>,
     by_id: BTreeMap<String, usize>,
-    /// For each family, how many generations it stands above at the deepest.
-    /// A family that supersedes nothing is 0.
-    generation_depth: BTreeMap<String, u32>,
 }
 
 impl FamilyManifest {
-    /// Load the table embedded in the binary.
-    ///
-    /// # Errors
-    /// See [`ManifestError`]. A failure here is a defect in a file that ships
-    /// with the binary, which is why the loader is also a test.
-    pub fn embedded() -> Result<Self, ManifestError> {
-        Self::from_toml(EMBEDDED_TOML)
-    }
-
-    /// Load a table from TOML, for tests and for an operator override.
-    ///
-    /// # Errors
-    /// See [`ManifestError`].
-    pub fn from_toml(text: &str) -> Result<Self, ManifestError> {
-        let raw: RawManifest = toml::from_str(text)?;
-        if raw.schema_version != SCHEMA_VERSION {
-            return Err(ManifestError::SchemaVersion {
-                found: raw.schema_version,
-                expected: SCHEMA_VERSION,
-            });
-        }
-
-        Self::from_families(raw.families)
-    }
-
     /// Check a set of families and make it queryable.
     ///
     /// # Errors
-    /// [`ManifestError::DuplicateId`], [`ManifestError::DanglingSupersedes`]
-    /// and [`ManifestError::Cycle`], as for the table.
+    /// [`ManifestError::DuplicateId`] when two families share an identifier.
     pub fn from_families(families: Vec<Family>) -> Result<Self, ManifestError> {
-        let raw = RawFamilies { families };
         let mut by_id = BTreeMap::new();
-        for (idx, family) in raw.families.iter().enumerate() {
+        for (idx, family) in families.iter().enumerate() {
             if by_id.insert(family.id.clone(), idx).is_some() {
                 return Err(ManifestError::DuplicateId(family.id.clone()));
             }
         }
-
-        for family in &raw.families {
-            for target in &family.supersedes {
-                if !by_id.contains_key(target) {
-                    return Err(ManifestError::DanglingSupersedes {
-                        family: family.id.clone(),
-                        missing: target.clone(),
-                    });
-                }
-            }
-        }
-
-        let generation_depth = compute_depths(&raw.families, &by_id)?;
-
-        Ok(Self {
-            families: raw.families,
-            by_id,
-            generation_depth,
-        })
+        Ok(Self { families, by_id })
     }
 
-    /// Every family in the table, in file order.
+    /// Every family, in the order given.
     #[must_use]
     pub fn families(&self) -> &[Family] {
         &self.families
     }
 
-    /// Look one up by id.
+    /// Look a family up by id.
     #[must_use]
     pub fn family(&self, id: &str) -> Option<&Family> {
         self.by_id.get(id).and_then(|idx| self.families.get(*idx))
     }
-
-    /// How many generations this family stands above, transitively.
-    ///
-    /// This is what makes "Qwen3 beats Qwen2.5" a property of the data rather
-    /// than of the order entries happen to sit in the file.
-    #[must_use]
-    pub fn generation_depth(&self, id: &str) -> u32 {
-        self.generation_depth.get(id).copied().unwrap_or(0)
-    }
-
-    /// Whether some family in the table supersedes `id`.
-    #[must_use]
-    pub fn is_superseded(&self, id: &str) -> bool {
-        self.families
-            .iter()
-            .any(|f| f.supersedes.iter().any(|s| s == id))
-    }
-
-    /// What a variant is ordered by before the machine is taken into account.
-    ///
-    /// For an entry of the table, its agentic score weighted by how its family
-    /// calls tools. For an entry built from a registry card, its rule score.
-    /// Returns `None` when neither is recorded, which keeps an unscored entry
-    /// out of the ranking rather than giving it a default that would place it
-    /// arbitrarily.
-    #[must_use]
-    pub fn base_score(&self, family: &Family, variant: &Variant) -> Option<f64> {
-        variant.rule_score.or_else(|| {
-            variant
-                .agentic
-                .map(|score| f64::from(score) * family.tool_calling.weight())
-        })
-    }
-}
-
-/// Longest supersession chain below each family.
-fn compute_depths(
-    families: &[Family],
-    by_id: &BTreeMap<String, usize>,
-) -> Result<BTreeMap<String, u32>, ManifestError> {
-    let mut depths = BTreeMap::new();
-    for family in families {
-        let mut visiting = BTreeSet::new();
-        let depth = depth_of(&family.id, families, by_id, &mut visiting, &mut depths)?;
-        depths.insert(family.id.clone(), depth);
-    }
-    Ok(depths)
-}
-
-fn depth_of(
-    id: &str,
-    families: &[Family],
-    by_id: &BTreeMap<String, usize>,
-    visiting: &mut BTreeSet<String>,
-    memo: &mut BTreeMap<String, u32>,
-) -> Result<u32, ManifestError> {
-    if let Some(known) = memo.get(id) {
-        return Ok(*known);
-    }
-    if !visiting.insert(id.to_owned()) {
-        return Err(ManifestError::Cycle(id.to_owned()));
-    }
-
-    let family = by_id
-        .get(id)
-        .and_then(|idx| families.get(*idx))
-        .ok_or_else(|| ManifestError::DanglingSupersedes {
-            family: id.to_owned(),
-            missing: id.to_owned(),
-        })?;
-
-    let mut depth = 0;
-    for target in &family.supersedes {
-        let below = depth_of(target, families, by_id, visiting, memo)?;
-        depth = depth.max(below + 1);
-    }
-
-    visiting.remove(id);
-    memo.insert(id.to_owned(), depth);
-    Ok(depth)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_embedded_table_loads_and_validates() {
-        // GIVEN the table shipped in the binary
-        // WHEN it is loaded
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
-
-        // THEN it holds families, each with at least one architecture and size
-        assert!(!manifest.families().is_empty());
-        for family in manifest.families() {
-            assert!(
-                !family.architectures.is_empty(),
-                "{} declares no architecture",
-                family.id
-            );
-            assert!(
-                !family.variants.is_empty(),
-                "{} declares no variant",
-                family.id
-            );
+    fn family(id: &str) -> Family {
+        Family {
+            id: id.to_owned(),
+            label: id.to_owned(),
+            publisher: "Ada".to_owned(),
+            released: "2026-01-01".to_owned(),
+            tool_calling: ToolCalling::Native,
+            license: "apache-2.0".to_owned(),
+            variants: Vec::new(),
         }
     }
 
     #[test]
-    fn every_scored_variant_cites_a_source() {
-        // GIVEN the shipped table
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
+    fn a_family_is_found_by_its_identifier() {
+        // GIVEN two families
+        let manifest =
+            FamilyManifest::from_families(vec![family("a"), family("b")]).expect("distinct ids");
 
-        // WHEN each scored variant is inspected
-        // THEN it names where the score came from, because a number no one can
-        // trace ranks models with the authority of a measurement
-        for family in manifest.families() {
-            for variant in &family.variants {
-                if variant.agentic.is_some() || variant.reasoning.is_some() {
-                    assert!(
-                        variant.source.is_some(),
-                        "{} / {} is scored but cites no source",
-                        family.id,
-                        variant.hf_name
-                    );
-                }
-            }
-        }
+        // WHEN one is looked up, and one that does not exist
+        // THEN the first is found, in the order given, and the other is not
+        assert_eq!(manifest.families().len(), 2);
+        assert_eq!(manifest.family("b").map(|f| f.id.as_str()), Some("b"));
+        assert!(manifest.family("c").is_none());
     }
 
     #[test]
-    fn a_newer_generation_outranks_the_one_it_supersedes() {
-        // GIVEN the shipped table, whose Qwen chain runs 2.5, then 3, then 3.5
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
+    fn two_families_of_one_identifier_are_refused() {
+        // GIVEN two families sharing an identifier
+        let twice = vec![family("a"), family("a")];
 
-        // WHEN the depths along the chain are compared
-        let newest = manifest.generation_depth("qwen3.5");
-        let middle = manifest.generation_depth("qwen3");
-        let oldest = manifest.generation_depth("qwen2.5");
+        // WHEN the set is checked
+        let err = FamilyManifest::from_families(twice).expect_err("a duplicate id is refused");
 
-        // THEN each stands above the one it replaces, and only the head of the
-        // chain is unsuperseded. This is the ordering the Hub's own signals
-        // would have inverted, since the oldest has the most downloads.
-        assert!(
-            newest > middle,
-            "qwen3.5 depth {newest} did not exceed {middle}"
-        );
-        assert!(
-            middle > oldest,
-            "qwen3 depth {middle} did not exceed {oldest}"
-        );
-        assert!(manifest.is_superseded("qwen2.5"));
-        assert!(manifest.is_superseded("qwen3"));
-        assert!(!manifest.is_superseded("qwen3.5"));
-    }
-
-    #[test]
-    fn one_architecture_can_belong_to_several_generations() {
-        // GIVEN the shipped table, where Llama 3.1 and Mistral Small 3 both
-        // report the llama architecture
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
-
-        // WHEN the families declaring it are gathered
-        let matches: Vec<&Family> = manifest
-            .families()
-            .iter()
-            .filter(|f| f.architectures.iter().any(|a| a == "llama"))
-            .collect();
-
-        // THEN there are several, which is why a file is matched to its
-        // generation by repository name and never by architecture alone
-        assert!(
-            matches.len() > 1,
-            "expected several families on the llama architecture"
-        );
-    }
-
-    #[test]
-    fn a_dangling_supersedes_reference_is_refused_at_load() {
-        // GIVEN a table naming a predecessor it does not define
-        let text = r#"
-schema_version = 1
-[[family]]
-id = "a"
-label = "A"
-publisher = "P"
-released = "2025-01-01"
-architectures = ["a"]
-supersedes = ["ghost"]
-tool_calling = "native"
-license = "mit"
-[[family.variant]]
-params_b = 7
-hf_name = "A-7B"
-"#;
-
-        // WHEN it is loaded
-        let err = FamilyManifest::from_toml(text).expect_err("a dangling id must be refused");
-
-        // THEN the bad reference is named, rather than the family silently
-        // dropping out of the ordering
-        assert!(matches!(err, ManifestError::DanglingSupersedes { .. }));
-    }
-
-    #[test]
-    fn a_supersession_cycle_is_refused_at_load() {
-        // GIVEN two families that supersede each other
-        let text = r#"
-schema_version = 1
-[[family]]
-id = "a"
-label = "A"
-publisher = "P"
-released = "2025-01-01"
-architectures = ["a"]
-supersedes = ["b"]
-tool_calling = "native"
-license = "mit"
-[[family.variant]]
-params_b = 7
-hf_name = "A-7B"
-[[family]]
-id = "b"
-label = "B"
-publisher = "P"
-released = "2024-01-01"
-architectures = ["b"]
-supersedes = ["a"]
-tool_calling = "native"
-license = "mit"
-[[family.variant]]
-params_b = 7
-hf_name = "B-7B"
-"#;
-
-        // WHEN it is loaded
-        let err = FamilyManifest::from_toml(text).expect_err("a cycle must be refused");
-
-        // THEN the cycle is reported instead of the walk looping
-        assert!(matches!(err, ManifestError::Cycle(_)));
-    }
-
-    #[test]
-    fn a_prompted_family_is_weighted_below_a_native_one_at_equal_score() {
-        // GIVEN a native family and a prompted one carrying the same raw score
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
-        let native = manifest.family("qwen3").expect("qwen3 is in the table");
-        let prompted = manifest.family("gemma3").expect("gemma3 is in the table");
-        let variant = Variant {
-            params_b: 4.0,
-            hf_name: "x".to_owned(),
-            agentic: Some(60),
-            reasoning: Some(60),
-            source: None,
-            mlx_repos: Vec::new(),
-            gguf_repos: Vec::new(),
-            rule_score: None,
-            label: None,
-        };
-
-        // WHEN both are weighted
-        let native_score = manifest
-            .base_score(native, &variant)
-            .expect("a scored variant weighs");
-        let prompted_score = manifest
-            .base_score(prompted, &variant)
-            .expect("a scored variant weighs");
-
-        // THEN the native one wins, because tool calling is what the runtime does
-        assert!(native_score > prompted_score);
-    }
-
-    #[test]
-    fn repo_patterns_expand_to_the_publishers_in_preference_order() {
-        // GIVEN the Qwen3 family and its 4B variant
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
-        let family = manifest.family("qwen3").expect("qwen3 is in the table");
-        let variant = family
-            .variants
-            .iter()
-            .find(|v| (v.params_b - 4.0).abs() < f64::EPSILON)
-            .expect("the 4B variant is in the table");
-
-        // WHEN the patterns are expanded
-        let repos = family.candidate_repos(variant);
-
-        // THEN the upstream publisher comes first and every entry names the model
-        assert_eq!(
-            repos.first().map(String::as_str),
-            Some("Qwen/Qwen3-4B-GGUF")
-        );
-        assert!(repos.iter().all(|r| r.contains("Qwen3-4B")));
+        // THEN the failure names the identifier
+        assert!(matches!(err, ManifestError::DuplicateId(id) if id == "a"));
     }
 }

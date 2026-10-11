@@ -73,9 +73,9 @@ def sync_detailed(
 ) -> Response[Any | ApiErrorBody]:
     r"""`GET /api/v1/llm/recommend?limit=...&n_ctx=...`
 
-     Ranks the models this machine should run: plans against the embedded
-    generation table, resolves the survivors on HuggingFace, reads each
-    finalist's GGUF header over a range request, and orders what is left.
+     Ranks the models this machine should run: plans against the suggested
+    cards of the model registry, resolves the survivors on HuggingFace, reads
+    each finalist's GGUF header over a range request, and orders what is left.
 
     Answers `503` when the Hub cannot be reached, which is deliberately not the
     same as an empty `200`. The catalogue is fetched live, so no network means
@@ -117,9 +117,9 @@ def sync(
 ) -> Any | ApiErrorBody | None:
     r"""`GET /api/v1/llm/recommend?limit=...&n_ctx=...`
 
-     Ranks the models this machine should run: plans against the embedded
-    generation table, resolves the survivors on HuggingFace, reads each
-    finalist's GGUF header over a range request, and orders what is left.
+     Ranks the models this machine should run: plans against the suggested
+    cards of the model registry, resolves the survivors on HuggingFace, reads
+    each finalist's GGUF header over a range request, and orders what is left.
 
     Answers `503` when the Hub cannot be reached, which is deliberately not the
     same as an empty `200`. The catalogue is fetched live, so no network means
@@ -156,9 +156,9 @@ async def asyncio_detailed(
 ) -> Response[Any | ApiErrorBody]:
     r"""`GET /api/v1/llm/recommend?limit=...&n_ctx=...`
 
-     Ranks the models this machine should run: plans against the embedded
-    generation table, resolves the survivors on HuggingFace, reads each
-    finalist's GGUF header over a range request, and orders what is left.
+     Ranks the models this machine should run: plans against the suggested
+    cards of the model registry, resolves the survivors on HuggingFace, reads
+    each finalist's GGUF header over a range request, and orders what is left.
 
     Answers `503` when the Hub cannot be reached, which is deliberately not the
     same as an empty `200`. The catalogue is fetched live, so no network means
@@ -198,9 +198,9 @@ async def asyncio(
 ) -> Any | ApiErrorBody | None:
     r"""`GET /api/v1/llm/recommend?limit=...&n_ctx=...`
 
-     Ranks the models this machine should run: plans against the embedded
-    generation table, resolves the survivors on HuggingFace, reads each
-    finalist's GGUF header over a range request, and orders what is left.
+     Ranks the models this machine should run: plans against the suggested
+    cards of the model registry, resolves the survivors on HuggingFace, reads
+    each finalist's GGUF header over a range request, and orders what is left.
 
     Answers `503` when the Hub cannot be reached, which is deliberately not the
     same as an empty `200`. The catalogue is fetched live, so no network means

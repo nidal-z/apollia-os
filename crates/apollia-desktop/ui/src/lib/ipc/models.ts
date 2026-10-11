@@ -74,7 +74,6 @@ export type RecommendReason =
   | { reason: "tight"; needs_gb: number; budget_gb: number; pool: MemoryPool }
   | { reason: "split_across_memory"; gpu_gb: number; vram_gb: number; system_gb: number }
   | { reason: "native_tool_calling" }
-  | { reason: "supersedes_generation"; replaces: string }
   | { reason: "trained_context"; tokens: number; asked_tokens: number }
   | { reason: "reduced_context"; tokens: number; default_tokens: number }
   | { reason: "fully_accelerated"; layers: number }
@@ -154,8 +153,8 @@ export interface RecommendedModel {
   };
   family_id: string;
   family_label: string;
-  /** The model's own name, when its registry card gives one. */
-  model_label?: string | null;
+  /** The model's own name, as its registry card gives it. */
+  model_label: string;
   params_b: number;
   /** Quantisation format, when the file name declares one. */
   quant: string | null;
@@ -204,7 +203,6 @@ export interface SelectionFamily {
   released: string;
   license: string;
   tool_calling: "none" | "prompted" | "native";
-  superseded: boolean;
   variants: SelectionVariant[];
 }
 

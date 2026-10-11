@@ -258,7 +258,6 @@
             "released": "2026-04-29",
             "license": "apache-2.0",
             "tool_calling": "native",
-            "superseded": false,
             "variants": [
               {
                 "name": "Automation Alpha 8B",
@@ -279,7 +278,6 @@
             "released": "2026-06-10",
             "license": "apache-2.0",
             "tool_calling": "native",
-            "superseded": false,
             "variants": [
               {
                 "name": "Automation Beta 70B",
@@ -1885,7 +1883,6 @@
             "released": "2026-04-29",
             "license": "apache-2.0",
             "tool_calling": "native",
-            "superseded": false,
             "variants": [
               {
                 "name": "Automation Alpha 8B",
@@ -1906,7 +1903,6 @@
             "released": "2026-06-10",
             "license": "apache-2.0",
             "tool_calling": "native",
-            "superseded": false,
             "variants": [
               {
                 "name": "Automation Beta 70B",
@@ -2254,7 +2250,6 @@
             "released": "2026-04-29",
             "license": "apache-2.0",
             "tool_calling": "native",
-            "superseded": false,
             "variants": [
               {
                 "name": "Automation Alpha 8B",
@@ -2275,7 +2270,6 @@
             "released": "2026-06-10",
             "license": "apache-2.0",
             "tool_calling": "native",
-            "superseded": false,
             "variants": [
               {
                 "name": "Automation Beta 70B",

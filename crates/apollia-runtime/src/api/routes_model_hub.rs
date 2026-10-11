@@ -303,9 +303,9 @@ pub async fn get_registry_model<B: ExecutionBackend + Clone>(
 
 /// `GET /api/v1/llm/recommend?limit=...&n_ctx=...`
 ///
-/// Ranks the models this machine should run: plans against the embedded
-/// generation table, resolves the survivors on HuggingFace, reads each
-/// finalist's GGUF header over a range request, and orders what is left.
+/// Ranks the models this machine should run: plans against the suggested
+/// cards of the model registry, resolves the survivors on HuggingFace, reads
+/// each finalist's GGUF header over a range request, and orders what is left.
 ///
 /// Answers `503` when the Hub cannot be reached, which is deliberately not the
 /// same as an empty `200`. The catalogue is fetched live, so no network means
@@ -327,22 +327,21 @@ pub async fn get_registry_model<B: ExecutionBackend + Clone>(
     )
 )]
 pub async fn recommend_models<B: ExecutionBackend + Clone>(
-    State(_state): State<AppState<B>>,
+    State(state): State<AppState<B>>,
     Query(params): Query<RecommendQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
-    use apollia_llm::recommend::{
-        resolve, FamilyManifest, ResolveError, ResolveOptions, RuntimeShape,
-    };
+    use apollia_llm::recommend::{resolve, ResolveError, ResolveOptions, RuntimeShape};
 
     let profile = tokio::task::spawn_blocking(apollia_llm::hardware::detect)
         .await
         .unwrap_or_else(|_| apollia_llm::hardware::detect());
 
-    let manifest = FamilyManifest::embedded().map_err(|e| {
+    let cards_dir = apollia_llm::model_cards::default_cache_dir(&state.data_dir);
+    let manifest = crate::recommendation::suggested_families(&cards_dir).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
-                error: format!("the shipped model table is invalid: {e}"),
+                error: format!("the model registry is invalid: {e}"),
             }),
         )
     })?;

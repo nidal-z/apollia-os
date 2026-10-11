@@ -99,7 +99,6 @@ const FAMILY: SelectionFamily = {
   released: "2026-04-29",
   license: "apache-2.0",
   tool_calling: "native",
-  superseded: false,
   variants: [
     { name: "Qwen3 8B", params_b: 8, gguf_repos: ["Qwen/Qwen3-8B-GGUF"], mlx_repos: ["mlx-community/Qwen3-8B-4bit"] },
   ],

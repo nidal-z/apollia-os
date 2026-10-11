@@ -162,29 +162,20 @@ fn the_index_built_from_the_registry_holds_with_its_test_key() {
 }
 
 #[test]
-fn every_entry_of_the_selection_has_its_card_in_the_index() {
-    // GIVEN the signed index built from the repository, the embedded model
-    // table and the embedded embeddings and dictation catalogues
+fn every_pinned_entry_has_its_card_in_the_index() {
+    // GIVEN the signed index built from the repository and the embedded
+    // embeddings and dictation catalogues
     let index = verify_index(
         REGISTRY_INDEX.as_bytes(),
         REGISTRY_SIGNATURE,
         Some(REGISTRY_KEY),
     )
     .expect("the fixture index holds");
-    let families = crate::recommend::FamilyManifest::embedded().expect("families");
     let embeddings =
         crate::recommend::embeddings::EmbeddingCatalogue::embedded().expect("embeddings");
 
     // WHEN each entry looks for its card
     let mut missing: Vec<String> = Vec::new();
-    for family in families.families() {
-        for variant in &family.variants {
-            let id = format!("{}/{}", family.id, variant.hf_name);
-            if index.card(&id).map(|c| c.kind) != Some(CardKind::Language) {
-                missing.push(id);
-            }
-        }
-    }
     for model in embeddings.models() {
         if index.card(&model.id).map(|c| c.kind) != Some(CardKind::Embeddings) {
             missing.push(model.id.clone());

@@ -3298,7 +3298,6 @@
       "memory_breakdown": "Nécessite {total} Go : {weights} Go de poids, {cache} Go de cache de contexte et {overhead} Go pour le moteur",
       "memory_breakdown_approx": "Nécessite environ {total} Go : {weights} Go de poids, environ {cache} Go de cache de contexte et {overhead} Go pour le moteur",
       "reason_native_tools": "Appelle les outils nativement",
-      "reason_supersedes": "Génération plus récente, remplace {replaces}",
       "reason_reduced_context": "Tient avec un contexte de {tokens}k au lieu de {defaultTokens}k",
       "caveat_no_chat_template": "Aucun gabarit de conversation : ce modèle répond aux questions mais ne peut pas exécuter d'agents",
       "caveat_unverified_architecture": "L'architecture {architecture} est plus récente que notre table de compatibilité ; elle fonctionnera probablement",

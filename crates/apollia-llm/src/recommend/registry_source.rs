@@ -1,9 +1,8 @@
 //! The recommendation's candidates, taken from the model registry.
 //!
-//! The table of `families.toml` orders ten generations by a benchmark score.
-//! The registry holds every model Apollia describes, and a first launch should
-//! suggest from all of them. A card carries no score, so the order here is a
-//! rule, stated once and applied to every card alike:
+//! The registry holds every model Apollia describes, and a first launch
+//! suggests from all of them. A card carries no benchmark score, so the order
+//! is a rule, stated once and applied to every card alike:
 //!
 //! - only a card that calls tools, is meant for general use, is not a draft
 //!   model and is published under an open licence is suggested unasked;
@@ -18,9 +17,13 @@
 //! order a property of the registry: the same index gives the same order on
 //! any day.
 //!
-//! The result is a [`FamilyManifest`], so the rest of the recommendation (what
-//! fits, where the layers run, how fast, which quantisation) is the one path
-//! every candidate has always gone through.
+//! The Hub is not asked about quality. Its signals, downloads and likes, are
+//! cumulative and favour whatever has been published longest, which would put
+//! an older generation ahead of its successor for as long as the counter runs.
+//!
+//! The result is a [`FamilyManifest`], which the rest of the recommendation
+//! (what fits, where the layers run, how fast, which quantisation) takes its
+//! candidates from.
 
 use std::collections::BTreeMap;
 
@@ -136,13 +139,10 @@ fn family_of(group: &str, cards: &[&ModelCard], newest: f64) -> Option<Family> {
             Some(Variant {
                 params_b,
                 hf_name: repo_name(&card.source_url).to_owned(),
-                agentic: None,
-                reasoning: None,
-                source: Some(card.source_url.clone()),
-                mlx_repos: repos_where(card, is_mlx_repo),
+                label: card.label.clone(),
+                score: rule_score(params_b, newest - released),
                 gguf_repos: repos_where(card, is_gguf_repo),
-                rule_score: Some(rule_score(params_b, newest - released)),
-                label: Some(card.label.clone()),
+                mlx_repos: repos_where(card, is_mlx_repo),
             })
         })
         .collect();
@@ -156,16 +156,12 @@ fn family_of(group: &str, cards: &[&ModelCard], newest: f64) -> Option<Family> {
         label: common_label(cards),
         publisher: first.publisher.clone(),
         released,
-        architectures: Vec::new(),
-        supersedes: Vec::new(),
         tool_calling: if cards.iter().any(|c| c.capabilities.tools) {
             ToolCalling::Native
         } else {
             ToolCalling::None
         },
         license: first.license.id.clone(),
-        repo_patterns: Vec::new(),
-        notes: None,
         variants,
     })
 }

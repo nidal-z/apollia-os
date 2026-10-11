@@ -7,7 +7,7 @@
 #   converter    an organisation or user that republishes someone else's model
 #                in a format the runtime loads (GGUF, MLX). A short list on
 #                purpose: these are the converters whose files load cleanly and
-#                whose naming the curated table already relies on.
+#                whose repositories the registry cards already name.
 #
 # Anything else on the Hub carries no kind at all.
 #
@@ -18,8 +18,9 @@
 # resolves.
 #
 # `scripts/check-model-families.py` holds this file: both lists are non-empty,
-# no handle sits in both, and every `publisher` of `families.toml` is listed
-# below as an official publisher.
+# no handle sits in both, the `publisher` of every language card of the registry
+# is listed below as an official publisher, and every repository such a card
+# names is owned by a handle of one of the two lists.
 
 schema_version = 1
 

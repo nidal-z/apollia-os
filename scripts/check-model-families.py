@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Hold the curated model table and the publisher lists to what they promise.
+"""Hold the pinned models, the publisher lists and the model cards to what they promise.
 
-`crates/apollia-llm/src/recommend/families.toml` ranks model generations with
-scores it says were read from a cited source, and dates it says are the
-publisher's own. Its header announced this guard long before it existed: an
-entry whose `source` is missing, or whose `released` date lies in the future,
-is a number nobody can trace, and it ranks models with the authority of a
-measurement.
+`crates/apollia-llm/src/recommend/pinned_models.toml` pins the embeddings
+models, the dictation files and the character-recognition data to one file each
+by its digest, with dates it says are the publisher's own. An entry whose
+`source` is missing, or whose `released` date lies in the future, is a fact
+nobody can trace.
 
 `crates/apollia-llm/src/recommend/publishers.toml` holds the two lists that
 classify a HuggingFace owner: the official publishers and the recognised
-converters. A family whose `publisher` is on neither list, or an owner on both,
-is a classification the runtime cannot make.
+converters. A language card whose `publisher` is not an official one, a card
+repository owned by neither list, or an owner on both, is a classification the
+runtime cannot make.
 
 `registry/models/` holds the model cards the catalogue reads once the
 release pipeline has gathered and signed them
@@ -23,14 +23,8 @@ promise the product does not keep.
 
 Rules, each reported with the entry it names:
 
-  families.toml
+  pinned_models.toml
     * the file parses and declares `schema_version = 1`
-    * every family has at least one variant, and every variant a `source`
-    * every `released` is an ISO date, not later than today
-    * every variant carries a repository: a `repo_patterns` entry on its family
-      or an `mlx_repos` entry of its own
-    * every `mlx_repos` entry is `owner/name`, and its owner is on one of the
-      two lists of publishers.toml
     * every `[[embedding]]` entry has a unique id, a `source`, an ISO
       `released` not later than today, a `repo` that is `owner/name`, a `.gguf`
       `file`, a positive `size_bytes`, `dimensions` and `context_length`, a
@@ -46,7 +40,6 @@ Rules, each reported with the entry it names:
   publishers.toml
     * the file parses and declares `schema_version = 1`
     * both lists are non-empty, and no handle sits on both
-    * every `publisher` of families.toml is an official publisher
 
   registry/models
     * every card file parses, declares `schema_version = 1`, and has a unique
@@ -72,8 +65,10 @@ Rules, each reported with the entry it names:
       cannot drift. A recorded copy may replace an em-dash inside a template
       comment, the one character the prose guard refuses everywhere, and no
       marker contains one
-    * every variant and every `[[embedding]]` entry of families.toml has its
-      card
+    * the `publisher` of every language card is an official publisher, and
+      every repository a language card names is owned by an official
+      organisation or a recognised converter
+    * every `[[embedding]]` entry of pinned_models.toml has its card
     * every `[[dictation]]` entry names, in `card`, a dictation card whose
       `selection_files` holds the address the entry is downloaded from
 
@@ -83,7 +78,7 @@ Exit codes, read by `just guards`:
   1  at least one rule broken
   2  a file is absent, so nothing was measured
 
-`--families PATH`, `--publishers PATH` and `--registry DIR` point the guard at
+`--pinned PATH`, `--publishers PATH` and `--registry DIR` point the guard at
 other files, which is how `--selftest` checks the guard itself against its
 faulty fixtures.
 """
@@ -100,7 +95,7 @@ import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RECOMMEND = ROOT / "crates" / "apollia-llm" / "src" / "recommend"
-FAMILIES = RECOMMEND / "families.toml"
+PINNED = RECOMMEND / "pinned_models.toml"
 PUBLISHERS = RECOMMEND / "publishers.toml"
 REGISTRY = ROOT / "registry" / "models"
 CAPABILITIES = ROOT / "crates" / "apollia-llm" / "src" / "capabilities.rs"
@@ -134,53 +129,11 @@ def check_publishers(data: dict) -> tuple[list[str], set[str], set[str], set[str
     return faults, names, orgs, conv
 
 
-def check_families(
-    data: dict, names: set[str], known_owners: set[str], today: datetime.date
-) -> tuple[list[str], int]:
-    """Return the faults and the number of variants measured."""
-    faults: list[str] = []
-    measured = 0
+def check_pins(data: dict) -> list[str]:
+    """Return the faults of the file as a whole."""
     if data.get("schema_version") != SCHEMA_VERSION:
-        faults.append(f"families.toml: schema_version is not {SCHEMA_VERSION}")
-    families = data.get("family", [])
-    if not families:
-        faults.append("families.toml: no family")
-    for family in families:
-        fid = family.get("id", "?")
-        if family.get("publisher") not in names:
-            faults.append(
-                f"families.toml: {fid} names publisher {family.get('publisher')!r}, "
-                "absent from the official list of publishers.toml"
-            )
-        released = family.get("released", "")
-        try:
-            date = datetime.date.fromisoformat(str(released))
-        except ValueError:
-            faults.append(f"families.toml: {fid} released {released!r} is not an ISO date")
-        else:
-            if date > today:
-                faults.append(f"families.toml: {fid} released {released} is in the future")
-        variants = family.get("variant", [])
-        if not variants:
-            faults.append(f"families.toml: {fid} has no variant")
-        for variant in variants:
-            measured += 1
-            name = variant.get("hf_name", "?")
-            if not variant.get("source"):
-                faults.append(f"families.toml: {fid} / {name} cites no source")
-            mlx = variant.get("mlx_repos", [])
-            if not family.get("repo_patterns") and not mlx:
-                faults.append(f"families.toml: {fid} / {name} carries no repository")
-            for repo in mlx:
-                owner, _, rest = repo.partition("/")
-                if not owner or not rest or "/" in rest:
-                    faults.append(f"families.toml: {fid} / {name} mlx repo {repo!r} is not owner/name")
-                elif owner.lower() not in known_owners:
-                    faults.append(
-                        f"families.toml: {fid} / {name} mlx repo {repo} is owned by "
-                        f"{owner}, on neither list of publishers.toml"
-                    )
-    return faults, measured
+        return [f"pinned_models.toml: schema_version is not {SCHEMA_VERSION}"]
+    return []
 
 
 EMBEDDING_FIELDS = (
@@ -200,35 +153,35 @@ def check_embeddings(data: dict, today: datetime.date) -> tuple[list[str], int]:
     for entry in entries:
         eid = entry.get("id", "?")
         if eid in seen:
-            faults.append(f"families.toml: embedding {eid} is defined twice")
+            faults.append(f"pinned_models.toml: embedding {eid} is defined twice")
         seen.add(eid)
         for field in EMBEDDING_FIELDS:
             if field not in entry:
-                faults.append(f"families.toml: embedding {eid} has no {field}")
+                faults.append(f"pinned_models.toml: embedding {eid} has no {field}")
         if not entry.get("source"):
-            faults.append(f"families.toml: embedding {eid} cites no source")
+            faults.append(f"pinned_models.toml: embedding {eid} cites no source")
         released = entry.get("released", "")
         try:
             date = datetime.date.fromisoformat(str(released))
         except ValueError:
-            faults.append(f"families.toml: embedding {eid} released {released!r} is not an ISO date")
+            faults.append(f"pinned_models.toml: embedding {eid} released {released!r} is not an ISO date")
         else:
             if date > today:
-                faults.append(f"families.toml: embedding {eid} released {released} is in the future")
+                faults.append(f"pinned_models.toml: embedding {eid} released {released} is in the future")
         owner, _, rest = str(entry.get("repo", "")).partition("/")
         if not owner or not rest or "/" in rest:
-            faults.append(f"families.toml: embedding {eid} repo {entry.get('repo')!r} is not owner/name")
+            faults.append(f"pinned_models.toml: embedding {eid} repo {entry.get('repo')!r} is not owner/name")
         if not str(entry.get("file", "")).endswith(".gguf"):
-            faults.append(f"families.toml: embedding {eid} file is not a .gguf")
+            faults.append(f"pinned_models.toml: embedding {eid} file is not a .gguf")
         for field in ("size_bytes", "dimensions", "context_length"):
             value = entry.get(field)
             if not isinstance(value, int) or value <= 0:
-                faults.append(f"families.toml: embedding {eid} {field} is not a positive integer")
+                faults.append(f"pinned_models.toml: embedding {eid} {field} is not a positive integer")
         if entry.get("pooling") not in POOLINGS:
-            faults.append(f"families.toml: embedding {eid} pooling {entry.get('pooling')!r} is not one of {sorted(POOLINGS)}")
+            faults.append(f"pinned_models.toml: embedding {eid} pooling {entry.get('pooling')!r} is not one of {sorted(POOLINGS)}")
         digest = str(entry.get("sha256", ""))
         if len(digest) != 64 or not set(digest) <= HEX:
-            faults.append(f"families.toml: embedding {eid} sha256 is not 64 lowercase hexadecimal digits")
+            faults.append(f"pinned_models.toml: embedding {eid} sha256 is not 64 lowercase hexadecimal digits")
     return faults, len(entries)
 
 
@@ -251,30 +204,30 @@ def check_dictation(data: dict, today: datetime.date) -> tuple[list[str], int]:
     for entry in entries:
         did = entry.get("id", "?")
         if did in seen:
-            faults.append(f"families.toml: dictation {did} is defined twice")
+            faults.append(f"pinned_models.toml: dictation {did} is defined twice")
         seen.add(did)
         for field in DICTATION_FIELDS:
             if not entry.get(field):
-                faults.append(f"families.toml: dictation {did} has no {field}")
+                faults.append(f"pinned_models.toml: dictation {did} has no {field}")
         released = entry.get("released", "")
         try:
             date = datetime.date.fromisoformat(str(released))
         except ValueError:
-            faults.append(f"families.toml: dictation {did} released {released!r} is not an ISO date")
+            faults.append(f"pinned_models.toml: dictation {did} released {released!r} is not an ISO date")
         else:
             if date > today:
-                faults.append(f"families.toml: dictation {did} released {released} is in the future")
+                faults.append(f"pinned_models.toml: dictation {did} released {released} is in the future")
         owner, _, rest = str(entry.get("repo", "")).partition("/")
         if not owner or not rest or "/" in rest:
-            faults.append(f"families.toml: dictation {did} repo {entry.get('repo')!r} is not owner/name")
+            faults.append(f"pinned_models.toml: dictation {did} repo {entry.get('repo')!r} is not owner/name")
         if not str(entry.get("file", "")).endswith(".bin"):
-            faults.append(f"families.toml: dictation {did} file is not a whisper.cpp .bin")
+            faults.append(f"pinned_models.toml: dictation {did} file is not a whisper.cpp .bin")
         size = entry.get("size_bytes")
         if not isinstance(size, int) or size <= 0:
-            faults.append(f"families.toml: dictation {did} size_bytes is not a positive integer")
+            faults.append(f"pinned_models.toml: dictation {did} size_bytes is not a positive integer")
         digest = str(entry.get("sha256", ""))
         if len(digest) != 64 or not set(digest) <= HEX:
-            faults.append(f"families.toml: dictation {did} sha256 is not 64 lowercase hexadecimal digits")
+            faults.append(f"pinned_models.toml: dictation {did} sha256 is not 64 lowercase hexadecimal digits")
     return faults, len(entries)
 
 
@@ -405,7 +358,9 @@ def check_card(path: pathlib.Path, card: dict, tools_m: list[str], reason_m: lis
     return out
 
 
-def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, int]:
+def check_registry(
+    registry: pathlib.Path, fam: dict, names: set[str], known_owners: set[str]
+) -> tuple[list[str], int, int]:
     """Return the faults of the card files, how many there are, and how many
     were checked against a recorded template."""
     faults: list[str] = []
@@ -436,11 +391,19 @@ def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, i
         if "template" in card:
             templated += 1
         faults += check_card(path, card, tools_m, reason_m)
-    for family in fam.get("family", []):
-        for variant in family.get("variant", []):
-            vid = f"{family.get('id')}/{variant.get('hf_name')}"
-            if kinds.get(vid) != "language":
-                faults.append(f"registry: variant {vid} has no language card")
+        if card.get("kind") == "language":
+            if card.get("publisher") not in names:
+                faults.append(
+                    f"registry: {cid} names publisher {card.get('publisher')!r}, "
+                    "absent from the official list of publishers.toml"
+                )
+            for repo in card.get("repos") or []:
+                owner = str(repo).partition("/")[0]
+                if owner.lower() not in known_owners:
+                    faults.append(
+                        f"registry: {cid} names repository {repo}, owned by {owner}, "
+                        "on neither list of publishers.toml"
+                    )
     for entry in fam.get("embedding", []):
         if kinds.get(entry.get("id")) != "embeddings":
             faults.append(f"registry: embeddings model {entry.get('id')} has no embeddings card")
@@ -470,12 +433,12 @@ def check_shipped_index() -> list[str]:
 
 
 def run(
-    families: pathlib.Path,
+    pinned: pathlib.Path,
     publishers: pathlib.Path,
     today: datetime.date,
     registry: pathlib.Path = REGISTRY,
 ) -> int:
-    for path in (families, publishers):
+    for path in (pinned, publishers):
         if not path.is_file():
             print(f"check-model-families: {path} is absent, nothing measured")
             return 2
@@ -484,30 +447,27 @@ def run(
         return 2
     try:
         pub = tomllib.loads(publishers.read_text(encoding="utf-8"))
-        fam = tomllib.loads(families.read_text(encoding="utf-8"))
+        fam = tomllib.loads(pinned.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as err:
         print(f"check-model-families: RED, a file does not parse: {err}")
         return 1
     faults, names, orgs, conv = check_publishers(pub)
-    fam_faults, measured = check_families(fam, names, orgs | conv, today)
-    faults += fam_faults
+    faults += check_pins(fam)
     emb_faults, embeddings = check_embeddings(fam, today)
     faults += emb_faults
     dict_faults, dictations = check_dictation(fam, today)
     faults += dict_faults
-    card_faults, cards, templated = check_registry(registry, fam)
+    card_faults, cards, templated = check_registry(registry, fam, names, orgs | conv)
     faults += card_faults
     if registry == REGISTRY and publishers == PUBLISHERS:
         faults += check_shipped_index()
-    families_count = len(fam.get("family", []))
     for fault in faults:
         print(f"  {fault}")
     if faults:
-        print(f"check-model-families: RED, {len(faults)} fault(s) over {measured} variant(s)")
+        print(f"check-model-families: RED, {len(faults)} fault(s)")
         return 1
     print(
-        f"check-model-families: ok, {families_count} families, {measured} variants, "
-        f"{embeddings} embeddings models, {dictations} dictation models, "
+        f"check-model-families: ok, {embeddings} embeddings models, {dictations} dictation models, "
         f"{len(names)} official publishers, {len(conv)} converters, "
         f"{cards} cards ({templated} checked against a recorded template)"
     )
@@ -521,7 +481,7 @@ def selftest() -> int:
     that cites no address)."""
     today = datetime.date.today()
     future = (today + datetime.timedelta(days=30)).isoformat()
-    tree = FAMILIES.read_text(encoding="utf-8")
+    tree = PINNED.read_text(encoding="utf-8")
     first_source = next(line for line in tree.splitlines() if line.startswith("source = "))
     first_released = next(line for line in tree.splitlines() if line.startswith("released = "))
     first_digest = next(line for line in tree.splitlines() if line.startswith("sha256 = "))
@@ -531,7 +491,7 @@ def selftest() -> int:
         line for line in dictation_part.splitlines() if line.startswith("file = ")
     )
     faulty = {
-        "a variant without source": tree.replace(first_source + "\n", "", 1),
+        "an embeddings entry without source": tree.replace(first_source + "\n", "", 1),
         "a release dated in the future": tree.replace(
             first_released, f'released = "{future}"', 1
         ),
@@ -546,12 +506,12 @@ def selftest() -> int:
         ),
     }
     failures = 0
-    if run(FAMILIES, PUBLISHERS, today) != 0:
+    if run(PINNED, PUBLISHERS, today) != 0:
         print("selftest: the tree itself is red")
         failures += 1
     with tempfile.TemporaryDirectory() as tmp:
         for label, text in faulty.items():
-            path = pathlib.Path(tmp) / "families.toml"
+            path = pathlib.Path(tmp) / "pinned_models.toml"
             path.write_text(text, encoding="utf-8")
             code = run(path, PUBLISHERS, today)
             if code != 1:
@@ -593,7 +553,7 @@ def selftest() -> int:
             card = json.loads(target.read_text(encoding="utf-8"))
             spoil(card)
             target.write_text(json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8")
-            code = run(FAMILIES, PUBLISHERS, today, copy)
+            code = run(PINNED, PUBLISHERS, today, copy)
             if code != 1:
                 print(f"selftest: {label} answered {code}, expected 1")
                 failures += 1
@@ -603,14 +563,14 @@ def selftest() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("--families", type=pathlib.Path, default=FAMILIES)
+    parser.add_argument("--pinned", type=pathlib.Path, default=PINNED)
     parser.add_argument("--publishers", type=pathlib.Path, default=PUBLISHERS)
     parser.add_argument("--registry", type=pathlib.Path, default=REGISTRY)
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
     if args.selftest:
         return selftest()
-    return run(args.families, args.publishers, datetime.date.today(), args.registry)
+    return run(args.pinned, args.publishers, datetime.date.today(), args.registry)
 
 
 if __name__ == "__main__":

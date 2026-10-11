@@ -87,7 +87,7 @@ pub struct HfModelCard {
     /// Author / organization.
     pub author: Option<String>,
     /// Whether the owner is an official publisher, a recognised converter, or
-    /// neither (`None`), read from the lists embedded with the curated table.
+    /// neither (`None`), read from the embedded publisher lists.
     #[serde(default)]
     pub publisher_kind: Option<crate::recommend::PublisherKind>,
     /// Download count (rolling 30 days).

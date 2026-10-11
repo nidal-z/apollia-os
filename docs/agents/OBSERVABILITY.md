@@ -181,7 +181,7 @@ or `model recommend` ranks models. All are `debug` except where noted.
 | `recommend.probe.failed` | `file`, `error` | a header that could not be read |
 | `recommend.ready` (info) | `recommended`, `top` | the ranked list, and the family at its head |
 | `recommend.hub.unreachable` (warn) | `detail` | no publisher answered, so there is no catalogue |
-| `recommend.manifest.invalid` (error) | `error` | the shipped generation table failed to load |
+| `recommend.registry.invalid` (error) | `error` | the model registry could not be read or its cards did not group |
 
 ### Completion timings
 

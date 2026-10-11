@@ -144,9 +144,9 @@ pub(crate) fn remember(n_ctx: u32, outcome: &RecommendOutcome) {
 
 /// Rank the models this machine should be offered.
 ///
-/// Probes the hardware, plans against the embedded generation table, resolves
-/// the survivors on the Hub, reads each finalist's GGUF header over a range
-/// request, and ranks what is left.
+/// Probes the hardware, plans against the suggested cards of the model
+/// registry, resolves the survivors on the Hub, reads each finalist's GGUF
+/// header over a range request, and ranks what is left.
 ///
 /// # Errors
 ///
@@ -249,6 +249,15 @@ async fn recommend_for(
 }
 
 /// Cut a ranked list to what the caller asked for.
+/// The suggested cards of the registry, as the families the resolver orders.
+///
+/// # Errors
+/// The reason, in text, when the index cannot be read or its cards do not
+/// group.
+pub(crate) fn suggested_families(cards_dir: &Path) -> Result<FamilyManifest, String> {
+    registry_candidates(cards_dir).map(|(candidates, _)| candidates)
+}
+
 /// The suggested cards of the registry, as the families the resolver orders,
 /// and every language model of it, as the editorial selection.
 fn registry_candidates(cards_dir: &Path) -> Result<(FamilyManifest, Vec<SelectionFamily>), String> {

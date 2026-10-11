@@ -6,8 +6,9 @@
 //! - **fit** is a gate and then a preference. A model past what the machine can
 //!   hold across all its pools is out; among those that fit, comfortable beats
 //!   tight.
-//! - **quality** is the base ordering, from the curated table, discounted by
-//!   what the quantisation gives up.
+//! - **quality** is the base ordering, the score each candidate arrives with
+//!   (see [`super::registry_source`]), discounted by what the quantisation
+//!   gives up.
 //! - **speed** is the correction that makes the ordering depend on the machine.
 //!
 //! # Why speed belongs in the ranking
@@ -46,13 +47,6 @@
 //! than ranked low, unless nothing faster fits: a 70B that fits across both
 //! pools and answers at one token a second is a model an operator waits on, not
 //! one they use.
-//!
-//! # The one absolute rule
-//!
-//! A generation that some other fitting candidate supersedes is demoted below
-//! everything that supersedes it, whatever it scores. Without that a
-//! well-scored Qwen2.5 could edge past a Qwen3 on a tie-break, which is the
-//! outcome this whole design exists to prevent.
 
 use serde::{Deserialize, Serialize};
 
@@ -60,7 +54,7 @@ use crate::gguf_probe::GgufHeaderFacts;
 use crate::hardware::{CompatibilityBadge, HardwareProfile};
 
 use super::fit::{assess_fit, max_context_for, FitAssessment, MemoryEstimate, RuntimeShape};
-use super::manifest::{Family, FamilyManifest, ToolCalling, Variant};
+use super::manifest::{Family, ToolCalling, Variant};
 use super::offload::{active_weight_share, MemoryArchitecture, OffloadPlan};
 use super::quant;
 use super::verdict::{assess, Caveat, Verdict};
@@ -118,11 +112,6 @@ pub enum Reason {
     },
     /// The template emits tool calls the runtime parses natively.
     NativeToolCalling,
-    /// This generation replaces an older one the machine might otherwise get.
-    SupersedesGeneration {
-        /// The label of the generation it replaces.
-        replaces: String,
-    },
     /// The model was trained on a shorter window than the one asked, and runs
     /// at its own: the engine would accept more, but past its training length
     /// a model reads positions it was never fitted to.
@@ -191,10 +180,8 @@ pub struct Recommendation {
     pub family_id: String,
     /// Label the operator reads.
     pub family_label: String,
-    /// The model's own name, when its registry card gives one: what the
-    /// operator reads in place of the family and the parameter count.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model_label: Option<String>,
+    /// The model's own name, as its registry card gives it.
+    pub model_label: String,
     /// Size class in billions of parameters.
     pub params_b: f64,
     /// Quantisation format, when the file name declares one.
@@ -215,12 +202,6 @@ pub struct Recommendation {
     /// Why it sits here.
     pub reasons: Vec<Reason>,
 }
-
-/// Penalty applied to a generation another fitting candidate supersedes.
-///
-/// Larger than the whole score range, so the demotion is absolute rather than
-/// something a strong older model can score its way out of.
-const SUPERSEDED_PENALTY: f64 = 1000.0;
 
 /// Bonus for fitting comfortably rather than tightly.
 pub(super) const COMFORT_BONUS: f64 = 12.0;
@@ -335,7 +316,6 @@ pub(super) fn speed_bonus(tokens_per_second: f64) -> f64 {
 #[must_use]
 pub fn rank(
     candidates: Vec<Matched<'_>>,
-    manifest: &FamilyManifest,
     profile: &HardwareProfile,
     asked: &RuntimeShape,
 ) -> Vec<Recommendation> {
@@ -369,9 +349,7 @@ pub fn rank(
             continue;
         }
 
-        let Some(base) = manifest.base_score(m.family, m.variant) else {
-            continue;
-        };
+        let base = m.variant.score;
 
         let quant = quant::from_filename(&m.file.filename);
         let quality = base * quant.map_or(1.0, |q| q.quality);
@@ -432,8 +410,6 @@ pub fn rank(
         kept.retain(|r| r.offload.tokens_per_second >= MIN_TOKENS_PER_SECOND);
     }
 
-    demote_superseded(&mut kept, manifest);
-
     kept.sort_by(|a, b| {
         b.score
             .partial_cmp(&a.score)
@@ -449,46 +425,6 @@ pub fn rank(
             .then_with(|| a.file.filename.cmp(&b.file.filename))
     });
     kept
-}
-
-/// Push any generation that a surviving candidate replaces below it.
-///
-/// Done against the survivors rather than against the whole table: superseding
-/// a generation that does not fit this machine is no reason to demote the one
-/// that does.
-fn demote_superseded(kept: &mut [Recommendation], manifest: &FamilyManifest) {
-    let surviving: Vec<String> = kept.iter().map(|r| r.family_id.clone()).collect();
-
-    for rec in kept.iter_mut() {
-        let replaced_by = surviving
-            .iter()
-            .filter(|id| *id != &rec.family_id)
-            .find_map(|id| {
-                let other = manifest.family(id)?;
-                other
-                    .supersedes
-                    .iter()
-                    .any(|s| s == &rec.family_id)
-                    .then(|| other.label.clone())
-            });
-
-        if replaced_by.is_some() {
-            rec.score -= SUPERSEDED_PENALTY;
-            continue;
-        }
-
-        if let Some(predecessor) = manifest
-            .family(&rec.family_id)
-            .filter(|f| manifest.generation_depth(&f.id) > 0)
-            .and_then(|f| f.supersedes.first())
-            .and_then(|id| manifest.family(id))
-            .map(|f| f.label.clone())
-        {
-            rec.reasons.push(Reason::SupersedesGeneration {
-                replaces: predecessor,
-            });
-        }
-    }
 }
 
 /// Everything a reason list is derived from.
@@ -579,6 +515,7 @@ fn build_reasons(input: ReasonInput<'_>) -> Vec<Reason> {
 mod tests {
     use super::*;
     use crate::hardware::AcceleratorProfile;
+    use crate::recommend::manifest::FamilyManifest;
 
     const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
 
@@ -648,6 +585,39 @@ mod tests {
         }
     }
 
+    /// Two generations of one publisher, the newer scored above the older at
+    /// every size they share.
+    fn families() -> FamilyManifest {
+        let family = |id: &str, label: &str, sizes: &[(f64, f64)]| Family {
+            id: id.to_owned(),
+            label: label.to_owned(),
+            publisher: "Qwen".to_owned(),
+            released: "2025-04-29".to_owned(),
+            tool_calling: ToolCalling::Native,
+            license: "apache-2.0".to_owned(),
+            variants: sizes
+                .iter()
+                .map(|(params_b, score)| Variant {
+                    params_b: *params_b,
+                    hf_name: format!("{label}-{params_b}B"),
+                    label: format!("{label} {params_b}B"),
+                    score: *score,
+                    gguf_repos: Vec::new(),
+                    mlx_repos: Vec::new(),
+                })
+                .collect(),
+        };
+        FamilyManifest::from_families(vec![
+            family(
+                "qwen3",
+                "Qwen3",
+                &[(4.0, 62.0), (8.0, 68.0), (14.0, 73.0), (30.0, 76.0)],
+            ),
+            family("qwen2.5", "Qwen2.5", &[(14.0, 61.0)]),
+        ])
+        .expect("the two families have distinct ids")
+    }
+
     fn variant_of(family: &Family, params_b: f64) -> &Variant {
         family
             .variants
@@ -659,7 +629,7 @@ mod tests {
     #[test]
     fn a_model_that_spills_off_the_card_is_reported_as_a_split() {
         // GIVEN a 14B that does not fit an 8 GB card but fits the machine
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let candidates = vec![Matched {
             file: file("Qwen/Qwen3-14B-GGUF", "Qwen3-14B-Q4_K_M.gguf", 8.4),
@@ -669,12 +639,7 @@ mod tests {
         }];
 
         // WHEN it is ranked on that machine
-        let ranked = rank(
-            candidates,
-            &manifest,
-            &cuda(8.0, 64.0),
-            &RuntimeShape::default(),
-        );
+        let ranked = rank(candidates, &cuda(8.0, 64.0), &RuntimeShape::default());
 
         // THEN it is never called comfortable, and its first reason states how
         // much lands on the card and how much in system memory, not a figure
@@ -697,7 +662,7 @@ mod tests {
     #[test]
     fn a_model_that_fits_the_card_is_graded_against_the_card() {
         // GIVEN an 8B on a 24 GB card in a machine with 64 GB of memory
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let candidates = vec![Matched {
             file: file("Qwen/Qwen3-8B-GGUF", "Qwen3-8B-Q4_K_M.gguf", 4.7),
@@ -707,12 +672,7 @@ mod tests {
         }];
 
         // WHEN it is ranked
-        let ranked = rank(
-            candidates,
-            &manifest,
-            &cuda(24.0, 64.0),
-            &RuntimeShape::default(),
-        );
+        let ranked = rank(candidates, &cuda(24.0, 64.0), &RuntimeShape::default());
 
         // THEN the budget it is measured against is the card, not the card
         // plus system memory
@@ -731,7 +691,7 @@ mod tests {
     fn a_model_too_slow_to_use_is_dropped_when_a_faster_one_fits() {
         // GIVEN a 14B at Q8_0 and a 4B at Q4_K_M on a processor-only machine,
         // where the 14B generates at about three tokens a second
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let slow = || Matched {
             file: file("Qwen/Qwen3-14B-GGUF", "Qwen3-14B-Q8_0.gguf", 14.6),
@@ -747,18 +707,8 @@ mod tests {
         };
 
         // WHEN both are ranked, and then the slow one alone
-        let both = rank(
-            vec![slow(), fast],
-            &manifest,
-            &host(40.0),
-            &RuntimeShape::default(),
-        );
-        let alone = rank(
-            vec![slow()],
-            &manifest,
-            &host(40.0),
-            &RuntimeShape::default(),
-        );
+        let both = rank(vec![slow(), fast], &host(40.0), &RuntimeShape::default());
+        let alone = rank(vec![slow()], &host(40.0), &RuntimeShape::default());
 
         // THEN the slow one is withheld while something usable fits, and kept
         // when it is all the machine can run
@@ -771,7 +721,7 @@ mod tests {
     #[test]
     fn a_model_trained_on_less_than_the_asked_window_is_sized_at_its_own() {
         // GIVEN an 8B trained on 8192 tokens, and a 64k window asked
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let mut short = facts("qwen3", 36, 8, 4096);
         short.context_length = Some(8_192);
@@ -787,10 +737,9 @@ mod tests {
         };
 
         // WHEN it is ranked at that window and at its own
-        let capped = rank(vec![candidate()], &manifest, &host(40.0), &asked);
+        let capped = rank(vec![candidate()], &host(40.0), &asked);
         let own = rank(
             vec![candidate()],
-            &manifest,
             &host(40.0),
             &RuntimeShape {
                 n_ctx: 8_192,
@@ -808,9 +757,9 @@ mod tests {
     }
 
     #[test]
-    fn the_newer_generation_wins_even_when_the_older_one_scores_well() {
+    fn the_better_placed_generation_leads_at_the_same_size() {
         // GIVEN a Qwen3 and a Qwen2.5 candidate that both fit
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let qwen25 = manifest.family("qwen2.5").expect("qwen2.5");
 
@@ -830,10 +779,10 @@ mod tests {
         ];
 
         // WHEN they are ranked on a machine with room for both
-        let ranked = rank(candidates, &manifest, &host(64.0), &RuntimeShape::default());
+        let ranked = rank(candidates, &host(64.0), &RuntimeShape::default());
 
-        // THEN the newer generation leads, which is the ordering any popularity
-        // signal on the Hub would have inverted
+        // THEN the generation the registry places first leads, which is the
+        // ordering any popularity signal on the Hub would have inverted
         assert_eq!(ranked.len(), 2);
         assert_eq!(ranked[0].family_id, "qwen3");
     }
@@ -841,7 +790,7 @@ mod tests {
     #[test]
     fn a_bigger_model_at_lower_precision_beats_a_smaller_one_at_higher() {
         // GIVEN a 14B at Q3_K_M and an 8B at Q4_K_M, both fitting
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
 
         let candidates = vec![
@@ -861,12 +810,7 @@ mod tests {
 
         // WHEN they are ranked on a machine with bandwidth to spare, so the
         // comparison is about capability rather than about throughput
-        let ranked = rank(
-            candidates,
-            &manifest,
-            &apple(64.0),
-            &RuntimeShape::default(),
-        );
+        let ranked = rank(candidates, &apple(64.0), &RuntimeShape::default());
 
         // THEN the larger model leads despite the harder quantisation, and the
         // format it used is reported rather than left implicit
@@ -877,7 +821,7 @@ mod tests {
     #[test]
     fn a_mixture_leads_on_unified_memory_and_trails_on_a_small_card() {
         // GIVEN a 30B mixture and a dense 8B
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
 
         let build = || {
@@ -902,8 +846,8 @@ mod tests {
         let shape = RuntimeShape::default();
 
         // WHEN the same pair is ranked on a roomy Mac and on a 12 GB card
-        let on_mac = rank(build(), &manifest, &apple(64.0), &shape);
-        let on_card = rank(build(), &manifest, &cuda(12.0, 64.0), &shape);
+        let on_mac = rank(build(), &apple(64.0), &shape);
+        let on_card = rank(build(), &cuda(12.0, 64.0), &shape);
 
         // THEN the mixture leads where its occupancy is affordable and trails
         // where it is not, which is a property of the pairing rather than of
@@ -918,7 +862,7 @@ mod tests {
     #[test]
     fn a_model_larger_than_the_card_is_still_offered_to_a_machine_with_memory() {
         // GIVEN a 12 GB card beside 64 GB of system memory, and an 18.6 GB model
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let candidates = vec![Matched {
             file: file("Qwen/Qwen3-30B-A3B-GGUF", "big-Q4_K_M.gguf", 18.6),
@@ -928,12 +872,7 @@ mod tests {
         }];
 
         // WHEN it is ranked
-        let ranked = rank(
-            candidates,
-            &manifest,
-            &cuda(12.0, 64.0),
-            &RuntimeShape::default(),
-        );
+        let ranked = rank(candidates, &cuda(12.0, 64.0), &RuntimeShape::default());
 
         // THEN it survives, split across both pools, rather than being hidden
         // by a budget that counted only the card
@@ -950,7 +889,7 @@ mod tests {
     #[test]
     fn a_model_past_every_pool_is_dropped_rather_than_ranked_low() {
         // GIVEN a small machine and a model larger than all of its memory
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let candidates = vec![Matched {
             file: file("Qwen/Qwen3-30B-A3B-GGUF", "big-Q4_K_M.gguf", 18.6),
@@ -960,7 +899,7 @@ mod tests {
         }];
 
         // WHEN it is ranked on an 8 GB budget with no accelerator
-        let ranked = rank(candidates, &manifest, &host(8.0), &RuntimeShape::default());
+        let ranked = rank(candidates, &host(8.0), &RuntimeShape::default());
 
         // THEN nothing comes back, because offering it would offer a download
         // that cannot run
@@ -971,7 +910,7 @@ mod tests {
     fn the_first_part_of_a_split_model_reaches_the_ranking() {
         // GIVEN a candidate named by the first part of a split model, which the
         // variant download fetches whole
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let candidates = vec![Matched {
             file: file("bartowski/x", "m-Q4_K_M-00001-of-00003.gguf", 2.5),
@@ -981,7 +920,7 @@ mod tests {
         }];
 
         // WHEN it is ranked on a machine with ample memory
-        let ranked = rank(candidates, &manifest, &host(64.0), &RuntimeShape::default());
+        let ranked = rank(candidates, &host(64.0), &RuntimeShape::default());
 
         // THEN it is offered like a whole file
         assert_eq!(ranked.len(), 1);
@@ -990,7 +929,7 @@ mod tests {
     #[test]
     fn a_model_without_a_chat_template_ranks_below_one_with_it() {
         // GIVEN the same model twice, once with a template and once without
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let mut without = facts("qwen3", 36, 8, 4096);
         without.has_chat_template = false;
@@ -1011,7 +950,7 @@ mod tests {
         ];
 
         // WHEN they are ranked
-        let ranked = rank(candidates, &manifest, &host(32.0), &RuntimeShape::default());
+        let ranked = rank(candidates, &host(32.0), &RuntimeShape::default());
 
         // THEN the one that can call tools leads, and the other is still offered
         assert_eq!(ranked.len(), 2);
@@ -1022,7 +961,7 @@ mod tests {
     #[test]
     fn the_leading_recommendation_explains_itself() {
         // GIVEN one comfortable, natively tool-calling candidate on a Mac
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = families();
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let candidates = vec![Matched {
             file: file("Qwen/Qwen3-4B-GGUF", "Qwen3-4B-Q4_K_M.gguf", 2.5),
@@ -1032,12 +971,7 @@ mod tests {
         }];
 
         // WHEN it is ranked
-        let ranked = rank(
-            candidates,
-            &manifest,
-            &apple(32.0),
-            &RuntimeShape::default(),
-        );
+        let ranked = rank(candidates, &apple(32.0), &RuntimeShape::default());
 
         // THEN it carries the reasons an interface needs to justify the default
         let top = ranked.first().expect("one recommendation");
@@ -1058,15 +992,16 @@ mod tests {
     }
 
     #[test]
-    fn speed_is_worth_points_but_cannot_rescue_a_superseded_generation() {
-        // GIVEN the speed bonus at its extremes
+    fn speed_is_worth_points_within_its_bounds() {
+        // GIVEN the speed term at its extremes
         let fast = speed_bonus(200.0);
         let slow = speed_bonus(1.0);
 
-        // WHEN both are compared against the supersession penalty
-        // THEN neither can approach it, so a newer generation always leads
-        assert!(fast > 0.0 && slow < 0.0);
-        assert!(fast - slow < SUPERSEDED_PENALTY);
+        // WHEN both are compared against the bounds of the term
+        // THEN a fast placement earns its ceiling, a slow one loses its floor,
+        // and nothing more: speed reorders neighbours, it does not decide alone
+        assert!((fast - SPEED_BONUS_CEILING).abs() < 1e-9);
+        assert!((slow - SPEED_PENALTY_FLOOR).abs() < 1e-9);
     }
 
     #[test]

@@ -1,12 +1,11 @@
-//! The editorial selection: the curated table rendered as a catalogue.
+//! The editorial selection: a set of families rendered as a catalogue.
 //!
-//! The ranker reads `families.toml` to order what the Hub returns. The same
-//! table is also what an operator should see first, before any search: a short
-//! list of generations Apollia has tested, with the repositories that carry
-//! each size in GGUF and, where a conversion exists, in MLX.
+//! What an operator should see first, before any search: the models of the
+//! registry, grouped by family, with the repositories that carry each one in
+//! GGUF and, where a conversion exists, in MLX.
 //!
-//! Everything here is computed from the embedded table, with no request, so the
-//! selection is available on a machine with no network at all.
+//! Everything here is computed from the families given, with no request, so
+//! the selection is available on a machine with no network at all.
 
 use serde::Serialize;
 
@@ -45,8 +44,6 @@ pub struct SelectionFamily {
     pub license: String,
     /// How its template handles tool calls.
     pub tool_calling: ToolCalling,
-    /// Whether a newer generation in the table replaces it.
-    pub superseded: bool,
     /// Its sizes, smallest first as the table lists them.
     pub variants: Vec<SelectionVariant>,
 }
@@ -68,14 +65,13 @@ impl FamilyManifest {
                 released: family.released.clone(),
                 license: family.license.clone(),
                 tool_calling: family.tool_calling,
-                superseded: self.is_superseded(&family.id),
                 variants: family
                     .variants
                     .iter()
                     .map(|variant| SelectionVariant {
                         name: variant.hf_name.clone(),
                         params_b: variant.params_b,
-                        gguf_repos: family.candidate_repos(variant),
+                        gguf_repos: variant.gguf_repos.clone(),
                         mlx_repos: variant.mlx_repos.clone(),
                     })
                     .collect(),
@@ -124,10 +120,16 @@ mod tests {
     use super::*;
     use crate::hardware::AcceleratorProfile;
 
+    /// Every language model of the shipped registry, as families.
+    fn registry() -> FamilyManifest {
+        let index = crate::model_cards::shipped_index().expect("the shipped index loads");
+        crate::recommend::selection_from_cards(&index.cards).expect("the cards group")
+    }
+
     #[test]
     fn the_selection_that_fits_depends_on_the_machine() {
         // GIVEN the shipped selection and two machines
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
+        let manifest = registry();
         let small = HardwareProfile {
             total_ram_gb: 8.0,
             available_ram_gb: 4.0,
@@ -176,15 +178,15 @@ mod tests {
     }
 
     #[test]
-    fn every_family_of_the_table_is_rendered_with_a_repository() {
-        // GIVEN the shipped table
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
+    fn every_family_of_the_registry_is_rendered_with_a_repository() {
+        // GIVEN the language models of the shipped registry
+        let manifest = registry();
 
         // WHEN the editorial selection is rendered
         let selection = manifest.editorial_selection();
 
-        // THEN every family appears, in file order, and each carries at least
-        // one repository on each of its sizes
+        // THEN every family appears, in the order of the families, and each
+        // carries at least one repository on each of its models
         let table_ids: Vec<&str> = manifest.families().iter().map(|f| f.id.as_str()).collect();
         let rendered_ids: Vec<&str> = selection.iter().map(|f| f.id.as_str()).collect();
         assert_eq!(rendered_ids, table_ids);
@@ -208,9 +210,9 @@ mod tests {
     }
 
     #[test]
-    fn mlx_repositories_are_carried_where_the_table_names_them() {
-        // GIVEN the shipped table, whose Qwen3 4B has an official MLX release
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
+    fn mlx_repositories_are_carried_where_a_card_names_them() {
+        // GIVEN the shipped registry, whose Qwen3 4B card names MLX conversions
+        let manifest = registry();
 
         // WHEN the selection is rendered
         let selection = manifest.editorial_selection();
@@ -222,41 +224,17 @@ mod tests {
             .variants
             .iter()
             .find(|v| v.name == "Qwen3-4B")
-            .expect("the 4B size is in the selection");
+            .expect("the 4B model is in the selection");
 
-        // THEN its MLX repositories come first from the publisher, and every
-        // family of the table offers MLX on at least one size
-        assert_eq!(
-            four_b.mlx_repos.first().map(String::as_str),
-            Some("Qwen/Qwen3-4B-MLX-4bit")
-        );
-        for family in &selection {
-            assert!(
-                family.variants.iter().any(|v| !v.mlx_repos.is_empty()),
-                "{} offers no MLX conversion",
-                family.id
-            );
-        }
-    }
-
-    #[test]
-    fn a_superseded_generation_is_flagged_not_dropped() {
-        // GIVEN the shipped table, where Qwen3 replaces Qwen2.5
-        let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
-
-        // WHEN the selection is rendered
-        let selection = manifest.editorial_selection();
-
-        // THEN Qwen2.5 is still there, marked as replaced
-        let old = selection
+        // THEN its MLX repositories are carried apart from its GGUF ones
+        assert!(!four_b.mlx_repos.is_empty());
+        assert!(four_b
+            .mlx_repos
             .iter()
-            .find(|f| f.id == "qwen2.5")
-            .expect("qwen2.5 is kept");
-        assert!(old.superseded);
-        let head = selection
+            .all(|r| r.to_ascii_lowercase().contains("mlx")));
+        assert!(four_b
+            .gguf_repos
             .iter()
-            .find(|f| f.id == "qwen3.5")
-            .expect("qwen3.5 is in the selection");
-        assert!(!head.superseded);
+            .all(|r| r.to_ascii_lowercase().contains("gguf")));
     }
 }

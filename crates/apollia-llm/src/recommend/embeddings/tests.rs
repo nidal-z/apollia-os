@@ -122,8 +122,9 @@ fn the_registry_carries_both_embeddings_entries_with_their_technical_facts() {
 
 #[test]
 fn the_embeddings_entries_stay_out_of_the_chat_ranking() {
-    // GIVEN the shipped table, read as the chat ranker reads it
-    let manifest = super::super::FamilyManifest::embedded().expect("the table must load");
+    // GIVEN the shipped registry, read as the chat ranker reads it
+    let index = crate::model_cards::shipped_index().expect("the shipped index loads");
+    let manifest = crate::recommend::selection_from_cards(&index.cards).expect("the cards group");
 
     // WHEN its families are listed
     // THEN no embeddings model is among them

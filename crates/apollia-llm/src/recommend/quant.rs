@@ -21,9 +21,8 @@
 //! `quality` is a judgement, informed by the perplexity tables the llama.cpp
 //! project publishes for its own quantisations. It is a retention factor
 //! against the unquantised model, so `Q4_K_M` at 0.985 means "keeps about
-//! 98.5% of what the weights could do". Like the scores in `families.toml`,
-//! these want verifying against a measured table before a release; unlike a
-//! size, no arithmetic settles them.
+//! 98.5% of what the weights could do". These want verifying against a
+//! measured table before a release; unlike a size, no arithmetic settles them.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,10 +1,10 @@
-//! Turn the curated table plus the live Hub into a ranked list for one machine.
+//! Turn the registry plus the live Hub into a ranked list for one machine.
 //!
 //! The division of labour, once more, because it drives every choice here: the
-//! table says which generations exist and how they order; the Hub says which
-//! repositories carry them, what their files weigh, and which are gated. The
-//! table is compiled in and never stale about ordering. The Hub is authoritative
-//! and never compiled in.
+//! registry says which models are suggested and how they order; the Hub says
+//! what the files of their repositories weigh, and which are gated. The
+//! registry is read without a request. The Hub is authoritative and never
+//! compiled in.
 //!
 //! # Why this runs in three stages
 //!
@@ -59,10 +59,6 @@ pub enum ResolveError {
     /// model already on disk, or configuring a cloud backend.
     #[error("the HuggingFace Hub is unreachable: {0}")]
     HubUnreachable(String),
-
-    /// The embedded generation table is malformed.
-    #[error("the model family table could not be loaded: {0}")]
-    Manifest(#[from] super::manifest::ManifestError),
 }
 
 /// How the resolver is allowed to spend requests and what it optimises for.
@@ -149,17 +145,8 @@ fn plan<'m>(
     let mut planned: Vec<Planned<'m>> = Vec::new();
 
     for family in manifest.families() {
-        // A generation that some other generation in the table replaces is not
-        // worth a request: even if it resolved, the ranking would demote it
-        // below its successor. Spending the request would only slow onboarding.
-        if manifest.is_superseded(&family.id) {
-            continue;
-        }
-
         for variant in &family.variants {
-            let Some(base) = manifest.base_score(family, variant) else {
-                continue;
-            };
+            let base = variant.score;
 
             // From the sweet spot downwards, so the first that fits is the
             // one to plan. Starting above it would spend memory on a percent of
@@ -558,7 +545,7 @@ async fn resolve_unbounded(
                 index,
                 Target {
                     label: p.variant.hf_name.clone(),
-                    repos: p.family.candidate_repos(p.variant),
+                    repos: p.variant.gguf_repos.clone(),
                     planned: p.quant,
                     params_b: p.variant.params_b,
                 },
@@ -621,7 +608,7 @@ async fn resolve_unbounded(
         })
         .collect();
 
-    let ranked = rank(matched, manifest, profile, &options.shape);
+    let ranked = rank(matched, profile, &options.shape);
     event!(
         Level::INFO,
         recommended = ranked.len(),
@@ -679,14 +666,21 @@ mod tests {
         }
     }
 
+    /// The suggested cards of the shipped registry, as the resolver gets them.
+    fn registry() -> FamilyManifest {
+        let index = crate::model_cards::shipped_index().expect("the shipped index loads");
+        crate::recommend::manifest_from_cards(&index.cards).expect("the cards group")
+    }
+
     fn q(name: &str) -> &'static Quant {
         quant::by_name(name).expect("in the table")
     }
 
     #[test]
     fn planning_drops_what_a_small_machine_cannot_hold() {
-        // GIVEN the shipped table and a machine with a 6 GB budget
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        // GIVEN the suggested cards of the registry and a machine with a 6 GB
+        // budget
+        let manifest = registry();
 
         // WHEN the plan is built
         let planned = plan(&manifest, &profile(6.0), &ResolveOptions::default());
@@ -703,7 +697,7 @@ mod tests {
     #[test]
     fn a_tight_machine_is_planned_a_harder_quantisation() {
         // GIVEN one generous machine and one tight one
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = registry();
         let options = ResolveOptions::default();
 
         // WHEN both are planned
@@ -727,7 +721,7 @@ mod tests {
     #[test]
     fn a_card_smaller_than_the_model_still_gets_a_plan() {
         // GIVEN a 12 GB card beside 64 GB of system memory
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = registry();
 
         // WHEN the plan is built
         let planned = plan(&manifest, &cuda(12.0, 64.0), &ResolveOptions::default());
@@ -741,24 +735,28 @@ mod tests {
     }
 
     #[test]
-    fn planning_skips_a_generation_the_table_already_replaces() {
-        // GIVEN the shipped table, whose Qwen chain runs 2.5, then 3, then 3.5
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+    fn planning_spends_at_most_two_requests_on_one_generation() {
+        // GIVEN the suggested cards of the registry, where a generation comes
+        // in several sizes and forms
+        let manifest = registry();
+        assert!(manifest.families().iter().any(|f| f.variants.len() > 2));
 
         // WHEN a plan is built for a machine with room for any of them
         let planned = plan(&manifest, &profile(64.0), &ResolveOptions::default());
 
-        // THEN no request is planned for a generation something replaces, only
-        // for the head of the chain
-        assert!(planned.iter().all(|p| p.family.id != "qwen2.5"));
-        assert!(planned.iter().all(|p| p.family.id != "qwen3"));
-        assert!(planned.iter().any(|p| p.family.id == "qwen3.5"));
+        // THEN no generation takes more than two of the planned requests
+        let mut per_family = std::collections::BTreeMap::new();
+        for p in &planned {
+            *per_family.entry(p.family.id.as_str()).or_insert(0usize) += 1;
+        }
+        assert!(!planned.is_empty());
+        assert!(per_family.values().all(|n| *n <= MAX_PLANNED_PER_FAMILY));
     }
 
     #[test]
     fn planning_orders_by_score_and_respects_the_request_budget() {
         // GIVEN a generous machine and a plan limited to three candidates
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let manifest = registry();
         let options = ResolveOptions {
             max_planned: 3,
             ..ResolveOptions::default()
@@ -776,8 +774,8 @@ mod tests {
 
     #[test]
     fn a_larger_machine_is_planned_larger_models() {
-        // GIVEN the shipped table
-        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        // GIVEN the suggested cards of the registry
+        let manifest = registry();
         let options = ResolveOptions::default();
 
         // WHEN plans are built for a small and a large machine
