@@ -16,11 +16,20 @@
 //! Every outcome also carries the editorial selection, the curated table
 //! rendered as a catalogue. It is computed from the binary alone, so an
 //! unreachable Hub still leaves the operator something to choose from.
+//!
+//! The candidates are the cards of the model registry: the index accepted
+//! under the distribution key when there is one, the one compiled into the
+//! binary otherwise. `apollia_llm::recommend::registry_source` says which
+//! cards are suggested unasked and how they are ordered before the machine is
+//! taken into account.
 
 use apollia_llm::hardware::{detect as detect_hardware, HardwareProfile};
+use std::path::Path;
+
+use apollia_llm::model_cards::{compiled_public_key, kept_or_shipped_index};
 use apollia_llm::recommend::{
-    resolve, retain_fitting, FamilyManifest, Recommendation, ResolveError, ResolveOptions,
-    RuntimeShape, SelectionFamily,
+    manifest_from_cards, resolve, retain_fitting, FamilyManifest, Recommendation, ResolveError,
+    ResolveOptions, RuntimeShape, SelectionFamily,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
@@ -145,7 +154,10 @@ pub(crate) fn remember(n_ctx: u32, outcome: &RecommendOutcome) {
 /// resolution itself fails, which is a broken build or machine rather than a
 /// condition the interface handles. An unreachable Hub comes back as
 /// [`RecommendOutcome::Unreachable`].
-pub async fn recommend(params: RecommendParams) -> Result<RecommendOutcome, RecommendError> {
+pub async fn recommend(
+    params: RecommendParams,
+    cards_dir: &Path,
+) -> Result<RecommendOutcome, RecommendError> {
     let cache_key = params.n_ctx.unwrap_or(0);
     let profile = tokio::task::spawn_blocking(detect_hardware)
         .await
@@ -169,7 +181,7 @@ pub async fn recommend(params: RecommendParams) -> Result<RecommendOutcome, Reco
         };
     }
 
-    let outcome = recommend_for(&profile, &options).await?;
+    let outcome = recommend_for(&profile, &options, cards_dir).await?;
     remember(cache_key, &outcome);
     Ok(fitting(
         truncated(outcome, params.limit),
@@ -200,6 +212,7 @@ fn fitting(
 async fn recommend_for(
     profile: &HardwareProfile,
     options: &ResolveOptions,
+    cards_dir: &Path,
 ) -> Result<RecommendOutcome, RecommendError> {
     let hardware = HardwareResponse::from(profile.clone());
 
@@ -215,7 +228,17 @@ async fn recommend_for(
 
     let selection = manifest.editorial_selection();
 
-    match resolve(&manifest, profile, options).await {
+    let candidates = match registry_candidates(cards_dir) {
+        Ok(candidates) => candidates,
+        Err(detail) => {
+            // The shipped index is part of this binary: a failure to read it is
+            // a defect in the build, like a failure of the table above.
+            event!(Level::ERROR, error = %detail, "recommend.registry.invalid");
+            return Err(RecommendError::Manifest(detail));
+        }
+    };
+
+    match resolve(&candidates, profile, options).await {
         Ok(models) if models.is_empty() => Ok(RecommendOutcome::Empty {
             hardware,
             selection,
@@ -238,6 +261,13 @@ async fn recommend_for(
 }
 
 /// Cut a ranked list to what the caller asked for.
+/// The suggested cards of the registry, as the families the resolver orders.
+fn registry_candidates(cards_dir: &Path) -> Result<FamilyManifest, String> {
+    let index =
+        kept_or_shipped_index(cards_dir, compiled_public_key()).map_err(|e| e.to_string())?;
+    manifest_from_cards(&index.cards).map_err(|e| e.to_string())
+}
+
 fn truncated(outcome: RecommendOutcome, limit: Option<usize>) -> RecommendOutcome {
     match outcome {
         RecommendOutcome::Ok {

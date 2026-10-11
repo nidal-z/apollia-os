@@ -39,11 +39,12 @@ use crate::gguf_probe::{probe_url, ProbeDepth};
 use crate::hardware::HardwareProfile;
 use crate::hf_registry::{HfError, HfModelTypeCache, HfRegistryClient};
 
+use super::fit::assess_fit;
 use super::fit::RuntimeShape;
 use super::manifest::{Family, FamilyManifest, Variant};
 use super::offload::MemoryArchitecture;
 use super::quant::{self, Quant};
-use super::rank::{rank, FileCandidate, Matched, Recommendation};
+use super::rank::{rank, speed_bonus, FileCandidate, Matched, Recommendation, COMFORT_BONUS};
 
 /// Failure to produce a recommendation.
 #[derive(Debug, Error)]
@@ -156,7 +157,7 @@ fn plan<'m>(
         }
 
         for variant in &family.variants {
-            let Some(base) = manifest.weighted_agentic(family, variant) else {
+            let Some(base) = manifest.base_score(family, variant) else {
                 continue;
             };
 
@@ -173,7 +174,8 @@ fn plan<'m>(
                     family,
                     variant,
                     quant,
-                    score: base * quant.quality,
+                    score: base * quant.quality
+                        + machine_terms(quant.estimated_bytes(variant.params_b), profile, options),
                 });
             }
         }
@@ -191,8 +193,46 @@ fn plan<'m>(
             })
             .then_with(|| a.family.id.cmp(&b.family.id))
     });
+    let mut per_family: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    planned.retain(|p| {
+        let kept = per_family.entry(p.family.id.as_str()).or_insert(0);
+        *kept += 1;
+        *kept <= MAX_PLANNED_PER_FAMILY
+    });
     planned.truncate(options.max_planned);
     planned
+}
+
+/// How many sizes of one generation are worth a request.
+///
+/// The registry holds several sizes and several forms of most generations, and
+/// the few requests a plan may spend go further across generations than down
+/// one of them.
+const MAX_PLANNED_PER_FAMILY: usize = 2;
+
+/// What the ranking will add or take away for this machine, estimated from the
+/// weights alone.
+///
+/// The ranking adds a bonus for a comfortable fit and a term for the speed the
+/// placement gives. Leaving both out of the plan was harmless while the table
+/// held a few sizes; with every model of the registry as a candidate, the best
+/// eight by score alone are eight models of the largest size the machine can
+/// hold across all its memory, and on a machine with a small card every one of
+/// them would run split and slow. Counting the two terms here keeps the sizes
+/// that run well on the machine among those the Hub is asked about.
+fn machine_terms(weights_bytes: u64, profile: &HardwareProfile, options: &ResolveOptions) -> f64 {
+    let fit = assess_fit(
+        weights_bytes,
+        &crate::gguf_probe::GgufHeaderFacts::default(),
+        profile,
+        &options.shape,
+    );
+    let comfort = if fit.badge == crate::hardware::CompatibilityBadge::Fits {
+        COMFORT_BONUS
+    } else {
+        0.0
+    };
+    comfort + speed_bonus(fit.plan.tokens_per_second)
 }
 
 /// File name prefixes that belong to something other than the model.

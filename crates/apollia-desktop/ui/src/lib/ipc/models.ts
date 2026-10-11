@@ -154,6 +154,8 @@ export interface RecommendedModel {
   };
   family_id: string;
   family_label: string;
+  /** The model's own name, when its registry card gives one. */
+  model_label?: string | null;
   params_b: number;
   /** Quantisation format, when the file name declares one. */
   quant: string | null;

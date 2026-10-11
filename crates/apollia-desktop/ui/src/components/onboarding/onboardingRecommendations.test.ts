@@ -83,6 +83,14 @@ describe("modelDisplayName", () => {
     // THEN one decimal is kept rather than the number being rounded away
     expect(modelDisplayName(m)).toBe("Gemma 3 1.5B");
   });
+  it("reads the name of the registry card when the model carries one", () => {
+    // GIVEN a model whose registry card names it, at a size that is not round
+    const m = model({ family_label: "Granite 4.2", model_label: "Granite 4.2 30B", params_b: 29.28 });
+
+    // WHEN the row label is built
+    // THEN it is the card's name, not the family followed by the raw count
+    expect(modelDisplayName(m)).toBe("Granite 4.2 30B");
+  });
 });
 
 describe("sizeLabel", () => {

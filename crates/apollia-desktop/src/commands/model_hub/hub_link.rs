@@ -88,7 +88,10 @@ pub(crate) async fn recommend_on(
 ) -> Result<serde_json::Value, String> {
     let remote = match link {
         RuntimeLink::Embedded(_) => {
-            let outcome = apollia_runtime::recommendation::recommend(params)
+            let cards_dir = apollia_llm::model_cards::default_cache_dir(
+                &crate::commands::model_cards::data_dir(),
+            );
+            let outcome = apollia_runtime::recommendation::recommend(params, &cards_dir)
                 .await
                 .map_err(|e| e.to_string())?;
             return serde_json::to_value(outcome).map_err(|e| format!("serialization error: {e}"));

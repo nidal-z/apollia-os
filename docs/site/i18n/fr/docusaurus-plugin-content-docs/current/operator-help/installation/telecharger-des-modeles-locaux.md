@@ -40,12 +40,16 @@ sidebar_position: 5
 
 Pendant l'onboarding, la liste **Modèles recommandés** n'est pas une liste
 figée. Apollia mesure votre machine (sa mémoire, et si sa carte graphique a sa
-propre mémoire ou la partage, comme sur un Mac), demande à HuggingFace quels
-fichiers existent pour les générations de modèles qu'il connaît, et lit les
-premiers mégaoctets de chaque candidat pour vérifier que le moteur embarqué peut
-le charger et lui faire appeler des outils. La liste est ensuite classée pour
-votre machine : le même modèle peut arriver en tête sur un Mac et plus bas sur
-un PC doté d'une petite carte graphique.
+propre mémoire ou la partage, comme sur un Mac) et part des modèles de son
+registre qui appellent des outils, sont faits pour un usage général et portent
+une licence ouverte (Apache 2.0 ou MIT). Parmi eux, un modèle plus grand passe
+avant un plus petit, et un modèle récent avant un plus ancien de même taille.
+Apollia demande ensuite à HuggingFace quels fichiers existent pour les mieux
+placés, et lit les premiers mégaoctets de chaque candidat pour vérifier que le
+moteur embarqué peut le charger et lui faire appeler des outils. La liste est
+ensuite classée pour votre machine : le même modèle peut arriver en tête sur un
+Mac et plus bas sur un PC doté d'une petite carte graphique. Les autres modèles
+du registre restent dans **Découvrir des modèles**, chacun avec sa licence.
 
 Chaque ligne dit pourquoi elle est là : la mémoire qu'il faut, répartie entre le
 modèle lui-même, sa mémoire de conversation et le moteur, la façon dont il est

@@ -40,11 +40,15 @@ sidebar_position: 5
 
 During onboarding, the **Recommended models** list is not a fixed list. Apollia
 measures your machine (its memory, and whether its graphics card has memory of
-its own or shares it, as on a Mac), asks HuggingFace which files exist for the
-model generations it knows, and reads the first megabytes of each candidate to
-check that the bundled engine can load it and call tools with it. The list is
-then ranked for your machine: the same model can come first on a Mac and
-further down on a PC with a small graphics card.
+its own or shares it, as on a Mac) and starts from the models of its registry
+that call tools, are meant for general use and carry an open licence (Apache
+2.0 or MIT). Among those, a larger model comes before a smaller one and a
+recent one before an older one of the same size. Apollia then asks HuggingFace
+which files exist for the best placed, and reads the first megabytes of each
+candidate to check that the bundled engine can load it and call tools with it.
+The list is then ranked for your machine: the same model can come first on a
+Mac and further down on a PC with a small graphics card. The other models of
+the registry stay in **Discover models**, each with its licence.
 
 Each row says why it is there: the memory it needs, split between the model
 itself, its conversation memory and the engine, how it is compressed (for

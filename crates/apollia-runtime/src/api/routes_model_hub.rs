@@ -414,10 +414,11 @@ pub async fn recommend_models<B: ExecutionBackend + Clone>(
     )
 )]
 pub async fn get_recommendations<B: ExecutionBackend + Clone>(
-    State(_state): State<AppState<B>>,
+    State(state): State<AppState<B>>,
     Query(params): Query<crate::recommendation::RecommendParams>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
-    let outcome = crate::recommendation::recommend(params)
+    let cards_dir = apollia_llm::model_cards::default_cache_dir(&state.data_dir);
+    let outcome = crate::recommendation::recommend(params, &cards_dir)
         .await
         .map_err(|e| internal_error(e.to_string()))?;
     serde_json::to_value(outcome)

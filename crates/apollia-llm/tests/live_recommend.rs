@@ -23,7 +23,7 @@
 
 use apollia_llm::gguf_probe::{probe_url, ProbeDepth};
 use apollia_llm::hardware::{AcceleratorProfile, HardwareProfile};
-use apollia_llm::recommend::{resolve, FamilyManifest, Recommendation, ResolveOptions};
+use apollia_llm::recommend::{resolve, Recommendation, ResolveOptions};
 
 /// A real, small, widely mirrored GGUF.
 const LIVE_GGUF: &str =
@@ -113,8 +113,11 @@ async fn a_confirming_probe_reaches_the_chat_template_of_a_real_model() {
 #[tokio::test]
 #[ignore = "reaches HuggingFace; run with --ignored"]
 async fn the_ranking_follows_the_machine_rather_than_the_model() {
-    // GIVEN the shipped table and three machines with different memory shapes
-    let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+    // GIVEN the suggested cards of the shipped registry and three machines with
+    // different memory shapes
+    let index = apollia_llm::model_cards::shipped_index().expect("the shipped index loads");
+    let manifest =
+        apollia_llm::recommend::manifest_from_cards(&index.cards).expect("the cards group");
     let options = ResolveOptions::default();
 
     let mac = machine(

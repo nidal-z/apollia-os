@@ -191,6 +191,10 @@ pub struct Recommendation {
     pub family_id: String,
     /// Label the operator reads.
     pub family_label: String,
+    /// The model's own name, when its registry card gives one: what the
+    /// operator reads in place of the family and the parameter count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_label: Option<String>,
     /// Size class in billions of parameters.
     pub params_b: f64,
     /// Quantisation format, when the file name declares one.
@@ -219,7 +223,7 @@ pub struct Recommendation {
 const SUPERSEDED_PENALTY: f64 = 1000.0;
 
 /// Bonus for fitting comfortably rather than tightly.
-const COMFORT_BONUS: f64 = 12.0;
+pub(super) const COMFORT_BONUS: f64 = 12.0;
 
 /// Penalty per caveat, enough to break a tie without hiding a model.
 const CAVEAT_PENALTY: f64 = 4.0;
@@ -313,7 +317,7 @@ fn placement(
 }
 
 /// Points awarded or deducted for generation speed.
-fn speed_bonus(tokens_per_second: f64) -> f64 {
+pub(super) fn speed_bonus(tokens_per_second: f64) -> f64 {
     if tokens_per_second <= 0.0 {
         return -SPEED_WEIGHT * 2.0;
     }
@@ -365,7 +369,7 @@ pub fn rank(
             continue;
         }
 
-        let Some(base) = manifest.weighted_agentic(m.family, m.variant) else {
+        let Some(base) = manifest.base_score(m.family, m.variant) else {
             continue;
         };
 
@@ -406,6 +410,7 @@ pub fn rank(
             file: m.file,
             family_id: m.family.id.clone(),
             family_label: m.family.label.clone(),
+            model_label: m.variant.label.clone(),
             params_b: m.variant.params_b,
             quant: quant.map(|q| q.name.to_owned()),
             verdict,

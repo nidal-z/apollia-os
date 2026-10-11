@@ -125,6 +125,20 @@ pub struct Variant {
     /// Empty when none exists.
     #[serde(default)]
     pub mlx_repos: Vec<String>,
+    /// GGUF repositories of this size, spelt out in preference order. Set when
+    /// the entry comes from a registry card, which names its repositories;
+    /// empty for an entry of the table, whose family patterns are expanded.
+    #[serde(default)]
+    pub gguf_repos: Vec<String>,
+    /// The ordering key of an entry that comes from a registry card, which
+    /// carries no benchmark score: see [`super::registry_source`]. `None` for
+    /// an entry of the table, ordered by `agentic`.
+    #[serde(default)]
+    pub rule_score: Option<f64>,
+    /// The name of this size as its registry card gives it. `None` for an
+    /// entry of the table, named by its family and its parameter count.
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 /// One model generation.
@@ -162,6 +176,9 @@ impl Family {
     /// Expand the repo patterns for one variant, in preference order.
     #[must_use]
     pub fn candidate_repos(&self, variant: &Variant) -> Vec<String> {
+        if !variant.gguf_repos.is_empty() {
+            return variant.gguf_repos.clone();
+        }
         self.repo_patterns
             .iter()
             .map(|p| p.replace("{model}", &variant.hf_name))
@@ -173,6 +190,10 @@ impl Family {
 struct RawManifest {
     schema_version: u32,
     #[serde(default, rename = "family")]
+    families: Vec<Family>,
+}
+
+struct RawFamilies {
     families: Vec<Family>,
 }
 
@@ -209,6 +230,16 @@ impl FamilyManifest {
             });
         }
 
+        Self::from_families(raw.families)
+    }
+
+    /// Check a set of families and make it queryable.
+    ///
+    /// # Errors
+    /// [`ManifestError::DuplicateId`], [`ManifestError::DanglingSupersedes`]
+    /// and [`ManifestError::Cycle`], as for the table.
+    pub fn from_families(families: Vec<Family>) -> Result<Self, ManifestError> {
+        let raw = RawFamilies { families };
         let mut by_id = BTreeMap::new();
         for (idx, family) in raw.families.iter().enumerate() {
             if by_id.insert(family.id.clone(), idx).is_some() {
@@ -265,16 +296,20 @@ impl FamilyManifest {
             .any(|f| f.supersedes.iter().any(|s| s == id))
     }
 
-    /// The agentic score for a variant, weighted by how its family calls tools.
+    /// What a variant is ordered by before the machine is taken into account.
     ///
-    /// Returns `None` when the table records no score, which keeps an
-    /// unscored entry out of the ranking rather than giving it a default that
-    /// would place it arbitrarily.
+    /// For an entry of the table, its agentic score weighted by how its family
+    /// calls tools. For an entry built from a registry card, its rule score.
+    /// Returns `None` when neither is recorded, which keeps an unscored entry
+    /// out of the ranking rather than giving it a default that would place it
+    /// arbitrarily.
     #[must_use]
-    pub fn weighted_agentic(&self, family: &Family, variant: &Variant) -> Option<f64> {
-        variant
-            .agentic
-            .map(|score| f64::from(score) * family.tool_calling.weight())
+    pub fn base_score(&self, family: &Family, variant: &Variant) -> Option<f64> {
+        variant.rule_score.or_else(|| {
+            variant
+                .agentic
+                .map(|score| f64::from(score) * family.tool_calling.weight())
+        })
     }
 }
 
@@ -498,14 +533,17 @@ hf_name = "B-7B"
             reasoning: Some(60),
             source: None,
             mlx_repos: Vec::new(),
+            gguf_repos: Vec::new(),
+            rule_score: None,
+            label: None,
         };
 
         // WHEN both are weighted
         let native_score = manifest
-            .weighted_agentic(native, &variant)
+            .base_score(native, &variant)
             .expect("a scored variant weighs");
         let prompted_score = manifest
-            .weighted_agentic(prompted, &variant)
+            .base_score(prompted, &variant)
             .expect("a scored variant weighs");
 
         // THEN the native one wins, because tool calling is what the runtime does

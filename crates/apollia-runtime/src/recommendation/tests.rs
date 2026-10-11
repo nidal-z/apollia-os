@@ -19,6 +19,9 @@ fn roomy_machine() -> HardwareProfile {
 /// loopback, refused at once, with no port reserved by the test.
 const UNREACHABLE_HUB: &str = "http://127.0.0.1:1";
 
+/// A directory holding no accepted index, so the shipped one is read.
+const NO_KEPT_INDEX: &str = "/nonexistent/apollia-cards";
+
 #[tokio::test]
 async fn an_unreachable_hub_still_renders_the_editorial_selection() {
     // GIVEN a roomy machine and a HuggingFace that does not answer
@@ -28,7 +31,7 @@ async fn an_unreachable_hub_still_renders_the_editorial_selection() {
     };
 
     // WHEN the recommendation is asked for
-    let outcome = recommend_for(&roomy_machine(), &options)
+    let outcome = recommend_for(&roomy_machine(), &options, NO_KEPT_INDEX.as_ref())
         .await
         .expect("an unreachable hub is an outcome, not an error");
 
@@ -82,7 +85,7 @@ async fn offline_the_selection_is_cut_to_what_fits_when_asked() {
         hub_base: Some(UNREACHABLE_HUB.to_owned()),
         ..ResolveOptions::default()
     };
-    let outcome = recommend_for(&small, &options)
+    let outcome = recommend_for(&small, &options, NO_KEPT_INDEX.as_ref())
         .await
         .expect("an unreachable hub is an outcome, not an error");
     let whole = match &outcome {

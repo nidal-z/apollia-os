@@ -602,8 +602,9 @@ proof = "crates/apollia-desktop/src/commands/recommend.rs"
 evidence = "HubUnreachable"
 note = """
 Onboarding offered four pinned HuggingFace URLs filtered on installed RAM. The
-list is now resolved live, ranked against the machine's memory layout, and
-checked against the GGUF header of each file before it is offered. The page
+list is now drawn from the model registry, resolved live, ranked against the
+machine's memory layout, and checked against the GGUF header of each file
+before it is offered. The page
 also states the one consequence of a live catalogue an operator meets first:
 with no network there is no list, which is a different state from "nothing
 fits" and is reported as one.
