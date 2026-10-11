@@ -109,6 +109,35 @@ async fn a_chosen_gguf_file_is_copied_into_the_models_folder_and_becomes_the_loc
 }
 
 #[tokio::test]
+async fn a_model_already_in_a_folder_of_the_models_folder_is_wired_where_it_is() {
+    // GIVEN a model a download left in a folder of its own under the models
+    // folder, beside its projector
+    let data = TempDir::new().unwrap();
+    let models = apollia_core::config::default_models_dir(data.path());
+    let folder = models.join("Vision-30B-Q4_K_M");
+    std::fs::create_dir_all(&folder).unwrap();
+    let source = folder.join("Vision-30B-Q4_K_M.gguf");
+    std::fs::write(&source, b"GGUF").unwrap();
+    std::fs::write(folder.join("mmproj-Vision-30B-Q4_K_M.gguf"), b"GGUF").unwrap();
+
+    // WHEN it is chosen as the local engine
+    let result = setup_local_llm(data.path(), &source.display().to_string(), None)
+        .await
+        .unwrap();
+
+    // THEN the backend points at the file in its folder, and no second copy of
+    // the weights was written at the root of the models folder
+    assert_eq!(result.model_path, source.display().to_string());
+    assert!(!models.join("Vision-30B-Q4_K_M.gguf").exists());
+    let repo = LlmBackendRepository::open(&data.path().join("system.db")).unwrap();
+    let local = repo.find_by_name("local").unwrap().unwrap();
+    assert_eq!(
+        local.model,
+        "~/.apollia/models/Vision-30B-Q4_K_M/Vision-30B-Q4_K_M.gguf"
+    );
+}
+
+#[tokio::test]
 async fn a_missing_file_or_one_that_is_not_gguf_is_refused_before_anything_is_written() {
     // GIVEN a data directory, a path no file occupies, and a file of another
     // kind

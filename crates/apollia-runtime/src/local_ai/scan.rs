@@ -68,36 +68,38 @@ pub struct WhisperModelInfo {
 /// Scans standard filesystem locations for `.gguf` model files.
 ///
 /// Locations scanned:
-/// 1. the models folder in force (`[models] dir`, else `<data_dir>/models/`), flat
+/// 1. the models folder in force (`[models] dir`, else `<data_dir>/models/`),
+///    and the folders directly under it: a download puts a model that comes
+///    with a projector, or in several parts, in a folder of its own
 /// 2. `<home>/Downloads/` (flat)
 /// 3. `<home>/.cache/lm-studio/models/` (recursive, up to 4 levels deep)
+///
+/// A projector or a prediction head (`mmproj-*`, `mtp-*`) is a part of a
+/// model, not a model: it is left out wherever it is found.
 ///
 /// Results are sorted by file size descending. Missing or unreadable
 /// directories are silently skipped - an empty list is not an error.
 /// Blocking: reads the disk and probes each header.
 pub fn scan_gguf_models(home: &Path, data_dir: &Path) -> Vec<GgufModelInfo> {
     let hardware = apollia_llm::hardware::detect();
-    let flat_dirs = [
-        apollia_core::config::models_dir(data_dir),
-        home.join("Downloads"),
-    ];
     let lm_studio_root = home.join(".cache").join("lm-studio").join("models");
 
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut models: Vec<GgufModelInfo> = Vec::new();
 
-    for dir in &flat_dirs {
-        for mut info in scan_gguf_in_dir(dir) {
-            if seen.insert(info.path.clone()) {
-                info.recommended = fits_this_machine(&info, &hardware);
-                models.push(info);
-            }
+    let mut found: Vec<GgufModelInfo> = Vec::new();
+    collect_gguf_recursive(
+        &apollia_core::config::models_dir(data_dir),
+        &mut found,
+        0,
+        MODELS_DIR_DEPTH,
+    );
+    found.extend(scan_gguf_in_dir(&home.join("Downloads")));
+    collect_gguf_recursive(&lm_studio_root, &mut found, 0, 4);
+    for mut info in found {
+        if is_model_part(&info.filename) {
+            continue;
         }
-    }
-
-    let mut recursive_buf: Vec<GgufModelInfo> = Vec::new();
-    collect_gguf_recursive(&lm_studio_root, &mut recursive_buf, 0, 4);
-    for mut info in recursive_buf {
         if seen.insert(info.path.clone()) {
             info.recommended = fits_this_machine(&info, &hardware);
             models.push(info);
@@ -171,6 +173,19 @@ fn vram_gb_of(accelerator: &apollia_llm::AcceleratorProfile) -> Option<f64> {
         | AcceleratorProfile::Cuda { vram_gb, .. }
         | AcceleratorProfile::Generic { vram_gb, .. } => Some(*vram_gb),
     }
+}
+
+/// Levels of the models folder read: the folder itself and the folders
+/// directly under it.
+const MODELS_DIR_DEPTH: u8 = 2;
+
+/// Whether a file name is a part a model loads beside its weights rather than
+/// a model: a vision projector or a multi-token-prediction head.
+fn is_model_part(filename: &str) -> bool {
+    let name = filename.to_ascii_lowercase();
+    ["mmproj", "mtp-", "mtp_"]
+        .iter()
+        .any(|prefix| name.starts_with(prefix))
 }
 
 /// Scans a single directory (non-recursive) for `.gguf` files.

@@ -190,3 +190,48 @@ fn a_path_that_is_not_there_reads_as_zero() {
     // is not left with a silent 0 B in the interface
     assert_eq!(size, 0);
 }
+
+#[test]
+fn a_model_downloaded_into_its_own_folder_is_found_and_its_projector_is_not_a_model() {
+    // GIVEN a models folder holding one model flat, and one in a folder of its
+    // own beside its projector, as a download leaves a model that reads images
+    let home = tempfile::tempdir().unwrap();
+    let data = tempfile::tempdir().unwrap();
+    let models = apollia_core::config::default_models_dir(data.path());
+    let folder = models.join("Vision-30B-Q4_K_M");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(models.join("Plain-4B-Q4_K_M.gguf"), b"GGUF").unwrap();
+    std::fs::write(folder.join("Vision-30B-Q4_K_M.gguf"), b"GGUF-larger").unwrap();
+    std::fs::write(folder.join("mmproj-Vision-30B-Q4_K_M.gguf"), b"GGUF").unwrap();
+
+    // WHEN the machine is scanned for models
+    let found = scan_gguf_models(home.path(), data.path());
+
+    // THEN both models are listed, the one in its folder by its own path, and
+    // the projector is not offered as a model
+    let names: Vec<&str> = found.iter().map(|m| m.filename.as_str()).collect();
+    assert_eq!(names, ["Vision-30B-Q4_K_M.gguf", "Plain-4B-Q4_K_M.gguf"]);
+    assert_eq!(
+        found[0].path,
+        folder.join("Vision-30B-Q4_K_M.gguf").display().to_string()
+    );
+}
+
+#[test]
+fn a_file_two_folders_down_the_models_folder_is_not_read() {
+    // GIVEN a GGUF file two folders below the models folder
+    let home = tempfile::tempdir().unwrap();
+    let data = tempfile::tempdir().unwrap();
+    let deep = apollia_core::config::default_models_dir(data.path())
+        .join("a")
+        .join("b");
+    std::fs::create_dir_all(&deep).unwrap();
+    std::fs::write(deep.join("Deep-4B-Q4_K_M.gguf"), b"GGUF").unwrap();
+
+    // WHEN the machine is scanned for models
+    let found = scan_gguf_models(home.path(), data.path());
+
+    // THEN it is not listed: only the folder and the folders directly under it
+    // are read
+    assert!(found.is_empty());
+}

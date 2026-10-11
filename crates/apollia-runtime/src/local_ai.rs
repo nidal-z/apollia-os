@@ -185,14 +185,25 @@ pub async fn setup_local_llm(
         .ok_or(LocalAiError::InvalidFileName)?
         .to_string_lossy()
         .to_string();
-    let dest = models_dir.join(&file_name);
-    if dest != source {
-        tokio::fs::copy(&source, &dest)
-            .await
-            .map_err(LocalAiError::Copy)?;
-    }
+    // A file already under the models folder stays where it is: a download
+    // puts a model that comes with a projector, or in several parts, in a
+    // folder of its own, and copying its weights out of it would double them
+    // on disk and leave the projector behind.
+    let (dest, within_models) = match source.strip_prefix(&models_dir) {
+        Ok(relative) => (
+            source.clone(),
+            relative.to_string_lossy().replace('\\', "/"),
+        ),
+        Err(_) => {
+            let dest = models_dir.join(&file_name);
+            tokio::fs::copy(&source, &dest)
+                .await
+                .map_err(LocalAiError::Copy)?;
+            (dest, file_name.clone())
+        }
+    };
 
-    let model_path_str = format!("~/.apollia/models/{file_name}");
+    let model_path_str = format!("~/.apollia/models/{within_models}");
     let db_path = data_dir.join(apollia_core::paths::DataFile::System.file_name());
     let device = if cfg!(target_os = "macos") {
         "metal"
