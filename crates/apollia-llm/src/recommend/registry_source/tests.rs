@@ -162,3 +162,29 @@ fn test_a_date_is_read_as_months() {
     assert_eq!(months_of("soon"), None);
     assert_eq!(months_of(""), None);
 }
+
+#[test]
+fn test_the_selection_holds_every_language_model_and_the_suggestion_only_some() {
+    // GIVEN the shipped cards
+    let cards = shipped_cards();
+    let language = cards
+        .iter()
+        .filter(|c| c.kind == CardKind::Language && c.draft.is_none())
+        .count();
+
+    // WHEN the selection and the suggestion are built
+    let selection = selection_from_cards(&cards).expect("the cards group");
+    let suggestion = manifest_from_cards(&cards).expect("the cards group");
+    let sizes = |m: &FamilyManifest| m.families().iter().map(|f| f.variants.len()).sum::<usize>();
+
+    // THEN the selection has one size for each language card, among them the
+    // code models and the models under a licence the suggestion leaves out
+    assert_eq!(sizes(&selection), language);
+    assert!(sizes(&suggestion) < sizes(&selection));
+    assert!(selection.family("qwen3-coder").is_some());
+    assert!(selection.family("gemma3").is_some());
+    let olmo = selection.family("olmo3").expect("Olmo 3 is selected");
+    assert_eq!(olmo.tool_calling, ToolCalling::Native);
+    let smolvlm = selection.family("smolvlm").expect("SmolVLM is selected");
+    assert_eq!(smolvlm.tool_calling, ToolCalling::None);
+}

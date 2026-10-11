@@ -13,8 +13,8 @@
 //! outcome is an enum, and the onboarding step renders a different branch for
 //! each.
 //!
-//! Every outcome also carries the editorial selection, the curated table
-//! rendered as a catalogue. It is computed from the binary alone, so an
+//! Every outcome also carries the editorial selection: every language model of
+//! the registry, as a catalogue. It is computed without the Hub, so an
 //! unreachable Hub still leaves the operator something to choose from.
 //!
 //! The candidates are the cards of the model registry: the index accepted
@@ -28,8 +28,8 @@ use std::path::Path;
 
 use apollia_llm::model_cards::{compiled_public_key, kept_or_shipped_index};
 use apollia_llm::recommend::{
-    manifest_from_cards, resolve, retain_fitting, FamilyManifest, Recommendation, ResolveError,
-    ResolveOptions, RuntimeShape, SelectionFamily,
+    manifest_from_cards, resolve, retain_fitting, selection_from_cards, FamilyManifest,
+    Recommendation, ResolveError, ResolveOptions, RuntimeShape, SelectionFamily,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
@@ -103,7 +103,7 @@ pub enum RecommendError {
     #[error("hardware detection failed: {0}")]
     Hardware(String),
     /// The table shipped inside this binary does not load.
-    #[error("the shipped model table is invalid: {0}")]
+    #[error("the model registry is invalid: {0}")]
     Manifest(String),
     /// The resolution failed for a reason other than an unreachable Hub.
     #[error("{0}")]
@@ -216,23 +216,11 @@ async fn recommend_for(
 ) -> Result<RecommendOutcome, RecommendError> {
     let hardware = HardwareResponse::from(profile.clone());
 
-    let manifest = match FamilyManifest::embedded() {
-        Ok(manifest) => manifest,
-        Err(err) => {
-            // The table ships inside this binary, so a failure here is a defect
-            // in the build rather than anything the operator did.
-            event!(Level::ERROR, error = %err, "recommend.manifest.invalid");
-            return Err(RecommendError::Manifest(err.to_string()));
-        }
-    };
-
-    let selection = manifest.editorial_selection();
-
-    let candidates = match registry_candidates(cards_dir) {
-        Ok(candidates) => candidates,
+    let (candidates, selection) = match registry_candidates(cards_dir) {
+        Ok(read) => read,
         Err(detail) => {
             // The shipped index is part of this binary: a failure to read it is
-            // a defect in the build, like a failure of the table above.
+            // a defect in the build rather than anything the operator did.
             event!(Level::ERROR, error = %detail, "recommend.registry.invalid");
             return Err(RecommendError::Manifest(detail));
         }
@@ -261,11 +249,16 @@ async fn recommend_for(
 }
 
 /// Cut a ranked list to what the caller asked for.
-/// The suggested cards of the registry, as the families the resolver orders.
-fn registry_candidates(cards_dir: &Path) -> Result<FamilyManifest, String> {
+/// The suggested cards of the registry, as the families the resolver orders,
+/// and every language model of it, as the editorial selection.
+fn registry_candidates(cards_dir: &Path) -> Result<(FamilyManifest, Vec<SelectionFamily>), String> {
     let index =
         kept_or_shipped_index(cards_dir, compiled_public_key()).map_err(|e| e.to_string())?;
-    manifest_from_cards(&index.cards).map_err(|e| e.to_string())
+    let candidates = manifest_from_cards(&index.cards).map_err(|e| e.to_string())?;
+    let selection = selection_from_cards(&index.cards)
+        .map_err(|e| e.to_string())?
+        .editorial_selection();
+    Ok((candidates, selection))
 }
 
 fn truncated(outcome: RecommendOutcome, limit: Option<usize>) -> RecommendOutcome {

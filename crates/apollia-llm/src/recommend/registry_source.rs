@@ -81,14 +81,36 @@ pub fn rule_score(params_b: f64, age_months: f64) -> f64 {
 /// [`ManifestError::DuplicateId`] when two groups share an identifier, which
 /// the grouping rules out.
 pub fn manifest_from_cards(cards: &[ModelCard]) -> Result<FamilyManifest, ManifestError> {
-    let suggested: Vec<&ModelCard> = cards.iter().filter(|c| is_suggested(c)).collect();
-    let newest = suggested
+    manifest_of(cards.iter().filter(|c| is_suggested(c)).collect())
+}
+
+/// Every language model of a registry, as the families the editorial
+/// selection shows: the suggested ones and the others alike (code models,
+/// models under a licence to read first, models that call no tool), since the
+/// registry is the selection. Draft models are left out.
+///
+/// # Errors
+/// As [`manifest_from_cards`].
+pub fn selection_from_cards(cards: &[ModelCard]) -> Result<FamilyManifest, ManifestError> {
+    manifest_of(cards.iter().filter(|c| is_selected(c)).collect())
+}
+
+/// Whether a card belongs to the editorial selection.
+fn is_selected(card: &ModelCard) -> bool {
+    card.kind == CardKind::Language
+        && card.draft.is_none()
+        && card.params_b.is_some_and(|p| p > 0.0)
+        && card.released.as_deref().and_then(months_of).is_some()
+}
+
+fn manifest_of(kept: Vec<&ModelCard>) -> Result<FamilyManifest, ManifestError> {
+    let newest = kept
         .iter()
         .filter_map(|c| c.released.as_deref().and_then(months_of))
         .fold(f64::MIN, f64::max);
 
     let mut groups: BTreeMap<&str, Vec<&ModelCard>> = BTreeMap::new();
-    for card in suggested {
+    for card in kept {
         groups.entry(group_of(&card.id)).or_default().push(card);
     }
 
@@ -136,7 +158,11 @@ fn family_of(group: &str, cards: &[&ModelCard], newest: f64) -> Option<Family> {
         released,
         architectures: Vec::new(),
         supersedes: Vec::new(),
-        tool_calling: ToolCalling::Native,
+        tool_calling: if cards.iter().any(|c| c.capabilities.tools) {
+            ToolCalling::Native
+        } else {
+            ToolCalling::None
+        },
         license: first.license.id.clone(),
         repo_patterns: Vec::new(),
         notes: None,

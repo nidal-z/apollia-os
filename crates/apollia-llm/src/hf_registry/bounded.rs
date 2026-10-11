@@ -548,12 +548,16 @@ impl SearchInputs {
                 None
             }
         };
-        let selection = match crate::recommend::FamilyManifest::embedded() {
-            Ok(manifest) => selection_repos(&manifest.editorial_selection()),
-            Err(err) => {
-                event!(Level::ERROR, error = %err, "llm.hf_search.manifest_invalid");
+        let selection = match index
+            .as_ref()
+            .map(|index| crate::recommend::selection_from_cards(&index.cards))
+        {
+            Some(Ok(manifest)) => selection_repos(&manifest.editorial_selection()),
+            Some(Err(err)) => {
+                event!(Level::ERROR, error = %err, "llm.hf_search.selection_invalid");
                 Vec::new()
             }
+            None => Vec::new(),
         };
         Self {
             authors: search_authors(index.as_ref()),

@@ -19,6 +19,12 @@ fn roomy_machine() -> HardwareProfile {
 /// loopback, refused at once, with no port reserved by the test.
 const UNREACHABLE_HUB: &str = "http://127.0.0.1:1";
 
+/// Every language model of the shipped registry, as families.
+fn registry_selection() -> FamilyManifest {
+    let index = apollia_llm::model_cards::shipped_index().expect("the shipped index loads");
+    apollia_llm::recommend::selection_from_cards(&index.cards).expect("the cards group")
+}
+
 /// A directory holding no accepted index, so the shipped one is read.
 const NO_KEPT_INDEX: &str = "/nonexistent/apollia-cards";
 
@@ -36,8 +42,8 @@ async fn an_unreachable_hub_still_renders_the_editorial_selection() {
         .expect("an unreachable hub is an outcome, not an error");
 
     // THEN the outcome says the Hub was unreachable and still carries every
-    // family of the curated table, each with a repository to offer
-    let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+    // family of the registry, each with a repository to offer
+    let manifest = registry_selection();
     let RecommendOutcome::Unreachable { selection, .. } = outcome else {
         panic!("expected the unreachable outcome, got {outcome:?}");
     };
@@ -51,7 +57,7 @@ async fn an_unreachable_hub_still_renders_the_editorial_selection() {
 #[test]
 fn the_selection_is_serialised_with_the_unreachable_status() {
     // GIVEN an unreachable outcome carrying the selection
-    let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+    let manifest = registry_selection();
     let outcome = RecommendOutcome::Unreachable {
         detail: "offline".to_owned(),
         hardware: HardwareResponse::from(roomy_machine()),

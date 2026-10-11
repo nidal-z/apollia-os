@@ -73,7 +73,7 @@ pub use offload::{
 pub use publishers::{publisher_kind, OfficialPublisher, PublisherKind, PublisherLists};
 pub use quant::Quant;
 pub use rank::{rank, FileCandidate, Matched, Reason, Recommendation};
-pub use registry_source::{is_suggested, manifest_from_cards, rule_score};
+pub use registry_source::{is_suggested, manifest_from_cards, rule_score, selection_from_cards};
 #[cfg(feature = "cloud")]
 pub use resolve::{resolve, ResolveError, ResolveOptions};
 pub use variants::{
