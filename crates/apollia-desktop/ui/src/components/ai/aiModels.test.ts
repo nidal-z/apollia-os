@@ -237,6 +237,17 @@ describe("actions of a row", () => {
     expect([...free, ...pinned].some((e) => /memory|memoire|keep/i.test(e.labelKey))).toBe(false);
   });
 
+  test("delete is inactive for a model a configuration still names, with its reason", () => {
+    // GIVEN a model nothing names, and one the local engine is configured on
+    const free = menuEntries(model({ id: "a" }), "mac");
+    const used = menuEntries(model({ id: "b", in_use: true, used_by: "LLM backend 'local'" }), "mac");
+    // WHEN the delete entry is read
+    const reason = (list: typeof free) => list.find((e) => e.id === "delete")?.reasonKey;
+    // THEN the first can be deleted, and the second says why it cannot
+    expect(reason(free)).toBeUndefined();
+    expect(reason(used)).toBe("ai.menu.delete_in_use");
+  });
+
   test("view source is inactive for an imported model, with its reason", () => {
     // GIVEN a model imported with no known origin
     const imported = model({ id: "local", source_url: null });

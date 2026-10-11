@@ -5407,7 +5407,8 @@
       "source_none": "Ce modèle a été importé depuis un fichier : sa page d'origine n'est pas connue.",
       "use_default": "Utiliser par défaut",
       "use_search": "Utiliser pour la recherche",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "delete_in_use": "Ce modèle sert de moteur dans votre configuration. Choisissez d'abord un autre modèle par défaut pour pouvoir le supprimer."
     },
     "toast": {
       "copied_id": "Identifiant copié.",

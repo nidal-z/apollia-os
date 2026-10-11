@@ -221,7 +221,15 @@ export function menuEntries(model: InstalledModel, platform: HostPlatform): Menu
   } else if (action === "use_search") {
     entries.push({ id: "use_search", labelKey: "ai.menu.use_search", section: 1 });
   }
-  entries.push({ id: "delete", labelKey: "ai.menu.delete", destructive: true, section: 2 });
+  entries.push({
+    id: "delete",
+    labelKey: "ai.menu.delete",
+    // The runtime refuses the file of a model a configuration still names;
+    // the entry says so rather than offering a deletion that will be refused.
+    reasonKey: model.in_use ? "ai.menu.delete_in_use" : undefined,
+    destructive: true,
+    section: 2,
+  });
   return entries;
 }
 

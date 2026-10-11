@@ -227,3 +227,71 @@ fn test_the_default_chat_and_search_models_are_marked() {
         ]
     );
 }
+
+/// A data directory whose models folder exists, with no configuration.
+fn data_dir_with_models() -> (tempfile::TempDir, PathBuf) {
+    let data = tempfile::tempdir().unwrap();
+    let models = apollia_core::config::default_models_dir(data.path());
+    std::fs::create_dir_all(&models).unwrap();
+    (data, models)
+}
+
+#[test]
+fn test_deleting_a_model_in_its_own_folder_takes_its_projector_its_card_and_the_folder() {
+    // GIVEN a model a download left in a folder of its own, with its projector
+    // and its card, and another model flat beside that folder
+    let (data, models) = data_dir_with_models();
+    let folder = models.join("Vision-30B-Q4_K_M");
+    std::fs::create_dir_all(&folder).unwrap();
+    let weights = folder.join("Vision-30B-Q4_K_M.gguf");
+    std::fs::write(&weights, b"GGUF").unwrap();
+    std::fs::write(folder.join("mmproj-Vision-30B-Q4_K_M.gguf"), b"GGUF").unwrap();
+    std::fs::write(folder.join("Vision-30B-Q4_K_M.gguf.card.json"), b"{}").unwrap();
+    std::fs::write(models.join("Plain-4B-Q4_K_M.gguf"), b"GGUF").unwrap();
+
+    // WHEN the model is deleted
+    delete_installed(data.path(), &weights.display().to_string()).unwrap();
+
+    // THEN nothing of it is left on disk, and the other model is untouched
+    assert!(!folder.exists());
+    assert!(models.join("Plain-4B-Q4_K_M.gguf").is_file());
+}
+
+#[test]
+fn test_deleting_one_part_of_a_split_model_takes_every_part() {
+    // GIVEN a model published in two files, flat in the models folder beside
+    // another model
+    let (data, models) = data_dir_with_models();
+    let first = models.join("Big-70B-Q4_K_M-00001-of-00002.gguf");
+    std::fs::write(&first, b"GGUF").unwrap();
+    std::fs::write(models.join("Big-70B-Q4_K_M-00002-of-00002.gguf"), b"GGUF").unwrap();
+    std::fs::write(models.join("Plain-4B-Q4_K_M.gguf"), b"GGUF").unwrap();
+
+    // WHEN its first part is deleted
+    delete_installed(data.path(), &first.display().to_string()).unwrap();
+
+    // THEN its second part went with it, and the other model stays
+    assert!(!models.join("Big-70B-Q4_K_M-00002-of-00002.gguf").exists());
+    assert!(models.join("Plain-4B-Q4_K_M.gguf").is_file());
+}
+
+#[test]
+fn test_deleting_a_model_from_a_folder_it_shares_leaves_the_rest() {
+    // GIVEN a folder holding two models and a projector, as a hand-made
+    // folder can
+    let (data, models) = data_dir_with_models();
+    let folder = models.join("vendor");
+    std::fs::create_dir_all(&folder).unwrap();
+    let gone = folder.join("One-4B-Q4_K_M.gguf");
+    std::fs::write(&gone, b"GGUF").unwrap();
+    std::fs::write(folder.join("Two-4B-Q4_K_M.gguf"), b"GGUF").unwrap();
+    std::fs::write(folder.join("mmproj-Two-4B-f16.gguf"), b"GGUF").unwrap();
+
+    // WHEN one of the two is deleted
+    delete_installed(data.path(), &gone.display().to_string()).unwrap();
+
+    // THEN only its weights are gone: the other model keeps its projector
+    assert!(!gone.exists());
+    assert!(folder.join("Two-4B-Q4_K_M.gguf").is_file());
+    assert!(folder.join("mmproj-Two-4B-f16.gguf").is_file());
+}

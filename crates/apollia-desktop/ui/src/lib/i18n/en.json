@@ -5407,7 +5407,8 @@
       "source_none": "This model was imported from a file: its page of origin is not known.",
       "use_default": "Use by default",
       "use_search": "Use for search",
-      "delete": "Delete"
+      "delete": "Delete",
+      "delete_in_use": "This model serves as an engine in your configuration. Choose another default model first to be able to delete it."
     },
     "toast": {
       "copied_id": "Identifier copied.",

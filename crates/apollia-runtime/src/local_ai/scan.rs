@@ -181,7 +181,7 @@ const MODELS_DIR_DEPTH: u8 = 2;
 
 /// Whether a file name is a part a model loads beside its weights rather than
 /// a model: a vision projector or a multi-token-prediction head.
-fn is_model_part(filename: &str) -> bool {
+pub(crate) fn is_model_part(filename: &str) -> bool {
     let name = filename.to_ascii_lowercase();
     ["mmproj", "mtp-", "mtp_"]
         .iter()

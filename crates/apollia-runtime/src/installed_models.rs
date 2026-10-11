@@ -347,7 +347,8 @@ fn installed_view(
     }
 }
 
-/// Removes the installed model at `path`, then its entry in the model index.
+/// Removes the installed model at `path` and what came with it (see
+/// [`remove_companions`]), then its entry in the model index.
 ///
 /// # Errors
 ///
@@ -373,8 +374,83 @@ pub fn delete_installed(data_dir: &Path, path: &str) -> Result<(), InstalledMode
     }
 
     std::fs::remove_file(&canonical_target).map_err(InstalledModelError::Delete)?;
+    remove_companions(&canonical_dir, &canonical_target);
     forget(&dir, &[&target, &canonical_target]);
     Ok(())
+}
+
+/// Removes what came with the weights just deleted: their card, the other
+/// parts of a model published in several files, and, when the model sat in a
+/// folder of its own, its projector and that folder once it holds nothing
+/// else.
+///
+/// A folder that still holds the weights of another model keeps everything
+/// that is not this model's. A failure is logged and the removal of the
+/// weights stands: what is left is a file the next deletion or the user can
+/// remove, not a model that still answers.
+fn remove_companions(models_dir: &Path, weights: &Path) {
+    let Some(folder) = weights.parent() else {
+        return;
+    };
+    let name = weights
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let split = split_base(&name);
+    let own_folder = folder != models_dir && folder.parent() == Some(models_dir);
+
+    let mut doomed = vec![apollia_llm::model_cards::card_path_for(weights)];
+    let mut another_model = false;
+    for entry in std::fs::read_dir(folder).into_iter().flatten().flatten() {
+        let path = entry.path();
+        let sibling = entry.file_name().to_string_lossy().to_string();
+        if path.extension().and_then(|e| e.to_str()) != Some("gguf") {
+            continue;
+        }
+        if split.is_some() && split_base(&sibling) == split {
+            doomed.push(apollia_llm::model_cards::card_path_for(&path));
+            doomed.push(path);
+        } else if crate::local_ai::scan::is_model_part(&sibling) {
+            if own_folder {
+                doomed.push(path);
+            }
+        } else {
+            another_model = true;
+        }
+    }
+    if another_model {
+        // The projector of a shared folder may serve the model that stays.
+        doomed.retain(|p| {
+            p.file_name()
+                .is_none_or(|n| !crate::local_ai::scan::is_model_part(&n.to_string_lossy()))
+        });
+    }
+
+    for path in doomed {
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => tracing::event!(
+                tracing::Level::WARN,
+                path = %path.display(),
+                error = %e,
+                "model.installed.companion_left"
+            ),
+        }
+    }
+    if own_folder && !another_model {
+        // Fails on a folder that is not empty, which is the wanted outcome:
+        // nothing the user put there is taken with the model.
+        let _ = std::fs::remove_dir(folder);
+    }
+}
+
+/// What the parts of one model published in several files share: the name
+/// before `-NNNNN-of-NNNNN.gguf`. `None` for a model in one file.
+fn split_base(file_name: &str) -> Option<&str> {
+    apollia_llm::recommend::shard_count_of(file_name)?;
+    let stem = file_name.strip_suffix(".gguf")?;
+    stem.get(..stem.len().checked_sub(15)?)
 }
 
 /// Drops the index entries of `paths`, the file just deleted under each of
