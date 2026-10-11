@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/CohereLabs/tiny-aya-fire"
   },
   "source_url": "https://huggingface.co/CohereLabs/tiny-aya-fire",
+  "released": "2026-02-13",
+  "params_b": 3.35,
+  "usage": "specialised",
   "description": {
     "fr": "Tiny Aya Fire de Cohere est la variante régionale de Tiny Aya que son éditeur recommande pour les langues d'Asie du Sud. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (cc-by-nc-4.0) interdit l'usage commercial.",
     "en": "Tiny Aya Fire from Cohere is the regional variant of Tiny Aya its publisher recommends for South Asian languages. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (cc-by-nc-4.0) forbids commercial use."

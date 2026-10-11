@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/mistralai/Ministral-3-3B-Reasoning-2512"
   },
   "source_url": "https://huggingface.co/mistralai/Ministral-3-3B-Reasoning-2512",
+  "released": "2025-10-31",
+  "params_b": 4.25,
+  "usage": "general",
   "description": {
     "fr": "Famille Ministral 3 de Mistral AI, sous licence Apache 2.0, pour les postes de travail courants : elle lit les images, appelle des outils et tient bien le français. Cette variante de raisonnement déroule sa réflexion avant de répondre. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "The Ministral 3 family from Mistral AI, under the Apache 2.0 licence, for everyday workstations: it reads images, calls tools and handles French well. This reasoning variant lays out its thinking before answering. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512"
   },
   "source_url": "https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512",
+  "released": "2025-10-31",
+  "params_b": 13.95,
+  "usage": "general",
   "description": {
     "fr": "Famille Ministral 3 de Mistral AI, sous licence Apache 2.0, pour les postes de travail courants : elle lit les images, appelle des outils et tient bien le français. Taille intermédiaire, plus précise sur les documents longs et les tâches en plusieurs étapes ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "The Ministral 3 family from Mistral AI, under the Apache 2.0 licence, for everyday workstations: it reads images, calls tools and handles French well. An intermediate size, more precise on long documents and multi-step tasks; plan for a machine with at least 16 GB of memory at Q4 quantization."

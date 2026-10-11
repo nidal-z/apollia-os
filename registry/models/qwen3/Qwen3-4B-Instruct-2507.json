@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507",
+  "released": "2025-08-05",
+  "params_b": 4.02,
+  "usage": "general",
   "description": {
     "fr": "Qwen3 d'Alibaba, pour le texte seul : il appelle des outils et travaille dans une centaine de langues. Cette version de juillet 2025 répond toujours directement, sans réflexion visible, et lit un contexte bien plus long que le Qwen3 4B d'origine. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "Qwen3 from Alibaba, for text only: it calls tools and works in about a hundred languages. This July 2025 version always answers directly, with no visible thinking, and reads a much longer context than the original Qwen3 4B. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

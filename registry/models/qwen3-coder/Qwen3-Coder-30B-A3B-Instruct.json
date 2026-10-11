@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct",
+  "released": "2025-07-31",
+  "params_b": 30.53,
+  "usage": "code",
   "description": {
     "fr": "Modèle d'Alibaba spécialisé dans la programmation avec des agents : il enchaîne les appels d'outils, lit de longs dépôts de code et s'intègre aux assistants de développement. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "A model from Alibaba specialised in coding with agents: it chains tool calls, reads long code repositories and plugs into development assistants. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct"
   },
   "source_url": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+  "released": "2024-11-26",
+  "params_b": 70.55,
+  "usage": "general",
   "description": {
     "fr": "Llama 3.3 de Meta n'existe qu'en 70 milliards de paramètres : rédaction soignée, suivi fidèle des consignes et appel d'outils, en texte seul. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
     "en": "Llama 3.3 from Meta exists only at 70 billion parameters: careful writing, faithful instruction following and tool calling, in text only. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."

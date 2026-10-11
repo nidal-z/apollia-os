@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/zai-org/GLM-Z1-32B-0414"
   },
   "source_url": "https://huggingface.co/zai-org/GLM-Z1-32B-0414",
+  "released": "2025-04-08",
+  "params_b": 32.57,
+  "usage": "general",
   "description": {
     "fr": "GLM-Z1 de Zhipu AI est la variante de raisonnement de GLM-4 : elle réfléchit avant de répondre, pour les mathématiques, la logique et les problèmes en plusieurs étapes. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "GLM-Z1 from Zhipu AI is the reasoning variant of GLM-4: it thinks before answering, for mathematics, logic and multi-step problems. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."

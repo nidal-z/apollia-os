@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/LiquidAI/LFM2.5-350M/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/LiquidAI/LFM2.5-350M",
+  "released": "2026-03-31",
+  "params_b": 0.354,
+  "usage": "general",
   "description": {
     "fr": "Famille LFM2.5 de Liquid AI, qui reprend l'architecture de LFM2 avec un entraînement tourné vers les agents : appel d'outils, suivi des consignes et tâches en plusieurs étapes sur l'appareil. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
     "en": "The LFM2.5 family from Liquid AI, which keeps the LFM2 architecture with training aimed at agents: tool calling, instruction following and multi-step tasks on the device. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."

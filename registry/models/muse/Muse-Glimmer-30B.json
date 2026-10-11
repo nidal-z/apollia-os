@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/meta-models/Muse-Glimmer-30B"
   },
   "source_url": "https://huggingface.co/meta-models/Muse-Glimmer-30B",
+  "released": "2026-08-09",
+  "params_b": 29.78,
+  "usage": "general",
   "description": {
     "fr": "Muse Glimmer de Meta est un modèle conçu pour les agents sur une machine personnelle, sous licence Apache 2.0 : tâches en plusieurs étapes, appel d'outils avec reprise après un échec, réflexion avant de répondre, et lecture d'images, de captures d'écran et de documents. Son projecteur de vision est un second fichier d'environ 1,4 Go. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "Muse Glimmer from Meta is a model built for agents on a personal machine, under the Apache 2.0 licence: multi-step tasks, tool calling with recovery after a failure, thinking before answering, and reading images, screenshots and documents. Its vision projector is a second file of about 1.4 GB. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."

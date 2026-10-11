@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Thinking"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-VL-30B-A3B-Thinking",
+  "released": "2025-09-30",
+  "params_b": 31.07,
+  "usage": "general",
   "description": {
     "fr": "Qwen3-VL d'Alibaba lit les images et les documents numérisés : description, lecture de tableaux et de texte dans l'image, repérage d'éléments à l'écran, avec appel d'outils. Cette variante réfléchit toujours avant de répondre. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "Qwen3-VL from Alibaba reads images and scanned documents: description, reading tables and text inside an image, locating elements on a screen, with tool calling. This variant always thinks before answering. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."

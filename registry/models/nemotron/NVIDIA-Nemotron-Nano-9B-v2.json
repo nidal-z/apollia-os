@@ -9,6 +9,9 @@
     "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
   },
   "source_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2",
+  "released": "2025-08-12",
+  "params_b": 8.89,
+  "usage": "general",
   "description": {
     "fr": "Modèle Nemotron de NVIDIA, prévu pour les agents : appel d'outils et réponses fondées sur des documents fournis. Nemotron Nano 9B v2 réfléchit avant de répondre, et une consigne dans le message coupe cette réflexion. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "A Nemotron model from NVIDIA, meant for agents: tool calling and answers grounded in supplied documents. Nemotron Nano 9B v2 thinks before answering, and a line in the message turns that thinking off. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

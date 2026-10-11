@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct",
+  "released": "2025-01-26",
+  "params_b": 3.75,
+  "usage": "general",
   "description": {
     "fr": "Qwen2.5-VL d'Alibaba lit les images et les documents : factures, formulaires, tableaux et captures d'écran, dont il extrait le contenu sous forme structurée. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (qwen-research) interdit l'usage commercial.",
     "en": "Qwen2.5-VL from Alibaba reads images and documents: invoices, forms, tables and screenshots, whose content it extracts in a structured form. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (qwen-research) forbids commercial use."

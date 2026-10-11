@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/zai-org/GLM-4.6V-Flash"
   },
   "source_url": "https://huggingface.co/zai-org/GLM-4.6V-Flash",
+  "released": "2025-12-07",
+  "params_b": 10.29,
+  "usage": "general",
   "description": {
     "fr": "Modèle de vision de Zhipu AI, d'environ 9 milliards de paramètres, qui lit les images et raisonne sur leur contenu. Celui-ci appelle aussi des outils, et sa réflexion peut être coupée. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "A vision model from Zhipu AI, of about 9 billion parameters, that reads images and reasons over their content. This one also calls tools, and its thinking can be turned off. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

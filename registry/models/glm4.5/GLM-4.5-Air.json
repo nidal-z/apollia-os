@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/zai-org/GLM-4.5-Air"
   },
   "source_url": "https://huggingface.co/zai-org/GLM-4.5-Air",
+  "released": "2025-07-20",
+  "params_b": 110.47,
+  "usage": "general",
   "description": {
     "fr": "GLM-4.5 Air de Zhipu AI est un modèle à experts pour les agents et la programmation, avec appel d'outils et une réflexion qui peut être coupée. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 96 Go de mémoire en quantification Q4.",
     "en": "GLM-4.5 Air from Zhipu AI is a mixture-of-experts model for agents and coding, with tool calling and thinking that can be turned off. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 96 GB of memory at Q4 quantization."

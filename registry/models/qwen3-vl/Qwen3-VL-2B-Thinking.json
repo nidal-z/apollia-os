@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-VL-2B-Thinking"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-VL-2B-Thinking",
+  "released": "2025-10-19",
+  "params_b": 2.13,
+  "usage": "general",
   "description": {
     "fr": "Qwen3-VL d'Alibaba lit les images et les documents numérisés : description, lecture de tableaux et de texte dans l'image, repérage d'éléments à l'écran, avec appel d'outils. Cette variante réfléchit toujours avant de répondre. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "Qwen3-VL from Alibaba reads images and scanned documents: description, reading tables and text inside an image, locating elements on a screen, with tool calling. This variant always thinks before answering. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."

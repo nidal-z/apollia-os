@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct",
+  "released": "2025-03-21",
+  "params_b": 33.45,
+  "usage": "general",
   "description": {
     "fr": "Qwen2.5-VL d'Alibaba lit les images et les documents : factures, formulaires, tableaux et captures d'écran, dont il extrait le contenu sous forme structurée. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "Qwen2.5-VL from Alibaba reads images and documents: invoices, forms, tables and screenshots, whose content it extracts in a structured form. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization. Its chat template has no tool calling."

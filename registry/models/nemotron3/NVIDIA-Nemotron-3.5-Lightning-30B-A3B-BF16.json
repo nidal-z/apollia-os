@@ -9,6 +9,9 @@
     "source": "https://openmdw.ai/license/1-1/"
   },
   "source_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16",
+  "released": "2026-08-01",
+  "params_b": 31.58,
+  "usage": "general",
   "description": {
     "fr": "Génération Nemotron 3 de NVIDIA, à l'architecture hybride qui allège les très longs contextes : elle appelle des outils et réfléchit avant de répondre, la réflexion pouvant être coupée. Nemotron 3.5 Lightning est la révision d'août 2026 du modèle Nano 30B-A3B. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 48 Go de mémoire en quantification Q4.",
     "en": "The Nemotron 3 generation from NVIDIA, with a hybrid architecture that lightens very long contexts: it calls tools and thinks before answering, and thinking can be turned off. Nemotron 3.5 Lightning is the August 2026 revision of the Nano 30B-A3B model. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 48 GB of memory at Q4 quantization."

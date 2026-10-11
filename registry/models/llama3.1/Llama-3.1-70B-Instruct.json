@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct"
   },
   "source_url": "https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct",
+  "released": "2024-07-16",
+  "params_b": 70.55,
+  "usage": "general",
   "description": {
     "fr": "Llama 3.1 de Meta, sorti en 2024, reste une référence répandue : conversation générale en plusieurs langues et appel d'outils, en texte seul. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
     "en": "Llama 3.1 from Meta, released in 2024, remains a widespread reference: general conversation in several languages and tool calling, in text only. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."

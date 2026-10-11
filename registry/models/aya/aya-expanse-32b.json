@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/CohereLabs/aya-expanse-32b"
   },
   "source_url": "https://huggingface.co/CohereLabs/aya-expanse-32b",
+  "released": "2024-10-23",
+  "params_b": 32.3,
+  "usage": "general",
   "description": {
     "fr": "Famille Aya de Cohere, entraînée pour bien tenir la conversation dans de nombreuses langues, y compris celles que les autres modèles couvrent mal. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (cc-by-nc-4.0) interdit l'usage commercial.",
     "en": "The Aya family from Cohere, trained to hold a conversation well in many languages, including those other models cover poorly. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (cc-by-nc-4.0) forbids commercial use."

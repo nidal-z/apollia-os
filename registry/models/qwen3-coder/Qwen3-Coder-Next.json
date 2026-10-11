@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-Coder-Next/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-Coder-Next",
+  "released": "2026-01-30",
+  "params_b": 79.67,
+  "usage": "code",
   "description": {
     "fr": "Modèle d'Alibaba spécialisé dans la programmation avec des agents : il enchaîne les appels d'outils, lit de longs dépôts de code et s'intègre aux assistants de développement. Qwen3 Coder Next compte 80 milliards de paramètres dont 3 milliards travaillent à chaque mot, et se remet d'une commande qui échoue en cours de tâche. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
     "en": "A model from Alibaba specialised in coding with agents: it chains tool calls, reads long code repositories and plugs into development assistants. Qwen3 Coder Next has 80 billion parameters of which 3 billion work on each token, and recovers from a command that fails in the middle of a task. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."

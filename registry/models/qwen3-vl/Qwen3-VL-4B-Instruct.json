@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct",
+  "released": "2025-10-11",
+  "params_b": 4.44,
+  "usage": "general",
   "description": {
     "fr": "Qwen3-VL d'Alibaba lit les images et les documents numérisés : description, lecture de tableaux et de texte dans l'image, repérage d'éléments à l'écran, avec appel d'outils. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "Qwen3-VL from Alibaba reads images and scanned documents: description, reading tables and text inside an image, locating elements on a screen, with tool calling. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

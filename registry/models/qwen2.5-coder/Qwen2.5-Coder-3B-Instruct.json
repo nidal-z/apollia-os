@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct",
+  "released": "2024-11-06",
+  "params_b": 3.09,
+  "usage": "code",
   "description": {
     "fr": "Qwen2.5 Coder d'Alibaba est entraîné pour le code : écriture, correction et explication de programmes dans de nombreux langages, avec appel d'outils et sans mode de réflexion. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (qwen-research) interdit l'usage commercial.",
     "en": "Qwen2.5 Coder from Alibaba is trained for code: writing, fixing and explaining programs in many languages, with tool calling and no thinking mode. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (qwen-research) forbids commercial use."

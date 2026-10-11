@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct"
   },
   "source_url": "https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+  "released": "2025-04-02",
+  "params_b": 108.64,
+  "usage": "general",
   "description": {
     "fr": "Llama 4 Scout de Meta est un modèle à experts qui lit les images et appelle des outils, prévu pour l'analyse de longs documents et de plusieurs images à la fois. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 96 Go de mémoire en quantification Q4.",
     "en": "Llama 4 Scout from Meta is a mixture-of-experts model that reads images and calls tools, meant for analysing long documents and several images at once. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 96 GB of memory at Q4 quantization."

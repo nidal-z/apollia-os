@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B",
+  "released": "2026-02-24",
+  "params_b": 125.09,
+  "usage": "general",
   "description": {
     "fr": "Génération Qwen3.5 d'Alibaba : chaque taille lit les images, appelle des outils et peut réfléchir avant de répondre, avec une architecture qui réduit le coût en mémoire des longs contextes. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 96 Go de mémoire en quantification Q4.",
     "en": "The Qwen3.5 generation from Alibaba: every size reads images, calls tools and can think before answering, with an architecture that lowers the memory cost of long contexts. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 96 GB of memory at Q4 quantization."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B"
   },
   "source_url": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B",
+  "released": "2025-07-08",
+  "params_b": 3.08,
+  "usage": "general",
   "description": {
     "fr": "SmolLM3 de Hugging Face est un petit modèle de 3 milliards de paramètres qui appelle des outils, travaille en six langues dont le français et peut réfléchir avant de répondre. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "SmolLM3 from Hugging Face is a small model of 3 billion parameters that calls tools, works in six languages including French and can think before answering. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

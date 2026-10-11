@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/LiquidAI/LFM2-VL-450M/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/LiquidAI/LFM2-VL-450M",
+  "released": "2025-08-12",
+  "params_b": 0.451,
+  "usage": "general",
   "description": {
     "fr": "LFM2-VL de Liquid AI lit les images sur l'appareil, avec peu de mémoire : description, lecture de texte dans l'image et questions sur une photo. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (lfm1.0) pose des conditions à l'usage commercial.",
     "en": "LFM2-VL from Liquid AI reads images on the device, with little memory: description, reading text inside an image and questions about a photo. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (lfm1.0) sets conditions on commercial use."

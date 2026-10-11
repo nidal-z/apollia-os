@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/google/gemma-3-270m-it"
   },
   "source_url": "https://huggingface.co/google/gemma-3-270m-it",
+  "released": "2025-07-30",
+  "params_b": 0.268,
+  "usage": "general",
   "description": {
     "fr": "Génération Gemma 3 de Google, soignée en rédaction et à l'aise dans de nombreuses langues ; elle n'a pas de mode de réflexion. Cette taille minuscule ne lit que le texte et sert surtout de base à spécialiser sur une tâche précise. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "The Gemma 3 generation from Google, careful in writing and at ease in many languages; it has no thinking mode. This tiny size reads text only and mostly serves as a base to specialise on one precise task. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3"
   },
   "source_url": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3",
+  "released": "2024-05-22",
+  "params_b": 7.25,
+  "usage": "general",
   "description": {
     "fr": "Mistral 7B Instruct v0.3 de Mistral AI, entreprise française : un petit modèle de 2024, sobre et rapide, qui appelle des outils ; les générations suivantes le dépassent en qualité. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "Mistral 7B Instruct v0.3 from Mistral AI, a French company: a small model from 2024, plain and fast, that calls tools; later generations pass it in quality. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

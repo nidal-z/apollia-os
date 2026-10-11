@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct"
   },
   "source_url": "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct",
+  "released": "2024-10-31",
+  "params_b": 1.71,
+  "usage": "general",
   "description": {
     "fr": "SmolLM2 de Hugging Face est une famille de très petits modèles, surtout en anglais, pour des tâches simples sur une machine modeste : résumé, reformulation, extraction. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "SmolLM2 from Hugging Face is a family of very small models, mostly in English, for simple tasks on a modest machine: summarising, rewriting, extraction. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling."

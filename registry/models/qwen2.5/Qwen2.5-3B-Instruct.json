@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct",
+  "released": "2024-09-17",
+  "params_b": 3.09,
+  "usage": "general",
   "description": {
     "fr": "Génération Qwen2.5 d'Alibaba, sortie en 2024 et remplacée depuis par Qwen3 : réponses directes sans mode de réflexion, appel d'outils et bonne tenue en plusieurs langues. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (qwen-research) interdit l'usage commercial.",
     "en": "The Qwen2.5 generation from Alibaba, released in 2024 and since replaced by Qwen3: direct answers with no thinking mode, tool calling and good behaviour in several languages. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (qwen-research) forbids commercial use."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/microsoft/Phi-4-mini-instruct/resolve/main/LICENSE"
   },
   "source_url": "https://huggingface.co/microsoft/Phi-4-mini-instruct",
+  "released": "2025-02-19",
+  "params_b": 3.84,
+  "usage": "general",
   "description": {
     "fr": "Famille Phi-4 de Microsoft, sous licence MIT, orientée vers le raisonnement logique et mathématique, surtout en anglais. Phi-4 mini, 3,8 milliards de paramètres, ajoute l'appel d'outils et un long contexte dans un format de portable. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "The Phi-4 family from Microsoft, under the MIT licence, geared towards logical and mathematical reasoning, mostly in English. Phi-4 mini, 3.8 billion parameters, adds tool calling and a long context in a laptop-sized format. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

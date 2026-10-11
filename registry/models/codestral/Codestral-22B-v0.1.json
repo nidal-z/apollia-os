@@ -9,6 +9,9 @@
     "source": "https://mistral.ai/licences/MNPL-0.1.md"
   },
   "source_url": "https://huggingface.co/mistralai/Codestral-22B-v0.1",
+  "released": "2024-05-29",
+  "params_b": 22.25,
+  "usage": "code",
   "description": {
     "fr": "Codestral de Mistral AI est spécialisé dans le code : complétion, écriture de tests et explication de programmes dans de nombreux langages. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (mnpl) interdit l'usage commercial.",
     "en": "Codestral from Mistral AI is specialised in code: completion, writing tests and explaining programs in many languages. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (mnpl) forbids commercial use."

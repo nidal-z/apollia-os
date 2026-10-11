@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/ibm-granite/granite-4.0-350m"
   },
   "source_url": "https://huggingface.co/ibm-granite/granite-4.0-350m",
+  "released": "2025-10-07",
+  "params_b": 0.352,
+  "usage": "general",
   "description": {
     "fr": "Génération Granite 4.0 d'IBM, sous licence Apache 2.0, prévue pour l'entreprise : appel d'outils, réponses fondées sur des documents fournis et sortie structurée. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "The Granite 4.0 generation from IBM, under the Apache 2.0 licence, meant for business use: tool calling, answers grounded in supplied documents and structured output. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."

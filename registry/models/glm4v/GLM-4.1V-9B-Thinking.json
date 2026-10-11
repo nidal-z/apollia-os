@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/zai-org/GLM-4.1V-9B-Thinking"
   },
   "source_url": "https://huggingface.co/zai-org/GLM-4.1V-9B-Thinking",
+  "released": "2025-06-28",
+  "params_b": 10.29,
+  "usage": "general",
   "description": {
     "fr": "Modèle de vision de Zhipu AI, d'environ 9 milliards de paramètres, qui lit les images et raisonne sur leur contenu. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; les conversions GGUF recensées ne lisent que le texte.",
     "en": "A vision model from Zhipu AI, of about 9 billion parameters, that reads images and reasons over their content. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling; the listed GGUF conversions read text only."

@@ -9,6 +9,9 @@
     "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-nemotron-open-model-license/"
   },
   "source_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16",
+  "released": "2026-03-10",
+  "params_b": 123.61,
+  "usage": "general",
   "description": {
     "fr": "Génération Nemotron 3 de NVIDIA, à l'architecture hybride qui allège les très longs contextes : elle appelle des outils et réfléchit avant de répondre, la réflexion pouvant être coupée. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 128 Go de mémoire en quantification Q4.",
     "en": "The Nemotron 3 generation from NVIDIA, with a hybrid architecture that lightens very long contexts: it calls tools and thinks before answering, and thinking can be turned off. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 128 GB of memory at Q4 quantization."

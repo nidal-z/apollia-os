@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/ibm-granite/granite-4.1-8b"
   },
   "source_url": "https://huggingface.co/ibm-granite/granite-4.1-8b",
+  "released": "2026-04-06",
+  "params_b": 8.79,
+  "usage": "general",
   "description": {
     "fr": "Génération Granite 4.1 d'IBM, sous licence Apache 2.0 : appel d'outils, suivi des consignes et long contexte renforcés, en douze langues dont le français. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "The Granite 4.1 generation from IBM, under the Apache 2.0 licence: stronger tool calling, instruction following and long context, in twelve languages including French. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

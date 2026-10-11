@@ -58,6 +58,11 @@ Rules, each reported with the entry it names:
       the author fields (name, type `liste` or `booleen`, values for a list,
       default, explanation in `fr` and in `en`, source) and its repositories
     * no card carries an em-dash
+    * a language card states an ISO `released` date not later than today, a
+      positive `params_b` and a `usage` among general, code and specialised:
+      the first-launch suggestion orders the registry on the first two and
+      suggests only the first usage, so a card without them is a model the
+      suggestion cannot place
     * a card marked `draft`, a model published to draft for a larger one in
       speculative decoding, is a language card and cites the address that
       shows it: the mark files the model as a draft on the user's machine
@@ -79,7 +84,7 @@ Exit codes, read by `just guards`:
   2  a file is absent, so nothing was measured
 
 `--families PATH`, `--publishers PATH` and `--registry DIR` point the guard at
-other files, which is how `--selftest` checks the guard itself against eight
+other files, which is how `--selftest` checks the guard itself against its
 faulty fixtures.
 """
 
@@ -276,6 +281,7 @@ def check_dictation(data: dict, today: datetime.date) -> tuple[list[str], int]:
 EM_DASH = chr(0x2014)
 CARD_KINDS = {"language", "embeddings", "dictation"}
 AUTHOR_TYPES = {"liste", "booleen"}
+CARD_USAGES = {"general", "code", "specialised"}
 DEFAULT_KEYS = ("temperature", "top_p", "top_k", "min_p", "repetition_penalty", "presence_penalty")
 
 
@@ -363,6 +369,20 @@ def check_card(path: pathlib.Path, card: dict, tools_m: list[str], reason_m: lis
             owner, _, rest = str(repo).partition("/")
             if not owner or not rest or "/" in rest:
                 fault(f"repository {repo!r} is not owner/name")
+    if card.get("kind") == "language":
+        released = str(card.get("released", ""))
+        try:
+            day = datetime.date.fromisoformat(released)
+        except ValueError:
+            fault("a language card has no ISO release date")
+        else:
+            if day > datetime.date.today():
+                fault(f"release date {released} is in the future")
+        params = card.get("params_b")
+        if not isinstance(params, (int, float)) or isinstance(params, bool) or params <= 0:
+            fault("a language card has no positive parameter count")
+        if card.get("usage") not in CARD_USAGES:
+            fault(f"usage {card.get('usage')!r} is not one of {sorted(CARD_USAGES)}")
     if "draft" in card:
         mark = card["draft"]
         if card.get("kind") != "language":
@@ -549,7 +569,16 @@ def selftest() -> int:
             card["capabilities"]["tools"] = not card["capabilities"]["tools"]
         def unsourced_draft(card: dict) -> None:
             card["draft"] = {"source": ""}
+        def undated(card: dict) -> None:
+            del card["released"]
+        def unsized(card: dict) -> None:
+            card["params_b"] = 0
+        def unknown_usage(card: dict) -> None:
+            card["usage"] = "everything"
         faulty_cards = {
+            "a language card without its release date": undated,
+            "a language card without a parameter count": unsized,
+            "a language card of an unknown usage": unknown_usage,
             "a card marked as a draft model with no address": unsourced_draft,
             "a card without its French description": no_french,
             "a card carrying an em-dash": em_dash,

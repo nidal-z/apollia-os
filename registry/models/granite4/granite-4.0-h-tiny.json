@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/ibm-granite/granite-4.0-h-tiny"
   },
   "source_url": "https://huggingface.co/ibm-granite/granite-4.0-h-tiny",
+  "released": "2025-09-16",
+  "params_b": 6.94,
+  "usage": "general",
   "description": {
     "fr": "Génération Granite 4.0 d'IBM, sous licence Apache 2.0, prévue pour l'entreprise : appel d'outils, réponses fondées sur des documents fournis et sortie structurée. Les variantes H ont une architecture hybride qui consomme moins de mémoire sur les longs contextes ; celle-ci est à experts. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "The Granite 4.0 generation from IBM, under the Apache 2.0 licence, meant for business use: tool calling, answers grounded in supplied documents and structured output. The H variants have a hybrid architecture that uses less memory on long contexts; this one is a mixture of experts. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 16 GB of memory at Q4 quantization."

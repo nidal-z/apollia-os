@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407"
   },
   "source_url": "https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407",
+  "released": "2024-07-17",
+  "params_b": 12.25,
+  "usage": "general",
   "description": {
     "fr": "Mistral Nemo, conçu par Mistral AI avec NVIDIA : 12 milliards de paramètres, un long contexte, une bonne tenue en français et l'appel d'outils. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "Mistral Nemo, built by Mistral AI with NVIDIA: 12 billion parameters, a long context, good behaviour in French and tool calling. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

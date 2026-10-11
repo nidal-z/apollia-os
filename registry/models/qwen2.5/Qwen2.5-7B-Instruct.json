@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+  "released": "2024-09-16",
+  "params_b": 7.62,
+  "usage": "general",
   "description": {
     "fr": "Génération Qwen2.5 d'Alibaba, sortie en 2024 et remplacée depuis par Qwen3 : réponses directes sans mode de réflexion, appel d'outils et bonne tenue en plusieurs langues. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "The Qwen2.5 generation from Alibaba, released in 2024 and since replaced by Qwen3: direct answers with no thinking mode, tool calling and good behaviour in several languages. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3.8-Flash-Next",
+  "released": "2026-08-24",
+  "params_b": 180.0,
+  "usage": "general",
   "description": {
     "fr": "Qwen3.8 Flash Next d'Alibaba est un aperçu expérimental de l'architecture prévue pour Qwen4 : il lit les images, appelle des outils et règle l'effort de réflexion. Son fichier Q4 pèse 119 Go en trois morceaux : très grande taille, réservée aux stations de travail ; compter une machine d'au moins 192 Go de mémoire en quantification Q4. Sa licence (Qwen Community License 1.0) demande une licence séparée à qui exploite un service de modèles ou un assistant de travail commercial ; lisez-la avant un usage professionnel.",
     "en": "Qwen3.8 Flash Next from Alibaba is an experimental preview of the architecture planned for Qwen4: it reads images, calls tools and sets the thinking effort. Its Q4 file weighs 119 GB in three parts: a very large size, for workstations only; plan for a machine with at least 192 GB of memory at Q4 quantization. Its licence (Qwen Community License 1.0) asks for a separate licence from whoever runs a model service or a commercial work assistant; read it before professional use."

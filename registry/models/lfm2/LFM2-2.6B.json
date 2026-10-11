@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/LiquidAI/LFM2-2.6B/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/LiquidAI/LFM2-2.6B",
+  "released": "2025-09-22",
+  "params_b": 2.57,
+  "usage": "general",
   "description": {
     "fr": "Famille LFM2 de Liquid AI, à l'architecture hybride conçue pour tourner sur l'appareil : démarrage rapide, faible mémoire et appel d'outils. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
     "en": "The LFM2 family from Liquid AI, with a hybrid architecture designed to run on the device: fast start, low memory and tool calling. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."

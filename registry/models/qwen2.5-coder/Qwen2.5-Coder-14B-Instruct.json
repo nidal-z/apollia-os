@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct",
+  "released": "2024-11-06",
+  "params_b": 14.77,
+  "usage": "code",
   "description": {
     "fr": "Qwen2.5 Coder d'Alibaba est entraîné pour le code : écriture, correction et explication de programmes dans de nombreux langages, avec appel d'outils et sans mode de réflexion. Taille intermédiaire, plus précise sur les documents longs et les tâches en plusieurs étapes ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "Qwen2.5 Coder from Alibaba is trained for code: writing, fixing and explaining programs in many languages, with tool calling and no thinking mode. An intermediate size, more precise on long documents and multi-step tasks; plan for a machine with at least 16 GB of memory at Q4 quantization."

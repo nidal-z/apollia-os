@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/microsoft/Phi-3-medium-128k-instruct/resolve/main/LICENSE"
   },
   "source_url": "https://huggingface.co/microsoft/Phi-3-medium-128k-instruct",
+  "released": "2024-05-07",
+  "params_b": 13.96,
+  "usage": "general",
   "description": {
     "fr": "Famille Phi-3 de Microsoft, sortie au printemps 2024 et remplacée depuis par Phi-3.5 puis Phi-4 : conversation et raisonnement en texte seul, surtout en anglais. Taille intermédiaire, plus précise sur les documents longs et les tâches en plusieurs étapes ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "The Phi-3 family from Microsoft, released in spring 2024 and since replaced by Phi-3.5 then Phi-4: conversation and reasoning in text only, mostly in English. An intermediate size, more precise on long documents and multi-step tasks; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling."

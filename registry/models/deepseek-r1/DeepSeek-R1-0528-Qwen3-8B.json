@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
   },
   "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+  "released": "2025-05-29",
+  "params_b": 8.19,
+  "usage": "general",
   "description": {
     "fr": "Modèle distillé de DeepSeek R1 : un modèle ouvert plus petit a appris à reproduire le raisonnement de R1, qu'il déroule toujours avant de répondre. Celui-ci part de Qwen3 8B et reprend le raisonnement de la version R1 de mai 2025. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "A model distilled from DeepSeek R1: a smaller open model has learned to reproduce the reasoning of R1, which it always lays out before answering. This one starts from Qwen3 8B and takes up the reasoning of the May 2025 version of R1. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

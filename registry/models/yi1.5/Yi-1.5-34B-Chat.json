@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/01-ai/Yi-1.5-34B-Chat"
   },
   "source_url": "https://huggingface.co/01-ai/Yi-1.5-34B-Chat",
+  "released": "2024-05-10",
+  "params_b": 34.39,
+  "usage": "general",
   "description": {
     "fr": "Yi 1.5 de 01.AI, sorti en 2024 : conversation et rédaction en chinois et en anglais, en texte seul, avec un contexte court. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "Yi 1.5 from 01.AI, released in 2024: conversation and writing in Chinese and English, in text only, with a short context. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization. Its chat template has no tool calling."

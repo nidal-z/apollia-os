@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/openbmb/MiniCPM-V-4.6"
   },
   "source_url": "https://huggingface.co/openbmb/MiniCPM-V-4.6",
+  "released": "2026-04-13",
+  "params_b": 1.3,
+  "usage": "specialised",
   "description": {
     "fr": "MiniCPM-V 4.6 d'OpenBMB, sous licence Apache 2.0, est un très petit modèle qui lit les images, seules ou à plusieurs, et la vidéo ; il est bâti sur Qwen3.5 0.8B. Son projecteur de vision est un second fichier d'environ 1,1 Go. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "MiniCPM-V 4.6 from OpenBMB, under the Apache 2.0 licence, is a very small model that reads images, one or several, and video; it is built on Qwen3.5 0.8B. Its vision projector is a second file of about 1.1 GB. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization."

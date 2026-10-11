@@ -9,6 +9,9 @@
     "source": "https://falconllm.tii.ae/falcon-terms-and-conditions.html"
   },
   "source_url": "https://huggingface.co/tiiuae/Falcon-H1-34B-Instruct",
+  "released": "2025-05-01",
+  "params_b": 33.64,
+  "usage": "general",
   "description": {
     "fr": "Famille Falcon-H1 du Technology Innovation Institute d'Abou Dabi, à l'architecture hybride qui tient de longs contextes avec peu de mémoire, avec appel d'outils et de nombreuses langues. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "The Falcon-H1 family from the Technology Innovation Institute of Abu Dhabi, with a hybrid architecture that holds long contexts with little memory, with tool calling and many languages. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."

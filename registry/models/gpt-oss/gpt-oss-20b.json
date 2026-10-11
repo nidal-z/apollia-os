@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/openai/gpt-oss-20b"
   },
   "source_url": "https://huggingface.co/openai/gpt-oss-20b",
+  "released": "2025-08-04",
+  "params_b": 20.91,
+  "usage": "general",
   "description": {
     "fr": "gpt-oss est le modèle à poids ouverts d'OpenAI, sous licence Apache 2.0 : il raisonne avant de répondre, avec un effort réglable sur trois niveaux, et appelle des outils, en texte seul. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 24 Go de mémoire en quantification Q4.",
     "en": "gpt-oss is the open-weight model from OpenAI, under the Apache 2.0 licence: it reasons before answering, with an effort set on three levels, and calls tools, in text only. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 24 GB of memory at Q4 quantization."

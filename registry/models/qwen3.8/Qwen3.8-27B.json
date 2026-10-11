@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3.8-27B"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3.8-27B",
+  "released": "2026-08-05",
+  "params_b": 27.78,
+  "usage": "general",
   "description": {
     "fr": "Génération Qwen3.8 d'Alibaba, bâtie sur l'architecture de Qwen3.5 : elle progresse en programmation, en travail de bureau et en recherche, lit les images, appelle des outils et règle l'effort de réflexion sur trois niveaux. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4.",
     "en": "The Qwen3.8 generation from Alibaba, built on the Qwen3.5 architecture: it improves on coding, office work and research, reads images, calls tools and sets its thinking effort on three levels. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization."

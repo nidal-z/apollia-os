@@ -9,6 +9,9 @@
     "source": "https://mistral.ai/licenses/MRL-0.1.md"
   },
   "source_url": "https://huggingface.co/mistralai/Ministral-8B-Instruct-2410",
+  "released": "2024-10-15",
+  "params_b": 8.02,
+  "usage": "general",
   "description": {
     "fr": "Ministral 8B de Mistral AI, sorti en octobre 2024 pour les machines modestes : conversation et appel d'outils en texte seul ; Ministral 3 lui a succédé. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Sa licence (mrl) interdit l'usage commercial.",
     "en": "Ministral 8B from Mistral AI, released in October 2024 for modest machines: conversation and tool calling in text only; Ministral 3 has succeeded it. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization. Its licence (mrl) forbids commercial use."

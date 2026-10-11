@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/zai-org/GLM-4-9B-0414"
   },
   "source_url": "https://huggingface.co/zai-org/GLM-4-9B-0414",
+  "released": "2025-04-07",
+  "params_b": 9.4,
+  "usage": "general",
   "description": {
     "fr": "Famille GLM-4 de Zhipu AI : conversation, code et appel d'outils, à l'aise en chinois et en anglais. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "The GLM-4 family from Zhipu AI: conversation, code and tool calling, at ease in Chinese and English. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

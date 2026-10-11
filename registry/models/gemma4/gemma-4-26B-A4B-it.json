@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/google/gemma-4-26B-A4B-it"
   },
   "source_url": "https://huggingface.co/google/gemma-4-26B-A4B-it",
+  "released": "2026-03-11",
+  "params_b": 25.81,
+  "usage": "general",
   "description": {
     "fr": "Génération Gemma 4 de Google, sous licence Apache 2.0 : elle lit les images, appelle des outils et peut réfléchir sur demande, la réflexion étant coupée par défaut. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "The Gemma 4 generation from Google, under the Apache 2.0 licence: it reads images, calls tools and can think on request, thinking being off by default. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."

@@ -9,6 +9,9 @@
     "source": "https://mistral.ai/licenses/MRL-0.1.md"
   },
   "source_url": "https://huggingface.co/mistralai/Mistral-Large-Instruct-2411",
+  "released": "2024-11-14",
+  "params_b": 122.61,
+  "usage": "general",
   "description": {
     "fr": "Mistral Large 2 de Mistral AI, version de novembre 2024 : 123 milliards de paramètres pour les tâches longues et exigeantes, en texte seul. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 96 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; sa licence (mrl) interdit l'usage commercial.",
     "en": "Mistral Large 2 from Mistral AI, the November 2024 version: 123 billion parameters for long and demanding tasks, in text only. A very large size, for workstations only; plan for a machine with at least 96 GB of memory at Q4 quantization. Its chat template has no tool calling; its licence (mrl) forbids commercial use."

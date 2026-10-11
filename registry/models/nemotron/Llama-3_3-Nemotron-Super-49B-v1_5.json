@@ -9,6 +9,9 @@
     "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
   },
   "source_url": "https://huggingface.co/nvidia/Llama-3_3-Nemotron-Super-49B-v1_5",
+  "released": "2025-07-25",
+  "params_b": 49.87,
+  "usage": "general",
   "description": {
     "fr": "Llama 3.3 Nemotron Super de NVIDIA est dérivé de Llama 3.3 70B et réduit à 49 milliards de paramètres : agents, appel d'outils et réflexion qui se coupe par une consigne dans le message système. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 48 Go de mémoire en quantification Q4.",
     "en": "Llama 3.3 Nemotron Super from NVIDIA is derived from Llama 3.3 70B and reduced to 49 billion parameters: agents, tool calling and thinking that a line in the system message turns off. A very large size, for workstations only; plan for a machine with at least 48 GB of memory at Q4 quantization."

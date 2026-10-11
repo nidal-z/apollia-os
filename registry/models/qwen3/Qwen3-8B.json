@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-8B"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-8B",
+  "released": "2025-04-27",
+  "params_b": 8.19,
+  "usage": "general",
   "description": {
     "fr": "Génération Qwen3 d'Alibaba, pour le texte seul : elle appelle des outils, travaille dans une centaine de langues et passe d'une réponse directe à une réflexion visible selon le réglage. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "The Qwen3 generation from Alibaba, for text only: it calls tools, works in about a hundred languages and switches between a direct answer and visible thinking depending on the setting. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

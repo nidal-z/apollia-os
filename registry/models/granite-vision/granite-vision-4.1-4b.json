@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/ibm-granite/granite-vision-4.1-4b"
   },
   "source_url": "https://huggingface.co/ibm-granite/granite-vision-4.1-4b",
+  "released": "2026-04-16",
+  "params_b": 4.0,
+  "usage": "specialised",
   "description": {
     "fr": "Granite Vision d'IBM lit les documents en image : il extrait tableaux, graphiques et champs de formulaires vers des formats structurés. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "Granite Vision from IBM reads documents as images: it extracts tables, charts and form fields into structured formats. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct"
   },
   "source_url": "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct",
+  "released": "2025-04-09",
+  "params_b": 2.53,
+  "usage": "general",
   "description": {
     "fr": "Granite 3.3 d'IBM, sous licence Apache 2.0 : questions sur des documents fournis, appel d'outils et réflexion sur demande ; Granite 4 lui a succédé. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "Granite 3.3 from IBM, under the Apache 2.0 licence: questions over supplied documents, tool calling and thinking on request; Granite 4 has succeeded it. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

@@ -222,6 +222,31 @@ pub struct ModelCard {
     /// same vocabulary. It stays a language model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub draft: Option<CardDraft>,
+    /// ISO date the publisher's repository was created on the Hub. Carried by
+    /// a language card; what the first-launch suggestion reads a model's age
+    /// from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub released: Option<String>,
+    /// Parameter count in billions, as the publisher's repository states it.
+    /// Carried by a language card.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub params_b: Option<f64>,
+    /// What the model is meant for. Carried by a language card.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<CardUsage>,
+}
+
+/// What a language model is meant for, which decides whether it is suggested
+/// to someone who has not chosen yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CardUsage {
+    /// Conversation and everyday work: the only usage suggested unasked.
+    General,
+    /// Writing and reading code.
+    Code,
+    /// One narrower task: a region's languages, proofs, documents, a domain.
+    Specialised,
 }
 
 impl ModelCard {

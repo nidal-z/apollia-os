@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/zai-org/GLM-4.7-Flash"
   },
   "source_url": "https://huggingface.co/zai-org/GLM-4.7-Flash",
+  "released": "2026-01-19",
+  "params_b": 31.22,
+  "usage": "general",
   "description": {
     "fr": "GLM-4.7 Flash de Zhipu AI est un modèle à experts de 30 milliards de paramètres dont 3 milliards travaillent à chaque mot, tourné vers la programmation et les agents, avec une réflexion qui peut être coupée. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "GLM-4.7 Flash from Zhipu AI is a mixture-of-experts model of 30 billion parameters of which 3 billion work on each token, aimed at coding and agents, with thinking that can be turned off. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."

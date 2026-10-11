@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3.5-9B"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3.5-9B",
+  "released": "2026-02-27",
+  "params_b": 9.65,
+  "usage": "general",
   "description": {
     "fr": "Génération Qwen3.5 d'Alibaba : chaque taille lit les images, appelle des outils et peut réfléchir avant de répondre, avec une architecture qui réduit le coût en mémoire des longs contextes. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "The Qwen3.5 generation from Alibaba: every size reads images, calls tools and can think before answering, with an architecture that lowers the memory cost of long contexts. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

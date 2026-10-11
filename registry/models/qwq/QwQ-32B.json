@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/QWQ-32B/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/QwQ-32B",
+  "released": "2025-03-05",
+  "params_b": 32.76,
+  "usage": "general",
   "description": {
     "fr": "QwQ d'Alibaba est un modèle de raisonnement : il réfléchit toujours avant de répondre, ce qui l'aide sur les problèmes de logique, de mathématiques et de code, au prix de réponses plus lentes. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "QwQ from Alibaba is a reasoning model: it always thinks before answering, which helps on logic, mathematics and code problems, at the price of slower answers. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."

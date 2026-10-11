@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/google/gemma-3-4b-it"
   },
   "source_url": "https://huggingface.co/google/gemma-3-4b-it",
+  "released": "2025-02-20",
+  "params_b": 4.3,
+  "usage": "general",
   "description": {
     "fr": "Génération Gemma 3 de Google, soignée en rédaction et à l'aise dans de nombreuses langues ; elle n'a pas de mode de réflexion. Cette taille lit aussi les images. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "The Gemma 3 generation from Google, careful in writing and at ease in many languages; it has no thinking mode. This size also reads images. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling."

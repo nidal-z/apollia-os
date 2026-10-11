@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512"
   },
   "source_url": "https://huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512",
+  "released": "2025-11-28",
+  "params_b": 24.01,
+  "usage": "code",
   "description": {
     "fr": "Devstral de Mistral AI est entraîné pour le génie logiciel avec des agents : il explore un dépôt de code, modifie plusieurs fichiers et enchaîne les appels d'outils. Devstral Small 2, 24 milliards de paramètres, lit aussi les images. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4.",
     "en": "Devstral from Mistral AI is trained for software engineering with agents: it explores a code repository, edits several files and chains tool calls. Devstral Small 2, 24 billion parameters, also reads images. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization."

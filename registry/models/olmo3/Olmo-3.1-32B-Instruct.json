@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/allenai/Olmo-3.1-32B-Instruct"
   },
   "source_url": "https://huggingface.co/allenai/Olmo-3.1-32B-Instruct",
+  "released": "2025-12-10",
+  "params_b": 32.23,
+  "usage": "general",
   "description": {
     "fr": "Famille Olmo 3 d'Ai2, un institut de recherche qui publie aussi ses données et sa recette d'entraînement, sous licence Apache 2.0. Olmo 3.1 32B Instruct répond directement, sans mode de réflexion, et appelle des outils. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "The Olmo 3 family from Ai2, a research institute that also publishes its data and training recipe, under the Apache 2.0 licence. Olmo 3.1 32B Instruct answers directly, with no thinking mode, and calls tools. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."

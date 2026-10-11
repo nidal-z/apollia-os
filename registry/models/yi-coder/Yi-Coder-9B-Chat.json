@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/01-ai/Yi-Coder-9B-Chat"
   },
   "source_url": "https://huggingface.co/01-ai/Yi-Coder-9B-Chat",
+  "released": "2024-08-21",
+  "params_b": 8.83,
+  "usage": "code",
   "description": {
     "fr": "Yi Coder de 01.AI est un petit modèle spécialisé dans le code, avec un long contexte pour lire plusieurs fichiers à la fois. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "Yi Coder from 01.AI is a small model specialised in code, with a long context to read several files at once. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling."

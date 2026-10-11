@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/openbmb/MiniCPM4.1-8B"
   },
   "source_url": "https://huggingface.co/openbmb/MiniCPM4.1-8B",
+  "released": "2025-09-02",
+  "params_b": 8.19,
+  "usage": "general",
   "description": {
     "fr": "MiniCPM4.1 8B d'OpenBMB, sous licence Apache 2.0, est un modèle à réflexion débrayable conçu pour tourner sur l'appareil, avec une attention allégée pour les longs contextes. Son gabarit de conversation ne prévoit pas l'appel d'outils. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "MiniCPM4.1 8B from OpenBMB, under the Apache 2.0 licence, is a model with thinking that can be turned off, built to run on the device, with a lighter attention for long contexts. Its chat template has no tool calling. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

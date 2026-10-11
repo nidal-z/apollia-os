@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/LiquidAI/LFM2.5-8B-A1B/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/LiquidAI/LFM2.5-8B-A1B",
+  "released": "2026-05-28",
+  "params_b": 8.47,
+  "usage": "general",
   "description": {
     "fr": "Famille LFM2.5 de Liquid AI, qui reprend l'architecture de LFM2 avec un entraînement tourné vers les agents : appel d'outils, suivi des consignes et tâches en plusieurs étapes sur l'appareil. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
     "en": "The LFM2.5 family from Liquid AI, which keeps the LFM2 architecture with training aimed at agents: tool calling, instruction following and multi-step tasks on the device. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 16 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."

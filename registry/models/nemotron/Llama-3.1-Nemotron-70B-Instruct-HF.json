@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-70B-Instruct-HF"
   },
   "source_url": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
+  "released": "2024-10-12",
+  "params_b": 70.55,
+  "usage": "general",
   "description": {
     "fr": "Llama 3.1 Nemotron 70B de NVIDIA est un Llama 3.1 70B réentraîné pour donner des réponses plus utiles et mieux construites, avec appel d'outils. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
     "en": "Llama 3.1 Nemotron 70B from NVIDIA is a Llama 3.1 70B retrained to give more helpful and better built answers, with tool calling. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."

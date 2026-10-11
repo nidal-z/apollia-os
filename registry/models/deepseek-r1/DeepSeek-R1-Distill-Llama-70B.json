@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
   },
   "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+  "released": "2025-01-20",
+  "params_b": 70.55,
+  "usage": "general",
   "description": {
     "fr": "Modèle distillé de DeepSeek R1 : un modèle ouvert plus petit a appris à reproduire le raisonnement de R1, qu'il déroule toujours avant de répondre. Celui-ci part d'un modèle Llama de 70 milliards de paramètres. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
     "en": "A model distilled from DeepSeek R1: a smaller open model has learned to reproduce the reasoning of R1, which it always lays out before answering. This one starts from a Llama model of 70 billion parameters. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."

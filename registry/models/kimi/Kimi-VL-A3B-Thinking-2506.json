@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/moonshotai/Kimi-VL-A3B-Thinking-2506"
   },
   "source_url": "https://huggingface.co/moonshotai/Kimi-VL-A3B-Thinking-2506",
+  "released": "2025-06-21",
+  "params_b": 16.41,
+  "usage": "general",
   "description": {
     "fr": "Kimi-VL de Moonshot AI est un modèle à experts qui lit les images, les captures d'écran et les longs documents. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "Kimi-VL from Moonshot AI is a mixture-of-experts model that reads images, screenshots and long documents. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 24 GB of memory at Q4 quantization. Its chat template has no tool calling."

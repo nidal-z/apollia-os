@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/LiquidAI/LFM2.5-VL-450M/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/LiquidAI/LFM2.5-VL-450M",
+  "released": "2026-04-08",
+  "params_b": 0.449,
+  "usage": "general",
   "description": {
     "fr": "LFM2.5-VL de Liquid AI lit les images sur l'appareil : lecture de pages entières, repérage d'objets et appel d'outils, avec peu de mémoire. Très petite taille, rapide sur une machine modeste et limitée aux tâches simples ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Sa licence (lfm1.0) pose des conditions à l'usage commercial.",
     "en": "LFM2.5-VL from Liquid AI reads images on the device: reading whole pages, locating objects and tool calling, with little memory. A very small size, fast on a modest machine and limited to simple tasks; plan for a machine with at least 8 GB of memory at Q4 quantization. Its licence (lfm1.0) sets conditions on commercial use."

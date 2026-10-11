@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/moonshotai/Kimi-Dev-72B"
   },
   "source_url": "https://huggingface.co/moonshotai/Kimi-Dev-72B",
+  "released": "2025-06-16",
+  "params_b": 72.71,
+  "usage": "code",
   "description": {
     "fr": "Kimi Dev de Moonshot AI est un modèle de 72 milliards de paramètres spécialisé dans la correction de bogues et l'écriture de tests dans un dépôt de code. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
     "en": "Kimi Dev from Moonshot AI is a model of 72 billion parameters specialised in fixing bugs and writing tests in a code repository. A very large size, for workstations only; plan for a machine with at least 64 GB of memory at Q4 quantization."

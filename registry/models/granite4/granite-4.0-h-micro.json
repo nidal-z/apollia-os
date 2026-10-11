@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/ibm-granite/granite-4.0-h-micro"
   },
   "source_url": "https://huggingface.co/ibm-granite/granite-4.0-h-micro",
+  "released": "2025-09-16",
+  "params_b": 3.19,
+  "usage": "general",
   "description": {
     "fr": "Génération Granite 4.0 d'IBM, sous licence Apache 2.0, prévue pour l'entreprise : appel d'outils, réponses fondées sur des documents fournis et sortie structurée. Les variantes H ont une architecture hybride qui consomme moins de mémoire sur les longs contextes. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "The Granite 4.0 generation from IBM, under the Apache 2.0 licence, meant for business use: tool calling, answers grounded in supplied documents and structured output. The H variants have a hybrid architecture that uses less memory on long contexts. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

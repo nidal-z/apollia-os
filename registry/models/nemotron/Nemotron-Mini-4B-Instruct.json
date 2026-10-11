@@ -9,6 +9,9 @@
     "source": "https://developer.download.nvidia.com/licenses/nvidia-open-model-license-agreement-june-2024.pdf"
   },
   "source_url": "https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct",
+  "released": "2024-09-10",
+  "params_b": 4.0,
+  "usage": "general",
   "description": {
     "fr": "Modèle Nemotron de NVIDIA, prévu pour les agents : appel d'outils et réponses fondées sur des documents fournis. Nemotron Mini 4B, sorti en 2024, a un contexte court de 4 000 jetons. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "A Nemotron model from NVIDIA, meant for agents: tool calling and answers grounded in supplied documents. Nemotron Mini 4B, released in 2024, has a short context of 4,000 tokens. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/CohereLabs/North-Mini-Code-1.0"
   },
   "source_url": "https://huggingface.co/CohereLabs/North-Mini-Code-1.0",
+  "released": "2026-06-05",
+  "params_b": 30.48,
+  "usage": "code",
   "description": {
     "fr": "North Mini Code de Cohere est un modèle de programmation publié en diffusion de recherche : écriture de code, travail d'agent sur un dépôt et tâches de terminal, avec appel d'outils et une réflexion dont l'effort se règle. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "North Mini Code from Cohere is a programming model published as a research release: code writing, agent work on a repository and terminal tasks, with tool calling and a thinking effort that can be set. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 32 GB of memory at Q4 quantization."

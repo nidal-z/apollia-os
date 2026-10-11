@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct"
   },
   "source_url": "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct",
+  "released": "2024-04-17",
+  "params_b": 8.03,
+  "usage": "general",
   "description": {
     "fr": "Llama 3 de Meta, sorti en avril 2024 et remplacé depuis par Llama 3.1 : conversation générale en texte seul, surtout en anglais, avec un contexte court de 8 000 jetons. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "Llama 3 from Meta, released in April 2024 and since replaced by Llama 3.1: general conversation in text only, mostly in English, with a short context of 8,000 tokens. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization. Its chat template has no tool calling."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/mistralai/Devstral-Small-2507"
   },
   "source_url": "https://huggingface.co/mistralai/Devstral-Small-2507",
+  "released": "2025-07-04",
+  "params_b": 23.57,
+  "usage": "code",
   "description": {
     "fr": "Devstral Small 1.1 de Mistral AI est entraîné pour le génie logiciel avec des agents : il explore un dépôt de code, modifie plusieurs fichiers et enchaîne les appels d'outils ; Devstral Small 2 lui a succédé. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4.",
     "en": "Devstral Small 1.1 from Mistral AI is trained for software engineering with agents: it explores a code repository, edits several files and chains tool calls; Devstral Small 2 has succeeded it. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization."

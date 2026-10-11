@@ -9,6 +9,9 @@
     "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-nemotron-open-model-license/"
   },
   "source_url": "https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
+  "released": "2026-03-07",
+  "params_b": 3.97,
+  "usage": "general",
   "description": {
     "fr": "Génération Nemotron 3 de NVIDIA, à l'architecture hybride qui allège les très longs contextes : elle appelle des outils et réfléchit avant de répondre, la réflexion pouvant être coupée. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "The Nemotron 3 generation from NVIDIA, with a hybrid architecture that lightens very long contexts: it calls tools and thinks before answering, and thinking can be turned off. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

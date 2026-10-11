@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3.6-27B/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3.6-27B",
+  "released": "2026-04-21",
+  "params_b": 27.78,
+  "usage": "general",
   "description": {
     "fr": "Génération Qwen3.6 d'Alibaba, tournée vers la programmation avec des agents : elle suit un dépôt de code entier, lit les images, appelle des outils et peut conserver sa réflexion d'un message à l'autre. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "The Qwen3.6 generation from Alibaba, aimed at coding with agents: it follows a whole code repository, reads images, calls tools and can keep its thinking from one message to the next. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."

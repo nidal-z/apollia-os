@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-VL-32B-Instruct",
+  "released": "2025-10-19",
+  "params_b": 33.36,
+  "usage": "general",
   "description": {
     "fr": "Qwen3-VL d'Alibaba lit les images et les documents numérisés : description, lecture de tableaux et de texte dans l'image, repérage d'éléments à l'écran, avec appel d'outils. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "Qwen3-VL from Alibaba reads images and scanned documents: description, reading tables and text inside an image, locating elements on a screen, with tool calling. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."

@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/mistralai/Mistral-Medium-3.5-128B/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/mistralai/Mistral-Medium-3.5-128B",
+  "released": "2026-03-31",
+  "params_b": 127.7,
+  "usage": "general",
   "description": {
     "fr": "Mistral Medium 3.5 de Mistral AI est un modèle dense de 128 milliards de paramètres pour la conversation, le raisonnement et le code : il lit les images, appelle des outils et règle son effort de réflexion. Très grande taille, réservée aux stations de travail ; compter une machine d'au moins 96 Go de mémoire en quantification Q4. Sa licence est une licence MIT modifiée, à lire avant un usage commercial.",
     "en": "Mistral Medium 3.5 from Mistral AI is a dense model of 128 billion parameters for conversation, reasoning and code: it reads images, calls tools and sets its thinking effort. A very large size, for workstations only; plan for a machine with at least 96 GB of memory at Q4 quantization. Its licence is a modified MIT licence, to be read before commercial use."

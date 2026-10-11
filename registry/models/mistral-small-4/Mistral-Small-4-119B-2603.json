@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603"
   },
   "source_url": "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603",
+  "released": "2026-01-23",
+  "params_b": 119.4,
+  "usage": "general",
   "description": {
     "fr": "Mistral Small 4 de Mistral AI réunit en un modèle à experts la conversation, le raisonnement et la programmation : il lit les images, appelle des outils et réfléchit sur demande. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 96 Go de mémoire en quantification Q4.",
     "en": "Mistral Small 4 from Mistral AI gathers conversation, reasoning and coding in one mixture-of-experts model: it reads images, calls tools and thinks on request. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 96 GB of memory at Q4 quantization."

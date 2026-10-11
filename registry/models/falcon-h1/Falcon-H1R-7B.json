@@ -9,6 +9,9 @@
     "source": "https://falconllm.tii.ae/falcon-terms-and-conditions.html"
   },
   "source_url": "https://huggingface.co/tiiuae/Falcon-H1R-7B",
+  "released": "2025-10-29",
+  "params_b": 7.59,
+  "usage": "general",
   "description": {
     "fr": "Famille Falcon-H1 du Technology Innovation Institute d'Abou Dabi, à l'architecture hybride qui tient de longs contextes avec peu de mémoire, avec appel d'outils et de nombreuses langues. Falcon-H1R est la variante de raisonnement : elle réfléchit avant de répondre. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4.",
     "en": "The Falcon-H1 family from the Technology Innovation Institute of Abu Dhabi, with a hybrid architecture that holds long contexts with little memory, with tool calling and many languages. Falcon-H1R is the reasoning variant: it thinks before answering. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization."

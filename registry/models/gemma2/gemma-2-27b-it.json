@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/google/gemma-2-27b-it"
   },
   "source_url": "https://huggingface.co/google/gemma-2-27b-it",
+  "released": "2024-06-24",
+  "params_b": 27.23,
+  "usage": "general",
   "description": {
     "fr": "Génération Gemma 2 de Google, sortie en 2024 et remplacée depuis par Gemma 3 puis Gemma 4 : conversation et rédaction en texte seul, sans images ni mode de réflexion. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils.",
     "en": "The Gemma 2 generation from Google, released in 2024 and since replaced by Gemma 3 then Gemma 4: conversation and writing in text only, with no images and no thinking mode. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization. Its chat template has no tool calling."

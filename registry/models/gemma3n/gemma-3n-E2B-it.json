@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/google/gemma-3n-E2B-it"
   },
   "source_url": "https://huggingface.co/google/gemma-3n-E2B-it",
+  "released": "2025-06-12",
+  "params_b": 5.44,
+  "usage": "general",
   "description": {
     "fr": "Gemma 3n de Google est conçu pour les téléphones et les ordinateurs portables : son architecture n'active qu'une partie des paramètres, ce qui réduit la mémoire utilisée. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4. Son gabarit de conversation ne prévoit pas l'appel d'outils ; les conversions GGUF recensées ne lisent que le texte.",
     "en": "Gemma 3n from Google is designed for phones and laptops: its architecture activates only part of its parameters, which lowers the memory it uses. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization. Its chat template has no tool calling; the listed GGUF conversions read text only."

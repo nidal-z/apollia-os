@@ -9,6 +9,9 @@
     "source": "https://mistral.ai/licenses/MRL-0.1.md"
   },
   "source_url": "https://huggingface.co/mistralai/Mistral-Small-Instruct-2409",
+  "released": "2024-09-17",
+  "params_b": 22.25,
+  "usage": "general",
   "description": {
     "fr": "Mistral Small de septembre 2024, 22 milliards de paramètres : réponses précises en français et appel d'outils ; les versions Small 3 l'ont remplacé. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 24 Go de mémoire en quantification Q4. Sa licence (mrl) interdit l'usage commercial.",
     "en": "Mistral Small of September 2024, 22 billion parameters: precise answers in French and tool calling; the Small 3 versions have replaced it. A large size, more rigorous on long tasks; plan for a machine with at least 24 GB of memory at Q4 quantization. Its licence (mrl) forbids commercial use."

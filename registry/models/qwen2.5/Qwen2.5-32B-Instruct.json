@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct",
+  "released": "2024-09-17",
+  "params_b": 32.76,
+  "usage": "general",
   "description": {
     "fr": "Génération Qwen2.5 d'Alibaba, sortie en 2024 et remplacée depuis par Qwen3 : réponses directes sans mode de réflexion, appel d'outils et bonne tenue en plusieurs langues. Grande taille, plus rigoureuse sur les tâches longues ; compter une machine d'au moins 32 Go de mémoire en quantification Q4.",
     "en": "The Qwen2.5 generation from Alibaba, released in 2024 and since replaced by Qwen3: direct answers with no thinking mode, tool calling and good behaviour in several languages. A large size, more rigorous on long tasks; plan for a machine with at least 32 GB of memory at Q4 quantization."

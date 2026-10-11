@@ -9,6 +9,9 @@
     "source": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/"
   },
   "source_url": "https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-4B-v1.1",
+  "released": "2025-05-03",
+  "params_b": 4.51,
+  "usage": "general",
   "description": {
     "fr": "Llama 3.1 Nemotron Nano 4B v1.1 de NVIDIA est une version comprimée de Llama 3.1 8B, réentraînée pour le raisonnement, les réponses fondées sur des documents fournis et l'appel d'outils. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "Llama 3.1 Nemotron Nano 4B v1.1 from NVIDIA is a compressed version of Llama 3.1 8B, retrained for reasoning, answers grounded in supplied documents and tool calling. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

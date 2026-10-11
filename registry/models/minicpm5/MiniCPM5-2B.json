@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/openbmb/MiniCPM5-2B"
   },
   "source_url": "https://huggingface.co/openbmb/MiniCPM5-2B",
+  "released": "2026-09-06",
+  "params_b": 2.52,
+  "usage": "general",
   "description": {
     "fr": "Famille MiniCPM5 d'OpenBMB, conçue pour tourner sur l'appareil, sous licence Apache 2.0 : appel d'outils et réflexion qui peut être coupée. Petite taille, rapide sur un ordinateur portable, pour les résumés, les reformulations et les questions courantes ; compter une machine d'au moins 8 Go de mémoire en quantification Q4.",
     "en": "The MiniCPM5 family from OpenBMB, built to run on the device, under the Apache 2.0 licence: tool calling and thinking that can be turned off. A small size, fast on a laptop, for summaries, rewriting and everyday questions; plan for a machine with at least 8 GB of memory at Q4 quantization."

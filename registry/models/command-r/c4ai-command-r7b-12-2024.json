@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/CohereLabs/c4ai-command-r7b-12-2024"
   },
   "source_url": "https://huggingface.co/CohereLabs/c4ai-command-r7b-12-2024",
+  "released": "2024-12-11",
+  "params_b": 8.03,
+  "usage": "general",
   "description": {
     "fr": "Famille Command R de Cohere, entraînée pour répondre à partir de documents fournis en citant ses sources, avec appel d'outils et une dizaine de langues dont le français. Command R7B est la petite taille de la famille, pour un poste courant. Taille moyenne, un équilibre entre vitesse et qualité pour le travail quotidien ; compter une machine d'au moins 16 Go de mémoire en quantification Q4. Sa licence (cc-by-nc-4.0) interdit l'usage commercial.",
     "en": "The Command R family from Cohere, trained to answer from supplied documents while citing its sources, with tool calling and about ten languages including French. Command R7B is the small size of the family, for an everyday machine. A medium size, a balance between speed and quality for daily work; plan for a machine with at least 16 GB of memory at Q4 quantization. Its licence (cc-by-nc-4.0) forbids commercial use."

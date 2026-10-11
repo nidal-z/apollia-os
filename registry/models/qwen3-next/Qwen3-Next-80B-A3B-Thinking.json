@@ -9,6 +9,9 @@
     "source": "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking/blob/main/LICENSE"
   },
   "source_url": "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Thinking",
+  "released": "2025-09-09",
+  "params_b": 81.32,
+  "usage": "general",
   "description": {
     "fr": "Qwen3 Next d'Alibaba, un modèle à experts de 80 milliards de paramètres dont 3 milliards travaillent à chaque mot, prévu pour les très longs contextes et l'appel d'outils. Cette variante réfléchit toujours avant de répondre. Modèle à experts, rapide pour sa taille car une partie seulement travaille à chaque mot, mais il lui faut la mémoire de l'ensemble ; compter une machine d'au moins 64 Go de mémoire en quantification Q4.",
     "en": "Qwen3 Next from Alibaba, a mixture-of-experts model of 80 billion parameters of which 3 billion work on each token, meant for very long contexts and tool calling. This variant always thinks before answering. A mixture-of-experts model, fast for its size since only part of it works on each token, but it needs the memory of the whole; plan for a machine with at least 64 GB of memory at Q4 quantization."
