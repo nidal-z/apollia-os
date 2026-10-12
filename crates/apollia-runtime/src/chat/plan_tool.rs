@@ -352,21 +352,48 @@ fn parse_status(raw: &str) -> Option<StepStatus> {
 
 /// JSON schema fragment describing a single plan step payload.
 fn step_schema() -> serde_json::Value {
+    // Every free string says what it holds and is bounded. Left bare, a local
+    // model was measured repeating itself inside one of them without ever
+    // closing the call: the bound is what the grammar ends the string on.
     serde_json::json!({
         "type": "object",
         "required": ["step_id", "description"],
         "properties": {
-            "step_id":     { "type": "string" },
-            "title":       { "type": "string" },
-            "description": { "type": "string" },
+            "step_id": {
+                "type": "string",
+                "maxLength": 40,
+                "description": "Short unique identifier of the step, for example 'step-1'."
+            },
+            "title": {
+                "type": "string",
+                "maxLength": 80,
+                "description": "A few words naming the step."
+            },
+            "description": {
+                "type": "string",
+                "maxLength": 400,
+                "description": "What the step does, in one or two sentences."
+            },
             "status": {
                 "type": "string",
                 "enum": ["pending", "in_progress", "completed", "skipped", "failed"]
             },
-            "depends_on":  { "type": "array", "items": { "type": "string" } },
-            "tool_hint":   { "type": "string" },
-            "model_hint":  { "type": "string" },
-            "rationale":   { "type": "string" }
+            "depends_on":  { "type": "array", "items": { "type": "string", "maxLength": 40 } },
+            "tool_hint": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Name of the one tool this step will mostly use, when one is obvious. A single tool name, never a list."
+            },
+            "model_hint": {
+                "type": "string",
+                "maxLength": 64,
+                "description": "Leave out unless the user named a model."
+            },
+            "rationale": {
+                "type": "string",
+                "maxLength": 240,
+                "description": "Why the step is needed, in one sentence."
+            }
         }
     })
 }
@@ -389,7 +416,7 @@ pub fn plan_propose_spec() -> ToolSpec {
                     "description": "Complete replacement list of plan steps.",
                     "items": step_schema()
                 },
-                "summary": { "type": "string", "description": "Optional one-line plan summary." }
+                "summary": { "type": "string", "maxLength": 240, "description": "Optional one-line plan summary." }
             }
         }),
     }
@@ -408,7 +435,7 @@ pub fn plan_add_step_spec() -> ToolSpec {
             "required": ["step"],
             "properties": {
                 "step": step_schema(),
-                "reason": { "type": "string", "description": "Why this step is added." }
+                "reason": { "type": "string", "maxLength": 240, "description": "Why this step is added." }
             }
         }),
     }
@@ -428,7 +455,7 @@ pub fn plan_modify_step_spec() -> ToolSpec {
             "properties": {
                 "step_id": { "type": "string", "description": "Id of the step to modify." },
                 "step":    step_schema(),
-                "reason":  { "type": "string", "description": "Why this step is modified." }
+                "reason":  { "type": "string", "maxLength": 240, "description": "Why this step is modified." }
             }
         }),
     }
@@ -448,7 +475,7 @@ pub fn plan_remove_step_spec() -> ToolSpec {
             "required": ["step_id", "reason"],
             "properties": {
                 "step_id": { "type": "string", "description": "Id of the step to remove." },
-                "reason":  { "type": "string", "description": "Why this step is removed." }
+                "reason":  { "type": "string", "maxLength": 240, "description": "Why this step is removed." }
             }
         }),
     }
@@ -472,7 +499,7 @@ pub fn plan_reorder_spec() -> ToolSpec {
                     "items": { "type": "string" },
                     "description": "Every current step id, in the desired order."
                 },
-                "reason": { "type": "string", "description": "Why the order changes." }
+                "reason": { "type": "string", "maxLength": 240, "description": "Why the order changes." }
             }
         }),
     }
@@ -493,7 +520,7 @@ pub fn plan_set_step_status_spec() -> ToolSpec {
                     "type": "string",
                     "enum": ["pending", "in_progress", "completed", "skipped", "failed"]
                 },
-                "reason": { "type": "string", "description": "Optional status change reason." }
+                "reason": { "type": "string", "maxLength": 240, "description": "Optional status change reason." }
             }
         }),
     }

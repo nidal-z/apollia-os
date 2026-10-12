@@ -51,6 +51,11 @@ the converter into an expansion it then refuses with `400 failed to parse
 grammar`: a large `maxLength` on a string nested in an array item is the
 observed trigger, and `oneOf` / `anyOf` / `allOf` / `$ref` are unsupported.
 
+A `maxLength` of 512 or less is kept, on purpose: it is what ends a free
+string a local model would otherwise repeat itself in without closing the
+call. A tool whose arguments hold free text bounds each string and says what
+it holds.
+
 A new tool parameter shape goes through the sanitizer, and the rejection is
 covered by a test that carries the offending schema. Debugging this from the
 outside costs hours: the failure is a 400 from the server with no mention of

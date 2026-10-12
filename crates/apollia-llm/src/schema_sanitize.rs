@@ -11,6 +11,14 @@
 //! PEG grammar parser rejects. Schema combinators (`oneOf`/`anyOf`/`allOf`) and
 //! `$ref` are also unsupported by the converter.
 //!
+//! A short `maxLength` is kept, because it does work nothing else does: a
+//! local model can fall into repeating itself inside a free string of a tool
+//! call and never close it, and the bound in the grammar is what ends the
+//! string. Measured on llama-server `b11541` (2026-10-12): bounds of 64 to 400
+//! characters on strings nested in array items are accepted and enforced, and
+//! a plan proposal that ran to tens of thousands of tokens without them closes
+//! in seconds with them. A bound above [`MAX_KEPT_LENGTH`] is still dropped.
+//!
 //! Cloud APIs treat these keywords as advisory, so dropping them from tool
 //! schemas is safe and keeps native tool-calling working against a local
 //! llama-server. The runtime still validates real arguments; the grammar only
@@ -22,7 +30,6 @@ use serde_json::{Map, Value};
 /// unsupported expansions, plus reference machinery it cannot resolve. Removed
 /// at every depth.
 const STRIP_KEYS: &[&str] = &[
-    "maxLength",
     "minLength",
     "pattern",
     "format",
@@ -32,6 +39,11 @@ const STRIP_KEYS: &[&str] = &[
     "$defs",
     "definitions",
 ];
+
+/// The longest `maxLength` left in a schema. Above it the bound is dropped: a
+/// large one is what the grammar converter was seen to refuse, and a string
+/// that long is not one a bound protects anyway.
+const MAX_KEPT_LENGTH: u64 = 512;
 
 /// Schema combinators the converter cannot fold into a single grammar rule.
 /// Their presence collapses the node to a free JSON value.
@@ -64,6 +76,9 @@ fn sanitize_object(map: &Map<String, Value>) -> Value {
     let mut out = Map::new();
     for (key, value) in map {
         if STRIP_KEYS.contains(&key.as_str()) {
+            continue;
+        }
+        if key == "maxLength" && value.as_u64().is_none_or(|n| n > MAX_KEPT_LENGTH) {
             continue;
         }
         out.insert(key.clone(), sanitize_field(key, value));
@@ -158,6 +173,35 @@ mod tests {
             out["properties"]["proposals"]["items"]["properties"]["justification"]["type"],
             json!("string")
         );
+    }
+
+    #[test]
+    fn keeps_a_short_max_length() {
+        // GIVEN a tool whose step strings are bounded to a few dozen characters
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "tool_hint": {"type": "string", "maxLength": 64},
+                            "notes": {"type": "string", "maxLength": 513}
+                        }
+                    }
+                }
+            }
+        });
+
+        // WHEN sanitized
+        let out = grammar_safe_schema(&schema);
+
+        // THEN the short bound reaches the grammar, where it ends a string the
+        // model would otherwise never close, and the one above the limit goes
+        let step = &out["properties"]["steps"]["items"]["properties"];
+        assert_eq!(step["tool_hint"]["maxLength"], json!(64));
+        assert!(step["notes"].get("maxLength").is_none());
     }
 
     #[test]

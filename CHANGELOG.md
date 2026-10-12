@@ -320,6 +320,15 @@ at the end of this entry. From this version on, tags no longer carry the
 
 ### Fixed
 
+- In plan mode, a local model could repeat itself inside a text field of the
+  plan it was proposing and never finish: the conversation showed it thinking
+  for as long as it was left. The fields of a plan step are described and
+  bounded, and a short length bound of a tool schema now reaches the grammar of
+  the local engine, which ends the string.
+- A turn that ends by proposing a plan no longer reads as an answer that could
+  not be produced.
+- The window that launches a batch kept none of what was filled in: it reset
+  itself while open.
 - A call that asked the local engine for a structured answer never came back
   on a model whose template opens on a channel marker: the schema was sent as a
   raw grammar, which binds the first token. It now travels as
