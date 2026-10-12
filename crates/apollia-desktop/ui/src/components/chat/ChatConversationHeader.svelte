@@ -243,7 +243,10 @@
     </div>
 
     <!-- Editable title -->
-    <div class="min-w-24 flex-1">
+    <!-- The title gives way first and is cut with an ellipsis: a button sizes
+         to its content, so it is held to the width of its box, which hides
+         what overflows instead of letting it run under its neighbours. -->
+    <div class="min-w-24 flex-1 overflow-hidden">
       {#if editing}
         <input
           bind:this={titleInput}
@@ -262,7 +265,7 @@
           ondblclick={() => {
             if (doubleClickRenames($chatDoubleClickRename, true)) startEdit();
           }}
-          class="group flex min-w-0 items-center gap-1 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-muted/40"
+          class="group flex min-w-0 max-w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-muted/40"
           aria-label={$t("chat.rename_session")}
           data-testid="chat-header-title"
         >
@@ -277,7 +280,7 @@
 
     <!-- Agent or model of the conversation -->
     {#if ontargetpick}
-      <div class="min-w-0 shrink">
+      <div class="min-w-28 shrink">
         <ChatTargetSelector
           conversation={target}
           onpick={ontargetpick}

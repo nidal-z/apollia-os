@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   /**
    * BatchLaunchDialog - the one dialog a batch is launched from, whether it
    * is opened from the sheet of an agent or on a file joined to the chat.
@@ -104,8 +105,15 @@
   }
 
   // A fresh form at every opening, on the file the dialog was opened with.
+  // Only the opening is tracked: the form is read and written below, and the
+  // list of agents behind `agent` is replaced while the dialog stays open, so
+  // a tracked body would wipe what the user has filled in.
   $effect(() => {
     if (!open) return;
+    return untrack(resetForm);
+  });
+
+  function resetForm(): () => void {
     chosenAgent = agent;
     picked = file;
     setSource(file ? fileChoice(file) : null);
@@ -129,7 +137,7 @@
     return () => {
       live = false;
     };
-  });
+  }
 
   // The sensitive accesses are those of the agent the batch runs.
   $effect(() => {

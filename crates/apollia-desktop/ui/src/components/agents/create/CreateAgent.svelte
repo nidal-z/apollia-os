@@ -245,6 +245,7 @@
         text === null ? { id: asked.id, answer: "refuse" } : { id: asked.id, answer: "answer", value: text },
       );
       question = null;
+      runError = null;
     } catch (err) {
       runError = message(err);
     } finally {

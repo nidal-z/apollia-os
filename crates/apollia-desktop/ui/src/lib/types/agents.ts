@@ -110,13 +110,9 @@ export interface AgentListItem {
     | (string & {})
     | null;
   /**
-   * Primary memory namespace declared in the Python manifest. `null` when the
-   * agent has no persistent memory.
-   *
-   * Several agents of one package often share the same namespace (every agent
-   * of the `veille-ia` package declares `memory_namespace = "veille-ia"`, for
-   * instance), so this value is never derived from `name`: it always comes
-   * from the manifest.
+   * The memory space the agent reads and writes: the one named after it, or
+   * the space of Apollia for the built-in agent. The runtime names it, so a
+   * screen never derives it from `name`.
    */
   memory_namespace: string | null;
   /** Shared memory namespaces the agent can read. */

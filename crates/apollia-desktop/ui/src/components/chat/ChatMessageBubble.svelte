@@ -38,6 +38,7 @@
   import { chatMessageStyle, generationInfoScope } from "$lib/stores/chatAppearance";
   import { parseStream } from "$lib/chat/streamParser";
   import { extractSources } from "$lib/chat/reasoning";
+  import { isEmptyAnswer } from "$lib/chat/emptyAnswer";
   import {
     parseApolliaActions,
     sanitizeActionButtons,
@@ -149,8 +150,15 @@
   // bubble here is a terminated exchange with no user-facing text, never a
   // mid-stream frame. Surface a mode-adapted notice instead of a blank bubble;
   // builder mode points to the reasoning/tool detail already shown above.
+  // A turn that laid a plan before the user is not one: the plan card is its
+  // answer.
   const isEmptyAgentResponse = $derived(
-    !isUser && displayContent.trim() === "" && actionButtons.length === 0,
+    isEmptyAnswer({
+      isUser,
+      text: displayContent,
+      buttons: actionButtons.length,
+      calls: message.tool_calls ?? [],
+    }),
   );
   const emptyResponseLabel = $derived(
     isOperator
