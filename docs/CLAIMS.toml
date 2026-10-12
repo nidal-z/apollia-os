@@ -1517,13 +1517,14 @@ status = "wired"
 proof = "crates/apollia-llm/src/backends/openai/convert.rs"
 evidence = "json_schema_to_gbnf(schema)"
 note = """
-The structured-output page says a schema constrains decoding on the embedded
-llama-server, which only holds while something turns the schema into a grammar
-and sends it. Both halves are the risk here, and the tree already carried the
+The structured-output page says a schema constrains the answer on the embedded
+llama-server and that an inexpressible one is refused before the call. The
+schema itself travels as `response_format` and the server builds the grammar;
+what this crate still owns is the refusal, which only holds while the request
+builder translates the schema before sending. The tree already carried the
 shape of the failure: `CompletionRequest.grammar` existed, `tool_specs_to_gbnf`
-filled it, and no backend read the field, so the tool grammar was built and
-dropped for as long as nobody looked. The proof is therefore the call site in
-the request builder rather than the translator itself; a translator with no
+filled it, and no backend read the field. The proof is therefore the call site
+in the request builder rather than the translator itself; a translator with no
 caller would satisfy a symbol-only check and leave the sentence false.
 """
 

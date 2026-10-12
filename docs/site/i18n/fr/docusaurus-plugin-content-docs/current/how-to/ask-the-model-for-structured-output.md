@@ -52,11 +52,14 @@ vous devez encore inspecter.
 ## Ce que le schéma peut contenir
 
 <!-- claim:llm-schema-constrains-local-generation -->
-Objets et tableaux s'imbriquent librement, et leurs membres sont typés. Sur le
-`llama-server` embarqué, le schéma devient une grammaire GBNF qui contraint le
-décodage jeton par jeton, de sorte que le modèle ne peut pas émettre une forme
-que le schéma interdit. Sur tout autre fournisseur compatible OpenAI, il voyage
-en `response_format`, la surface de sortie structurée que ce protocole définit.
+Objets et tableaux s'imbriquent librement, et leurs membres sont typés. Le
+schéma voyage en `response_format`, la surface de sortie structurée que le
+protocole OpenAI définit. Le `llama-server` embarqué en tire une grammaire qui
+contraint la réponse jeton par jeton, de sorte que le modèle ne peut pas émettre
+une forme que le schéma interdit ; un modèle qui réfléchit d'abord le fait
+librement, et la contrainte porte sur ce qu'il répond ensuite. Un schéma que le
+runtime ne sait pas exprimer en grammaire est refusé avant l'appel plutôt
+qu'assoupli.
 
 | Construction | Prise en charge |
 | --- | --- |

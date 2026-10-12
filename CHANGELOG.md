@@ -320,6 +320,12 @@ at the end of this entry. From this version on, tags no longer carry the
 
 ### Fixed
 
+- A call that asked the local engine for a structured answer never came back
+  on a model whose template opens on a channel marker: the schema was sent as a
+  raw grammar, which binds the first token. It now travels as
+  `response_format`, so the model reasons first and the constraint applies to
+  its answer. `apollia-os do` maps a request through a schema for the same
+  reason, and works on every backend.
 - A standing consent on a code executor covered every later call of the same
   exchange. It now covers the current call only.
 - Cancelling a task left its Python code running and writing. The running

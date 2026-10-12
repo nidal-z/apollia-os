@@ -52,11 +52,13 @@ inspect.
 ## What the schema may contain
 
 <!-- claim:llm-schema-constrains-local-generation -->
-Objects and arrays nest freely, and their members are typed. On the embedded
-`llama-server` the schema becomes a GBNF grammar that constrains decoding token
-by token, so the model cannot emit a shape the schema forbids. On any other
-OpenAI-compatible provider it travels as `response_format`, the structured
-output surface that protocol defines.
+Objects and arrays nest freely, and their members are typed. The schema travels
+as `response_format`, the structured output surface the OpenAI protocol
+defines. The embedded `llama-server` turns it into a grammar that constrains
+the answer token by token, so the model cannot emit a shape the schema forbids;
+a model that reasons first does so freely, and the constraint applies to what
+it answers after. A schema the runtime cannot express as a grammar is refused
+before the call rather than relaxed.
 
 | Construct | Supported |
 | --- | --- |

@@ -1,9 +1,12 @@
 //! `apollia-os do "<natural language>"`: map intent to a command.
 //!
-//! The local model is constrained by a GBNF grammar built from the clap tree, so
-//! it can only emit a valid `<noun> <verb>` prefix (plus free tokens) or the
-//! `unknown` sentinel. The mapped command is shown as a dry-run and executed only
-//! after confirmation, through a fresh process (normal dispatch + governance, no
+//! The model answers under a JSON Schema built from the clap tree, so the
+//! command it names is one of the valid `<noun> <verb>` prefixes or the
+//! `unknown` sentinel, and its arguments are a separate string. A schema rather
+//! than a raw grammar: a grammar binds the first token, which a model that
+//! reasons before answering cannot satisfy, and only the local engine reads one.
+//! The mapped command is shown as a dry-run and executed only after
+//! confirmation, through a fresh process (normal dispatch + governance, no
 //! bypass).
 
 use std::io::Write;
@@ -15,27 +18,30 @@ use clap::{CommandFactory, Parser};
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
+/// What the model answers when no command fits the request.
+const UNKNOWN: &str = "unknown";
+
 /// Map `request` to a command and (after confirmation) run it.
 pub async fn run(request: &str, yes: bool, socket: Option<PathBuf>, json: bool) -> i32 {
     if request.trim().is_empty() {
         eprintln!("describe what you want to do");
         return exit_codes::GENERAL_ERROR;
     }
-    // GBNF grammar (applied by the llama-cpp backend) AND catalogue injected
-    // into the prompt (for the backends that ignore the grammar, OpenAI style).
+    // The schema constrains the answer, and the catalogue is also written into
+    // the prompt so the model reads the vocabulary it has to choose from.
     let cli_cmd = crate::Cli::command();
-    let grammar = build_grammar_from(&cli_cmd);
     let catalog = command_list(&cli_cmd);
+    let schema = build_schema_from(&catalog);
     let system = format!(
         "You translate a user's natural-language request into a single Apollia \
-CLI command. Output ONLY the command without the `apollia-os` prefix, or exactly \
-`unknown` if nothing fits. Do not explain. The command prefix MUST be exactly one \
-of these forms (followed by any needed arguments), copied verbatim:\n{}",
+CLI command. Answer with a JSON object: `command` is exactly one of the forms \
+below, copied verbatim, or `unknown` if nothing fits; `arguments` holds the \
+arguments that follow it, or an empty string. Do not explain.\n{}",
         catalog.join("\n")
     );
     let client = RuntimeClient::new(socket.unwrap_or_else(default_socket_path));
     let resp = match client
-        .llm_complete(Some(&system), request, Some(&grammar))
+        .llm_complete(Some(&system), request, Some(&schema))
         .await
     {
         Ok(r) => r,
@@ -50,9 +56,9 @@ of these forms (followed by any needed arguments), copied verbatim:\n{}",
             return crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string());
         }
     };
-    let mapped = resp["content"].as_str().unwrap_or("").trim().to_string();
+    let mapped = mapped_command(resp["content"].as_str().unwrap_or(""));
 
-    if mapped.is_empty() || mapped == "unknown" {
+    if mapped.is_empty() || mapped == UNKNOWN {
         eprintln!("no command matched, try rephrasing");
         return exit_codes::GENERAL_ERROR;
     }
@@ -65,10 +71,9 @@ of these forms (followed by any needed arguments), copied verbatim:\n{}",
         return exit_codes::GENERAL_ERROR;
     }
 
-    // The GBNF grammar is only applied by the local llama-cpp backend; an
-    // OpenAI-compatible backend ignores it and can return an invalid command.
-    // So the mapped command is ALWAYS validated against the real parser before
-    // anything is proposed: that is the backend-independent safety net.
+    // A schema is honoured by the backends that support one and ignored by the
+    // others, so the mapped command is ALWAYS validated against the real parser
+    // before anything is proposed: that is the backend-independent safety net.
     let argv = std::iter::once("apollia-os".to_string()).chain(args.iter().cloned());
     if crate::Cli::try_parse_from(argv).is_err() {
         eprintln!("mapped to an invalid command: `apollia-os {mapped}` (try rephrasing)");
@@ -128,8 +133,7 @@ fn confirm() -> bool {
 }
 
 /// Valid `<noun> <verb>` (or bare command) prefixes from the clap tree, as plain
-/// strings. Injected into the prompt so backends that ignore the GBNF grammar
-/// still see the exact command vocabulary.
+/// strings: the vocabulary of the schema, also written into the prompt.
 fn command_list(cmd: &clap::Command) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for sub in cmd.get_subcommands() {
@@ -149,50 +153,72 @@ fn command_list(cmd: &clap::Command) -> Vec<String> {
     out
 }
 
-/// Pure grammar builder over a clap [`clap::Command`] (testable).
-fn build_grammar_from(cmd: &clap::Command) -> String {
-    let mut prefixes: Vec<String> = Vec::new();
-    for sub in cmd.get_subcommands() {
-        let name = sub.get_name();
-        if name == "do" {
-            continue; // no recursion on `do`
-        }
-        let verbs: Vec<&str> = sub.get_subcommands().map(clap::Command::get_name).collect();
-        if verbs.is_empty() {
-            prefixes.push(format!("\"{name}\""));
-        } else {
-            for v in verbs {
-                prefixes.push(format!("\"{name} {v}\""));
-            }
-        }
-    }
-    let alt = if prefixes.is_empty() {
-        "\"unknown\"".to_string()
-    } else {
-        prefixes.join(" | ")
+/// The JSON Schema of the answer: one of the valid prefixes, or the `unknown`
+/// sentinel, and the arguments as a separate string.
+fn build_schema_from(catalog: &[String]) -> serde_json::Value {
+    let mut commands: Vec<&str> = catalog.iter().map(String::as_str).collect();
+    commands.push(UNKNOWN);
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "command": { "type": "string", "enum": commands },
+            "arguments": { "type": "string" },
+        },
+        "required": ["command", "arguments"],
+    })
+}
+
+/// The command line the answer names, empty when it names none. An answer that
+/// is not the expected object is read as plain text: a backend that ignores the
+/// schema still gets its line through the parser check that follows.
+fn mapped_command(content: &str) -> String {
+    let Ok(answer) = serde_json::from_str::<serde_json::Value>(content.trim()) else {
+        return content.trim().to_string();
     };
-    format!(
-        "root ::= command | \"unknown\"\n\
-         command ::= prefix rest\n\
-         prefix ::= {alt}\n\
-         rest ::= (\" \" token)*\n\
-         token ::= [a-zA-Z0-9_./@:=-]+\n"
-    )
+    let command = answer["command"].as_str().unwrap_or("").trim();
+    let arguments = answer["arguments"].as_str().unwrap_or("").trim();
+    if arguments.is_empty() || command == UNKNOWN {
+        command.to_string()
+    } else {
+        format!("{command} {arguments}")
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // GIVEN the real clap tree WHEN the grammar is generated THEN it holds
-    // valid noun-verb prefixes and the unknown sentinel, and excludes `do`.
     #[test]
-    fn test_grammar_contains_valid_prefixes() {
-        let g = build_grammar_from(&crate::Cli::command());
-        assert!(g.contains("\"unknown\""));
-        assert!(g.contains("\"agent list\""));
-        assert!(g.contains("\"status\"")); // commande nue
-        assert!(!g.contains("\"do "));
-        assert!(g.contains("prefix ::="));
+    fn test_schema_lists_valid_prefixes_and_the_sentinel() {
+        // GIVEN the real clap tree
+        let catalog = command_list(&crate::Cli::command());
+        // WHEN the schema of the answer is built
+        let schema = build_schema_from(&catalog);
+        // THEN `command` is one of the noun-verb prefixes, a bare command or
+        // the sentinel, and never `do` itself
+        let allowed: Vec<&str> = schema["properties"]["command"]["enum"]
+            .as_array()
+            .expect("an enum")
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect();
+        assert!(allowed.contains(&"unknown"));
+        assert!(allowed.contains(&"agent list"));
+        assert!(allowed.contains(&"status"));
+        assert!(!allowed.iter().any(|c| *c == "do" || c.starts_with("do ")));
+    }
+
+    #[test]
+    fn test_an_answer_becomes_one_command_line() {
+        // GIVEN the three shapes an answer takes
+        let with_arguments = r#"{"command": "agent show", "arguments": "seed-classifier"}"#;
+        let bare = r#"{"command": "agent list", "arguments": ""}"#;
+        let plain = "agent list";
+        // WHEN each is read
+        // THEN the arguments follow the command, an empty string adds nothing,
+        // and text that is not the object is kept for the parser to judge
+        assert_eq!(mapped_command(with_arguments), "agent show seed-classifier");
+        assert_eq!(mapped_command(bare), "agent list");
+        assert_eq!(mapped_command(plain), "agent list");
     }
 }

@@ -92,13 +92,14 @@ impl RuntimeClient {
 
     /// One-shot completion via `POST /api/v1/llm/complete`.
     ///
-    /// Optional `system` prompt + `user` message; `grammar` constrains local
-    /// decoding with GBNF. Returns the parsed response (`content`, `usage`, ...).
+    /// Optional `system` prompt + `user` message; `schema` is a JSON Schema the
+    /// answer has to satisfy, on every backend. Returns the parsed response
+    /// (`content`, `usage`, ...).
     pub async fn llm_complete(
         &self,
         system: Option<&str>,
         user: &str,
-        grammar: Option<&str>,
+        schema: Option<&serde_json::Value>,
     ) -> Result<serde_json::Value, ClientError> {
         let mut messages = Vec::new();
         if let Some(s) = system {
@@ -106,8 +107,8 @@ impl RuntimeClient {
         }
         messages.push(serde_json::json!({ "role": "user", "content": user }));
         let mut body = serde_json::json!({ "messages": messages });
-        if let Some(g) = grammar {
-            body["grammar"] = serde_json::Value::String(g.to_string());
+        if let Some(schema) = schema {
+            body["schema"] = schema.clone();
         }
         let resp = self.post("/api/v1/llm/complete", Some(&body)).await?;
         if resp.status >= 400 {

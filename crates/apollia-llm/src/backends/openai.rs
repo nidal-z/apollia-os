@@ -683,14 +683,14 @@ mod tests {
         let body = sent_body(&req, true);
 
         // THEN they travel as `min_p`, `repeat_penalty` and `top_k`, the names
-        // of its completion API, and the grammar transport is unchanged
+        // of its completion API, and the schema transport is unchanged
         assert_eq!(body["min_p"], serde_json::json!(0.25));
         assert_eq!(body["repeat_penalty"], serde_json::json!(1.125));
         assert_eq!(body["top_k"], serde_json::json!(40));
         assert!(body
-            .get("grammar")
-            .is_some_and(serde_json::Value::is_string));
-        assert!(body.get("response_format").is_none());
+            .get("response_format")
+            .is_some_and(serde_json::Value::is_object));
+        assert!(body.get("grammar").is_none());
     }
 
     #[test]

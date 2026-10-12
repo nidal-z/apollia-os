@@ -313,18 +313,23 @@ pub(super) fn estimate_cost_usd(
 /// fit the typed builder: `response_format` does, the llama.cpp `grammar`
 /// extension does not.
 ///
-/// Which one is sent depends on the backend, and the split is measured rather
-/// than assumed (llama-server 10092, 2026-09-16, both forms accepted on
-/// `/v1/chat/completions`):
+/// A schema travels as `response_format` on every backend. The embedded
+/// llama-server used to get the GBNF grammar this crate builds instead, and that
+/// stopped holding (llama-server `b11541`, 2026-10-12): a grammar constrains the
+/// generation from its first token, and a model whose template opens on a
+/// channel marker cannot write that marker under it. Measured on such a model,
+/// the grammar form is answered with a 500 or runs until the caller gives up,
+/// while `response_format` lets the server place the constraint after the
+/// reasoning, which is where its template parser expects the answer.
 ///
-/// - An embedded llama-server gets the GBNF grammar this crate builds, so the
-///   constraint is the one Apollia can read, test and explain. An untranslatable
-///   schema is refused before the call rather than silently relaxed.
-/// - Every other OpenAI-compatible provider gets `response_format`, which is
-///   the only structured-output surface the protocol defines.
+/// Two things remain specific to llama.cpp:
 ///
-/// A `grammar` already on the request (the `POST /llm` route carries one) is
-/// honoured ahead of the schema: it is the more specific constraint of the two.
+/// - The schema is still translated by this crate before the call, and an
+///   untranslatable one is refused there rather than silently relaxed by the
+///   server. The translation is the check; its output is not sent.
+/// - A `grammar` already on the request (the `POST /llm` route carries one) is
+///   sent as is and wins over the schema: it is the more specific constraint of
+///   the two, and no other backend has a field for it.
 pub(super) fn with_structured_output(
     request: async_openai::types::CreateChatCompletionRequest,
     req: &crate::types::CompletionRequest,
@@ -334,15 +339,16 @@ pub(super) fn with_structured_output(
         .map_err(|e| LlmError::InferenceError(format!("serialize request: {e}")))?;
 
     if llama_cpp_extensions {
-        let grammar = match (&req.grammar, &req.response_schema) {
-            (Some(explicit), _) => Some(explicit.clone()),
-            (None, Some(schema)) => Some(crate::grammar::json_schema_to_gbnf(schema)?),
-            (None, None) => None,
-        };
-        if let (Some(grammar), Some(map)) = (grammar, body.as_object_mut()) {
-            map.insert("grammar".to_string(), serde_json::Value::String(grammar));
+        if let (Some(grammar), Some(map)) = (&req.grammar, body.as_object_mut()) {
+            map.insert(
+                "grammar".to_string(),
+                serde_json::Value::String(grammar.clone()),
+            );
+            return Ok(body);
         }
-        return Ok(body);
+        if let Some(schema) = &req.response_schema {
+            crate::grammar::json_schema_to_gbnf(schema)?;
+        }
     }
 
     if let (Some(schema), Some(map)) = (&req.response_schema, body.as_object_mut()) {
@@ -515,7 +521,7 @@ mod tests {
     }
 
     #[test]
-    fn a_llama_cpp_endpoint_receives_the_grammar() {
+    fn a_llama_cpp_endpoint_receives_the_schema_as_response_format() {
         // GIVEN a structured-output request bound for an embedded llama-server
         let req = CompletionRequest {
             messages: vec![ChatMessage::user("hello")],
@@ -524,14 +530,16 @@ mod tests {
         };
         // WHEN the constraint is applied
         let body = with_structured_output(built_request(), &req, true).expect("translatable");
-        // THEN the body carries the GBNF grammar, and no response_format: the
-        // constraint is the one this crate builds and tests
-        let grammar = body
-            .get("grammar")
-            .and_then(serde_json::Value::as_str)
-            .expect("a grammar field");
-        assert!(grammar.contains("\"title\""), "grammar: {grammar}");
-        assert!(body.get("response_format").is_none());
+        // THEN the schema travels as `response_format` and no raw grammar is
+        // sent: a grammar binds the first token, which a model that opens on a
+        // channel marker can never satisfy
+        let format = body.get("response_format").expect("a response_format");
+        assert_eq!(format["type"], json!("json_schema"));
+        assert_eq!(
+            format["json_schema"]["schema"]["properties"]["title"]["type"],
+            json!("string")
+        );
+        assert!(body.get("grammar").is_none(), "{body}");
     }
 
     #[test]
@@ -568,6 +576,7 @@ mod tests {
         // THEN the explicit grammar is the one sent: it is the more specific of
         // the two constraints
         assert_eq!(body["grammar"], json!("root ::= \"yes\"\n"));
+        assert!(body.get("response_format").is_none(), "{body}");
     }
 
     #[test]
