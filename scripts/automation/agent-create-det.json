@@ -481,11 +481,23 @@
       }
     },
     {
+      "kind": "click",
+      "testid": "agent-create-question-option"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_pending_decisions"
+    },
+    {
       "kind": "stubInvoke",
       "command": "list_pending_decisions",
       "resolve": {
         "items": []
       }
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_workflow_run"
     },
     {
       "kind": "stubInvoke",
@@ -547,10 +559,6 @@
           }
         ]
       }
-    },
-    {
-      "kind": "click",
-      "testid": "agent-create-question-option"
     },
     {
       "kind": "waitFor",
@@ -745,6 +753,7 @@
     "Code-verified against routes/Agents.svelte, components/agents/AgentsOverview.svelte, components/agents/create/CreateAgent.svelte, CreateAgentForm.svelte, CreateAgentProgress.svelte, CreateAgentReview.svelte, agentDraft.ts and components/agents/sheet/AdjustAccess.svelte.",
     "No model answers in a deterministic book, so the sheet is not written by a model: the run of the agent workshop is stubbed. launch_workflow and cancel_workflow_run imitate WorkflowRun, get_workflow_run imitates WorkflowRunDetail (crates/apollia-desktop/ui/src/lib/ipc/workflows.ts), list_pending_decisions imitates the PendingDecision a workflow question becomes (crates/apollia-runtime/src/api/routes_pending/collect.rs), agent_draft_offer imitates DraftOffer and check_agent_draft imitates AgentDraft (crates/apollia-runtime/src/agents/draft.rs). The output of the completed run imitates the sheet agents/system/agent-builder/workflows/draft.py returns.",
     "The workshop itself, the offer and the check are proven without stubs by tests/test_agent_builder_workflow.py and by the Rust tests of crates/apollia-runtime/src/agents/draft and src/api/routes_agent_definitions/tests_draft.rs.",
+    "The table of stubs answers a call with the first stub that matches it, so a command stubbed a second time is cleared first (clearStubs) or the first answer keeps being served: the run read as running and its question read as waiting are dropped before the completed run and the empty list are armed. The proposed answer is clicked before that swap, so the question is still on screen when the click lands.",
     "The save uses the real form: create_agent_definition is refused once to show the error, then stubbed with a ResolvedAgent, and set_agent_model is refused to show that the agent stays on the default model.",
     "agent-create-try is observed, not clicked: it opens a conversation with an agent the stub did not store. The grant dialogs of the form are played by agents-det.",
     "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run: just automation-seeded scripts/automation/agent-create-det.json."

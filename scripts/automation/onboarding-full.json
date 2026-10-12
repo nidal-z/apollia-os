@@ -321,6 +321,13 @@
       "label": "08b-onb-llm-detected-row-picked"
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_stt_config",
+      "patch": {
+        "enabled": false
+      }
+    },
+    {
       "kind": "click",
       "testid": "ai-setup-continue",
       "timeoutMs": 6000
@@ -439,6 +446,10 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "clearStubs",
+      "command": "get_stt_config"
+    },
+    {
       "kind": "stubInvoke",
       "command": "plugin:dialog|open",
       "resolve": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
@@ -537,6 +548,11 @@
       "timeoutMs": 15000
     },
     {
+      "kind": "waitGone",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "stubInvoke",
       "command": "get_embeddings_recommendation",
       "reject": "automation: get_embeddings_recommendation refused (seeded fault, registry unreadable)",
@@ -557,6 +573,11 @@
       "kind": "waitFor",
       "testid": "embeddings-unavailable",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 3000
     },
     {
       "kind": "expect",
@@ -588,6 +609,11 @@
       "kind": "waitFor",
       "testid": "onboarding-ai-setup",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 3000
     },
     {
       "kind": "stubInvoke",
@@ -759,6 +785,11 @@
       "kind": "waitFor",
       "testid": "onboarding-ai-setup",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-embeddings",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -2057,7 +2088,8 @@
     "The onboarding asks no usage profile: the welcome, where the language is chosen, leads straight to the AI setup, and ai-setup-back returns to the welcome. The AI setup is the only step that cannot be passed, and it asks neither for dictation nor for a context window: a recipe cannot name a control that no longer exists, so those absences are held by OnboardingAiSetup.test.ts, and the book checks what is there, ai-setup-continue-hint and a header that counts the steps that exist (onboarding-step-count). ai-setup-continue is open from the first pass because the seed registers a default backend. The book walks the welcome and the AI setup twice, once bare and once to replay the detected rows, and after the finish it checks that the developer group of the sidebar is absent, the developer mode staying off.",
     "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts), humanize keeps the raw text on detail (lib/errors/humanize.ts) and the disclosure of OnboardingModal.svelte renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because it closes the modal, which the earlier flow needs.",
     "curated-llm-row is played through the invoke stub, in the first ai-setup pass right after the picker import: a once stub rejects start_variant_download (lib/ipc/modelHub.ts) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the file name of the first row, a .gguf the live recommendation picks for the machine, so the book asserts the extension and not a name. The download is followed outside the step (llmDownload.ts), so the book then leaves the step on it: onboarding-model-progress shows in the header on the AI setup and still on the embeddings step, and embeddings-back finds llm-download-progress where it was. No event ever settles that fake id, so the book ends it with llm-download-cancel, which cancel_model_download refuses for an id it never knew: the step drops the download, the header notice goes and the curated list comes back, which the later passes of the step need.",
-    "The embeddings step (OnboardingEmbeddingsStep.svelte) follows ai-setup-continue. Its recommendation comes from get_embeddings_recommendation, which the runtime answers from its embedded table with no network, so embeddings-model-card renders in a deterministic run. The step was already opened once while the language model downloaded, and it reads its recommendation again each time it opens, so the book waits for embeddings-download rather than expecting it at once. The book plays, in order: the import of a file the registry does not offer (the picker stub resolves the seed's Phi-3-mini-Q4.gguf, embeddingsSetup.ts refuses it before any copy and embeddings-error names it); a download the invoke stub rejects, then one it resolves with a fake id so embeddings-download-progress renders; embeddings-download-cancel, which cancel_model_download refuses for an id it never knew, so the step puts the offer back; three round trips through embeddings-back, the first with get_embeddings_recommendation rejected (embeddings-unavailable, the step stays passable), the second with get_memory_embeddings_model resolving an installed entry (embeddings-ready); and the passing, whose warning lists the two unavailable functions before embeddings-continue-without opens the conversation. No default embeddings model is ever set by this book.",
+    "The embeddings step (OnboardingEmbeddingsStep.svelte) follows ai-setup-continue. Its recommendation comes from get_embeddings_recommendation, which the runtime answers from its embedded table with no network, so embeddings-model-card renders in a deterministic run. The step was already opened once while the language model downloaded, and it reads its recommendation again each time it opens, so the book waits for embeddings-download rather than expecting it at once. The book plays, in order: the import of a file the registry does not offer (the picker stub resolves the seed's Phi-3-mini-Q4.gguf, embeddingsSetup.ts refuses it before any copy and embeddings-error names it); a download the invoke stub rejects, then one it resolves with a fake id so embeddings-download-progress renders; embeddings-download-cancel, which cancel_model_download refuses for an id it never knew, so the step puts the offer back; three round trips through embeddings-back, the first with get_embeddings_recommendation rejected (embeddings-unavailable, the step stays passable), the second with get_memory_embeddings_model resolving an installed entry (embeddings-ready); and the passing, whose warning lists the two unavailable functions before embeddings-continue-without opens the conversation. No default embeddings model is ever set by this book. Each round trip waits for the panel it left to be gone (waitGone onboarding-embeddings after embeddings-back, waitGone onboarding-ai-setup after the continue that a back follows at once): the modal swaps its steps under a key block with a 120 ms exit (OnboardingModal.svelte, lib/design/motion.ts), and Svelte resumes a panel still on its way out when its key comes back instead of mounting a new one, so a back and a continue played inside that exit reopened the same embeddings step, which reads its recommendation only when it mounts and therefore kept the state of the previous pass.",
+    "The dictation block of that step (OnboardingDictationSetup.svelte) is played in its two states. The seed holds dictation switched on with ggml-base.bin installed (tests/cli/seed/fragments/system.sql, stt_config), a file the registry pins as whisper-base, so on the seeded home the block reads the model as in use and draws dictation-ready and the trial, never the offer (dictationSetup.ts modelInUse, embeddingsSetup.ts load). The offer is therefore reached through a stub: get_stt_config is patched with enabled false before the step opens, so the recommended model is offered and the book plays dictation-recommended, dictation-import, a download start_model_download refuses, then one it resolves with a fake id, and dictation-download-cancel; the patch is cleared right after. Nothing is written: no download ever completes, so the dictation settings are never saved. The ready state is played later with get_dictation_models, get_stt_config and list_stt_models resolved (types DictationModels, SttConfigView, SttModelInfo).",
     "The server of the AI step is played after the first danger-zone reset, inside the modal, which stays open throughout (OnboardingServerForm.svelte, serverSetup.ts). The first two refusals are real: an address without its scheme is refused by the form before any call, and http://127.0.0.1:9 goes to the backend, where nothing listens, so test_llm_server (commands/llm_servers.rs) rejects with a ServerTestFailure of kind unreachable whose sentence names the address. The listing and the choice are stubbed, a deterministic run having no server: a once stub resolves test_llm_server with two identifiers, then once stubs resolve save_llm_server with a ServerResponse and set_default_model with a DefaultModelResponse (routes_llm/servers.rs, routes_llm/presets.rs), so nothing is written to the seeded store. ai-setup-continue then leads to the embeddings step, and onboarding-skip closes the modal for the reset that follows.",
     "The first-agent step (OnboardingFirstAgent.svelte, firstAgent.ts) follows the profile review. first-agent-skip keeps no agent, so the connection step after it is passed over and the modal closes on a conversation with Apollia, which onboarding-llm plays; first-agent-continue leads to that step when the agent kept lacks a connection. Its three cards are played in turn. first-agent-card-install goes through the plugin-dialog `open` stub, then preview_package_file is stubbed with a PackagePreview (crates/apollia-runtime/src/packages/preview.rs): no file exists at the path, the book only reads that the preview dialog rises above the modal, and cancels it. first-agent-card-create mounts components/agents/create/CreateAgent.svelte inside the step; create_chat_session is refused once, so the conversation says it could not start and agent-create-cancel returns to the cards with no model turn. The draft and the saved agent are played by agent-create-det on the Agents screen.",
     "The binary proposes no example of its own yet, so the three example commands are stubbed as in agent-examples-det: list_example_packages answers two ExamplePackage (crates/apollia-runtime/src/packages/examples.rs), and preview_example_package and install_example_package are armed with argsMatch on the chosen name alone, so a call naming the other example would reach the runtime and fail the book. The installation itself writes nothing into the seeded home; the step keeps the agent the preview named in its installed event (first-agent-kept). The real installation of one example and of that one only is held by the runtime tests of packages/examples.rs.",

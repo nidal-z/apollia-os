@@ -36,25 +36,13 @@
     },
     {
       "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 10000
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "00-quickpicker-open"
-    },
-    {
-      "kind": "fill",
-      "testid": "quickpicker-textarea",
-      "text": "Combien font 17 x 23 ?"
-    },
-    {
-      "kind": "screenshot",
-      "label": "00-quickpicker-filled"
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-submit"
+      "kind": "waitFor",
+      "testid": "chat-plan-mode-chip",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
@@ -62,8 +50,17 @@
       "timeoutMs": 20000
     },
     {
+      "kind": "screenshot",
+      "label": "00-new-conversation"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Combien font 17 x 23 ?"
+    },
+    {
       "kind": "awaitTurn",
-      "label": "01-math"
+      "label": "01-math",
+      "timeoutMs": 300000
     },
     {
       "kind": "sleep",
@@ -79,5 +76,9 @@
       "kind": "screenshot",
       "label": "02-answer"
     }
+  ],
+  "notes": [
+    "New chat opens a conversation at once (routes/Chat.svelte, startConversation); the picker shows only when create_chat_session fails. The question is therefore sent from the composer of the conversation that opened. chat-plan-mode-chip is awaited before the send because the header renders it only once the detail of the conversation is loaded (ChatConversationHeader.svelte, {#if session}), which is also when the conversation is pushed into currentSession, the store awaitTurn reads the session id from.",
+    "The model of a seeded run reasons before it answers: awaitTurn carries its own deadline, and the answer is captured, not asserted on its wording."
   ]
 }

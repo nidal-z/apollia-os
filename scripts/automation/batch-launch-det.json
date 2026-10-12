@@ -2,7 +2,8 @@
   "name": "batch-launch-det (the launch dialog of a batch opened from the sheet of an agent: refused without a source, an empty registry, sources and accesses unreadable, a folder listed with its reason, a CSV source with its preview, its copy and columns, a file picked that cannot be read, an old format whose formatting is not kept, a mailbox, a launch refused then accepted)",
   "notes": [
     "The stubs imitate SourceResponse (GET /api/v1/sources), SourcePreviewResponse (POST /api/v1/sources/preview), BatchAccess (GET /api/v1/batches/accesses) and BatchView (POST /api/v1/batches). The offer on a file dropped in the chat is not played: only a desktop drop carries the path of a file, and the runner builds its files in the webview.",
-    "The preview of the picked requests.xlsx is not stubbed: no such file exists in the seeded home, and the runtime's own refusal is what the dialog shows."
+    "The preview of the picked requests.xlsx is not stubbed: no such file exists in the seeded home, and the runtime's own refusal is what the dialog shows.",
+    "The preview stubs are told apart by headerRow, never by path: the runner expands ${HOME} in the value a stub answers and not in its argsMatch, so a path written with the token matches no call. The stub of the changed header row is armed first (the first stub that matches answers), the two stubs of requests.csv are cleared before requests.xlsx is picked so that pick reaches the runtime, and the stub of legacy.xls is then the only one armed."
   ],
   "stopOnError": false,
   "dynamicTestids": [
@@ -238,7 +239,6 @@
       "kind": "stubInvoke",
       "command": "preview_batch_source",
       "argsMatch": {
-        "path": "${HOME}/requests.csv",
         "headerRow": 2
       },
       "resolve": {
@@ -310,9 +310,6 @@
     {
       "kind": "stubInvoke",
       "command": "preview_batch_source",
-      "argsMatch": {
-        "path": "${HOME}/requests.csv"
-      },
       "resolve": {
         "format": "csv",
         "sourceType": "csv",
@@ -542,6 +539,10 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "clearStubs",
+      "command": "preview_batch_source"
+    },
+    {
       "kind": "stubInvoke",
       "command": "plugin:dialog|open",
       "resolve": "${HOME}/requests.xlsx",
@@ -580,9 +581,6 @@
     {
       "kind": "stubInvoke",
       "command": "preview_batch_source",
-      "argsMatch": {
-        "path": "${HOME}/legacy.xls"
-      },
       "resolve": {
         "format": "xls",
         "sourceType": "spreadsheet",

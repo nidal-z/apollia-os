@@ -1,8 +1,12 @@
 {
   "name": "mailbox-det (inter-agent mailbox observability surface; seeded mailbox.db, asserts populated rows on Observability > Mailbox)",
   "stopOnError": false,
+  "notes": [
+    "Observability is a developer screen: with the developer mode off the router sends the route to the default one (lib/navigation/developerRoutes.ts reachableRoute, applied in Main.svelte), so the book turns the mode on from the settings before it opens the screen, as observability-det does. The mailbox tab itself is one of the three tabs drawn for everyone once the screen is reached (routes/Observability.svelte tabItems)."
+  ],
   "dynamicTestids": [
-    "observability-tab-mailbox"
+    "observability-tab-mailbox",
+    "settings-nav-developer"
   ],
   "steps": [
     {
@@ -16,13 +20,39 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "goto",
-      "route": "observability"
-    },
-    {
       "kind": "waitFor",
       "testid": "app-main",
       "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
     },
     {
       "kind": "waitFor",

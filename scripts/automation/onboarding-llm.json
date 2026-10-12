@@ -2,7 +2,9 @@
   "name": "onboarding-llm",
   "stopOnError": false,
   "dynamicTestids": [
-    "profile-field-role"
+    "profile-field-name",
+    "profile-field-role",
+    "settings-nav-profile"
   ],
   "steps": [
     {
@@ -64,170 +66,46 @@
     },
     {
       "kind": "waitFor",
-      "testid": "onboarding-chat-step",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-bootstrap",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-onb-bootstrap"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-stop-button",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "screenshot",
-      "label": "03-onb-bootstrap-streaming"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-chat-banner",
+      "testid": "onboarding-model-test-step",
       "timeoutMs": 15000
     },
     {
       "kind": "screenshot",
-      "label": "04-onb-chat-first-question"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "captureText",
-      "testidPrefix": "chat-message-",
-      "nth": -1,
-      "as": "bootstrap_reply"
-    },
-    {
-      "kind": "sendChat",
-      "text": "My name is Ada and I'm a software engineer."
+      "label": "02-onb-model-test-running"
     },
     {
       "kind": "waitFor",
-      "testid": "chat-stop-button",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-onb-name-role-during"
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
+      "testid": "onboarding-model-test-answer",
+      "timeoutMs": 150000
     },
     {
       "kind": "captureText",
-      "testidPrefix": "chat-message-",
-      "nth": -1,
-      "as": "answer_name_role"
+      "testid": "onboarding-model-test-answer",
+      "as": "model_test_answer"
     },
     {
       "kind": "screenshot",
-      "label": "06-onb-pips-after-name"
-    },
-    {
-      "kind": "sendChat",
-      "text": "I work in the engineering department, with VS Code, GitHub and Slack."
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-stop-button",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "captureText",
-      "testidPrefix": "chat-message-",
-      "nth": -1,
-      "as": "answer_function_tools"
-    },
-    {
-      "kind": "screenshot",
-      "label": "07-onb-pips-after-tools"
-    },
-    {
-      "kind": "sendChat",
-      "text": "I like short answers, in English."
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-stop-button",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-stop-button",
-      "timeoutMs": 120000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "captureText",
-      "testidPrefix": "chat-message-",
-      "nth": -1,
-      "as": "answer_preferences"
-    },
-    {
-      "kind": "screenshot",
-      "label": "08-onb-pips-after-preferences"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "onboarding-finish-early",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "screenshot",
-      "label": "09-onb-finish-early"
-    },
-    {
-      "kind": "click",
-      "testid": "onboarding-finish-early"
+      "label": "03-onb-model-test-answered"
     },
     {
       "kind": "waitFor",
       "testid": "onboarding-profile-review",
-      "timeoutMs": 180000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "profile-field-role",
       "timeoutMs": 15000
     },
     {
-      "kind": "screenshot",
-      "label": "10-onb-profile-proposed"
+      "kind": "waitFor",
+      "testid": "profile-field-name",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-field-name",
+      "text": "Ada"
     },
     {
       "kind": "fill",
       "testid": "profile-field-role",
-      "text": "Staff software engineer"
+      "text": "Software engineer"
     },
     {
       "kind": "expect",
@@ -235,7 +113,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "11-onb-profile-role-corrected"
+      "label": "04-onb-profile-by-hand"
     },
     {
       "kind": "click",
@@ -281,10 +159,198 @@
     },
     {
       "kind": "screenshot",
-      "label": "12-onb-profile-saved"
+      "label": "05-onb-first-task-conversation"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-close-button",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-profile"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-section",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-enrichment-banner",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-profile-enrichment-banner"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-enrichment-resume"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-chat-step",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-chat-banner",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-enrich-first-turn-streaming"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 300000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "bootstrap_reply"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-enrich-first-question"
+    },
+    {
+      "kind": "sendChat",
+      "text": "I work in the engineering department, with VS Code, GitHub and Slack."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 300000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "answer_function_tools"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-enrich-after-tools"
+    },
+    {
+      "kind": "sendChat",
+      "text": "I like short answers, in English."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 300000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "answer_preferences"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-enrich-after-preferences"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-finish-early",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-finish-early"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 300000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-proposal-banner",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-proposal-skip"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-profile-proposal-laid-over-the-form"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-proposal-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-saved-hint",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-proposal-banner",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-profile-proposal-saved"
     }
   ],
   "notes": [
-    "The profile review leads to the first-agent step (OnboardingFirstAgent.svelte). This book passes it with first-agent-skip, which keeps no agent: the connection step is passed over and the modal closes on the first task (OnboardingFirstTask.svelte), here a conversation with Apollia, really created, with an empty composer and no introduction (first-task-intro absent). The three cards of the step and the first task of an agent kept are played by onboarding-full."
+    "The first launch no longer holds a conversation with the onboarding agent (commit a05d44416, OnboardingModal.svelte): after the embeddings step it tests the model (OnboardingModelTest.svelte: one question in a conversation of its own, deleted once read, onboarding-model-test-answer when the model answered, a failure after 120 seconds, MODEL_TEST_TIMEOUT_MS in modelTest.ts), and the profile is filled by hand in the form under it (OnboardingProfileReview.svelte with no proposal). The book waits for the answer of the real model, fills the name and the role, saves, and passes the first-agent step with first-agent-skip, which keeps no agent: the connection step is passed over and the modal closes on the first task (OnboardingFirstTask.svelte), here a conversation with Apollia, really created, with an empty composer and no introduction (first-task-intro absent). The three cards of that step and the first task of an agent kept are played by onboarding-full.",
+    "The conversation with the onboarding agent, and the profile it proposes, are what this book is for; they now live behind Settings > Profile. The banner (ProfileEnrichmentBanner.svelte) shows once the name and the role are saved and a field is still empty (shouldOfferEnrichment, profileForm.ts), which is why the first launch above saves both; profile-enrichment-resume opens the onboarding modal straight on the conversation (OnboardingModal.svelte, enriching; OnboardingChatStep.svelte). The first message tells the agent what the profile already holds, so the two answers sent here are about the rest. onboarding-finish-early asks the agent to propose now; when its proposal lands (onboarding.completed_at, polled every three seconds) the step hands it to the profile page and closes the modal, and the page lays it over the form as unsaved edits (profile-proposal-banner, routes/settings/Profile.svelte, layProposal), saved with profile-proposal-save. A resume forgets the completion the model test stamped (forget_agent_entries, crates/apollia-runtime/src/onboarding.rs), so the conversation is not closed before the first answer.",
+    "The conversation the first launch closed on is closed before the settings open (chat-close-button): the onboarding modal is mounted after the screen (App.svelte), so a composer left open underneath would be the first chat-input of the document and sendChat would write into it instead of the agent's conversation.",
+    "Two things depend on the model and can turn a step red on a correct build: an agent that proposes by itself before onboarding-finish-early is pressed makes that wait and its click fail while the proposal still lands (the steps after them pass), and a proposal that changes no field is dropped by the page (layProposal returns null), so profile-proposal-banner never shows. Each turn is waited five minutes: the model of a seeded run reasons before it answers. onboarding-bootstrap is no longer awaited: it shows only while the session is being created, a window a poll can miss."
   ]
 }

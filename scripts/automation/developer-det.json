@@ -9,7 +9,7 @@
     "The picker of Load a model is opened and closed without choosing: the models of the seed are placeholders, and the loading window is played by llm-det.",
     "The cards are stubbed: list_loaded_models resolves a LoadedModelsResponse (ui/src/lib/types/llm.ts), list_mcp_exposable a list of McpExposableItem (crates/apollia-desktop/src/commands/mcp_bridge.rs), get_workflow a WorkflowView (ui/src/lib/ipc/workflows.ts), unload_loaded_model an UnloadedModel. A field renamed there drifts here silently. The seed loads no model and exposes nothing the book could count on. The stubs are armed while the documentation view is shown, so the local server pane reads them when it mounts again; they are all cleared after the eject.",
     "The foot Supported endpoints is asserted, not clicked: while the documentation pane reads no page it opens the documentation site in the browser of the machine.",
-    "The documentation is the archive compiled into the application: nothing is stubbed to read it, and the run speaks English, so the titles waited for are the English ones of the site (Help center, Installation, Install Apollia Desktop on macOS, Install Apollia Desktop on Windows, Architecture). A page renamed on the site moves these waits; the category ids are places in the sidebar tree (developer-docs-category-1 is the help center, -1-0 its Installation category, -6 the architecture), so a category added before them moves the ids.",
+    "The documentation is the archive compiled into the application: nothing is stubbed to read it, and the run speaks English, so the titles waited for are the English ones of the site (Apollia Desktop, help center, waited for by its last two words, then Installation, Install Apollia Desktop on macOS, Install Apollia Desktop on Windows, Architecture). A page renamed on the site moves these waits; the category ids are places in the sidebar tree (developer-docs-category-1 is the help center, -1-0 its Installation category, -6 the architecture), so a category added before them moves the ids.",
     "plugin:opener|open_url resolves null so View on the web and the button under a diagram never reach the host browser; the address handed over is held by the Vitest suite. Copy as Markdown is clicked, not asserted, for the reason the address copy is. The fallback mention is played through a patch of get_documentation_page (DocsPage of crates/apollia-desktop/src/embedded_docs.rs, field fallback), since an English run never falls back; the unreadable page through a reject of the same command. Both are armed once and cleared before the documentation is left.",
     "The book leaves the server stopped and the developer mode off, as it found them.",
     "Not folded into master-det: this book has not been through a runtime round yet. Add it to ORDER in tools/regen_master.py after its first green solo run.",
@@ -23,7 +23,8 @@
     "The tokens are real: the book creates one token named Automation book in the system.db of the seeded home through the token routes of the runtime, reads the count of active tokens go to 1 in the settings, revokes it and reads the count come back to 0. The window is opened with the server stopped, so no listener is involved. The rows take their test ids from the identifiers the runtime gives (developer-server-token-row-<id>, with -revoke for the button), so the book clicks the last match of the prefix, which is the revoke button of the last row.",
     "The unreadable list of tokens is stubbed once: list_server_tokens rejects with the text of an API error, the form the shell gives a failed GET. The copy of the token is clicked, not asserted, for the reason given for the address. The value of the token is never read into the report: the book only waits for its apo_ prefix, then for the value to be gone once the window was closed and opened again.",
     "The id of a failure under the name of a token ends with the kind of the failure (developer-server-tokens-error-<kind>, components/developer/serverTokens.ts), so the one the book waits for is declared dynamic here.",
-    "The examples menu is opened on the first card, the stubbed model, with the server stopped: the examples are written for the address the state of the server reports, which a stopped server still has. Its entries and its copy buttons take their test ids from the list of examples in components/developer/examples.ts (developer-example-entry-<name>, developer-example-copy-<name>) and the choice of the SDK from its two names, so they are declared dynamic here. The copy buttons are clicked, not asserted, for the reason given for the address. The example with an MCP server provided by the request is reached by switching [server] allow_request_mcp on for real, in the apollia.toml of the seeded home, then off again; no request is ever sent.",
+    "The examples menu is opened on the card of the stubbed model, with the server stopped. The exposed agents and workflows are listed before the loaded models, so the button of the model is the last developer-examples-open of the pane (nth -1); the first one belongs to an exposed agent, whose tool and MCP entries are greyed out. The examples are written for the address the state of the server reports, which a stopped server still has. Its entries and its copy buttons take their test ids from the list of examples in components/developer/examples.ts (developer-example-entry-<name>, developer-example-copy-<name>) and the choice of the SDK from its two names, so they are declared dynamic here. The copy buttons are clicked, not asserted, for the reason given for the address. The example with an MCP server provided by the request is reached by switching [server] allow_request_mcp on for real, in the apollia.toml of the seeded home, then off again; no request is ever sent.",
+    "The window of the tokens shows its empty line before the list is read as well as after, and the answer of that read replaces the window, a failure under the name included. The book sleeps between the empty line and the creation with an empty name so the refusal is not overwritten by the read; no element says the list was read.",
     "The HTTP reference is read from the OpenAPI document compiled into the application: its category is the eighth of the tree (developer-docs-category-7, after the seven of the site), and the group of the tasks is named by its tag. A category added to the sidebar of the site, or the tag renamed in the contract, drifts here silently."
   ],
   "dynamicTestids": [
@@ -520,6 +521,10 @@
       "kind": "waitFor",
       "testid": "developer-server-tokens-empty",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "click",
@@ -1091,7 +1096,7 @@
       "kind": "waitFor",
       "testid": "developer-docs-title",
       "timeoutMs": 8000,
-      "contains": "Help center"
+      "contains": "help center"
     },
     {
       "kind": "click",
@@ -1189,7 +1194,7 @@
       "kind": "waitFor",
       "testid": "developer-docs-title",
       "timeoutMs": 8000,
-      "contains": "Help center"
+      "contains": "help center"
     },
     {
       "kind": "click",
@@ -1446,7 +1451,8 @@
     },
     {
       "kind": "click",
-      "testid": "developer-examples-open"
+      "testid": "developer-examples-open",
+      "nth": -1
     },
     {
       "kind": "waitFor",
@@ -1549,7 +1555,8 @@
     },
     {
       "kind": "click",
-      "testid": "developer-examples-open"
+      "testid": "developer-examples-open",
+      "nth": -1
     },
     {
       "kind": "waitGone",
@@ -1581,7 +1588,8 @@
     },
     {
       "kind": "click",
-      "testid": "developer-examples-open"
+      "testid": "developer-examples-open",
+      "nth": -1
     },
     {
       "kind": "waitFor",
@@ -1609,7 +1617,8 @@
     },
     {
       "kind": "click",
-      "testid": "developer-examples-open"
+      "testid": "developer-examples-open",
+      "nth": -1
     },
     {
       "kind": "waitGone",

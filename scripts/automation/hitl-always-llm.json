@@ -2,12 +2,15 @@
   "name": "hitl-always-llm (the always answer of the inbox HITL card: one grant, then the same family runs without a card)",
   "stopOnError": false,
   "dynamicTestids": [
-    "review-filter-decisions"
+    "review-filter-decisions",
+    "settings-nav-developer"
   ],
   "notes": [
-    "Standalone by design. hitl-always renders only inside the inbox HITLCard mounted with onAlwaysAccept, which InboxPendingList passes for an EXPANDED chat-tool pending row (InboxPendingList.svelte, HITLCard.svelte). The pending row is a live tool call awaiting approval (in-memory pendingChatApprovals, no seed row), so the block starts a new free-chat session whose prompt names the tool and the file.",
-    "The grant persists beyond the block: inboxActions.ts alwaysAccept -> authorize_chat_tool always_accept, which the loop turns into a standing consent of the agent for the family of the tool (governance grant_always, table family_consents of governance.db), never a rule on a tool name. Hence the second block: file_edit is a different tool of the same \"write or delete\" family, in a fresh session, and must run without any card; the turn is closed by waitGone chat-stop-button and not by awaitTurn, which would accept a card and hide the defect.",
+    "Standalone by design. The always answer is played on the card of the inbox (ReviewItem.svelte mounts the consent card of the chat for a pending decision of a conversation). The pending decision is a live tool call awaiting approval (in memory, no seed row), so the block starts a new conversation with Apollia whose request names the tool and the file.",
+    "The seed leaves the Apollia agent a standing consent for the write family already: its Allow rule on file_edit for a project carries no prefix, and the access upgrade the runtime runs once at startup turns it into an always of apollia:chat for write_or_delete (crates/apollia-permissions/src/access_upgrade.rs). With it no file_write asks and the book has nothing to grant, so it first withdraws that consent on the Authorizations screen (first agent of the list, first standing consent, held by an expect on its family label). The developer mode is pinned off first, since the card ids are the operator ones.",
+    "The grant persists beyond the block: the always answer becomes a standing consent of the agent for the family of the tool (governance grant_always, table family_consents of governance.db), never a rule on a tool name. Hence the second block: file_edit is a different tool of the same write family, in a fresh conversation, and must run without any card; the turn is closed by awaitTurn with approve false, which accepts nothing and times out on a card left waiting, then the card is asserted absent.",
     "Chat unmounts on every route change ({#key $currentRoute}, lib/components/app/Main.svelte), so the way back to the session after the inbox detour is conversation-row-menu-button nth 0 -> conversation-row-menu-configure (openConfig -> navigateToSession, Chat.svelte; list_chat_sessions is ORDER BY created_at DESC so row 0 is the session the block created). awaitTurn then follows the real session status while the granted tool runs.",
+    "New chat opens a conversation at once (routes/Chat.svelte, startConversation); the second one is opened after closing the conversation on screen (chat-close-button), so the header waited for is the new one.",
     "Side effects in the throwaway HOME: two new sessions, one file under the checkout's tmp/ (the checkout is the seed folder connection granted to the Apollia agent, so a relative path lands there), one edit of it, and one standing consent of the agent for the write family. Never fold this book into master-llm before hitl-critical: hitl-critical expects file_write to ask in a new session.",
     "Model-dependent: each block needs the named tool call."
   ],
@@ -29,6 +32,79 @@
     },
     {
       "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "authorizations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-list-agent",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-list-agent",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "authorizations-always",
+      "nth": 0,
+      "contains": "Write or delete"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-always-withdraw",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-undo",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00a-write-consent-withdrawn (the standing consent the access upgrade wrote for the write family)"
+    },
+    {
+      "kind": "goto",
       "route": "chat"
     },
     {
@@ -47,27 +123,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 10000
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
     },
     {
-      "kind": "fill",
-      "testid": "quickpicker-textarea",
+      "kind": "sendChat",
       "text": "Avec l'outil file_write, écris le texte \"toujours\" dans le fichier tmp/always-write.txt."
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-submit"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-input",
-      "timeoutMs": 20000
     },
     {
       "kind": "waitFor",
       "testid": "chat-approval-inline",
-      "timeoutMs": 120000
+      "timeoutMs": 240000
     },
     {
       "kind": "goto",
@@ -151,11 +217,22 @@
     },
     {
       "kind": "awaitTurn",
-      "label": "03-always-turn"
+      "label": "03-always-turn",
+      "timeoutMs": 300000
     },
     {
       "kind": "screenshot",
       "label": "03-always-turn"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-close-button",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
@@ -164,27 +241,23 @@
     },
     {
       "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 10000
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
     },
     {
-      "kind": "fill",
-      "testid": "quickpicker-textarea",
+      "kind": "sendChat",
       "text": "Avec l'outil file_edit, remplace \"toujours\" par \"sans redemander\" dans le fichier tmp/always-write.txt."
     },
     {
-      "kind": "click",
-      "testid": "quickpicker-submit"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-input",
-      "timeoutMs": 20000
+      "kind": "awaitTurn",
+      "label": "04-same-family-turn",
+      "approve": false,
+      "timeoutMs": 300000
     },
     {
       "kind": "waitGone",
-      "testid": "chat-stop-button",
-      "timeoutMs": 180000
+      "testid": "chat-approval-inline",
+      "timeoutMs": 2000
     },
     {
       "kind": "screenshot",

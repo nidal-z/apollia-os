@@ -32,16 +32,22 @@ llama_require_model() {
     fi
 }
 
-# Echo the llama-server binary: LLAMA_BIN when set, else the one on PATH.
+# Echo the llama-server binary: LLAMA_BIN when set, else the engine staged in
+# this checkout, else the one on PATH. The staged engine comes first because it
+# is the pinned build the application ships: a model that needs it is refused
+# by an older server found on PATH ("unknown model architecture").
 # `command -v` answers non-zero when the binary is absent, which under
 # `set -e` would end a recipe on a bare exit code, so it is resolved here and
 # the absence is named.
 llama_resolve_bin() {
-    local bin="${LLAMA_BIN:-}"
+    local bin="${LLAMA_BIN:-}" staged
+    staged="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/target/debug/runners/llama-server"
+    if [ -z "$bin" ] && [ -x "$staged" ]; then bin="$staged"; fi
     [ -n "$bin" ] || bin="$(command -v llama-server || true)"
     if [ -z "$bin" ] || [ ! -x "$bin" ]; then
         echo "error: llama-server not found." >&2
-        echo "       Install llama.cpp so that llama-server is on PATH, or set" >&2
+        echo "       Stage the pinned engine (packaging/fetch-llama-server.sh)," >&2
+        echo "       install llama.cpp so that llama-server is on PATH, or set" >&2
         echo "       APOLLIA_LLAMA_BIN to the binary (see .env.example)." >&2
         return 1
     fi

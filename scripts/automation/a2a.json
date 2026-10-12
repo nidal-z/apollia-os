@@ -2,22 +2,28 @@
   "name": "a2a (seed-classifier delegation via chat)",
   "stopOnError": false,
   "dynamicTestids": [
-    "a2a-skill-chip-classify_text"
+    "a2a-skill-chip-agent:seed-classifier"
+  ],
+  "notes": [
+    "New chat opens a conversation at once (routes/Chat.svelte, startConversation), on the Apollia agent; the first message is typed in its composer.",
+    "The skill of the seeded agent is agent:seed-classifier: an agent is a record of a package and takes a message, and the classify_text skill the chip used to name is gone with the manifest that declared it (the seed package now declares classify_text as a tool). The chip step names the current skill id and is expected to FAIL on the application as it is, on purpose: every stored agent is registered with supports_a2a false, no skill and no agent type (crates/apollia-tools/src/agent_definition.rs, manifest_of), the badge keeps the agents that support A2A and are workers (A2AWorkerBadge.svelte), and the desktop command list_a2a_skills reads the skills of the registry alone (commands/chat.rs), so the popover lists no worker and no chip. The step is left to say so rather than removed.",
+    "The delegation is best effort and asserts nothing about what the model does: the seed grants the Apollia agent no agent:seed-classifier access, and an agent reaches another one only through an access it was granted (crates/apollia-runtime/src/composition.rs). The turn is driven to its end and its last message captured."
   ],
   "steps": [
     {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
       "kind": "click",
       "testid": "onboarding-skip",
-      "timeoutMs": 3000
+      "timeoutMs": 8000
     },
     {
       "kind": "waitGone",
       "testid": "onboarding-skip",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main"
+      "timeoutMs": 5000
     },
     {
       "kind": "goto",
@@ -25,7 +31,8 @@
     },
     {
       "kind": "waitFor",
-      "testid": "chat-page"
+      "testid": "chat-page",
+      "timeoutMs": 30000
     },
     {
       "kind": "click",
@@ -33,25 +40,16 @@
     },
     {
       "kind": "waitFor",
-      "testid": "quickpicker"
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
     },
     {
-      "kind": "fill",
-      "testid": "quickpicker-textarea",
+      "kind": "sendChat",
       "text": "Bonjour, je vais te demander une classification."
     },
     {
-      "kind": "click",
-      "testid": "quickpicker-submit"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-input",
-      "timeoutMs": 30000
-    },
-    {
       "kind": "awaitTurn",
-      "timeoutMs": 120000
+      "timeoutMs": 300000
     },
     {
       "kind": "screenshot",
@@ -72,11 +70,11 @@
     },
     {
       "kind": "expect",
-      "testid": "a2a-skill-chip-classify_text"
+      "testid": "a2a-skill-chip-agent:seed-classifier"
     },
     {
       "kind": "screenshot",
-      "label": "02-skill-chip-classify_text"
+      "label": "02-skill-chip-agent-seed-classifier"
     },
     {
       "kind": "click",
@@ -88,7 +86,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Utilise le worker seed-classifier via son skill classify_text pour classer le texte \"chaudiere gaz du site A\" parmi les labels [\"scope1\", \"scope2\", \"scope3\"]. Rends uniquement le label."
+      "text": "Demande à l'agent seed-classifier de classer le texte \"chaudiere gaz du site A\" parmi les labels scope1, scope2 et scope3. Rends uniquement le label."
     },
     {
       "kind": "waitFor",
@@ -109,7 +107,7 @@
     },
     {
       "kind": "awaitTurn",
-      "timeoutMs": 180000
+      "timeoutMs": 300000
     },
     {
       "kind": "sleep",

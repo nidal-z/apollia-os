@@ -3,10 +3,12 @@
   "stopOnError": false,
   "destructive": true,
   "notes": [
+    "The developer mode is turned on first: Memory and Transcriptions are developer screens, which the router sends to the default route while the mode is off (lib/navigation/developerRoutes.ts reachableRoute), and the AI block that follows needs the mode as well. It stays on for the whole book.",
+    "The conversation deleted by the chat block is the one New chat opens at once (routes/Chat.svelte startConversation); the picker shows only when create_chat_session fails, so the book no longer goes through it. The seed sets chat_single_empty to false, so the press makes a fresh conversation and no seeded one is deleted.",
     "The LLM block deletes a server for real: the seeded system.db turns each OpenAI-compatible engine row into a server at its first opening, sorted by name, so the first entry of the column is gpu-server (tests/cli/seed/fragments/system.sql). The confirmation asks for that name. Its engine row stays: only the server and its key are forgotten.",
     "ai-servers-empty is reached through a stub rather than through deletions, so the two other seeded servers stay for the rest of the book: list_llm_servers resolves [] (type DeclaredServer), the screen is left and reopened because it reads the servers at mount, and the stub is cleared after the form is cancelled.",
-    "One uninstall of apollia-guide serves agent-uninstall-confirm, the five companion-error-* anchors and agent-unavailable-install: rows are addressed by agents-search then agent-list-row nth 0 (store order, no sort, Agents.svelte:107; the expect on agent-detail-title guards the row), never nth -1. Uninstall unregisters the guide (commands/agents/lifecycle.rs:240-248) and it is re-provisioned only at boot (main.rs:171), so create_companion_session rejects GuideAgentNotInstalled (commands/onboarding/companion.rs:95-102); the message carries none of timeout/network/connect/session, so the error is kind internal / ERR_COMPANION_UNKNOWN (stores/companion.ts:183-220) and the details toggle renders on error.message (CompanionErrorState.svelte:121). companion-error-settings maps internal to the settings route with the panel left mounted (CompanionPanel.svelte:328-340); companion-error-close hides it, the store's enabled stays true, so no later step toggles the companion.",
-    "agent-unavailable-install: seed-session-2 is an agent-mode session on apollia-guide (tests/cli/seed/fragments/chat.sql:39-42); it is opened through the palette's Sessions group (paletteIndex.ts:98-124, keywords carry the session id; the group lists the freshest chatSessions when no session was touched through the palette yet, recentSessionsStore.ts:53-66) so the banner condition of ChatConversation.svelte:142-147 holds with the guide gone from $agents. The mapper's seed-classifier route is refuted: seed-classifier is a worker and Agents.svelte:107 keeps workers out of agent-list-row.",
+    "The guide can no longer be uninstalled, so the three blocks one uninstall of apollia-guide used to serve are played apart. The guide ships as an agent of the embedded package apollia-guide, reassembled at start (crates/apollia-desktop/src/bundled_packages.rs): the runtime refuses the agent on its own because a package owns it (UninstallError::OwnedByPackage, crates/apollia-runtime/src/packages/uninstall.rs) and refuses the package because it is embedded (UninstallError::BuiltIn, same file). The sheet still offers the gesture, so the book arms it and confirms it on apollia-guide (rows addressed by agents-search then agent-list-row nth 0, the expect on agent-detail-title guards the row), then reads the refusal: useAgentActions.svelte.ts reports it as a toast, the header goes back to agent-uninstall-btn and the sheet still names the guide. No seeded agent is installed on its own, so no uninstall of the sheet succeeds in this book; the uninstall that succeeds is the one of a package, on the Library screen (library-det). agent-sheet-back returns to the list, where the search is emptied. The five companion-error-* anchors are reached through a stub: create_companion_session is rejected with the sentence of CompanionError::GuideNotInstalled (crates/apollia-runtime/src/companion.rs), which the command returns as a plain string (commands/onboarding/companion.rs). It carries none of timeout/network/fetch/connect/session, so the error is kind internal / ERR_COMPANION_UNKNOWN (buildError, lib/stores/companion.ts) and the details toggle renders on error.message (CompanionErrorState.svelte). The stub stays armed across companion-error-retry, so the retry fails again; companion-error-settings maps internal to the settings route with the panel left mounted (GuideTab.svelte handleOpenSettings); companion-error-close hides it and the stub is cleared. The store's enabled stays true, so no later step toggles the companion.",
+    "agent-unavailable-install: seed-session-2 is an agent-mode session on apollia-guide (tests/cli/seed/fragments/chat.sql), opened through the palette's Sessions group (paletteIndex.ts, keywords carry the session id). The guide being installed for good, the absent agent is reached through a stub: get_chat_session is patched under argsMatch seed-session-2 with agent_name automation-absent-agent (type ChatSessionDetail), a name no list holds. The conversation first reads a fresh list of agents, for real, and shows the banner only once that list still does not name the agent (lib/chat/agentPresence.ts, components/chat/AgentPresenceNotice.svelte), so the wait on agent-unavailable-banner asserts the name. The stub is cleared once agent-unavailable-install has landed on the Agents screen, so a second read of the session cannot withdraw the banner before the click. The mapper's seed-classifier route is refuted: seed-classifier is a worker and Agents.svelte keeps workers out of agent-list-row.",
     "update-install-btn stays unplayed and a boundary even in this book: it renders only on phase available (UpdateCheckPanel.svelte:184), which needs a signed latest.json from the GitHub endpoint of tauri.conf.json (commands/updates.rs:130-141, offline the check fails at transport), and acting on it runs install_update, which replaces the binary and restarts the app before the report is written.",
     "agent-detail-title is a prop value (AgentDetailHeader.svelte:154 titleTestid, applied at lib/components/operator/DetailHeader.svelte:44), invisible to the validator's literal corpus; declared dynamic here exactly as agents-det declares it.",
     "user-menu-quit is played last with quit_app answered by a stub: the real command exits the process before the report is written, so the gesture is exercised up to the IPC call and the window is asserted still alive afterwards."
@@ -38,6 +40,32 @@
       "kind": "waitGone",
       "testid": "onboarding-skip",
       "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
     },
     {
       "kind": "goto",
@@ -138,19 +166,6 @@
     },
     {
       "kind": "waitFor",
-      "testid": "quickpicker"
-    },
-    {
-      "kind": "fill",
-      "testid": "quickpicker-textarea",
-      "text": "Conversation a supprimer."
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-submit"
-    },
-    {
-      "kind": "waitFor",
       "testid": "chat-conversation-header",
       "timeoutMs": 30000
     },
@@ -192,32 +207,6 @@
     {
       "kind": "screenshot",
       "label": "09-chat-after"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on"
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
     },
     {
       "kind": "goto",
@@ -708,8 +697,28 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "sleep",
-      "ms": 800
+      "kind": "waitFor",
+      "testid": "toast",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-detail-title",
+      "contains": "apollia-guide"
+    },
+    {
+      "kind": "screenshot",
+      "label": "30c-guide-uninstall-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-sheet-back",
+      "timeoutMs": 4000
     },
     {
       "kind": "fill",
@@ -718,8 +727,9 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "screenshot",
-      "label": "30c-guide-uninstalled"
+      "kind": "stubInvoke",
+      "command": "create_companion_session",
+      "reject": "apollia-guide agent not found - it powers the companion panel and is provisioned at startup, bundle it and restart the application"
     },
     {
       "kind": "click",
@@ -765,7 +775,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "30d-companion-error-state (create_companion_session rejects GuideAgentNotInstalled once the guide is gone)"
+      "label": "30d-companion-error-state (create_companion_session rejected by the harness with the sentence of GuideNotInstalled)"
     },
     {
       "kind": "click",
@@ -847,8 +857,22 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "clearStubs",
+      "command": "create_companion_session"
+    },
+    {
       "kind": "screenshot",
       "label": "30i-companion-closed"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_chat_session",
+      "patch": {
+        "agent_name": "automation-absent-agent"
+      },
+      "argsMatch": {
+        "sessionId": "seed-session-2"
+      }
     },
     {
       "kind": "click",
@@ -895,7 +919,8 @@
     {
       "kind": "waitFor",
       "testid": "agent-unavailable-banner",
-      "timeoutMs": 8000
+      "timeoutMs": 8000,
+      "contains": "automation-absent-agent"
     },
     {
       "kind": "screenshot",
@@ -910,6 +935,10 @@
       "kind": "waitFor",
       "testid": "agents-page",
       "timeoutMs": 10000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_chat_session"
     },
     {
       "kind": "screenshot",

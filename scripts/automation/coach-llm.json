@@ -81,7 +81,7 @@
     {
       "kind": "waitGone",
       "testid": "chat-stop-button",
-      "timeoutMs": 120000
+      "timeoutMs": 300000
     },
     {
       "kind": "sleep",
@@ -103,7 +103,8 @@
     },
     {
       "kind": "awaitTurn",
-      "label": "04-guide-memory-recall"
+      "label": "04-guide-memory-recall",
+      "timeoutMs": 300000
     },
     {
       "kind": "sleep",
@@ -135,8 +136,9 @@
     }
   ],
   "notes": [
-    "The companion mounts the same ChatConversation as the chat page (CompanionPanel.svelte:424), so context-indicator-footer (the context gauge of the composer, rendered once the session metrics report an exchange, ContextIndicator.svelte) opens the InjectedMemorySheet for the latest turn (ChatConversation.svelte:152-155, :677-685). Entries in that sheet come from the process-local injection tracker fed by the PyO3 memory recall wrapper (commands/memory.rs, apollia-aip memory/inner.rs): the guide has to recall its namespace during the turn. The prompt asks for it by name; whether an entry exists is the agent's decision, so injected-memory-entry keeps a short timeout and its click is a no-op on the host (handleInjectedEntrySelect, ChatConversation.svelte:156-159). A red step there means the guide did not recall, not a broken anchor.",
-    "The recall turn is driven by awaitTurn rather than the stop-button pair: the companion's conversation pushes its session into currentSession (ChatConversation.svelte:462), so the runner's status poll follows the right session and any approval card the guide raises is accepted.",
-    "The injected memory sheet is opened and closed here, its entries are not clicked: the seeded companion is a deterministic stub (tests/cli/seed/files/agents/apollia-guide/agent.py) that injects nothing, and the sheet lists the memory of the active turn only (InjectedMemorySheet.svelte shows 'No active turn' once the turn settled). injected-memory-entry is played by chat-llm during a running turn."
+    "The Guide tab mounts the same ChatConversation as the chat page (components/companion/GuideTab.svelte, embedded), so context-indicator-footer (the context gauge of the composer, rendered once the session metrics report an exchange, ContextIndicator.svelte) opens the InjectedMemorySheet of the latest turn (ChatConversation.svelte, openInjectedSheet). The chat route underneath holds no open conversation at boot, so chat-input, chat-stop-button and chat-message- resolve to the guide's conversation alone.",
+    "The recall turn is driven by awaitTurn rather than the stop-button pair: the guide's conversation pushes its session into currentSession (ChatConversation.svelte, the effect on pane.active), so the runner's status poll follows the right session and any consent card the guide raises is accepted.",
+    "The injected memory sheet is opened and closed here, its entries are not asserted: the sheet lists what the memory recall of the latest turn injected, and whether the guide recalls its namespace during the turn is the model's decision. The prompt asks for it by name; an empty sheet is not a broken anchor.",
+    "The guide is the declarative agent the binary ships (crates/apollia-desktop/src/bundled_packages.rs), answered by the model of the run. That model reasons before it answers, hence five minutes on each turn; the answers are captured, never asserted on their wording."
   ]
 }
