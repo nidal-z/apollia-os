@@ -102,7 +102,7 @@
   import ResourceWidget from "./ResourceWidget.svelte";
   import NavRow from "./NavRow.svelte";
   import { Button } from "$lib/components/ui/button";
-  import { X, Plus, User } from "lucide-svelte";
+  import { X, Plus } from "lucide-svelte";
 
   const primaryNav = $derived(visiblePrimaryNav($developerMode));
   const developerNav = $derived(visibleDeveloperNav($developerMode));
@@ -369,14 +369,6 @@
     {#if $resourceWidgetVisible}
       <ResourceWidget usage={$widgetUsage} compact onopen={openResourceMonitor} />
     {/if}
-
-    <!-- User avatar -->
-    <div class="mt-1">
-      <span
-        class="avatar-warm flex h-7 w-7 items-center justify-center rounded-lg text-primary-foreground shadow-elev-1"
-        title={$t("settings.profile.title")}
-      ><User size={14} /></span>
-    </div>
   </aside>
 {:else}
   <!-- Wide window: the column, every entry named, in two ranks. -->
@@ -404,11 +396,3 @@
     {/if}
   </aside>
 {/if}
-
-<style>
-  /* Terracotta "current user" avatar chip. The gradient token keeps its
-     hand-tuned tone independent of the brand palette. */
-  .avatar-warm {
-    background: var(--avatar-gradient-warm);
-  }
-</style>

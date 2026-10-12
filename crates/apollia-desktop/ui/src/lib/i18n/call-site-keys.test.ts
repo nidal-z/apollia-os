@@ -132,7 +132,6 @@ const REPAIRED = [
   "chat.retry.timeline_label",
   "chat.you",
   "common.copy",
-  "settings.profile.title",
 ];
 
 describe("i18n call sites - the scanner reaches the tree", () => {

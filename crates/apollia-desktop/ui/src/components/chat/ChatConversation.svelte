@@ -62,13 +62,12 @@
   import { sessionScope } from "$lib/stores/nextSteps";
   import { sessionEndFacts } from "./sessionEndFacts";
   import { classifySessionError } from "$lib/stores/runtimeHealth";
-  import { agents } from "$lib/stores/sse";
   import { triggerAutoName } from "$lib/chat/autoName";
   import { noteSessionActivity } from "$lib/stores/chatSessions";
   import { answerToRegenerate } from "$lib/chat/chatBehaviours";
   import { onRegenerateLast } from "$lib/stores/chatRegenerate";
   import SessionNotFound from "./SessionNotFound.svelte";
-  import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
+  import AgentPresenceNotice from "./AgentPresenceNotice.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
@@ -150,14 +149,6 @@
   let loadError = $state<string | null>(null);
   const loadErrorKind = $derived<"none" | "not_found" | "corrupted" | "other">(
     loadError === null ? "none" : classifySessionError(loadError),
-  );
-  /** True when the current session references an agent that is no longer
-   *  present in the `$agents` list (uninstalled mid-session). */
-  const agentUnavailable = $derived(
-    sessionMode === "agent" &&
-      sessionAgentName !== null &&
-      $agents.length > 0 &&
-      !$agents.some((a) => a.name === sessionAgentName),
   );
   const scroll = createConversationScroll(() => isStreaming || isProcessing);
   let tokenBuffer = $state("");
@@ -700,8 +691,8 @@
 
   <!-- Agent disparu inline banner. Rendered above the
        messages so the transcript stays readable. -->
-  {#if !loading && loadErrorKind === "none" && agentUnavailable && sessionAgentName}
-    <AgentUnavailableBanner agentName={sessionAgentName} />
+  {#if !loading && loadErrorKind === "none"}
+    <AgentPresenceNotice mode={sessionMode} agentName={sessionAgentName} />
   {/if}
 
   <!-- Messages -->

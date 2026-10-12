@@ -155,6 +155,13 @@ async function refreshLlmBackendsViaIpc(): Promise<boolean> {
   }
 }
 
+// Force an immediate agent-list refresh, for a surface that must not take the
+// list it holds for the truth: a conversation opened right after its agent was
+// installed. Resolves to whether the runtime answered.
+export async function refreshAgents(): Promise<boolean> {
+  return refreshAgentsViaIpc();
+}
+
 // Force an immediate backend-list refresh (used by surfaces that must not wait
 // for the next SSE push or the watchdog, e.g. the onboarding chat step).
 export async function refreshLlmBackends(): Promise<void> {

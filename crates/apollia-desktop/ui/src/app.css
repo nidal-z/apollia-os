@@ -288,11 +288,6 @@
     /* ── V4 warm accent (terracotta, for HITL / warmth accents) ── */
     --warm-accent: 15 47% 56%;
     --warm-accent-bg: 15 47% 56% / 0.10;
-
-    /* ── User avatar gradient (terracotta) - used by the sidebar avatar
-       and any future "current user" badge. Hardcoded hex preserves the
-       hand-tuned tone independently of brand palette shifts. ── */
-    --avatar-gradient-warm: linear-gradient(135deg, #c2715a, #9a4f3c);
   }
 
   .dark {

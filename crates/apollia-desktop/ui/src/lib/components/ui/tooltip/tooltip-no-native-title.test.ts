@@ -146,14 +146,14 @@ describe("tooltip - no hover group carries both a house tooltip and a native tit
   });
 
   test("a native title outside any hover group is left alone", () => {
-    // GIVEN the avatar shape: a title on an element that reveals no house tooltip
+    // GIVEN a title on an element that reveals no house tooltip
     const clean = [
       '<div class="rail-item group relative mb-1">',
       "  <button aria-label={label}></button>",
       '  <span class="tooltip opacity-0 group-hover:opacity-100">{label}</span>',
       "</div>",
       '<div class="mt-1">',
-      '  <span class="avatar-warm" title={$t("settings.profile.title")}></span>',
+      '  <span class="chip" title={$t("common.copy")}></span>',
       "</div>",
     ].join("\n");
 

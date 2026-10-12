@@ -2348,7 +2348,6 @@
     "cli_uninstall": "Uninstall CLI",
     "cli_needs_privilege": "Administrator privileges required.",
     "profile": {
-      "title": "Profile",
       "profiles": {
         "title": "Profiles",
         "description": "Several profiles to describe the sides of your work. The default profile is the one your agents use; what they remember stays with each profile.",
@@ -3751,6 +3750,7 @@
       "reconnecting": "Reconnecting to the Apollia engine (attempt {attempt})…",
       "retry": "Retry now"
     },
+    "agent_loading": "Getting the agent “{agent}” ready…",
     "agent_unavailable": {
       "message": "Agent « {agent} » is no longer installed. Messages sent in this conversation will fail until you reinstall it.",
       "manage": "Manage agents"

@@ -2348,7 +2348,6 @@
     "cli_uninstall": "Désinstaller la CLI",
     "cli_needs_privilege": "Privilèges administrateur requis.",
     "profile": {
-      "title": "Profil",
       "profiles": {
         "title": "Profils",
         "description": "Plusieurs profils pour décrire les facettes de votre travail. Le profil par défaut est celui que vos agents utilisent ; ce qu'ils retiennent reste propre à chaque profil.",
@@ -3751,6 +3750,7 @@
       "reconnecting": "Reconnexion au moteur Apollia (tentative {attempt})…",
       "retry": "Réessayer"
     },
+    "agent_loading": "Préparation de l'agent « {agent} »…",
     "agent_unavailable": {
       "message": "Agent « {agent} » n'est plus installé. Les messages envoyés dans cette conversation échoueront tant qu'il n'est pas réinstallé.",
       "manage": "Gérer les agents"
