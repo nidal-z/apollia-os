@@ -8,24 +8,9 @@
 
 use apollia_tools::SourceAccess;
 
-use super::{ChatToolsConfig, APOLLIA_CHAT_AGENT_ID};
+use super::ChatToolsConfig;
 
-/// The memory namespace of the Apollia agent: one space for the agent, kept
-/// across its conversations, rather than one per conversation that nothing
-/// wrote.
-pub(in crate::chat::manager) const APOLLIA_MEMORY_NAMESPACE: &str = "apollia";
-
-/// The memory namespace the memory tools read and write for `agent_id`: the
-/// space of Apollia, or the space named after the agent. One space per agent,
-/// kept across its conversations and its tasks: a note an agent keeps in one
-/// conversation is found again in the next.
-pub(in crate::chat::manager) fn memory_namespace(agent_id: &str) -> String {
-    if agent_id == APOLLIA_CHAT_AGENT_ID {
-        APOLLIA_MEMORY_NAMESPACE.to_owned()
-    } else {
-        agent_id.to_owned()
-    }
-}
+pub(in crate::chat::manager) use apollia_tools::agent_definition::memory_namespace;
 
 /// The sources `agent_id` has checked, read beside `cfg`'s data directory
 /// and searched through its registry of sources. Without a configuration, or

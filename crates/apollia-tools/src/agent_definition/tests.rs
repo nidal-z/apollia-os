@@ -349,3 +349,23 @@ fn test_planning_override_value_is_one_of_the_three_modes() {
         Ok(OverrideField::Planning)
     );
 }
+
+#[test]
+fn test_the_registry_manifest_names_the_memory_space_the_agent_writes_to() {
+    // GIVEN a stored agent, and Apollia
+    let agent = stored();
+    let mut apollia = stored();
+    apollia.name = APOLLIA_AGENT_ID.to_string();
+
+    // WHEN the registry manifest of each is built
+    let of_agent = manifest_of(&agent);
+    let of_apollia = manifest_of(&apollia);
+
+    // THEN each names the space its memory tools read and write, so a screen
+    // that lists the memory of an agent looks where the agent keeps it
+    assert_eq!(of_agent.memory_namespace, Some(agent.name.clone()));
+    assert_eq!(
+        of_apollia.memory_namespace,
+        Some(APOLLIA_MEMORY_NAMESPACE.to_string())
+    );
+}

@@ -8,6 +8,7 @@ use apollia_sources::{NewSource, SourceKind, SourceRegistryHandle};
 use apollia_tools::tools::source_search::{SourceSearchError, SourceSearchInput};
 
 use super::*;
+use crate::chat::manager::APOLLIA_CHAT_AGENT_ID;
 
 fn config(data_dir: &Path, registry: Option<SourceRegistryHandle>) -> Arc<ChatToolsConfig> {
     Arc::new(ChatToolsConfig {
@@ -161,7 +162,10 @@ fn test_every_agent_keeps_one_memory_space_across_its_conversations() {
 
     // THEN each has one space, named after the agent and after no
     // conversation
-    assert_eq!(apollia, APOLLIA_MEMORY_NAMESPACE);
+    assert_eq!(
+        apollia,
+        apollia_tools::agent_definition::APOLLIA_MEMORY_NAMESPACE
+    );
     assert_eq!(other, "veille");
 }
 

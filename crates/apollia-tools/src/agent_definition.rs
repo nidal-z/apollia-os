@@ -31,6 +31,23 @@ use serde_json::{json, Map, Value};
 /// Identifier of the Apollia agent, the built-in chat.
 pub const APOLLIA_AGENT_ID: &str = apollia_permissions::APOLLIA_AGENT_ID;
 
+/// The memory namespace of the Apollia agent: one space for the agent, kept
+/// across its conversations, rather than one per conversation that nothing
+/// wrote.
+pub const APOLLIA_MEMORY_NAMESPACE: &str = "apollia";
+
+/// The memory namespace the memory tools read and write for `agent_id`: the
+/// space of Apollia, or the space named after the agent. One space per agent,
+/// kept across its conversations and its tasks: a note an agent keeps in one
+/// conversation is found again in the next.
+pub fn memory_namespace(agent_id: &str) -> String {
+    if agent_id == APOLLIA_AGENT_ID {
+        APOLLIA_MEMORY_NAMESPACE.to_owned()
+    } else {
+        agent_id.to_owned()
+    }
+}
+
 /// Version of the definition of the Apollia agent.
 pub const APOLLIA_DEFINITION_VERSION: &str = "1";
 
@@ -446,7 +463,7 @@ pub fn manifest_of(agent: &StoredAgent) -> AgentManifest {
         supports_a2a: false,
         supports_mailbox: false,
         mailbox_allowlist: None,
-        memory_namespace: None,
+        memory_namespace: Some(memory_namespace(&agent.name)),
         shared_memory_namespaces: Vec::new(),
         max_concurrent_tasks: 1,
         step_budget: None,

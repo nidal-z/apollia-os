@@ -44,6 +44,9 @@
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
+      // A sheet opened inside a dialog closes alone: left to bubble, the same
+      // key would reach the dialog and close it too.
+      event.stopPropagation();
       onclose();
     }
   }
