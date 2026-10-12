@@ -482,8 +482,7 @@
     {
       "kind": "stubInvoke",
       "command": "list_pending_decisions",
-      "reject": "seeded pending decisions failure",
-      "once": true
+      "reject": "seeded pending decisions failure"
     },
     {
       "kind": "goto",
@@ -518,6 +517,10 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "clearStubs",
+      "command": "list_pending_decisions"
+    },
+    {
       "kind": "click",
       "testid": "inbox-error-retry",
       "timeoutMs": 2500
@@ -534,7 +537,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "13c-review-retried (the stub was once, the real list is empty)"
+      "label": "13c-review-retried (the stub is cleared, the real list is empty)"
     },
     {
       "kind": "stubInvoke",

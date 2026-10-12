@@ -66,6 +66,12 @@ automation_run() {
             # minutes, and a long book would otherwise swap the two seeded
             # servers for the public ones mid-run, on network timing alone.
             export APOLLIA_MCP_REGISTRY_URL="http://127.0.0.1:1"
+            # A throwaway home keeps its secrets in a file of its own: the
+            # system keychain is not reachable under a swapped HOME, so a
+            # credential could be neither saved nor deleted, and a run has no
+            # business writing to the keychain of the machine anyway.
+            export APOLLIA_TOKEN_STORAGE="${APOLLIA_TOKEN_STORAGE:-file}"
+            export APOLLIA_TOKEN_PASSPHRASE="${APOLLIA_TOKEN_PASSPHRASE:-automation-seed-passphrase}"
             ;;
     esac
 

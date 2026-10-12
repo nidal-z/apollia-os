@@ -12,8 +12,8 @@
 tool_turn_temperature = 0.0
 
 [desktop]
-# The chat books press "New conversation" many times and assert the picker
-# that follows, after leaving conversations without a message behind them.
-# With one empty conversation at a time, the default, that press opens the
-# empty conversation again and no picker shows.
+# The chat books press "New conversation" many times and count on a fresh
+# conversation at every press, after leaving conversations without a message
+# behind them. With one empty conversation at a time, the default, that press
+# opens the empty conversation again.
 chat_single_empty = false

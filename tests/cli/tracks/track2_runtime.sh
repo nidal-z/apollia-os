@@ -106,9 +106,11 @@ e2e_sqlite "$HOME/.apollia/governance.db" "DELETE FROM tool_credentials;" >/dev/
 check         "tools reload"                        "${Q[@]}" tools reload
 check         "tools enable bash_executor"          "${Q[@]}" tools enable bash_executor
 check         "tools approvals pending"             "${Q[@]}" tools approvals pending
-check         "audit verify (empty journal ok)"    "${Q[@]}" audit verify
-check         "audit journal (empty journal ok)"   "${Q[@]}" audit journal
-check_exit    "audit anchor (empty journal) → 1" 1 "${Q[@]}" audit anchor
+# The journal is the one audit register: the commands above (tools reload,
+# tools enable) are in it by now, so it is verified and anchored as it stands.
+check         "audit verify"                        "${Q[@]}" audit verify
+check         "audit journal"                       "${Q[@]}" audit journal
+check_content "audit anchor names the hash of the journal" 'global_hash=' "${Q[@]}" audit anchor
 check_exit    "audit replay (unknown run) → 1"   1 "${Q[@]}" audit replay ghost-run-id
 check         "audit export --format json"          "${Q[@]}" audit export --format json --output "$RUN_TMP/journal.json"
 check_content "audit export --format json: a summary, the detail left out" '"detail": false' cat "$RUN_TMP/journal.json"

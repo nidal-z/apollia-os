@@ -104,8 +104,11 @@ the compilation `cargo tauri dev` does first.
 
 New conversation: the seed's `apollia.toml` sets `[desktop] chat_single_empty =
 false`. With the default, on, "New conversation" opens the empty conversation
-that already exists and no picker shows; the chat books leave conversations
-without a message behind them and assert the picker at every press.
+that already exists; the chat books leave conversations without a message
+behind them and count on a fresh one at every press. The press opens a
+conversation directly, and the agent or the model is chosen from the selector
+of its header; the picker shows only when the conversation cannot be created,
+which the chat book reaches by stubbing that command to refuse once.
 
 ## Running it on Linux and Windows
 
@@ -217,7 +220,7 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   (the walk with developer mode off and on, empty/error states, dialogs opened
   then cancelled, mutating controls driven to the boundary). `master-det.json`
   runs the 18 books of `regen_master.py`'s `ORDER` in one boot and is the
-  release gate (4847 steps); `just automation-verdict` reads its report.
+  release gate (4953 steps); `just automation-verdict` reads its report.
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
   and four books written against the coverage report below, none of them in
   `regen_master.py`'s `ORDER` yet because none has been through a runtime round:

@@ -61,7 +61,7 @@ build_seed_home() {
 # seed_wire_real_model <seed_home> <gguf>
 #   Point the seeded default LLM backend at a real GGUF (by ABSOLUTE path) so
 #   Track 3 can drive live inference, WITHOUT copying the model or symlinking the
-#   real models dir. The runner opens the file read-only.
+#   real models dir. The engine opens the file read-only.
 #
 #   Do NOT use `llm setup --local --models-dir <real models dir>`: it copies the
 #   source model into the target dir, and if the target resolves to the dir that
@@ -69,16 +69,21 @@ build_seed_home() {
 #   copy truncates the real model to 0 bytes. This is a copy-onto-itself hazard;
 #   keep the wiring a pure metadata update against the throwaway seed's DB.
 seed_wire_real_model() {
-    local seed_home=$1 gguf=$2 sysdb
+    local seed_home=$1 gguf=$2 sysdb device
     [[ -f "$gguf" ]] || return 1
     sysdb="$seed_home/.apollia/system.db"
     [[ -f "$sysdb" ]] || return 1
-    # Repoint the seeded default backend at the absolute real path (no copy,
-    # read-only) and make it the sole boot default. The daemon builds its router
-    # from this table at startup; a runtime `set-default` + `reload` refreshes the
-    # router but does NOT spawn a local load, so writing the default before boot
-    # is the only reliable path. The orchestrator then waits for readiness before
-    # Track 2.
+    case "$(uname -s)" in Darwin) device=metal ;; *) device=cpu ;; esac
+    # Make the seeded default backend one the daemon serves itself: the seed
+    # declares local-llama-server as an OpenAI-compatible server at :8899, which
+    # the desktop -llama recipe brings up and this suite does not. Left as it
+    # is, the row names a server nobody started and the model is never ready.
+    # As a `llama-cpp` row carrying the absolute path, the daemon launches its
+    # own engine on the file at boot (no copy, read-only), and it is the sole
+    # boot default. The daemon builds its router from this table at startup; a
+    # runtime `set-default` + `reload` refreshes the router but does NOT spawn
+    # a local load, so writing the default before boot is the only reliable
+    # path. The orchestrator then waits for readiness before Track 2.
     #
     # The name must be one the seed actually writes. seed/fragments/system.sql
     # declares local-llama-server, vllm-qwen and gpu-server, and
@@ -88,8 +93,9 @@ seed_wire_real_model() {
     e2e_sqlite "$sysdb" \
         "UPDATE llm_backends SET is_default = 0;
          UPDATE llm_backends
-            SET model = '$gguf',
-                config_json = json_set(COALESCE(NULLIF(config_json,''),'{}'), '\$.model_path', '$gguf'),
+            SET provider = 'llama-cpp',
+                model = '$gguf',
+                config_json = json_object('device', '$device', 'model_path', '$gguf', 'context_window', 8192),
                 is_default = 1,
                 enabled = 1
           WHERE name = 'local-llama-server';" >/dev/null 2>&1 || return 1

@@ -290,8 +290,9 @@
       "contains": "Load"
     },
     {
-      "kind": "expect",
-      "testid": "ai-panel-tabbar"
+      "kind": "waitGone",
+      "testid": "ai-panel-tabbar",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -451,6 +452,11 @@
     {
       "kind": "waitFor",
       "testid": "ai-model-panel",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-tabbar",
       "timeoutMs": 6000
     },
     {

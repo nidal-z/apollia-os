@@ -2,6 +2,7 @@
   "name": "model-hub-det (the discovery window of the AI screen under stubs: the Apollia selection, the card and its variants, a too-large variant confirmed, only-what-fits, sort, format, the bounded search and the sort of publisher, offline, search by meaning, a restricted repository, and the downloads panel)",
   "stopOnError": false,
   "notes": [
+    "The selection is stubbed with two makers, Automation Labs (Alpha 8B, Beta 70B) and Automation Works (Gamma 90B, too heavy for the stubbed 21.3 GB): the row of makers (ai-discover-makers, ai-discover-maker-all, ai-discover-maker-pick) only renders with more than one maker (DiscoverColumn.svelte:317), and the groups are ordered by their number of models (discover.ts makerGroups), so Alpha and Beta stay results 0 and 1 under every sort and Gamma is result 2. Picking the first maker leaves two results, All brings the third back. Under its maker a result no longer repeats the publisher (ai-discover-result-publisher renders only when it differs from the maker, DiscoverColumn.svelte:424), so the publisher is read on the group heading, ai-discover-maker.",
     "Every answer of the Hub and of the registry is stubbed, so the book reaches no network: list_model_cards imitates CatalogueView (apollia-llm model_cards/fetch.rs), recommend_models the outcome of apollia_runtime::recommendation with its selection, get_embeddings_recommendation the answer of GET /api/v1/llm/embeddings, get_hardware_profile HardwareResponse (Apple Silicon, 21.3 GB, so MLX is offered), get_hf_model HfModelCard with its ModelVariant list (apollia-llm hf_registry.rs, recommend/variants.rs), get_dictation_models the answer of GET /api/v1/llm/dictation (DictationModelsResponse, apollia-runtime routes_model_hub/dictation.rs), get_model_readme ReadmeResponse (routes_model_hub/cards.rs), search_hf_models BoundedPage with FoundModel and GeneratedCard (hf_registry/bounded.rs, generated.rs). They drift if those types change.",
     "start_variant_download is stubbed to an id and never reaches the download manager: no file is written. The progress the backend would emit is delivered by emitEvent on model-download-progress (apollia_llm::DownloadProgress), which is what puts the row in the downloads panel; cancel_model_download is stubbed for the same reason. A real download from the window, followed and cancelled from the panel, is a gesture on a machine with a network.",
     "The restricted repository is played with get_hf_token stubbed to null: the download is refused before any call, the window closes and the settings open on General. With a stored token the shell adds it itself (commands/hf_token.rs passed_or_stored).",
@@ -155,6 +156,36 @@
             ]
           },
           {
+            "id": "automation-works/gamma-90b",
+            "kind": "language",
+            "label": "Automation Gamma 90B",
+            "publisher": "Automation Works",
+            "language": "en",
+            "description": "A very large model from a second publisher.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-works/gamma-90b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 96,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation-works/gamma-90b-GGUF"
+            ]
+          },
+          {
             "id": "automation-embed-small",
             "kind": "embeddings",
             "label": "Automation Embed Small",
@@ -284,6 +315,24 @@
                 "params_b": 70.0,
                 "gguf_repos": [
                   "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          },
+          {
+            "id": "automation-gamma",
+            "label": "Automation Gamma",
+            "publisher": "Automation Works",
+            "released": "2026-02-01",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "variants": [
+              {
+                "name": "Automation Gamma 90B",
+                "params_b": 90.0,
+                "gguf_repos": [
+                  "automation-works/gamma-90b-GGUF"
                 ],
                 "mlx_repos": []
               }
@@ -716,9 +765,21 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitGone",
+      "testid": "ai-discover-result",
+      "nth": 2,
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "ai-discover-maker-all",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-result",
+      "nth": 2,
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -734,9 +795,15 @@
     },
     {
       "kind": "expect",
-      "testid": "ai-discover-result-publisher",
+      "testid": "ai-discover-maker",
       "nth": 0,
       "contains": "Automation Labs"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-maker",
+      "nth": 1,
+      "contains": "Automation Works"
     },
     {
       "kind": "click",
@@ -1780,6 +1847,36 @@
             ]
           },
           {
+            "id": "automation-works/gamma-90b",
+            "kind": "language",
+            "label": "Automation Gamma 90B",
+            "publisher": "Automation Works",
+            "language": "en",
+            "description": "A very large model from a second publisher.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-works/gamma-90b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 96,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation-works/gamma-90b-GGUF"
+            ]
+          },
+          {
             "id": "automation-embed-small",
             "kind": "embeddings",
             "label": "Automation Embed Small",
@@ -1909,6 +2006,24 @@
                 "params_b": 70.0,
                 "gguf_repos": [
                   "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          },
+          {
+            "id": "automation-gamma",
+            "label": "Automation Gamma",
+            "publisher": "Automation Works",
+            "released": "2026-02-01",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "variants": [
+              {
+                "name": "Automation Gamma 90B",
+                "params_b": 90.0,
+                "gguf_repos": [
+                  "automation-works/gamma-90b-GGUF"
                 ],
                 "mlx_repos": []
               }
@@ -2147,6 +2262,36 @@
             ]
           },
           {
+            "id": "automation-works/gamma-90b",
+            "kind": "language",
+            "label": "Automation Gamma 90B",
+            "publisher": "Automation Works",
+            "language": "en",
+            "description": "A very large model from a second publisher.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-works/gamma-90b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 96,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation-works/gamma-90b-GGUF"
+            ]
+          },
+          {
             "id": "automation-embed-small",
             "kind": "embeddings",
             "label": "Automation Embed Small",
@@ -2276,6 +2421,24 @@
                 "params_b": 70.0,
                 "gguf_repos": [
                   "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          },
+          {
+            "id": "automation-gamma",
+            "label": "Automation Gamma",
+            "publisher": "Automation Works",
+            "released": "2026-02-01",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "variants": [
+              {
+                "name": "Automation Gamma 90B",
+                "params_b": 90.0,
+                "gguf_repos": [
+                  "automation-works/gamma-90b-GGUF"
                 ],
                 "mlx_repos": []
               }

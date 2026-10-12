@@ -2,7 +2,7 @@
   "name": "notifications-det (Settings > Notifications: seeded channels, notified events and recent sends; create det-auto-channel, edit and delete through the row menu, test, errors; developer mode off and on; every step green)",
   "stopOnError": false,
   "notes": [
-    "The section lives in the settings window: every pass enters it through settings-nav-notifications, and re-entering it (settings-nav-general then back) remounts it, which is how the once-stub on list_notification_channels reaches the mount and renders the channel error with its Disclosure while the notified events stay settable.",
+    "The section lives in the settings window: every pass enters it through settings-nav-notifications, and re-entering it (settings-nav-general then back) remounts it, which is how the stub on list_notification_channels reaches the mount and renders the channel error with its Disclosure while the notified events stay settable. The stub stays armed until it is cleared, after the error was read: the channels are read more than once on the way back into the section, and a stub that answered a single read was spent before the section shown read them.",
     "Edit and Delete sit in the row menu (channel-menu-<id>): the menu is opened before channel-edit-btn-<id> or channel-delete-btn-<id> is clicked.",
     "The technical identifier and the headers of a web call sit in collapsed Disclosures; their toggle buttons (disc-technical-id-toggle, <prefix>-headers-disclosure-toggle) are clicked before the fields are asserted.",
     "The test of a channel ends on an outcome the seeded HOME does not fix (a native notification may or may not be shown): the step sleeps and captures rather than asserting success or failure."
@@ -762,8 +762,7 @@
     {
       "kind": "stubInvoke",
       "command": "list_notification_channels",
-      "reject": "seeded channels failure",
-      "once": true
+      "reject": "seeded channels failure"
     },
     {
       "kind": "click",
@@ -809,6 +808,10 @@
       "kind": "click",
       "testid": "notifications-error-details-toggle",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_notification_channels"
     },
     {
       "kind": "click",

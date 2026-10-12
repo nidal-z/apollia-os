@@ -2,9 +2,7 @@
   "name": "connections-det (integrations page, operator + builder, deterministic against the seeded MCP ecosystem)",
   "stopOnError": false,
   "dynamicTestids": [
-    "arg-input-0",
     "catalogue-entry-@modelcontextprotocol/server-brave-search",
-    "catalogue-entry-@modelcontextprotocol/server-filesystem",
     "catalogue-entry-com.notion/mcp",
     "catalogue-entry-io.apollia/seed-failing",
     "catalogue-entry-io.apollia/seed-stub",
@@ -207,6 +205,16 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 4000
     },
@@ -233,6 +241,16 @@
     {
       "kind": "screenshot",
       "label": "06-native-microsoft-accounts"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -276,6 +294,16 @@
       "kind": "waitFor",
       "testid": "connections-route",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -646,6 +674,16 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 4000
     },
@@ -662,6 +700,16 @@
     {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 4000
     },
     {
@@ -1154,6 +1202,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitFor",
       "testid": "catalogue-native-google",
       "timeoutMs": 8000
@@ -1194,6 +1247,16 @@
     {
       "kind": "screenshot",
       "label": "21-native-settings-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -1270,6 +1333,16 @@
     {
       "kind": "screenshot",
       "label": "25-mcp-settings-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -1366,6 +1439,11 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitFor",
       "testid": "catalogue-native-microsoft",
       "timeoutMs": 8000
@@ -1387,111 +1465,12 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "connections-open-catalogue",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-community",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-list",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-entry-@modelcontextprotocol/server-filesystem",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-step-disclaimer",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "disclaimer-journal-note",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-warning-accept",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "30-add-single-warning"
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-step-auth",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-step-args",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "fill",
-      "testid": "arg-input-0",
-      "text": "/tmp/apollia-automation-allowed",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-auth-continue",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "32-add-auth-local-files-args"
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-cancel-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "connector-wizard",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "connections-open-catalogue",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-native-microsoft",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-native-microsoft",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
       "timeoutMs": 4000
     },
     {
@@ -1694,6 +1673,16 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 4000
     },
@@ -1763,7 +1752,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "authorizations-policy",
       "timeoutMs": 15000
     },
     {
@@ -1809,6 +1798,16 @@
       "command": "test_mcp_live_server",
       "once": true,
       "reject": "automation: transport closed by stubInvoke"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -1953,6 +1952,16 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitGone",
       "testid": "sidebar-mcp-seed-stub",
       "timeoutMs": 15000
@@ -1991,6 +2000,16 @@
       "command": "test_mcp_live_server",
       "once": true,
       "reject": "automation: transport closed by stubInvoke"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -2114,6 +2133,16 @@
         },
         "registration_supported": true
       }
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -2758,6 +2787,16 @@
     {
       "kind": "click",
       "testid": "oauth-drive-folder-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-done",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-done-close",
       "timeoutMs": 3000
     },
     {

@@ -4,7 +4,7 @@
   "notes": [
     "The pages are stubbed: list_journal_entries resolves entries shaped like JournalLine and get_journal_entry one shaped like JournalEntryDetail (crates/apollia-desktop/ui/src/lib/ipc/journal.ts). The seed holds no tool call of the chat, which only a live model produces; the route and its filters are covered by the Rust tests of the runtime and of the desktop commands.",
     "A stub ignores the query, so a filter step proves that the control is there and that changing it reads the route again, not that the route narrows: that is the route's own test.",
-    "Developer mode off, see more opens the entry tab of the detail sidebar and the list stays compact; on, every entry arrives unfolded in the list and journal-fold-all folds them.",
+    "Developer mode off, see more opens the entry tab of the detail sidebar and the list stays compact; on, every entry arrives unfolded in the list and journal-fold-all folds them. The settings open in a window above the current screen (lib/router.ts:22), so the Journal stays mounted while the mode is switched: it reads the route again at the switch (the effect on the filters and the mode, JournalScreen.svelte:57-66), before the developer stubs are armed and with the Refused filter of the block before still set. The developer block therefore clears the filters once it is back on the screen, which is the change that reads the route again, through the stubs this time.",
     "The full page is fifty entries, the size the screen asks for: it is what makes journal-load-older appear. The next stub answers one older entry, and the button leaves.",
     "verify_journal resolves reports shaped like VerifyJournalReport, get_org_policy views shaped like PolicyView, export_journal a JournalExported and read_journal_export a JournalExportDocument (crates/apollia-desktop/ui/src/lib/ipc/journal.ts and policy.ts). The seed journal is too short to break and carries no policy, so the three states of the detail box and the altered verdict are only reachable through stubs; the routes are covered by the Rust tests of the runtime and of the desktop commands.",
     "print_journal is always stubbed: the real command opens the print dialog of the system, a modal the runner cannot drive. The recipe proves the page is laid out and the command asked for, not what the system prints.",
@@ -2336,6 +2336,21 @@
       "kind": "waitFor",
       "testid": "journal-page",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",

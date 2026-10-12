@@ -119,20 +119,21 @@
     },
     {
       "kind": "waitFor",
-      "testid": "new-chat-picker",
-      "timeoutMs": 8000
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
     },
     {
       "kind": "expect",
-      "testid": "quickpicker"
+      "testid": "chat-target-selector"
     },
     {
       "kind": "screenshot",
-      "label": "04-quickpicker"
+      "label": "04-new-conversation (New chat opens a conversation at once)"
     },
     {
       "kind": "expect",
-      "testid": "chat-target-selector-empty"
+      "testid": "chat-target-selector-agent",
+      "contains": "Apollia"
     },
     {
       "kind": "click",
@@ -390,7 +391,8 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-target-selector-empty"
+      "testid": "chat-target-selector-model",
+      "contains": "default model"
     },
     {
       "kind": "clearStubs",
@@ -680,6 +682,33 @@
       "kind": "clearStubs"
     },
     {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "once": true,
+      "reject": "automation: conversation refused"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "new-chat-picker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "quickpicker"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-quickpicker (the way out when the conversation cannot be created)"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-target-selector-empty"
+    },
+    {
       "kind": "click",
       "testid": "quickpicker-toggle-agents"
     },
@@ -809,22 +838,55 @@
     },
     {
       "kind": "click",
-      "testid": "chat-new-chat-btn"
+      "testid": "chat-close-button",
+      "timeoutMs": 4000
     },
     {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "timeoutMs": 2500,
-      "testid": "quickpicker-agent-seed-classifier"
+      "kind": "waitGone",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
-      "timeoutMs": 2500,
-      "testid": "quickpicker-agent-seed-classifier"
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-target-selector-search",
+      "text": "seed-classifier"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-agent-option",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-agent-option",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-meta-mode",
+      "contains": "seed-classifier",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
@@ -1926,7 +1988,7 @@
     {
       "kind": "goto",
       "route": "chat",
-      "sessionId": "seed-session-2"
+      "sessionId": "seed-session-4"
     },
     {
       "kind": "waitFor",
@@ -1937,6 +1999,11 @@
       "kind": "waitFor",
       "testid": "chat-inspector-plan-tab",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-sequence",
+      "timeoutMs": 10000
     },
     {
       "kind": "stubInvoke",
@@ -1951,7 +2018,7 @@
         "event_type": "ChatApprovalRequired",
         "payload": {
           "ChatApprovalRequired": {
-            "session_id": "seed-session-2",
+            "session_id": "seed-session-4",
             "message_id": "automation-msg-1",
             "tool_call_id": "automation-call-1",
             "tool_name": "file_write",
@@ -1967,19 +2034,19 @@
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-accept-"
+      "testidPrefix": "operator-approval-accept-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-always-"
+      "testidPrefix": "operator-approval-always-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-reason-"
+      "testidPrefix": "operator-approval-reason-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-refuse-"
+      "testidPrefix": "operator-approval-refuse-"
     },
     {
       "kind": "screenshot",
@@ -1987,12 +2054,12 @@
     },
     {
       "kind": "fill",
-      "testidPrefix": "approval-reason-",
+      "testidPrefix": "operator-approval-reason-",
       "text": "automation reject reason"
     },
     {
       "kind": "click",
-      "testidPrefix": "approval-refuse-",
+      "testidPrefix": "operator-approval-refuse-",
       "timeoutMs": 3000
     },
     {
@@ -2003,7 +2070,7 @@
         "event_type": "ChatApprovalResolved",
         "payload": {
           "ChatApprovalResolved": {
-            "session_id": "seed-session-2",
+            "session_id": "seed-session-4",
             "message_id": "automation-msg-1",
             "tool_call_id": "automation-call-1",
             "tool_name": "file_write",
@@ -2024,6 +2091,22 @@
     {
       "kind": "clearStubs",
       "command": "authorize_chat_tool"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-meta-mode",
+      "contains": "apollia-guide",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-inspector-plan-tab",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
@@ -2151,6 +2234,12 @@
       "label": "31-chat-builder"
     },
     {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "once": true,
+      "reject": "automation: conversation refused"
+    },
+    {
       "kind": "click",
       "testid": "chat-new-chat-btn"
     },
@@ -2222,6 +2311,21 @@
     {
       "kind": "screenshot",
       "label": "35-inspector-config-builder (plan-review / error / cross-session / next-steps families render only on their live state: screenshot best-effort, never hard-asserted)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "link_preview",
+      "resolve": {
+        "url": "https://example.com/apollia-docs",
+        "title": "Apollia preview docs",
+        "description": "Stubbed Open Graph metadata for the rich link card.",
+        "favicon": null,
+        "image": null,
+        "site_name": "example.com"
+      },
+      "argsMatch": {
+        "url": "https://example.com/apollia-docs"
+      }
     },
     {
       "kind": "goto",
@@ -2531,23 +2635,55 @@
     },
     {
       "kind": "click",
+      "testid": "chat-close-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker-agent-seed-classifier",
-      "timeoutMs": 4000
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
-      "testid": "quickpicker-agent-seed-classifier",
-      "timeoutMs": 2500
+      "testid": "chat-target-selector-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-target-selector-search",
+      "text": "seed-classifier"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-agent-option",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-agent-option",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-meta-mode",
+      "contains": "seed-classifier",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
@@ -3504,6 +3640,12 @@
       "label": "40o-folder-deleted-conversations-kept"
     },
     {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "once": true,
+      "reject": "automation: conversation refused"
+    },
+    {
       "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 4000
@@ -3566,28 +3708,18 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 8000
-    },
-    {
       "kind": "waitGone",
       "testid": "session-not-found",
       "timeoutMs": 5000
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
       "kind": "screenshot",
-      "label": "44-session-not-found-new-opens-picker"
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-close",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "quickpicker",
-      "timeoutMs": 5000
+      "label": "44-session-not-found-new-opens-conversation"
     },
     {
       "kind": "stubInvoke",
@@ -3598,21 +3730,6 @@
       "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker-agent-seed-classifier",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-agent-seed-classifier",
-      "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
@@ -3746,6 +3863,32 @@
     },
     {
       "kind": "click",
+      "testid": "tool-step-toggle",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-step-body",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49f-tool-step-unfolded"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-step-toggle",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-step-body",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
       "testid": "reasoning-collapse",
       "timeoutMs": 5000
     },
@@ -3783,32 +3926,6 @@
     {
       "kind": "waitGone",
       "testid": "reasoning-thought",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "tool-step-toggle",
-      "nth": 0,
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-step-body",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "49f-tool-step-unfolded"
-    },
-    {
-      "kind": "click",
-      "testid": "tool-step-toggle",
-      "nth": 0,
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "tool-step-body",
       "timeoutMs": 6000
     },
     {
@@ -3992,22 +4109,23 @@
   "notes": [
     "Stubs that imitate a backend type, and the type they copy: meta_rewrite_input resolves a RewriteInputIpcResponse (crates/apollia-desktop/src/commands/meta_rewrite.rs, camelCase rewrittenText + fallback in noRouter/noBackend/callFailed/emptyAnswer), armed once per click so the composer and the picker each see one fallback and one success; list_mcp_resources resolves one McpResourceView (lib/chat/mcpResources.ts: server, uri, name, mime_type, description), armed before the first mention open of the composer because ChatInput loads the list once per instance (resourcesLoaded); get_chat_session is rejected with a sqlite-worded string (classifySessionError, lib/stores/runtimeHealth.ts) for the corrupted panel and patched with status closed under argsMatch seed-session-1 for the end-of-session panel; plugin:opener|open_url resolves null so the link-preview-fallback click never reaches the host browser. Every stub is cleared before the block that armed it ends, and the page is reloaded (agents then chat) after the fault blocks.",
     "chat-mention-menu-item is clicked for the record but the pin itself is done by Enter: the item's handler is onmousedown (MentionResourceMenu.svelte), which el.click() never fires, so the press step targets the active element, the textarea insertTrigger focused (ChatInput.svelte).",
-    "session-corrupted-delete deletes the session the block itself creates through the picker (the reject stub carries no argsMatch, so the freshly created session's first load is the one it answers); no seeded row is touched, which is why the block lives here and not in destructive.json. session-corrupted-export is a blob download anchor: wry 0.55.1 (src/wkwebview/navigation.rs) cancels a shouldPerformDownload navigation when no download handler is registered, and crates/apollia-desktop/src registers none, so the click is inert on macOS.",
+    "session-corrupted-delete deletes the session the block itself creates with New chat (the reject stub carries no argsMatch, so the freshly created session's first load is the one it answers); no seeded row is touched, which is why the block lives here and not in destructive.json. session-corrupted-export is a blob download anchor: wry 0.55.1 (src/wkwebview/navigation.rs) cancels a shouldPerformDownload navigation when no download handler is registered, and crates/apollia-desktop/src registers none, so the click is inert on macOS.",
     "Seeded sessions are opened through the command palette (command-item-session.<id>, paletteIndex.ts). The group is fed by recentSessionsStore, which persists apollia.commandPalette.recentSessions in the webview's real localStorage (not in the runner's reset list) and, once any touched id resolves, lists only touched ids; this book touches seed-session-2 then seed-session-1 on every run, so both stay listed across runs. goto.sessionId is reserved for the ghost id, as types.ts asks.",
     "The plan tab is played on seed-session-2, whose plan is persisted by the seed (chat.sql session_plans + 3 steps, phase done so no approval card). The earlier 'inspector-plan-tab-skipped-xyflow-freeze' captures date from the July corpus and were taken on an empty plan; chat-llm has clicked the tab on a live plan green since. If the freeze reproduces with the seeded plan it is a defect to capture, not a recipe hole.",
     "The narrow block keeps to store toggles (backdrops, drawers, the overflow item) and contains no picker or window.confirm; it ends with resizeWindow 1280x800 and reopens the inspector so the row-menu configure item and the builder section find the rail inline as before.",
     "Seeded sessions are opened with goto + sessionId rather than through the palette: the palette's session items come from the recent-sessions store, whose localStorage key is not reset at boot, so their presence depended on the previous run (absent on d1-chat).",
     "chat-mic-button is played through the harness: dictation.toggle() (useComposerDictation.svelte.ts:59-77) calls start_tour_recording and stop_tour_recording (commands/stt.rs:976-1005, both Result<(), String>) with no getUserMedia in front, so no cpal capture and no microphone prompt are ever reached. First click: start rejected once, the string lands in dictation.error and InputHints renders it as chat-input-hint-status. Second click: start resolves null, recording flips true (the lit button has no text, so it is asserted by the third click). Third click: the stop branch, reachable only when recording is true, is rejected, which the catch turns into recording=false, busy=false and a new message in the hints line. The success branch (stt-transcribed, stt-dictation-failed) is a Tauri event no stub can emit, so a stop that resolves would leave busy armed for the rest of the boot; the rejection is the only scripted end of course. The last message stays in the hints line until the next toggle, which is cosmetic.",
-    "link-preview-card is played on seed-session-1 through a stub: the real link_preview command refuses without [desktop] link_preview_enabled and then needs a public HTTP fetch (crates/apollia-desktop/src/commands/link_preview.rs), and lib/chat/linkPreview.ts caches a null answer per URL for fifteen minutes, so the URL the fallback block relies on can never turn into a card in the same boot. seed-msg-2 therefore carries two standalone URLs (tests/cli/seed/fragments/chat.sql): the first still reaches the backend and renders link-preview-fallback, the second is answered by a link_preview stub under argsMatch (the type it imitates: LinkPreview, url/title/description/favicon/image/site_name, same file) armed before the session is first mounted in the boot. The card click goes to the plugin:opener|open_url stub already armed for the fallback, so the host browser stays closed; nothing in the DOM changes on that click, so the card's rendering (waitFor plus the expect on the stubbed title) is what can fail, and the click itself is covered only by the fact that it fires. The link_preview stub is cleared before the block moves on; the opener stub is dropped by the block's closing clearStubs.",
+    "link-preview-card is played on seed-session-1 through a stub: the real link_preview command refuses without [desktop] link_preview_enabled and then needs a public HTTP fetch (crates/apollia-desktop/src/commands/link_preview.rs), and lib/chat/linkPreview.ts caches a null answer per URL for fifteen minutes, so the URL the fallback block relies on can never turn into a card in the same boot. seed-msg-2 therefore carries two standalone URLs (tests/cli/seed/fragments/chat.sql): the first still reaches the backend and renders link-preview-fallback, the second is answered by a link_preview stub under argsMatch (the type it imitates: LinkPreview, url/title/description/favicon/image/site_name, same file) armed before the session is first mounted in the boot, which is the free-conversation step of the developer block (the integrations tab on seed-session-1), and armed again where the card is asserted because a clearStubs sits in between: whichever of the cache and the stub answers, the card holds the stubbed title. The card click goes to the plugin:opener|open_url stub already armed for the fallback, so the host browser stays closed; nothing in the DOM changes on that click, so the card's rendering (waitFor plus the expect on the stubbed title) is what can fail, and the click itself is covered only by the fact that it fires. The link_preview stub is cleared before the block moves on; the opener stub is dropped by the block's closing clearStubs.",
     "Attachments are played twice: a fill on chat-attach-input (the runner builds one text/plain file in the webview and fires change, nothing is read from disk) and a click on chat-attach-button (under automation the runner replaces a file input's click() with the same immediate pick, because the real chooser is a modal NSOpenPanel that would freeze the boot). The chip then its removal are asserted each time.",
-    "The consent card is delivered by an emitEvent step imitating the bridge's runtime-event envelope of RuntimeEvent::ChatApprovalRequired (TauriRuntimeEvent in crates/apollia-desktop/src/events.rs, category chat-changed, read by handleChatApprovalRequired in stores/sse.ts), on seed-session-2 so the inline card mounts. authorize_chat_tool is stubbed to resolve because the call id is unknown to the backend, and a second emitEvent of ChatApprovalResolved clears the card as the runtime would. The card must show the three answers (once, always for this agent, refuse with an optional reason typed beside it) and nothing else: no scope menu, no confirm word.",
-    "The reasoning list's show-more and collapse are played on a seeded turn (seed-session-4, twelve thinking fragments and four tool calls in tests/cli/seed/fragments/chat.sql), not on a model answer: the list collapses past COLLAPSE_ITEM_THRESHOLD = 10 items (lib/chat/reasoning.ts), a count a model reaches only when it happens to take enough steps.",
+    "The consent card is delivered by an emitEvent step imitating the bridge's runtime-event envelope of RuntimeEvent::ChatApprovalRequired (TauriRuntimeEvent in crates/apollia-desktop/src/events.rs, category chat-changed, read by handleChatApprovalRequired in stores/sse.ts), on seed-session-4: the card renders in the message list, which an empty conversation replaces with its placeholder (ChatMessageScroller.svelte), and seed-session-2 holds no message. Developer mode is off at that point, so the card is OperatorApprovalCard and its answers carry the operator-approval- prefix. The block goes back to seed-session-2 for the plan tab. authorize_chat_tool is stubbed to resolve because the call id is unknown to the backend, and a second emitEvent of ChatApprovalResolved clears the card as the runtime would. The card must show the three answers (once, always for this agent, refuse with an optional reason typed beside it) and nothing else: no scope menu, no confirm word.",
+    "The reasoning list's show-more and collapse are played on a seeded turn (seed-session-4, twelve thinking fragments and four tool calls in tests/cli/seed/fragments/chat.sql), not on a model answer: the list collapses past COLLAPSE_ITEM_THRESHOLD = 10 items (lib/chat/reasoning.ts), a count a model reaches only when it happens to take enough steps. The seeded turn carries no boundaries, so buildReasoningSequence lists the twelve thoughts first and the four tool calls after them: a tool step is past the tenth row, and is unfolded while the list is expanded.",
     "The operator journal is read on the seeded turn: its fourth tool call is seeded failed, and the journal had no branch for that status, so it announced an executed-and-errored call as awaiting approval. The two expects hold the branch that now exists: the first tool row reads executed, the fourth reads failed.",
-    "The trash is played on the session the block itself creates through the picker: the row delete sends it to the trash (Settings > Chat keeps the trash on by default), chat-trash-restore puts it back first in the list (the default sort is newest created first), it is deleted again, and chat-trash-erase removes it for good after one cancelled confirmation. No seeded row is touched and the trash is empty before and after, which is why the block lives here and not in destructive.json. Written against the source and validated statically; not yet through a runtime round.",
+    "The trash is played on the session the block itself created with New chat (the split-screen block) and put on seed-classifier from the selector of the top bar: the row delete sends it to the trash (Settings > Chat keeps the trash on by default), chat-trash-restore puts it back first in the list (the default sort is newest created first), it is deleted again, and chat-trash-erase removes it for good after one cancelled confirmation. No seeded row is touched and the trash is empty before and after, which is why the block lives here and not in destructive.json. Written against the source and validated statically; not yet through a runtime round.",
     "The folders are played on a folder the block itself creates and deletes: New folder opens on its name, typed in place; a seeded conversation is moved into it through the row menu (Move to), the folder is folded and unfolded, the conversation is taken out (No folder), put back, and the folder is deleted with the conversation still in it, which puts it back out of any folder. No folder is left and no conversation is removed, so the seed reads the same before and after. The search is played in between on two seeded words: sovereign is in the title of seed-session-1 (the Titles section), explicit only in its second message (the In the messages section, with its excerpt; the index of the messages is built from the seeded rows when the runtime first opens chat.db). Dragging a conversation onto a folder is not played: the runner has no drag step. Written against the source and validated statically; not yet through a runtime round.",
     "The loading window is opened and cancelled through stubbed IPC, since no engine runs in the deterministic run: list_chat_targets is resolved with one local language model shaped like ChatTargets (commands/chat/targets.rs; installed entries as the model index lists them, path a seed file), list_loaded_models with an engine and nothing resident (routes_llm/loaded.rs), list_model_pins with PinsResponse (routes_llm/residency.rs), get_last_loaded_model with LastLoadedModelResponse and estimate_model_load with LoadEstimateResponse (routes_llm/load.rs, camelCase). The memory figures are asserted by presence, not by text: their rendering follows the locale, and they render only once the estimate answered. Four more openings replay the window on other answers of the same stub: an estimate the guardrail refuses (the refusal, then 'Load anyway' whose confirmation is cancelled once and confirmed once against a load_model that rejects, so the error shows and nothing loads), a model that takes no setting and cannot be sized (LoadEstimateResponse of an MLX model without memory), an estimate that rejects, and reload_last_loaded_model rejecting, which opens the window with its reason. Nothing is loaded: each window is cancelled, after which the selector still shows no target and the reload line names the stubbed last model; the stubs are cleared before the walk goes on.",
     "chat-model-eject is only asserted in the open conversation: no model is resident in the deterministic run, so the button is rendered disabled and an eject has nothing to unload.",
-    "The split-screen block (labels 40a to 40e) plays on the conversation the picker just created: a second pane is opened and filled by a deep link to seed-session-2 (goto with sessionId lands in the active pane), one draft is typed per composer and cleared, the load guardrail refuses a model in the first pane through an estimate_model_load stub that imitates a LoadEstimate (lib/types/llm.ts, verdict refused) with the list_chat_targets, list_loaded_models and list_model_pins stubs of the selector block, the narrow layout is reached at 900 px and left before any other step, and every pane it opened is closed before the block ends, so the step after it finds one pane again.",
-    "The prompt template block of the Settings tab (labels 35b and 35c) is played inside the developer-mode block, since both the row of Settings > Chat (chat-show-prompt-template) and the block exist in developer mode only. The preference is a browser-storage switch, turned on before and off after so the rest of the book finds the tab as before. No engine runs in the deterministic run, so seed-session-2 reads the real answer of the runtime, a template built into the model and not readable (session-prompt-template-unavailable). The text and its Copy button are then played on seed-session-1 through a get_chat_prompt_template stub that imitates SessionPromptTemplate (crates/apollia-runtime/src/api/routes_chat/prompt_template.rs: source, template), armed before the conversation opens because the block reads once per conversation, model, preset and resident models; the stub is cleared before the block ends. Written against the source and validated statically; not yet through a runtime round."
+    "The split-screen block (labels 40a to 40e) plays on a conversation created with New chat and put on seed-classifier from the selector of the top bar: a second pane is opened and filled by a deep link to seed-session-2 (goto with sessionId lands in the active pane), one draft is typed per composer and cleared, the load guardrail refuses a model in the first pane through an estimate_model_load stub that imitates a LoadEstimate (lib/types/llm.ts, verdict refused) with the list_chat_targets, list_loaded_models and list_model_pins stubs of the selector block, the narrow layout is reached at 900 px and left before any other step, and every pane it opened is closed before the block ends, so the step after it finds one pane again.",
+    "The prompt template block of the Settings tab (labels 35b and 35c) is played inside the developer-mode block, since both the row of Settings > Chat (chat-show-prompt-template) and the block exist in developer mode only. The preference is a browser-storage switch, turned on before and off after so the rest of the book finds the tab as before. No engine runs in the deterministic run, so seed-session-2 reads the real answer of the runtime, a template built into the model and not readable (session-prompt-template-unavailable). The text and its Copy button are then played on seed-session-1 through a get_chat_prompt_template stub that imitates SessionPromptTemplate (crates/apollia-runtime/src/api/routes_chat/prompt_template.rs: source, template), armed before the conversation opens because the block reads once per conversation, model, preset and resident models; the stub is cleared before the block ends. Written against the source and validated statically; not yet through a runtime round.",
+    "New chat opens a conversation at once (routes/Chat.svelte, startConversation); the picker shows only when create_chat_session fails. Three blocks reach it through a create_chat_session stub that rejects once: the walk of the picker (its selector with no target, the agents section, rewrite, plan mode, Escape), the developer-mode block (the agent card of the picker creates the conversation, the stub being spent by then) and the close button. Elsewhere an agent conversation is made as the screen now does it: the open conversation is closed first so the header that follows is the new one, New chat, then the selector of the top bar searched on seed-classifier and its one agent option picked, which replaces the empty conversation (lib/chat/applyTargetChoice.ts); chat-header-meta-mode reading seed-classifier is the wait."
   ]
 }

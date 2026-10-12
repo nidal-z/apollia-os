@@ -224,12 +224,49 @@
       "testid": "command-item-companion.toggle"
     },
     {
+      "kind": "waitFor",
+      "testid": "companion-panel",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-companion-toggled-open (the palette entry opens the column the collapse button closed)"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "companion"
+    },
+    {
       "kind": "sleep",
       "ms": 300
     },
     {
+      "kind": "waitFor",
+      "testid": "command-item-companion.toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-companion.toggle"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "companion-panel",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
-      "label": "08-companion-disabled (toggle resets the enabled preference to off so the builder pass opens from a clean single toggle; no panel expected here)"
+      "label": "08b-companion-toggled-closed (the same entry collapses the column it opened, so the developer pass starts from a closed column)"
     },
     {
       "kind": "goto",

@@ -3,11 +3,11 @@
   "stopOnError": false,
   "notes": [
     "The settings hold no permissions section: the rules live on the Authorizations screen, a route of its own (authorizations), which the recipe opens directly.",
-    "A withdrawal takes effect at once and asks no confirmation; the line stays in place with authorizations-rule-undo, which writes the rule again. The recipe withdraws and undoes the seeded web_search rule of apollia:chat, so the seeded counts are the same after the run, with a new rule id.",
+    "A withdrawal takes effect at once and asks no confirmation; the line stays in place with its undo (authorizations-rule-undo writes the rule again, authorizations-always-undo gives the consent back). The recipe withdraws and undoes one standing consent of apollia:chat, then the first fine rule for every agent, so the seeded counts are the same after the run, the rule with a new id. No agent of the seed holds a fine rule of its own after the access upgrade, so the fine rule is played on the rules for every agent.",
     "authorizations-revoke-all-confirm is waited for and never clicked; destructive.json confirms it.",
     "The load error is produced by a once-stub that rejects governance_list_permission_rules; the screen loads on mount, so the recipe leaves for the policy screen and comes back to mount it again, twice: once into the error, once out of it.",
     "The effect and the scope of a rule are RadioItem buttons, not <select>: they are clicked. The family, the tool and the agent are native <select>, driven by selectOption.",
-    "The standing consents (authorizations-always) need a row in family_consents, which the seed does not hold: the recipe asserts the empty state on the screen and on the agent sheet. Their withdrawal is covered by the Vitest suite and the Rust tests of the desktop commands."
+    "The standing consents (authorizations-always) come from the access upgrade the runtime runs once at startup (apollia-permissions access_upgrade.rs): the seed holds no row in family_consents, but its two Allow rules without a prefix, web_search for apollia:chat and file_edit for a project, become standing consents of the built-in agent, marked as carried over from an earlier version (AlwaysRow.svelte:40-41). The recipe asserts them on the screen and on the agent sheet, where the rows are the same AlwaysRow under agent-sheet-always (SheetAlways.svelte:66-84), and the empty states (authorizations-always-empty, agent-sheet-always-empty) are asserted absent."
   ],
   "dynamicTestids": [
     "settings-nav-developer",
@@ -181,8 +181,62 @@
     },
     {
       "kind": "waitFor",
-      "testid": "authorizations-always-empty",
+      "testid": "authorizations-always-list",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-always-empty",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rules-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-agent-apollia (the standing consents the access upgrade wrote, no fine rule)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-always-withdraw"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-undo",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-always-withdrawn-in-place"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-always-undo"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-always-undo",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-withdraw",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-always-withdrawal-undone"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-list-all"
     },
     {
       "kind": "waitFor",
@@ -194,10 +248,6 @@
       "testidPrefix": "authorizations-rule",
       "nth": 0,
       "timeoutMs": 6000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-agent-apollia (web_search rule of the seeded agent)"
     },
     {
       "kind": "click",
@@ -387,8 +437,18 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-sheet-always-empty",
+      "testid": "authorizations-always",
       "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-withdraw",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-sheet-always-empty",
+      "timeoutMs": 2000
     },
     {
       "kind": "screenshot",

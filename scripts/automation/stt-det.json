@@ -6,9 +6,10 @@
     "stt-language-select is a native <select> over STT_LANGUAGES, driven with selectOption. It is set to 'it' before the first save because the save button only enables on a real change, and neither the seed ('en') nor settings-det.json ('de' discarded, 'es' saved) leaves that value, so the dirty state holds whether this script runs standalone or inside master-det.",
     "TranscriptCard no longer anchors the source label (it became the EntityCard title); the card metadata row is asserted on transcript-time + transcript-duration + transcript-text.",
     "Saving hot-reloads the engine: Stt.svelte's onSave sets sttApplied on a successful reloadStt() and only falls back to sttNeedsRestart when the reload throws. The seeded run reloads fine, so the deterministic assertion is stt-applied-notice, not the restart banner.",
-    "stt-load-model-btn is played through a stubbed picker: loadModel (SttEssentialSection.svelte:78-102) calls plugin-dialog `open` (the IPC plugin:dialog|open), the stub resolves ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf once, and import_model_file (commands/model_hub.rs:450-506) treats a source already inside the models directory as a no-op (`if dest != source`, both resolved from std::env::home_dir), so no file is copied or truncated. The picked path lands in config.model_path (:95) and dirties the form, which settings-subpage-reset restores from savedBaseline (Stt.svelte:94-96) before the next selectOption.",
+    "stt-load-model-btn is played twice through a stubbed picker (loadModel, SttEssentialSection.svelte:78-102, calls the IPC plugin:dialog|open; both times the stub resolves ${HOME}/.apollia/models/ggml-base.bin once). First against the real import_model_file: the import checks the structure of the file (check_import, apollia-llm model_index/import.rs:126-131) and the seed's ggml-base.bin is a zero-filled placeholder with no GGML or GGUF header, so the command is refused, the catch of loadModel (:97-98) raises an error toast and the form stays clean. Then with import_model_file answered by the harness (the command returns the destination path as a String, model_import.rs:80-83): the picked name lands in config.model_path (:95) as ~/.apollia/models/ggml-base.bin, which differs from the absolute path the seed stores and dirties the form, and settings-subpage-reset restores it from savedBaseline (Stt.svelte:94-97) before the next selectOption.",
     "stt-configure-link sits in the stt-status-banner Card (Transcriptions.svelte:99-153, `{#if $sttStatus}`) and navigates to the STT sub-page (navigateToSettings('stt'), router.ts:25-29); the form is opened without edits so the nav guard never fires.",
-    "transcribe-file-error-detail-toggle: handleTranscribeFile (TranscribeFileDialog.svelte:19-28) sets an inline error and RETURNS BEFORE the native picker when $sttStatus exists and model_loaded is false, the state stt-model-not-loaded asserts (Transcriptions.svelte:155). humanize keeps the Error message as detail, so the Disclosure renders and its header composes -toggle (Disclosure.svelte:75). Because stopOnError is false, a `plugin:dialog|open resolve null once` stub is armed right before the click as a safety net (a cancelled picker instead of a hung boot if the guard ever fails) and cleared right after so it cannot swallow a later section's picker. Keep this block out of any recipe that loads a real whisper model.",
+    "Dictation switched on with a model chosen reads as ready on Transcriptions (`configured`, Transcriptions.svelte:43-45, :114-119): the engine reports model_loaded only after a first transcription, so the seeded state shows stt-status-banner with Ready and no stt-model-not-loaded. The not-configured state (Transcriptions.svelte:167) is reached with a `get_stt_status patch { enabled: false }` stub, armed before the page is mounted again and cleared at the end of the block; the patch imitates the SttStatus type (lib/types/stt.ts:42-52). The store keeps the patched value until the next mount of the settings page or of Transcriptions reads the real one.",
+    "transcribe-file-error-detail-toggle: handleTranscribeFile (TranscribeFileDialog.svelte:19-31) sets an inline error and RETURNS BEFORE the native picker when $sttStatus exists and dictation is off or no model is chosen, the state stt-model-not-loaded asserts. humanize keeps the Error message as detail, so the Disclosure renders and its header composes -toggle. Because stopOnError is false, a `plugin:dialog|open resolve null once` stub is armed right before the click as a safety net (a cancelled picker instead of a hung boot if the guard ever fails) and cleared right after so it cannot swallow a later section's picker. Keep this block out of any recipe that loads a real whisper model.",
     "chat-mic-button is played in chat-det.json, not here: dictation.toggle() (useComposerDictation.svelte.ts:59-77) calls start_tour_recording and stop_tour_recording with no getUserMedia in front, so both IPCs are answered by the harness and the cpal capture is never opened.",
     "The load-model picker is answered with the seed's whisper placeholder (ggml-base.bin), never with an LLM GGUF: measured on d1-stt, picking Phi-3-mini-Q4.gguf reached the saved configuration, the engine started on it, and the app stopped answering after the overlay was created.",
     "stt-test-start and stt-test-stop are played on the settings SttTestCard through the harness: start_tour_recording resolves null (Result<(), String> in commands/stt.rs:976-990, so the real command would open a cpal capture, flow.rs:182-233, and needs an engine the placeholder ggml-base.bin cannot load), which flips recording and swaps the button's testid to stt-test-stop (SttTestCard.svelte:190); stop_tour_recording is rejected with a string, which the catch of toggle (SttTestCard.svelte:128-131) turns into an error toast and a return to stt-test-start, the only scripted end of course since stt-transcribed and stt-dictation-failed are Tauri events no stub can emit (stt-test-result and stt-test-failure stay unreachable). toggle awaits ensureMicPermission first (SttTestCard.svelte:121), a WebView getUserMedia that never throws and whose result is ignored; App.svelte:85-91 already primes it at boot because the seed enables STT, and wry 0.55.1 grants the WebView side (wry_web_view_ui_delegate.rs:126-136), so the click adds no prompt the boot did not already raise.",
@@ -156,6 +157,44 @@
       "once": true
     },
     {
+      "kind": "clearToasts"
+    },
+    {
+      "kind": "click",
+      "testid": "stt-load-model-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "toast-container",
+      "contains": "is not a whisper.cpp model",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04a-stt-load-model-refused (the seed placeholder carries no GGML or GGUF header)"
+    },
+    {
+      "kind": "clearToasts"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/ggml-base.bin",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "import_model_file",
+      "resolve": "${HOME}/.apollia/models/ggml-base.bin",
+      "once": true
+    },
+    {
       "kind": "click",
       "testid": "stt-load-model-btn",
       "timeoutMs": 4000
@@ -168,6 +207,14 @@
     {
       "kind": "screenshot",
       "label": "04b-stt-load-model-picked-seed-whisper"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "import_model_file"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
     },
     {
       "kind": "click",
@@ -527,6 +574,51 @@
     },
     {
       "kind": "waitFor",
+      "testid": "stt-status-banner",
+      "contains": "Ready",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-model-name",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "stt-model-not-loaded",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10a-transcriptions-ready (dictation on with a model chosen, nothing dictated yet)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_stt_status",
+      "patch": {
+        "enabled": false
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "transcriptions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcriptions-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
       "testid": "stt-model-not-loaded",
       "timeoutMs": 4000
     },
@@ -643,6 +735,10 @@
     {
       "kind": "clearStubs",
       "command": "plugin:dialog|open"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_stt_status"
     },
     {
       "kind": "waitFor",

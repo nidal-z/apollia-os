@@ -53,7 +53,6 @@
     "approval-card-file_write",
     "approval-detail-file_write",
     "approval-see-more-file_write",
-    "arg-input-0",
     "automation-delete-automation-probe-trigger",
     "automation-delete-seed-trigger-daily-digest",
     "automation-edit-advanced-toggle",
@@ -81,7 +80,6 @@
     "automations-filter-error",
     "automations-filter-paused",
     "catalogue-entry-@modelcontextprotocol/server-brave-search",
-    "catalogue-entry-@modelcontextprotocol/server-filesystem",
     "catalogue-entry-com.notion/mcp",
     "catalogue-entry-io.apollia/seed-failing",
     "catalogue-entry-io.apollia/seed-stub",
@@ -1174,20 +1172,21 @@
     },
     {
       "kind": "waitFor",
-      "testid": "new-chat-picker",
+      "testid": "chat-conversation-header",
       "timeoutMs": 3000
     },
     {
       "kind": "expect",
-      "testid": "quickpicker"
+      "testid": "chat-target-selector"
     },
     {
       "kind": "screenshot",
-      "label": "04-quickpicker"
+      "label": "04-new-conversation (New chat opens a conversation at once)"
     },
     {
       "kind": "expect",
-      "testid": "chat-target-selector-empty"
+      "testid": "chat-target-selector-agent",
+      "contains": "Apollia"
     },
     {
       "kind": "click",
@@ -1452,7 +1451,8 @@
     },
     {
       "kind": "expect",
-      "testid": "chat-target-selector-empty"
+      "testid": "chat-target-selector-model",
+      "contains": "default model"
     },
     {
       "kind": "clearStubs",
@@ -1757,6 +1757,34 @@
       "kind": "clearStubs"
     },
     {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "once": true,
+      "reject": "automation: conversation refused"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "new-chat-picker",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "quickpicker"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-quickpicker (the way out when the conversation cannot be created)"
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-target-selector-empty"
+    },
+    {
       "kind": "click",
       "testid": "quickpicker-toggle-agents",
       "timeoutMs": 3000
@@ -1890,23 +1918,56 @@
     },
     {
       "kind": "click",
+      "testid": "chat-close-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "quickpicker",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-button",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "timeoutMs": 2500,
-      "testid": "quickpicker-agent-seed-classifier"
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-target-selector-search",
+      "text": "seed-classifier",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-agent-option",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "timeoutMs": 2500,
-      "testid": "quickpicker-agent-seed-classifier"
+      "testid": "chat-target-selector-agent-option",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-meta-mode",
+      "contains": "seed-classifier",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -3045,7 +3106,7 @@
     {
       "kind": "goto",
       "route": "chat",
-      "sessionId": "seed-session-2"
+      "sessionId": "seed-session-4"
     },
     {
       "kind": "waitFor",
@@ -3055,6 +3116,11 @@
     {
       "kind": "waitFor",
       "testid": "chat-inspector-plan-tab",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-sequence",
       "timeoutMs": 3000
     },
     {
@@ -3070,7 +3136,7 @@
         "event_type": "ChatApprovalRequired",
         "payload": {
           "ChatApprovalRequired": {
-            "session_id": "seed-session-2",
+            "session_id": "seed-session-4",
             "message_id": "automation-msg-1",
             "tool_call_id": "automation-call-1",
             "tool_name": "file_write",
@@ -3086,19 +3152,19 @@
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-accept-"
+      "testidPrefix": "operator-approval-accept-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-always-"
+      "testidPrefix": "operator-approval-always-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-reason-"
+      "testidPrefix": "operator-approval-reason-"
     },
     {
       "kind": "expect",
-      "testidPrefix": "approval-refuse-"
+      "testidPrefix": "operator-approval-refuse-"
     },
     {
       "kind": "screenshot",
@@ -3106,13 +3172,13 @@
     },
     {
       "kind": "fill",
-      "testidPrefix": "approval-reason-",
+      "testidPrefix": "operator-approval-reason-",
       "text": "automation reject reason",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "testidPrefix": "approval-refuse-",
+      "testidPrefix": "operator-approval-refuse-",
       "timeoutMs": 3000
     },
     {
@@ -3123,7 +3189,7 @@
         "event_type": "ChatApprovalResolved",
         "payload": {
           "ChatApprovalResolved": {
-            "session_id": "seed-session-2",
+            "session_id": "seed-session-4",
             "message_id": "automation-msg-1",
             "tool_call_id": "automation-call-1",
             "tool_name": "file_write",
@@ -3144,6 +3210,22 @@
     {
       "kind": "clearStubs",
       "command": "authorize_chat_tool"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-meta-mode",
+      "contains": "apollia-guide",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-inspector-plan-tab",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -3279,6 +3361,12 @@
       "label": "31-chat-builder"
     },
     {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "once": true,
+      "reject": "automation: conversation refused"
+    },
+    {
       "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 3000
@@ -3352,6 +3440,21 @@
     {
       "kind": "screenshot",
       "label": "35-inspector-config-builder (plan-review / error / cross-session / next-steps families render only on their live state: screenshot best-effort, never hard-asserted)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "link_preview",
+      "resolve": {
+        "url": "https://example.com/apollia-docs",
+        "title": "Apollia preview docs",
+        "description": "Stubbed Open Graph metadata for the rich link card.",
+        "favicon": null,
+        "image": null,
+        "site_name": "example.com"
+      },
+      "argsMatch": {
+        "url": "https://example.com/apollia-docs"
+      }
     },
     {
       "kind": "goto",
@@ -3675,23 +3778,56 @@
     },
     {
       "kind": "click",
+      "testid": "chat-close-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker-agent-seed-classifier",
+      "testid": "chat-conversation-header",
       "timeoutMs": 3000
     },
     {
       "kind": "click",
-      "testid": "quickpicker-agent-seed-classifier",
-      "timeoutMs": 2500
+      "testid": "chat-target-selector-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-target-selector-search",
+      "text": "seed-classifier",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-target-selector-agent-option",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-target-selector-agent-option",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-meta-mode",
+      "contains": "seed-classifier",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -4664,6 +4800,12 @@
       "label": "40o-folder-deleted-conversations-kept"
     },
     {
+      "kind": "stubInvoke",
+      "command": "create_chat_session",
+      "once": true,
+      "reject": "automation: conversation refused"
+    },
+    {
       "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 3000
@@ -4726,28 +4868,18 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
       "kind": "waitGone",
       "testid": "session-not-found",
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
-      "label": "44-session-not-found-new-opens-picker"
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-close",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
+      "label": "44-session-not-found-new-opens-conversation"
     },
     {
       "kind": "stubInvoke",
@@ -4758,21 +4890,6 @@
       "kind": "click",
       "testid": "chat-new-chat-btn",
       "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker-agent-seed-classifier",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-agent-seed-classifier",
-      "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
@@ -4906,6 +5023,32 @@
     },
     {
       "kind": "click",
+      "testid": "tool-step-toggle",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-step-body",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49f-tool-step-unfolded"
+    },
+    {
+      "kind": "click",
+      "testid": "tool-step-toggle",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-step-body",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "reasoning-collapse",
       "timeoutMs": 3000
     },
@@ -4943,32 +5086,6 @@
     {
       "kind": "waitGone",
       "testid": "reasoning-thought",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "tool-step-toggle",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tool-step-body",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "49f-tool-step-unfolded"
-    },
-    {
-      "kind": "click",
-      "testid": "tool-step-toggle",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "tool-step-body",
       "timeoutMs": 3000
     },
     {
@@ -7671,8 +7788,7 @@
     {
       "kind": "stubInvoke",
       "command": "list_pending_decisions",
-      "reject": "seeded pending decisions failure",
-      "once": true
+      "reject": "seeded pending decisions failure"
     },
     {
       "kind": "goto",
@@ -7707,6 +7823,10 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "clearStubs",
+      "command": "list_pending_decisions"
+    },
+    {
       "kind": "click",
       "testid": "inbox-error-retry",
       "timeoutMs": 2500
@@ -7723,7 +7843,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "13c-review-retried (the stub was once, the real list is empty)"
+      "label": "13c-review-retried (the stub is cleared, the real list is empty)"
     },
     {
       "kind": "stubInvoke",
@@ -8612,8 +8732,7 @@
     {
       "kind": "stubInvoke",
       "command": "list_notification_channels",
-      "reject": "seeded channels failure",
-      "once": true
+      "reject": "seeded channels failure"
     },
     {
       "kind": "click",
@@ -8661,6 +8780,10 @@
       "kind": "click",
       "testid": "notifications-error-details-toggle",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_notification_channels"
     },
     {
       "kind": "click",
@@ -9699,6 +9822,16 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 3000
     },
@@ -9725,6 +9858,16 @@
     {
       "kind": "screenshot",
       "label": "06-native-microsoft-accounts"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -9767,6 +9910,16 @@
     {
       "kind": "waitFor",
       "testid": "connections-route",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 3000
     },
     {
@@ -10143,6 +10296,16 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 3000
     },
@@ -10159,6 +10322,16 @@
     {
       "kind": "waitFor",
       "testid": "native-detail-tab-accounts",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 3000
     },
     {
@@ -10656,6 +10829,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "catalogue-native-google",
       "timeoutMs": 3000
@@ -10696,6 +10874,16 @@
     {
       "kind": "screenshot",
       "label": "21-native-settings-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -10772,6 +10960,16 @@
     {
       "kind": "screenshot",
       "label": "25-mcp-settings-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -10870,6 +11068,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "catalogue-native-microsoft",
       "timeoutMs": 3000
@@ -10891,111 +11094,12 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "connections-open-catalogue",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-tabbar",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-tab-discover",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-filter-community",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-list",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-entry-@modelcontextprotocol/server-filesystem",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-step-disclaimer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "disclaimer-journal-note",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-warning-accept",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "30-add-single-warning"
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-warning-accept",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-step-auth",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-step-args",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "fill",
-      "testid": "arg-input-0",
-      "text": "/tmp/apollia-automation-allowed",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "wizard-auth-continue",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "32-add-auth-local-files-args"
-    },
-    {
-      "kind": "click",
-      "testid": "wizard-cancel-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "connector-wizard",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "connections-open-catalogue",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "catalogue-native-microsoft",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "catalogue-native-microsoft",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "native-detail-tab-accounts",
       "timeoutMs": 3000
     },
     {
@@ -11198,6 +11302,16 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "connections-open-catalogue",
       "timeoutMs": 3000
     },
@@ -11267,7 +11381,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "settings-page",
+      "testid": "authorizations-policy",
       "timeoutMs": 3000
     },
     {
@@ -11313,6 +11427,16 @@
       "command": "test_mcp_live_server",
       "once": true,
       "reject": "automation: transport closed by stubInvoke"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -11457,6 +11581,16 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitGone",
       "testid": "sidebar-mcp-seed-stub",
       "timeoutMs": 3000
@@ -11495,6 +11629,16 @@
       "command": "test_mcp_live_server",
       "once": true,
       "reject": "automation: transport closed by stubInvoke"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -11618,6 +11762,16 @@
         },
         "registration_supported": true
       }
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -12262,6 +12416,16 @@
     {
       "kind": "click",
       "testid": "oauth-drive-folder-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-done",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-done-close",
       "timeoutMs": 3000
     },
     {
@@ -13363,12 +13527,52 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "companion-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-companion-toggled-open (the palette entry opens the column the collapse button closed)"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "companion",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "sleep",
       "ms": 300
     },
     {
+      "kind": "waitFor",
+      "testid": "command-item-companion.toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-companion.toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "companion-panel",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
-      "label": "08-companion-disabled (toggle resets the enabled preference to off so the builder pass opens from a clean single toggle; no panel expected here)"
+      "label": "08b-companion-toggled-closed (the same entry collapses the column it opened, so the developer pass starts from a closed column)"
     },
     {
       "kind": "goto",
@@ -15946,25 +16150,6 @@
       "testid": "about-link-github"
     },
     {
-      "kind": "click",
-      "testid": "settings-nav-engines",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "engines-section",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "engines-list",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "expect",
-      "testid": "engines-check-updates"
-    },
-    {
       "kind": "stubInvoke",
       "command": "list_engines",
       "resolve": {
@@ -16016,6 +16201,133 @@
         "verifiable": true,
         "dictation": null
       }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "set_engine_channel",
+      "resolve": {
+        "channel": "stable",
+        "base_url": ""
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_engine_updates",
+      "resolve": {
+        "channel": "stable",
+        "manifest_sequence": 7,
+        "updates": [
+          {
+            "engine": "llama-server",
+            "variant": "cuda",
+            "installed_tag": "b7001",
+            "latest_tag": "b7100",
+            "update_available": true
+          },
+          {
+            "engine": "llama-server",
+            "variant": "vulkan",
+            "installed_tag": "b6900",
+            "latest_tag": "b6900",
+            "update_available": false
+          }
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-channel-select",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-channel-select",
+      "value": "preview",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-filter-compat",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "engines-filter-compat",
+      "value": "all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engine-row-tag-mismatch",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "56-engines-list-read-again-through-channel"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-engines",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "engines-check-updates"
     },
     {
       "kind": "stubInvoke",
@@ -16910,6 +17222,21 @@
     },
     {
       "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-saved-hint",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "profile-enrichment-banner",
       "timeoutMs": 3000
     },
@@ -17553,8 +17880,9 @@
       "contains": "Load"
     },
     {
-      "kind": "expect",
-      "testid": "ai-panel-tabbar"
+      "kind": "waitGone",
+      "testid": "ai-panel-tabbar",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -17716,6 +18044,11 @@
     {
       "kind": "waitFor",
       "testid": "ai-model-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-panel-tabbar",
       "timeoutMs": 3000
     },
     {
@@ -19707,6 +20040,36 @@
             ]
           },
           {
+            "id": "automation-works/gamma-90b",
+            "kind": "language",
+            "label": "Automation Gamma 90B",
+            "publisher": "Automation Works",
+            "language": "en",
+            "description": "A very large model from a second publisher.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-works/gamma-90b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 96,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation-works/gamma-90b-GGUF"
+            ]
+          },
+          {
             "id": "automation-embed-small",
             "kind": "embeddings",
             "label": "Automation Embed Small",
@@ -19836,6 +20199,24 @@
                 "params_b": 70.0,
                 "gguf_repos": [
                   "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          },
+          {
+            "id": "automation-gamma",
+            "label": "Automation Gamma",
+            "publisher": "Automation Works",
+            "released": "2026-02-01",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "variants": [
+              {
+                "name": "Automation Gamma 90B",
+                "params_b": 90.0,
+                "gguf_repos": [
+                  "automation-works/gamma-90b-GGUF"
                 ],
                 "mlx_repos": []
               }
@@ -20268,8 +20649,20 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitGone",
+      "testid": "ai-discover-result",
+      "nth": 2,
+      "timeoutMs": 3000
+    },
+    {
       "kind": "click",
       "testid": "ai-discover-maker-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ai-discover-result",
+      "nth": 2,
       "timeoutMs": 3000
     },
     {
@@ -20286,9 +20679,15 @@
     },
     {
       "kind": "expect",
-      "testid": "ai-discover-result-publisher",
+      "testid": "ai-discover-maker",
       "nth": 0,
       "contains": "Automation Labs"
+    },
+    {
+      "kind": "expect",
+      "testid": "ai-discover-maker",
+      "nth": 1,
+      "contains": "Automation Works"
     },
     {
       "kind": "click",
@@ -21340,6 +21739,36 @@
             ]
           },
           {
+            "id": "automation-works/gamma-90b",
+            "kind": "language",
+            "label": "Automation Gamma 90B",
+            "publisher": "Automation Works",
+            "language": "en",
+            "description": "A very large model from a second publisher.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-works/gamma-90b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 96,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation-works/gamma-90b-GGUF"
+            ]
+          },
+          {
             "id": "automation-embed-small",
             "kind": "embeddings",
             "label": "Automation Embed Small",
@@ -21469,6 +21898,24 @@
                 "params_b": 70.0,
                 "gguf_repos": [
                   "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          },
+          {
+            "id": "automation-gamma",
+            "label": "Automation Gamma",
+            "publisher": "Automation Works",
+            "released": "2026-02-01",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "variants": [
+              {
+                "name": "Automation Gamma 90B",
+                "params_b": 90.0,
+                "gguf_repos": [
+                  "automation-works/gamma-90b-GGUF"
                 ],
                 "mlx_repos": []
               }
@@ -21708,6 +22155,36 @@
             ]
           },
           {
+            "id": "automation-works/gamma-90b",
+            "kind": "language",
+            "label": "Automation Gamma 90B",
+            "publisher": "Automation Works",
+            "language": "en",
+            "description": "A very large model from a second publisher.",
+            "license": {
+              "id": "apache-2.0",
+              "source": "https://example.invalid/license"
+            },
+            "source_url": "https://example.invalid/automation-works/gamma-90b",
+            "capabilities": {
+              "tools": true,
+              "reasoning": false,
+              "vision": false,
+              "source": "https://example.invalid/template"
+            },
+            "memory": {
+              "min_gb": 96,
+              "source": "https://example.invalid/memory"
+            },
+            "defaults": {
+              "source": "https://example.invalid/defaults"
+            },
+            "author_fields": [],
+            "repos": [
+              "automation-works/gamma-90b-GGUF"
+            ]
+          },
+          {
             "id": "automation-embed-small",
             "kind": "embeddings",
             "label": "Automation Embed Small",
@@ -21837,6 +22314,24 @@
                 "params_b": 70.0,
                 "gguf_repos": [
                   "automation/beta-70b-GGUF"
+                ],
+                "mlx_repos": []
+              }
+            ]
+          },
+          {
+            "id": "automation-gamma",
+            "label": "Automation Gamma",
+            "publisher": "Automation Works",
+            "released": "2026-02-01",
+            "license": "apache-2.0",
+            "tool_calling": "native",
+            "variants": [
+              {
+                "name": "Automation Gamma 90B",
+                "params_b": 90.0,
+                "gguf_repos": [
+                  "automation-works/gamma-90b-GGUF"
                 ],
                 "mlx_repos": []
               }
@@ -22882,6 +23377,44 @@
       "once": true
     },
     {
+      "kind": "clearToasts"
+    },
+    {
+      "kind": "click",
+      "testid": "stt-load-model-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "toast-container",
+      "contains": "is not a whisper.cpp model",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04a-stt-load-model-refused (the seed placeholder carries no GGML or GGUF header)"
+    },
+    {
+      "kind": "clearToasts"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/ggml-base.bin",
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "import_model_file",
+      "resolve": "${HOME}/.apollia/models/ggml-base.bin",
+      "once": true
+    },
+    {
       "kind": "click",
       "testid": "stt-load-model-btn",
       "timeoutMs": 3000
@@ -22894,6 +23427,14 @@
     {
       "kind": "screenshot",
       "label": "04b-stt-load-model-picked-seed-whisper"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "import_model_file"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
     },
     {
       "kind": "click",
@@ -23265,6 +23806,51 @@
     },
     {
       "kind": "waitFor",
+      "testid": "stt-status-banner",
+      "contains": "Ready",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-model-name",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "stt-model-not-loaded",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10a-transcriptions-ready (dictation on with a model chosen, nothing dictated yet)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_stt_status",
+      "patch": {
+        "enabled": false
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "transcriptions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcriptions-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
       "testid": "stt-model-not-loaded",
       "timeoutMs": 3000
     },
@@ -23383,6 +23969,10 @@
     {
       "kind": "clearStubs",
       "command": "plugin:dialog|open"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_stt_status"
     },
     {
       "kind": "waitFor",
@@ -23656,6 +24246,16 @@
     {
       "kind": "screenshot",
       "label": "00c-tools-list-after-stub-cleared"
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -24197,6 +24797,16 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "sidebar-mcp-",
       "nth": 0,
       "timeoutMs": 3000
@@ -24283,6 +24893,16 @@
     {
       "kind": "waitFor",
       "testid": "connections-route",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
       "timeoutMs": 3000
     },
     {
@@ -24499,6 +25119,16 @@
     },
     {
       "kind": "click",
+      "testid": "connections-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
       "testid": "connections-builtin-tools",
       "timeoutMs": 3000
     },
@@ -24686,7 +25316,64 @@
     },
     {
       "kind": "waitFor",
+      "testid": "authorizations-always-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
       "testid": "authorizations-always-empty",
+      "timeoutMs": 2000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-rules-empty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-agent-apollia (the standing consents the access upgrade wrote, no fine rule)"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-always-withdraw",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-undo",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-always-withdrawn-in-place"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-always-undo",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "authorizations-always-undo",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-withdraw",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-always-withdrawal-undone"
+    },
+    {
+      "kind": "click",
+      "testid": "authorizations-list-all",
       "timeoutMs": 3000
     },
     {
@@ -24699,10 +25386,6 @@
       "testidPrefix": "authorizations-rule",
       "nth": 0,
       "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-agent-apollia (web_search rule of the seeded agent)"
     },
     {
       "kind": "click",
@@ -24904,8 +25587,18 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-sheet-always-empty",
+      "testid": "authorizations-always",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "authorizations-always-withdraw",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-sheet-always-empty",
+      "timeoutMs": 2000
     },
     {
       "kind": "screenshot",
@@ -27549,6 +28242,21 @@
     {
       "kind": "waitFor",
       "testid": "journal-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-filters-clear",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-entry",
       "timeoutMs": 3000
     },
     {

@@ -5,7 +5,7 @@
     "Code-verified against routes/settings/Profile.svelte, components/settings/profile/{ProfileListCard,ProfileFieldsCard,ProfileResetDialog,ProfileEnrichmentBanner}.svelte and ui/dialog/{Dialog,ConfirmDialog}.svelte.",
     "The fields are drawn from the list Rust sends with the profile (name, role, function, tools, preferences, free_text), each input carrying profile-field-<key>; they are declared in dynamicTestids since the id is built from the key.",
     "The profile saves EXPLICITLY: field edits mark the route dirty (settings-unsaved-badge) and are committed via settings-subpage-save + settings-save-toast-success; settings-saved-hint renders only while the sub-page is clean, so it is asserted after the save. The route is left clean before navigating away, since the nav guard modal would block every later section of master-det.",
-    "profile-enrichment-banner shows when name AND role are non-empty and at least one field is still empty (shouldOfferEnrichment in profileForm.ts), so it is present from the role fill onwards; resume opens the onboarding modal straight on the conversation, for the displayed profile (OnboardingModal.svelte, enriching); without a model the conversation never starts, so onboarding-skip-optional closes the modal and writes nothing; dismiss hides the banner (component-local state). The proposal the agent hands back (profile-proposal-banner, profile-proposal-save, profile-proposal-skip) needs a model and is not played here.",
+    "profile-enrichment-banner shows when name AND role are non-empty and at least one field is still empty (shouldOfferEnrichment in profileForm.ts), read on the SAVED fields of the profile and not on what is being typed (the conversation it opens works on the stored profile), so the name and the role are saved before it is awaited; resume opens the onboarding modal straight on the conversation, for the displayed profile (OnboardingModal.svelte, enriching); without a model the conversation never starts, so onboarding-skip-optional closes the modal and writes nothing; dismiss hides the banner (component-local state). The proposal the agent hands back (profile-proposal-banner, profile-proposal-save, profile-proposal-skip) needs a model and is not played here.",
     "The profiles block creates \"Formateur\" (it is displayed at once), makes it the default through its row menu (the list puts the default first, hence nth 0 afterwards), opens the menu of the default to see the deletion refused with its reason, opens the reset of the default (two choices, the second relaunches the onboarding) and cancels it, gives the default back to the first profile and deletes \"Formateur\". The seed holds one profile, so the run leaves the profiles as it found them.",
     "Profile.svelte has no developer-mode branch outside the facts card (key column and key field of the add form), so the builder pass asserts the same list and fields."
   ],
@@ -95,6 +95,20 @@
       "kind": "fill",
       "testid": "profile-field-role",
       "text": "Automation QA engineer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-save"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-saved-hint",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitFor",
