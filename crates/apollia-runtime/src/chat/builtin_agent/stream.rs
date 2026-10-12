@@ -136,8 +136,10 @@ impl BuiltInChatAgent {
 
     /// Fold any in-flight accounting chunks into `usage` after a cancellation.
     ///
-    /// Bounded: stops at the first per-item timeout, at end of stream, or on
-    /// error, so a Stop never waits on a model that keeps generating. Content
+    /// Bounded by one deadline for the whole drain, not per item: a model that
+    /// keeps generating yields a chunk every few milliseconds, so a per-item
+    /// timeout never fires and a Stop would wait for the natural end of the
+    /// stream. Stops at the deadline, at end of stream, or on error. Content
     /// chunks are deliberately dropped: the turn is frozen at its checkpoint
     /// and only the measurement is worth salvaging.
     async fn drain_accounting_chunks(
@@ -147,9 +149,15 @@ impl BuiltInChatAgent {
         usage: &mut TokenUsage,
         meter: &mut apollia_llm::CallMeter,
     ) {
-        const DRAIN_ITEM_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(200);
+        const DRAIN_BUDGET: std::time::Duration = std::time::Duration::from_millis(200);
+        let deadline = tokio::time::Instant::now() + DRAIN_BUDGET;
         loop {
-            match tokio::time::timeout(DRAIN_ITEM_TIMEOUT, stream.next()).await {
+            // `timeout_at` polls the stream first, so a stream that is always
+            // ready would never let the deadline fire: check it here too.
+            if tokio::time::Instant::now() >= deadline {
+                break;
+            }
+            match tokio::time::timeout_at(deadline, stream.next()).await {
                 Ok(Some(Ok(StreamChunk::Usage(chunk_usage)))) => {
                     meter.read_chunk(&StreamChunk::Usage(chunk_usage.clone()));
                     usage.merge(&chunk_usage);
