@@ -4081,6 +4081,49 @@ async fn test_consume_stream_cancel_folds_late_usage() {
 }
 
 #[tokio::test]
+async fn test_consume_stream_cancel_returns_while_the_model_keeps_generating() {
+    // GIVEN a stream that never ends and yields a content chunk every 10 ms,
+    // as a model that keeps generating does, and a stop token already fired
+    let agent = plan_agent(None, false);
+    let stream: std::pin::Pin<
+        Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
+    > = Box::pin(futures::stream::unfold((), |()| async {
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        Some((Ok(StreamChunk::Text("more".into())), ()))
+    }));
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+
+    let mut accumulated = String::new();
+    let mut usage = TokenUsage::default();
+
+    // WHEN the stream is consumed under cancellation
+    let started = std::time::Instant::now();
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        agent.consume_stream(
+            stream,
+            StreamConsumeParams {
+                session_id: "sess-1",
+                message_id: "msg-1",
+                cancel: &cancel,
+                dispatched_at: std::time::Instant::now(),
+                meter: &mut apollia_llm::CallMeter::new(std::time::Instant::now()),
+            },
+            &mut accumulated,
+            &mut usage,
+        ),
+    )
+    .await;
+
+    // THEN the Stop is honoured within the drain budget instead of waiting
+    // for the end of a stream that has none
+    assert!(result.is_ok(), "the Stop waited on the stream");
+    assert!(started.elapsed() < std::time::Duration::from_secs(1));
+    assert!(accumulated.is_empty());
+}
+
+#[tokio::test]
 async fn test_react_loop_merges_stream_usage_into_response() {
     // GIVEN a model that streams text then the terminal usage chunk
     let model = Arc::new(MockUsageModel {
