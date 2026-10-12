@@ -135,6 +135,12 @@ async fn test_list_names_installed_engines_with_their_source() {
     assert!(engine["path"].as_str().unwrap().ends_with("cuda"));
     assert_eq!(body["channel"], "stable");
     assert!(!view.cuda_proposable);
+    // AND the answer says whether this build can verify the channel, which is
+    //     whether it carries the distribution key
+    assert_eq!(
+        body["verifiable"],
+        apollia_signing::distribution::distribution_public_key().is_some()
+    );
 }
 
 #[test]

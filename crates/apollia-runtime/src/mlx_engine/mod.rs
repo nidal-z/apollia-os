@@ -348,8 +348,31 @@ impl MlxEngineSupervisor {
         judged.map_err(LocalEngineError::from)
     }
 
-    /// Launch a process for `model_path` and wait until it is healthy.
+    /// Launch a process for `model_path`, wait until it is healthy, and say
+    /// on the bus that it is loading, then that it answers or that it did not
+    /// come up: the launch takes seconds, and nothing else says so.
     async fn spawn_instance(
+        &self,
+        model_path: String,
+        n_ctx: u32,
+    ) -> Result<ModelLease, LocalEngineError> {
+        let engine = Engine::VllmMlx.as_str();
+        let name = display_name(&model_path);
+        if let Some(residency) = self.residency.get() {
+            residency.announce_loading(engine, &model_path);
+        }
+        let outcome = self.launch_instance(model_path, n_ctx).await;
+        if let Some(residency) = self.residency.get() {
+            match &outcome {
+                Ok(_) => residency.announce_ready(engine, &name),
+                Err(error) => residency.announce_load_failed(engine, &name, &error.to_string()),
+            }
+        }
+        outcome
+    }
+
+    /// Launch a process for `model_path` and wait until it is healthy.
+    async fn launch_instance(
         &self,
         model_path: String,
         n_ctx: u32,

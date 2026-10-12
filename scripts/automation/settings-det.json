@@ -2471,6 +2471,8 @@
           }
         ],
         "cuda_proposable": false,
+        "verifiable": true,
+        "verifiable": true,
         "dictation": null
       }
     },
@@ -2624,6 +2626,8 @@
           }
         ],
         "cuda_proposable": false,
+        "verifiable": true,
+        "verifiable": true,
         "dictation": null
       }
     },
@@ -2734,6 +2738,8 @@
           }
         ],
         "cuda_proposable": false,
+        "verifiable": true,
+        "verifiable": true,
         "dictation": null
       }
     },
@@ -3030,6 +3036,8 @@
           }
         ],
         "cuda_proposable": false,
+        "verifiable": true,
+        "verifiable": true,
         "dictation": null
       }
     },

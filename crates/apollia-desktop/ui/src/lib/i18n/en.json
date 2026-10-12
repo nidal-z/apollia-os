@@ -3100,6 +3100,7 @@
       "channel_stable": "Stable",
       "channel_preview": "Preview",
       "check_updates": "Check for updates",
+      "unverifiable": "This build does not carry the distribution key: no further engine can be verified or installed from the channel. The engines shipped with the application work normally.",
       "in_service": "In service",
       "update_available": "{tag} available",
       "update_latest": "Latest version",
@@ -3751,6 +3752,7 @@
       "retry": "Retry now"
     },
     "agent_loading": "Getting the agent “{agent}” ready…",
+    "model_loading": "Loading the model {name}…",
     "agent_unavailable": {
       "message": "Agent « {agent} » is no longer installed. Messages sent in this conversation will fail until you reinstall it.",
       "manage": "Manage agents"

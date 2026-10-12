@@ -121,6 +121,7 @@ const ENGINES: EnginesResponse = {
     },
   ],
   cuda_proposable: false,
+  verifiable: true,
   nvidia_card: null,
   dictation: null,
 };
@@ -325,6 +326,26 @@ describe("Resource monitor - where it lives", () => {
 });
 
 describe("Engines - one table from the engine list", () => {
+  test("a build without the distribution key says so and does not offer a check it would refuse", () => {
+    // GIVEN the engines of a build that cannot verify the channel
+    developerMode.set(false);
+    enginesStore.set(loaded({ ...ENGINES, verifiable: false }));
+
+    // WHEN System > Engines renders
+    const html = renderToString(Engines).body;
+
+    // THEN it says in its own words why nothing more can be installed, and the
+    //      check is there but cannot be asked
+    expect(html).toContain(copy.engines.unverifiable);
+    const isDisabled = (tag: string | null) => / disabled(?:=""|[\s>])/.test(tag ?? "");
+    expect(isDisabled(tagOf(html, "engines-check-updates"))).toBe(true);
+    // AND a build that can verify says nothing of the kind
+    enginesStore.set(loaded(ENGINES));
+    const verifiable = renderToString(Engines).body;
+    expect(verifiable).not.toContain(copy.engines.unverifiable);
+    expect(isDisabled(tagOf(verifiable, "engines-check-updates"))).toBe(false);
+  });
+
   test("developer mode off: engines, versions, the one in service and the update, no channel and no source", () => {
     // GIVEN an embedded engine, a downloaded CUDA engine in service, and a
     //      newer CUDA build on the channel

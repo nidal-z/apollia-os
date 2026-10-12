@@ -18,6 +18,7 @@
 //! rules unload a model nothing uses any more (see [`crate::residency`]).
 //! Whisper STT still lives in `apollia-runner`; only the LLM engine moves here.
 
+mod announce;
 mod config;
 pub mod devices;
 mod draft;
@@ -658,8 +659,15 @@ impl LlamaServerSupervisor {
             "llama_server_path": self.bin_path.display().to_string(),
         }));
 
-        let mut child = self.spawn_child(&args)?;
-        self.wait_until_healthy(&mut child, port).await?;
+        self.announce_loading(&config.model_path);
+        let child = match self.start_and_wait(&args, port).await {
+            Ok(child) => child,
+            Err(error) => {
+                self.announce_failed(&config.model_path, &error);
+                return Err(error);
+            }
+        };
+        self.announce_ready(&config.model_path);
 
         let mut instance = Instance::new(config, load, port, child, self.next_tick());
         instance.explicit = explicit;
@@ -672,6 +680,13 @@ impl LlamaServerSupervisor {
         tracing::info!(port, model = %instance.model_path, "llama.server.healthy");
         self.instances.lock().await.push(instance);
         Ok(lease)
+    }
+
+    /// Start the binary with `args` and wait until it answers on `port`.
+    async fn start_and_wait(&self, args: &[String], port: u16) -> Result<Child, LlamaServerError> {
+        let mut child = self.spawn_child(args)?;
+        self.wait_until_healthy(&mut child, port).await?;
+        Ok(child)
     }
 
     /// Sends every line a process launched from now on prints to `logs` as

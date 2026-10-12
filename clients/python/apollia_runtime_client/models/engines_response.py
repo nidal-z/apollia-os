@@ -28,6 +28,9 @@ class EnginesResponse:
         engines (list[EngineEntry]): Engines embedded in the bundle, then installed ones.
         updates (list[VariantUpdate]): Per variant offered by that manifest for this platform, whether a newer
             build than the installed one exists. Empty until a manifest verified.
+        verifiable (bool): Whether this build carries the distribution key the channel is
+            verified with. Without it no engine can be checked or installed from
+            the channel, and the engines embedded in the bundle are the only ones.
         dictation (DictationEngine | None | Unset):
         manifest_sequence (int | None | Unset): Sequence of the last verified manifest of that channel, if any.
         nvidia_card (None | str | Unset): Name of the NVIDIA card detected, when there is one.
@@ -37,6 +40,7 @@ class EnginesResponse:
     cuda_proposable: bool
     engines: list[EngineEntry]
     updates: list[VariantUpdate]
+    verifiable: bool
     dictation: DictationEngine | None | Unset = UNSET
     manifest_sequence: int | None | Unset = UNSET
     nvidia_card: None | str | Unset = UNSET
@@ -58,6 +62,8 @@ class EnginesResponse:
         for updates_item_data in self.updates:
             updates_item = updates_item_data.to_dict()
             updates.append(updates_item)
+
+        verifiable = self.verifiable
 
         dictation: dict[str, Any] | None | Unset
         if isinstance(self.dictation, Unset):
@@ -87,6 +93,7 @@ class EnginesResponse:
                 "cuda_proposable": cuda_proposable,
                 "engines": engines,
                 "updates": updates,
+                "verifiable": verifiable,
             }
         )
         if dictation is not UNSET:
@@ -122,6 +129,8 @@ class EnginesResponse:
             updates_item = VariantUpdate.from_dict(updates_item_data)
 
             updates.append(updates_item)
+
+        verifiable = d.pop("verifiable")
 
         def _parse_dictation(data: object) -> DictationEngine | None | Unset:
             if data is None:
@@ -163,6 +172,7 @@ class EnginesResponse:
             cuda_proposable=cuda_proposable,
             engines=engines,
             updates=updates,
+            verifiable=verifiable,
             dictation=dictation,
             manifest_sequence=manifest_sequence,
             nvidia_card=nvidia_card,

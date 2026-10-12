@@ -342,7 +342,7 @@
       variant="outline"
       size="sm"
       loading={checking}
-      disabled={!response}
+      disabled={!response || !response.verifiable}
       onclick={oncheck}
       data-testid="engines-check-updates"
     >
@@ -350,6 +350,12 @@
       {$t("settings.engines.check_updates")}
     </Button>
   {/snippet}
+
+  {#if response && !response.verifiable}
+    <p class="text-body-sm text-muted-foreground" role="note">
+      {$t("settings.engines.unverifiable")}
+    </p>
+  {/if}
 
   {#if checkError}
     <ErrorBanner message={checkError} data-testid="engines-check-error" />

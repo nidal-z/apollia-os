@@ -257,16 +257,28 @@ async fn test_changing_a_load_setting_relaunches_the_resident_model() {
     let lines = launches(dir.path());
     assert_eq!(lines.len(), 2);
     assert!(lines[1].contains(" -t 2 "), "{}", lines[1]);
-    match rx.try_recv() {
-        Ok(RuntimeEvent::LlmModelReloaded {
-            backend,
-            model_path,
-        }) => {
-            assert_eq!(backend, "qwen");
-            assert_eq!(model_path, "/models/qwen.gguf");
-        }
-        other => panic!("expected LlmModelReloaded, got {other:?}"),
+    let mut heard = Vec::new();
+    while let Ok(event) = rx.try_recv() {
+        heard.push(event);
     }
+    assert!(
+        heard.iter().any(|event| matches!(
+            event,
+            RuntimeEvent::LlmModelReloaded { backend, model_path }
+                if backend == "qwen" && model_path == "/models/qwen.gguf"
+        )),
+        "expected LlmModelReloaded among {heard:?}"
+    );
+    // AND each of the two launches was announced as a load that came up
+    let loads = |wanted: fn(&RuntimeEvent) -> bool| heard.iter().filter(|e| wanted(e)).count();
+    assert_eq!(
+        loads(|e| matches!(e, RuntimeEvent::LlmModelLoading { .. })),
+        2
+    );
+    assert_eq!(
+        loads(|e| matches!(e, RuntimeEvent::LlmModelReady { .. })),
+        2
+    );
     sup.shutdown_in_place().await;
 }
 
@@ -299,6 +311,9 @@ async fn test_an_unchanged_preset_keeps_the_resident_model() {
         .await
         .unwrap(),
     );
+
+    // The first launch announced its load: what follows is heard from here.
+    while rx.try_recv().is_ok() {}
 
     // WHEN it is requested again with the preset untouched
     drop(

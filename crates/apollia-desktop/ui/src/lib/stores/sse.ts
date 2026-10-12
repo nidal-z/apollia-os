@@ -7,6 +7,7 @@
  *
  * Replaces the previous 3-second polling loop.
  */
+import { applyModelLoadEvent, modelLoadEventOf, modelLoads } from "./modelLoads";
 import { writable, get } from "svelte/store";
 import { t } from "svelte-i18n";
 import { invoke } from "@tauri-apps/api/core";
@@ -617,6 +618,8 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
           sessionBudget.set(budget);
         }
       } else {
+        const load = modelLoadEventOf(event.event_type, event.payload);
+        if (load) modelLoads.update((loads) => applyModelLoadEvent(loads, load));
         void refreshLlmBackendsViaIpc();
       }
       break;

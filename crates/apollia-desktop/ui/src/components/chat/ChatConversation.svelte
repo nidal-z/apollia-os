@@ -68,6 +68,7 @@
   import { onRegenerateLast } from "$lib/stores/chatRegenerate";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentPresenceNotice from "./AgentPresenceNotice.svelte";
+  import ModelLoadingNotice from "./ModelLoadingNotice.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ChatTarget, ConversationTarget } from "$lib/chat/chatTargets";
   import { applyTargetChoice } from "$lib/chat/applyTargetChoice";
@@ -693,6 +694,7 @@
        messages so the transcript stays readable. -->
   {#if !loading && loadErrorKind === "none"}
     <AgentPresenceNotice mode={sessionMode} agentName={sessionAgentName} />
+    <ModelLoadingNotice />
   {/if}
 
   <!-- Messages -->

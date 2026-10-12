@@ -8022,6 +8022,12 @@ export interface components {
              *     build than the installed one exists. Empty until a manifest verified.
              */
             updates: components["schemas"]["VariantUpdate"][];
+            /**
+             * @description Whether this build carries the distribution key the channel is
+             *     verified with. Without it no engine can be checked or installed from
+             *     the channel, and the engines embedded in the bundle are the only ones.
+             */
+            verifiable: boolean;
         };
         /** @description Response for `GET /api/v1/notifications/events`. */
         EventsResponse: {

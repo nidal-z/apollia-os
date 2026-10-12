@@ -129,6 +129,7 @@ const ENGINES: EnginesResponse = {
   manifest_sequence: 12,
   updates: [],
   cuda_proposable: false,
+  verifiable: true,
   nvidia_card: null,
   dictation: { path: "/x/runner", version: "1.7.6" },
 };

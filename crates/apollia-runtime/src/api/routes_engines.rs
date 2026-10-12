@@ -86,6 +86,10 @@ pub struct EnginesResponse {
     pub nvidia_card: Option<String>,
     /// The dictation engine, when a runner is in reach.
     pub dictation: Option<DictationEngine>,
+    /// Whether this build carries the distribution key the channel is
+    /// verified with. Without it no engine can be checked or installed from
+    /// the channel, and the engines embedded in the bundle are the only ones.
+    pub verifiable: bool,
 }
 
 /// Body of the settings routes.
@@ -311,8 +315,8 @@ fn engines_view(
     let has_cuda = installed
         .iter()
         .any(|p| p.engine == Engine::LlamaServer && p.variant == Variant::Cuda);
-    let manifest = apollia_signing::distribution::distribution_public_key()
-        .and_then(|key| cached_manifest(&root, settings.channel, key));
+    let key = apollia_signing::distribution::distribution_public_key();
+    let manifest = key.and_then(|key| cached_manifest(&root, settings.channel, key));
     let platform = engine_store::current_platform();
     let updates = manifest
         .as_ref()
@@ -328,6 +332,7 @@ fn engines_view(
         cuda_proposable: nvidia_card.is_some() && !has_cuda,
         nvidia_card,
         dictation: None,
+        verifiable: key.is_some(),
     })
 }
 

@@ -3100,6 +3100,7 @@
       "channel_stable": "Stable",
       "channel_preview": "Préversion",
       "check_updates": "Vérifier les mises à jour",
+      "unverifiable": "Cette version n'embarque pas la clé de distribution : aucun moteur supplémentaire ne peut être vérifié ni installé depuis le canal. Les moteurs livrés avec l'application fonctionnent normalement.",
       "in_service": "En service",
       "update_available": "{tag} disponible",
       "update_latest": "Dernière version",
@@ -3751,6 +3752,7 @@
       "retry": "Réessayer"
     },
     "agent_loading": "Préparation de l'agent « {agent} »…",
+    "model_loading": "Chargement du modèle {name}…",
     "agent_unavailable": {
       "message": "Agent « {agent} » n'est plus installé. Les messages envoyés dans cette conversation échoueront tant qu'il n'est pas réinstallé.",
       "manage": "Gérer les agents"

@@ -278,6 +278,39 @@ impl Residency {
         }
     }
 
+    /// Announce that `engine` started a process on `model_path`.
+    pub fn announce_loading(&self, engine: &str, model_path: &str) {
+        self.publish(RuntimeEvent::LlmModelLoading {
+            backend: engine.to_owned(),
+            model_path: model_path.to_owned(),
+        });
+    }
+
+    /// Announce that the process `engine` started on the model named `model`
+    /// answers.
+    pub fn announce_ready(&self, engine: &str, model: &str) {
+        self.publish(RuntimeEvent::LlmModelReady {
+            backend: engine.to_owned(),
+            model_id: model.to_owned(),
+        });
+    }
+
+    /// Announce that the process `engine` started on the model named `model`
+    /// did not come up, for `reason`.
+    pub fn announce_load_failed(&self, engine: &str, model: &str, reason: &str) {
+        self.publish(RuntimeEvent::LlmModelFailed {
+            backend: engine.to_owned(),
+            reason: format!("{model}: {reason}"),
+        });
+    }
+
+    fn publish(&self, event: RuntimeEvent) {
+        if let Some(events) = &self.events {
+            // No subscriber is not a failure: the load goes on unheard.
+            let _ = events.send(event);
+        }
+    }
+
     /// Announce that `engine` unloaded `model_path` for `reason`.
     pub fn announce_unloaded(&self, engine: &str, model_path: &str, reason: ModelUnloadReason) {
         self.forget_origin(model_path);

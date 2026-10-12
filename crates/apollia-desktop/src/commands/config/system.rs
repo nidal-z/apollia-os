@@ -506,7 +506,7 @@ mod tests {
                 "version": "7001 (0ff1ce0)",
             }],
             "channel": "stable", "manifest_sequence": null, "updates": [],
-            "cuda_proposable": false, "dictation": null,
+            "cuda_proposable": false, "dictation": null, "verifiable": true,
         });
         authorized("GET", ENGINES_ROUTE)
             .respond_with(ResponseTemplate::new(200).set_body_json(listed.clone()))

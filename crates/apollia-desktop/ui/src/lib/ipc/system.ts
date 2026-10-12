@@ -116,6 +116,8 @@ export interface EnginesResponse {
   /** Name of the NVIDIA card detected, `null` without one. */
   nvidia_card: string | null;
   dictation: DictationEngine | null;
+  /** Whether this build can verify the engine channel; false for a build without the distribution key. */
+  verifiable: boolean;
 }
 
 /** The engines of this machine, each with the version it states. */

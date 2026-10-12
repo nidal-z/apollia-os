@@ -22942,7 +22942,8 @@
           "engines",
           "channel",
           "updates",
-          "cuda_proposable"
+          "cuda_proposable",
+          "verifiable"
         ],
         "properties": {
           "channel": {
@@ -22993,6 +22994,10 @@
               "$ref": "#/components/schemas/VariantUpdate"
             },
             "description": "Per variant offered by that manifest for this platform, whether a newer\nbuild than the installed one exists. Empty until a manifest verified."
+          },
+          "verifiable": {
+            "type": "boolean",
+            "description": "Whether this build carries the distribution key the channel is\nverified with. Without it no engine can be checked or installed from\nthe channel, and the engines embedded in the bundle are the only ones."
           }
         }
       },

@@ -63,6 +63,7 @@ function proposable(overrides: Partial<EnginesResponse> = {}): EnginesResponse {
       },
     ],
     cuda_proposable: true,
+    verifiable: true,
     nvidia_card: "NVIDIA GeForce RTX 4070",
     dictation: null,
     ...overrides,
@@ -73,6 +74,7 @@ function proposable(overrides: Partial<EnginesResponse> = {}): EnginesResponse {
 function installed(latest: string, released: string | null = "2026-09-28"): EnginesResponse {
   return proposable({
     cuda_proposable: false,
+    verifiable: true,
     updates: [
       {
         engine: "llama-server",
