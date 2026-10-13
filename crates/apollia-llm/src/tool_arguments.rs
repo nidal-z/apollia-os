@@ -1,27 +1,28 @@
 //! Arguments of a tool call a model wrote as text where the schema of the
-//! tool asks for a structure.
+//! tool asks for another kind of value.
 //!
-//! A local model, and some engines on its behalf, sends a nested argument as
-//! the JSON text of the value rather than as the value: `"items": "[{...}]"`
-//! where the tool declares an array. The call is well meant and the content is
-//! right; a tool that deserialises its arguments strictly refuses it with
-//! "invalid type: string, expected a sequence", and the model rarely finds the
-//! way out on its own. Measured on an MLX model served by vllm-mlx
-//! (2026-10-13), on the task list tool.
+//! A local model, and some engines on its behalf, sends an argument as the
+//! text of the value rather than as the value: `"items": "[{...}]"` where the
+//! tool declares an array, `"recursive": "false"` where it declares a boolean.
+//! The call is well meant and the content is right; a tool that deserialises
+//! its arguments strictly refuses it with "invalid type: string, expected a
+//! sequence" or "expected a boolean", and the model rarely finds the way out
+//! on its own. Measured on an MLX model served by vllm-mlx (2026-10-13), on
+//! the task list tool and on the folder listing tool.
 //!
 //! The repair is narrow on purpose. A string is decoded only where the schema
-//! of the tool declares an array or an object, and only when the text parses
-//! to exactly that kind of value. A string the schema declares a string, or
-//! declares nothing about, is never touched: text that merely looks like JSON
-//! stays text.
+//! of the tool declares an array, an object, a boolean, an integer or a
+//! number, and only when the text reads as exactly that kind of value. A
+//! string the schema declares a string, or declares nothing about, is never
+//! touched: text that merely looks like JSON, or like a number, stays text.
 
 use serde_json::Value;
 
 use crate::types::{ToolCall, ToolSpec};
 
-/// Decode, in the arguments of each call, the values written as JSON text
-/// where the schema of its tool declares an array or an object. Returns how
-/// many values were decoded.
+/// Decode, in the arguments of each call, the values written as text where
+/// the schema of its tool declares an array, an object, a boolean, an integer
+/// or a number. Returns how many values were decoded.
 pub fn decode_stringified_arguments(calls: &mut [ToolCall], specs: &[ToolSpec]) -> usize {
     let mut decoded = 0;
     for call in calls {
@@ -33,30 +34,55 @@ pub fn decode_stringified_arguments(calls: &mut [ToolCall], specs: &[ToolSpec]) 
     decoded
 }
 
-/// The JSON kind a schema declares for a node, when it declares a structure.
-fn declared_structure(schema: &Value) -> Option<&str> {
-    match schema.get("type").and_then(Value::as_str) {
-        Some(kind @ ("array" | "object")) => Some(kind),
+/// The type a schema declares for a node. A union, as the tools of an MCP
+/// server write an optional argument (`["boolean", "null"]`), is read as its
+/// first type that is not `null`.
+fn declared_type(schema: &Value) -> Option<&str> {
+    match schema.get("type")? {
+        Value::String(kind) => Some(kind),
+        Value::Array(kinds) => kinds
+            .iter()
+            .filter_map(Value::as_str)
+            .find(|k| *k != "null"),
         _ => None,
     }
 }
 
-fn is_kind(value: &Value, kind: &str) -> bool {
-    match kind {
-        "array" => value.is_array(),
-        _ => value.is_object(),
+/// What `text` is when read as the kind `schema` declares, or `None` when the
+/// schema declares a string or nothing, or the text is not that kind.
+fn read_as_declared(text: &str, schema: &Value) -> Option<Value> {
+    let text = text.trim();
+    match declared_type(schema)? {
+        "array" => serde_json::from_str::<Value>(text)
+            .ok()
+            .filter(Value::is_array),
+        "object" => serde_json::from_str::<Value>(text)
+            .ok()
+            .filter(Value::is_object),
+        "boolean" => match text.to_ascii_lowercase().as_str() {
+            "true" => Some(Value::Bool(true)),
+            "false" => Some(Value::Bool(false)),
+            _ => None,
+        },
+        "integer" => text.parse::<i64>().ok().map(Value::from),
+        "number" => text
+            .parse::<f64>()
+            .ok()
+            .and_then(serde_json::Number::from_f64)
+            .map(Value::Number),
+        _ => None,
     }
 }
 
 fn decode(value: &mut Value, schema: &Value) -> usize {
     let mut decoded = 0;
-    if let (Some(kind), Value::String(text)) = (declared_structure(schema), &*value) {
-        match serde_json::from_str::<Value>(text) {
-            Ok(parsed) if is_kind(&parsed, kind) => {
-                *value = parsed;
+    if let Value::String(text) = &*value {
+        match read_as_declared(text, schema) {
+            Some(read) => {
+                *value = read;
                 decoded += 1;
             }
-            _ => return 0,
+            None => return 0,
         }
     }
     match value {
@@ -104,7 +130,10 @@ mod tests {
                             }
                         }
                     },
-                    "note": {"type": "string"}
+                    "note": {"type": "string"},
+                    "recursive": {"type": ["boolean", "null"]},
+                    "limit": {"type": "integer"},
+                    "ratio": {"type": "number"}
                 }
             }),
         }
@@ -137,9 +166,44 @@ mod tests {
     }
 
     #[test]
+    fn test_a_boolean_or_a_number_written_as_text_is_decoded_where_the_schema_asks_for_one() {
+        // GIVEN the call a local model made: a switch and two figures as text
+        let mut calls = vec![call(json!({
+            "items": [],
+            "recursive": "false",
+            "limit": "20",
+            "ratio": " 0.5 "
+        }))];
+
+        // WHEN the arguments are read against the schema of the tool
+        let decoded = decode_stringified_arguments(&mut calls, &[task_list()]);
+
+        // THEN each is the value the tool declares
+        assert_eq!(decoded, 3);
+        assert_eq!(
+            calls[0].arguments,
+            json!({"items": [], "recursive": false, "limit": 20, "ratio": 0.5})
+        );
+    }
+
+    #[test]
+    fn test_text_that_is_no_boolean_and_no_number_is_left_for_the_tool_to_refuse() {
+        // GIVEN a switch answered in words, and a figure with its unit
+        let arguments = json!({"items": [], "recursive": "no", "limit": "20 files"});
+        let mut calls = vec![call(arguments.clone())];
+
+        // WHEN the arguments are read against the schema
+        let decoded = decode_stringified_arguments(&mut calls, &[task_list()]);
+
+        // THEN nothing is guessed
+        assert_eq!(decoded, 0);
+        assert_eq!(calls[0].arguments, arguments);
+    }
+
+    #[test]
     fn test_text_the_schema_declares_text_is_left_alone() {
         // GIVEN a note that happens to read as JSON, and a well-formed list
-        let arguments = json!({"items": [{"content": "[1, 2]"}], "note": "{\"a\": 1}"});
+        let arguments = json!({"items": [{"content": "42"}], "note": "{\"a\": 1}"});
         let mut calls = vec![call(arguments.clone())];
 
         // WHEN the arguments are read against the schema
