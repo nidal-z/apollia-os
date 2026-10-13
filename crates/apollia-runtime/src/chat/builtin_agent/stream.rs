@@ -49,6 +49,12 @@ impl BuiltInChatAgent {
         // Turn instrumentation only, inert outside an instrumented turn where
         // the recorder entry points are no-ops.
         let mut first_token_seen = false;
+        // What tells an answer that is empty from an engine that gave none:
+        // whether anything was generated, whether the engine said how it
+        // ended, and whether it is the engine that closed the stream.
+        let mut generated = false;
+        let mut finish_reported = false;
+        let mut closed_by_engine = false;
 
         loop {
             // Race the stop token against the next chunk so a Stop takes effect
@@ -74,7 +80,10 @@ impl BuiltInChatAgent {
                 }
                 next = stream.next() => match next {
                     Some(chunk) => chunk,
-                    None => break,
+                    None => {
+                        closed_by_engine = true;
+                        break;
+                    }
                 },
             };
             match &chunk_result {
@@ -99,10 +108,12 @@ impl BuiltInChatAgent {
                         token: token.clone(),
                     });
                     accumulated_text.push_str(&token);
+                    generated = true;
                 }
                 Ok(StreamChunk::ToolCall(call)) => {
                     // Tool call detected in stream
                     tool_calls.push(call);
+                    generated = true;
                 }
                 Ok(StreamChunk::Usage(chunk_usage)) => {
                     // Terminal token accounting for this call; fold it in.
@@ -114,7 +125,7 @@ impl BuiltInChatAgent {
                     // engine time to this iteration.
                     crate::perf_trace::iteration_engine_timings(&timings);
                 }
-                Ok(StreamChunk::Finish(_)) => {}
+                Ok(StreamChunk::Finish(_)) => finish_reported = true,
                 Err(e) => {
                     // Stream interrupted
                     warn!(
@@ -125,6 +136,19 @@ impl BuiltInChatAgent {
                     return Err(e.to_string());
                 }
             }
+        }
+
+        // An engine that closes the stream having generated nothing and
+        // without saying how the answer ended gave no answer: a server that
+        // refuses a request it is too busy for does exactly this, with a 200.
+        // Reported as a failure, it is retried or said; taken for an answer,
+        // the turn ended on nothing and called it normal.
+        if closed_by_engine && !generated && !finish_reported {
+            warn!(session_id = %session_id, "llm.stream.closed_without_answer");
+            return Err(
+                "the engine closed the answer before generating anything; it may be busy with another request"
+                    .to_owned(),
+            );
         }
 
         // Tool calls now arrive as structured `StreamChunk::ToolCall` from every

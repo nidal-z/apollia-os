@@ -24,6 +24,10 @@ pub const ENV_ENGINE_DIR: &str = "APOLLIA_MLX_ENGINE_DIR";
 /// Override of the Python interpreter the engine runs on.
 pub const ENV_PYTHON: &str = "APOLLIA_MLX_PYTHON";
 
+/// The variable of the engine that says what a request arriving during a
+/// generation gets: `fail_fast`, its default, or `wait`.
+const ENV_LOCK_ADMISSION: &str = "VLLM_MLX_SIMPLE_ENGINE_LOCK_ADMISSION";
+
 /// The interpreter of the embedded Python, relative to its root.
 const BUNDLED_INTERPRETER: &str = "bin/python3.13";
 
@@ -49,7 +53,17 @@ impl MlxLaunch {
                 .into_iter()
                 .map(str::to_owned)
                 .collect(),
-            env: vec![("PYTHONPATH".to_owned(), site_packages.display().to_string())],
+            env: vec![
+                ("PYTHONPATH".to_owned(), site_packages.display().to_string()),
+                // The engine serves one generation at a time and, left to its
+                // default, refuses a request that arrives during another: it
+                // answers 200 with an empty stream. The application does send
+                // two at once, the title of a conversation while the model
+                // answers after a tool, and the answer came back empty.
+                // Measured on vllm-mlx 0.5.0 (2026-10-13). Queued instead, the
+                // second request waits its turn, as on llama-server.
+                (ENV_LOCK_ADMISSION.to_owned(), "wait".to_owned()),
+            ],
         }
     }
 
@@ -180,6 +194,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_engine_is_started_to_queue_a_request_that_arrives_during_another() {
+        // GIVEN the engine as the application starts it
+        let launch = MlxLaunch::vllm_mlx(
+            PathBuf::from("/app/python/bin/python3.13"),
+            Path::new("/app/python/engines/mlx/site-packages"),
+        );
+
+        // WHEN its environment is read
+        let admission = launch
+            .env
+            .iter()
+            .find(|(name, _)| name == "VLLM_MLX_SIMPLE_ENGINE_LOCK_ADMISSION")
+            .map(|(_, value)| value.as_str());
+
+        // THEN a second request waits its turn instead of being answered with
+        // an empty stream, and the package directory is still the engine's own
+        assert_eq!(admission, Some("wait"));
+        assert_eq!(
+            launch.site_packages(),
+            Some(Path::new("/app/python/engines/mlx/site-packages"))
+        );
+    }
+
+    #[test]
     fn the_command_line_of_an_mlx_model_carries_no_draft_model() {
         // GIVEN the engine, whose pinned version drafts for no text model
         let launch = MlxLaunch::vllm_mlx(
@@ -229,11 +267,8 @@ mod tests {
             ]
         );
         assert_eq!(
-            launch.env,
-            [(
-                "PYTHONPATH".to_owned(),
-                "/app/python/engines/mlx/site-packages".to_owned()
-            )]
+            launch.site_packages(),
+            Some(Path::new("/app/python/engines/mlx/site-packages"))
         );
     }
 

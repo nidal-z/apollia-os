@@ -4390,6 +4390,48 @@
       "label": "40h-folder-created-empty"
     },
     {
+      "kind": "drag",
+      "testid": "chat-conversation-item",
+      "nth": 0,
+      "toTestid": "chat-folder-row",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40h2-conversation-dragged-into-the-folder"
+    },
+    {
+      "kind": "drag",
+      "testid": "chat-conversation-item",
+      "nth": 0,
+      "toTestid": "chat-loose-sessions",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40h3-conversation-dragged-back-out"
+    },
+    {
       "kind": "click",
       "testid": "conversation-row-menu-button",
       "nth": 0,

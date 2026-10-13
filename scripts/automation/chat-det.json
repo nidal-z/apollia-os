@@ -3374,6 +3374,48 @@
       "label": "40h-folder-created-empty"
     },
     {
+      "kind": "drag",
+      "testid": "chat-conversation-item",
+      "nth": 0,
+      "toTestid": "chat-folder-row",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40h2-conversation-dragged-into-the-folder"
+    },
+    {
+      "kind": "drag",
+      "testid": "chat-conversation-item",
+      "nth": 0,
+      "toTestid": "chat-loose-sessions",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-folder-empty",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-folder-sessions",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40h3-conversation-dragged-back-out"
+    },
+    {
       "kind": "click",
       "testid": "conversation-row-menu-button",
       "nth": 0,
@@ -4126,6 +4168,7 @@
     "chat-model-eject is only asserted in the open conversation: no model is resident in the deterministic run, so the button is rendered disabled and an eject has nothing to unload.",
     "The split-screen block (labels 40a to 40e) plays on a conversation created with New chat and put on seed-classifier from the selector of the top bar: a second pane is opened and filled by a deep link to seed-session-2 (goto with sessionId lands in the active pane), one draft is typed per composer and cleared, the load guardrail refuses a model in the first pane through an estimate_model_load stub that imitates a LoadEstimate (lib/types/llm.ts, verdict refused) with the list_chat_targets, list_loaded_models and list_model_pins stubs of the selector block, the narrow layout is reached at 900 px and left before any other step, and every pane it opened is closed before the block ends, so the step after it finds one pane again.",
     "The prompt template block of the Settings tab (labels 35b and 35c) is played inside the developer-mode block, since both the row of Settings > Chat (chat-show-prompt-template) and the block exist in developer mode only. The preference is a browser-storage switch, turned on before and off after so the rest of the book finds the tab as before. No engine runs in the deterministic run, so seed-session-2 reads the real answer of the runtime, a template built into the model and not readable (session-prompt-template-unavailable). The text and its Copy button are then played on seed-session-1 through a get_chat_prompt_template stub that imitates SessionPromptTemplate (crates/apollia-runtime/src/api/routes_chat/prompt_template.rs: source, template), armed before the conversation opens because the block reads once per conversation, model, preset and resident models; the stub is cleared before the block ends. Written against the source and validated statically; not yet through a runtime round.",
-    "New chat opens a conversation at once (routes/Chat.svelte, startConversation); the picker shows only when create_chat_session fails. Three blocks reach it through a create_chat_session stub that rejects once: the walk of the picker (its selector with no target, the agents section, rewrite, plan mode, Escape), the developer-mode block (the agent card of the picker creates the conversation, the stub being spent by then) and the close button. Elsewhere an agent conversation is made as the screen now does it: the open conversation is closed first so the header that follows is the new one, New chat, then the selector of the top bar searched on seed-classifier and its one agent option picked, which replaces the empty conversation (lib/chat/applyTargetChoice.ts); chat-header-meta-mode reading seed-classifier is the wait."
+    "New chat opens a conversation at once (routes/Chat.svelte, startConversation); the picker shows only when create_chat_session fails. Three blocks reach it through a create_chat_session stub that rejects once: the walk of the picker (its selector with no target, the agents section, rewrite, plan mode, Escape), the developer-mode block (the agent card of the picker creates the conversation, the stub being spent by then) and the close button. Elsewhere an agent conversation is made as the screen now does it: the open conversation is closed first so the header that follows is the new one, New chat, then the selector of the top bar searched on seed-classifier and its one agent option picked, which replaces the empty conversation (lib/chat/applyTargetChoice.ts); chat-header-meta-mode reading seed-classifier is the wait.",
+    "A conversation is dragged with the pointer (ConversationList.svelte, lib/chat/sessionDrag.ts): the `drag` steps press on the first conversation of the list, release it on the folder row, then press on the first item again (now the one inside the folder, since folders render above the loose conversations) and release it on the loose list. The book then moves a conversation through the row menu as before, from the same state."
   ]
 }
