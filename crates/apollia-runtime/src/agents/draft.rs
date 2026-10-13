@@ -207,6 +207,7 @@ pub struct ProposedSheet {
 
 /// Why a proposed sheet yields no draft.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum DraftRefusal {
     /// The sheet has no name.
     #[error("field 'name' is empty")]

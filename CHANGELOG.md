@@ -320,6 +320,11 @@ at the end of this entry. From this version on, tags no longer carry the
 
 ### Fixed
 
+- A batch item that waits for an approval was announced before it was recorded
+  as waiting: a client that answered the announcement at once found nothing to
+  decide. It is recorded first.
+- On a machine whose data folder does not exist yet, a TLS certificate left
+  without its key in `apollia.toml` was not reported.
 - In plan mode, a local model could repeat itself inside a text field of the
   plan it was proposing and never finish: the conversation showed it thinking
   for as long as it was left. The fields of a plan step are described and

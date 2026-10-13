@@ -405,16 +405,6 @@ impl<R: ItemRunner> BatchActor<R> {
             status = end.status.as_str(),
             "batch.item.ended"
         );
-        if let (Some(access), Some(active)) = (&end.awaiting, self.active.get(batch_id)) {
-            let _ = self
-                .event_bus
-                .send(RuntimeEvent::BatchItemAwaitingApproval {
-                    batch_id: batch_id.to_string(),
-                    rank,
-                    agent_id: AgentId::from(active.agent.as_str()),
-                    access: access.clone(),
-                });
-        }
         // An item that waits is recorded with the access it reached for, in
         // the one form the list of decisions reads back.
         let output = match &end.awaiting {
@@ -425,6 +415,19 @@ impl<R: ItemRunner> BatchActor<R> {
             .repository
             .finish_batch_item(batch_id, rank, end.status.as_str(), &output)
             .await;
+        // The decision is asked for once the item is recorded as waiting, not
+        // before: whoever hears the event may read the list of decisions at
+        // once, and has to find the item there.
+        if let (Some(access), Some(active)) = (&end.awaiting, self.active.get(batch_id)) {
+            let _ = self
+                .event_bus
+                .send(RuntimeEvent::BatchItemAwaitingApproval {
+                    batch_id: batch_id.to_string(),
+                    rank,
+                    agent_id: AgentId::from(active.agent.as_str()),
+                    access: access.clone(),
+                });
+        }
         match counted {
             Ok(batch) if batch.failed > u64::from(batch.max_failures) => {
                 self.interrupt(batch_id, batch.failed).await;

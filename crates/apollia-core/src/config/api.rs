@@ -124,6 +124,16 @@ impl ApiConfig {
     /// whose parent directory is missing cannot be bound) and that the TLS
     /// certificate and key are set together or not at all.
     pub fn validate(&self) -> Result<(), ConfigError> {
+        // The rule that depends on nothing but the document comes first: on a
+        // machine whose data folder does not exist yet, the socket check below
+        // fails, and a caller that forgives it for a default socket would
+        // otherwise never hear of a certificate left without its key.
+        if self.tls_cert.is_some() != self.tls_key.is_some() {
+            return Err(ConfigError::InvalidValue {
+                field: "api.tls".to_owned(),
+                reason: "tls_cert and tls_key must both be set or both be absent".to_owned(),
+            });
+        }
         let parent = self.unix_socket.parent().unwrap_or_else(|| {
             // Fallback to root, which is always accessible.
             std::path::Path::new("/")
@@ -131,12 +141,6 @@ impl ApiConfig {
         if !parent.exists() {
             return Err(ConfigError::SocketParentMissing {
                 path: self.unix_socket.display().to_string(),
-            });
-        }
-        if self.tls_cert.is_some() != self.tls_key.is_some() {
-            return Err(ConfigError::InvalidValue {
-                field: "api.tls".to_owned(),
-                reason: "tls_cert and tls_key must both be set or both be absent".to_owned(),
             });
         }
         Ok(())

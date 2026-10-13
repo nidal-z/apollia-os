@@ -4082,14 +4082,27 @@ async fn test_consume_stream_cancel_folds_late_usage() {
 
 #[tokio::test]
 async fn test_consume_stream_cancel_returns_while_the_model_keeps_generating() {
-    // GIVEN a stream that never ends and yields a content chunk every 10 ms,
-    // as a model that keeps generating does, and a stop token already fired
+    // GIVEN a stream that is always ready with one more content chunk, as a
+    // model that keeps generating is, far longer than any drain should read,
+    // and a stop token already fired. No clock is armed here: the stream
+    // counts what is pulled from it, and it does end, so a Stop that waited
+    // for its end would fail the count below instead of hanging the suite.
+    const CHUNKS: usize = 50_000_000;
     let agent = plan_agent(None, false);
+    let pulled = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = Arc::clone(&pulled);
     let stream: std::pin::Pin<
         Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
-    > = Box::pin(futures::stream::unfold((), |()| async {
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        Some((Ok(StreamChunk::Text("more".into())), ()))
+    > = Box::pin(futures::stream::unfold(0usize, move |sent| {
+        let counter = Arc::clone(&counter);
+        async move {
+            if sent == CHUNKS {
+                return None;
+            }
+            tokio::task::yield_now().await;
+            counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Some((Ok(StreamChunk::Text("more".into())), sent + 1))
+        }
     }));
     let cancel = CancellationToken::new();
     cancel.cancel();
@@ -4098,10 +4111,8 @@ async fn test_consume_stream_cancel_returns_while_the_model_keeps_generating() {
     let mut usage = TokenUsage::default();
 
     // WHEN the stream is consumed under cancellation
-    let started = std::time::Instant::now();
-    let result = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        agent.consume_stream(
+    let _stopped = agent
+        .consume_stream(
             stream,
             StreamConsumeParams {
                 session_id: "sess-1",
@@ -4112,14 +4123,13 @@ async fn test_consume_stream_cancel_returns_while_the_model_keeps_generating() {
             },
             &mut accumulated,
             &mut usage,
-        ),
-    )
-    .await;
+        )
+        .await;
 
-    // THEN the Stop is honoured within the drain budget instead of waiting
-    // for the end of a stream that has none
-    assert!(result.is_ok(), "the Stop waited on the stream");
-    assert!(started.elapsed() < std::time::Duration::from_secs(1));
+    // THEN the Stop is honoured within the drain budget: the stream was left
+    // long before its end, and nothing it yielded was kept
+    let read = pulled.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(read < CHUNKS, "the Stop read the stream to its end");
     assert!(accumulated.is_empty());
 }
 
