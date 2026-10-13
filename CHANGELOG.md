@@ -320,6 +320,11 @@ at the end of this entry. From this version on, tags no longer carry the
 
 ### Fixed
 
+- On an MLX model, an answer came back empty when the application asked the
+  engine for two things at once, the title of a conversation while the model
+  answered after a tool. The MLX engine now queues the second request, and an
+  engine that closes an answer without generating anything is reported as a
+  failure instead of an empty answer said to have finished normally.
 - A tool call whose argument a local model wrote as text, a list, an object, a
   boolean or a number, was refused ("invalid type: string, expected a
   sequence", "expected a boolean"). The value is read as what the schema of the
