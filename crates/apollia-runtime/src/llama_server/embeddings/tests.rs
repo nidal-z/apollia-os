@@ -32,7 +32,15 @@ class Engine(http.server.BaseHTTPRequestHandler):
         self.reply(json.dumps({"object": "list", "data": data}).encode())
     def log_message(self, *a):
         pass
-http.server.HTTPServer(("127.0.0.1", port), Engine).serve_forever()
+class Quick(http.server.HTTPServer):
+    # HTTPServer.server_bind asks the resolver for the name of the host. On a
+    # machine with no reverse lookup that takes seconds per start, which the
+    # health deadline of a test then reads as an engine that never came up.
+    def server_bind(self):
+        import socketserver
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+Quick(("127.0.0.1", port), Engine).serve_forever()
 "#;
 
 /// Write the stand-in engine as an executable in `dir`, and return its path.

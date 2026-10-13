@@ -130,7 +130,15 @@ class H(http.server.BaseHTTPRequestHandler):
         self.wfile.write(b"{{}}")
     def log_message(self, *args):
         pass
-http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+class Quick(http.server.HTTPServer):
+    # HTTPServer.server_bind asks the resolver for the name of the host. On a
+    # machine with no reverse lookup that takes seconds per start, which the
+    # health deadline of a test then reads as an engine that never came up.
+    def server_bind(self):
+        import socketserver
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+Quick(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
 ' "$port"
 "#,
         log = log.display()

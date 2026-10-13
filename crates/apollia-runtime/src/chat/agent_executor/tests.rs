@@ -550,10 +550,28 @@ async fn test_checked_sources_leave_the_system_prompt_unchanged() {
         prompts.push((id.to_owned(), composed[0].clone(), composed[1].clone()));
     }
 
-    // THEN
+    // THEN, the clock of the prompt aside: the two prompts are composed one
+    // after the other, and a second may tick between them
     for (id, with, without) in prompts {
-        assert_eq!(with, without, "{id}: the sources changed the system prompt");
+        assert_eq!(
+            without_clock(&with),
+            without_clock(&without),
+            "{id}: the sources changed the system prompt"
+        );
     }
+}
+
+/// `prompt` without the lines that state the time it was composed at.
+fn without_clock(prompt: &str) -> String {
+    prompt
+        .lines()
+        .filter(|line| {
+            !["- Local time:", "- UTC time:", "- Unix timestamp:"]
+                .iter()
+                .any(|clock| line.starts_with(clock))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The Apollia agent of `session`, built as the dispatch builds it: handed
