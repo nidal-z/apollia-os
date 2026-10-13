@@ -191,6 +191,34 @@ mod tests {
             .is_some_and(|e| e.starts_with("invalid payload")));
     }
 
+    #[tokio::test]
+    async fn test_a_list_the_model_wrote_as_text_is_taken_once_read_against_the_spec() {
+        // GIVEN the call an MLX model made: the list as the text of a list
+        let h = handle();
+        let mut calls = vec![apollia_llm::ToolCall {
+            id: "c1".into(),
+            name: TODO_WRITE_TOOL_NAME.into(),
+            arguments: serde_json::json!({
+                "items": "[{\"content\": \"Open the connections screen\", \"id\": \"1\", \"status\": \"in_progress\"}]"
+            }),
+        }];
+        let refused = run_todo_write(&h, "s1", &calls[0].arguments).await;
+
+        // WHEN the loop reads the call against the spec the model was given,
+        // then runs the tool
+        let decoded = apollia_llm::tool_arguments::decode_stringified_arguments(
+            &mut calls,
+            &[todo_write_spec()],
+        );
+        let result = run_todo_write(&h, "s1", &calls[0].arguments).await;
+
+        // THEN the list the tool refused as text is taken as a list
+        assert!(!refused.ok, "the raw call is the one the tool refuses");
+        assert_eq!(decoded, 1);
+        assert!(result.ok, "{:?}", result.error);
+        assert_eq!(h.get_items("s1").await.expect("get").len(), 1);
+    }
+
     #[test]
     fn test_todo_write_spec_matches_tool_name() {
         // GIVEN the LLM spec builder

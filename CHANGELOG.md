@@ -320,6 +320,9 @@ at the end of this entry. From this version on, tags no longer carry the
 
 ### Fixed
 
+- A tool call whose list or object argument a local model wrote as text was
+  refused ("invalid type: string, expected a sequence"). It is decoded where
+  the schema of the tool asks for a list or an object.
 - A conversation could not be dragged into a folder, or out of one: the list
   used the drag and drop of HTML, which the window keeps for the files dropped
   on the application. A conversation is now dragged with the pointer.

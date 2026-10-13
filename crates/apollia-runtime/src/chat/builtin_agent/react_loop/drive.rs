@@ -465,7 +465,21 @@ impl BuiltInChatAgent {
                         },
                     ));
                 }
-                Ok(tool_calls) => {
+                Ok(mut tool_calls) => {
+                    // A local model may write a nested argument as the text of
+                    // the value. It is decoded where the schema of the tool
+                    // asks for a structure, before anything reads the call.
+                    let decoded = apollia_llm::tool_arguments::decode_stringified_arguments(
+                        &mut tool_calls,
+                        &specs,
+                    );
+                    if decoded > 0 {
+                        tracing::info!(
+                            session_id = %ids.session_id,
+                            decoded,
+                            "chat.tool_call.arguments.decoded"
+                        );
+                    }
                     // Index of the first record produced by this turn, so the
                     // plan-phase advance inspects only the calls just run.
                     let turn_start = acc.all_tool_calls.len();

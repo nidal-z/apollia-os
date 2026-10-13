@@ -49,6 +49,7 @@ pub mod server_models;
 #[cfg(feature = "cloud")]
 pub mod server_window;
 pub mod token_budget;
+pub mod tool_arguments;
 pub mod tool_helper;
 pub mod tool_performance_hints;
 pub mod types;
