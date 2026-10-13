@@ -4081,6 +4081,53 @@ async fn test_consume_stream_cancel_folds_late_usage() {
 }
 
 #[tokio::test]
+async fn test_consume_stream_reports_an_engine_that_closes_without_answering() {
+    // GIVEN the stream of an engine too busy to take the request, which ends
+    // at once with nothing in it, and the stream of a model that answers
+    // nothing and says it stopped
+    let agent = plan_agent(None, false);
+    type Chunks = std::pin::Pin<
+        Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
+    >;
+    let refused: Chunks = Box::pin(futures::stream::empty());
+    let silent: Chunks = Box::pin(futures::stream::iter(vec![Ok(StreamChunk::Finish(
+        apollia_llm::FinishReason::Stop,
+    ))]));
+    let cancel = CancellationToken::new();
+
+    // WHEN each is consumed
+    let mut outcomes = Vec::new();
+    for stream in [refused, silent] {
+        let mut accumulated = String::new();
+        let mut usage = TokenUsage::default();
+        outcomes.push(
+            agent
+                .consume_stream(
+                    stream,
+                    StreamConsumeParams {
+                        session_id: "sess-1",
+                        message_id: "msg-1",
+                        cancel: &cancel,
+                        dispatched_at: std::time::Instant::now(),
+                        meter: &mut apollia_llm::CallMeter::new(std::time::Instant::now()),
+                    },
+                    &mut accumulated,
+                    &mut usage,
+                )
+                .await,
+        );
+    }
+
+    // THEN the first is a failure that says so, never an answer, and the
+    // second is an empty answer
+    let refusal = outcomes[0]
+        .as_ref()
+        .expect_err("no answer is not an answer");
+    assert!(refusal.contains("before generating anything"), "{refusal}");
+    assert!(matches!(&outcomes[1], Ok(calls) if calls.is_empty()));
+}
+
+#[tokio::test]
 async fn test_consume_stream_cancel_returns_while_the_model_keeps_generating() {
     // GIVEN a stream that is always ready with one more content chunk, as a
     // model that keeps generating is, far longer than any drain should read,
