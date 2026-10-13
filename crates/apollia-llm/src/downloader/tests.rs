@@ -23,23 +23,30 @@ fn request(url: String, dest_dir: &std::path::Path, filename: &str) -> DownloadR
     }
 }
 
-/// Records the message of every tracing event, so a test can assert that a
-/// named event was published. No subscriber crate is a dependency here, and
-/// this needs none.
+/// Records every tracing event of the test binary as its message and the
+/// digest it names, so a test can assert that the integrity event of its own
+/// download was published. No subscriber crate is a dependency here, and this
+/// needs none.
 #[derive(Default, Clone)]
-struct EventNames(Arc<Mutex<Vec<String>>>);
+struct IntegrityEvents(Arc<Mutex<Vec<(String, String)>>>);
 
-struct MessageVisitor<'a>(&'a mut Option<String>);
+#[derive(Default)]
+struct EventFields {
+    message: Option<String>,
+    expected: Option<String>,
+}
 
-impl tracing::field::Visit for MessageVisitor<'_> {
+impl tracing::field::Visit for EventFields {
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-        if field.name() == "message" {
-            *self.0 = Some(format!("{value:?}"));
+        match field.name() {
+            "message" => self.message = Some(format!("{value:?}")),
+            "expected" => self.expected = Some(format!("{value:?}")),
+            _ => {}
         }
     }
 }
 
-impl tracing::Subscriber for EventNames {
+impl tracing::Subscriber for IntegrityEvents {
     fn enabled(&self, _: &tracing::Metadata<'_>) -> bool {
         true
     }
@@ -49,22 +56,48 @@ impl tracing::Subscriber for EventNames {
     fn record(&self, _: &tracing::span::Id, _: &tracing::span::Record<'_>) {}
     fn record_follows_from(&self, _: &tracing::span::Id, _: &tracing::span::Id) {}
     fn event(&self, event: &tracing::Event<'_>) {
-        let mut message = None;
-        event.record(&mut MessageVisitor(&mut message));
-        if let Some(m) = message {
-            self.0.lock().expect("event lock").push(m);
+        let mut fields = EventFields::default();
+        event.record(&mut fields);
+        if let (Some(message), Some(expected)) = (fields.message, fields.expected) {
+            self.0.lock().expect("event lock").push((message, expected));
         }
     }
     fn enter(&self, _: &tracing::span::Id) {}
     fn exit(&self, _: &tracing::span::Id) {}
 }
 
-/// Serialises the tests that reach the `llm.download.integrity_mismatch`
-/// event site. Tracing caches the interest of a call site on first use, so a
-/// test that hits the site on another thread with no subscriber can leave the
-/// site disabled while a recording test runs, and the recording test then
-/// misses the event.
-static INTEGRITY_EVENT_SITE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+impl IntegrityEvents {
+    /// Whether the integrity event of the download that expected `digest` was
+    /// published.
+    fn mismatch_of(&self, digest: &str) -> bool {
+        // The event names the digest in lower case, whatever the entry wrote.
+        let digest = digest.trim().to_ascii_lowercase();
+        self.0
+            .lock()
+            .expect("event lock")
+            .iter()
+            .any(|(m, e)| m == "llm.download.integrity_mismatch" && *e == digest)
+    }
+}
+
+/// The one recorder of the test binary, installed as the global subscriber on
+/// first use.
+///
+/// Global, and not the default of the thread of one test: tracing caches the
+/// interest of a call site for the whole process. A subscriber scoped to one
+/// thread races with every other test that reaches the same site on another
+/// thread, and a lock among the tests that record does not cover the ones that
+/// only pass through. A global subscriber sees the event whichever thread
+/// emits it, and each test finds its own by the digest its download expected.
+fn integrity_events() -> &'static IntegrityEvents {
+    static EVENTS: std::sync::OnceLock<IntegrityEvents> = std::sync::OnceLock::new();
+    EVENTS.get_or_init(|| {
+        let events = IntegrityEvents::default();
+        tracing::subscriber::set_global_default(events.clone())
+            .expect("no other global subscriber in this test binary");
+        events
+    })
+}
 
 fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
@@ -184,9 +217,7 @@ async fn bytes_that_do_not_match_the_published_sha256_are_deleted() {
     let published = sha256_hex(b"genuine content");
     req.expected_sha256 = Some(published.clone());
     let (cb, seen) = recorder();
-    let _site = INTEGRITY_EVENT_SITE.lock().await;
-    let events = EventNames::default();
-    let _guard = tracing::subscriber::set_default(events.clone());
+    let events = integrity_events();
 
     // WHEN the file is downloaded
     let result = run_download(test_client(), req, "t".into(), CancellationToken::new(), cb).await;
@@ -206,12 +237,7 @@ async fn bytes_that_do_not_match_the_published_sha256_are_deleted() {
         other => panic!("expected an integrity mismatch, got {other:?}"),
     }
     assert!(!dir.path().join("model.gguf").exists());
-    assert!(events
-        .0
-        .lock()
-        .expect("event lock")
-        .iter()
-        .any(|m| m == "llm.download.integrity_mismatch"));
+    assert!(events.mismatch_of(&published));
     let seen = seen.lock().expect("progress lock");
     let last = seen.last().expect("a progress event");
     assert_eq!(last.status, DownloadStatus::Failed);
@@ -349,9 +375,7 @@ async fn an_embeddings_entry_downloads_through_the_same_verified_path() {
         expected_sha256: Some(e5.sha256.clone()),
     };
     let (cb, _) = recorder();
-    let _site = INTEGRITY_EVENT_SITE.lock().await;
-    let events = EventNames::default();
-    let _guard = tracing::subscriber::set_default(events.clone());
+    let events = integrity_events();
 
     // WHEN the downloader every model goes through runs it
     let result = run_download(test_client(), req, "t".into(), CancellationToken::new(), cb).await;
@@ -365,12 +389,7 @@ async fn an_embeddings_entry_downloads_through_the_same_verified_path() {
         other => panic!("expected an integrity refusal, got {other:?}"),
     }
     assert!(!dir.path().join(&e5.file).exists());
-    assert!(events
-        .0
-        .lock()
-        .expect("event lock")
-        .iter()
-        .any(|m| m == "llm.download.integrity_mismatch"));
+    assert!(events.mismatch_of(&e5.sha256));
 }
 
 #[tokio::test]
@@ -394,7 +413,6 @@ async fn a_dictation_entry_served_with_other_bytes_is_refused_and_deleted() {
         expected_sha256: Some(french.sha256.clone()),
     };
     let (cb, _) = recorder();
-    let _site = INTEGRITY_EVENT_SITE.lock().await;
 
     // WHEN the downloader every model goes through runs it
     let result = run_download(test_client(), req, "t".into(), CancellationToken::new(), cb).await;
