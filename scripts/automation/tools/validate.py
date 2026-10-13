@@ -65,6 +65,7 @@ SCHEMAS = {
     "setChecked": ({"checked"}, set(), "one"),
     "selectOption": (set(), {"timeoutMs", "value", "labelText", "index"}, "one"),
     "press": ({"key"}, {"meta", "ctrl", "shift", "alt", "mod", "timeoutMs"}, "opt"),
+    "drag": ({"toTestid"}, {"toNth", "timeoutMs"}, "one"),
     # Exactly one of resolve/reject/patch, by key presence (`"resolve": null`
     # is a cancelled picker); checked in check_step like selectOption.
     "stubInvoke": ({"command"}, {"resolve", "reject", "patch", "once", "argsMatch"}, None),

@@ -168,7 +168,6 @@ describe("conversation list - folders", () => {
         ontoggle: () => {},
         onrename: () => {},
         ondelete: () => {},
-        ondropsession: () => {},
       },
     }).body;
 
@@ -179,15 +178,17 @@ describe("conversation list - folders", () => {
     expect(html).toContain('data-folder-id="f-1"');
   });
 
-  test("every conversation can be dragged while the list is not searched", () => {
+  test("the list offers places to drop a conversation while it is not searched", () => {
     // GIVEN the list, then the same list under a search
     // WHEN each renders
     const plain = list();
     const searched = list({ sessions: [MARCH], query: "march" });
 
-    // THEN the rows are draggable in the first and not in the second
-    expect(plain).toContain('draggable="true"');
-    expect(searched).not.toContain('draggable="true"');
+    // THEN the first marks the place out of every folder, where a dragged
+    // conversation lands, and the second marks none: a search result is not
+    // moved by dragging
+    expect(plain).toContain('data-session-drop=""');
+    expect(searched).not.toContain("data-session-drop");
   });
 
   test("with no conversation the list still offers New folder and says it is empty", () => {

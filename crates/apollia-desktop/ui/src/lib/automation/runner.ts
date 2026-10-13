@@ -14,6 +14,7 @@ import { seam } from "./invokeSeam";
 import { simulateHeartbeatLoss } from "../stores/runtimeHealth";
 import { clearToasts } from "$lib/components/ui/toast";
 import { waitClickable } from "./clickable";
+import { dragOnto } from "./pointerDrag";
 import { elapsedVerdict } from "./timing";
 import type {
   AutomationBoot,
@@ -514,6 +515,14 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
       select.dispatchEvent(new Event("input", { bubbles: true }));
       select.dispatchEvent(new Event("change", { bubbles: true }));
       return `selectOption ${sel.label} = ${opts[idx].value}`;
+    }
+    case "drag": {
+      const sel = selectorFor(step);
+      const timeout = step.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+      const source = await waitForEl(sel.css, timeout, step.nth);
+      const to = `[data-testid="${cssEscape(step.toTestid)}"]`;
+      await dragOnto(source, await waitForEl(to, timeout, step.toNth));
+      return `dragged ${sel.label} onto ${step.toTestid}`;
     }
     case "press": {
       let target: HTMLElement;

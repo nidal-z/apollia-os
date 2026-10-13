@@ -6,8 +6,6 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import {
   FOLDER_NAME_MAX_CHARS,
-  SESSION_DRAG_TYPE,
-  carriesSession,
   chatFolders,
   cleanFolderName,
   collapsedFolderIds,
@@ -18,10 +16,8 @@ import {
   loadFolders,
   moveSessionToFolder,
   parseCollapsedFolders,
-  readSessionDrop,
   renameFolder,
   toggleFolderCollapsed,
-  writeSessionDrag,
 } from "./chatFolders";
 import type { ChatFolder } from "$lib/ipc/chat";
 
@@ -29,19 +25,6 @@ const invoke = vi.mocked(tauriInvoke);
 
 const CLIENTS: ChatFolder = { id: "f-clients", name: "Clients", position: 0, session_ids: ["s-2", "s-1"] };
 const DRAFTS: ChatFolder = { id: "f-drafts", name: "Drafts", position: 1, session_ids: [] };
-
-/** A stand-in for the transfer of a drag: what was set is what is read. */
-function transfer(): DataTransfer {
-  const data = new Map<string, string>();
-  return {
-    effectAllowed: "none",
-    get types() {
-      return Array.from(data.keys());
-    },
-    setData: (type: string, value: string) => void data.set(type, value),
-    getData: (type: string) => data.get(type) ?? "",
-  } as unknown as DataTransfer;
-}
 
 /** Answer each command the way the runtime does, the folders read from `stored`. */
 function runtime(stored: { folders: ChatFolder[] }): void {
@@ -218,33 +201,5 @@ describe("chat folders - the commands", () => {
     // WHEN a conversation is moved there
     // THEN the refusal reaches the caller with the words of the runtime
     await expect(moveSessionToFolder("s-1", "ghost")).rejects.toBe("folder not found: ghost");
-  });
-});
-
-describe("chat folders - dragging a conversation", () => {
-  test("a dragged conversation is read back by the folder it is dropped on", () => {
-    // GIVEN a drag started on a conversation
-    const drag = transfer();
-    writeSessionDrag(drag, "s-7");
-
-    // WHEN a folder looks at the drag and takes the drop
-    // THEN it sees a conversation, a move, and its identifier
-    expect(carriesSession(drag)).toBe(true);
-    expect(drag.effectAllowed).toBe("move");
-    expect(drag.types).toEqual([SESSION_DRAG_TYPE]);
-    expect(readSessionDrop(drag)).toBe("s-7");
-  });
-
-  test("a drag of anything else is not taken for a conversation", () => {
-    // GIVEN a drag of text, and no transfer at all
-    const text = transfer();
-    text.setData("text/plain", "s-7");
-
-    // WHEN a folder looks at each
-    // THEN neither carries a conversation
-    expect(carriesSession(text)).toBe(false);
-    expect(readSessionDrop(text)).toBeNull();
-    expect(carriesSession(null)).toBe(false);
-    expect(readSessionDrop(null)).toBeNull();
   });
 });

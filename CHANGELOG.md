@@ -320,6 +320,9 @@ at the end of this entry. From this version on, tags no longer carry the
 
 ### Fixed
 
+- A conversation could not be dragged into a folder, or out of one: the list
+  used the drag and drop of HTML, which the window keeps for the files dropped
+  on the application. A conversation is now dragged with the pointer.
 - A batch item that waits for an approval was announced before it was recorded
   as waiting: a client that answered the announcement at once found nothing to
   decide. It is recorded first.

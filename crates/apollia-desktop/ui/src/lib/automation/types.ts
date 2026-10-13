@@ -121,6 +121,18 @@ export interface SelectOptionStep extends Target {
   index?: number;
   timeoutMs?: number;
 }
+/** Drag the target onto another element with the pointer: press on the
+ *  target, move past the drag threshold to the centre of the destination,
+ *  release there. Pointer events, not the drag and drop of HTML, which the
+ *  window keeps for the drops of the system and never delivers to the page. */
+export interface DragStep extends Target {
+  kind: "drag";
+  /** Exact `data-testid` of the element the target is released on. */
+  toTestid: string;
+  /** Which match of `toTestid`, as `nth` reads (negative counts from the end). */
+  toNth?: number;
+  timeoutMs?: number;
+}
 /** Dispatch a keyboard event (keydown/keypress/keyup) with optional modifiers.
  *  Targets the given testid (focused first) or, when none is given, the active
  *  element. Reaches window/document-level shortcut listeners via bubbling.
@@ -261,6 +273,7 @@ export type Step =
   | SetCheckedStep
   | SelectOptionStep
   | PressStep
+  | DragStep
   | StubInvokeStep
   | ClearStubsStep
   | ClearToastsStep

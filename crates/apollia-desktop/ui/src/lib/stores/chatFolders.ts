@@ -21,9 +21,6 @@ export const COLLAPSED_FOLDERS_STORAGE_KEY = "apollia-chat-folders-collapsed";
 /** Longest name a folder takes, the limit the runtime holds. */
 export const FOLDER_NAME_MAX_CHARS = 100;
 
-/** The type a dragged conversation travels under. */
-export const SESSION_DRAG_TYPE = "application/x-apollia-chat-session";
-
 /** The folders, in the order of the list. */
 export const chatFolders = writable<ChatFolder[]>([]);
 
@@ -164,22 +161,4 @@ export function groupByFolder<S extends { id: string }>(
     folders: folders.map((folder) => ({ folder, sessions: groups.get(folder.id) ?? [] })),
     loose,
   };
-}
-
-/** Mark a drag as carrying the conversation `sessionId`. */
-export function writeSessionDrag(transfer: DataTransfer | null, sessionId: string): void {
-  if (!transfer) return;
-  transfer.setData(SESSION_DRAG_TYPE, sessionId);
-  transfer.effectAllowed = "move";
-}
-
-/** Whether a drag over a folder carries a conversation. */
-export function carriesSession(transfer: DataTransfer | null): boolean {
-  return transfer ? Array.from(transfer.types).includes(SESSION_DRAG_TYPE) : false;
-}
-
-/** The conversation a drop carries, or `null` when it carries something else. */
-export function readSessionDrop(transfer: DataTransfer | null): string | null {
-  const sessionId = transfer?.getData(SESSION_DRAG_TYPE) ?? "";
-  return sessionId === "" ? null : sessionId;
 }

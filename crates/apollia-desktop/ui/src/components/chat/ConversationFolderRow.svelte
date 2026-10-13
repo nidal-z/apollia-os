@@ -1,7 +1,7 @@
 <!--
   A folder of the conversation list: fold it, rename it (from its menu, or by
-  a double click on its name when Settings > Chat allows it), remove it, and drop a
-  conversation on it. Removing a folder removes no conversation; the menu says
+  a double click on its name when Settings > Chat allows it), remove it, and take a
+  conversation dragged onto it. Removing a folder removes no conversation; the menu says
   so next to the action.
 -->
 <script module lang="ts">
@@ -18,12 +18,7 @@
   import { ChevronDown, ChevronRight, Edit3, Folder, MoreHorizontal, Trash2 } from "lucide-svelte";
   import { ActionMenu } from "$lib/components/ui/action-menu";
   import { doubleClickRenames } from "$lib/chat/chatBehaviours";
-  import {
-    FOLDER_NAME_MAX_CHARS,
-    carriesSession,
-    cleanFolderName,
-    readSessionDrop,
-  } from "$lib/stores/chatFolders";
+  import { FOLDER_NAME_MAX_CHARS, cleanFolderName } from "$lib/stores/chatFolders";
 
   interface Props {
     folderId: string;
@@ -36,8 +31,8 @@
     ontoggle: () => void;
     onrename: (name: string) => void;
     ondelete: () => void;
-    /** A conversation was dropped on the folder. */
-    ondropsession: (sessionId: string) => void;
+    /** A dragged conversation is held over the folder and would enter it. */
+    dropTarget?: boolean;
     /** The name stopped being edited, kept or not. */
     onrenamed?: () => void;
     /** Whether a double click on the name renames the folder. */
@@ -53,7 +48,7 @@
     ontoggle,
     onrename,
     ondelete,
-    ondropsession,
+    dropTarget = false,
     onrenamed,
     renameOnDoubleClick = true,
   }: Props = $props();
@@ -62,7 +57,6 @@
   let editing = $state(false);
   let editValue = $state("");
   let editInput = $state<HTMLInputElement | undefined>(undefined);
-  let dropTarget = $state(false);
 
   async function startEdit(): Promise<void> {
     editValue = name;
@@ -99,20 +93,6 @@
       cancelEdit();
     }
   }
-
-  function onDragOver(ev: DragEvent): void {
-    if (!carriesSession(ev.dataTransfer)) return;
-    ev.preventDefault();
-    dropTarget = true;
-  }
-
-  function onDrop(ev: DragEvent): void {
-    dropTarget = false;
-    const sessionId = readSessionDrop(ev.dataTransfer);
-    if (sessionId === null) return;
-    ev.preventDefault();
-    ondropsession(sessionId);
-  }
 </script>
 
 <div
@@ -121,9 +101,7 @@
     : 'hover:bg-muted/40'}"
   role="group"
   aria-label={name}
-  ondragover={onDragOver}
-  ondragleave={() => (dropTarget = false)}
-  ondrop={onDrop}
+  data-session-drop={folderId}
   data-testid="chat-folder-row"
   data-folder-id={folderId}
 >

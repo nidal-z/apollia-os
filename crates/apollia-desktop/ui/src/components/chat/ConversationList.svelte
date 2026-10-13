@@ -43,7 +43,14 @@
   import { ConversationRow } from "$lib/components/operator";
   import type { SidebarDensity } from "$lib/stores/chatSessions";
   import {
-    carriesSession,
+    dropTargetOf,
+    refusesDrag,
+    startsDrag,
+    wouldMove,
+    type DropTarget,
+    type Point,
+  } from "$lib/chat/sessionDrag";
+  import {
     chatFolders,
     collapsedFolderIds,
     createFolder,
@@ -52,10 +59,8 @@
     groupByFolder,
     loadFolders,
     moveSessionToFolder,
-    readSessionDrop,
     renameFolder,
     toggleFolderCollapsed,
-    writeSessionDrag,
   } from "$lib/stores/chatFolders";
   import {
     clearMessageSearch,
@@ -97,7 +102,11 @@
   let failure = $state<string | null>(null);
   // The folder that was just created: its row opens on its name.
   let namingFolderId = $state<string | null>(null);
-  let looseDropTarget = $state(false);
+  // A press on a conversation, which becomes a drag once the pointer travels.
+  let press = $state<{ sessionId: string; title: string; from: Point } | null>(null);
+  let dragging = $state(false);
+  let pointer = $state<Point>({ x: 0, y: 0 });
+  let over = $state<DropTarget | null>(null);
 
   onMount(() => {
     void loadFolders();
@@ -137,25 +146,71 @@
     void run(() => moveSessionToFolder(sessionId, folderId));
   }
 
-  function onLooseDragOver(ev: DragEvent): void {
-    if (!carriesSession(ev.dataTransfer)) return;
-    ev.preventDefault();
-    looseDropTarget = true;
+  /** The place the dragged conversation would move to, or `null`. */
+  const landing = $derived.by(() => {
+    if (!dragging || !press) return null;
+    return wouldMove(over, folderIdOf($chatFolders, press.sessionId)) ? over : null;
+  });
+
+  function onRowPointerDown(ev: PointerEvent, session: DecoratedSession): void {
+    if (searching || ev.button !== 0 || refusesDrag(ev.target)) return;
+    press = {
+      sessionId: session.id,
+      title: session.title ?? session.agent_name ?? $t("chat.untitled_session"),
+      from: { x: ev.clientX, y: ev.clientY },
+    };
   }
 
-  function onLooseDrop(ev: DragEvent): void {
-    looseDropTarget = false;
-    const sessionId = readSessionDrop(ev.dataTransfer);
-    if (sessionId === null) return;
+  function onPointerMove(ev: PointerEvent): void {
+    if (!press) return;
+    const at = { x: ev.clientX, y: ev.clientY };
+    if (!dragging && !startsDrag(press.from, at)) return;
+    dragging = true;
+    pointer = at;
+    over = dropTargetOf(document.elementFromPoint(at.x, at.y));
+    // The pointer is moving a conversation, not selecting the text it passes.
     ev.preventDefault();
-    move(sessionId, null);
+  }
+
+  function endDrag(): void {
+    press = null;
+    dragging = false;
+    over = null;
+  }
+
+  function onPointerUp(): void {
+    const dropped = press;
+    const target = landing;
+    const wasDragging = dragging;
+    endDrag();
+    if (!wasDragging || !dropped) return;
+    // The release of a drag is not a click on the row under the pointer.
+    window.addEventListener("click", swallowClick, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener("click", swallowClick, { capture: true }), 0);
+    if (target) move(dropped.sessionId, target.folderId);
+  }
+
+  function swallowClick(ev: MouseEvent): void {
+    ev.stopPropagation();
+    ev.preventDefault();
+  }
+
+  function onKeydown(ev: KeyboardEvent): void {
+    if (dragging && ev.key === "Escape") endDrag();
   }
 </script>
 
+<svelte:window
+  onpointermove={onPointerMove}
+  onpointerup={onPointerUp}
+  onpointercancel={endDrag}
+  onkeydown={onKeydown}
+/>
+
 {#snippet row(session: DecoratedSession, excerpt: string | undefined)}
   <div
-    draggable={!searching}
-    ondragstart={(ev) => writeSessionDrag(ev.dataTransfer, session.id)}
+    onpointerdown={(ev) => onRowPointerDown(ev, session)}
+    class={dragging && press?.sessionId === session.id ? "opacity-50" : ""}
     role="listitem"
     data-testid="chat-conversation-item"
     data-session-id={session.id}
@@ -246,7 +301,7 @@
       ontoggle={() => toggleFolderCollapsed(group.folder.id)}
       onrename={(name) => void run(() => renameFolder(group.folder.id, name))}
       ondelete={() => void run(() => deleteFolder(group.folder.id))}
-      ondropsession={(sessionId) => move(sessionId, group.folder.id)}
+      dropTarget={landing?.folderId === group.folder.id}
       onrenamed={() => (namingFolderId = null)}
       renameOnDoubleClick={$chatDoubleClickRename}
     />
@@ -256,7 +311,13 @@
           {$t("chat.folders.empty")}
         </p>
       {:else}
-        <div role="list" data-testid="chat-folder-sessions" data-folder-id={group.folder.id}>
+        <div
+          role="list"
+          class="transition-colors {landing?.folderId === group.folder.id ? 'bg-primary/5' : ''}"
+          data-session-drop={group.folder.id}
+          data-testid="chat-folder-sessions"
+          data-folder-id={group.folder.id}
+        >
           {#each group.sessions as session (session.id)}
             {@render row(session, undefined)}
           {/each}
@@ -267,10 +328,10 @@
 
   <div
     role="list"
-    class="min-h-10 flex-1 transition-colors {looseDropTarget ? 'bg-primary/5' : ''}"
-    ondragover={onLooseDragOver}
-    ondragleave={() => (looseDropTarget = false)}
-    ondrop={onLooseDrop}
+    class="min-h-10 flex-1 transition-colors {landing && landing.folderId === null
+      ? 'bg-primary/5'
+      : ''}"
+    data-session-drop=""
     data-testid="chat-loose-sessions"
   >
     {#each grouped.loose as session (session.id)}
@@ -281,5 +342,16 @@
         {$t("chat.no_sessions")}
       </p>
     {/if}
+  </div>
+{/if}
+
+{#if dragging && press}
+  <!-- What is being moved, carried next to the pointer. -->
+  <div
+    class="pointer-events-none fixed max-w-56 truncate rounded-md border border-border bg-surface-1 px-2 py-1 text-body-xs text-foreground shadow-md"
+    style="z-index: var(--z-overlay); left: {pointer.x + 12}px; top: {pointer.y + 12}px;"
+    data-testid="chat-session-drag-ghost"
+  >
+    {press.title}
   </div>
 {/if}

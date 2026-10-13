@@ -31,7 +31,7 @@ import json
 SCRIPTS = "scripts/automation"
 
 # step kinds whose timeoutMs the runner reads to locate an element
-WAIT_KINDS = {"waitFor", "waitGone", "click", "fill", "selectOption", "press"}
+WAIT_KINDS = {"waitFor", "waitGone", "click", "fill", "selectOption", "press", "drag"}
 
 
 def main():

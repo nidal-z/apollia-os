@@ -265,7 +265,7 @@ A script is `{ name, stopOnError?, destructive?, steps: [...] }`. Step kinds
 (see `crates/apollia-desktop/ui/src/lib/automation/types.ts` for the full typed
 contract): `goto`, `waitFor`, `waitGone`, `click`, `fill`, `sendChat`, `expect`,
 `captureText`, `screenshot`, `sleep`, `awaitTurn`, `setChecked`, `selectOption`,
-`press`, `stubInvoke`, `clearStubs`, `clearToasts`, `resizeWindow`, `fault`, `emitEvent`,
+`press`, `drag`, `stubInvoke`, `clearStubs`, `clearToasts`, `resizeWindow`, `fault`, `emitEvent`,
 `expectElapsed`. Targets are an exact
 `testid` or a `testidPrefix` (+ optional `nth`, negative counts from the end).
 `awaitTurn` drives a chat/agent turn to completion and auto-accepts HITL cards;
@@ -274,6 +274,11 @@ contract): `goto`, `waitFor`, `waitGone`, `click`, `fill`, `sendChat`, `expect`,
 read that fragment before the step passes, which is how a recipe waits for a
 count or a status to change (the topbar's agents-at-work chip going back to
 `1 agent`) instead of sleeping for a guessed duration.
+`drag` presses on its target, moves the pointer to the centre of the element
+named by `toTestid` (`toNth` picks one of several), and releases there. It
+plays pointer events, which is how the application moves a conversation into a
+folder: the drag and drop of HTML never reaches the page, because the window
+keeps the drops of the system for itself.
 
 Six kinds act on the harness rather than on the DOM:
 

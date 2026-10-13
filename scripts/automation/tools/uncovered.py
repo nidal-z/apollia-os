@@ -93,7 +93,7 @@ BARE_FORWARD = re.compile(r'\{\s*[A-Za-z_$][\w$.?]*\s*\}')
 
 # Kinds that ACT on their target. `sendChat` acts without naming a target: the
 # runner types into `chat-input` and clicks `chat-send-button`.
-ACTING_KINDS = {"click", "fill", "setChecked", "selectOption", "press"}
+ACTING_KINDS = {"click", "fill", "setChecked", "selectOption", "press", "drag"}
 SENDCHAT_TARGETS = ("chat-input", "chat-send-button")
 # `awaitTurn` accepts whatever approval card is on screen, by prefix.
 AWAITTURN_PREFIXES = ("approval-accept-", "operator-approval-accept-")
