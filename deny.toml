@@ -42,6 +42,11 @@ ignore = [
     # Transitive via i18n-embed-fl, pulled by age (apollia-auth secret
     # store). Lift condition: i18n-embed-fl moves off proc-macro-error2.
     "RUSTSEC-2026-0173", # proc-macro-error2: unmaintained
+    # Via serde_yaml, itself deprecated, which apollia-aip uses in one place:
+    # reading the YAML data files a package ships (datasources.rs). The crate
+    # is flagged unmaintained, not vulnerable. Lift condition: the data files
+    # are read by a maintained YAML parser, a dependency change to decide.
+    "RUSTSEC-2024-0449", # unsafe-libyaml: unmaintained
     # pyo3 0.24 soundness advisories. The fix lands in pyo3 0.29, a major
     # upgrade of pyo3 + pyo3-async-runtimes deliberately deferred past this
     # release window. The affected exploit paths (new_closure, the nth

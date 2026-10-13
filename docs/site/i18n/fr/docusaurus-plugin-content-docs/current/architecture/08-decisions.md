@@ -576,9 +576,11 @@ absentes du fichier de verrouillage, dont une pile de polices (`skrifa`, `read-f
 `write-fonts`, `ttf-parser`, `subsetter`), un moteur de mise en page (`taffy`)
 et des secondes versions majeures de `quick-xml`, `brotli`, `sha2` et `aes`.
 `pdf_oxide` est épinglé en 0.3.78, et `office_oxide`, dont il dépend, est tenu
-en 0.1.11 dans le fichier de verrouillage : sa version 0.1.12 ne compile plus
-sous `pdf_oxide` 0.3.78 ; mettre l'une ou l'autre à jour est donc une décision et
-non un rafraîchissement.
+en 0.1.11 dans le manifeste de l'espace de travail et dans le fichier de
+verrouillage : sa version 0.1.12 ne compile plus sous `pdf_oxide` 0.3.78 ;
+mettre l'une ou l'autre à jour est donc une décision et non un rafraîchissement.
+Le manifeste le tient parce qu'une construction résolue sans le fichier de
+verrouillage prendrait sinon la version plus récente.
 
 Une crate de cette pile de polices porte un avis : `ttf-parser` 0.25.1, dont
 seul `pdf_oxide` se sert pour lire les polices qu'un document embarque, est

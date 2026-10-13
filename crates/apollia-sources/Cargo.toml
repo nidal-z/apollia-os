@@ -22,6 +22,7 @@ chrono       = { workspace = true }
 csv          = { workspace = true }
 image        = { workspace = true }
 notify       = { workspace = true }
+office_oxide = { workspace = true }
 pdf_oxide    = { workspace = true }
 quick-xml    = { workspace = true }
 rusqlite     = { workspace = true }
@@ -38,6 +39,11 @@ zip          = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 wiremock = { workspace = true }
+
+# office_oxide is never named in the code: it is declared only to hold the
+# release pdf_oxide compiles against, which cargo-machete cannot see.
+[package.metadata.cargo-machete]
+ignored = ["office_oxide"]
 
 [lints]
 workspace = true

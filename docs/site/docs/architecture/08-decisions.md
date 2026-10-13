@@ -532,9 +532,11 @@ The cost is named: `pdf_oxide` brings fifty-three crate versions the lock file
 did not hold, among them a font stack (`skrifa`, `read-fonts`, `write-fonts`,
 `ttf-parser`, `subsetter`), a layout engine (`taffy`) and second majors of
 `quick-xml`, `brotli`, `sha2` and `aes`. `pdf_oxide` is pinned to 0.3.78, and
-`office_oxide`, which it depends on, is held at 0.1.11 in the lock file: its
-0.1.12 release no longer compiles under `pdf_oxide` 0.3.78, so an update of
-either is a decision rather than a refresh.
+`office_oxide`, which it depends on, is held at 0.1.11 in the manifest of the
+workspace and in the lock file: its 0.1.12 release no longer compiles under
+`pdf_oxide` 0.3.78, so an update of either is a decision rather than a refresh.
+The manifest holds it because a build that resolves without the lock file would
+otherwise take the newer release.
 
 One crate of that font stack carries an advisory: `ttf-parser` 0.25.1, which
 `pdf_oxide` alone uses to parse the fonts a document embeds, is flagged
