@@ -207,8 +207,12 @@ async fn test_loading_a_second_model_unloads_the_first_the_server_loaded() {
 #[cfg(unix)]
 #[tokio::test]
 async fn test_without_keep_last_only_both_models_the_server_loaded_stay() {
-    // GIVEN keeping only the last model turned off
-    let machine = machine("[server]\njit_keep_last_only = false\n");
+    // GIVEN keeping only the last model turned off, and the load guardrail
+    // off too: with it on, whether a second model fits beside the first is
+    // decided by the memory of the machine running the test, and a small one
+    // unloads the first to make room
+    let machine =
+        machine("[server]\njit_keep_last_only = false\n\n[llm.guardrails]\nlevel = \"disabled\"\n");
     let (first, body) = chat(&machine.router, "acme/one").await;
     assert_eq!(first, StatusCode::OK, "{body}");
 
