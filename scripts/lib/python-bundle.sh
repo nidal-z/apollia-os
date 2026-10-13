@@ -68,9 +68,33 @@ python_bundle_sync_sdk() {
     done
 }
 
+# Give a bundle of an Apple Silicon Mac the MLX engine it lacks.
+#
+# The engine is installed when the bundle is built, and a bundle is reused for
+# weeks: one built before that step existed, or with APOLLIA_SKIP_MLX_ENGINE=1,
+# has no engines/mlx. The application then starts, lists no MLX engine, and
+# answers every MLX model with "the MLX engine is not installed on this
+# machine", which reads as a product fault. The engine is installed here, once
+# (its wheels are cached beside the bundle). A failure, a machine off line for
+# instance, is said and does not stop the recipe: everything but MLX still
+# runs. APOLLIA_SKIP_MLX_ENGINE=1 leaves the bundle as it is.
+python_bundle_mlx_engine() {
+    local root="$1"
+    [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ] || return 0
+    [ "${APOLLIA_SKIP_MLX_ENGINE:-}" = "1" ] && return 0
+    [ -d "$root/engines/mlx/site-packages" ] && return 0
+    echo "python bundle: no MLX engine in $root, installing it (once)" >&2
+    if ! bash "$PWD/packaging/build-mlx-engine.sh" aarch64-apple-darwin "$root" >&2; then
+        echo "warning: the MLX engine could not be installed; MLX models will not load." >&2
+        echo "         Retry with: bash packaging/build-mlx-engine.sh aarch64-apple-darwin $root" >&2
+    fi
+    return 0
+}
+
 python_bundle_activate() {
     local root
     root="$(python_bundle_resolve)" || return 1
+    python_bundle_mlx_engine "$root"
     bundle_python_env "$root" || return 1
     bundle_python_link_dev "$root" "$PWD/target/debug/python" || return 1
     python_bundle_sync_sdk "$root" || return 1
