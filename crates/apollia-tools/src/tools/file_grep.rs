@@ -26,8 +26,11 @@ pub struct FileGrep {
 pub enum FileGrepError {
     /// Path attempts to escape the sandbox root.
     #[error(
-        "path '{path}' is outside every folder granted to this agent; add its \
-         folder as a connection and grant it to the agent to reach it"
+        "path '{path}' is outside every folder granted to this agent. A folder \
+         that is already a connection is not granted until it is granted to \
+         this agent, on its sheet: Adjust, then Accesses, Grant a connection, \
+         then Save. A folder that is not a connection yet is added in \
+         Connections first"
     )]
     SandboxViolation { path: String },
 
