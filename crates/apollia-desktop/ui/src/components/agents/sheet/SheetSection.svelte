@@ -29,8 +29,11 @@
   data-testid={testid}
   aria-label={title}
 >
-  <div class="flex items-start justify-between gap-3 border-b border-border/60 px-4 py-3">
-    <div class="min-w-0">
+  <!-- The actions wrap under the title when the card is too narrow for both:
+       held on the same line, wide buttons left the legend one word wide and
+       ran past the edge of the card. -->
+  <div class="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 px-4 py-3">
+    <div class="min-w-48 flex-1">
       <div class="flex items-center gap-2">
         <h3 class="m-0 text-overline uppercase text-muted-foreground">{title}</h3>
         {#if modified}
@@ -40,7 +43,7 @@
       <p class="m-0 mt-0.5 text-caption text-muted-foreground">{legend}</p>
     </div>
     {#if action}
-      <div class="flex shrink-0 flex-wrap justify-end gap-2">{@render action()}</div>
+      <div class="flex max-w-full flex-wrap justify-end gap-2">{@render action()}</div>
     {/if}
   </div>
   <div class="p-4">
