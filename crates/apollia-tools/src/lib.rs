@@ -106,9 +106,9 @@ pub use source_access::{
     MEMORY_WRITE_TOOL, PROFILE_PROPOSE_TOOL,
 };
 pub use task_repository::{
-    AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, HistoryRemoved, NewBatch,
-    NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, TaskDetail, TaskRepoError,
-    TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
+    AgentRunEnd, AgentRunStart, ApprovalInfo, BatchDeletion, BatchItemRow, BatchRow,
+    HistoryRemoved, NewBatch, NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary,
+    TaskDetail, TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
 };
 pub use tool_credentials::{
     credential_account, list_credential_index, CredentialEntry, ToolCredentialStore,

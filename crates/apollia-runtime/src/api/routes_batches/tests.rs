@@ -421,3 +421,56 @@ async fn test_a_batch_is_exported_over_http_in_three_formats() {
     );
     assert_eq!(missing_status, StatusCode::NOT_FOUND);
 }
+
+// GIVEN a batch whose items are held by the model
+// WHEN it is deleted over HTTP while it runs, then once it has completed, and
+//      an unknown batch is deleted
+// THEN the first deletion is refused 409 and the batch stays readable, the
+//      second answers the items removed and the batch is no longer found, and
+//      the unknown one answers 404
+#[tokio::test]
+async fn test_a_batch_is_deleted_over_http_once_it_has_ended() {
+    // GIVEN
+    let fx = fixture().await;
+    let (_, launched) = call(
+        &fx.app,
+        "POST",
+        "/api/v1/batches",
+        Some(launch_body("memory", 2)),
+    )
+    .await;
+    let batch_id = launched["batchId"].as_str().unwrap().to_string();
+    let uri = format!("/api/v1/batches/{batch_id}");
+    let two_open = poll_until(WAIT, || fx.open.load(Ordering::SeqCst) == 2).await;
+    assert!(two_open, "the items never started");
+
+    // WHEN
+    let (running_status, running_body) = call(&fx.app, "DELETE", &uri, None).await;
+    let (still_status, _) = call(&fx.app, "GET", &uri, None).await;
+    fx.gate.add_permits(100);
+    let completed = poll_until_async(WAIT, || async {
+        let (_, body) = call(&fx.app, "GET", &uri, None).await;
+        body["batch"]["state"] == "completed"
+    })
+    .await;
+    assert!(completed, "the batch never completed");
+    let (deleted_status, deleted_body) = call(&fx.app, "DELETE", &uri, None).await;
+    let (gone_status, _) = call(&fx.app, "GET", &uri, None).await;
+    let (missing_status, _) = call(&fx.app, "DELETE", "/api/v1/batches/missing", None).await;
+
+    // THEN
+    assert_eq!(running_status, StatusCode::CONFLICT, "{running_body}");
+    assert!(
+        running_body["error"]
+            .as_str()
+            .unwrap()
+            .contains("cannot delete"),
+        "{running_body}"
+    );
+    assert_eq!(still_status, StatusCode::OK);
+    assert_eq!(deleted_status, StatusCode::OK, "{deleted_body}");
+    assert_eq!(deleted_body["batchId"], batch_id.as_str());
+    assert_eq!(deleted_body["items"], 10);
+    assert_eq!(gone_status, StatusCode::NOT_FOUND);
+    assert_eq!(missing_status, StatusCode::NOT_FOUND);
+}

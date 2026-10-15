@@ -53,6 +53,7 @@ from .audit_journal_response_entries_item import AuditJournalResponseEntriesItem
 from .authorize_tool_request import AuthorizeToolRequest
 from .batch_access import BatchAccess
 from .batch_accesses_view import BatchAccessesView
+from .batch_deleted_view import BatchDeletedView
 from .batch_detail_view import BatchDetailView
 from .batch_error_response import BatchErrorResponse
 from .batch_item_view import BatchItemView
@@ -667,6 +668,7 @@ __all__ = (
     "AuthorizeToolRequest",
     "BatchAccess",
     "BatchAccessesView",
+    "BatchDeletedView",
     "BatchDetailView",
     "BatchErrorResponse",
     "BatchItemView",

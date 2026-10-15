@@ -350,3 +350,54 @@ async fn test_an_item_waiting_on_code_runs_again_alone_allowed_one_call() {
     assert!(matches!(not_code, Err(BatchError::Invalid(m)) if m.contains("executes code")));
     assert!(matches!(not_waiting, Err(BatchError::State(_))));
 }
+
+// GIVEN a batch of three items, two at a time, whose items hang
+// WHEN it is deleted while running, deleted while paused, then stopped and
+//      deleted once its end is published, and an unknown batch is deleted
+// THEN the two first deletions are refused and remove nothing, the last one
+//      removes the batch and its three items, and the unknown one is not found
+#[tokio::test]
+async fn test_a_batch_is_deleted_only_once_it_has_ended() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repository(&dir).await;
+    let runner = Arc::new(Scripted {
+        hang_all: true,
+        ..Scripted::default()
+    });
+    let (handle, bus) = spawn(repo.clone(), registry(&["ok"; 3]), runner.clone());
+    let mut events = bus.subscribe();
+    let batch = handle.launch(launch(Some(2), None)).await.unwrap();
+    wait_items(&repo, &batch.batch_id, "running", 2).await;
+
+    // WHEN
+    let while_running = handle.delete(&batch.batch_id).await.unwrap_err();
+    handle
+        .control(&batch.batch_id, BatchControl::Pause)
+        .await
+        .unwrap();
+    let while_paused = handle.delete(&batch.batch_id).await.unwrap_err();
+    let kept = repo.batch_items(&batch.batch_id).await.unwrap().len();
+    handle
+        .control(&batch.batch_id, BatchControl::Stop)
+        .await
+        .unwrap();
+    ended(&mut events, &batch.batch_id).await;
+    let deleted = handle.delete(&batch.batch_id).await.unwrap();
+    let unknown = handle.delete("missing").await.unwrap_err();
+
+    // THEN
+    assert!(
+        matches!(&while_running, BatchError::State(m) if m.contains("running")),
+        "{while_running:?}"
+    );
+    assert!(
+        matches!(&while_paused, BatchError::State(m) if m.contains("paused")),
+        "{while_paused:?}"
+    );
+    assert_eq!(kept, 3);
+    assert_eq!(deleted, 3);
+    assert!(repo.batch(&batch.batch_id).await.unwrap().is_none());
+    assert!(repo.batch_items(&batch.batch_id).await.unwrap().is_empty());
+    assert!(matches!(unknown, BatchError::NotFound(_)), "{unknown:?}");
+}

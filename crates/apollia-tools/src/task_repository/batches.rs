@@ -533,6 +533,73 @@ impl TaskRepository {
         })
         .await
     }
+
+    /// Removes a batch and its items, in one transaction, unless it is
+    /// active: `running` or `paused`, or with an item still `running`. The
+    /// state is read and the rows removed in the same transaction, so a batch
+    /// that starts again in between is never removed.
+    ///
+    /// The tasks that ran the items stay in `tasks`, as the history of the
+    /// agent. Nothing outside `hitl.db` is touched: a file the batch was
+    /// exported to, or the source its answers were written back into, stays
+    /// as it is.
+    ///
+    /// # Errors
+    ///
+    /// [`TaskRepoError::Sqlite`] or [`TaskRepoError::Json`].
+    pub async fn delete_batch(&self, batch_id: &str) -> Result<BatchDeletion, TaskRepoError> {
+        let batch_id = batch_id.to_string();
+        self.blocking(move |conn| {
+            let tx = conn.transaction()?;
+            let Some(row) = get_batch(&tx, &batch_id)? else {
+                return Ok(BatchDeletion::NotFound);
+            };
+            let in_flight: i64 = tx.query_row(
+                "SELECT COUNT(*) FROM batch_items WHERE batch_id = ?1 AND status = 'running'",
+                params![&batch_id],
+                |r| r.get(0),
+            )?;
+            if row.state == "running" || row.state == "paused" || in_flight > 0 {
+                return Ok(BatchDeletion::Active {
+                    state: row.state,
+                    in_flight: u64::try_from(in_flight).unwrap_or(0),
+                });
+            }
+            let items = tx.execute(
+                "DELETE FROM batch_items WHERE batch_id = ?1",
+                params![&batch_id],
+            )?;
+            tx.execute(
+                "DELETE FROM batches WHERE batch_id = ?1",
+                params![&batch_id],
+            )?;
+            tx.commit()?;
+            Ok(BatchDeletion::Deleted {
+                items: u64::try_from(items).unwrap_or(u64::MAX),
+            })
+        })
+        .await
+    }
+}
+
+/// What [`TaskRepository::delete_batch`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BatchDeletion {
+    /// The batch and its items were removed.
+    Deleted {
+        /// Items removed with it.
+        items: u64,
+    },
+    /// No batch has this id.
+    NotFound,
+    /// The batch is active and was left as it is.
+    Active {
+        /// Its state, `running`, `paused`, or an ended state whose items
+        /// still run.
+        state: String,
+        /// Its items still running.
+        in_flight: u64,
+    },
 }
 
 #[cfg(test)]

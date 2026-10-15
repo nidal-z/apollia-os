@@ -94,6 +94,9 @@ impl<R: ItemRunner> BatchActor<R> {
                             self.runner.check(&agent).await.map_err(BatchError::Agent),
                         );
                     }
+                    Some(BatchCommand::Delete { batch_id, reply }) => {
+                        let _ = reply.send(self.delete(&batch_id).await);
+                    }
                     None => break,
                 },
                 Some(ended) = self.ends.recv() => self.item_ended(ended).await,

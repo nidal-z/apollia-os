@@ -13,7 +13,7 @@
 mod agent_runs;
 pub use agent_runs::{AgentRunEnd, AgentRunStart};
 mod batches;
-pub use batches::{BatchItemRow, BatchRow, NewBatch};
+pub use batches::{BatchDeletion, BatchItemRow, BatchRow, NewBatch};
 mod history;
 pub use history::HistoryRemoved;
 mod workflows;

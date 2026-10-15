@@ -23,7 +23,9 @@
 //! their own, and a restart leaves it paused), resumed, or stopped: its
 //! running items are cancelled through their task, the pending ones are
 //! canceled without running. The items that failed, or that wait for an
-//! access, are run again from their input as read at launch.
+//! access, are run again from their input as read at launch. A batch that
+//! has ended, with no item left running, can be deleted with its items; the
+//! files it was exported or written to are left as they are.
 //!
 //! An item runs unattended. Before the batch starts, the sensitive accesses of
 //! its agent are listed ([`BatchHandle::accesses`]); those granted at launch
@@ -328,6 +330,10 @@ enum BatchCommand {
         agent: String,
         reply: oneshot::Sender<Result<Vec<BatchAccess>, BatchError>>,
     },
+    Delete {
+        batch_id: String,
+        reply: oneshot::Sender<Result<u64, BatchError>>,
+    },
 }
 
 /// The handle of the batch actor. Reads go to `hitl.db` directly; a launch
@@ -390,6 +396,36 @@ impl BatchHandle {
             .send(BatchCommand::Control {
                 batch_id: batch_id.to_string(),
                 control,
+                reply,
+            })
+            .await
+            .map_err(|_| BatchError::Stopped)?;
+        rx.await.map_err(|_| BatchError::Stopped)?
+    }
+
+    /// Deletes an ended batch and its items from `hitl.db`. Returns how many
+    /// items were removed with it.
+    ///
+    /// A batch that is active (`running` or `paused`, or with an item still
+    /// running after it was stopped or interrupted) is refused: its progress
+    /// belongs to the actor until its last item has ended, and removing its
+    /// rows under it would lose the end of those items. It is stopped first.
+    ///
+    /// The deletion touches nothing outside `hitl.db`: a file the batch was
+    /// exported to, or the source its answers were written back into, stays
+    /// as it is. The tasks that ran its items stay in the history of the
+    /// agent.
+    ///
+    /// # Errors
+    ///
+    /// [`BatchError::NotFound`] for an unknown batch, [`BatchError::State`]
+    /// for an active one, [`BatchError::Store`] or [`BatchError::Stopped`]
+    /// otherwise.
+    pub async fn delete(&self, batch_id: &str) -> Result<u64, BatchError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(BatchCommand::Delete {
+                batch_id: batch_id.to_string(),
                 reply,
             })
             .await

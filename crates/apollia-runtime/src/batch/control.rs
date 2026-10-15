@@ -1,9 +1,9 @@
-//! Pause, resume, stop and retry of a batch, and the refusal of an item that
-//! waits, as the batch actor applies them.
+//! Pause, resume, stop, retry and deletion of a batch, and the refusal of an
+//! item that waits, as the batch actor applies them.
 
 use tracing::Level;
 
-use apollia_tools::BatchRow;
+use apollia_tools::{BatchDeletion, BatchRow};
 
 use super::access::resolve_grants;
 use super::actor::BatchActor;
@@ -52,6 +52,42 @@ impl<R: ItemRunner> BatchActor<R> {
             .batch(batch_id)
             .await?
             .ok_or_else(|| BatchError::NotFound(batch_id.to_string()))
+    }
+
+    /// Deletes the batch `batch_id` and its items, unless it is active: still
+    /// held by this actor (an item in flight, or a pause), or recorded as
+    /// `running` or `paused`, or with an item recorded as running. Returns
+    /// how many items were removed. Files outside `hitl.db` are not touched.
+    pub(super) async fn delete(&mut self, batch_id: &str) -> Result<u64, BatchError> {
+        if let Some(active) = self.active.get(batch_id) {
+            return Err(BatchError::State(format!(
+                "cannot delete batch '{batch_id}': it is {}; stop it first",
+                if active.paused {
+                    "paused".to_string()
+                } else if active.interrupted {
+                    format!("ending, with {} items still running", active.in_flight)
+                } else {
+                    "running".to_string()
+                }
+            )));
+        }
+        match self.repository.delete_batch(batch_id).await? {
+            BatchDeletion::Deleted { items } => {
+                self.once.retain(|(batch, _), _| batch != batch_id);
+                tracing::event!(Level::INFO, batch_id, items, "batch.deleted");
+                Ok(items)
+            }
+            BatchDeletion::NotFound => Err(BatchError::NotFound(batch_id.to_string())),
+            BatchDeletion::Active { state, in_flight } => {
+                Err(BatchError::State(if in_flight > 0 {
+                    format!(
+                    "cannot delete batch '{batch_id}': {in_flight} of its items are still running"
+                )
+                } else {
+                    format!("cannot delete batch '{batch_id}': it is {state}; stop it first")
+                }))
+            }
+        }
     }
 
     async fn pause(&mut self, row: &BatchRow) -> Result<(), BatchError> {

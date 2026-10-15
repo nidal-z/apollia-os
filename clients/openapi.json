@@ -2486,6 +2486,67 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`DELETE /api/v1/batches/{id}`: removes a batch and its items.",
+        "description": "Refused while the batch is active: `running` or `paused`, or stopped or\ninterrupted with an item still running. It is stopped first. The tasks that\nran its items stay in the history of the agent. Nothing outside the\nruntime's store is touched: a file the batch was exported to, or the\nsource its answers were written back into, stays as it is.",
+        "operationId": "delete_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch was deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchDeletedView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch is running, paused, or has an item still running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/batches/{id}/export": {
@@ -20103,6 +20164,25 @@
           },
           "agent": {
             "type": "string"
+          }
+        }
+      },
+      "BatchDeletedView": {
+        "type": "object",
+        "description": "A batch removed, and how many items went with it.",
+        "required": [
+          "batchId",
+          "items"
+        ],
+        "properties": {
+          "batchId": {
+            "type": "string"
+          },
+          "items": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Items removed with the batch.",
+            "minimum": 0
           }
         }
       },

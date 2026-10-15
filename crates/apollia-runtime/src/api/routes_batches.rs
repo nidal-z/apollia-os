@@ -12,6 +12,10 @@
 //! `GET /api/v1/batches/{id}/export?format=xlsx|csv|json` answers the result
 //! of a batch as a file: one row per item, its input columns, its output, its
 //! status and the sources it cites.
+//!
+//! `DELETE /api/v1/batches/{id}` removes an ended batch and its items; an
+//! active one is refused. Files the batch was exported or written to are left
+//! as they are.
 
 use axum::extract::{Path, Query, State};
 use axum::http::{header, StatusCode};
@@ -252,6 +256,45 @@ pub async fn list_batches<B: ExecutionBackend + Clone>(
     }))
 }
 
+/// A batch removed, and how many items went with it.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchDeletedView {
+    pub batch_id: String,
+    /// Items removed with the batch.
+    pub items: u64,
+}
+
+/// `DELETE /api/v1/batches/{id}`: removes a batch and its items.
+///
+/// Refused while the batch is active: `running` or `paused`, or stopped or
+/// interrupted with an item still running. It is stopped first. The tasks that
+/// ran its items stay in the history of the agent. Nothing outside the
+/// runtime's store is touched: a file the batch was exported to, or the
+/// source its answers were written back into, stays as it is.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/batches/{id}",
+    tag = "batches",
+    params(("id" = String, Path, description = "Batch id")),
+    responses(
+        (status = 200, description = "The batch was deleted", body = BatchDeletedView),
+        (status = 404, description = "No such batch", body = BatchErrorResponse),
+        (status = 409, description = "The batch is running, paused, or has an item still running", body = BatchErrorResponse),
+        (status = 503, description = "Batch engine unavailable", body = BatchErrorResponse),
+    )
+)]
+pub async fn delete_batch<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> Result<Json<BatchDeletedView>, RouteError> {
+    let items = engine(&state)?.delete(&id).await.map_err(batch_error)?;
+    Ok(Json(BatchDeletedView {
+        batch_id: id,
+        items,
+    }))
+}
+
 /// The sensitive accesses of an agent.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct BatchAccessesView {
@@ -474,7 +517,10 @@ pub fn batch_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(list_batches::<B>).post(launch_batch::<B>),
         )
         .route("/api/v1/batches/accesses", get(batch_accesses::<B>))
-        .route("/api/v1/batches/:id", get(get_batch::<B>))
+        .route(
+            "/api/v1/batches/:id",
+            get(get_batch::<B>).delete(delete_batch::<B>),
+        )
         .route("/api/v1/batches/:id/pause", post(pause_batch::<B>))
         .route("/api/v1/batches/:id/resume", post(resume_batch::<B>))
         .route("/api/v1/batches/:id/stop", post(stop_batch::<B>))

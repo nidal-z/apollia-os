@@ -815,7 +815,15 @@ export interface paths {
         get: operations["get_batch"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * `DELETE /api/v1/batches/{id}`: removes a batch and its items.
+         * @description Refused while the batch is active: `running` or `paused`, or stopped or
+         *     interrupted with an item still running. It is stopped first. The tasks that
+         *     ran its items stay in the history of the agent. Nothing outside the
+         *     runtime's store is touched: a file the batch was exported to, or the
+         *     source its answers were written back into, stays as it is.
+         */
+        delete: operations["delete_batch"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6779,6 +6787,15 @@ export interface components {
         BatchAccessesView: {
             accesses: components["schemas"]["BatchAccess"][];
             agent: string;
+        };
+        /** @description A batch removed, and how many items went with it. */
+        BatchDeletedView: {
+            batchId: string;
+            /**
+             * Format: int64
+             * @description Items removed with the batch.
+             */
+            items: number;
         };
         /** @description A batch with its items. */
         BatchDetailView: {
@@ -14056,6 +14073,56 @@ export interface operations {
             };
             /** @description No such batch */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch was deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDeletedView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The batch is running, paused, or has an item still running */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

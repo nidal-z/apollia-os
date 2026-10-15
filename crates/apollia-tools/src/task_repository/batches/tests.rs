@@ -260,3 +260,81 @@ async fn stopping_cancels_what_never_ran_and_a_new_run_clears_the_end() {
     assert_eq!(items[0].status, "running");
     assert_eq!(items[2].output.as_deref(), Some("stopped before it ran"));
 }
+
+// GIVEN a stopped batch of three items and a second batch
+// WHEN the stopped one is deleted, then deleted again
+// THEN it and its items are gone, the other batch is untouched, and the second
+//      deletion finds nothing
+#[tokio::test]
+async fn deleting_an_ended_batch_removes_it_and_its_items_alone() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repo(&dir).await;
+    repo.create_batch(new_batch("b-d", 3)).await.unwrap();
+    repo.create_batch(new_batch("b-k", 2)).await.unwrap();
+    repo.cancel_pending_items("b-d", "stopped before it ran")
+        .await
+        .unwrap();
+    repo.set_batch_state("b-d", "stopped", true).await.unwrap();
+
+    // WHEN
+    let deleted = repo.delete_batch("b-d").await.unwrap();
+    let again = repo.delete_batch("b-d").await.unwrap();
+
+    // THEN
+    assert_eq!(deleted, BatchDeletion::Deleted { items: 3 });
+    assert_eq!(again, BatchDeletion::NotFound);
+    assert!(repo.batch("b-d").await.unwrap().is_none());
+    assert!(repo.batch_items("b-d").await.unwrap().is_empty());
+    assert!(repo.batch("b-k").await.unwrap().is_some());
+    assert_eq!(repo.batch_items("b-k").await.unwrap().len(), 2);
+}
+
+// GIVEN a running batch, a paused one, and a stopped one whose item still runs
+// WHEN each is deleted
+// THEN each is refused with its state and its items in flight, and nothing is
+//      removed
+#[tokio::test]
+async fn deleting_an_active_batch_is_refused_and_removes_nothing() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repo(&dir).await;
+    repo.create_batch(new_batch("b-r", 2)).await.unwrap();
+    repo.create_batch(new_batch("b-p", 2)).await.unwrap();
+    repo.set_batch_state("b-p", "paused", false).await.unwrap();
+    repo.create_batch(new_batch("b-f", 2)).await.unwrap();
+    repo.start_batch_item("b-f", 0, "t-0").await.unwrap();
+    repo.set_batch_state("b-f", "stopped", true).await.unwrap();
+
+    // WHEN
+    let running = repo.delete_batch("b-r").await.unwrap();
+    let paused = repo.delete_batch("b-p").await.unwrap();
+    let in_flight = repo.delete_batch("b-f").await.unwrap();
+
+    // THEN
+    assert_eq!(
+        running,
+        BatchDeletion::Active {
+            state: "running".into(),
+            in_flight: 0
+        }
+    );
+    assert_eq!(
+        paused,
+        BatchDeletion::Active {
+            state: "paused".into(),
+            in_flight: 0
+        }
+    );
+    assert_eq!(
+        in_flight,
+        BatchDeletion::Active {
+            state: "stopped".into(),
+            in_flight: 1
+        }
+    );
+    for id in ["b-r", "b-p", "b-f"] {
+        assert!(repo.batch(id).await.unwrap().is_some(), "{id} was removed");
+        assert_eq!(repo.batch_items(id).await.unwrap().len(), 2);
+    }
+}
