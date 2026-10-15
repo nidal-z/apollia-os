@@ -101,6 +101,13 @@ python_bundle_activate() {
     if [ -d "$PWD/target/debug/python" ] && [ ! "$root" -ef "$PWD/target/debug/python" ]; then
         python_bundle_sync_sdk "$PWD/target/debug/python" || return 1
     fi
+    # The desktop declares crates/apollia-desktop/python as a resource, and a
+    # build copies it over target/debug/python. A bundle staged there once and
+    # left for weeks brings its old SDK back at every build, after the
+    # refresh above: the packages then fail on "cannot import name".
+    if [ -d "$PWD/crates/apollia-desktop/python/lib" ]; then
+        python_bundle_sync_sdk "$PWD/crates/apollia-desktop/python" || return 1
+    fi
     export PYO3_PYTHON="$BUNDLE_PY"
     # The bundle is relocatable but its sysconfig still names its build path,
     # so PyO3 emits `-L /install/lib` and the link fails on "library
