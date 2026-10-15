@@ -16,6 +16,7 @@
       "review": "À valider",
       "library": "Bibliothèque",
       "automations": "Automatisations",
+      "batches": "Lots",
       "permissions": "Autorisations",
       "activity_log": "Journal",
       "settings": "Réglages"
@@ -48,7 +49,14 @@
     "banned_synonyms": {
       "assistant": "agent"
     },
-    "permitted_formats": ["Excel", "CSV", "JSON", "PDF", "GGUF", "MLX"],
+    "permitted_formats": [
+      "Excel",
+      "CSV",
+      "JSON",
+      "PDF",
+      "GGUF",
+      "MLX"
+    ],
     "exemptions": []
   },
   "en": {
@@ -68,6 +76,7 @@
       "review": "To review",
       "library": "Library",
       "automations": "Automations",
+      "batches": "Batches",
       "permissions": "Permissions",
       "activity_log": "Activity log",
       "settings": "Settings"
@@ -100,7 +109,14 @@
     "banned_synonyms": {
       "assistant": "agent"
     },
-    "permitted_formats": ["Excel", "CSV", "JSON", "PDF", "GGUF", "MLX"],
+    "permitted_formats": [
+      "Excel",
+      "CSV",
+      "JSON",
+      "PDF",
+      "GGUF",
+      "MLX"
+    ],
     "exemptions": []
   }
 }

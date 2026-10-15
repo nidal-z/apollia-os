@@ -35,6 +35,7 @@ import {
   Library,
   KeyRound,
   ScrollText,
+  Layers,
 } from "lucide-svelte";
 // NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
@@ -130,6 +131,7 @@ export function buildPaletteActions(): PaletteAction[] {
     nav("nav.developer", "developer", "nav.developer", Code, ["developer", "server", "api"], true),
     nav("nav.library", "library", "nav.library", Library, ["library", "packages", "installed"]),
     nav("nav.automations", "automations", "nav.automations", Timer, ["automations", "triggers", "cron"]),
+    nav("nav.batches", "batches", "nav.batches", Layers, ["batches", "lots", "batch", "history"]),
     nav("nav.authorizations", "authorizations", "nav.authorizations", KeyRound, ["authorizations", "autorisations", "permissions", "rules"]),
     nav("nav.journal", "journal", "nav.journal", ScrollText, ["journal", "audit", "history", "historique", "activity"]),
     nav("nav.settings", "settings", "nav.settings", SettingsIcon, ["settings", "preferences"]),

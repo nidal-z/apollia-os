@@ -88,7 +88,7 @@ function resolve(catalogue: Catalogue, dottedKey: string): string | undefined {
 }
 
 const PRIMARY = ["chat", "agents", "integrations", "llm", "inbox"];
-const SECONDARY = ["library", "automations", "authorizations", "journal", "settings"];
+const SECONDARY = ["library", "automations", "batches", "authorizations", "journal", "settings"];
 const DEVELOPER_GROUP = ["transcriptions", "observability", "memory"];
 
 // The screen of the glossary each of the ten entries carries the name of.
@@ -100,6 +100,7 @@ const OFFICIAL_SCREEN: Record<string, keyof (typeof glossary)["fr"]["screens"]> 
   inbox: "review",
   library: "library",
   automations: "automations",
+  batches: "batches",
   authorizations: "permissions",
   journal: "activity_log",
   settings: "settings",

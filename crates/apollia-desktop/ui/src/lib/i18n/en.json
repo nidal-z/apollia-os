@@ -435,7 +435,8 @@
       "library": "Library",
       "journal": "Activity log",
       "authorizations": "Permissions",
-      "developer": "Developer"
+      "developer": "Developer",
+      "batches": "Batches"
     },
     "policy": "Organization policy",
     "library": "Library",
@@ -451,7 +452,8 @@
       "vram_unified": "Unified",
       "vram_unmeasured": "Not measured",
       "measuring": "Measuring…"
-    }
+    },
+    "batches": "Batches"
   },
   "topbar": {
     "search": {
@@ -494,7 +496,8 @@
         "integrity": "The file received does not match the one published; it was deleted.",
         "unknown": "The download stopped on an error."
       }
-    }
+    },
+    "agents_at_work_open": "See the batches"
   },
   "userMenu": {
     "open_label": "Open user menu",
@@ -6752,6 +6755,27 @@
     "step": {
       "tool_call": "Tool used",
       "step_started": "Step"
+    },
+    "delete": {
+      "command": "Delete",
+      "label": "Delete this batch",
+      "title": "Delete the batch?",
+      "body": "The batch and its {count, plural, one {# item} other {# items}} leave the history and can no longer be opened. Files already exported are kept, and so are the source file and the copy the results were written to.",
+      "confirm": "Delete the batch",
+      "cancel": "Keep the batch",
+      "done": "The batch was deleted. Files already exported are kept.",
+      "failed": "The batch could not be deleted: {reason}",
+      "blocked": {
+        "running": "A running batch cannot be deleted. Stop it first.",
+        "paused": "A paused batch cannot be deleted. Stop it first.",
+        "in_flight": "An item of this batch is still ending. The batch can be deleted once it has ended."
+      }
+    },
+    "live": {
+      "line": "{doing} · for {seconds} s",
+      "thinking": "Thinking",
+      "writing": "Writing its answer",
+      "tool": "Using the tool {tool}"
     }
   },
   "batch_history": {

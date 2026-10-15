@@ -2,7 +2,7 @@
   import type { Route } from "$lib/stores/navigation";
   import {
     MessageSquare, Bot, ShieldCheck, Plug, Code, Settings, KeyRound,
-    Repeat, Brain, Database, Activity, Mic, Library, ScrollText,
+    Repeat, Brain, Database, Activity, Mic, Library, ScrollText, Layers,
   } from "lucide-svelte";
 
   type Badge = "none" | "chat" | "approvals";
@@ -52,6 +52,7 @@
   export const SECONDARY_NAV: readonly NavEntry[] = [
     { route: "library"        as Route, Icon: Library,    labelKey: "nav.sidebar.library" },
     { route: "automations"    as Route, Icon: Repeat,     labelKey: "nav.sidebar.automations" },
+    { route: "batches"        as Route, Icon: Layers,     labelKey: "nav.sidebar.batches" },
     { route: "authorizations" as Route, Icon: KeyRound,   labelKey: "nav.sidebar.authorizations" },
     { route: "journal"        as Route, Icon: ScrollText, labelKey: "nav.sidebar.journal" },
     { route: "settings"       as Route, Icon: Settings,   labelKey: "nav.sidebar.settings" },

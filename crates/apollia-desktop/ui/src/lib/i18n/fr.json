@@ -435,7 +435,8 @@
       "library": "Bibliothèque",
       "journal": "Journal",
       "authorizations": "Autorisations",
-      "developer": "Développeur"
+      "developer": "Développeur",
+      "batches": "Lots"
     },
     "policy": "Politique de l'organisation",
     "library": "Bibliothèque",
@@ -451,7 +452,8 @@
       "vram_unified": "Unifiée",
       "vram_unmeasured": "Non mesurée",
       "measuring": "Mesure en cours…"
-    }
+    },
+    "batches": "Lots"
   },
   "topbar": {
     "search": {
@@ -494,7 +496,8 @@
         "integrity": "Le fichier reçu ne correspond pas à celui publié ; il a été supprimé.",
         "unknown": "Le téléchargement s'est arrêté sur une erreur."
       }
-    }
+    },
+    "agents_at_work_open": "Voir les lots"
   },
   "userMenu": {
     "open_label": "Ouvrir le menu utilisateur",
@@ -6752,6 +6755,27 @@
     "step": {
       "tool_call": "Outil utilisé",
       "step_started": "Étape"
+    },
+    "delete": {
+      "command": "Supprimer",
+      "label": "Supprimer ce lot",
+      "title": "Supprimer le lot ?",
+      "body": "Le lot et ses {count, plural, one {# élément} other {# éléments}} quittent l'historique et ne peuvent plus être ouverts. Les fichiers déjà exportés sont gardés, de même que le fichier source et la copie où les résultats ont été écrits.",
+      "confirm": "Supprimer le lot",
+      "cancel": "Garder le lot",
+      "done": "Le lot a été supprimé. Les fichiers déjà exportés sont gardés.",
+      "failed": "Le lot n'a pas pu être supprimé : {reason}",
+      "blocked": {
+        "running": "Un lot en cours ne peut pas être supprimé. Arrêtez-le d'abord.",
+        "paused": "Un lot en pause ne peut pas être supprimé. Arrêtez-le d'abord.",
+        "in_flight": "Un élément de ce lot est encore en train de se terminer. Le lot pourra être supprimé ensuite."
+      }
+    },
+    "live": {
+      "line": "{doing} · depuis {seconds} s",
+      "thinking": "Réfléchit",
+      "writing": "Rédige sa réponse",
+      "tool": "Utilise l'outil {tool}"
     }
   },
   "batch_history": {

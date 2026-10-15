@@ -258,6 +258,20 @@ export function exportBatch(batchId: string, format: BatchExportFormat, path: st
   return invoke<BatchExported>("export_batch", { batchId, format, path });
 }
 
+/** A batch deleted, and how many items went with it. */
+export interface BatchDeleted {
+  batchId: string;
+  items: number;
+}
+
+/**
+ * Deletes a batch and its items; an active batch is refused with its reason.
+ * Files the batch was exported to are not touched.
+ */
+export function deleteBatch(batchId: string): Promise<BatchDeleted> {
+  return invoke<BatchDeleted>("delete_batch", { batchId });
+}
+
 /** The decision the item `rank` of a batch waits on, `null` when it waits on none. */
 export function batchItemDecision(batchId: string, rank: number): Promise<BatchItemDecision | null> {
   return invoke<BatchItemDecision | null>("batch_item_decision", { batchId, rank });

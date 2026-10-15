@@ -138,7 +138,7 @@
         </h3>
         <ul class="m-0 flex list-none flex-col gap-3 p-0">
           {#each group.batches as batch (batch.batchId)}
-            <BatchHistoryRow {batch} {now} onOpen={open} />
+            <BatchHistoryRow {batch} {now} onOpen={open} onDeleted={() => void history.load()} />
           {/each}
         </ul>
       </section>

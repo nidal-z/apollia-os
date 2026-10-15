@@ -200,12 +200,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_batch_accesses",
     "list_batch_sources",
     // The view of a batch and the history of the batches: one batch with its
-    // items, the list, pause, resume, stop and retry, the export, and the
-    // decision an item waits on, over `/api/v1/batches` and
+    // items, the list, pause, resume, stop and retry, the export, the
+    // deletion, and the decision an item waits on, over `/api/v1/batches` and
     // `/api/v1/pending-decisions`.
     "batch_item_decision",
     "control_batch",
     "decide_batch_item",
+    "delete_batch",
     "export_batch",
     "get_batch",
     "list_batches",

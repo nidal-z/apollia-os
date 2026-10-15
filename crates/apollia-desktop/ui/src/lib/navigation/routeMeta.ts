@@ -44,7 +44,7 @@ export interface RouteMeta {
 
 export const routeMeta: Record<Route, RouteMeta> = {
   agents: { labelKey: "nav.agents", parent: null, icon: Bot },
-  batches: { labelKey: "batch_history.title", parent: "agents", icon: Layers },
+  batches: { labelKey: "nav.sidebar.batches", parent: null, icon: Layers },
   batch: { labelKey: "batch_view.title_loading", parent: "batches", icon: Layers },
   chat: { labelKey: "nav.chat", parent: null, icon: MessageSquare, homeFor: ["operator", "builder"] },
   inbox: { labelKey: "nav.inbox", parent: null, icon: ShieldCheck },

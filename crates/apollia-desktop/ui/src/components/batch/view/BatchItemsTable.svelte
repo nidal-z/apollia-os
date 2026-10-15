@@ -3,14 +3,19 @@
    * BatchItemsTable - the table of a batch, one row per item: its number, its
    * input, its status, its output or the cause of its failure, and the sources
    * its answer cites. A row opens the detail of its item; a waiting item
-   * offers to open the decision it waits on.
+   * offers to open the decision it waits on. A running item says what its
+   * agent is doing now, as the conversation does: the file it reads, the
+   * search it makes, that it thinks or writes, and for how long.
    */
   import { t } from "svelte-i18n";
   import { BookOpen } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { stepActionKey } from "$lib/chat/toolStep";
   import type { BatchItem } from "$lib/ipc/batches";
   import { ITEM_TONE, awaitedAccess, citedSources, entryOf, statusOf } from "./batchView";
+  import { secondsSince, type LiveStep } from "./liveSteps";
 
   interface Props {
     items: BatchItem[];
@@ -18,9 +23,29 @@
     selectedRank: number | null;
     onSelect: (item: BatchItem) => void;
     onOpenDecision: (item: BatchItem) => void;
+    /** What the agent is doing on each running item, by task id. */
+    live?: ReadonlyMap<string, LiveStep>;
+    /** The clock the durations of the live steps are read on, in ms. */
+    now?: number;
   }
 
-  let { items, selectedRank, onSelect, onOpenDecision }: Props = $props();
+  let { items, selectedRank, onSelect, onOpenDecision, live = new Map(), now = Date.now() }: Props = $props();
+
+  /** What the agent of a running item is doing, `null` before its first step. */
+  function liveLine(item: BatchItem): string | null {
+    const step = item.taskId === null ? undefined : live.get(item.taskId);
+    if (!step) return null;
+    const seconds = secondsSince(step.since, now);
+    let doing: string;
+    if (step.kind === "tool") {
+      const key = stepActionKey(step.tool);
+      const action = key === null ? $t("batch_view.live.tool", { values: { tool: step.tool } }) : $t(key);
+      doing = step.target === null ? action : `${action} · ${step.target}`;
+    } else {
+      doing = $t(step.kind === "thinking" ? "batch_view.live.thinking" : "batch_view.live.writing");
+    }
+    return $t("batch_view.live.line", { values: { doing, seconds } });
+  }
 
   const HEADERS = ["number", "input", "status", "output", "sources"] as const;
 
@@ -89,12 +114,19 @@
             </Badge>
           </td>
           <td class="px-3 py-3">
-            <p
-              class="m-0 line-clamp-4 whitespace-pre-line break-words text-body-sm {status === 'failed' ? 'text-danger-a11y' : status === 'completed' ? 'text-foreground' : 'text-muted-foreground'}"
-              data-testid="batch-item-output"
-            >
-              {output(item)}
-            </p>
+            {#if status === "running" && liveLine(item) !== null}
+              <p class="m-0 flex items-start gap-1.5 break-words text-body-sm text-foreground" data-testid="batch-item-live">
+                <Spinner size={12} class="mt-1 shrink-0" />
+                <span>{liveLine(item)}</span>
+              </p>
+            {:else}
+              <p
+                class="m-0 line-clamp-4 whitespace-pre-line break-words text-body-sm {status === 'failed' ? 'text-danger-a11y' : status === 'completed' ? 'text-foreground' : 'text-muted-foreground'}"
+                data-testid="batch-item-output"
+              >
+                {output(item)}
+              </p>
+            {/if}
             {#if status === "awaiting"}
               <Button
                 variant="outline"

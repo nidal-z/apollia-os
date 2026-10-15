@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { navigateTo } from "$lib/stores/navigation";
   /**
    * Topbar - V3 Operator cockpit header.
    *
@@ -89,14 +90,19 @@
   <!-- Right: status + controls -->
   <div class="flex flex-shrink-0 items-center gap-1.5">
     {#if agentsAtWork > 0}
-      <span
-        class="v4-hair inline-flex items-center gap-1.5 rounded-full leading-none border bg-surface-1 px-2.5 py-1 text-caption text-muted-foreground"
+      <!-- The work going on, one click away: the batches, the running ones
+           first. -->
+      <button
+        type="button"
+        class="v4-hair inline-flex items-center gap-1.5 rounded-full leading-none border bg-surface-1 px-2.5 py-1 text-caption text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
         data-testid="topbar-agents-at-work"
         aria-label={$t("topbar.agents_at_work", { values: { count: agentsAtWork } })}
+        title={$t("topbar.agents_at_work_open")}
+        onclick={() => navigateTo("batches")}
       >
         <StatusDot color="hsl(var(--success))" glow size={6} />
         {$t("topbar.agents_at_work", { values: { count: agentsAtWork } })}
-      </span>
+      </button>
     {/if}
 
     <DownloadsPanel />

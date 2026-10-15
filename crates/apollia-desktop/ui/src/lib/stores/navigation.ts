@@ -96,7 +96,7 @@ export function goForward() {
  * view of a batch live under Agents, which stays marked while they show.
  */
 export function sidebarRoute(route: Route): Route {
-  return route === "batches" || route === "batch" ? "agents" : route;
+  return route === "batch" ? "batches" : route;
 }
 
 // Sidebar state is owned by `./layout.ts` since (breakpoint-derived

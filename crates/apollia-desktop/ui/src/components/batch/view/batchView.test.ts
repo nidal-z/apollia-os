@@ -389,11 +389,12 @@ describe("opening a batch", () => {
     const opened = { route: get(currentRoute), batch: currentBatch() };
     openBatchHistory();
 
-    // THEN both screens show, and the sidebar keeps Agents marked for each
+    // THEN both screens show, and the sidebar keeps its Batches entry marked
+    // for each
     expect(opened).toEqual({ route: "batch", batch: { batchId: "b-7", origin: "launch" } });
     expect(get(currentRoute)).toBe("batches");
-    expect(sidebarRoute("batch")).toBe("agents");
-    expect(sidebarRoute("batches")).toBe("agents");
+    expect(sidebarRoute("batch")).toBe("batches");
+    expect(sidebarRoute("batches")).toBe("batches");
     expect(sidebarRoute("journal")).toBe("journal");
   });
 

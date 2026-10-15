@@ -320,6 +320,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::batch_view::get_batch,
         commands::batch_view::control_batch,
         commands::batch_view::export_batch,
+        commands::batch_view::delete_batch,
         commands::batch_view::batch_item_decision,
         commands::batch_view::decide_batch_item,
         commands::mcp::list_mcp_servers,

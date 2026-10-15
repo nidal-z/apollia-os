@@ -7,6 +7,7 @@
 //!   and `/retry`
 //! - [`export_batch`]: `GET /api/v1/batches/{id}/export?format=`, then the
 //!   file written where the user chose in the save dialog
+//! - [`delete_batch`]: `DELETE /api/v1/batches/{id}`
 //! - [`batch_item_decision`]: `GET /api/v1/pending-decisions`, narrowed to the
 //!   decision one item waits on
 //! - [`decide_batch_item`]: `POST /api/v1/pending-decisions/decide`
@@ -112,6 +113,16 @@ pub(crate) async fn export_on(
     Ok(json!({ "path": target.display().to_string(), "bytes": bytes.len() }))
 }
 
+pub(crate) async fn delete_on(link: &RuntimeLink, batch_id: &str) -> Result<Value, String> {
+    let deleted = link.delete_json(&batch_path(batch_id)).await?;
+    tracing::event!(
+        tracing::Level::INFO,
+        batch_id = %batch_id,
+        "batch.delete.requested"
+    );
+    Ok(deleted)
+}
+
 pub(crate) async fn decision_on(
     link: &RuntimeLink,
     batch_id: &str,
@@ -174,6 +185,14 @@ pub async fn export_batch(
     path: String,
 ) -> Result<Value, String> {
     export_on(link.inner(), &batch_id, &format, Path::new(&path)).await
+}
+
+/// Deletes the batch `batch_id` and its items, and answers how many items
+/// went with it. The runtime refuses an active batch, and its refusal comes
+/// back as its message. Files the batch was exported to are not touched.
+#[tauri::command]
+pub async fn delete_batch(link: State<'_, RuntimeLink>, batch_id: String) -> Result<Value, String> {
+    delete_on(link.inner(), &batch_id).await
 }
 
 /// The decision the item `rank` of the batch `batch_id` waits on, `None` when
@@ -344,6 +363,38 @@ mod tests {
         );
         assert_eq!(written["bytes"], 25);
         assert_eq!(written["path"], target.display().to_string());
+    }
+
+    #[tokio::test]
+    async fn test_a_deletion_is_sent_to_the_route_of_the_batch_and_a_refusal_comes_back() {
+        // GIVEN a daemon that deletes b-1 and refuses to delete b-2, still running
+        let server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/batches/b-1"))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "batchId": "b-1", "items": 4 })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("DELETE"))
+            .and(path("/api/v1/batches/b-2"))
+            .respond_with(ResponseTemplate::new(409).set_body_json(
+                json!({ "error": "cannot delete batch 'b-2': it is running; stop it first" }),
+            ))
+            .mount(&server)
+            .await;
+        let link = attached(&server);
+
+        // WHEN the history deletes both
+        let deleted = delete_on(&link, "b-1").await.unwrap();
+        let refused = delete_on(&link, "b-2").await;
+
+        // THEN the first answers its items removed, the second carries the reason
+        assert_eq!(deleted["items"], 4);
+        let reason = refused.unwrap_err();
+        assert!(reason.contains("it is running"), "{reason}");
     }
 
     #[tokio::test]

@@ -29,6 +29,7 @@ const SCREENS = [
   "review",
   "library",
   "automations",
+  "batches",
   "permissions",
   "activity_log",
   "settings",
@@ -55,11 +56,11 @@ describe("glossary.json", () => {
     }
   });
 
-  test("names the same ten screens in both locales, each with a word", () => {
+  test("names the same eleven screens in both locales, each with a word", () => {
     // GIVEN the French and English halves
     const { fr, en } = glossary;
     // WHEN their screen keys are compared
-    // THEN both carry the ten screens, and no word is empty
+    // THEN both carry the eleven screens, and no word is empty
     expect(Object.keys(fr.screens).sort()).toEqual([...SCREENS].sort());
     expect(Object.keys(en.screens).sort()).toEqual([...SCREENS].sort());
     for (const word of [...Object.values(fr.screens), ...Object.values(en.screens)]) {

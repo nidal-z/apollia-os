@@ -2,21 +2,24 @@
   /**
    * BatchHistoryRow - one batch of the history on one line: when it was
    * launched, by which agent and on what, how far it went, how long it took
-   * and how it ended. The whole line opens the batch.
+   * and how it ended. The line opens the batch; the icon at its end deletes
+   * it, once it has ended.
    */
   import { locale, t } from "svelte-i18n";
   import { BookOpen, ChevronRight } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import type { BatchSummary } from "$lib/ipc/batches";
+  import BatchDeleteAction from "./BatchDeleteAction.svelte";
   import { OUTCOME_TONE, durationMinutes, isLive, outcomeOf, progressOf, sourceName } from "./batchView";
 
   interface Props {
     batch: BatchSummary;
     now: Date;
     onOpen: (batch: BatchSummary) => void;
+    onDeleted: (batchId: string) => void;
   }
 
-  let { batch, now, onOpen }: Props = $props();
+  let { batch, now, onOpen, onDeleted }: Props = $props();
 
   const outcome = $derived(outcomeOf(batch));
   const progress = $derived(progressOf(batch));
@@ -43,10 +46,10 @@
   });
 </script>
 
-<li>
+<li class="flex items-center gap-2 rounded-lg border border-border bg-card pr-2 transition-colors hover:bg-muted/40">
   <button
     type="button"
-    class="flex w-full items-center gap-4 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+    class="flex min-w-0 flex-1 items-center gap-4 rounded-lg px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
     onclick={() => onOpen(batch)}
     data-testid="batch-history-row"
     data-batch={batch.batchId}
@@ -73,4 +76,5 @@
     </span>
     <ChevronRight size={16} strokeWidth={1.5} class="shrink-0 text-muted-foreground" aria-hidden="true" />
   </button>
+  <BatchDeleteAction {batch} compact ondeleted={onDeleted} data-testid="batch-history-delete" />
 </li>

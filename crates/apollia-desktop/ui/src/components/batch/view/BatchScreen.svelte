@@ -22,6 +22,7 @@
   import { batchItemSelection, openBatchHistory, type BatchOrigin, type ItemStepsState } from "$lib/stores/batchView";
   import { detailSidebar } from "$lib/stores/detailSidebar";
   import BatchDecisionDialog from "./BatchDecisionDialog.svelte";
+  import BatchDeleteAction from "./BatchDeleteAction.svelte";
   import BatchItemsTable from "./BatchItemsTable.svelte";
   import BatchSummaryCard from "./BatchSummaryCard.svelte";
   import {
@@ -34,6 +35,7 @@
     tabsFor,
     type ItemTab,
   } from "./batchView";
+  import { applyLiveEvent, keepRunning, type LiveEvent, type LiveStep } from "./liveSteps";
   import { createBatchView, shellIpc } from "./useBatch.svelte";
 
   interface Props {
@@ -45,6 +47,8 @@
 
   /** Pace of the readings no event asked for, while the batch may change. */
   const POLL_MS = 5_000;
+  /** Pace of the clock the live steps are timed on. */
+  const TICK_MS = 1_000;
   /** Categories of runtime events that mean an item moved. */
   const MOVING = new Set(["task-changed", "approval-changed"]);
   /** Steps of a run a user reads as steps. */
@@ -60,6 +64,7 @@
   let steps = $state<ItemStepsState>({ status: "none" });
   let deciding = $state<BatchItem | null>(null);
   let accessLabels = $state<Record<string, string>>({});
+  let liveSteps = $state<ReadonlyMap<string, LiveStep>>(new Map());
 
   $effect(() => {
     const asked = batchId;
@@ -75,32 +80,63 @@
   const items = $derived(view.detail?.items ?? []);
   const live = $derived(batch !== null && isLive(batch));
 
-  // The runtime says when a run or a decision moved; the batch is read again.
+  // The tasks of the items running now, whose steps are followed.
+  const running = $derived(
+    new Set(items.flatMap((item) => (item.status === "running" && item.taskId !== null ? [item.taskId] : []))),
+  );
+
   $effect(() => {
-    let unlisten: UnlistenFn | null = null;
+    const still = running;
+    untrack(() => {
+      liveSteps = keepRunning(liveSteps, still);
+    });
+  });
+
+  function follow(event: LiveEvent): void {
+    liveSteps = applyLiveEvent(liveSteps, event, running, Date.now());
+  }
+
+  // The runtime says when a run or a decision moved; the batch is read again.
+  // The steps of a run, and the tokens of its answer, say what the agent is
+  // doing on each running item, as the conversation does.
+  $effect(() => {
+    const stops: UnlistenFn[] = [];
     let gone = false;
-    void listen<{ category: string }>("runtime-event", (event) => {
+    const keep = (stop: UnlistenFn) => {
+      if (gone) stop();
+      else stops.push(stop);
+    };
+    void listen<LiveEvent & { category: string }>("runtime-event", (event) => {
       if (MOVING.has(event.payload.category)) void view.refresh();
+      follow(event.payload);
     })
-      .then((stop) => {
-        if (gone) stop();
-        else unlisten = stop;
-      })
+      .then(keep)
       .catch(() => {
         // No event bridge: the slow pace below still reads the batch.
       });
+    void listen<Record<string, unknown>>("chat-token", (event) => {
+      follow({ event_type: "ChatToken", payload: event.payload });
+    })
+      .then(keep)
+      .catch(() => {
+        // No token channel: the step stays the last one a run event named.
+      });
     return () => {
       gone = true;
-      unlisten?.();
+      for (const stop of stops) stop();
     };
   });
 
+  // The clock of the live steps ticks every second; the batch is read again
+  // at the slower pace.
   $effect(() => {
     if (!live) return;
+    let ticks = 0;
     const timer = setInterval(() => {
       now = new Date();
-      void view.refresh();
-    }, POLL_MS);
+      ticks += 1;
+      if (ticks % (POLL_MS / TICK_MS) === 0) void view.refresh();
+    }, TICK_MS);
     return () => clearInterval(timer);
   });
 
@@ -229,6 +265,9 @@
 </script>
 
 {#snippet headerActions()}
+  {#if batch !== null}
+    <BatchDeleteAction {batch} {items} ondeleted={openBatchHistory} />
+  {/if}
   <Button variant="outline" size="sm" onclick={openBatchHistory} data-testid="batch-to-history">
     {$t(origin === "history" ? "batch_view.back_to_history" : "batch_view.history")}
   </Button>
@@ -312,6 +351,8 @@
         selectedRank={sidebarOnItem ? selectedRank : null}
         onSelect={selectItem}
         onOpenDecision={(item) => (deciding = item)}
+        live={liveSteps}
+        now={now.getTime()}
       />
     {/if}
 
