@@ -466,3 +466,26 @@ async fn an_mlx_load_unloads_the_unpinned_mlx_models_first_when_the_rule_is_on()
     assert!(pid_of(&sup, "/models/other-mlx").await.is_none());
     sup.shutdown_in_place().await;
 }
+
+#[test]
+fn test_an_engine_line_reporting_a_failure_is_told_apart() {
+    // GIVEN lines the engine prints on a refused request and on a normal one
+    let failures = [
+        "Traceback (most recent call last):",
+        "jinja2.exceptions.TemplateError: No user query found in messages.",
+        "INFO:     127.0.0.1:55190 - \"POST /v1/chat/completions HTTP/1.1\" 500 Internal Server Error",
+    ];
+    let ordinary = [
+        "INFO:     127.0.0.1:55190 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+        "INFO:     Uvicorn running on http://127.0.0.1:55190",
+    ];
+
+    // WHEN each is classified
+    // THEN the failures are told apart and the ordinary lines are not
+    for line in failures {
+        assert!(reports_failure(line), "{line}");
+    }
+    for line in ordinary {
+        assert!(!reports_failure(line), "{line}");
+    }
+}

@@ -691,15 +691,39 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
             Ok(_) => {
                 let line = String::from_utf8_lossy(&buf);
                 let line = line.trim_end_matches(['\r', '\n']);
-                tracing::event!(
-                    target: "vllm-mlx",
-                    tracing::Level::INFO,
-                    line = %line,
-                    "mlx.engine.line"
-                );
+                // The default filter drops this target at INFO: an engine
+                // line that reports a failure goes out as a warning, or a 500
+                // the engine explained is logged nowhere.
+                if reports_failure(line) {
+                    tracing::event!(
+                        target: "vllm-mlx",
+                        tracing::Level::WARN,
+                        line = %line,
+                        "mlx.engine.line"
+                    );
+                } else {
+                    tracing::event!(
+                        target: "vllm-mlx",
+                        tracing::Level::INFO,
+                        line = %line,
+                        "mlx.engine.line"
+                    );
+                }
             }
         }
     }
+}
+
+/// Whether an engine output line reports a failure: a Python traceback or
+/// exception, an error-level log line, or a request answered with a 5xx.
+fn reports_failure(line: &str) -> bool {
+    const MARKERS: [&str; 5] = ["Traceback", "Error", "Exception", "ERROR", "CRITICAL"];
+    if MARKERS.iter().any(|marker| line.contains(marker)) {
+        return true;
+    }
+    // uvicorn access line: `... "POST /v1/chat/completions HTTP/1.1" 500 ...`
+    line.split_once("HTTP/1.1\" ")
+        .is_some_and(|(_, status)| status.starts_with('5'))
 }
 
 #[cfg(test)]
