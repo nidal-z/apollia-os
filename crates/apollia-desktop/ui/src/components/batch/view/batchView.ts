@@ -8,6 +8,7 @@
  * recorded: the progress is the share of items actually dealt with, never a
  * percentage chosen per state.
  */
+import { parseTimestampMs } from "$lib/utils";
 import type {
   BatchControl,
   BatchDetail,
@@ -131,7 +132,7 @@ export function commandsFor(batch: BatchSummary): BatchCommand[] {
 
 function time(value: string | null): number | null {
   if (value === null) return null;
-  const at = new Date(value).getTime();
+  const at = parseTimestampMs(value);
   return Number.isNaN(at) ? null : at;
 }
 

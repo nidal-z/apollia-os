@@ -6,6 +6,7 @@
    * it, once it has ended.
    */
   import { locale, t } from "svelte-i18n";
+  import { parseTimestampMs } from "$lib/utils";
   import { BookOpen, ChevronRight } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import type { BatchSummary } from "$lib/ipc/batches";
@@ -26,7 +27,7 @@
   const minutes = $derived(durationMinutes(batch, now));
 
   const title = $derived.by(() => {
-    const date = new Date(batch.createdAt);
+    const date = new Date(parseTimestampMs(batch.createdAt));
     if (Number.isNaN(date.getTime())) return batch.batchId;
     const day = date.toLocaleDateString($locale ?? "en", { day: "numeric", month: "long" });
     const hour = date.toLocaleTimeString($locale ?? "en", { hour: "2-digit", minute: "2-digit" });

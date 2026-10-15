@@ -5,13 +5,14 @@
    * failure, the steps of its run and the sources it consulted.
    */
   import { locale, t } from "svelte-i18n";
+  import { parseTimestampMs } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import type { TaskTimelineEvent } from "$lib/ipc/tasks";
   import { batchItemSelection } from "$lib/stores/batchView";
   import { ITEM_TONE, awaitedAccess, citedSources, entryOf, fieldsOf, statusOf } from "./batchView";
 
   function hour(value: string): string {
-    const date = new Date(value);
+    const date = new Date(parseTimestampMs(value));
     if (Number.isNaN(date.getTime())) return "";
     return date.toLocaleTimeString($locale ?? "en", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   }

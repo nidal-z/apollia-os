@@ -112,3 +112,11 @@ export function keepRunning(
 export function secondsSince(since: number, now: number): number {
   return Math.max(0, Math.floor((now - since) / 1000));
 }
+
+/** A duration read at a glance: seconds under a minute, then minutes and seconds. */
+export function elapsedLabel(seconds: number): string {
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest === 0 ? `${minutes} min` : `${minutes} min ${rest} s`;
+}

@@ -195,6 +195,8 @@ export interface BatchItem {
   sources: unknown;
   /** The run behind it, when it ran. */
   taskId: string | null;
+  /** When it last changed state, UTC: for a running item, when its run started. */
+  updatedAt?: string;
 }
 
 /** A batch with its items. */

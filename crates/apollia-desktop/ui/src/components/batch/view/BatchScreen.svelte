@@ -7,6 +7,7 @@
    */
   import { onDestroy, untrack } from "svelte";
   import { locale, t } from "svelte-i18n";
+  import { parseTimestampMs } from "$lib/utils";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { Layers, Search } from "lucide-svelte";
@@ -250,7 +251,7 @@
 
   const title = $derived.by(() => {
     if (batch === null) return $t("batch_view.title_loading");
-    const date = new Date(batch.createdAt);
+    const date = new Date(parseTimestampMs(batch.createdAt));
     if (Number.isNaN(date.getTime())) return $t("batch_view.title_loading");
     const day = date.toLocaleDateString($locale ?? "en", { day: "numeric", month: "long" });
     const hour = date.toLocaleTimeString($locale ?? "en", { hour: "2-digit", minute: "2-digit" });

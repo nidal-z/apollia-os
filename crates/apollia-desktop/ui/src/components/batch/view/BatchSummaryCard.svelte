@@ -7,6 +7,7 @@
    * results are written.
    */
   import { locale, t } from "svelte-i18n";
+  import { parseTimestampMs } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ProgressBar } from "$lib/components/ui/progress";
@@ -49,7 +50,7 @@
 
   function hour(value: string | Date | null): string {
     if (value === null) return "";
-    const date = typeof value === "string" ? new Date(value) : value;
+    const date = typeof value === "string" ? new Date(parseTimestampMs(value)) : value;
     if (Number.isNaN(date.getTime())) return "";
     return date.toLocaleTimeString($locale ?? "en", { hour: "2-digit", minute: "2-digit" });
   }

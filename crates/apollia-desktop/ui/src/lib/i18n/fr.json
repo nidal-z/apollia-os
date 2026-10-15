@@ -6772,10 +6772,11 @@
       }
     },
     "live": {
-      "line": "{doing} · depuis {seconds} s",
+      "line": "{doing} · depuis {elapsed}",
       "thinking": "Réfléchit",
       "writing": "Rédige sa réponse",
-      "tool": "Utilise l'outil {tool}"
+      "tool": "Utilise l'outil {tool}",
+      "working": "Au travail"
     }
   },
   "batch_history": {

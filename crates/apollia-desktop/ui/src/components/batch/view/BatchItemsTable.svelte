@@ -15,7 +15,8 @@
   import { stepActionKey } from "$lib/chat/toolStep";
   import type { BatchItem } from "$lib/ipc/batches";
   import { ITEM_TONE, awaitedAccess, citedSources, entryOf, statusOf } from "./batchView";
-  import { secondsSince, type LiveStep } from "./liveSteps";
+  import { parseTimestampMs } from "$lib/utils";
+  import { elapsedLabel, secondsSince, type LiveStep } from "./liveSteps";
 
   interface Props {
     items: BatchItem[];
@@ -31,20 +32,26 @@
 
   let { items, selectedRank, onSelect, onOpenDecision, live = new Map(), now = Date.now() }: Props = $props();
 
-  /** What the agent of a running item is doing, `null` before its first step. */
-  function liveLine(item: BatchItem): string | null {
+  /** What the agent of a running item is doing, and for how long. */
+  function liveLine(item: BatchItem): string {
     const step = item.taskId === null ? undefined : live.get(item.taskId);
-    if (!step) return null;
-    const seconds = secondsSince(step.since, now);
     let doing: string;
-    if (step.kind === "tool") {
+    let since: number;
+    if (!step) {
+      // Nothing reported since the screen opened: the item works since its
+      // run started.
+      doing = $t("batch_view.live.working");
+      since = item.updatedAt === undefined ? now : parseTimestampMs(item.updatedAt);
+    } else if (step.kind === "tool") {
       const key = stepActionKey(step.tool);
       const action = key === null ? $t("batch_view.live.tool", { values: { tool: step.tool } }) : $t(key);
       doing = step.target === null ? action : `${action} · ${step.target}`;
+      since = step.since;
     } else {
       doing = $t(step.kind === "thinking" ? "batch_view.live.thinking" : "batch_view.live.writing");
+      since = step.since;
     }
-    return $t("batch_view.live.line", { values: { doing, seconds } });
+    return $t("batch_view.live.line", { values: { doing, elapsed: elapsedLabel(secondsSince(since, now)) } });
   }
 
   const HEADERS = ["number", "input", "status", "output", "sources"] as const;
@@ -114,7 +121,7 @@
             </Badge>
           </td>
           <td class="px-3 py-3">
-            {#if status === "running" && liveLine(item) !== null}
+            {#if status === "running"}
               <p class="m-0 flex items-start gap-1.5 break-words text-body-sm text-foreground" data-testid="batch-item-live">
                 <Spinner size={12} class="mt-1 shrink-0" />
                 <span>{liveLine(item)}</span>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { applyLiveEvent, keepRunning, previewTarget, secondsSince, type LiveStep } from "./liveSteps";
+import { applyLiveEvent, elapsedLabel, keepRunning, previewTarget, secondsSince, type LiveStep } from "./liveSteps";
 
 const WATCHED = new Set(["task-7"]);
 
@@ -101,5 +101,14 @@ describe("the live step of a running batch item", () => {
     // THEN it says the whole seconds, and zero rather than less
     expect(secondsSince(1_000, 4_900)).toBe(3);
     expect(secondsSince(5_000, 4_000)).toBe(0);
+  });
+
+  test("a duration reads in seconds, then in minutes and seconds", () => {
+    // GIVEN durations under and over a minute
+    // WHEN they are labelled
+    // THEN seconds stay seconds, and a long run reads in minutes
+    expect(elapsedLabel(42)).toBe("42 s");
+    expect(elapsedLabel(120)).toBe("2 min");
+    expect(elapsedLabel(312)).toBe("5 min 12 s");
   });
 });
