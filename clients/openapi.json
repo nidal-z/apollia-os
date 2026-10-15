@@ -20225,7 +20225,8 @@
           "rank",
           "origin",
           "input",
-          "status"
+          "status",
+          "updatedAt"
         ],
         "properties": {
           "input": {
@@ -20263,6 +20264,10 @@
               "null"
             ],
             "description": "The task that ran it."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "When it last changed state, UTC: for a running item, when its run\nstarted."
           }
         }
       },

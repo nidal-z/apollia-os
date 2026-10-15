@@ -26,6 +26,8 @@ class BatchItemView:
         rank (int): Its position in the source, from 0.
         status (str): `pending`, `running`, `completed`, `failed`, `canceled`, or `awaiting`
             a decision on an access nobody granted.
+        updated_at (str): When it last changed state, UTC: for a running item, when its run
+            started.
         output (None | str | Unset):
         sources (BatchItemViewSourcesType0 | None | Unset):
         task_id (None | str | Unset): The task that ran it.
@@ -35,6 +37,7 @@ class BatchItemView:
     origin: str
     rank: int
     status: str
+    updated_at: str
     output: None | str | Unset = UNSET
     sources: BatchItemViewSourcesType0 | None | Unset = UNSET
     task_id: None | str | Unset = UNSET
@@ -50,6 +53,8 @@ class BatchItemView:
         rank = self.rank
 
         status = self.status
+
+        updated_at = self.updated_at
 
         output: None | str | Unset
         if isinstance(self.output, Unset):
@@ -79,6 +84,7 @@ class BatchItemView:
                 "origin": origin,
                 "rank": rank,
                 "status": status,
+                "updatedAt": updated_at,
             }
         )
         if output is not UNSET:
@@ -103,6 +109,8 @@ class BatchItemView:
         rank = d.pop("rank")
 
         status = d.pop("status")
+
+        updated_at = d.pop("updatedAt")
 
         def _parse_output(data: object) -> None | str | Unset:
             if data is None:
@@ -144,6 +152,7 @@ class BatchItemView:
             origin=origin,
             rank=rank,
             status=status,
+            updated_at=updated_at,
             output=output,
             sources=sources,
             task_id=task_id,

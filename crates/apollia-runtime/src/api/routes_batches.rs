@@ -142,6 +142,9 @@ pub struct BatchItemView {
     pub sources: Option<serde_json::Value>,
     /// The task that ran it.
     pub task_id: Option<String>,
+    /// When it last changed state, UTC: for a running item, when its run
+    /// started.
+    pub updated_at: String,
 }
 
 impl From<BatchItemRow> for BatchItemView {
@@ -154,6 +157,7 @@ impl From<BatchItemRow> for BatchItemView {
             output: row.output,
             sources: row.sources,
             task_id: row.task_id,
+            updated_at: row.updated_at,
         }
     }
 }

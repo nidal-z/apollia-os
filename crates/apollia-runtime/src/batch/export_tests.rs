@@ -18,6 +18,7 @@ fn item(rank: u64, input: Value, status: &str, output: Option<&str>) -> BatchIte
         output: output.map(str::to_owned),
         sources: None,
         task_id: None,
+        updated_at: String::new(),
     }
 }
 

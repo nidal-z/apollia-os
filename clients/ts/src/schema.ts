@@ -6826,6 +6826,11 @@ export interface components {
             status: string;
             /** @description The task that ran it. */
             taskId?: string | null;
+            /**
+             * @description When it last changed state, UTC: for a running item, when its run
+             *     started.
+             */
+            updatedAt: string;
         };
         /** @description What a batch is launched with. */
         BatchLaunch: {
