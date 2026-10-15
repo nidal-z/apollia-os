@@ -96,6 +96,9 @@ const MAX_ATTEMPTS: u32 = 3;
 
 // Reasoner
 
+/// The turn that asks for the alternative plan the replanner prompt describes.
+const REPLAN_REQUEST: &str = "Return the alternative plan as JSON only.";
+
 /// Produces and validates [`ExecutionPlan`]s via an LLM call.
 ///
 /// The `Reasoner` receives an injected `Arc<dyn CompletionModel>` (for testability)
@@ -444,10 +447,16 @@ impl Reasoner {
             ],
         );
 
+        // The system message alone is not a conversation: a chat template that
+        // looks for the user's query (the Qwen ones do) refuses it, and the
+        // engine answers 500 on every attempt.
         let response = self
             .model
             .complete(CompletionRequest {
-                messages: vec![ChatMessage::system(system)],
+                messages: vec![
+                    ChatMessage::system(system),
+                    ChatMessage::user(REPLAN_REQUEST),
+                ],
                 ..Default::default()
             })
             .await
@@ -650,6 +659,7 @@ mod tests {
         queue: Mutex<VecDeque<String>>,
         fallback: String,
         call_count: AtomicU32,
+        roles: Mutex<Vec<Vec<apollia_llm::Role>>>,
     }
 
     impl MockCompletionModel {
@@ -658,6 +668,7 @@ mod tests {
                 queue: Mutex::new(responses.iter().map(|s| s.to_string()).collect()),
                 fallback: "{}".to_string(),
                 call_count: AtomicU32::new(0),
+                roles: Mutex::new(Vec::new()),
             })
         }
 
@@ -668,8 +679,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CompletionModel for MockCompletionModel {
-        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
             self.call_count.fetch_add(1, Ordering::SeqCst);
+            self.roles
+                .lock()
+                .expect("mock lock poisoned")
+                .push(req.messages.iter().map(|m| m.role.clone()).collect());
             let content = {
                 let mut q = self.queue.lock().expect("mock lock poisoned");
                 q.pop_front().unwrap_or_else(|| self.fallback.clone())
@@ -859,6 +874,29 @@ mod tests {
         assert_eq!(plan.steps.len(), 2);
         assert_eq!(plan.steps[0].step_id, "s3b");
         assert_eq!(model.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_replan_asks_with_a_user_turn_after_the_system_prompt() {
+        // GIVEN a reasoner whose model records the roles of each request
+        let model = MockCompletionModel::sequence(vec![
+            r#"{"steps":[{"step_id":"s2","description":"Retry","depends_on":[]}]}"#,
+        ]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+
+        // WHEN a step failed and an alternative plan is asked for
+        reasoner
+            .replan(&ContextBundle::default(), &HashMap::new(), "s1", "refused")
+            .await
+            .expect("a plan");
+
+        // THEN the request is a system prompt followed by a user turn, the
+        // shape every chat template accepts
+        let roles = model.roles.lock().expect("mock lock poisoned").clone();
+        assert_eq!(
+            roles,
+            vec![vec![apollia_llm::Role::System, apollia_llm::Role::User]]
+        );
     }
 
     // Markdown backticks stripped
