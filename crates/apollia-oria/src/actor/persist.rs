@@ -72,6 +72,15 @@ impl ActorLoop {
     }
     /// Emits a [`RuntimeEvent::StepFailed`] for `step_id`.
     pub(super) fn emit_step_failed(&self, step_id: &str, error: &str, retryable: bool) {
+        // The event reaches the interface only: without this line, the cause
+        // of a failed step was written nowhere once the run ended.
+        tracing::warn!(
+            task_id = %self.plan.task_id,
+            step_id = %step_id,
+            retryable,
+            error = %error,
+            "plan.step.failed"
+        );
         let _ = self.event_bus.send(RuntimeEvent::StepFailed {
             task_id: self.plan.task_id.clone().into(),
             plan_id: self.plan.plan_id.clone(),
