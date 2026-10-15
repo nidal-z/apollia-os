@@ -102,11 +102,21 @@ python_bundle_activate() {
         python_bundle_sync_sdk "$PWD/target/debug/python" || return 1
     fi
     # The desktop declares crates/apollia-desktop/python as a resource, and a
-    # build copies it over target/debug/python. A bundle staged there once and
-    # left for weeks brings its old SDK back at every build, after the
-    # refresh above: the packages then fail on "cannot import name".
-    if [ -d "$PWD/crates/apollia-desktop/python/lib" ]; then
-        python_bundle_sync_sdk "$PWD/crates/apollia-desktop/python" || return 1
+    # dev build copies it over target/debug/python, in place: a bundle a
+    # release build staged there brings its old SDK back, and macOS kills a
+    # binary rewritten in place at its next start (the MLX engine died on
+    # SIGKILL). The staging belongs to the release build, which redoes it; a
+    # dev build moves it aside, under target/, and says where.
+    local stage="$PWD/crates/apollia-desktop/python" aside entry
+    if [ -d "$stage/lib" ]; then
+        aside="$PWD/target/desktop-python-stage-$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$aside" || return 1
+        for entry in "$stage"/* "$stage"/.[!.]*; do
+            [ -e "$entry" ] || continue
+            [ "$(basename "$entry")" = ".gitkeep" ] && continue
+            mv "$entry" "$aside/" || return 1
+        done
+        echo "python bundle: the bundle staged for a release build was moved to $aside" >&2
     fi
     export PYO3_PYTHON="$BUNDLE_PY"
     # The bundle is relocatable but its sysconfig still names its build path,
