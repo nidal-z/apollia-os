@@ -367,6 +367,23 @@ to Apollia. When `system.db` is migrated, backends that pointed at the OpenAI,
 Anthropic or Mistral APIs are deleted, and backends that point at a self-hosted
 server are kept unchanged.
 
+### Retrying a failed answer {#llm-retry}
+
+A server error from an inference engine is retried for one minute at most,
+with an exponential delay, and then reported. The HTTP client of the
+OpenAI-compatible backends, `async-openai`, retries every 5xx for fifteen
+minutes by default, and an engine that refuses a request for what it is (a chat
+template that rejects the shape of the conversation answers 500 every time)
+held a batch item for a quarter of an hour before it failed. Bounding that
+retry means handing the client a policy of the `backoff` crate, the one it
+retries with, so `backoff` 0.4 is declared in the manifest of `apollia-llm`
+with no feature, under the `cloud` feature that already brings `async-openai`.
+It adds no code to the build: the crate was already in the lock file through
+`async-openai`. It is flagged unmaintained (RUSTSEC-2025-0012, and
+RUSTSEC-2024-0384 for `instant` under it), exempted in `deny.toml` for as long
+as `async-openai` retries with it; the day the client moves off it, the
+declaration goes with it.
+
 ### Checking a downloaded model {#model-download-integrity}
 
 Every file of a model downloaded from HuggingFace is checked against the

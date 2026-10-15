@@ -13,7 +13,7 @@ default = ["cloud"]
 # shared types (CompletionModel, LlmRouter, etc.).
 
 # HTTP backends (OpenAI-compatible, Ollama)
-cloud            = ["dep:async-openai", "dep:reqwest", "dep:base64"]
+cloud            = ["dep:async-openai", "dep:backoff", "dep:reqwest", "dep:base64"]
 
 [dependencies]
 apollia-core   = { workspace = true, features = ["net"] }
@@ -30,6 +30,8 @@ rusqlite       = { workspace = true }
 uuid           = { workspace = true }
 # cloud backends [feature = "cloud"]
 async-openai   = { workspace = true, optional = true }
+# The retry policy handed to async-openai [feature = "cloud"]
+backoff        = { workspace = true, optional = true }
 reqwest        = { workspace = true, optional = true }
 # Images of a user message travel as `data:` URLs [feature = "cloud"]
 base64         = { workspace = true, optional = true }

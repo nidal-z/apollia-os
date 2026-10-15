@@ -195,6 +195,25 @@ fn with_extra_params(
     body
 }
 
+/// How long a server error is retried before it is reported.
+///
+/// The client retries every 5xx, and its default policy keeps at it for
+/// fifteen minutes: an engine that refuses a request for its shape (a chat
+/// template rejecting the conversation answers 500 every time) then held a
+/// batch item that long. One minute covers an engine that is briefly busy.
+/// See `docs/site/docs/architecture/08-decisions.md#llm-retry`.
+pub(crate) const SERVER_ERROR_RETRY_BUDGET: std::time::Duration =
+    std::time::Duration::from_secs(60);
+
+/// The retry policy handed to the HTTP client, bounded by
+/// [`SERVER_ERROR_RETRY_BUDGET`].
+fn server_error_backoff() -> backoff::ExponentialBackoff {
+    backoff::ExponentialBackoff {
+        max_elapsed_time: Some(SERVER_ERROR_RETRY_BUDGET),
+        ..backoff::ExponentialBackoff::default()
+    }
+}
+
 impl OpenAICompatibleClient {
     /// Build an OpenAI-compatible client ready to send requests.
     ///
@@ -229,9 +248,12 @@ impl OpenAICompatibleClient {
             .with_api_key(api_key)
             .with_api_base(config.api_url.clone());
         Self {
-            client: Client::with_config(openai_config).with_http_client(
-                crate::http_client::build_llm_http_client(idle_timeout, &config.api_url),
-            ),
+            client: Client::with_config(openai_config)
+                .with_http_client(crate::http_client::build_llm_http_client(
+                    idle_timeout,
+                    &config.api_url,
+                ))
+                .with_backoff(server_error_backoff()),
             config: config.clone(),
             retry_policy: RetryPolicy::default(),
             cancel,
@@ -578,6 +600,19 @@ mod tests {
     use super::convert::{GPT_4O_MINI_COMPLETION_RATE, GPT_4O_MINI_PROMPT_RATE};
     use super::stream::next_emittable_text;
     use super::*;
+
+    #[test]
+    fn test_a_server_error_is_retried_for_one_minute_at_most() {
+        // GIVEN the retry policy the client is built with
+        let policy = server_error_backoff();
+
+        // WHEN its total budget is read
+        let budget = policy.max_elapsed_time;
+
+        // THEN it is bounded, and to one minute rather than the client's
+        // default fifteen
+        assert_eq!(budget, Some(std::time::Duration::from_secs(60)));
+    }
     use crate::types::FinishReason;
 
     /// Build the body both transport paths send, from a bare request.

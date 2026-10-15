@@ -399,6 +399,24 @@ maîtrise et parle le protocole OpenAI à Apollia. À la migration de `system.db
 les backends qui visaient les API d'OpenAI, d'Anthropic ou de Mistral sont
 supprimés, et ceux qui visent un serveur auto-hébergé sont gardés tels quels.
 
+### Réessayer une réponse en échec {#llm-retry}
+
+Une erreur serveur d'un moteur d'inférence est réessayée pendant une minute au
+plus, avec un délai exponentiel, puis signalée. Le client HTTP des backends
+compatibles OpenAI, `async-openai`, réessaie par défaut chaque erreur 5xx
+pendant quinze minutes, et un moteur qui refuse une requête pour ce qu'elle est
+(un gabarit de conversation qui rejette la forme de l'échange répond 500 à
+chaque fois) a tenu un élément de lot un quart d'heure avant qu'il échoue.
+Borner cette reprise demande de remettre au client une politique de la
+bibliothèque `backoff`, celle avec laquelle il réessaie : `backoff` 0.4 est donc
+déclarée dans le manifeste d'`apollia-llm`, sans fonctionnalité, sous la
+fonctionnalité `cloud` qui apporte déjà `async-openai`. Elle n'ajoute aucun code
+à la compilation : la bibliothèque figurait déjà dans le fichier de verrouillage
+par `async-openai`. Elle est signalée comme non maintenue (RUSTSEC-2025-0012, et
+RUSTSEC-2024-0384 pour `instant` en dessous), exemptée dans `deny.toml` tant
+qu'`async-openai` réessaie avec elle ; le jour où le client s'en passe, la
+déclaration part avec elle.
+
 ### Vérifier un modèle téléchargé {#model-download-integrity}
 
 Chaque fichier d'un modèle téléchargé depuis HuggingFace est vérifié contre

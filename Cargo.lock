@@ -500,6 +500,7 @@ dependencies = [
  "apollia-triggers",
  "async-openai",
  "async-trait",
+ "backoff",
  "base64 0.23.1",
  "chrono",
  "futures",
