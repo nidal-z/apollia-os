@@ -96,6 +96,14 @@ const MAX_ATTEMPTS: u32 = 3;
 
 // Reasoner
 
+/// The most a plan answer may generate, reasoning included.
+///
+/// A plan of a few steps takes about 1,600 tokens on a reasoning model. With
+/// no limit, a reasoning that loops ran until the engine gave up at 300
+/// seconds (some 24,000 tokens), and the batch item waited that long; capped,
+/// it ends in about a minute and the next attempt starts.
+const PLAN_MAX_TOKENS: u32 = 6_144;
+
 /// The turn that asks for the alternative plan the replanner prompt describes.
 const REPLAN_REQUEST: &str = "Return the alternative plan as JSON only.";
 
@@ -370,6 +378,7 @@ impl Reasoner {
                 .complete(CompletionRequest {
                     messages: vec![ChatMessage::system(system), ChatMessage::user(user)],
                     temperature,
+                    max_tokens: Some(PLAN_MAX_TOKENS),
                     ..Default::default()
                 })
                 .await
@@ -457,6 +466,7 @@ impl Reasoner {
                     ChatMessage::system(system),
                     ChatMessage::user(REPLAN_REQUEST),
                 ],
+                max_tokens: Some(PLAN_MAX_TOKENS),
                 ..Default::default()
             })
             .await
@@ -660,6 +670,7 @@ mod tests {
         fallback: String,
         call_count: AtomicU32,
         roles: Mutex<Vec<Vec<apollia_llm::Role>>>,
+        limits: Mutex<Vec<Option<u32>>>,
     }
 
     impl MockCompletionModel {
@@ -669,6 +680,7 @@ mod tests {
                 fallback: "{}".to_string(),
                 call_count: AtomicU32::new(0),
                 roles: Mutex::new(Vec::new()),
+                limits: Mutex::new(Vec::new()),
             })
         }
 
@@ -685,6 +697,10 @@ mod tests {
                 .lock()
                 .expect("mock lock poisoned")
                 .push(req.messages.iter().map(|m| m.role.clone()).collect());
+            self.limits
+                .lock()
+                .expect("mock lock poisoned")
+                .push(req.max_tokens);
             let content = {
                 let mut q = self.queue.lock().expect("mock lock poisoned");
                 q.pop_front().unwrap_or_else(|| self.fallback.clone())
@@ -874,6 +890,26 @@ mod tests {
         assert_eq!(plan.steps.len(), 2);
         assert_eq!(plan.steps[0].step_id, "s3b");
         assert_eq!(model.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_plan_and_replan_answers_are_capped() {
+        // GIVEN a reasoner whose model records the token limit of each request
+        let plan = r#"{"steps":[{"step_id":"s1","description":"Read","depends_on":[]}]}"#;
+        let model = MockCompletionModel::sequence(vec![plan, plan]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let ctx = ContextBundle::default();
+
+        // WHEN a plan, then an alternative plan, are asked for
+        reasoner.plan(&ctx).await.expect("a plan");
+        reasoner
+            .replan(&ctx, &HashMap::new(), "s1", "refused")
+            .await
+            .expect("a plan");
+
+        // THEN both requests carry the cap, so a looping reasoning ends
+        let limits = model.limits.lock().expect("mock lock poisoned").clone();
+        assert_eq!(limits, vec![Some(PLAN_MAX_TOKENS), Some(PLAN_MAX_TOKENS)]);
     }
 
     #[tokio::test]
