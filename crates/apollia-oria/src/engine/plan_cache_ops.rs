@@ -165,8 +165,32 @@ impl ORIAEngine {
             run_id: None,
         });
 
-        self.run_plan_with_verification(plan, &task, agent, &manifest, ctx, cache_key, db_path)
-            .await
+        let result = self
+            .run_plan_with_verification(plan, &task, agent, &manifest, ctx, cache_key, db_path)
+            .await;
+        // A cached plan that failed would fail the same way for the next
+        // task of that key: it is forgotten, and the next one plans anew.
+        if result.status != apollia_core::TaskStatus::Completed {
+            self.forget_cached_plan(cache_key);
+        }
+        result
+    }
+
+    /// Remove the plan cached under `cache_key`, logged and ignored on failure.
+    pub(super) fn forget_cached_plan(&self, cache_key: &str) {
+        let Some(cache_mutex) = self.plan_cache.as_ref() else {
+            return;
+        };
+        match cache_mutex.lock() {
+            Ok(cache) => match cache.forget(cache_key) {
+                Ok(true) => tracing::info!(cache_key = %cache_key, "plan.cache.forgotten"),
+                Ok(false) => {}
+                Err(e) => tracing::warn!(error = %e, "plan.cache.forget.failed"),
+            },
+            Err(e) => {
+                tracing::warn!(error = %e, detail = "the plan stays cached", "plan.cache.lock.poisoned")
+            }
+        }
     }
     /// Opens a `PlanRepository` at `db_path`, inserts the plan and its steps.
     ///

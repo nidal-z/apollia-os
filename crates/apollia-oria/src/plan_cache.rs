@@ -57,9 +57,6 @@ fn migrate_v1(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
     )
 }
 
-/// Maximum length of the normalized task text included in the cache key.
-const MAX_TEXT_LENGTH: usize = 500;
-
 /// Hard ceiling on the number of cached plans. Beyond it, the least recently
 /// used entries are evicted on store so the cache stays bounded even when the
 /// TTL window holds more than this many distinct keys.
@@ -145,6 +142,18 @@ impl PlanCacheRepository {
         self.enforce_capacity(CACHE_MAX_ENTRIES)?;
 
         Ok(())
+    }
+
+    /// Remove the plan stored under `key`, if any. Returns whether one was.
+    ///
+    /// # Errors
+    ///
+    /// [`PlanCacheError`] when the database refuses the deletion.
+    pub fn forget(&self, key: &str) -> Result<bool, PlanCacheError> {
+        let removed = self
+            .conn
+            .execute("DELETE FROM plan_cache WHERE cache_key = ?1", params![key])?;
+        Ok(removed > 0)
     }
 
     /// Evict entries older than `max_age_days` days based on `created_at`.
@@ -255,7 +264,7 @@ pub struct PlanCacheStats {
 /// Normalization rules:
 /// - Tools are sorted alphabetically and joined with `","`.
 /// - Task text is lowercased, whitespace-collapsed (sequences of whitespace → single space),
-///   trimmed, and truncated to 500 characters.
+///   and trimmed; the whole text is kept.
 pub fn compute_cache_key(
     agent_name: &str,
     agent_version: &str,
@@ -287,15 +296,14 @@ pub fn compute_cache_key(
 /// 1. Lowercase.
 /// 2. Collapse all whitespace sequences into a single space.
 /// 3. Trim leading/trailing whitespace.
-/// 4. Truncate to [`MAX_TEXT_LENGTH`] characters.
+///
+/// The whole text is kept: the key is a digest, so its length costs nothing.
+/// Cut at 500 characters, every item of a batch, whose request opens on the
+/// same instructions and differs only after them, shared one key and ran the
+/// plan of the first item, with its paths and its details.
 fn normalize_text(text: &str) -> String {
     let lowered = text.to_lowercase();
-    let collapsed: String = lowered.split_whitespace().collect::<Vec<_>>().join(" ");
-    if collapsed.len() > MAX_TEXT_LENGTH {
-        collapsed.chars().take(MAX_TEXT_LENGTH).collect()
-    } else {
-        collapsed
-    }
+    lowered.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 // Allow the optional return from query_row.
@@ -482,7 +490,7 @@ mod tests {
 
     /// GIVEN text with uppercase, multiple spaces, and more than 500 characters
     /// WHEN compute_cache_key is called
-    /// THEN the text is normalized (lowercase, whitespace-collapsed, truncated to 500 chars)
+    /// THEN the text is normalized (lowercase, whitespace-collapsed), and kept whole
     #[test]
     fn test_text_normalization_in_cache_key() {
         // GIVEN
@@ -503,14 +511,15 @@ mod tests {
         // Verify the key is a valid SHA-256 hex.
         assert_eq!(key_long.len(), 64);
 
-        // Verify truncation: a very long text differs only after 500 chars, same key.
+        // Two requests that open on the same 500 characters, as the items of
+        // a batch do, and differ after them, are two plans, not one.
         let base = "x".repeat(500);
         let extended = format!("{base}YYYYY");
         let key_base = compute_cache_key("agent", "1.0", &tools, &base);
         let key_extended = compute_cache_key("agent", "1.0", &tools, &extended);
-        assert_eq!(
+        assert_ne!(
             key_base, key_extended,
-            "texts differing only after 500 chars must produce the same key"
+            "texts differing only after 500 chars must produce different keys"
         );
     }
 
@@ -531,6 +540,23 @@ mod tests {
 
         // THEN
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_a_forgotten_plan_is_no_longer_served() {
+        // GIVEN a cached plan
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = PlanCacheRepository::open(&dir.path().join("plan_cache.db")).expect("open");
+        repo.store("key-1", &sample_plan(), "agent", "1.0")
+            .expect("store");
+
+        // WHEN it is forgotten, then forgotten again
+        let first = repo.forget("key-1").expect("forget");
+        let second = repo.forget("key-1").expect("forget again");
+
+        // THEN it was there once, and a lookup no longer finds it
+        assert!(first && !second);
+        assert!(repo.lookup("key-1").expect("lookup").is_none());
     }
 
     // ─── Extra: hit_count increments on lookup ───
