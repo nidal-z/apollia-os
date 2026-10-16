@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use apollia_core::batch_source::SourceRegistry;
 use apollia_core::{AgentId, RuntimeEvent};
@@ -16,6 +17,12 @@ use super::{
     DEFAULT_CONCURRENCY, DEFAULT_MAX_FAILURES, ITEM_END_CAPACITY, MAX_CONCURRENCY,
 };
 use crate::eventbus::EventBusSender;
+
+/// How long one item may run before it is stopped and counted failed. A
+/// model request that never came back held a batch for over an hour, its
+/// next items waiting behind it; past this, the item ends with its reason
+/// and the batch goes on.
+const ITEM_DEADLINE: Duration = Duration::from_secs(20 * 60);
 
 /// The end of one item, as it comes back to the actor.
 struct ItemEnded {
@@ -40,6 +47,9 @@ pub(super) struct Active {
     pub(super) write_back: Option<SourceDescriptor>,
     /// Whether the launch granted writing into the original file.
     pub(super) original_granted: bool,
+    /// The rank of the batch in the order batches were taken: the oldest
+    /// waiting batch runs first once the engine is free.
+    pub(super) order: u64,
 }
 
 pub(super) struct BatchActor<R: ItemRunner> {
@@ -54,6 +64,10 @@ pub(super) struct BatchActor<R: ItemRunner> {
     /// run, by batch and rank; spent when the item starts.
     pub(super) once: HashMap<(String, u64), String>,
     event_bus: EventBusSender,
+    /// The order the next batch taken gets.
+    next_order: u64,
+    /// How long one item may run; [`ITEM_DEADLINE`] outside tests.
+    pub(super) item_deadline: Duration,
 }
 
 impl<R: ItemRunner> BatchActor<R> {
@@ -75,6 +89,8 @@ impl<R: ItemRunner> BatchActor<R> {
             active: HashMap::new(),
             once: HashMap::new(),
             event_bus,
+            next_order: 0,
+            item_deadline: ITEM_DEADLINE,
         }
     }
 
@@ -142,6 +158,8 @@ impl<R: ItemRunner> BatchActor<R> {
     }
 
     pub(super) fn activate(&mut self, batch: &BatchRow) {
+        let order = self.next_order;
+        self.next_order += 1;
         self.active.insert(
             batch.batch_id.clone(),
             Active {
@@ -155,8 +173,44 @@ impl<R: ItemRunner> BatchActor<R> {
                     .ok()
                     .filter(|source| source.write.is_some()),
                 original_granted: batch.grants.iter().any(|g| g == SOURCE_WRITE_ACCESS),
+                order,
             },
         );
+    }
+
+    /// Whether a batch other than `batch_id` has an item running.
+    ///
+    /// The items of one batch run at a time: two batches on one engine took
+    /// turns at every model call, each item twice as slow, and neither ended
+    /// sooner. A batch launched while another runs waits for it.
+    fn another_runs(&self, batch_id: &str) -> bool {
+        self.active
+            .iter()
+            .any(|(id, active)| id != batch_id && active.in_flight > 0)
+    }
+
+    /// Lets the waiting batches start, oldest first, once none runs.
+    pub(super) async fn advance_waiting(&mut self) {
+        if self.active.values().any(|active| active.in_flight > 0) {
+            return;
+        }
+        let mut waiting: Vec<(u64, String)> = self
+            .active
+            .iter()
+            .filter(|(_, active)| !active.paused)
+            .map(|(id, active)| (active.order, id.clone()))
+            .collect();
+        waiting.sort();
+        for (_, id) in waiting {
+            self.advance(&id).await;
+            if self
+                .active
+                .get(&id)
+                .is_some_and(|active| active.in_flight > 0)
+            {
+                return;
+            }
+        }
     }
 
     async fn launch(&mut self, launch: BatchLaunch) -> Result<BatchRow, BatchError> {
@@ -311,6 +365,9 @@ impl<R: ItemRunner> BatchActor<R> {
             if active.interrupted {
                 break;
             }
+            if self.another_runs(batch_id) {
+                return;
+            }
             let room = active.concurrency.saturating_sub(active.in_flight);
             if room == 0 {
                 return;
@@ -363,12 +420,36 @@ impl<R: ItemRunner> BatchActor<R> {
                 }
                 let ends = self.ends_tx.clone();
                 let batch_id = batch_id.to_string();
+                let runner = self.runner.clone();
+                let task_id = started.task_id.clone();
+                let deadline = self.item_deadline;
                 tokio::spawn(async move {
-                    let end = started.end.await.unwrap_or_else(|_| ItemEnd {
-                        status: ItemStatus::Failed,
-                        output: "the run was dropped".into(),
-                        awaiting: None,
-                    });
+                    let end = match tokio::time::timeout(deadline, started.end).await {
+                        Ok(Ok(end)) => end,
+                        Ok(Err(_)) => ItemEnd {
+                            status: ItemStatus::Failed,
+                            output: "the run was dropped".into(),
+                            awaiting: None,
+                        },
+                        Err(_) => {
+                            tracing::event!(
+                                Level::WARN,
+                                batch_id = %batch_id,
+                                rank,
+                                task_id = %task_id,
+                                "batch.item.deadline_passed"
+                            );
+                            runner.cancel(&task_id).await;
+                            ItemEnd {
+                                status: ItemStatus::Failed,
+                                output: format!(
+                                    "the item ran past {} minutes and was stopped",
+                                    deadline.as_secs() / 60
+                                ),
+                                awaiting: None,
+                            }
+                        }
+                    };
                     let _ = ends
                         .send(ItemEnded {
                             batch_id,
@@ -397,6 +478,7 @@ impl<R: ItemRunner> BatchActor<R> {
         self.record_end(&ended.batch_id, ended.rank, &ended.end)
             .await;
         self.advance(&ended.batch_id).await;
+        self.advance_waiting().await;
     }
 
     /// Records the end of an item and interrupts its batch past the threshold.

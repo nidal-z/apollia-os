@@ -360,6 +360,23 @@ impl BatchHandle {
         Self { tx, repository }
     }
 
+    /// [`spawn`](Self::spawn) with the time one item may run, short in tests.
+    #[cfg(test)]
+    pub(crate) fn spawn_with_item_deadline<R: ItemRunner>(
+        repository: Arc<TaskRepository>,
+        sources: Arc<SourceRegistry>,
+        runner: R,
+        event_bus: EventBusSender,
+        deadline: std::time::Duration,
+    ) -> Self {
+        let (tx, rx) = mpsc::channel(COMMAND_CAPACITY);
+        let mut actor =
+            actor::BatchActor::new(rx, repository.clone(), sources, Arc::new(runner), event_bus);
+        actor.item_deadline = deadline;
+        tokio::spawn(actor.run());
+        Self { tx, repository }
+    }
+
     /// Launches a batch. Returns it once its items are recorded; they run in
     /// the background.
     ///

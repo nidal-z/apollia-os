@@ -250,6 +250,80 @@ async fn test_launch_defaults_and_completion() {
     assert_eq!(handle.list(10).await.unwrap().len(), 1);
 }
 
+#[tokio::test]
+async fn test_a_batch_launched_while_another_runs_waits_for_it() {
+    // GIVEN a first batch whose item hangs, holding the engine
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repository(&dir).await;
+    let runner = Arc::new(Scripted::default());
+    let (handle, _bus) = spawn(repo.clone(), registry(&["hang"]), runner.clone());
+    let first = handle.launch(launch(None, None)).await.unwrap();
+    assert!(
+        poll_until_async(WAIT, || async {
+            runner.started.load(Ordering::SeqCst) == 1
+        })
+        .await
+    );
+
+    // WHEN a second batch is launched, then the first one's item ends
+    // A launch starts what it may before it answers: the count read after
+    // it is the count of the moment.
+    let second = handle.launch(launch(None, None)).await.unwrap();
+    let started_while_busy = runner.started.load(Ordering::SeqCst);
+    handle
+        .control(&first.batch_id, BatchControl::Stop)
+        .await
+        .unwrap();
+
+    // THEN the second batch started nothing while the first ran, and runs
+    // once the first has ended
+    assert_eq!(started_while_busy, 1);
+    assert!(
+        poll_until_async(WAIT, || async {
+            runner.started.load(Ordering::SeqCst) == 2
+        })
+        .await
+    );
+    wait_state(&repo, &first.batch_id, "stopped").await;
+    assert_eq!(
+        repo.batch(&second.batch_id).await.unwrap().unwrap().state,
+        "running"
+    );
+}
+
+#[tokio::test]
+async fn test_an_item_past_its_deadline_fails_and_the_batch_goes_on() {
+    // GIVEN a batch whose first item hangs and whose items may run 100 ms
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repository(&dir).await;
+    let runner = Arc::new(Scripted::default());
+    let (bus, _) = tokio::sync::broadcast::channel(256);
+    let handle = BatchHandle::spawn_with_item_deadline(
+        repo.clone(),
+        registry(&["hang", "ok"]),
+        runner.clone(),
+        bus,
+        Duration::from_millis(100),
+    );
+
+    // WHEN the batch runs
+    let batch = handle.launch(launch(None, None)).await.unwrap();
+
+    // THEN the hanging item is cancelled and failed with its reason, and the
+    // next item runs to the end of the batch
+    let done = wait_state(&repo, &batch.batch_id, "completed").await;
+    assert_eq!((done.completed, done.failed), (1, 1));
+    assert_eq!(
+        runner.cancelled.lock().unwrap().clone(),
+        vec!["task-0".to_string()]
+    );
+    let detail = handle.detail(&batch.batch_id).await.unwrap().unwrap();
+    assert!(detail.items[0]
+        .output
+        .as_deref()
+        .is_some_and(|out| out.contains("ran past")));
+}
+
 // GIVEN six items that all fail and a threshold of two failures
 // WHEN the batch runs
 // THEN it is interrupted at the third failure, and the other items stay pending

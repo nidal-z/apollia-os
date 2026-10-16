@@ -47,6 +47,7 @@ impl<R: ItemRunner> BatchActor<R> {
         if verb != "pause" {
             self.advance(batch_id).await;
         }
+        self.advance_waiting().await;
         tracing::event!(Level::INFO, batch_id, verb, "batch.controlled");
         self.repository
             .batch(batch_id)
