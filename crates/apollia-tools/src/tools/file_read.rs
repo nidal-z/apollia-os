@@ -5,6 +5,7 @@
 //! or sheet at a time; see [`document`].
 
 mod document;
+mod nearby;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
 use crate::sandbox_path::{SandboxRoot, SandboxSpec};
@@ -49,9 +50,10 @@ pub enum FileReadError {
     )]
     SandboxViolation { path: String },
 
-    /// File not found at the specified path.
-    #[error("not found: '{path}'")]
-    NotFound { path: String },
+    /// File not found at the specified path. `near` names the files of the
+    /// same name in the granted folders, or is empty.
+    #[error("not found: '{path}'{near}")]
+    NotFound { path: String, near: String },
 
     /// I/O error while reading the file.
     #[error("I/O error on '{path}': {cause}")]
@@ -165,7 +167,20 @@ impl FileRead {
                     path: input.path.clone(),
                 })?;
 
-        let (content, parts) = self.read_text(&resolved_path, &input).await?;
+        let (content, parts) = match self.read_text(&resolved_path, &input).await {
+            Err(FileReadError::NotFound { path, .. }) => {
+                let anchor = self.sandbox.path().to_path_buf();
+                let roots = self.sandbox.roots().to_vec();
+                let missing = path.clone();
+                let near = tokio::task::spawn_blocking(move || {
+                    nearby::suggestion(&anchor, &roots, &missing)
+                })
+                .await
+                .unwrap_or_default();
+                return Err(FileReadError::NotFound { path, near });
+            }
+            other => other?,
+        };
 
         let lines: Vec<&str> = content.lines().collect();
         let total_lines = lines.len() as u32;
@@ -240,6 +255,7 @@ impl FileRead {
         let mut file = fs::File::open(resolved).await.map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => FileReadError::NotFound {
                 path: input.path.clone(),
+                near: String::new(),
             },
             _ => FileReadError::IoError {
                 path: input.path.clone(),
@@ -440,7 +456,7 @@ mod tests {
         // THEN: Err(FileReadError::NotFound)
         assert!(result.is_err());
         match result.err() {
-            Some(FileReadError::NotFound { path }) => {
+            Some(FileReadError::NotFound { path, .. }) => {
                 assert_eq!(path, "missing.txt");
             }
             _ => panic!("Expected NotFound error"),

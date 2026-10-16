@@ -97,6 +97,7 @@ fn read_error(shown_path: &str, error: ReadError) -> FileReadError {
         ReadError::Io { source, .. } if source.kind() == std::io::ErrorKind::NotFound => {
             FileReadError::NotFound {
                 path: shown_path.to_string(),
+                near: String::new(),
             }
         }
         ReadError::Io { source, .. } => FileReadError::IoError {
