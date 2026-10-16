@@ -92,4 +92,19 @@ describe("the activity of a batch item", () => {
     expect(splitThinking("Compare first</think>Compliant.")).toEqual({ thinking: "Compare first", answer: "Compliant." });
     expect(splitThinking("Compliant.")).toEqual({ thinking: "", answer: "Compliant." });
   });
+
+  test("the minute a plan takes reads as the agent preparing it, then as its thinking", () => {
+    // GIVEN the planner's thinking events, under the task
+    const events = [
+      tagged("ThinkingStarted", { turn_id: TASK, ts_ms: 1 }),
+      tagged("ThinkingEnded", { turn_id: TASK, ts_ms: 2, duration_ms: 16000, raw_content: "<think>Read the quote first</think>{}", tokens: 1616 }),
+    ];
+
+    // WHEN they are read
+    const activity = run(events);
+
+    // THEN one entry says the plan was prepared, with its time and its thinking
+    expect(activity.entries).toHaveLength(1);
+    expect(activity.entries[0]).toMatchObject({ kind: "planning", status: "done", durationMs: 16000, tokens: 1616 });
+  });
 });

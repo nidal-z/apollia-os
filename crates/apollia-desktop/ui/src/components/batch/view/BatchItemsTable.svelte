@@ -26,15 +26,30 @@
     live?: ReadonlyMap<string, LiveStep>;
     /** The clock the durations of the live steps are read on, in ms. */
     now?: number;
+    /**
+     * The table shares the width with the panel of an item: the number, the
+     * input and the state stay, the state carrying what the agent is doing,
+     * and the output and the sources read in the panel.
+     */
+    compact?: boolean;
   }
 
-  let { items, selectedRank, onSelect, onOpenDecision, live = new Map(), now = Date.now() }: Props = $props();
+  let { items, selectedRank, onSelect, onOpenDecision, live = new Map(), now = Date.now(), compact = false }: Props = $props();
 
   function liveLine(item: BatchItem): string {
     return liveLineOf(item, item.taskId === null ? undefined : live.get(item.taskId), now, $t);
   }
 
-  const HEADERS = ["number", "input", "status", "output", "sources"] as const;
+  const FULL = ["number", "input", "status", "output", "sources"] as const;
+  const COMPACT = ["number", "input", "status"] as const;
+  const headers = $derived<readonly (typeof FULL)[number][]>(compact ? COMPACT : FULL);
+
+  function width(header: (typeof FULL)[number]): string {
+    if (header === "number") return "w-12";
+    if (header === "status") return compact ? "w-1/2" : "w-48";
+    if (header === "sources") return "w-52";
+    return "";
+  }
 
   function output(item: BatchItem): string {
     const status = statusOf(item);
@@ -51,14 +66,44 @@
   }
 </script>
 
+{#snippet progress(item: BatchItem, status: ReturnType<typeof statusOf>)}
+  {#if status === "running"}
+    <p class="m-0 flex items-start gap-1.5 break-words text-body-sm text-foreground" data-testid="batch-item-live">
+      <Spinner size={12} class="mt-1 shrink-0" />
+      <span>{liveLine(item)}</span>
+    </p>
+  {:else if !compact || status === "failed" || status === "awaiting"}
+    <p
+      class="m-0 whitespace-pre-line break-words text-body-sm {compact ? 'line-clamp-2' : 'line-clamp-4'} {status === 'failed' ? 'text-danger-a11y' : status === 'completed' ? 'text-foreground' : 'text-muted-foreground'}"
+      data-testid="batch-item-output"
+    >
+      {output(item)}
+    </p>
+  {/if}
+  {#if status === "awaiting"}
+    <Button
+      variant="outline"
+      size="sm"
+      class="mt-2"
+      onclick={(event: MouseEvent) => {
+        event.stopPropagation();
+        onOpenDecision(item);
+      }}
+      data-testid="batch-item-decision"
+    >
+      {$t("batch_view.decision.open")}
+    </Button>
+  {/if}
+{/snippet}
+
 <div class="overflow-x-auto rounded-lg border border-border bg-card" data-testid="batch-table">
   <table class="w-full table-fixed border-collapse text-left">
     <thead>
       <tr class="border-b border-border">
-        {#each HEADERS as header (header)}
+        {#each headers as header (header)}
           <th
             scope="col"
-            class="px-3 py-2 font-mono text-micro-lg font-semibold uppercase tracking-wider text-muted-foreground/70 {header === 'number' ? 'w-14' : ''} {header === 'status' ? 'w-48' : ''} {header === 'sources' ? 'w-52' : ''}"
+            class="truncate px-3 py-2 font-mono text-micro-lg font-semibold uppercase tracking-wider text-muted-foreground/70 {width(header)}"
           >
             {$t(`batch_view.column.${header}`)}
           </th>
@@ -99,42 +144,19 @@
             <Badge variant={ITEM_TONE[status]} outline data-testid="batch-item-status">
               {$t(`batch_view.item_status.${status}`)}
             </Badge>
-          </td>
-          <td class="px-3 py-3">
-            {#if status === "running"}
-              <p class="m-0 flex items-start gap-1.5 break-words text-body-sm text-foreground" data-testid="batch-item-live">
-                <Spinner size={12} class="mt-1 shrink-0" />
-                <span>{liveLine(item)}</span>
-              </p>
-            {:else}
-              <p
-                class="m-0 line-clamp-4 whitespace-pre-line break-words text-body-sm {status === 'failed' ? 'text-danger-a11y' : status === 'completed' ? 'text-foreground' : 'text-muted-foreground'}"
-                data-testid="batch-item-output"
-              >
-                {output(item)}
-              </p>
-            {/if}
-            {#if status === "awaiting"}
-              <Button
-                variant="outline"
-                size="sm"
-                class="mt-2"
-                onclick={(event: MouseEvent) => {
-                  event.stopPropagation();
-                  onOpenDecision(item);
-                }}
-                data-testid="batch-item-decision"
-              >
-                {$t("batch_view.decision.open")}
-              </Button>
+            {#if compact}
+              <div class="mt-1.5">{@render progress(item, status)}</div>
             {/if}
           </td>
-          <td class="px-3 py-3">
-            <p class="m-0 flex items-start gap-1.5 break-words text-caption text-muted-foreground" data-testid="batch-item-sources">
-              <BookOpen size={14} strokeWidth={1.5} class="mt-0.5 shrink-0" aria-hidden="true" />
-              <span>{[item.origin, ...cited].filter((name) => name !== "").join(" · ")}</span>
-            </p>
-          </td>
+          {#if !compact}
+            <td class="px-3 py-3">{@render progress(item, status)}</td>
+            <td class="px-3 py-3">
+              <p class="m-0 flex items-start gap-1.5 break-words text-caption text-muted-foreground" data-testid="batch-item-sources">
+                <BookOpen size={14} strokeWidth={1.5} class="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{[item.origin, ...cited].filter((name) => name !== "").join(" · ")}</span>
+              </p>
+            </td>
+          {/if}
         </tr>
       {/each}
     </tbody>

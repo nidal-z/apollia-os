@@ -75,7 +75,7 @@
       {#if unread}
         <p class="m-0 text-body-sm text-muted-foreground">{$t("batch_view.item.steps_unread")}</p>
       {/if}
-      <BatchItemActivity {activity} {running} sessionId={item.taskId} />
+      <BatchItemActivity {activity} {running} sessionId={item.taskId} ran={item.taskId !== null || status !== "pending"} />
     </section>
 
     {#if status !== "pending" && status !== "running"}

@@ -6771,7 +6771,8 @@
       "thinking": "Thinking",
       "writing": "Writing its answer",
       "tool": "Using the tool {tool}",
-      "working": "Working"
+      "working": "Working",
+      "planning": "Preparing its plan"
     },
     "activity": {
       "title": "Activity",
@@ -6785,7 +6786,10 @@
       "approval_waiting": "waiting",
       "approval_granted": "granted",
       "approval_refused": "refused",
-      "waiting_model": "Waiting for the model…"
+      "waiting_model": "Waiting for the model…",
+      "none_recorded": "No activity was recorded for this run.",
+      "planning": "Preparing its plan…",
+      "planned": "Prepared its plan · {seconds} · {tokens} tokens"
     }
   },
   "batch_history": {

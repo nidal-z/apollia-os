@@ -21,9 +21,11 @@
     /** The item's run is going on: what is written now is shown as it comes. */
     running: boolean;
     sessionId: string | null;
+    /** The item has run, or runs: an empty record then says so, not "not processed". */
+    ran: boolean;
   }
 
-  let { activity, running, sessionId }: Props = $props();
+  let { activity, running, sessionId, ran }: Props = $props();
 
   let open = $state<Record<number, boolean>>({});
 
@@ -70,14 +72,40 @@
       <Spinner size={12} />
       {$t("batch_view.activity.starting")}
     {:else}
-      {$t("batch_view.activity.none")}
+      {$t(ran ? "batch_view.activity.none_recorded" : "batch_view.activity.none")}
     {/if}
   </p>
 {:else}
   <ol class="m-0 list-none space-y-2 p-0" data-testid="batch-item-activity">
     {#each activity.entries as entry, index (index)}
       <li data-kind={entry.kind}>
-        {#if entry.kind === "plan"}
+        {#if entry.kind === "planning"}
+          {#if entry.status === "running"}
+            <p class="m-0 flex items-center gap-2 text-body-sm text-foreground">
+              <Spinner size={12} class="shrink-0" />
+              {$t("batch_view.activity.planning")}
+            </p>
+          {:else}
+            <div class="space-y-1">
+              <p class="m-0 flex items-center gap-2 text-body-sm text-foreground">
+                <Sparkles size={14} strokeWidth={1.5} class="shrink-0 text-muted-foreground" />
+                {$t("batch_view.activity.planned", {
+                  values: { seconds: seconds(entry.durationMs) || "0 s", tokens: entry.tokens ?? 0 },
+                })}
+              </p>
+              {#if entry.thinking !== ""}
+                <div class="pl-5">
+                  <ReasoningBlock
+                    content={splitThinking(entry.thinking).thinking || entry.thinking}
+                    durationMs={entry.durationMs}
+                    expanded={open[index] === true}
+                    ontoggle={() => toggle(index)}
+                  />
+                </div>
+              {/if}
+            </div>
+          {/if}
+        {:else if entry.kind === "plan"}
           <p class="m-0 flex items-center gap-2 text-body-sm text-foreground">
             <ListChecks size={14} strokeWidth={1.5} class="shrink-0 text-muted-foreground" />
             {$t("batch_view.activity.plan", { values: { count: entry.steps } })}

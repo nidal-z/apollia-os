@@ -14,6 +14,14 @@ import { previewTarget, type LiveEvent } from "./liveSteps";
 
 /** One thing the agent did, in the order it did it. */
 export type ActivityEntry =
+  | {
+      kind: "planning";
+      status: "running" | "done";
+      thinking: string;
+      tokens: number | null;
+      durationMs: number | null;
+      at: number;
+    }
   | { kind: "plan"; steps: number; at: number }
   | {
       kind: "step";
@@ -162,13 +170,26 @@ export function applyActivityEvent(
   now: number,
 ): ItemActivity {
   const fields = fieldsOf(event);
-  const about = fields.session_id ?? fields.task_id;
+  const about = fields.session_id ?? fields.task_id ?? fields.turn_id;
   if (about !== task) return activity;
 
   const entries = activity.entries.map((entry) => ({ ...entry }));
   switch (event.event_type) {
     case "ChatToken":
       return { entries: activity.entries, writing: activity.writing + text(fields.token) };
+    case "ThinkingStarted":
+      settle(entries, activity.writing, now);
+      entries.push({ kind: "planning", status: "running", thinking: "", tokens: null, durationMs: null, at: now });
+      return { entries, writing: "" };
+    case "ThinkingEnded": {
+      const planning = [...entries].reverse().find((entry) => entry.kind === "planning" && entry.status === "running");
+      if (planning === undefined || planning.kind !== "planning") return activity;
+      planning.status = "done";
+      planning.thinking = text(fields.raw_content);
+      planning.tokens = count(fields.tokens);
+      planning.durationMs = count(fields.duration_ms) ?? now - planning.at;
+      return { entries, writing: activity.writing };
+    }
     case "PlanGenerated":
       settle(entries, activity.writing, now);
       entries.push({ kind: "plan", steps: count(fields.step_count) ?? 0, at: now });

@@ -21,6 +21,7 @@ export type LiveStep = (
   | { kind: "tool"; tool: string; target: string | null; since: number }
   | { kind: "thinking"; since: number }
   | { kind: "writing"; since: number }
+  | { kind: "planning"; since: number }
 ) & { plan?: PlanStep };
 
 /** One event of the runtime as the interface receives it. */
@@ -66,7 +67,7 @@ function fieldsOf(event: LiveEvent): Record<string, unknown> {
 
 /** The task an event is about, when it is one of `watched`. */
 function taskOf(fields: Record<string, unknown>, watched: ReadonlySet<string>): string | null {
-  const id = fields.session_id ?? fields.task_id;
+  const id = fields.session_id ?? fields.task_id ?? fields.turn_id;
   return typeof id === "string" && watched.has(id) ? id : null;
 }
 
@@ -87,6 +88,12 @@ export function applyLiveEvent(
   const plan = steps.get(task)?.plan;
   const kept = plan === undefined ? {} : { plan };
   switch (event.event_type) {
+    case "ThinkingStarted":
+      next.set(task, { kind: "planning", since: now, ...kept });
+      return next;
+    case "ThinkingEnded":
+      next.set(task, { kind: "thinking", since: now, ...kept });
+      return next;
     case "StepStarted": {
       const num = typeof fields.step_num === "number" ? fields.step_num : 0;
       const total = typeof fields.total === "number" ? fields.total : 0;
@@ -165,7 +172,13 @@ export function liveLineOf(
     doing = step.target === null ? action : `${action} · ${step.target}`;
     since = step.since;
   } else {
-    doing = tr(step.kind === "thinking" ? "batch_view.live.thinking" : "batch_view.live.writing");
+    doing = tr(
+      step.kind === "planning"
+        ? "batch_view.live.planning"
+        : step.kind === "thinking"
+          ? "batch_view.live.thinking"
+          : "batch_view.live.writing",
+    );
     since = step.since;
   }
   if (step?.plan !== undefined) {

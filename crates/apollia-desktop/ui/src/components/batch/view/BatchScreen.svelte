@@ -367,10 +367,11 @@
             onOpenDecision={(item) => (deciding = item)}
             live={liveSteps}
             now={now.getTime()}
+            compact={selected !== null}
           />
         </div>
         {#if selected !== null}
-          <div class="min-w-0 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-7rem)] xl:flex-col">
+          <div class="order-first min-w-0 xl:sticky xl:top-4 xl:order-none xl:flex xl:max-h-[calc(100vh-7rem)] xl:flex-col">
             <BatchItemPanel
               item={selected}
               {activity}
