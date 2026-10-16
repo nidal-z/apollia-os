@@ -107,6 +107,54 @@ const PLAN_MAX_TOKENS: u32 = 6_144;
 /// The turn that asks for the alternative plan the replanner prompt describes.
 const REPLAN_REQUEST: &str = "Return the alternative plan as JSON only.";
 
+/// The last JSON object of `text` that holds a `steps` field, read with its
+/// strings and nested braces: the plan a model wrote after reasoning in the
+/// clear. `None` when the text holds none.
+fn last_plan_object(text: &str) -> Option<serde_json::Value> {
+    let bytes = text.as_bytes();
+    let mut found = None;
+    let mut start = 0;
+    while let Some(offset) = text[start..].find('{') {
+        let open = start + offset;
+        let mut depth = 0usize;
+        let mut in_string = false;
+        let mut escaped = false;
+        let mut close = None;
+        for (index, &byte) in bytes.iter().enumerate().skip(open) {
+            if in_string {
+                match byte {
+                    b'\\' if !escaped => escaped = true,
+                    b'"' if !escaped => in_string = false,
+                    _ => escaped = false,
+                }
+                continue;
+            }
+            match byte {
+                b'"' => in_string = true,
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close = Some(index);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(close) = close else { break };
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text[open..=close]) {
+            if value.get("steps").is_some_and(serde_json::Value::is_array) {
+                found = Some(value);
+            }
+            start = close + 1;
+        } else {
+            start = open + 1;
+        }
+    }
+    found
+}
+
 /// The tool hint of a planned step, with every way a model names the model
 /// itself read as the one the executor knows, `llm`.
 ///
@@ -512,7 +560,11 @@ impl Reasoner {
                 .await
                 .map_err(|e| ReasonerError::LlmFailed(e.to_string()))?;
 
-            match self.parse_and_validate(&response.content, &ctx.task.task_id) {
+            match self.parse_and_validate_after(
+                &response.content,
+                &ctx.task.task_id,
+                completed_outputs,
+            ) {
                 Ok(plan) => return Ok(plan),
                 Err(e) => {
                     tracing::warn!(attempt, error = %e, "plan.replan.invalid");
@@ -542,6 +594,18 @@ impl Reasoner {
         raw: &str,
         task_id: &str,
     ) -> Result<ExecutionPlan, PlanValidationError> {
+        self.parse_and_validate_after(raw, task_id, &HashMap::new())
+    }
+
+    /// [`parse_and_validate`](Self::parse_and_validate) for a plan that
+    /// follows the steps in `done`: a dependency on one of them is already
+    /// met, and is dropped rather than refused as unknown.
+    fn parse_and_validate_after(
+        &self,
+        raw: &str,
+        task_id: &str,
+        done: &HashMap<String, String>,
+    ) -> Result<ExecutionPlan, PlanValidationError> {
         // 1. Strip the reasoning blocks, then Markdown backticks and whitespace
         let without_reasoning = strip_reasoning(raw);
         let clean = without_reasoning
@@ -551,14 +615,23 @@ impl Reasoner {
             .trim_end_matches("```")
             .trim();
 
-        // 2. Parse JSON and extract steps array
-        let parsed: serde_json::Value = serde_json::from_str(clean)
-            .map_err(|e| PlanValidationError::InvalidJson(e.to_string()))?;
+        // 2. Parse JSON and extract steps array. A model whose reasoning is
+        // not set apart writes it in the clear before the plan: the plan is
+        // the last object of the answer that holds the steps.
+        let parsed: serde_json::Value = match serde_json::from_str(clean) {
+            Ok(value) => value,
+            Err(e) => last_plan_object(clean)
+                .ok_or_else(|| PlanValidationError::InvalidJson(e.to_string()))?,
+        };
 
         let mut steps: Vec<PlanStep> = serde_json::from_value(parsed["steps"].clone())
             .map_err(|e| PlanValidationError::InvalidStructure(e.to_string()))?;
+        let ids: std::collections::HashSet<String> =
+            steps.iter().map(|s| s.step_id.clone()).collect();
         for step in &mut steps {
             step.tool_hint = model_step_hint(step.tool_hint.take());
+            step.depends_on
+                .retain(|dep| ids.contains(dep) || !done.contains_key(dep));
         }
 
         // 3-5. Unique ids, existing dependencies, no cycle.
@@ -960,6 +1033,43 @@ mod tests {
         // THEN the tool stays a tool, and both reasoning steps run on the model
         let hints: Vec<Option<&str>> = plan.steps.iter().map(|s| s.tool_hint.as_deref()).collect();
         assert_eq!(hints, vec![Some("file_read"), Some("llm"), Some("llm")]);
+    }
+
+    #[test]
+    fn test_a_plan_written_after_clear_reasoning_is_read() {
+        // GIVEN an answer that reasons in the clear, quotes a brace, then plans
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+        let raw = "Here's a thinking process:\n1. The user wants {an audit}.\n2. Output JSON.\n\n\
+                   {\"steps\":[{\"step_id\":\"s1\",\"description\":\"Read \\\"the\\\" quote }\",\"depends_on\":[]}]}";
+
+        // WHEN it is read
+        let plan = reasoner
+            .parse_and_validate(raw, "task-001")
+            .expect("the plan");
+
+        // THEN the plan at the end of the answer is the one taken
+        assert_eq!(plan.steps.len(), 1);
+        assert_eq!(plan.steps[0].description, "Read \"the\" quote }");
+    }
+
+    #[tokio::test]
+    async fn test_a_replan_may_depend_on_a_step_already_done() {
+        // GIVEN a model whose replan depends on s1, which already completed
+        let model = MockCompletionModel::sequence(vec![
+            r#"{"steps":[{"step_id":"s2","description":"Compare","depends_on":["s1"]}]}"#,
+        ]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let done = HashMap::from([("s1".to_string(), "conditions".to_string())]);
+
+        // WHEN the alternative plan is read
+        let plan = reasoner
+            .replan(&ContextBundle::default(), &done, "s2", "failed")
+            .await
+            .expect("the plan");
+
+        // THEN the dependency on the done step is met, not refused as unknown
+        assert!(plan.steps[0].depends_on.is_empty());
+        assert_eq!(model.calls(), 1);
     }
 
     #[tokio::test]

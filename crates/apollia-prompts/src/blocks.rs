@@ -152,6 +152,8 @@ STRICT CONSTRAINTS:
 - depends_on may only reference step_ids that exist in this plan
 - When the place of a file is not certain, list or search the folder (file_list, file_glob) before reading it, rather than guessing its path
 - A step that only reasons, compares or writes uses tool_hint "llm"
+- Keep the reasoning to as few "llm" steps as the task needs: extracting and comparing the facts of one document is one step, not several
+- The answer to the request is written once the plan has run: do not plan a step that only formats or writes the final answer
 - No circular dependencies
 - For a step that calls a tool, optionally provide args: a JSON object of the tool's arguments. Omit it when the tool needs no input or when unsure; the runtime resolves the arguments from the description.
 
@@ -184,6 +186,8 @@ STRICT CONSTRAINTS:
 - depends_on may only reference step_ids that exist in this plan
 - When the place of a file is not certain, list or search the folder (file_list, file_glob) before reading it, rather than guessing its path
 - A step that only reasons, compares or writes uses tool_hint "llm"
+- Keep the reasoning to as few "llm" steps as the task needs: extracting and comparing the facts of one document is one step, not several
+- The answer to the request is written once the plan has run: do not plan a step that only formats or writes the final answer
 - No circular dependencies
 
 REPLY ONLY WITH VALID JSON, with no text before or after:

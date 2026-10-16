@@ -295,8 +295,11 @@ impl PlanRepository {
                 .args
                 .as_ref()
                 .and_then(|v| serde_json::to_string(v).ok());
+            // A replan keeps the plan id and reuses step ids (s1, s2...): the
+            // new step replaces the one it redoes rather than failing on the
+            // unique key and leaving the record without the new plan.
             conn.execute(
-                "INSERT INTO plan_steps \
+                "INSERT OR REPLACE INTO plan_steps \
                      (step_id, plan_id, description, tool_hint, depends_on, status, \
                       rationale, provenance, args) \
                      VALUES (?1, ?2, ?3, ?4, ?5, 'pending', ?6, ?7, ?8)",
