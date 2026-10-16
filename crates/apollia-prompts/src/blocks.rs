@@ -150,6 +150,8 @@ STRICT CONSTRAINTS:
 - Available tools: {tool_names}
 - Each step_id must be unique (s1, s2, s3...)
 - depends_on may only reference step_ids that exist in this plan
+- When the place of a file is not certain, list or search the folder (file_list, file_glob) before reading it, rather than guessing its path
+- A step that only reasons, compares or writes uses tool_hint "llm"
 - No circular dependencies
 - For a step that calls a tool, optionally provide args: a JSON object of the tool's arguments. Omit it when the tool needs no input or when unsure; the runtime resolves the arguments from the description.
 
@@ -161,7 +163,10 @@ Recent history: {recent_history}"#;
 
 /// Partial-replanning system prompt after a step failure. Placeholders
 /// `{original_plan_json}`, `{completed_steps_json}`, `{failed_step_id}`,
-/// `{error_message}` are substituted by the ORIA reasoner.
+/// `{error_message}`, `{max_steps}` and `{tool_names}` are substituted by the
+/// ORIA reasoner. It states the same output contract as the planner: without
+/// it, a model wrote a plan of its own shape and the replan failed on
+/// "missing field `step_id`".
 pub const REPLANNER_SYSTEM_PROMPT: &str = r#"The execution plan hit an error. Generate an alternative plan.
 
 Original plan: {original_plan_json}
@@ -170,7 +175,19 @@ Failed step: {failed_step_id} - error: {error_message}
 
 Generate a new plan for the remaining steps only.
 Reuse the outputs of already-completed steps when relevant.
-REPLY ONLY WITH VALID JSON."#;
+Do not repeat the action that failed in the same way: change the tool, the arguments or the approach.
+
+STRICT CONSTRAINTS:
+- Maximum {max_steps} steps
+- Available tools: {tool_names}
+- Each step_id must be unique (s1, s2, s3...)
+- depends_on may only reference step_ids that exist in this plan
+- When the place of a file is not certain, list or search the folder (file_list, file_glob) before reading it, rather than guessing its path
+- A step that only reasons, compares or writes uses tool_hint "llm"
+- No circular dependencies
+
+REPLY ONLY WITH VALID JSON, with no text before or after:
+{"steps": [{"step_id": "s1", "description": "Clear description of the action", "tool_hint": "tool_or_llm_name", "args": {}, "depends_on": []}]}"#;
 
 // ── Critic (verification) ───────────────────────────────────────────────────
 

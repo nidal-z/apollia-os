@@ -107,6 +107,30 @@ const PLAN_MAX_TOKENS: u32 = 6_144;
 /// The turn that asks for the alternative plan the replanner prompt describes.
 const REPLAN_REQUEST: &str = "Return the alternative plan as JSON only.";
 
+/// The tool hint of a planned step, with every way a model names the model
+/// itself read as the one the executor knows, `llm`.
+///
+/// The planner prompt shows `tool_or_llm_name`, and a model answers `LLM`,
+/// `Llm`, an empty string or `none` for a step of pure reasoning; taken as a
+/// tool name, each was refused as "tool 'LLM' is not granted to this agent".
+fn model_step_hint(hint: Option<String>) -> Option<String> {
+    match hint {
+        Some(name) => {
+            let bare = name.trim();
+            if bare.is_empty()
+                || ["llm", "none", "null", "model"]
+                    .iter()
+                    .any(|word| bare.eq_ignore_ascii_case(word))
+            {
+                Some("llm".to_string())
+            } else {
+                Some(name)
+            }
+        }
+        None => None,
+    }
+}
+
 /// Produces and validates [`ExecutionPlan`]s via an LLM call.
 ///
 /// The `Reasoner` receives an injected `Arc<dyn CompletionModel>` (for testability)
@@ -434,8 +458,8 @@ impl Reasoner {
     /// Generates only the remaining steps, accounting for the completed steps'
     /// outputs (`completed_outputs`) and the failure reason of `failed_step_id`.
     ///
-    /// A single LLM call without its own retry: replan retry management is the
-    /// `ActorLoop`'s responsibility.
+    /// An answer of the wrong shape is asked again up to [`MAX_ATTEMPTS`] times
+    /// with its fault; how many replans a task may make is the `ActorLoop`'s.
     pub async fn replan(
         &self,
         ctx: &ContextBundle,
@@ -446,6 +470,12 @@ impl Reasoner {
         let original_plan_json = serde_json::to_string(&ctx.task).unwrap_or_default();
         let completed_steps_json = serde_json::to_string(completed_outputs).unwrap_or_default();
 
+        let tool_names = if ctx.available_tools.is_empty() {
+            "No tools available.".to_string()
+        } else {
+            ctx.available_tools.join(", ")
+        };
+        let max_steps = self.max_steps.to_string();
         let system = apollia_prompts::render(
             apollia_prompts::blocks::REPLANNER_SYSTEM_PROMPT,
             &[
@@ -453,30 +483,47 @@ impl Reasoner {
                 ("completed_steps_json", completed_steps_json.as_str()),
                 ("failed_step_id", failed_step_id),
                 ("error_message", error_message),
+                ("max_steps", max_steps.as_str()),
+                ("tool_names", tool_names.as_str()),
             ],
         );
 
-        // The system message alone is not a conversation: a chat template that
-        // looks for the user's query (the Qwen ones do) refuses it, and the
-        // engine answers 500 on every attempt.
-        let response = self
-            .model
-            .complete(CompletionRequest {
-                messages: vec![
-                    ChatMessage::system(system),
-                    ChatMessage::user(REPLAN_REQUEST),
-                ],
-                max_tokens: Some(PLAN_MAX_TOKENS),
-                ..Default::default()
-            })
-            .await
-            .map_err(|e| ReasonerError::LlmFailed(e.to_string()))?;
+        // An answer of the wrong shape is asked again, with its fault, as the
+        // first plan is: one malformed answer no longer ends the task.
+        let mut last_error = String::new();
+        for attempt in 0..MAX_ATTEMPTS {
+            // The system message alone is not a conversation: a chat template
+            // that looks for the user's query (the Qwen ones do) refuses it,
+            // and the engine answers 500 on every attempt.
+            let user = if attempt == 0 {
+                REPLAN_REQUEST.to_string()
+            } else {
+                format!(
+                    "{REPLAN_REQUEST}\n\nWARNING: your previous response was invalid.\nError: {last_error}\nFix it and return valid JSON only."
+                )
+            };
+            let response = self
+                .model
+                .complete(CompletionRequest {
+                    messages: vec![ChatMessage::system(system.clone()), ChatMessage::user(user)],
+                    max_tokens: Some(PLAN_MAX_TOKENS),
+                    ..Default::default()
+                })
+                .await
+                .map_err(|e| ReasonerError::LlmFailed(e.to_string()))?;
 
-        self.parse_and_validate(&response.content, &ctx.task.task_id)
-            .map_err(|e| ReasonerError::PlanParseError {
-                attempts: 1,
-                reason: e.to_string(),
-            })
+            match self.parse_and_validate(&response.content, &ctx.task.task_id) {
+                Ok(plan) => return Ok(plan),
+                Err(e) => {
+                    tracing::warn!(attempt, error = %e, "plan.replan.invalid");
+                    last_error = e.to_string();
+                }
+            }
+        }
+        Err(ReasonerError::PlanParseError {
+            attempts: MAX_ATTEMPTS,
+            reason: last_error,
+        })
     }
 
     /// Validate a raw JSON plan returned by the LLM.
@@ -510,6 +557,9 @@ impl Reasoner {
 
         let mut steps: Vec<PlanStep> = serde_json::from_value(parsed["steps"].clone())
             .map_err(|e| PlanValidationError::InvalidStructure(e.to_string()))?;
+        for step in &mut steps {
+            step.tool_hint = model_step_hint(step.tool_hint.take());
+        }
 
         // 3-5. Unique ids, existing dependencies, no cycle.
         validate_steps(&steps)?;
@@ -890,6 +940,51 @@ mod tests {
         assert_eq!(plan.steps.len(), 2);
         assert_eq!(plan.steps[0].step_id, "s3b");
         assert_eq!(model.calls(), 1);
+    }
+
+    #[test]
+    fn test_a_step_hinted_llm_in_any_case_runs_on_the_model() {
+        // GIVEN a plan whose reasoning steps name the model in several ways
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+        let raw = r#"{"steps":[
+            {"step_id":"s1","description":"Read","tool_hint":"file_read","depends_on":[]},
+            {"step_id":"s2","description":"Compare","tool_hint":"LLM","depends_on":["s1"]},
+            {"step_id":"s3","description":"Decide","tool_hint":" none ","depends_on":["s2"]}
+        ]}"#;
+
+        // WHEN it is read
+        let plan = reasoner
+            .parse_and_validate(raw, "task-001")
+            .expect("a plan");
+
+        // THEN the tool stays a tool, and both reasoning steps run on the model
+        let hints: Vec<Option<&str>> = plan.steps.iter().map(|s| s.tool_hint.as_deref()).collect();
+        assert_eq!(hints, vec![Some("file_read"), Some("llm"), Some("llm")]);
+    }
+
+    #[tokio::test]
+    async fn test_a_replan_of_the_wrong_shape_is_asked_again() {
+        // GIVEN a model whose first replan lacks the step ids, then is right
+        let model = MockCompletionModel::sequence(vec![
+            r#"{"steps":[{"description":"Read the folder"}]}"#,
+            r#"{"steps":[{"step_id":"s2","description":"Read the folder","depends_on":[]}]}"#,
+        ]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+
+        // WHEN an alternative plan is asked for
+        let plan = reasoner
+            .replan(
+                &ContextBundle::default(),
+                &HashMap::new(),
+                "s1",
+                "not found",
+            )
+            .await;
+
+        // THEN the second answer is taken, and the task does not end on the first
+        let plan = plan.expect("the corrected plan");
+        assert_eq!(plan.steps[0].step_id, "s2");
+        assert_eq!(model.calls(), 2);
     }
 
     #[tokio::test]
