@@ -173,8 +173,8 @@ Original plan: {original_plan_json}
 Successfully completed steps: {completed_steps_json}
 Failed step: {failed_step_id} - error: {error_message}
 
-Generate a new plan for the remaining steps only.
-Reuse the outputs of already-completed steps when relevant.
+Generate a new plan that completes the whole request from where it stopped: the failed step, done another way, and every step that was to follow it, up to the answer the request asks for.
+Do not plan again the steps already completed; reuse their outputs.
 Do not repeat the action that failed in the same way: change the tool, the arguments or the approach.
 
 STRICT CONSTRAINTS:
