@@ -6790,7 +6790,9 @@
       "none_recorded": "No activity was recorded for this run.",
       "planning": "Preparing its plan…",
       "planned": "Prepared its plan · {seconds} · {tokens} tokens"
-    }
+    },
+    "current": "Running: item {number} · {line}",
+    "waiting_for": "Waiting: the batch of {agent}, launched at {started}, runs first. One batch uses the model at a time."
   },
   "batch_history": {
     "open": "Batch history",

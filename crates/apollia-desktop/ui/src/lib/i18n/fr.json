@@ -6790,7 +6790,9 @@
       "none_recorded": "Aucune activité enregistrée pour ce passage.",
       "planning": "Prépare son plan…",
       "planned": "A préparé son plan · {seconds} · {tokens} jetons"
-    }
+    },
+    "current": "En cours : n° {number} · {line}",
+    "waiting_for": "En attente : le lot de {agent}, lancé à {started}, passe d'abord. Un seul lot utilise le modèle à la fois."
   },
   "batch_history": {
     "open": "Historique des lots",

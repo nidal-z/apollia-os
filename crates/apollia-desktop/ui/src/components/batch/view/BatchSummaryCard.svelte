@@ -35,9 +35,13 @@
     now: Date;
     onAct: (action: BatchControl) => void;
     onExport: (format: BatchExportFormat) => void;
+    /** The item running now and what its agent does, `null` when none runs. */
+    current?: { number: number; line: string } | null;
+    /** The batch launched earlier that runs before this one, when it waits for it. */
+    waitingFor?: { agent: string; started: string } | null;
   }
 
-  let { batch, busy, accessLabels, now, onAct, onExport }: Props = $props();
+  let { batch, busy, accessLabels, now, onAct, onExport, current = null, waitingFor = null }: Props = $props();
 
   /** A maximum the launch dialog sends for "never interrupt". */
   const NEVER_INTERRUPT = 4_294_967_295;
@@ -165,6 +169,16 @@
     {/if}
     <span class="ml-auto text-caption text-muted-foreground" data-testid="batch-schedule">{schedule}</span>
   </div>
+
+  {#if current !== null}
+    <p class="m-0 mt-3 break-words text-body-sm text-foreground" data-testid="batch-current">
+      {$t("batch_view.current", { values: { number: current.number, line: current.line } })}
+    </p>
+  {:else if waitingFor !== null}
+    <p class="m-0 mt-3 text-body-sm text-warning-a11y" data-testid="batch-waiting">
+      {$t("batch_view.waiting_for", { values: { agent: waitingFor.agent, started: hour(waitingFor.started) } })}
+    </p>
+  {/if}
 
   {#if message !== ""}
     <p

@@ -69,9 +69,28 @@
       status: entry.status === "running" ? "running" : entry.status === "done" ? "success" : "error",
       tool: entry.tool,
       args,
-      output: entry.output,
-      duration_ms: entry.durationMs,
+      output: unwrapped(entry.output),
+      duration_ms: entry.durationMs !== null && entry.durationMs >= 100 ? entry.durationMs : null,
     };
+  }
+
+  /**
+   * The text a tool gave back. A planned step's tool answers its whole result
+   * object (`{"content": "...", "total_lines": 25}`); the chat's tool bodies
+   * read the text, as a conversation shows it.
+   */
+  function unwrapped(output: string | null): string | null {
+    if (output === null) return null;
+    try {
+      const parsed: unknown = JSON.parse(output);
+      if (typeof parsed === "object" && parsed !== null) {
+        const content = (parsed as Record<string, unknown>).content;
+        if (typeof content === "string") return content;
+      }
+    } catch {
+      // Not an object: the output is already text.
+    }
+    return output;
   }
 
   const skin = $derived($developerMode ? "builder" : "operator");

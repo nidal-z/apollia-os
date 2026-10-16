@@ -17,7 +17,7 @@
   import { TabBar } from "$lib/components/ui/tabs";
   import { addToast } from "$lib/components/ui/toast/store";
   import { Card, EmptyState, ErrorBanner, PageLayout, SkeletonList } from "$lib/components/operator";
-  import { listBatchAccesses } from "$lib/ipc/batches";
+  import { listBatchAccesses, listBatches, type BatchSummary } from "$lib/ipc/batches";
   import type { BatchControl, BatchExportFormat, BatchItem } from "$lib/ipc/batches";
   import { getTaskTimeline } from "$lib/ipc/tasks";
   import { openBatchHistory, type BatchOrigin } from "$lib/stores/batchView";
@@ -171,6 +171,40 @@
   );
   const rows = $derived(filterItems(items, shownTab, query));
 
+  // The item running now, said in the summary as the table says it.
+  const current = $derived.by(() => {
+    const item = items.find((entry) => entry.status === "running");
+    if (item === undefined) return null;
+    const step = item.taskId === null ? undefined : liveSteps.get(item.taskId);
+    return { number: item.rank + 1, line: liveLineOf(item, step, now.getTime(), $t) };
+  });
+
+  // One batch runs at a time: a running batch with nothing running waits for
+  // the batch launched before it, which the summary names.
+  let others = $state<BatchSummary[]>([]);
+  const waitingFor = $derived.by(() => {
+    if (batch === null || batch.state !== "running" || current !== null) return null;
+    const ahead = others.find(
+      (other) => other.batchId !== batch.batchId && (other.state === "running" || other.state === "paused") && other.createdAt < batch.createdAt,
+    );
+    return ahead === undefined ? null : { agent: ahead.agent, started: ahead.createdAt };
+  });
+  $effect(() => {
+    // Read again with the batch, at its own pace, not with the clock.
+    if (batch === null || batch.state !== "running") return;
+    let stale = false;
+    listBatches(20)
+      .then((list) => {
+        if (!stale) others = list;
+      })
+      .catch(() => {
+        // The waiting notice is left out.
+      });
+    return () => {
+      stale = true;
+    };
+  });
+
   const selected = $derived(
     selectedRank === null ? null : (items.find((item) => item.rank === selectedRank) ?? null),
   );
@@ -290,6 +324,7 @@
   {subtitle}
   actions={headerActions}
   class="space-y-4 p-6"
+  maxWidth={selected === null ? "max-w-6xl" : "max-w-none"}
   data-testid="batch-page"
 >
   {#if view.error}
@@ -311,7 +346,16 @@
   {:else if batch === null}
     <SkeletonList count={5} />
   {:else}
-    <BatchSummaryCard {batch} busy={view.busy} {accessLabels} {now} onAct={act} onExport={(format) => void exportAs(format)} />
+    <BatchSummaryCard
+      {batch}
+      busy={view.busy}
+      {accessLabels}
+      {now}
+      onAct={act}
+      onExport={(format) => void exportAs(format)}
+      {current}
+      {waitingFor}
+    />
 
     {#if view.refusal}
       <ErrorBanner

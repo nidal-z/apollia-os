@@ -181,9 +181,11 @@ export function liveLineOf(
     );
     since = step.since;
   }
+  // The description of the step reads in the activity of the item; here a
+  // line says where the item is, short enough for a row of the table.
   if (step?.plan !== undefined) {
     const of = tr("batch_view.activity.step_of", { values: { num: step.plan.num, total: step.plan.total } });
-    doing = step.plan.desc === "" ? `${of} · ${doing}` : `${of} · ${step.plan.desc} · ${doing}`;
+    doing = `${of} · ${doing}`;
   }
   return tr("batch_view.live.line", { values: { doing, elapsed: elapsedLabel(secondsSince(since, now)) } });
 }
