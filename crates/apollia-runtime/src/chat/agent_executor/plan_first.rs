@@ -21,6 +21,7 @@
 //! on its own judgement, when the task scores as a multi-step one on ORIA's
 //! observer, the request alone or the task over the agent.
 
+mod answer;
 mod proxy;
 
 use std::collections::HashSet;
@@ -178,6 +179,14 @@ impl PlanFirstRun<'_> {
             manifest,
             granted_tools: self.spec.granted_tools.clone(),
             model: self.spec.model.clone(),
+            answer: answer::FinalAnswer {
+                model: self.deps.llm_router.route(self.spec.model.as_deref()),
+                mission: self.system_prompt.clone(),
+                request: input.user_message.to_string(),
+                event_bus: self.deps.event_bus.clone(),
+                session_id: input.session_id.to_string(),
+                message_id: input.message_id.to_string(),
+            },
         };
         let task = task_of(input.session_id, input.user_message);
         let result = tokio::select! {
@@ -197,6 +206,8 @@ struct PlannedAgent {
     granted_tools: Vec<String>,
     /// The model the agent was given, when it has one of its own.
     model: Option<String>,
+    /// What the answer is written from once the plan has run.
+    answer: answer::FinalAnswer,
 }
 
 impl AIPAgent for PlannedAgent {
@@ -210,6 +221,17 @@ impl AIPAgent for PlannedAgent {
 
     fn model_backend(&self) -> Option<String> {
         self.model.clone()
+    }
+
+    fn has_on_plan_complete(&self) -> bool {
+        true
+    }
+
+    fn call_on_plan_complete(
+        &self,
+        step_results: std::collections::HashMap<String, String>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + '_>> {
+        Box::pin(async move { self.answer.write(&step_results).await })
     }
 }
 

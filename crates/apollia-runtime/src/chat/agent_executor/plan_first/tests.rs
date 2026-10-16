@@ -36,10 +36,12 @@ const WRITE_PLAN_JSON: &str = r#"{"steps":[
     {"step_id":"s1","description":"write the report","tool_hint":"file_write","depends_on":[]}
 ]}"#;
 
-/// Answers every completion with the same plan and counts the calls.
+/// Answers every completion with the same plan, counts the calls and keeps
+/// the last turn it was asked.
 struct CountingPlanModel {
     calls: AtomicU32,
     plan: &'static str,
+    last_turn: Mutex<String>,
 }
 
 impl CountingPlanModel {
@@ -47,6 +49,7 @@ impl CountingPlanModel {
         Arc::new(Self {
             calls: AtomicU32::new(0),
             plan,
+            last_turn: Mutex::new(String::new()),
         })
     }
 
@@ -57,8 +60,13 @@ impl CountingPlanModel {
 
 #[async_trait::async_trait]
 impl CompletionModel for CountingPlanModel {
-    async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+    async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
+        if let Some(turn) = req.messages.last() {
+            if let apollia_llm::types::MessageContent::Text(text) = &turn.content {
+                *self.last_turn.lock().expect("mock lock") = text.clone();
+            }
+        }
         Ok(CompletionResponse {
             engine_timings: None,
             content: self.plan.to_string(),
@@ -344,8 +352,8 @@ async fn test_orchestrated_second_identical_task_is_served_by_the_plan_cache() {
     );
     assert_eq!(
         h.model.calls(),
-        calls_after_first,
-        "a cache hit runs the cached plan without one more model call"
+        calls_after_first + 1,
+        "a cache hit asks the model for the answer only, never for a plan"
     );
 }
 
@@ -370,8 +378,8 @@ async fn test_a_planned_run_calls_its_steps_tools_in_order_and_answers_their_out
     .await
     .expect("the plan completes");
 
-    // THEN each step called its tool once, in plan order, and the answer
-    // carries their outputs
+    // THEN each step called its tool once, in plan order, the model wrote the
+    // answer from their outputs, and the run answers what the model wrote
     assert_eq!(h.called(), vec!["file_io", "bash_executor"]);
     let names: Vec<_> = response
         .tool_calls
@@ -379,8 +387,12 @@ async fn test_a_planned_run_calls_its_steps_tools_in_order_and_answers_their_out
         .map(|c| c.tool_name.as_str())
         .collect();
     assert_eq!(names, vec!["file_io", "bash_executor"]);
-    assert!(response.content.contains("file_io ok"));
-    assert!(response.content.contains("bash_executor ok"));
+    let turn = h.model.last_turn.lock().expect("mock lock").clone();
+    assert!(
+        turn.contains("file_io ok") && turn.contains("bash_executor ok"),
+        "{turn}"
+    );
+    assert_eq!(response.content, PLAN_JSON.trim());
 }
 
 #[tokio::test]
