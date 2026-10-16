@@ -6778,7 +6778,7 @@
       "title": "Déroulé",
       "starting": "L'agent commence…",
       "none": "Pas encore traité.",
-      "plan": "A préparé un plan en {count} étapes",
+      "plan": "A préparé un plan en {count, plural, one {# étape} other {# étapes}}",
       "step_of": "Étape {num} sur {total}",
       "model": "Le modèle a répondu · {tokens} jetons · {seconds}",
       "replan": "Plan revu : {reason}",

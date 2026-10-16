@@ -6778,7 +6778,7 @@
       "title": "Activity",
       "starting": "The agent is starting…",
       "none": "Not processed yet.",
-      "plan": "Prepared a plan of {count} steps",
+      "plan": "Prepared a plan of {count, plural, one {# step} other {# steps}}",
       "step_of": "Step {num} of {total}",
       "model": "The model answered · {tokens} tokens · {seconds}",
       "replan": "Plan revised: {reason}",

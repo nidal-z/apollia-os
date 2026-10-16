@@ -29,6 +29,8 @@ export type ActivityEntry =
       num: number | null;
       total: number | null;
       desc: string;
+      /** What the step's tool was about, when the record names it. */
+      target: string | null;
       status: "running" | "done" | "failed";
       error: string | null;
       durationMs: number | null;
@@ -74,6 +76,7 @@ export function activityFromTimeline(timeline: readonly TaskTimelineEvent[]): It
           num: null,
           total: null,
           desc: event.tool ?? event.step_id,
+          target: previewTarget(event.input_preview),
           status: "running",
           error: null,
           durationMs: null,
@@ -202,6 +205,7 @@ export function applyActivityEvent(
         num: count(fields.step_num),
         total: count(fields.total),
         desc: text(fields.desc) || text(fields.step_id),
+        target: null,
         status: "running",
         error: null,
         durationMs: null,

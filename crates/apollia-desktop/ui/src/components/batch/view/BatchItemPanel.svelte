@@ -10,6 +10,7 @@
   import { X } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { MarkdownContent } from "$lib/components/ui/markdown";
   import { Spinner } from "$lib/components/ui/progress";
   import type { BatchItem } from "$lib/ipc/batches";
   import BatchItemActivity from "./BatchItemActivity.svelte";
@@ -91,10 +92,15 @@
               : $t("batch_view.output.awaiting_access", { values: { access } })}
           {:else if status === "canceled"}
             {$t("batch_view.output.canceled")}
-          {:else}
+          {:else if status === "failed" || item.output === null}
             {item.output ?? $t("batch_view.item.no_output")}
           {/if}
         </p>
+        {#if status !== "failed" && status !== "awaiting" && status !== "canceled" && item.output !== null}
+          <div class="text-body-sm text-foreground" data-testid="batch-item-output-text">
+            <MarkdownContent content={item.output} />
+          </div>
+        {/if}
       </section>
     {/if}
 

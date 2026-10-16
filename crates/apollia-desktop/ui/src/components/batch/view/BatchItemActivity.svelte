@@ -11,6 +11,7 @@
   import { Spinner } from "$lib/components/ui/progress";
   import type { ReasoningItem } from "$lib/chat/reasoning";
   import { formatSecondsLocalized } from "$lib/chat/duration";
+  import { stepActionKey } from "$lib/chat/toolStep";
   import { developerMode } from "$lib/stores/developerMode";
   import ReasoningBlock from "../../chat/ReasoningBlock.svelte";
   import ToolStep from "../../chat/ToolStep.svelte";
@@ -33,8 +34,19 @@
     open = { ...open, [index]: !open[index] };
   }
 
+  /** A duration worth reading: nothing under a tenth of a second. */
   function seconds(ms: number | null): string {
-    return ms !== null && ms > 0 ? `${formatSecondsLocalized(ms, $locale ?? "en")} s` : "";
+    return ms !== null && ms >= 100 ? `${formatSecondsLocalized(ms, $locale ?? "en")} s` : "";
+  }
+
+  /**
+   * What a step says: its own description, or, when the record named it by
+   * its tool alone, the action of that tool in plain words with its target.
+   */
+  function stepText(desc: string, target: string | null): string {
+    const key = stepActionKey(desc);
+    if (key === null) return desc;
+    return target === null ? $t(key) : `${$t(key)} · ${target}`;
   }
 
   type ToolEntry = Extract<ActivityEntry, { kind: "tool" }>;
@@ -128,7 +140,7 @@
                     {$t("batch_view.activity.step_of", { values: { num: entry.num, total: entry.total } })} ·
                   </span>
                 {/if}
-                {entry.desc}
+                {stepText(entry.desc, entry.target)}
                 {#if seconds(entry.durationMs) !== ""}
                   <span class="text-caption text-muted-foreground"> · {seconds(entry.durationMs)}</span>
                 {/if}
