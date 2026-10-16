@@ -1351,6 +1351,56 @@ mod orchestrated_tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_the_planner_says_when_it_thinks_on_the_engine_bus() {
+        // GIVEN an engine whose bus is set after its planner, as the runtime does
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(64);
+        let engine = make_engine_with_mock(four_step_plan_json()).with_event_bus(tx);
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+        let task = AIPTask {
+            task_id: "task-thinking".to_string(),
+            ..AIPTask::default()
+        };
+
+        // WHEN it plans a task
+        let _ = engine.execute(task, &agent).await;
+
+        // THEN the start of the planner's thinking reached the bus, under the task
+        let mut started = None;
+        while let Ok(event) = rx.try_recv() {
+            if let RuntimeEvent::ThinkingStarted { turn_id, .. } = event {
+                started = Some(turn_id);
+                break;
+            }
+        }
+        assert_eq!(started.as_deref(), Some("task-thinking"));
+    }
+
+    #[tokio::test]
+    async fn test_a_plan_is_kept_in_the_plans_database_the_engine_is_given() {
+        // GIVEN an engine told to keep its plans in a database on disk
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = dir.path().join("plans.db");
+        let engine = make_engine_with_mock(four_step_plan_json())
+            .with_plans_db(db.to_string_lossy().into_owned());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN it runs a task
+        let _ = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN the plan and its four steps are in that database, where the
+        // timeline of the task reads them
+        let conn = rusqlite::Connection::open(&db).expect("open");
+        let steps: i64 = conn
+            .query_row("SELECT COUNT(*) FROM plan_steps", [], |row| row.get(0))
+            .expect("plan_steps");
+        assert_eq!(steps, 4);
+    }
+
     // Plan gate
 
     /// GIVEN an active plan gate and a generated plan

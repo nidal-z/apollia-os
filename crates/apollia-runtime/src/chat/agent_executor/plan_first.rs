@@ -162,6 +162,12 @@ impl PlanFirstRun<'_> {
         if let Some(workspace) = &self.deps.workspace_path {
             engine = engine.with_cwd(workspace.clone());
         }
+        // The plan and its steps are kept where the timeline of the task
+        // reads them; in memory, a batch item that ended showed no step.
+        if let Some(data_dir) = apollia_core::paths::data_dir() {
+            let plans = apollia_core::paths::DataFile::Plans.path(&data_dir);
+            engine = engine.with_plans_db(plans.to_string_lossy().into_owned());
+        }
         tracing::event!(
             tracing::Level::INFO,
             agent = %self.spec.agent_id,
