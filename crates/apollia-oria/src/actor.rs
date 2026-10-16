@@ -835,6 +835,100 @@ mod tests {
         LlmRouter::with_backends(backends, "mock")
     }
 
+    /// Streams a fixed answer in two chunks and keeps the request it was sent.
+    struct StreamingModel {
+        seen: Mutex<Option<CompletionRequest>>,
+    }
+
+    #[async_trait::async_trait]
+    impl apollia_llm::CompletionModel for StreamingModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Err(LlmError::InferenceError("streams only".into()))
+        }
+
+        async fn stream(
+            &self,
+            req: CompletionRequest,
+        ) -> Result<
+            Pin<Box<dyn futures::Stream<Item = Result<apollia_llm::StreamChunk, LlmError>> + Send>>,
+            LlmError,
+        > {
+            *self.seen.lock().expect("mock lock") = Some(req);
+            let chunks = vec![
+                Ok(apollia_llm::StreamChunk::Text("Compli".into())),
+                Ok(apollia_llm::StreamChunk::Text("ant.".into())),
+            ];
+            Ok(Box::pin(futures::stream::iter(chunks)))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            "mock"
+        }
+
+        fn model_id(&self) -> &str {
+            "mock"
+        }
+    }
+
+    #[tokio::test]
+    async fn test_a_model_step_is_bounded_quiet_and_streamed_under_its_task() {
+        // GIVEN a one-step plan whose step runs on the model
+        let mut plan = make_plan(vec![("s1", &[])]);
+        plan.steps[0].tool_hint = Some("llm".into());
+        let (mut actor, mut rx) = make_actor_capped(plan, 0);
+        let model = Arc::new(StreamingModel {
+            seen: Mutex::new(None),
+        });
+        let mut backends: std::collections::HashMap<String, Arc<dyn apollia_llm::CompletionModel>> =
+            std::collections::HashMap::new();
+        backends.insert("mock".to_string(), model.clone());
+        let router = LlmRouter::with_backends(backends, "mock");
+        let budget = StepBudget::unlimited();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN the plan executes
+        let result = actor
+            .execute(
+                StepDeps {
+                    tool_proxy: &MockToolProxy {
+                        response: String::new(),
+                    },
+                    llm_router: &router,
+                    budget: &budget,
+                    reasoner: &reasoner,
+                },
+                &ResilienceLayer::default(),
+            )
+            .await;
+
+        // THEN the step asked for a bounded answer without reasoning, its
+        // tokens went out under the task, and its output is what was written
+        assert_eq!(result.status, TaskStatus::Completed);
+        let seen = model
+            .seen
+            .lock()
+            .expect("mock lock")
+            .clone()
+            .expect("a request");
+        assert_eq!(seen.max_tokens, Some(4_096));
+        assert_eq!(seen.thinking, Some(false));
+        let mut tokens = String::new();
+        while let Ok(event) = rx.try_recv() {
+            if let RuntimeEvent::ChatToken {
+                session_id, token, ..
+            } = event
+            {
+                assert_eq!(session_id, "task-001");
+                tokens.push_str(&token);
+            }
+        }
+        assert_eq!(tokens, "Compliant.");
+    }
+
     /// A tool step without plan-time args triggers just-in-time extraction
     /// (path B), and the structured arguments reach the tool proxy.
     #[tokio::test]

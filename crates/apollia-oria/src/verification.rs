@@ -247,6 +247,9 @@ impl CriticPass {
                 ChatMessage::user(user_content),
             ],
             temperature: Some(0.0),
+            // A verdict is a short object; unbounded, a looping model held
+            // the engine for as long as it ran.
+            max_tokens: Some(2_048),
             ..Default::default()
         };
 

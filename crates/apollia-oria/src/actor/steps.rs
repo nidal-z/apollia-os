@@ -7,7 +7,15 @@ use std::sync::Arc;
 
 use apollia_llm::{
     router::ObservabilityConfig as LlmObsConfig, ChatMessage, CompletionRequest, LlmRouter,
+    StreamChunk,
 };
+use futures::StreamExt;
+
+/// The most one model step of a plan may generate. An intermediate step
+/// extracts, compares or drafts: a few hundred tokens. With no limit, a model
+/// that looped generated for over an hour, holding the engine, and the batch
+/// waited behind it with nothing on the screen.
+const STEP_MAX_TOKENS: u32 = 4_096;
 
 use crate::actor::{ToolProxyTrait, STEP_MEMORY_IMPORTANCE};
 use crate::context_manager::message_char_len;
@@ -249,20 +257,55 @@ impl ActorLoop {
                 });
         }
 
+        // An intermediate step does its one job without reasoning first: the
+        // plan already says what to do, and reasoning on every step tripled
+        // the time of a batch item. The written answer still reasons.
         let request = CompletionRequest {
             messages,
+            max_tokens: Some(STEP_MAX_TOKENS),
+            thinking: Some(false),
             ..Default::default()
         };
 
         let backend_name = self.agent_backend(llm_router);
 
         let obs = LlmObsConfig::default();
-        let response = llm_router
-            .complete_with_observability(backend_name, request, Some(&self.event_bus), &obs)
+        // Streamed, so what the step writes is seen as it is written, under
+        // the task, as the conversation sees a turn.
+        let written = match llm_router
+            .stream_with_observability(backend_name, request.clone(), Some(&self.event_bus), &obs)
             .await
-            .map_err(|e| StepError::LlmCallFailed(e.to_string()))?;
+        {
+            Ok(mut stream) => {
+                let mut text = String::new();
+                while let Some(chunk) = stream.next().await {
+                    match chunk {
+                        Ok(StreamChunk::Text(token)) => {
+                            let _ = self.event_bus.send(apollia_core::RuntimeEvent::ChatToken {
+                                session_id: self.plan.task_id.clone(),
+                                message_id: format!("{}:{}", self.plan.plan_id, step.step_id),
+                                token: token.clone(),
+                            });
+                            text.push_str(&token);
+                        }
+                        Ok(_) => {}
+                        Err(e) => return Err(StepError::LlmCallFailed(e.to_string())),
+                    }
+                }
+                text
+            }
+            Err(_) => {
+                llm_router
+                    .complete_with_observability(backend_name, request, Some(&self.event_bus), &obs)
+                    .await
+                    .map_err(|e| StepError::LlmCallFailed(e.to_string()))?
+                    .content
+            }
+        };
 
-        Ok(response.content)
+        Ok(apollia_llm::reasoning_markers::strip_reasoning(&written)
+            .trim()
+            .to_string())
     }
     /// Records an episodic memory entry for a completed step.
     ///
