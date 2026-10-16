@@ -712,6 +712,7 @@ impl LlamaServerSupervisor {
                 tracing::error!(error = %e, "llama.server.spawn.failed");
                 LlamaServerError::Io(e)
             })?;
+        crate::engine_pids::record(child.id());
 
         // Drain the child's pipes into tracing so a load failure is visible and
         // the OS pipe buffer never fills (which would stall the load).

@@ -33,6 +33,7 @@ pub mod coordinator;
 pub mod drive_folders;
 pub mod embedded;
 pub mod embeddings;
+pub mod engine_pids;
 pub mod engine_store;
 pub mod eventbus;
 pub mod governance;

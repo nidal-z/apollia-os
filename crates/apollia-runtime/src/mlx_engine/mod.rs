@@ -409,6 +409,7 @@ impl MlxEngineSupervisor {
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| launch_err(format!("cannot start the engine: {e}")))?;
+        crate::engine_pids::record(child.id());
         if let Some(stdout) = child.stdout.take() {
             tokio::spawn(drain_pipe(BufReader::new(stdout)));
         }

@@ -82,6 +82,7 @@ impl RunnerSupervisor {
                 tracing::error!(error = %e, "runner.spawn.failed");
                 RunnerError::Io(e)
             })?;
+        crate::engine_pids::record(child.id());
 
         // Parse READY <port>\n on stdout, with a timeout.
         let stdout = child

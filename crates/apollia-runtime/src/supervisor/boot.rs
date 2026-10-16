@@ -41,6 +41,13 @@ impl Supervisor {
     ) -> Result<SupervisorHandles<B>, SupervisorError> {
         let timeout = Duration::from_secs(self.config.startup_timeout_secs);
 
+        // The engines a killed runtime left running are stopped before this
+        // one starts its own, so a model is not loaded twice.
+        let orphans = crate::engine_pids::reap_orphans();
+        if orphans > 0 {
+            info!(stopped = orphans, "engine.orphans.stopped");
+        }
+
         // Phase 1: EventBus
         info!("supervisor.eventbus.starting");
         let (event_sender, startup_rx) =
