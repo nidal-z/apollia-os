@@ -111,4 +111,26 @@ describe("the live step of a running batch item", () => {
     expect(elapsedLabel(120)).toBe("2 min");
     expect(elapsedLabel(312)).toBe("5 min 12 s");
   });
+
+  test("the step of the plan stays on the line while its tools run", () => {
+    // GIVEN a running item whose agent starts the second step of four
+    const watched = new Set(["t-1"]);
+    const started = applyLiveEvent(
+      new Map(),
+      { event_type: "StepStarted", payload: { StepStarted: { task_id: "t-1", step_num: 2, total: 4, desc: "Compare the price" } } },
+      watched,
+      1_000,
+    );
+
+    // WHEN a tool of that step starts
+    const calling = applyLiveEvent(
+      started,
+      { event_type: "ChatToolCallStarted", payload: { ChatToolCallStarted: { session_id: "t-1", tool_name: "file_read", input_preview: "" } } },
+      watched,
+      2_000,
+    );
+
+    // THEN the line still says which step of the plan it is
+    expect(calling.get("t-1")).toMatchObject({ kind: "tool", plan: { num: 2, total: 4, desc: "Compare the price" } });
+  });
 });

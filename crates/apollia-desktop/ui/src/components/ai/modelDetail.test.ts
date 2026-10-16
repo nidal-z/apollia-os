@@ -154,8 +154,8 @@ describe("the panel opens on a model of the list", () => {
     // WHEN a model is offered, then not, then the panel is left
     // THEN the tab is shown, falls back to the guide, and the column collapses
     expect(state).toEqual({ open: true, tab: "model" });
-    expect(shownTab("model", false, false, true)).toBe("model");
-    expect(shownTab("model", false, false, false)).toBe("guide");
+    expect(shownTab("model", false, true)).toBe("model");
+    expect(shownTab("model", false, false)).toBe("guide");
     detailSidebar.closeModel();
     expect(state).toEqual({ open: false, tab: "guide" });
     stop();

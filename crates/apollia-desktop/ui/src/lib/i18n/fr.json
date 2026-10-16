@@ -6741,20 +6741,15 @@
       "answer_refuse": "Refuser"
     },
     "item": {
-      "tab": "Élément",
       "heading": "N° {number} · {title}",
       "input": "Entrée complète",
       "output": "Sortie",
       "failure": "Cause de l'échec",
       "no_output": "Aucune sortie pour le moment.",
-      "steps": "Étapes ({count})",
-      "no_step": "Aucune étape enregistrée pour cet élément.",
       "steps_unread": "Les étapes n'ont pas pu être lues.",
-      "sources": "Sources consultées ({count})"
-    },
-    "step": {
-      "tool_call": "Outil utilisé",
-      "step_started": "Étape"
+      "sources": "Sources consultées ({count})",
+      "close": "Fermer l'élément",
+      "panel_label": "Élément n° {number}"
     },
     "delete": {
       "command": "Supprimer",
@@ -6777,6 +6772,20 @@
       "writing": "Rédige sa réponse",
       "tool": "Utilise l'outil {tool}",
       "working": "Au travail"
+    },
+    "activity": {
+      "title": "Déroulé",
+      "starting": "L'agent commence…",
+      "none": "Pas encore traité.",
+      "plan": "A préparé un plan en {count} étapes",
+      "step_of": "Étape {num} sur {total}",
+      "model": "Le modèle a répondu · {tokens} jetons · {seconds}",
+      "replan": "Plan revu : {reason}",
+      "approval": "A demandé une autorisation : {prompt}",
+      "approval_waiting": "en attente",
+      "approval_granted": "accordée",
+      "approval_refused": "refusée",
+      "waiting_model": "Attend le modèle…"
     }
   },
   "batch_history": {

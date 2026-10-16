@@ -4,7 +4,6 @@ import { get } from "svelte/store";
 import type { BatchDetail, BatchItem, BatchSummary } from "$lib/ipc/batches";
 import { batchNotice } from "$lib/stores/batchNotifications";
 import { currentBatch, openBatch, openBatchHistory } from "$lib/stores/batchView";
-import { detailSidebar, shownTab } from "$lib/stores/detailSidebar";
 import { currentRoute, sidebarRoute } from "$lib/stores/navigation";
 import {
   HISTORY_PAGE,
@@ -398,20 +397,6 @@ describe("opening a batch", () => {
     expect(sidebarRoute("journal")).toBe("journal");
   });
 
-  it("offers the Item tab of the detail sidebar only while an item is open", () => {
-    // GIVEN the column opened on the item of a batch
-    detailSidebar.openItem();
-    const opened = get(detailSidebar);
-
-    // WHEN the item is offered, then no longer, then left
-    // THEN the tab falls back to the guide, and leaving it collapses the column
-    expect(opened).toEqual({ open: true, tab: "item" });
-    expect(shownTab(opened.tab, false, true)).toBe("item");
-    expect(shownTab(opened.tab, false, false)).toBe("guide");
-    detailSidebar.closeItem();
-    expect(get(detailSidebar)).toEqual({ open: false, tab: "guide" });
-    detailSidebar.reset();
-  });
 });
 
 describe("the notifications of the batches", () => {

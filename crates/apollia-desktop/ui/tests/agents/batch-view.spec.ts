@@ -342,13 +342,11 @@ test.describe("following a batch", () => {
     await endItem(page, 0, "completed", "Quote, high priority");
     await view.getByTestId("batch-item").first().getByTestId("batch-item-open").click();
 
-    // THEN the detail sidebar shows its whole input, its output, its steps and its sources
-    const detail = page.getByTestId("detail-sidebar-item");
-    await expect(page.getByTestId("detail-sidebar")).toHaveAttribute("data-tab", "item");
+    // THEN the panel beside the table shows its whole input, its output, its activity and its sources
+    const detail = page.getByTestId("batch-item-panel");
     await expect(detail.getByTestId("batch-item-detail-input")).toContainText("Request of Acme");
     await expect(detail.getByTestId("batch-item-detail-output")).toContainText("Quote, high priority");
-    await detail.getByTestId("batch-item-detail-steps").locator("summary").click();
-    await expect(detail.getByTestId("batch-item-detail-steps")).toContainText("read_page");
+    await expect(detail.getByTestId("batch-item-activity")).toBeVisible();
     await detail.getByTestId("batch-item-detail-sources").locator("summary").click();
     await expect(detail.getByTestId("batch-item-detail-sources")).toContainText("Sheet of Acme");
   });

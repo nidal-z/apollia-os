@@ -1,13 +1,10 @@
 /**
- * Which batch the view of a batch shows, where it was opened from, and the
- * item whose detail the detail sidebar shows.
+ * Which batch the view of a batch shows, and where it was opened from.
  *
  * A launch and a row of the history both open the view through `openBatch`;
  * the view reads `openedBatch` and offers the way back its origin calls for.
  */
 import { get, writable } from "svelte/store";
-import type { BatchItem, BatchSummary } from "$lib/ipc/batches";
-import type { TaskTimelineEvent } from "$lib/ipc/tasks";
 import { navigateTo } from "$lib/stores/navigation";
 
 /** Where the view of a batch was opened from. */
@@ -35,19 +32,3 @@ export function openBatchHistory(): void {
 export function currentBatch(): OpenedBatch | null {
   return get(openedBatch);
 }
-
-/** Where the steps of the run behind an item stand. */
-export type ItemStepsState =
-  | { status: "none" }
-  | { status: "loading" }
-  | { status: "ready"; steps: TaskTimelineEvent[] }
-  | { status: "error" };
-
-export interface BatchItemSelection {
-  batch: BatchSummary;
-  item: BatchItem;
-  steps: ItemStepsState;
-}
-
-/** The item the "Item" tab of the detail sidebar shows; `null` hides the tab. */
-export const batchItemSelection = writable<BatchItemSelection | null>(null);

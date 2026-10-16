@@ -12,11 +12,9 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
-  import { stepActionKey } from "$lib/chat/toolStep";
   import type { BatchItem } from "$lib/ipc/batches";
   import { ITEM_TONE, awaitedAccess, citedSources, entryOf, statusOf } from "./batchView";
-  import { parseTimestampMs } from "$lib/utils";
-  import { elapsedLabel, secondsSince, type LiveStep } from "./liveSteps";
+  import { liveLineOf, type LiveStep } from "./liveSteps";
 
   interface Props {
     items: BatchItem[];
@@ -32,26 +30,8 @@
 
   let { items, selectedRank, onSelect, onOpenDecision, live = new Map(), now = Date.now() }: Props = $props();
 
-  /** What the agent of a running item is doing, and for how long. */
   function liveLine(item: BatchItem): string {
-    const step = item.taskId === null ? undefined : live.get(item.taskId);
-    let doing: string;
-    let since: number;
-    if (!step) {
-      // Nothing reported since the screen opened: the item works since its
-      // run started.
-      doing = $t("batch_view.live.working");
-      since = item.updatedAt === undefined ? now : parseTimestampMs(item.updatedAt);
-    } else if (step.kind === "tool") {
-      const key = stepActionKey(step.tool);
-      const action = key === null ? $t("batch_view.live.tool", { values: { tool: step.tool } }) : $t(key);
-      doing = step.target === null ? action : `${action} · ${step.target}`;
-      since = step.since;
-    } else {
-      doing = $t(step.kind === "thinking" ? "batch_view.live.thinking" : "batch_view.live.writing");
-      since = step.since;
-    }
-    return $t("batch_view.live.line", { values: { doing, elapsed: elapsedLabel(secondsSince(since, now)) } });
+    return liveLineOf(item, item.taskId === null ? undefined : live.get(item.taskId), now, $t);
   }
 
   const HEADERS = ["number", "input", "status", "output", "sources"] as const;

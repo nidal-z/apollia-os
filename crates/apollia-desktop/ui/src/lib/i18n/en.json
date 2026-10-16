@@ -6741,20 +6741,15 @@
       "answer_refuse": "Refuse"
     },
     "item": {
-      "tab": "Item",
       "heading": "No. {number} · {title}",
       "input": "Full input",
       "output": "Output",
       "failure": "Cause of the failure",
       "no_output": "No output yet.",
-      "steps": "Steps ({count})",
-      "no_step": "No step recorded for this item.",
       "steps_unread": "The steps could not be read.",
-      "sources": "Sources consulted ({count})"
-    },
-    "step": {
-      "tool_call": "Tool used",
-      "step_started": "Step"
+      "sources": "Sources consulted ({count})",
+      "close": "Close the item",
+      "panel_label": "Item {number}"
     },
     "delete": {
       "command": "Delete",
@@ -6777,6 +6772,20 @@
       "writing": "Writing its answer",
       "tool": "Using the tool {tool}",
       "working": "Working"
+    },
+    "activity": {
+      "title": "Activity",
+      "starting": "The agent is starting…",
+      "none": "Not processed yet.",
+      "plan": "Prepared a plan of {count} steps",
+      "step_of": "Step {num} of {total}",
+      "model": "The model answered · {tokens} tokens · {seconds}",
+      "replan": "Plan revised: {reason}",
+      "approval": "Asked for an access: {prompt}",
+      "approval_waiting": "waiting",
+      "approval_granted": "granted",
+      "approval_refused": "refused",
+      "waiting_model": "Waiting for the model…"
     }
   },
   "batch_history": {

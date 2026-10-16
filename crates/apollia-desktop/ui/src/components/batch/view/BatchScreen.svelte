@@ -5,7 +5,7 @@
    * runtime reports a run or a decision, and at a slow pace besides, so the
    * figures shown are always those the batch engine recorded.
    */
-  import { onDestroy, untrack } from "svelte";
+  import { untrack } from "svelte";
   import { locale, t } from "svelte-i18n";
   import { parseTimestampMs } from "$lib/utils";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -20,10 +20,10 @@
   import { listBatchAccesses } from "$lib/ipc/batches";
   import type { BatchControl, BatchExportFormat, BatchItem } from "$lib/ipc/batches";
   import { getTaskTimeline } from "$lib/ipc/tasks";
-  import { batchItemSelection, openBatchHistory, type BatchOrigin, type ItemStepsState } from "$lib/stores/batchView";
-  import { detailSidebar } from "$lib/stores/detailSidebar";
+  import { openBatchHistory, type BatchOrigin } from "$lib/stores/batchView";
   import BatchDecisionDialog from "./BatchDecisionDialog.svelte";
   import BatchDeleteAction from "./BatchDeleteAction.svelte";
+  import BatchItemPanel from "./BatchItemPanel.svelte";
   import BatchItemsTable from "./BatchItemsTable.svelte";
   import BatchSummaryCard from "./BatchSummaryCard.svelte";
   import {
@@ -36,7 +36,8 @@
     tabsFor,
     type ItemTab,
   } from "./batchView";
-  import { applyLiveEvent, keepRunning, type LiveEvent, type LiveStep } from "./liveSteps";
+  import { EMPTY_ACTIVITY, activityFromTimeline, applyActivityEvent, type ItemActivity } from "./itemActivity";
+  import { applyLiveEvent, keepRunning, liveLineOf, type LiveEvent, type LiveStep } from "./liveSteps";
   import { createBatchView, shellIpc } from "./useBatch.svelte";
 
   interface Props {
@@ -52,8 +53,6 @@
   const TICK_MS = 1_000;
   /** Categories of runtime events that mean an item moved. */
   const MOVING = new Set(["task-changed", "approval-changed"]);
-  /** Steps of a run a user reads as steps. */
-  const STEP_TYPES = new Set(["tool_call", "step_started"]);
 
   const view = createBatchView();
 
@@ -62,7 +61,8 @@
   let now = $state(new Date());
   let confirmingStop = $state(false);
   let selectedRank = $state<number | null>(null);
-  let steps = $state<ItemStepsState>({ status: "none" });
+  let activity = $state<ItemActivity>(EMPTY_ACTIVITY);
+  let activityUnread = $state(false);
   let deciding = $state<BatchItem | null>(null);
   let accessLabels = $state<Record<string, string>>({});
   let liveSteps = $state<ReadonlyMap<string, LiveStep>>(new Map());
@@ -94,7 +94,10 @@
   });
 
   function follow(event: LiveEvent): void {
-    liveSteps = applyLiveEvent(liveSteps, event, running, Date.now());
+    const at = Date.now();
+    liveSteps = applyLiveEvent(liveSteps, event, running, at);
+    const task = selected?.taskId ?? null;
+    if (task !== null) activity = applyActivityEvent(activity, event, task, at);
   }
 
   // The runtime says when a run or a decision moved; the batch is read again.
@@ -172,48 +175,53 @@
     selectedRank === null ? null : (items.find((item) => item.rank === selectedRank) ?? null),
   );
 
-  // The detail sidebar shows the selected item as the batch reads it now.
-  $effect(() => {
-    if (selected === null || batch === null) {
-      batchItemSelection.set(null);
-      return;
-    }
-    batchItemSelection.set({ batch, item: selected, steps });
-  });
-
-  const sidebarOnItem = $derived($detailSidebar.open && $detailSidebar.tab === "item");
-
   function closeItem(): void {
     selectedRank = null;
-    steps = { status: "none" };
-    batchItemSelection.set(null);
-    detailSidebar.closeItem();
+    activity = EMPTY_ACTIVITY;
+    activityUnread = false;
   }
 
-  onDestroy(closeItem);
-
   function selectItem(item: BatchItem): void {
-    if (selectedRank === item.rank && sidebarOnItem) {
+    if (selectedRank === item.rank) {
       closeItem();
       return;
     }
     selectedRank = item.rank;
-    detailSidebar.openItem();
-    if (item.taskId === null) {
-      steps = { status: "none" };
-      return;
-    }
-    const rank = item.rank;
-    steps = { status: "loading" };
-    getTaskTimeline(item.taskId)
+    activity = EMPTY_ACTIVITY;
+    activityUnread = false;
+    if (item.taskId !== null) loadActivity(item.rank, item.taskId);
+  }
+
+  // The course of the run as recorded, then what the run reported since the
+  // item was opened, which the record may not hold yet.
+  function loadActivity(rank: number, taskId: string): void {
+    getTaskTimeline(taskId)
       .then((timeline) => {
         if (selectedRank !== rank) return;
-        steps = { status: "ready", steps: timeline.filter((step) => STEP_TYPES.has(step.type)) };
+        const recorded = activityFromTimeline(timeline);
+        const last = recorded.entries.at(-1)?.at ?? 0;
+        activity = {
+          entries: [...recorded.entries, ...activity.entries.filter((entry) => entry.at > last)],
+          writing: activity.writing,
+        };
       })
       .catch(() => {
-        if (selectedRank === rank) steps = { status: "error" };
+        if (selectedRank === rank) activityUnread = true;
       });
   }
+
+  // An item opened before it ran is read from the record once its run starts.
+  let followedTask: string | null = null;
+  $effect(() => {
+    const task = selected?.taskId ?? null;
+    const rank = selected?.rank ?? null;
+    untrack(() => {
+      if (task !== null && rank !== null && task !== followedTask && activity.entries.length === 0) {
+        loadActivity(rank, task);
+      }
+      followedTask = task;
+    });
+  });
 
   function act(action: BatchControl): void {
     if (action === "stop") {
@@ -347,14 +355,34 @@
         </EmptyState>
       </Card>
     {:else}
-      <BatchItemsTable
-        items={rows}
-        selectedRank={sidebarOnItem ? selectedRank : null}
-        onSelect={selectItem}
-        onOpenDecision={(item) => (deciding = item)}
-        live={liveSteps}
-        now={now.getTime()}
-      />
+      <div
+        class="grid items-start gap-4 {selected === null ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(26rem,44%)]'}"
+        data-testid="batch-body"
+      >
+        <div class="min-w-0">
+          <BatchItemsTable
+            items={rows}
+            {selectedRank}
+            onSelect={selectItem}
+            onOpenDecision={(item) => (deciding = item)}
+            live={liveSteps}
+            now={now.getTime()}
+          />
+        </div>
+        {#if selected !== null}
+          <div class="min-w-0 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-7rem)] xl:flex-col">
+            <BatchItemPanel
+              item={selected}
+              {activity}
+              unread={activityUnread}
+              liveLine={selected.status === "running"
+                ? liveLineOf(selected, selected.taskId === null ? undefined : liveSteps.get(selected.taskId), now.getTime(), $t)
+                : null}
+              onclose={closeItem}
+            />
+          </div>
+        {/if}
+      </div>
     {/if}
 
     <ConfirmDialog

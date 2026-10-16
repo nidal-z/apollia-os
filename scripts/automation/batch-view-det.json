@@ -1976,7 +1976,7 @@
     },
     {
       "kind": "waitFor",
-      "testid": "detail-sidebar-item",
+      "testid": "batch-item-panel",
       "timeoutMs": 4000
     },
     {
@@ -2006,7 +2006,7 @@
     },
     {
       "kind": "waitGone",
-      "testid": "detail-sidebar-item",
+      "testid": "batch-item-panel",
       "timeoutMs": 4000
     },
     {

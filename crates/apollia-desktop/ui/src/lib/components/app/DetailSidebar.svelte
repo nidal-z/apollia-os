@@ -24,11 +24,9 @@
     shownTab,
   } from "$lib/stores/detailSidebar";
   import { journalSelection } from "$lib/stores/journalSelection";
-  import { batchItemSelection } from "$lib/stores/batchView";
   import { aiModelSelection } from "$lib/stores/aiModelPanel";
   import GuideTab from "../../../components/companion/GuideTab.svelte";
   import JournalEntryTab from "../../../components/journal/JournalEntryTab.svelte";
-  import BatchItemTab from "../../../components/batch/view/BatchItemTab.svelte";
   import ModelPanel from "../../../components/ai/ModelPanel.svelte";
 
   const fullscreen = $derived($sidebarState === "drawer");
@@ -36,24 +34,20 @@
 
   // The journal offers its contextual tab while one of its entries is open.
   const entryOffered = $derived($journalSelection !== null);
-  // The view of a batch offers its own while one of its items is open.
-  const itemOffered = $derived($batchItemSelection !== null);
   // The AI screen offers its own while the panel of one of its models is open.
   const modelOffered = $derived($aiModelSelection !== null);
   const activeTab = $derived(
-    shownTab($detailSidebar.tab, entryOffered, itemOffered, modelOffered),
+    shownTab($detailSidebar.tab, entryOffered, modelOffered),
   );
 
   const tabs = $derived([
     ...(entryOffered ? [{ key: "entry", label: $t("journal.tab_entry") }] : []),
-    ...(itemOffered ? [{ key: "item", label: $t("batch_view.item.tab") }] : []),
     ...(modelOffered ? [{ key: "model", label: $t("ai.panel.sidebar_tab") }] : []),
     { key: "guide", label: $t("detailSidebar.tab_guide") },
   ]);
 
   function showTab(key: string): void {
     if (key === "entry") detailSidebar.openEntry();
-    else if (key === "item") detailSidebar.openItem();
     else if (key === "model") detailSidebar.openModel();
     else detailSidebar.openGuide();
   }
@@ -100,8 +94,6 @@
     <div class="min-h-0 flex-1 overflow-hidden">
       {#if activeTab === "entry"}
         <JournalEntryTab />
-      {:else if activeTab === "item"}
-        <BatchItemTab />
       {:else if activeTab === "model"}
         <ModelPanel />
       {:else}

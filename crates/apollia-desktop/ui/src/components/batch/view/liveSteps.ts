@@ -6,13 +6,22 @@
 // the item. Nothing here is stored: the state lives while the batch screen is
 // open, and an item that ends is forgotten.
 
-import { shortPath } from "$lib/chat/toolStep";
+import { shortPath, stepActionKey } from "$lib/chat/toolStep";
+import { parseTimestampMs } from "$lib/utils";
 
-/** The step an item is at. */
-export type LiveStep =
+/** The step of its plan an item is at, when its agent planned. */
+export interface PlanStep {
+  num: number;
+  total: number;
+  desc: string;
+}
+
+/** The step an item is at, and the step of its plan. */
+export type LiveStep = (
   | { kind: "tool"; tool: string; target: string | null; since: number }
   | { kind: "thinking"; since: number }
-  | { kind: "writing"; since: number };
+  | { kind: "writing"; since: number }
+) & { plan?: PlanStep };
 
 /** One event of the runtime as the interface receives it. */
 export interface LiveEvent {
@@ -75,19 +84,28 @@ export function applyLiveEvent(
   const task = taskOf(fields, watched);
   if (task === null) return steps;
   const next = new Map(steps);
+  const plan = steps.get(task)?.plan;
+  const kept = plan === undefined ? {} : { plan };
   switch (event.event_type) {
+    case "StepStarted": {
+      const num = typeof fields.step_num === "number" ? fields.step_num : 0;
+      const total = typeof fields.total === "number" ? fields.total : 0;
+      const desc = typeof fields.desc === "string" ? fields.desc : "";
+      next.set(task, { kind: "thinking", since: now, ...(num > 0 && total > 0 ? { plan: { num, total, desc } } : {}) });
+      return next;
+    }
     case "ChatToolCallStarted": {
       const tool = typeof fields.tool_name === "string" ? fields.tool_name : "";
-      next.set(task, { kind: "tool", tool, target: previewTarget(fields.input_preview), since: now });
+      next.set(task, { kind: "tool", tool, target: previewTarget(fields.input_preview), since: now, ...kept });
       return next;
     }
     case "ChatToolCallCompleted":
-      next.set(task, { kind: "thinking", since: now });
+      next.set(task, { kind: "thinking", since: now, ...kept });
       return next;
     case "ChatToken": {
       // A token every few milliseconds: the step changes once, not per token.
       if (steps.get(task)?.kind === "writing") return steps;
-      next.set(task, { kind: "writing", since: now });
+      next.set(task, { kind: "writing", since: now, ...kept });
       return next;
     }
     case "TaskCompleted":
@@ -119,4 +137,40 @@ export function elapsedLabel(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
   return rest === 0 ? `${minutes} min` : `${minutes} min ${rest} s`;
+}
+
+/** A catalogue lookup, as `$t` answers it. */
+export type Translate = (key: string, options?: { values: Record<string, string | number> }) => string;
+
+/**
+ * What the agent of a running item is doing and for how long, in one line:
+ * the step of its plan when it planned, then the tool and its target, its
+ * thinking or its writing. Before anything was reported since the screen
+ * opened, it works since its run started.
+ */
+export function liveLineOf(
+  item: { taskId: string | null; updatedAt?: string },
+  step: LiveStep | undefined,
+  now: number,
+  tr: Translate,
+): string {
+  let doing: string;
+  let since: number;
+  if (step === undefined) {
+    doing = tr("batch_view.live.working");
+    since = item.updatedAt === undefined ? now : parseTimestampMs(item.updatedAt);
+  } else if (step.kind === "tool") {
+    const key = stepActionKey(step.tool);
+    const action = key === null ? tr("batch_view.live.tool", { values: { tool: step.tool } }) : tr(key);
+    doing = step.target === null ? action : `${action} · ${step.target}`;
+    since = step.since;
+  } else {
+    doing = tr(step.kind === "thinking" ? "batch_view.live.thinking" : "batch_view.live.writing");
+    since = step.since;
+  }
+  if (step?.plan !== undefined) {
+    const of = tr("batch_view.activity.step_of", { values: { num: step.plan.num, total: step.plan.total } });
+    doing = step.plan.desc === "" ? `${of} · ${doing}` : `${of} · ${step.plan.desc} · ${doing}`;
+  }
+  return tr("batch_view.live.line", { values: { doing, elapsed: elapsedLabel(secondsSince(since, now)) } });
 }
