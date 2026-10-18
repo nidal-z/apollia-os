@@ -129,6 +129,10 @@ pub struct AgentExecutorDeps {
 /// the human however long it takes.
 #[derive(Default)]
 pub struct SessionWiring {
+    /// The folders granted to the agent, whose files the planner is shown.
+    pub planning_folders: Vec<PathBuf>,
+    /// For an item of a batch, the plan template of its batch.
+    pub plan_template: Option<apollia_oria::plan_template::PlanTemplate>,
     /// Working directory named in the prompt and used by the tools.
     pub workspace_path: Option<PathBuf>,
     /// Deferred MCP tool index; `None` offers every schema eagerly.
@@ -291,6 +295,8 @@ impl AgentExecutor {
             event_bus: deps.event_bus.clone(),
             plan_cache: deps.plan_cache,
             workspace_path: wiring.workspace_path.clone(),
+            planning_folders: wiring.planning_folders.clone(),
+            plan_template: wiring.plan_template.clone(),
             tool_output_dir: wiring.tool_output_dir.clone(),
             runtime_ceiling: runtime_ceiling.clone(),
             governance: wiring.governance.clone().unwrap_or_else(|| {

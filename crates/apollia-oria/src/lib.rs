@@ -22,6 +22,7 @@ pub mod plan;
 pub mod plan_cache;
 pub mod plan_gate;
 pub mod plan_repository;
+pub mod plan_template;
 pub mod reasoner;
 pub mod resilience;
 pub mod tool_offload;

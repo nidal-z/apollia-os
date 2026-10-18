@@ -45,8 +45,23 @@ impl FinalAnswer {
             max_tokens: Some(ANSWER_MAX_TOKENS),
             ..Default::default()
         };
+        let started = std::time::Instant::now();
         let written = match self.model.stream(request.clone()).await {
-            Ok(mut stream) => {
+            Ok(stream) => {
+                // Measured and recorded under the task as the answer phase.
+                let mut stream = apollia_llm::observe_stream(
+                    stream,
+                    apollia_llm::ObservedCall {
+                        backend: self.model.backend_name().to_owned(),
+                        model: self.model.model_id().to_owned(),
+                        context: Some(apollia_llm::CallContext {
+                            session_id: self.session_id.clone(),
+                            turn_id: "answer".to_owned(),
+                        }),
+                        bus: Some(self.event_bus.clone()),
+                        started,
+                    },
+                );
                 let mut text = String::new();
                 while let Some(chunk) = stream.next().await {
                     match chunk {

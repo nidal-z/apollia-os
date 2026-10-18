@@ -197,9 +197,21 @@ impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
         if let Some(access) = once {
             authorized.push(crate::governance::once_grant(access));
         }
+        let template = apollia_oria::plan_template::PlanTemplate {
+            key: format!("{batch_id}:{agent}"),
+            fields: item_fields(input),
+        };
         let (task_id, outcome) = self
             .launcher
-            .launch_unattended(&resolved, input, item_message(input), authorized)
+            .launch_batch_item(
+                &resolved,
+                input,
+                item_message(input),
+                crate::agents::task::BatchItemRun {
+                    authorized,
+                    template,
+                },
+            )
             .await
             .map_err(|e| e.to_string())?;
         let (tx, end) = tokio::sync::oneshot::channel();
@@ -310,4 +322,21 @@ pub(crate) fn journal_original_write(
         "batch.original_write.granted"
     );
     Ok(())
+}
+
+/// The fields of an item with their values as text, in the order of the
+/// source: what fills the plan template of its batch.
+fn item_fields(input: &serde_json::Value) -> Vec<(String, String)> {
+    match input.as_object() {
+        Some(fields) => fields
+            .iter()
+            .map(|(name, value)| {
+                let text = value
+                    .as_str()
+                    .map_or_else(|| value.to_string(), str::to_owned);
+                (name.clone(), text)
+            })
+            .collect(),
+        None => Vec::new(),
+    }
 }

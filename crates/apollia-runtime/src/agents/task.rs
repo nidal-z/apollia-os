@@ -238,6 +238,41 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                     watcher: Some(tx),
                     nesting: None,
                     unattended: Some(authorized),
+                    plan_template: None,
+                },
+            )
+            .await?;
+        Ok((task_id, rx))
+    }
+
+    /// Run `agent` on one item of a batch, as [`Self::launch_unattended`],
+    /// with the batch's plan template: one plan serves every item.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::launch`].
+    pub async fn launch_batch_item(
+        &self,
+        agent: &ResolvedAgent,
+        input: &serde_json::Value,
+        message: String,
+        item: BatchItemRun,
+    ) -> Result<(TaskId, oneshot::Receiver<AgentRunOutcome>), AgentTaskError> {
+        let BatchItemRun {
+            authorized,
+            template,
+        } = item;
+        let (tx, rx) = oneshot::channel();
+        let task_id = self
+            .start(
+                agent,
+                input,
+                message,
+                Watch {
+                    watcher: Some(tx),
+                    nesting: None,
+                    unattended: Some(authorized),
+                    plan_template: Some(template),
                 },
             )
             .await?;
@@ -268,6 +303,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                     watcher: Some(tx),
                     nesting: Some(nesting),
                     unattended: None,
+                    plan_template: None,
                 },
             )
             .await?;
@@ -285,6 +321,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
             watcher,
             nesting,
             unattended,
+            plan_template,
         } = watch;
         if !agent.enabled {
             return Err(AgentTaskError::Disabled(agent.id.clone()));
@@ -363,6 +400,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 budget,
                 depth,
                 unattended: !watched,
+                plan_template,
             })
             .await;
         if let Err(e) = started {
@@ -381,6 +419,14 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
     }
 }
 
+/// What an item of a batch runs with besides its input.
+pub struct BatchItemRun {
+    /// The tools it may use without asking, the grants of its batch.
+    pub authorized: Vec<String>,
+    /// The plan template of its batch.
+    pub template: apollia_oria::plan_template::PlanTemplate,
+}
+
 /// Who hears the end of a run, what it inherits from its caller, and, for a
 /// run nobody watches, the tools it may use without asking.
 #[derive(Default)]
@@ -389,6 +435,8 @@ struct Watch {
     nesting: Option<Nesting>,
     /// For a run nobody watches, the tools it may use without asking.
     unattended: Option<Vec<String>>,
+    /// For an item of a batch, the plan template of its batch.
+    plan_template: Option<apollia_oria::plan_template::PlanTemplate>,
 }
 
 /// What a run started by a running caller inherits from it.

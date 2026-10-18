@@ -113,18 +113,10 @@ fn is_our_engine(pid: u32) -> bool {
 
 #[cfg(unix)]
 fn stop(pid: u32) {
-    let id = pid.to_string();
+    // An orphan engine holds no state worth a clean exit, and waiting for one
+    // would hold the start: it is ended at once.
     let _ = std::process::Command::new("kill")
-        .args(["-TERM", &id])
-        .status();
-    for _ in 0..20 {
-        if !is_alive(pid) {
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100));
-    }
-    let _ = std::process::Command::new("kill")
-        .args(["-KILL", &id])
+        .args(["-KILL", &pid.to_string()])
         .status();
 }
 

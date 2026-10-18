@@ -42,6 +42,7 @@ impl ORIAEngine {
             runtime_config: StepBudgetConfig::default(),
             oria_config,
             db_path: None,
+            plan_template: None,
             pending_approvals: None,
             pending_plan_gates: None,
             plan_gate_override: None,
@@ -165,6 +166,19 @@ impl ORIAEngine {
     /// (logged warning: fail fast only for detectable errors).
     pub fn with_task_repository(mut self, repo: Arc<apollia_tools::TaskRepository>) -> Self {
         self.task_repository = Some(repo);
+        self
+    }
+    /// Run as an item of a batch: one plan, written with the fields of the
+    /// item as placeholders, serves every item, each filling it with its own
+    /// values.
+    pub fn with_plan_template(mut self, template: crate::plan_template::PlanTemplate) -> Self {
+        self.plan_template = Some(template);
+        self
+    }
+    /// Tell the planner `notes` (the files the agent can reach) with each plan
+    /// it is asked. Chained after [`with_reasoner`](Self::with_reasoner).
+    pub fn with_planning_notes(mut self, notes: String) -> Self {
+        self.reasoner = self.reasoner.take().map(|r| r.with_notes(notes));
         self
     }
     /// Keep the plans and their steps in the database at `path`, where the

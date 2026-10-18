@@ -17,6 +17,10 @@ use futures::StreamExt;
 /// waited behind it with nothing on the screen.
 const STEP_MAX_TOKENS: u32 = 4_096;
 
+/// The temperature of an intermediate step: it extracts and compares facts,
+/// wanted the same from one item to the next.
+const STEP_TEMPERATURE: f32 = 0.2;
+
 use crate::actor::{ToolProxyTrait, STEP_MEMORY_IMPORTANCE};
 use crate::context_manager::message_char_len;
 use crate::resilience::ResilienceLayer;
@@ -264,6 +268,13 @@ impl ActorLoop {
             messages,
             max_tokens: Some(STEP_MAX_TOKENS),
             thinking: Some(false),
+            temperature: Some(STEP_TEMPERATURE),
+            // Recorded under the task and the step, so the time of each
+            // step of a batch item is measured.
+            call_context: Some(apollia_llm::CallContext {
+                session_id: self.plan.task_id.clone(),
+                turn_id: format!("step:{}", step.step_id),
+            }),
             ..Default::default()
         };
 

@@ -10,6 +10,7 @@ use apollia_core::{
     AIPResult, AIPTask, AgentManifest, AutonomyLevel, AutonomyLevelConfig, RuntimeEvent, TaskStatus,
 };
 
+use super::plan_cache_ops::{CacheTarget, Keep};
 use crate::actor::{ActorLoop, StepDeps, ToolProxyTrait};
 use crate::budget::StepBudget;
 use crate::engine::{
@@ -74,21 +75,39 @@ impl ORIAEngine {
 
         // Plan cache lookup
         let task_text = extract_task_text(&task);
-        let cache_key = compute_cache_key(
-            &manifest.name,
-            &manifest.version,
-            &ctx.available_tools,
-            &task_text,
-        );
+        // An item of a batch looks for the template of its batch; any other
+        // task for the plan of the same request.
+        let cache_key = match &self.plan_template {
+            Some(template) => compute_cache_key(
+                &manifest.name,
+                &manifest.version,
+                &ctx.available_tools,
+                &format!("batch template {}", template.key),
+            ),
+            None => compute_cache_key(
+                &manifest.name,
+                &manifest.version,
+                &ctx.available_tools,
+                &task_text,
+            ),
+        };
 
-        if let Some(plan) = self.lookup_cached_plan(&cache_key, &task.task_id) {
+        if let Some(cached) = self.lookup_cached_plan(&cache_key, &task.task_id) {
+            let (plan, keep) = match &self.plan_template {
+                Some(template) => (template.apply(&cached), Keep::Template(cached)),
+                None => (cached, Keep::Executed),
+            };
+            let cache = CacheTarget {
+                key: cache_key.clone(),
+                keep,
+            };
             let _ = self.event_bus.send(RuntimeEvent::PlanCacheHit {
                 task_id: task.task_id.clone().into(),
                 cache_key: cache_key.clone(),
             });
 
             return self
-                .execute_cached_plan(plan, task, agent, manifest, &ctx, &cache_key)
+                .execute_cached_plan(plan, task, agent, manifest, &ctx, &cache)
                 .await;
         }
 
@@ -103,7 +122,25 @@ impl ORIAEngine {
         // unresolved steps are handled just in time.
         self.enrich_plan_with_args(&mut plan).await;
 
-        self.store_plan_in_cache(&cache_key, &plan, &manifest);
+        // A batch plan is kept as the template it was written as, then filled
+        // with this item's values; one that copied them serves this item only.
+        let keep = match &self.plan_template {
+            Some(template) => {
+                let keep = if template.reusable(&plan) {
+                    Keep::Template(plan.clone())
+                } else {
+                    tracing::info!(task_id = %task.task_id, "plan.template.not_reusable");
+                    Keep::Nothing
+                };
+                plan = template.apply(&plan);
+                keep
+            }
+            None => Keep::Executed,
+        };
+        let cache = CacheTarget {
+            key: cache_key.clone(),
+            keep,
+        };
 
         let task_id_str = task.task_id.clone();
         let db_path = self.db_path.as_deref().unwrap_or(":memory:");
@@ -169,7 +206,6 @@ impl ORIAEngine {
                         {
                             Ok(new_plan) => {
                                 plan = new_plan;
-                                self.store_plan_in_cache(&cache_key, &plan, &manifest);
                                 let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
                                     task_id: task_id_str.clone().into(),
                                     agent_name: manifest.name.clone(),
@@ -215,7 +251,6 @@ impl ORIAEngine {
                             task_id: task_id_str.clone(),
                             steps,
                         };
-                        self.store_plan_in_cache(&cache_key, &plan, &manifest);
                         let _ = self.event_bus.send(RuntimeEvent::PlanApproved {
                             run_id: task_id_str.clone(),
                             plan_id: plan.plan_id.clone(),
@@ -245,7 +280,7 @@ impl ORIAEngine {
         }
 
         // Execute the plan, verify the result, and replan on a failing verdict.
-        self.run_plan_with_verification(plan, &task, agent, &manifest, &ctx, &cache_key, db_path)
+        self.run_plan_with_verification(plan, &task, agent, &manifest, &ctx, &cache, db_path)
             .await
     }
     /// Execute a plan via the `ActorLoop`, then run the post-run verification and,
@@ -273,7 +308,7 @@ impl ORIAEngine {
         agent: &(dyn AIPAgent + Send + Sync),
         manifest: &AgentManifest,
         ctx: &ContextBundle,
-        cache_key: &str,
+        cache: &CacheTarget,
         db_path: &str,
     ) -> AIPResult {
         let reasoner = match self.reasoner.as_ref() {
@@ -334,6 +369,9 @@ impl ORIAEngine {
             };
 
             let plan_start = Instant::now();
+            // Kept to be cached once it has run through: a plan is cached only
+            // after it succeeded as it was, never before it ran.
+            let executed = plan.clone();
             let mut actor = ActorLoop::new(
                 plan,
                 self.oria_config.max_replans,
@@ -373,6 +411,17 @@ impl ORIAEngine {
             // failure and is not verified.
             if step_result.status != TaskStatus::Completed {
                 return step_result;
+            }
+            // A plan that needed a replan failed a step as it was written: the
+            // next task of that key plans anew rather than repeat the fault.
+            if actor.replan_count == 0 && replans == 0 {
+                match &cache.keep {
+                    Keep::Executed => self.store_plan_in_cache(&cache.key, &executed, manifest),
+                    Keep::Template(template) => {
+                        self.store_plan_in_cache(&cache.key, template, manifest);
+                    }
+                    Keep::Nothing => {}
+                }
             }
 
             let final_result = self.finalize_completed(agent, step_result).await;
@@ -421,7 +470,6 @@ impl ORIAEngine {
             {
                 Ok(mut new_plan) => {
                     self.enrich_plan_with_args(&mut new_plan).await;
-                    self.store_plan_in_cache(cache_key, &new_plan, manifest);
                     let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
                         task_id: task_id_str.clone().into(),
                         agent_name: manifest.name.clone(),

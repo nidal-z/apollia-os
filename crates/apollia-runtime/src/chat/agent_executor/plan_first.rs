@@ -22,6 +22,7 @@
 //! observer, the request alone or the task over the agent.
 
 mod answer;
+mod files;
 mod proxy;
 
 use std::collections::HashSet;
@@ -106,6 +107,10 @@ pub(super) struct PlanFirstDeps {
     pub event_bus: EventBusSender,
     pub plan_cache: Option<SharedPlanCache>,
     pub workspace_path: Option<PathBuf>,
+    /// The folders granted to the agent, whose files the planner is shown.
+    pub planning_folders: Vec<PathBuf>,
+    /// For an item of a batch, the plan template of its batch.
+    pub plan_template: Option<apollia_oria::plan_template::PlanTemplate>,
     pub tool_output_dir: Option<PathBuf>,
     pub runtime_ceiling: StepBudgetConfig,
     /// The governance every tool call of a step is decided by.
@@ -162,6 +167,19 @@ impl PlanFirstRun<'_> {
         }
         if let Some(workspace) = &self.deps.workspace_path {
             engine = engine.with_cwd(workspace.clone());
+        }
+        let folders = self.deps.planning_folders.clone();
+        let files_note = tokio::task::spawn_blocking(move || files::planning_note(&folders))
+            .await
+            .ok()
+            .flatten();
+        let template_note = self.deps.plan_template.as_ref().map(|t| t.note());
+        let notes: Vec<String> = [files_note, template_note].into_iter().flatten().collect();
+        if !notes.is_empty() {
+            engine = engine.with_planning_notes(notes.join("\n\n"));
+        }
+        if let Some(template) = &self.deps.plan_template {
+            engine = engine.with_plan_template(template.clone());
         }
         // The plan and its steps are kept where the timeline of the task
         // reads them; in memory, a batch item that ended showed no step.

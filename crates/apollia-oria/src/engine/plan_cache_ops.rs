@@ -10,6 +10,24 @@ use crate::observer::ContextBundle;
 use crate::plan::ExecutionPlan;
 use crate::plan_repository::{PlanRepository, PlanRepositoryError};
 
+/// Where a run keeps its plan once it has run through.
+pub(super) struct CacheTarget {
+    /// The key of the cache entry.
+    pub(super) key: String,
+    /// What is kept under it.
+    pub(super) keep: Keep,
+}
+
+/// What a run keeps in the cache once it has run through as planned.
+pub(super) enum Keep {
+    /// The plan that ran.
+    Executed,
+    /// The template of a batch, before an item filled it.
+    Template(ExecutionPlan),
+    /// Nothing: a batch plan that copied the values of its item.
+    Nothing,
+}
+
 impl ORIAEngine {
     /// Looks up a cached plan for `cache_key`, returning a ready-to-run
     /// [`ExecutionPlan`] (fresh `plan_id`, the supplied `task_id`, cached steps)
@@ -148,7 +166,7 @@ impl ORIAEngine {
         agent: &(dyn AIPAgent + Send + Sync),
         manifest: AgentManifest,
         ctx: &ContextBundle,
-        cache_key: &str,
+        cache: &CacheTarget,
     ) -> AIPResult {
         let plan_id = plan.plan_id.clone();
         let step_count = plan.steps.len();
@@ -166,12 +184,12 @@ impl ORIAEngine {
         });
 
         let result = self
-            .run_plan_with_verification(plan, &task, agent, &manifest, ctx, cache_key, db_path)
+            .run_plan_with_verification(plan, &task, agent, &manifest, ctx, cache, db_path)
             .await;
         // A cached plan that failed would fail the same way for the next
         // task of that key: it is forgotten, and the next one plans anew.
         if result.status != apollia_core::TaskStatus::Completed {
-            self.forget_cached_plan(cache_key);
+            self.forget_cached_plan(&cache.key);
         }
         result
     }

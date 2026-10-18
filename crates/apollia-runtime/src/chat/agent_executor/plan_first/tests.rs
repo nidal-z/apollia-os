@@ -415,10 +415,11 @@ async fn test_a_step_on_a_tool_the_agent_is_not_granted_never_reaches_the_tool()
     )
     .await;
 
-    // THEN the run fails, and bash_executor was never called
+    // THEN the run fails and bash_executor was never called: the plan names
+    // a tool the agent does not hold, so it is refused when it is read,
+    // before any of its steps runs
     assert!(result.is_err());
     let called = h.called();
-    assert!(called.contains(&"file_io".to_string()), "{called:?}");
     assert!(!called.contains(&"bash_executor".to_string()), "{called:?}");
 }
 

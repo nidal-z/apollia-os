@@ -189,6 +189,8 @@ pub struct ORIAEngine {
     /// ORIA engine configuration injected from `apollia.toml`.
     pub(crate) oria_config: ORIAConfig,
     pub(crate) db_path: Option<String>,
+    /// The batch this run is an item of: one plan serves every item.
+    pub(crate) plan_template: Option<crate::plan_template::PlanTemplate>,
     /// HITL registry of pending approvals, shared with the `ResumeHandler`.
     ///
     /// Required for `execute_direct()` to suspend the task and wait for the
@@ -2336,6 +2338,89 @@ mod orchestrated_tests {
             })
             .expect("a VerificationCompleted event must be emitted");
         assert_eq!(verdict, (true, true, 0));
+    }
+
+    #[tokio::test]
+    async fn test_a_plan_is_cached_only_once_it_ran_through() {
+        // GIVEN an engine with a cache whose plan of two tool steps succeeds
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = crate::plan_cache::PlanCacheRepository::open(&dir.path().join("plan_cache.db"))
+            .expect("open repository");
+        let shared = Arc::new(Mutex::new(repo));
+        let engine =
+            make_engine_with_mock(two_step_plan_json()).with_shared_plan_cache(Arc::clone(&shared));
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN it runs a task
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN the plan, which ran through, is cached once
+        assert_eq!(result.status, TaskStatus::Completed);
+        let stats = shared.lock().expect("cache mutex").stats().expect("stats");
+        assert_eq!(stats.total_entries, 1);
+    }
+
+    #[tokio::test]
+    async fn test_a_plan_whose_step_fails_is_not_cached() {
+        // GIVEN an engine with a cache and no tool to run its plan's steps
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = crate::plan_cache::PlanCacheRepository::open(&dir.path().join("plan_cache.db"))
+            .expect("open repository");
+        let shared = Arc::new(Mutex::new(repo));
+        let model = Arc::new(SimpleMockModel {
+            response: two_step_plan_json(),
+        });
+        let engine = ORIAEngine::new()
+            .with_reasoner(model, 20)
+            .with_shared_plan_cache(Arc::clone(&shared));
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+
+        // WHEN it runs a task whose steps fail
+        let result = engine.execute(AIPTask::default(), &agent).await;
+
+        // THEN nothing was cached, so the next task plans anew
+        assert_ne!(result.status, TaskStatus::Completed);
+        let stats = shared.lock().expect("cache mutex").stats().expect("stats");
+        assert_eq!(stats.total_entries, 0);
+    }
+
+    #[tokio::test]
+    async fn test_the_items_of_a_batch_share_one_plan() {
+        // GIVEN a cache, and a first item whose plan names its file by field
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = crate::plan_cache::PlanCacheRepository::open(&dir.path().join("plan_cache.db"))
+            .expect("open repository");
+        let shared = Arc::new(Mutex::new(repo));
+        let item = |file: &str| crate::plan_template::PlanTemplate {
+            key: "batch-1".into(),
+            fields: vec![("File".into(), file.into())],
+        };
+        let template = r#"{"steps":[
+            {"step_id":"s1","description":"Read {{File}}","tool_hint":"file_io","depends_on":[]}
+        ]}"#;
+        let first = make_engine_with_mock(template.to_string())
+            .with_shared_plan_cache(Arc::clone(&shared))
+            .with_plan_template(item("quote-01.pdf"));
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+        let done = first.execute(AIPTask::default(), &agent).await;
+        assert_eq!(done.status, TaskStatus::Completed);
+
+        // WHEN a second item runs with a model that could not plan at all
+        let second = make_engine_with_mock("not a plan".to_string())
+            .with_shared_plan_cache(Arc::clone(&shared))
+            .with_plan_template(item("quote-02.pdf"));
+        let result = second.execute(AIPTask::default(), &agent).await;
+
+        // THEN it ran the template of the batch, kept once for both
+        assert_eq!(result.status, TaskStatus::Completed);
+        let stats = shared.lock().expect("cache mutex").stats().expect("stats");
+        assert_eq!(stats.total_entries, 1);
     }
 
     /// GIVEN a plan cache repository shared with the runtime, as the supervisor

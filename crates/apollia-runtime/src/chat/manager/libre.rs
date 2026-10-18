@@ -280,6 +280,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     );
     // The documents attached to this conversation are read by its file tools,
     // and by those of no other conversation.
+    let planning_folders = folders.read.clone();
     let folders = super::documents::with_session_documents(
         folders,
         chat_tools_config_for_session
@@ -389,6 +390,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         },
         apollia_context,
         SessionWiring {
+            planning_folders,
+            plan_template: None,
             workspace_path: session_invoker.workspace,
             mcp_index: agent_mcp_index,
             tool_search_limit,

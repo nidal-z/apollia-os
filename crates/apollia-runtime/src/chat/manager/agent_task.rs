@@ -52,6 +52,8 @@ pub struct AgentTaskRun {
     /// Nobody watches the run (an item of a batch): governance answers a
     /// call that would ask with a wait instead.
     pub unattended: bool,
+    /// For an item of a batch, the plan template of its batch.
+    pub plan_template: Option<apollia_oria::plan_template::PlanTemplate>,
 }
 
 /// What a spawned run needs from the actor.
@@ -163,6 +165,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         budget,
         depth,
         unattended,
+        plan_template,
     } = run;
     let mut package_tools =
         super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel);
@@ -181,6 +184,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
     // The folders granted to the agent are the roots of its file tools.
     let (granted, folders) =
         super::dispatcher::granted_folders(tools, wiring.chat_tools_config.as_deref());
+    let planning_folders = folders.read.clone();
     spec.granted_tools = granted;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
         (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
@@ -259,6 +263,8 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
                 .map(|composer| Composition { composer, depth }),
             governance: wiring.governance,
             unattended,
+            planning_folders,
+            plan_template,
             ..SessionWiring::default()
         },
         &wiring.runtime_budget,
