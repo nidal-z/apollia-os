@@ -75,6 +75,8 @@ pub struct BatchItemRow {
     /// When it last changed state, UTC as SQLite writes it: for a running
     /// item, when its run started.
     pub updated_at: String,
+    /// How long its last run took, once it ended, read from its task.
+    pub duration_ms: Option<u64>,
 }
 
 const BATCH_COLUMNS: &str = "batch_id, agent_name, source_json, grants_json, concurrency, \
@@ -94,7 +96,8 @@ const RECOUNT: &str = "UPDATE batches SET \
      WHERE batch_id = ?1";
 
 const ITEM_COLUMNS: &str =
-    "rank, origin_ref, input_json, status, output_text, sources_json, task_id, updated_at";
+    "rank, origin_ref, input_json, status, output_text, sources_json, task_id, updated_at, \
+     (SELECT t.duration_ms FROM tasks t WHERE t.task_id = batch_items.task_id)";
 
 fn json_column(idx: usize, raw: &str) -> Result<serde_json::Value, rusqlite::Error> {
     serde_json::from_str(raw).map_err(|e| {
@@ -143,6 +146,9 @@ fn item_row(row: &rusqlite::Row<'_>) -> Result<BatchItemRow, rusqlite::Error> {
         sources: sources.map(|s| json_column(5, &s)).transpose()?,
         task_id: row.get(6)?,
         updated_at: row.get(7)?,
+        duration_ms: row
+            .get::<_, Option<i64>>(8)?
+            .and_then(|ms| u64::try_from(ms).ok()),
     })
 }
 

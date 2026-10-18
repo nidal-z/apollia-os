@@ -6831,6 +6831,11 @@ export interface components {
              *     started.
              */
             updatedAt: string;
+            /**
+             * Format: int64
+             * @description How long its last run took, once it ended.
+             */
+            durationMs?: number | null;
         };
         /** @description What a batch is launched with. */
         BatchLaunch: {

@@ -145,6 +145,8 @@ pub struct BatchItemView {
     /// When it last changed state, UTC: for a running item, when its run
     /// started.
     pub updated_at: String,
+    /// How long its last run took, once it ended.
+    pub duration_ms: Option<u64>,
 }
 
 impl From<BatchItemRow> for BatchItemView {
@@ -158,6 +160,7 @@ impl From<BatchItemRow> for BatchItemView {
             sources: row.sources,
             task_id: row.task_id,
             updated_at: row.updated_at,
+            duration_ms: row.duration_ms,
         }
     }
 }

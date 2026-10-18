@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
-   * BatchScreen - the view of one batch: its summary and commands, then its
-   * table, which fills as the items end. The batch is read again whenever the
-   * runtime reports a run or a decision, and at a slow pace besides, so the
-   * figures shown are always those the batch engine recorded.
+   * BatchScreen - the view of one batch: a bar that stays on top with its
+   * progress, pace and commands; below, the list of its items beside the
+   * detail of one, the item running by default, followed as it changes. The
+   * batch is read again whenever the runtime reports a run or a decision, and
+   * at a slow pace besides, so the figures shown are those the engine recorded.
    */
   import { untrack } from "svelte";
   import { locale, t } from "svelte-i18n";
@@ -24,12 +25,13 @@
   import BatchDecisionDialog from "./BatchDecisionDialog.svelte";
   import BatchDeleteAction from "./BatchDeleteAction.svelte";
   import BatchItemPanel from "./BatchItemPanel.svelte";
-  import BatchItemsTable from "./BatchItemsTable.svelte";
+  import BatchItemList from "./BatchItemList.svelte";
   import BatchSummaryCard from "./BatchSummaryCard.svelte";
   import {
     exportFileName,
     filterItems,
     isLive,
+    itemPace,
     progressOf,
     shownItemTab,
     sourceName,
@@ -60,7 +62,10 @@
   let query = $state("");
   let now = $state(new Date());
   let confirmingStop = $state(false);
-  let selectedRank = $state<number | null>(null);
+  /** The item chosen by hand, `null` while the running one is followed. */
+  let chosenRank = $state<number | null>(null);
+  /** The detail follows the item running, until one is chosen by hand. */
+  let followRunning = $state(true);
   let activity = $state<ItemActivity>(EMPTY_ACTIVITY);
   let activityUnread = $state(false);
   let deciding = $state<BatchItem | null>(null);
@@ -72,7 +77,8 @@
     untrack(() => {
       tab = "all";
       query = "";
-      closeItem();
+      chosenRank = null;
+      followRunning = true;
       void view.load(asked);
     });
   });
@@ -205,25 +211,18 @@
     };
   });
 
-  const selected = $derived(
-    selectedRank === null ? null : (items.find((item) => item.rank === selectedRank) ?? null),
-  );
-
-  function closeItem(): void {
-    selectedRank = null;
-    activity = EMPTY_ACTIVITY;
-    activityUnread = false;
-  }
+  // The item in the detail: the one running while it is followed, else the
+  // one chosen, else the first, so the detail is never empty.
+  const runningItem = $derived(items.find((item) => item.status === "running") ?? null);
+  const selected = $derived.by(() => {
+    if (followRunning && runningItem !== null) return runningItem;
+    const chosen = chosenRank === null ? null : (items.find((item) => item.rank === chosenRank) ?? null);
+    return chosen ?? runningItem ?? items[0] ?? null;
+  });
 
   function selectItem(item: BatchItem): void {
-    if (selectedRank === item.rank) {
-      closeItem();
-      return;
-    }
-    selectedRank = item.rank;
-    activity = EMPTY_ACTIVITY;
-    activityUnread = false;
-    if (item.taskId !== null) loadActivity(item.rank, item.taskId);
+    chosenRank = item.rank;
+    followRunning = false;
   }
 
   // The course of the run as recorded, then what the run reported since the
@@ -231,7 +230,7 @@
   function loadActivity(rank: number, taskId: string): void {
     getTaskTimeline(taskId)
       .then((timeline) => {
-        if (selectedRank !== rank) return;
+        if (selected?.rank !== rank) return;
         const recorded = activityFromTimeline(timeline);
         const last = recorded.entries.at(-1)?.at ?? 0;
         activity = {
@@ -240,22 +239,27 @@
         };
       })
       .catch(() => {
-        if (selectedRank === rank) activityUnread = true;
+        if (selected?.rank === rank) activityUnread = true;
       });
   }
 
-  // An item opened before it ran is read from the record once its run starts.
-  let followedTask: string | null = null;
+  // A new item in the detail, or the same item whose run starts, is read from
+  // the record; the events of its run follow.
+  let shownKey = "";
   $effect(() => {
-    const task = selected?.taskId ?? null;
+    const key = selected === null ? "" : `${selected.rank}:${selected.taskId ?? ""}`;
     const rank = selected?.rank ?? null;
+    const task = selected?.taskId ?? null;
     untrack(() => {
-      if (task !== null && rank !== null && task !== followedTask && activity.entries.length === 0) {
-        loadActivity(rank, task);
-      }
-      followedTask = task;
+      if (key === shownKey) return;
+      shownKey = key;
+      activity = EMPTY_ACTIVITY;
+      activityUnread = false;
+      if (rank !== null && task !== null) loadActivity(rank, task);
     });
   });
+
+  const perItemMs = $derived(itemPace(items));
 
   function act(action: BatchControl): void {
     if (action === "stop") {
@@ -324,7 +328,7 @@
   {subtitle}
   actions={headerActions}
   class="space-y-4 p-6"
-  maxWidth={selected === null ? "max-w-6xl" : "max-w-none"}
+  maxWidth="max-w-none"
   data-testid="batch-page"
 >
   {#if view.error}
@@ -355,6 +359,7 @@
       onExport={(format) => void exportAs(format)}
       {current}
       {waitingFor}
+      {perItemMs}
     />
 
     {#if view.refusal}
@@ -366,69 +371,78 @@
       />
     {/if}
 
-    <div class="flex flex-wrap items-center gap-3">
-      <TabBar
-        items={tabs}
-        activeTab={shownTab}
-        ontabchange={(key) => (tab = key as ItemTab)}
-        testidPrefix="batch"
-        variant="underline"
-        class="max-w-full"
-      />
-      <Input
-        bind:value={query}
-        icon={Search}
-        size="sm"
-        class="ml-auto w-72"
-        placeholder={$t("batch_view.search")}
-        aria-label={$t("batch_view.search")}
-        data-testid="batch-search"
-      />
-    </div>
-
-    {#if rows.length === 0}
-      <Card data-testid="batch-table-empty">
-        <EmptyState
-          tone="neutral"
-          title={$t(items.length === 0 ? "batch_view.empty_title" : "batch_view.empty_filtered_title")}
-          desc={$t(items.length === 0 ? "batch_view.empty_body" : "batch_view.empty_filtered_body")}
-        >
-          {#snippet icon()}
-            <Layers size={22} strokeWidth={1.5} />
-          {/snippet}
-        </EmptyState>
+    <div class="grid items-start gap-4 lg:grid-cols-[minmax(18rem,26rem)_minmax(0,1fr)]" data-testid="batch-body">
+      <Card class="flex min-w-0 flex-col overflow-hidden p-0 lg:sticky lg:top-28 lg:max-h-[calc(100vh-9rem)]">
+        <div class="shrink-0 space-y-2 border-b border-border p-3">
+          <TabBar
+            items={tabs}
+            activeTab={shownTab}
+            ontabchange={(key) => (tab = key as ItemTab)}
+            testidPrefix="batch"
+            variant="underline"
+            class="max-w-full"
+          />
+          <Input
+            bind:value={query}
+            icon={Search}
+            size="sm"
+            class="w-full"
+            placeholder={$t("batch_view.search")}
+            aria-label={$t("batch_view.search")}
+            data-testid="batch-search"
+          />
+          {#if live}
+            <label class="flex items-center gap-2 text-caption text-muted-foreground">
+              <input
+                type="checkbox"
+                class="accent-primary"
+                bind:checked={followRunning}
+                data-testid="batch-follow-running"
+              />
+              {$t("batch_view.follow_running")}
+            </label>
+          {/if}
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          {#if rows.length === 0}
+            <div class="p-4" data-testid="batch-table-empty">
+              <EmptyState
+                tone="neutral"
+                title={$t(items.length === 0 ? "batch_view.empty_title" : "batch_view.empty_filtered_title")}
+                desc={$t(items.length === 0 ? "batch_view.empty_body" : "batch_view.empty_filtered_body")}
+              >
+                {#snippet icon()}
+                  <Layers size={22} strokeWidth={1.5} />
+                {/snippet}
+              </EmptyState>
+            </div>
+          {:else}
+            <BatchItemList
+              items={rows}
+              selectedRank={selected?.rank ?? null}
+              onSelect={selectItem}
+              onOpenDecision={(item) => (deciding = item)}
+              live={liveSteps}
+              now={now.getTime()}
+            />
+          {/if}
+        </div>
       </Card>
-    {:else}
-      <div
-        class="grid items-start gap-4 {selected === null ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(26rem,44%)]'}"
-        data-testid="batch-body"
-      >
-        <div class="min-w-0">
-          <BatchItemsTable
-            items={rows}
-            {selectedRank}
-            onSelect={selectItem}
-            onOpenDecision={(item) => (deciding = item)}
-            live={liveSteps}
+
+      {#if selected !== null}
+        <div class="min-w-0 lg:sticky lg:top-28 lg:flex lg:max-h-[calc(100vh-9rem)] lg:flex-col">
+          <BatchItemPanel
+            item={selected}
+            {activity}
+            unread={activityUnread}
+            liveLine={selected.status === "running"
+              ? liveLineOf(selected, selected.taskId === null ? undefined : liveSteps.get(selected.taskId), now.getTime(), $t)
+              : null}
             now={now.getTime()}
-            compact={selected !== null}
           />
         </div>
-        {#if selected !== null}
-          <div class="order-first min-w-0 xl:sticky xl:top-4 xl:order-none xl:flex xl:max-h-[calc(100vh-7rem)] xl:flex-col">
-            <BatchItemPanel
-              item={selected}
-              {activity}
-              unread={activityUnread}
-              liveLine={selected.status === "running"
-                ? liveLineOf(selected, selected.taskId === null ? undefined : liveSteps.get(selected.taskId), now.getTime(), $t)
-                : null}
-              onclose={closeItem}
-            />
-          </div>
-        {/if}
-      </div>
-    {/if}
+      {/if}
+    </div>
 
     <ConfirmDialog
       open={confirmingStop}

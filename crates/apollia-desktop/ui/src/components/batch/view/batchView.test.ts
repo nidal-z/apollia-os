@@ -13,7 +13,7 @@ import {
   commandsFor,
   durationMinutes,
   entryOf,
-  estimatedEnd,
+  itemPace,
   exportFileName,
   filterBatches,
   filterItems,
@@ -102,18 +102,28 @@ describe("the progress of a batch", () => {
     expect(progressOf(stopped)).toMatchObject({ treated: 11, remaining: 0 });
   });
 
-  it("estimates the end of a running batch from the pace observed, and of no other", () => {
-    // GIVEN a batch launched 10 minutes ago with 50 of 100 items dealt with
+  it("reads the pace on the last items that ended, pauses left out", () => {
+    // GIVEN six ended items, the oldest one slow, and one still running
+    const ended = (rank: number, ms: number, at: string): BatchItem => ({
+      rank, origin: `row ${rank}`, input: {}, status: "completed", output: "ok", sources: null,
+      taskId: `t-${rank}`, updatedAt: at, durationMs: ms,
+    });
+    const items: BatchItem[] = [
+      ended(0, 600_000, "2026-10-16 14:00:00"),
+      ended(1, 60_000, "2026-10-18 09:00:00"),
+      ended(2, 60_000, "2026-10-18 09:01:00"),
+      ended(3, 120_000, "2026-10-18 09:03:00"),
+      ended(4, 60_000, "2026-10-18 09:04:00"),
+      ended(5, 100_000, "2026-10-18 09:06:00"),
+      { rank: 6, origin: "row 6", input: {}, status: "running", output: null, sources: null, taskId: "t-6" },
+    ];
+
+    // WHEN the pace is read
+    // THEN it is the mean of the five last ended, the old slow one left out, and nothing before any ended
+    expect(itemPace(items)).toBe(80_000);
+    expect(itemPace(items.slice(6))).toBeNull();
     const running = batch({ total: 100, completed: 50, failed: 0, awaiting: 0, createdAt: "2026-10-02T14:00:00Z" });
     const now = new Date("2026-10-02T14:10:00Z");
-
-    // WHEN the end is estimated
-    const end = estimatedEnd(running, now);
-
-    // THEN the 50 items left take as long again, and a paused or untouched batch has no estimate
-    expect(end?.toISOString()).toBe("2026-10-02T14:20:00.000Z");
-    expect(estimatedEnd({ ...running, state: "paused" }, now)).toBeNull();
-    expect(estimatedEnd({ ...running, completed: 0 }, now)).toBeNull();
     expect(durationMinutes({ ...running, endedAt: "2026-10-02T14:24:00Z" }, now)).toBe(24);
     expect(durationMinutes(running, now)).toBe(10);
   });

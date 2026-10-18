@@ -6663,11 +6663,11 @@
     },
     "schedule": {
       "started": "Commencé à {started}",
-      "estimated": "Commencé à {started} · fin estimée vers {end}, approximative",
       "paused": "Commencé à {started} · en pause depuis {at}",
       "completed": "Commencé à {started}, terminé à {at} · {minutes} min",
       "interrupted": "Commencé à {started}, interrompu à {at}",
-      "stopped": "Commencé à {started}, arrêté à {at} · {minutes} min"
+      "stopped": "Commencé à {started}, arrêté à {at} · {minutes} min",
+      "pace": "Commencé à {started} · {per} par élément · fin vers {end}"
     },
     "message": {
       "paused": "Aucun élément ne démarre tant que le lot n'est pas repris ; l'élément en cours se termine. Les échecs que vous relancez maintenant sont relancés à la reprise.",
@@ -6707,8 +6707,6 @@
       "awaiting": "En attente de validation"
     },
     "output": {
-      "pending": "Pas encore traité",
-      "running": "Traitement en cours…",
       "canceled": "Le lot s'est arrêté avant cet élément",
       "awaiting": "L'agent demande un accès non accordé pour ce lot.",
       "awaiting_access": "L'agent demande un accès non accordé pour ce lot : {access}"
@@ -6742,14 +6740,13 @@
     },
     "item": {
       "heading": "N° {number} · {title}",
-      "input": "Entrée complète",
       "output": "Sortie",
       "failure": "Cause de l'échec",
       "no_output": "Aucune sortie pour le moment.",
       "steps_unread": "Les étapes n'ont pas pu être lues.",
       "sources": "Sources consultées ({count})",
-      "close": "Fermer l'élément",
-      "panel_label": "Élément n° {number}"
+      "panel_label": "Élément n° {number}",
+      "input_count": "Entrée ({count} champs)"
     },
     "delete": {
       "command": "Supprimer",
@@ -6792,7 +6789,29 @@
       "planned": "A préparé son plan · {seconds} · {tokens} jetons"
     },
     "current": "En cours : n° {number} · {line}",
-    "waiting_for": "En attente : le lot de {agent}, lancé à {started}, passe d'abord. Un seul lot utilise le modèle à la fois."
+    "waiting_for": "En attente : le lot de {agent}, lancé à {started}, passe d'abord. Un seul lot utilise le modèle à la fois.",
+    "treated_short": "{treated} sur {total}",
+    "settings": "Paramètres du lot",
+    "follow_running": "Suivre l'élément en cours",
+    "list": {
+      "failed": "Échec : voir le détail"
+    },
+    "times": {
+      "plan": "Planification {time}",
+      "steps": "Étapes {time}",
+      "replans": "{count, plural, one {# plan revu} other {# plans revus}}"
+    },
+    "failure": {
+      "hint": "Un fichier de ce nom existe : {paths}",
+      "not_found": "Fichier introuvable : {path}",
+      "tool": "Outil non disponible pour cet agent : {tool}",
+      "outside": "Chemin hors des dossiers accordés : {path}",
+      "deadline": "Arrêté après {minutes} minutes sans finir",
+      "replan": "L'agent n'a pas réussi à revoir son plan après une étape en échec.",
+      "plan": "L'agent n'a pas réussi à établir son plan.",
+      "budget": "L'agent a atteint la limite de son budget d'étapes.",
+      "raw": "Détail technique"
+    }
   },
   "batch_history": {
     "open": "Historique des lots",

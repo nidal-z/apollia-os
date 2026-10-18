@@ -136,18 +136,23 @@ function time(value: string | null): number | null {
   return Number.isNaN(at) ? null : at;
 }
 
+/** How many of the last items that ended the pace is read on. */
+const PACE_WINDOW = 5;
+
 /**
- * When a running batch should end at the pace observed so far, `null` when
- * nothing was dealt with yet or the batch is not running. An approximation:
- * the pace counts the pauses the batch went through.
+ * The time one item takes, read on the last items that ended: the mean of
+ * their run durations. `null` before any item ended with a duration. Pauses
+ * are not counted, as they were when the pace was the time since the start
+ * over the items dealt with.
  */
-export function estimatedEnd(batch: BatchSummary, now: Date): Date | null {
-  const started = time(batch.createdAt);
-  const { treated, remaining } = progressOf(batch);
-  if (stateOf(batch) !== "running" || started === null || treated === 0 || remaining === 0) return null;
-  const elapsed = now.getTime() - started;
-  if (elapsed <= 0) return null;
-  return new Date(now.getTime() + (elapsed / treated) * remaining);
+export function itemPace(items: readonly BatchItem[]): number | null {
+  const durations = items
+    .filter((item) => (item.status === "completed" || item.status === "failed") && typeof item.durationMs === "number")
+    .sort((a, b) => (time(b.updatedAt ?? null) ?? 0) - (time(a.updatedAt ?? null) ?? 0))
+    .slice(0, PACE_WINDOW)
+    .map((item) => item.durationMs as number);
+  if (durations.length === 0) return null;
+  return durations.reduce((sum, ms) => sum + ms, 0) / durations.length;
 }
 
 /** How long the batch ran, in whole minutes, until its end or until `now`. */

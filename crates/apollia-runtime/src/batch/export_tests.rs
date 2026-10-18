@@ -19,6 +19,7 @@ fn item(rank: u64, input: Value, status: &str, output: Option<&str>) -> BatchIte
         sources: None,
         task_id: None,
         updated_at: String::new(),
+        duration_ms: None,
     }
 }
 

@@ -197,6 +197,8 @@ export interface BatchItem {
   taskId: string | null;
   /** When it last changed state, UTC: for a running item, when its run started. */
   updatedAt?: string;
+  /** How long its last run took, once it ended. */
+  durationMs?: number | null;
 }
 
 /** A batch with its items. */

@@ -31,6 +31,7 @@ class BatchItemView:
         output (None | str | Unset):
         sources (BatchItemViewSourcesType0 | None | Unset):
         task_id (None | str | Unset): The task that ran it.
+        duration_ms (int | None | Unset): How long its last run took, once it ended.
     """
 
     input_: BatchItemViewInput
@@ -41,6 +42,7 @@ class BatchItemView:
     output: None | str | Unset = UNSET
     sources: BatchItemViewSourcesType0 | None | Unset = UNSET
     task_id: None | str | Unset = UNSET
+    duration_ms: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -76,6 +78,12 @@ class BatchItemView:
         else:
             task_id = self.task_id
 
+        duration_ms: int | None | Unset
+        if isinstance(self.duration_ms, Unset):
+            duration_ms = UNSET
+        else:
+            duration_ms = self.duration_ms
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -93,6 +101,8 @@ class BatchItemView:
             field_dict["sources"] = sources
         if task_id is not UNSET:
             field_dict["taskId"] = task_id
+        if duration_ms is not UNSET:
+            field_dict["durationMs"] = duration_ms
 
         return field_dict
 
@@ -147,6 +157,15 @@ class BatchItemView:
 
         task_id = _parse_task_id(d.pop("taskId", UNSET))
 
+        def _parse_duration_ms(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        duration_ms = _parse_duration_ms(d.pop("durationMs", UNSET))
+
         batch_item_view = cls(
             input_=input_,
             origin=origin,
@@ -156,6 +175,7 @@ class BatchItemView:
             output=output,
             sources=sources,
             task_id=task_id,
+            duration_ms=duration_ms,
         )
 
         batch_item_view.additional_properties = d

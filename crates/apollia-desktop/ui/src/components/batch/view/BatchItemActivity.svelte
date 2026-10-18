@@ -15,6 +15,7 @@
   import { developerMode } from "$lib/stores/developerMode";
   import ReasoningBlock from "../../chat/ReasoningBlock.svelte";
   import ToolStep from "../../chat/ToolStep.svelte";
+  import { failureText } from "./failureText";
   import { splitThinking, type ActivityEntry, type ItemActivity } from "./itemActivity";
 
   interface Props {
@@ -94,6 +95,9 @@
   }
 
   const skin = $derived($developerMode ? "builder" : "operator");
+  // In the order things happened: the record and the live events of a run
+  // opened late arrive in two batches.
+  const entries = $derived([...activity.entries].sort((a, b) => a.at - b.at));
   const now = $derived(splitThinking(activity.writing));
 </script>
 
@@ -108,7 +112,7 @@
   </p>
 {:else}
   <ol class="m-0 list-none space-y-2 p-0" data-testid="batch-item-activity">
-    {#each activity.entries as entry, index (index)}
+    {#each entries as entry, index (index)}
       <li data-kind={entry.kind}>
         {#if entry.kind === "planning"}
           {#if entry.status === "running"}
@@ -165,7 +169,11 @@
                 {/if}
               </p>
               {#if entry.error !== null}
-                <p class="m-0 mt-0.5 break-words text-caption text-danger-a11y">{entry.error}</p>
+                {@const said = failureText(entry.error, $t)}
+                <p class="m-0 mt-0.5 break-words text-caption text-danger-a11y">{said.text}</p>
+                {#if said.hint !== null}
+                  <p class="m-0 break-words text-caption text-foreground">{said.hint}</p>
+                {/if}
               {/if}
             </div>
           </div>
@@ -199,7 +207,7 @@
         {:else if entry.kind === "replan"}
           <p class="m-0 flex items-start gap-2 break-words text-body-sm text-warning-a11y">
             <RotateCcw size={14} strokeWidth={1.5} class="mt-0.5 shrink-0" />
-            {$t("batch_view.activity.replan", { values: { reason: entry.reason } })}
+            {$t("batch_view.activity.replan", { values: { reason: failureText(entry.reason, $t).text } })}
           </p>
         {:else if entry.kind === "approval"}
           <p class="m-0 flex items-start gap-2 break-words text-body-sm text-foreground">

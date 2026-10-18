@@ -149,6 +149,7 @@ STRICT CONSTRAINTS:
 - Maximum {max_steps} steps
 - Available tools: {tool_names}
 - Each step_id must be unique (s1, s2, s3...)
+- Write each description in the language of the request: the user reads it
 - depends_on may only reference step_ids that exist in this plan
 - When the place of a file is not certain, list or search the folder (file_list, file_glob) before reading it, rather than guessing its path
 - A step that only reasons, compares or writes uses tool_hint "llm"
@@ -183,6 +184,7 @@ STRICT CONSTRAINTS:
 - Maximum {max_steps} steps
 - Available tools: {tool_names}
 - Each step_id must be unique (s1, s2, s3...)
+- Write each description in the language of the request: the user reads it
 - depends_on may only reference step_ids that exist in this plan
 - When the place of a file is not certain, list or search the folder (file_list, file_glob) before reading it, rather than guessing its path
 - A step that only reasons, compares or writes uses tool_hint "llm"

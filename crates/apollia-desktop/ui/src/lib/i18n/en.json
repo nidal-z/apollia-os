@@ -6663,11 +6663,11 @@
     },
     "schedule": {
       "started": "Started at {started}",
-      "estimated": "Started at {started} · estimated end around {end}, approximate",
       "paused": "Started at {started} · paused since {at}",
       "completed": "Started at {started}, completed at {at} · {minutes} min",
       "interrupted": "Started at {started}, interrupted at {at}",
-      "stopped": "Started at {started}, stopped at {at} · {minutes} min"
+      "stopped": "Started at {started}, stopped at {at} · {minutes} min",
+      "pace": "Started at {started} · {per} per item · ends around {end}"
     },
     "message": {
       "paused": "No item starts until the batch is resumed; the item in progress ends. The failures you retry now run again once the batch resumes.",
@@ -6707,8 +6707,6 @@
       "awaiting": "Waiting for approval"
     },
     "output": {
-      "pending": "Not processed yet",
-      "running": "Processing…",
       "canceled": "The batch stopped before this item",
       "awaiting": "The agent asks for an access not granted for this batch.",
       "awaiting_access": "The agent asks for an access not granted for this batch: {access}"
@@ -6742,14 +6740,13 @@
     },
     "item": {
       "heading": "No. {number} · {title}",
-      "input": "Full input",
       "output": "Output",
       "failure": "Cause of the failure",
       "no_output": "No output yet.",
       "steps_unread": "The steps could not be read.",
       "sources": "Sources consulted ({count})",
-      "close": "Close the item",
-      "panel_label": "Item {number}"
+      "panel_label": "Item {number}",
+      "input_count": "Input ({count} fields)"
     },
     "delete": {
       "command": "Delete",
@@ -6792,7 +6789,29 @@
       "planned": "Prepared its plan · {seconds} · {tokens} tokens"
     },
     "current": "Running: item {number} · {line}",
-    "waiting_for": "Waiting: the batch of {agent}, launched at {started}, runs first. One batch uses the model at a time."
+    "waiting_for": "Waiting: the batch of {agent}, launched at {started}, runs first. One batch uses the model at a time.",
+    "treated_short": "{treated} of {total}",
+    "settings": "Batch settings",
+    "follow_running": "Follow the running item",
+    "list": {
+      "failed": "Failed: see the detail"
+    },
+    "times": {
+      "plan": "Planning {time}",
+      "steps": "Steps {time}",
+      "replans": "{count, plural, one {# plan revised} other {# plans revised}}"
+    },
+    "failure": {
+      "hint": "A file of that name exists: {paths}",
+      "not_found": "File not found: {path}",
+      "tool": "Tool not available to this agent: {tool}",
+      "outside": "Path outside the granted folders: {path}",
+      "deadline": "Stopped after {minutes} minutes without finishing",
+      "replan": "The agent could not revise its plan after a step failed.",
+      "plan": "The agent could not make its plan.",
+      "budget": "The agent reached the limit of its step budget.",
+      "raw": "Technical detail"
+    }
   },
   "batch_history": {
     "open": "Batch history",

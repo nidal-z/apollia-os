@@ -1902,7 +1902,7 @@
     },
     {
       "kind": "expect",
-      "testid": "batch-item-sources"
+      "testid": "batch-item-open"
     },
     {
       "kind": "expect",
