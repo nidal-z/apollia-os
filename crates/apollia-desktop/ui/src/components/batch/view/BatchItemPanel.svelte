@@ -14,7 +14,7 @@
   import type { BatchItem } from "$lib/ipc/batches";
   import { parseTimestampMs } from "$lib/utils";
   import BatchItemActivity from "./BatchItemActivity.svelte";
-  import { ITEM_TONE, awaitedAccess, citedSources, entryOf, fieldsOf, statusOf } from "./batchView";
+  import { ITEM_TONE, answerFields, awaitedAccess, citedSources, entryOf, fieldsOf, statusOf } from "./batchView";
   import { failureText } from "./failureText";
   import type { ItemActivity } from "./itemActivity";
   import { elapsedLabel, secondsSince } from "./liveSteps";
@@ -63,6 +63,7 @@
     return parts;
   });
 
+  const answer = $derived(status === "completed" ? answerFields(item.output) : null);
   const failure = $derived(status === "failed" && item.output !== null ? failureText(item.output, $t) : null);
 </script>
 
@@ -134,6 +135,13 @@
               <p class="m-0 mt-1 whitespace-pre-wrap break-words font-mono">{failure.raw}</p>
             </details>
           {/if}
+        {:else if answer !== null}
+          <dl class="m-0 grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-[minmax(7rem,auto)_1fr]" data-testid="batch-item-answer">
+            {#each answer as field (field.name)}
+              <dt class="text-caption text-muted-foreground sm:pt-0.5">{field.name}</dt>
+              <dd class="m-0 whitespace-pre-wrap break-words text-body-sm text-foreground">{field.value}</dd>
+            {/each}
+          </dl>
         {:else if item.output !== null}
           <div class="text-body-sm text-foreground" data-testid="batch-item-output-text">
             <MarkdownContent content={item.output} />

@@ -115,7 +115,7 @@
     },
     {
       "kind": "expect",
-      "testid": "batch-launch-registry-empty"
+      "testid": "batch-launch-pick-folder"
     },
     {
       "kind": "click",
@@ -513,8 +513,13 @@
     },
     {
       "kind": "fill",
-      "testid": "batch-launch-columns",
-      "text": "Category, Urgency"
+      "testid": "batch-launch-output-name",
+      "text": "Category"
+    },
+    {
+      "kind": "fill",
+      "testid": "batch-launch-instruction",
+      "text": "Sort the request by category and urgency."
     },
     {
       "kind": "click",

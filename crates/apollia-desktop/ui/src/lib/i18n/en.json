@@ -6537,10 +6537,13 @@
       "unread_only": "Unread messages only",
       "unreadable": "The sources could not be read: {reason}",
       "blocked": {
-        "folder_unread": "A batch does not read a folder file by file yet.",
+        "folder_unread": "This folder is not a folder of this computer.",
         "file_not_table": "This file is neither a workbook nor a CSV file.",
         "mailbox_unknown": "This mailbox is not attached to a connection a batch can read."
-      }
+      },
+      "pick_folder": "Choose a folder…",
+      "add_mailbox": "Add a mailbox…",
+      "recursive": "Read the sub-folders too"
     },
     "family": {
       "table": {
@@ -6551,12 +6554,12 @@
       "folder": {
         "name": "Folder",
         "item": "A file of the folder becomes an item",
-        "none": "No folder among your sources."
+        "none": "No folder connected. Choose one on this computer."
       },
       "mail": {
         "name": "Mailbox",
         "item": "A received message becomes an item",
-        "none": "No mailbox among your sources."
+        "none": "No mailbox connected. Add one in Connections."
       }
     },
     "preview": {
@@ -6582,8 +6585,6 @@
       "copy": "In a copy of the file, with the agent's columns",
       "original": "In the original file, after a backup",
       "original_unavailable": "The original file can be modified for an .xlsx or .xlsm workbook only.",
-      "columns": "Columns added",
-      "columns_hint": "One column per field the agent returns, comma separated: for example Category, Urgency. An answer without fields goes whole into the first.",
       "default_column": "Result"
     },
     "accesses": {
@@ -6620,7 +6621,19 @@
     "ready_count": "{count, plural, one {# item will be handed} other {# items will be handed}} to the agent, one at a time.",
     "confirm": "Launch the batch",
     "launching": "Launching…",
-    "launched": "Batch launched: {count, plural, one {# item} other {# items}}."
+    "launched": "Batch launched: {count, plural, one {# item} other {# items}}.",
+    "task": {
+      "title": "What the agent does for each item",
+      "instruction_placeholder": "For example: read this quote, note the supplier, the total amount and the lead time, and say whether it fits our budget of 5,000 €.",
+      "outputs_title": "Result columns",
+      "outputs_hint": "The agent fills one field per column. The description tells it what the field holds.",
+      "output_name": "Name",
+      "output_description": "What this field holds",
+      "output_remove": "Remove this column",
+      "output_add": "Add a column",
+      "synthesis_title": "At the end of the batch (optional)",
+      "synthesis_placeholder": "For example: rank the quotes from cheapest to most expensive and recommend one."
+    }
   },
   "batch_view": {
     "kicker": "Agents · {agent} · Batch",
@@ -6811,6 +6824,13 @@
       "plan": "The agent could not make its plan.",
       "budget": "The agent reached the limit of its step budget.",
       "raw": "Technical detail"
+    },
+    "synthesis": {
+      "title": "Batch synthesis",
+      "waiting": "The synthesis is written once the last item has run.",
+      "running": "The agent is writing the synthesis of the batch…",
+      "written": "Saved to {path}",
+      "failed": "The synthesis could not be written: {cause}"
     }
   },
   "batch_history": {

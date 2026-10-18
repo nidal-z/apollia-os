@@ -6,10 +6,15 @@
 import type {
   BatchAccess,
   BatchLaunch,
+  BatchOutput,
   BatchSourceDescriptor,
   RegistrySource,
   WriteDestination,
 } from "$lib/ipc/batches";
+import type { Connection } from "$lib/types";
+
+/** The most fields the answer of an item gives. */
+export const MAX_OUTPUTS = 20;
 
 /** The failure counts the dialog offers, in order. */
 export const FAILURE_THRESHOLDS = [5, 10, 20, 50] as const;
@@ -76,6 +81,14 @@ export interface LaunchForm {
   columns: string;
   /** A mailbox yields its unread messages only. */
   unreadOnly: boolean;
+  /** A folder is read with its sub-folders. */
+  recursive?: boolean;
+  /** What the agent does with each item; empty says nothing more. */
+  instruction?: string;
+  /** The fields the answer of each item gives, one column each. */
+  outputs?: BatchOutput[];
+  /** What the agent does once every item has run; empty: no synthesis. */
+  synthesis?: string;
   /**
    * The sheet, the header row and the checked columns of a previewed file;
    * absent or `null` while no preview is known, and the runtime then reads
@@ -160,9 +173,59 @@ function registryChoice(source: RegistrySource): SourceChoice | null {
     };
   }
   if (source.kind === "folder") {
-    return { ...base, shape: "folder", reader: null, blocked: "folder_unread" };
+    // A folder of the registry is read when it names a folder of this machine.
+    const isPath = reference.startsWith("/") || /^[A-Za-z]:[\\/]/.test(reference);
+    return isPath
+      ? { ...base, shape: "folder", reader: { kind: "folder", location: reference }, blocked: null }
+      : { ...base, shape: "folder", reader: null, blocked: "folder_unread" };
   }
   return null;
+}
+
+/** The option of a folder of this machine chosen by its path. */
+export function folderChoice(path: string): SourceChoice {
+  return {
+    key: `folder:${path}`,
+    shape: "folder",
+    label: fileNameOf(path) || path,
+    detail: path,
+    reader: { kind: "folder", location: path },
+    blocked: null,
+  };
+}
+
+/**
+ * The folders and mailboxes of the connections of this machine: a folder
+ * connection, a mailbox connected over IMAP, a Microsoft account read as
+ * Outlook. A connection that is not usable now is left out.
+ */
+export function connectionChoices(connections: Connection[]): SourceChoice[] {
+  const choices: SourceChoice[] = [];
+  for (const connection of connections) {
+    if (connection.state !== "connected") continue;
+    if (connection.kind === "folder" && connection.path) {
+      choices.push({ ...folderChoice(connection.path), key: `connection:${connection.id}`, label: connection.label });
+    } else if (connection.kind === "imap" && connection.account) {
+      choices.push({
+        key: `connection:${connection.id}`,
+        shape: "mail",
+        label: connection.account,
+        detail: connection.label,
+        reader: { kind: "mail", location: `imap:${connection.account}` },
+        blocked: null,
+      });
+    } else if (connection.kind === "native" && connection.id.startsWith("native:microsoft:") && connection.account) {
+      choices.push({
+        key: `connection:${connection.id}`,
+        shape: "mail",
+        label: connection.account,
+        detail: connection.label,
+        reader: { kind: "mail", location: `outlook:${connection.account}` },
+        blocked: null,
+      });
+    }
+  }
+  return choices;
 }
 
 /**
@@ -170,8 +233,18 @@ function registryChoice(source: RegistrySource): SourceChoice | null {
  * files, folders and mailboxes of the registry. The profile and the memory
  * hold no items to run an agent on, and are left out.
  */
-export function sourceChoices(registry: RegistrySource[], file: string | null): SourceChoice[] {
+export function sourceChoices(
+  registry: RegistrySource[],
+  file: string | null,
+  connections: Connection[] = [],
+  folder: string | null = null,
+): SourceChoice[] {
   const choices: SourceChoice[] = file ? [fileChoice(file)] : [];
+  if (folder) choices.push(folderChoice(folder));
+  for (const choice of connectionChoices(connections)) {
+    if (choices.some((c) => c.reader?.location === choice.reader?.location)) continue;
+    choices.push(choice);
+  }
   for (const source of registry) {
     const choice = registryChoice(source);
     if (choice === null) continue;
@@ -217,8 +290,14 @@ export function refusalOf(form: LaunchForm): LaunchRefusal | null {
   if (!form.agent) return "agent_missing";
   if (form.source === null) return "source_missing";
   if (form.source.reader === null) return "source_blocked";
+  const outputs = outputsOf(form);
+  if (outputs.length > MAX_OUTPUTS) return "columns_too_many";
+  if (new Set(outputs.map((output) => output.name.toLowerCase())).size !== outputs.length) {
+    return "columns_duplicate";
+  }
   if (writesResults(form.source)) {
     if (form.table && form.table.checked === 0) return "fields_missing";
+    if (outputs.length > 0) return null;
     const columns = columnsOf(form.columns);
     if (columns.length === 0) return "columns_missing";
     if (columns.length > MAX_COLUMNS) return "columns_too_many";
@@ -226,6 +305,13 @@ export function refusalOf(form: LaunchForm): LaunchRefusal | null {
     if (seen.size !== columns.length) return "columns_duplicate";
   }
   return null;
+}
+
+/** The fields of the answer the form asks for, named ones only, trimmed. */
+export function outputsOf(form: LaunchForm): BatchOutput[] {
+  return (form.outputs ?? [])
+    .map((output) => ({ name: output.name.trim(), description: output.description.trim() }))
+    .filter((output) => output.name !== "");
 }
 
 /**
@@ -241,19 +327,28 @@ export function buildLaunch(form: LaunchForm, accesses: BatchAccess[]): BatchLau
   if (writesResults(form.source)) {
     if (form.table) source.options = { ...form.table.options };
     const original = form.destination === "original" && canWriteOriginal(form.source);
+    const outputs = outputsOf(form);
     source.write = {
       destination: original ? "original" : "copy",
-      columns: columnsOf(form.columns),
+      columns: outputs.length > 0 ? outputs.map((output) => output.name) : columnsOf(form.columns),
     };
     if (original) grants.push(ORIGINAL_WRITE_GRANT);
   }
   if (form.source.shape === "mail" && form.unreadOnly) source.options.unread_only = "true";
-  return {
+  if (form.source.shape === "folder" && form.recursive) source.options.recursive = "true";
+  const launch: BatchLaunch = {
     agent: form.agent,
     source,
     grants,
     maxFailures: maxFailuresOf(form.threshold),
   };
+  const instruction = (form.instruction ?? "").trim();
+  const synthesis = (form.synthesis ?? "").trim();
+  const outputs = outputsOf(form);
+  if (instruction !== "" || outputs.length > 0 || synthesis !== "") {
+    launch.task = { instruction, outputs, ...(synthesis === "" ? {} : { synthesis }) };
+  }
+  return launch;
 }
 
 /**

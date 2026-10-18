@@ -401,3 +401,53 @@ export const EXPORT_FORMATS: readonly BatchExportFormat[] = ["xlsx", "csv", "jso
 export function exportFileName(batch: BatchSummary, format: BatchExportFormat): string {
   return `batch-${batch.batchId}.${format}`;
 }
+
+/**
+ * The fields of an answer given as one JSON object, in their order, a value
+ * that is not text said as JSON; `null` for an answer that is not one.
+ */
+export function answerFields(output: string | null): { name: string; value: string }[] | null {
+  if (output === null) return null;
+  const text = output
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  if (!text.startsWith("{")) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const fields = Object.entries(parsed as Record<string, unknown>).map(([name, value]) => ({
+    name,
+    value: typeof value === "string" ? value : JSON.stringify(value),
+  }));
+  return fields.length === 0 ? null : fields;
+}
+
+/** Where the synthesis of a batch stands; `null` when none was asked. */
+export type SynthesisView =
+  | { state: "waiting" | "running" }
+  | { state: "completed"; text: string; path: string | null }
+  | { state: "failed"; cause: string };
+
+export function synthesisOf(batch: BatchSummary): SynthesisView | null {
+  const asked = (batch.source.task?.synthesis ?? "").trim() !== "";
+  const kept = batch.source.synthesis;
+  if (kept === undefined) return asked ? { state: "waiting" } : null;
+  if (kept.state === "completed") return { state: "completed", text: kept.text ?? "", path: kept.path ?? null };
+  if (kept.state === "failed") return { state: "failed", cause: kept.text ?? "" };
+  return { state: "running" };
+}
+
+/**
+ * The batch is still read again: it runs or waits, or it has completed and
+ * the synthesis it asked for is not written yet.
+ */
+export function isMoving(batch: BatchSummary): boolean {
+  if (isLive(batch)) return true;
+  const synthesis = synthesisOf(batch);
+  return stateOf(batch) === "completed" && synthesis !== null && (synthesis.state === "waiting" || synthesis.state === "running");
+}

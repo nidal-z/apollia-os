@@ -8,6 +8,9 @@ import { currentRoute, sidebarRoute } from "$lib/stores/navigation";
 import {
   HISTORY_PAGE,
   agentsOf,
+  answerFields,
+  isMoving,
+  synthesisOf,
   awaitedAccess,
   citedSources,
   commandsFor,
@@ -453,5 +456,47 @@ describe("the notifications of the batches", () => {
     // THEN both event categories of the batch engine reach the sender
     expect(store.match(/void notifyBatchEvent\(event\);/g)).toHaveLength(2);
     expect(notifications).toContain('from "@tauri-apps/plugin-notification"');
+  });
+});
+
+describe("the answer of an item given as fields", () => {
+  it("reads a JSON object, fenced or not, as its fields in order", () => {
+    // GIVEN an answer fenced as JSON, and one in plain words
+    const fenced = '```json\n{"Supplier": "Ada SA", "Total": 1200}\n```';
+
+    // WHEN its fields are read
+    const fields = answerFields(fenced);
+
+    // THEN each field comes with its value, a number said as text
+    expect(fields).toEqual([
+      { name: "Supplier", value: "Ada SA" },
+      { name: "Total", value: "1200" },
+    ]);
+    // AND an answer in plain words has none
+    expect(answerFields("The quote fits the budget.")).toBeNull();
+    expect(answerFields("{not json")).toBeNull();
+  });
+});
+
+describe("the synthesis of a batch", () => {
+  it("says it waits, then keeps the batch read until it is written", () => {
+    // GIVEN a completed batch that asked for a synthesis not written yet
+    const asked = { kind: "folder", location: "/data/quotes", options: {}, task: { instruction: "", outputs: [], synthesis: "Rank them" } };
+    const waiting = batch({ state: "completed", source: asked });
+
+    // WHEN its synthesis is read
+    // THEN it waits and the batch is still read again
+    expect(synthesisOf(waiting)).toEqual({ state: "waiting" });
+    expect(isMoving(waiting)).toBe(true);
+
+    // AND once written, it shows the text and the file, and reading stops
+    const done = batch({
+      state: "completed",
+      source: { ...asked, synthesis: { state: "completed", text: "Ada SA first", path: "/data/quotes (synthesis 2026-10-18).md" } },
+    });
+    expect(synthesisOf(done)).toEqual({ state: "completed", text: "Ada SA first", path: "/data/quotes (synthesis 2026-10-18).md" });
+    expect(isMoving(done)).toBe(false);
+    // AND a batch that asked for none has no synthesis
+    expect(synthesisOf(batch({ state: "completed" }))).toBeNull();
   });
 });

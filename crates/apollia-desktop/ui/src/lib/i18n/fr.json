@@ -6537,10 +6537,13 @@
       "unread_only": "Messages non lus seulement",
       "unreadable": "Les sources n'ont pas pu être lues : {reason}",
       "blocked": {
-        "folder_unread": "Un lot ne lit pas encore un dossier fichier par fichier.",
+        "folder_unread": "Ce dossier n'est pas un dossier de ce poste.",
         "file_not_table": "Ce fichier n'est ni un classeur ni un CSV.",
         "mailbox_unknown": "Cette boîte mail n'est pas rattachée à une connexion lisible."
-      }
+      },
+      "pick_folder": "Choisir un dossier…",
+      "add_mailbox": "Ajouter une boîte mail…",
+      "recursive": "Lire aussi les sous-dossiers"
     },
     "family": {
       "table": {
@@ -6551,12 +6554,12 @@
       "folder": {
         "name": "Dossier",
         "item": "Un fichier du dossier devient un élément",
-        "none": "Aucun dossier parmi vos sources."
+        "none": "Aucun dossier connecté. Choisissez-en un sur ce poste."
       },
       "mail": {
         "name": "Boîte mail",
         "item": "Un message reçu devient un élément",
-        "none": "Aucune boîte mail parmi vos sources."
+        "none": "Aucune boîte mail connectée. Ajoutez-en une dans Connexions."
       }
     },
     "preview": {
@@ -6582,8 +6585,6 @@
       "copy": "Dans une copie du fichier, avec les colonnes de l'agent",
       "original": "Dans le fichier d'origine, après une sauvegarde",
       "original_unavailable": "Le fichier d'origine ne peut être modifié que pour un classeur .xlsx ou .xlsm.",
-      "columns": "Colonnes ajoutées",
-      "columns_hint": "Une colonne par champ que l'agent rend, séparées par des virgules : par exemple Catégorie, Urgence. Une réponse sans champ va entière dans la première.",
       "default_column": "Résultat"
     },
     "accesses": {
@@ -6620,7 +6621,19 @@
     "ready_count": "{count, plural, one {# élément sera confié} other {# éléments seront confiés}} à l'agent, un par un.",
     "confirm": "Lancer le lot",
     "launching": "Lancement…",
-    "launched": "Lot lancé : {count, plural, one {# élément} other {# éléments}}."
+    "launched": "Lot lancé : {count, plural, one {# élément} other {# éléments}}.",
+    "task": {
+      "title": "Ce que l'agent fait pour chaque élément",
+      "instruction_placeholder": "Par exemple : lis ce devis, relève le fournisseur, le montant TTC et le délai, et dis s'il respecte notre budget de 5 000 €.",
+      "outputs_title": "Colonnes du résultat",
+      "outputs_hint": "L'agent remplit un champ par colonne. La description lui dit ce que le champ contient.",
+      "output_name": "Nom",
+      "output_description": "Ce que contient ce champ",
+      "output_remove": "Retirer cette colonne",
+      "output_add": "Ajouter une colonne",
+      "synthesis_title": "À la fin du lot (facultatif)",
+      "synthesis_placeholder": "Par exemple : classe les devis du moins cher au plus cher et recommande-en un."
+    }
   },
   "batch_view": {
     "kicker": "Agents · {agent} · Lot",
@@ -6811,6 +6824,13 @@
       "plan": "L'agent n'a pas réussi à établir son plan.",
       "budget": "L'agent a atteint la limite de son budget d'étapes.",
       "raw": "Détail technique"
+    },
+    "synthesis": {
+      "title": "Synthèse du lot",
+      "waiting": "La synthèse sera écrite une fois le dernier élément traité.",
+      "running": "L'agent écrit la synthèse du lot…",
+      "written": "Enregistrée dans {path}",
+      "failed": "La synthèse n'a pas pu être écrite : {cause}"
     }
   },
   "batch_history": {

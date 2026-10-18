@@ -11,7 +11,7 @@
   import { Spinner } from "$lib/components/ui/progress";
   import type { BatchItem } from "$lib/ipc/batches";
   import { parseTimestampMs } from "$lib/utils";
-  import { awaitedAccess, entryOf, statusOf } from "./batchView";
+  import { answerFields, awaitedAccess, entryOf, statusOf } from "./batchView";
   import { elapsedLabel, liveLineOf, secondsSince, type LiveStep } from "./liveSteps";
 
   interface Props {
@@ -51,7 +51,11 @@
     }
     if (status === "failed") return $t("batch_view.list.failed");
     if (status === "canceled") return $t("batch_view.output.canceled");
-    if (status === "completed") return (item.output ?? "").replace(/[#*_`>]/g, "").trim();
+    if (status === "completed") {
+      const fields = answerFields(item.output);
+      if (fields !== null) return fields.map((field) => field.value).join(" · ");
+      return (item.output ?? "").replace(/[#*_`>]/g, "").trim();
+    }
     return entryOf(item).summary;
   }
 </script>

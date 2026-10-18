@@ -232,7 +232,9 @@ test.describe("launching a batch", () => {
     // WHEN the access is granted, the threshold lifted, the columns named, and the batch launched
     await dialog.getByTestId("batch-launch-access-grant").click();
     await dialog.getByTestId("batch-launch-threshold").selectOption("never");
-    await dialog.getByTestId("batch-launch-columns").fill("Category, Urgency");
+    await dialog.getByTestId("batch-launch-output-name").fill("Category");
+    await dialog.getByTestId("batch-launch-output-add").click();
+    await dialog.getByTestId("batch-launch-output-name").nth(1).fill("Urgency");
     await dialog.getByTestId("batch-launch-confirm").click();
 
     // THEN the launch goes whole, and the dialog closes
@@ -247,6 +249,13 @@ test.describe("launching a batch", () => {
       },
       grants: ["send_email"],
       maxFailures: 4294967295,
+      task: {
+        instruction: "",
+        outputs: [
+          { name: "Category", description: "" },
+          { name: "Urgency", description: "" },
+        ],
+      },
     }]);
   });
 

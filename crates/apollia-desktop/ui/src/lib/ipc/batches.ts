@@ -97,13 +97,17 @@ export type WriteDestination = "copy" | "original";
 
 /** What a batch reads, and what it writes back. */
 export interface BatchSourceDescriptor {
-  /** The reader: `spreadsheet`, `csv` or `mail`. */
+  /** The reader: `spreadsheet`, `csv`, `mail` or `folder`. */
   kind: string;
   /** A file path, or the mailbox of a connection. */
   location: string;
   options: Record<string, string>;
   /** The columns added to the file; nothing is written when absent. */
   write?: { destination: WriteDestination; columns: string[] };
+  /** What the agent was asked to do, kept with the batch. */
+  task?: BatchTask;
+  /** The synthesis of the batch, once asked for. */
+  synthesis?: BatchSynthesis;
 }
 
 /** The body of a launch. */
@@ -114,6 +118,33 @@ export interface BatchLaunch {
   grants: string[];
   /** Failed items tolerated before the batch is interrupted. */
   maxFailures: number;
+  /** What the agent does on each item and at the end. */
+  task?: BatchTask;
+}
+
+/** One field of the answer of an item, one column of the results. */
+export interface BatchOutput {
+  name: string;
+  /** What the field holds, told to the agent. */
+  description: string;
+}
+
+/** What the agent does on each item, and at the end, said at launch. */
+export interface BatchTask {
+  instruction: string;
+  outputs: BatchOutput[];
+  /** What the agent does once every item has run; absent: no synthesis. */
+  synthesis?: string;
+}
+
+/** The synthesis of a batch, written once its items have run. */
+export interface BatchSynthesis {
+  /** `running`, `completed` or `failed`. */
+  state: string;
+  /** The text the agent wrote, or the cause it failed. */
+  text?: string | null;
+  /** The file it was written to, for a source that is a file or a folder. */
+  path?: string | null;
 }
 
 /** A launched batch, as the runtime answers it. */

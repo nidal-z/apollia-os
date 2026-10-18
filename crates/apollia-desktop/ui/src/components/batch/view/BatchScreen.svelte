@@ -27,10 +27,13 @@
   import BatchItemPanel from "./BatchItemPanel.svelte";
   import BatchItemList from "./BatchItemList.svelte";
   import BatchSummaryCard from "./BatchSummaryCard.svelte";
+  import BatchSynthesisCard from "./BatchSynthesisCard.svelte";
   import {
     exportFileName,
     filterItems,
     isLive,
+    isMoving,
+    synthesisOf,
     itemPace,
     progressOf,
     shownItemTab,
@@ -86,6 +89,9 @@
   const batch = $derived(view.detail?.batch ?? null);
   const items = $derived(view.detail?.items ?? []);
   const live = $derived(batch !== null && isLive(batch));
+  // A completed batch is still read while the synthesis it asked for is written.
+  const moving = $derived(batch !== null && isMoving(batch));
+  const synthesis = $derived(batch === null ? null : synthesisOf(batch));
 
   // The tasks of the items running now, whose steps are followed.
   const running = $derived(
@@ -140,7 +146,7 @@
   // The clock of the live steps ticks every second; the batch is read again
   // at the slower pace.
   $effect(() => {
-    if (!live) return;
+    if (!moving) return;
     let ticks = 0;
     const timer = setInterval(() => {
       now = new Date();
@@ -361,6 +367,10 @@
       {waitingFor}
       {perItemMs}
     />
+
+    {#if synthesis !== null}
+      <BatchSynthesisCard {synthesis} />
+    {/if}
 
     {#if view.refusal}
       <ErrorBanner

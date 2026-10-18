@@ -15,13 +15,17 @@
    */
   import { t } from "svelte-i18n";
   import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
-  import { FolderOpen, KeyRound, Layers, Mail, Table2 } from "lucide-svelte";
+  import { FolderOpen, KeyRound, Layers, Mail, Plus, Table2, X } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Dialog, DialogFooter } from "$lib/components/ui/dialog";
   import { Input } from "$lib/components/ui/input";
   import { RadioGroup, RadioItem } from "$lib/components/ui/radio";
   import { Select } from "$lib/components/ui/select";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { listConnections } from "$lib/ipc/connections";
+  import { navigateTo } from "$lib/stores/navigation";
+  import type { Connection } from "$lib/types";
   import { addToast } from "$lib/components/ui/toast/store";
   import {
     launchBatch,
@@ -30,6 +34,7 @@
     previewBatchSource,
     type BatchAccess,
     type LaunchedBatch,
+    type BatchOutput,
     type RegistrySource,
     type SourcePreview,
     type WriteDestination,
@@ -49,6 +54,7 @@
     canWriteOriginal,
     familyChoices,
     fileChoice,
+    folderChoice,
     refusalOf,
     sourceChoices,
     splitAccesses,
@@ -82,6 +88,12 @@
 
   let chosenAgent = $state<string | null>(null);
   let registry = $state<RegistrySource[]>([]);
+  let connections = $state<Connection[]>([]);
+  let pickedFolder = $state<string | null>(null);
+  let recursive = $state(false);
+  let instruction = $state("");
+  let outputs = $state<BatchOutput[]>([]);
+  let synthesis = $state("");
   let sourcesError = $state<string | null>(null);
   let picked = $state<string | null>(null);
   let family = $state<SourceFamily | null>(null);
@@ -121,6 +133,11 @@
     granted = [];
     threshold = DEFAULT_THRESHOLD;
     columns = $t("batch_launch.results.default_column");
+    outputs = [{ name: $t("batch_launch.results.default_column"), description: "" }];
+    instruction = "";
+    synthesis = "";
+    pickedFolder = null;
+    recursive = false;
     unreadOnly = false;
     error = null;
     sourcesError = null;
@@ -133,6 +150,13 @@
         if (!live) return;
         registry = [];
         sourcesError = message(err);
+      });
+    void listConnections()
+      .then((found) => {
+        if (live) connections = found;
+      })
+      .catch(() => {
+        if (live) connections = [];
       });
     return () => {
       live = false;
@@ -193,7 +217,7 @@
     };
   });
 
-  const choices = $derived(sourceChoices(registry, picked));
+  const choices = $derived(sourceChoices(registry, picked, connections, pickedFolder));
   const listed = $derived(family ? familyChoices(choices, family) : []);
   const split = $derived(splitAccesses(accesses));
   const original = $derived(canWriteOriginal(source));
@@ -205,6 +229,10 @@
     destination,
     columns,
     unreadOnly,
+    recursive,
+    instruction,
+    outputs,
+    synthesis,
     table: tableChoice(preview, selection),
   });
   const refusal = $derived(refusalOf(form));
@@ -245,6 +273,31 @@
     } catch (err) {
       error = message(err);
     }
+  }
+
+  async function pickFolder(): Promise<void> {
+    try {
+      const path = await openFileDialog({ directory: true, multiple: false });
+      if (typeof path !== "string" || !path) return;
+      pickedFolder = path;
+      family = "folder";
+      setSource(folderChoice(path));
+    } catch (err) {
+      error = message(err);
+    }
+  }
+
+  function openConnections(): void {
+    onclose();
+    navigateTo("integrations");
+  }
+
+  function addOutput(): void {
+    outputs = [...outputs, { name: "", description: "" }];
+  }
+
+  function removeOutput(index: number): void {
+    outputs = outputs.filter((_, at) => at !== index);
   }
 
   function toggleAccess(id: string, on: boolean): void {
@@ -378,6 +431,14 @@
                 <Button variant="outline" size="sm" onclick={() => void pickFile()} data-testid="batch-launch-pick-file">
                   {$t("batch_launch.source.pick_file")}
                 </Button>
+              {:else if family === "folder"}
+                <Button variant="outline" size="sm" onclick={() => void pickFolder()} data-testid="batch-launch-pick-folder">
+                  {$t("batch_launch.source.pick_folder")}
+                </Button>
+              {:else if family === "mail"}
+                <Button variant="outline" size="sm" onclick={openConnections} data-testid="batch-launch-add-mailbox">
+                  {$t("batch_launch.source.add_mailbox")}
+                </Button>
               {/if}
             </div>
           {/if}
@@ -391,6 +452,11 @@
           <label class="flex cursor-pointer select-none items-center gap-2 text-body-xs text-foreground">
             <Checkbox bind:checked={unreadOnly} data-testid="batch-launch-unread-only" />
             {$t("batch_launch.source.unread_only")}
+          </label>
+        {:else if source?.shape === "folder"}
+          <label class="flex cursor-pointer select-none items-center gap-2 text-body-xs text-foreground">
+            <Checkbox bind:checked={recursive} data-testid="batch-launch-recursive" />
+            {$t("batch_launch.source.recursive")}
           </label>
         {/if}
       </section>
@@ -429,20 +495,71 @@
               {$t("batch_launch.results.original_unavailable")}
             </p>
           {/if}
-          <div class="space-y-1 pt-1">
-            <div class="text-body-xs font-medium text-foreground">{$t("batch_launch.results.columns")}</div>
-            <Input
-              bind:value={columns}
-              aria-label={$t("batch_launch.results.columns")}
-              data-testid="batch-launch-columns"
-            />
-            <p class="m-0 text-caption text-muted-foreground">{$t("batch_launch.results.columns_hint")}</p>
-          </div>
         </section>
       {/if}
     </div>
 
     <div class="min-w-0 space-y-4">
+      <section class="space-y-1.5" data-testid="batch-launch-task">
+        <h3 class="m-0 text-body-xs font-medium text-muted-foreground">{$t("batch_launch.task.title")}</h3>
+        <Textarea
+          bind:value={instruction}
+          size="sm"
+          rows={3}
+          placeholder={$t("batch_launch.task.instruction_placeholder")}
+          aria-label={$t("batch_launch.task.title")}
+          data-testid="batch-launch-instruction"
+        />
+      </section>
+
+      <section class="space-y-1.5" data-testid="batch-launch-outputs">
+        <h3 class="m-0 text-body-xs font-medium text-muted-foreground">{$t("batch_launch.task.outputs_title")}</h3>
+        <p class="m-0 text-caption text-muted-foreground">{$t("batch_launch.task.outputs_hint")}</p>
+        {#each outputs as output, index (index)}
+          <div class="flex items-start gap-2" data-testid="batch-launch-output">
+            <Input
+              bind:value={output.name}
+              class="w-36 shrink-0"
+              placeholder={$t("batch_launch.task.output_name")}
+              aria-label={$t("batch_launch.task.output_name")}
+              data-testid="batch-launch-output-name"
+            />
+            <Input
+              bind:value={output.description}
+              class="min-w-0 flex-1"
+              placeholder={$t("batch_launch.task.output_description")}
+              aria-label={$t("batch_launch.task.output_description")}
+              data-testid="batch-launch-output-description"
+            />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onclick={() => removeOutput(index)}
+              aria-label={$t("batch_launch.task.output_remove")}
+              data-testid="batch-launch-output-remove"
+            >
+              <X size={14} />
+            </Button>
+          </div>
+        {/each}
+        <Button variant="outline" size="sm" onclick={addOutput} data-testid="batch-launch-output-add">
+          <Plus size={14} />
+          {$t("batch_launch.task.output_add")}
+        </Button>
+      </section>
+
+      <section class="space-y-1.5" data-testid="batch-launch-synthesis">
+        <h3 class="m-0 text-body-xs font-medium text-muted-foreground">{$t("batch_launch.task.synthesis_title")}</h3>
+        <Textarea
+          bind:value={synthesis}
+          size="sm"
+          rows={2}
+          placeholder={$t("batch_launch.task.synthesis_placeholder")}
+          aria-label={$t("batch_launch.task.synthesis_title")}
+          data-testid="batch-launch-synthesis-input"
+        />
+      </section>
+
       <section class="space-y-1.5" data-testid="batch-launch-accesses">
         <h3 class="m-0 text-body-xs font-medium text-muted-foreground">{$t("batch_launch.accesses.title")}</h3>
         {#if accessesError}

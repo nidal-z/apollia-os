@@ -10,6 +10,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc }));
 
 import { launchBatch, listBatchAccesses, listBatchSources } from "$lib/ipc/batches";
 import type { BatchAccess, RegistrySource } from "$lib/ipc/batches";
+import type { Connection } from "$lib/types";
 import {
   DEFAULT_THRESHOLD,
   NEVER_INTERRUPT,
@@ -19,7 +20,9 @@ import {
   buildLaunch,
   canWriteOriginal,
   familyChoices,
+  connectionChoices,
   fileChoice,
+  folderChoice,
   maxFailuresOf,
   refusalOf,
   sourceChoices,
@@ -100,6 +103,93 @@ describe("the sources the dialog offers", () => {
     // THEN its reader is the CSV one and its label its file name
     expect(choice.reader).toEqual({ kind: "csv", location: "C:\\data\\Leads.CSV" });
     expect(choice.label).toBe("Leads.CSV");
+  });
+});
+
+function connection(over: Partial<Connection>): Connection {
+  return {
+    id: "c",
+    kind: "folder",
+    label: "c",
+    account: null,
+    provenance: "custom",
+    remote: false,
+    official: false,
+    state: "connected",
+    tools: [],
+    ...over,
+  };
+}
+
+describe("the folders and mailboxes of the connections", () => {
+  it("offers a connected folder, an IMAP mailbox and a Microsoft account read as Outlook", () => {
+    // GIVEN a folder, an IMAP mailbox, a Microsoft and a Google account, and
+    // a mailbox that needs to sign in again
+    const connections = [
+      connection({ id: "folder:quotes", kind: "folder", label: "Quotes", path: "/data/quotes" }),
+      connection({ id: "imap:ada@example.org", kind: "imap", label: "Mail", account: "ada@example.org" }),
+      connection({ id: "native:microsoft:ada@example.com", kind: "native", label: "Microsoft", account: "ada@example.com" }),
+      connection({ id: "native:google:ada@example.com", kind: "native", label: "Google", account: "ada@example.com" }),
+      connection({ id: "imap:old@example.org", kind: "imap", account: "old@example.org", state: "needs_reauth" }),
+    ];
+
+    // WHEN the dialog builds its choices
+    const choices = connectionChoices(connections);
+
+    // THEN the folder is read by its path, the mailboxes by their account
+    expect(choices.map((c) => c.reader)).toEqual([
+      { kind: "folder", location: "/data/quotes" },
+      { kind: "mail", location: "imap:ada@example.org" },
+      { kind: "mail", location: "outlook:ada@example.com" },
+    ]);
+    // AND they reach the families of the dialog
+    const offered = sourceChoices([], null, connections);
+    expect(familyChoices(offered, "folder")).toHaveLength(1);
+    expect(familyChoices(offered, "mail")).toHaveLength(2);
+  });
+
+  it("reads a folder picked on this computer, with its sub-folders when asked", () => {
+    // GIVEN a folder picked on the spot
+    const source = folderChoice("/data/quotes");
+
+    // WHEN the batch is launched on it with its sub-folders
+    const body = buildLaunch(form({ source, recursive: true }), []);
+
+    // THEN the folder reader reads it, and nothing is written into it
+    expect(body?.source).toEqual({ kind: "folder", location: "/data/quotes", options: { recursive: "true" } });
+  });
+});
+
+describe("what the agent is asked", () => {
+  it("sends the instruction, the fields of the answer as columns, and the synthesis", () => {
+    // GIVEN a form with an instruction, two fields and a synthesis
+    const asked = form({
+      instruction: " Read the quote. ",
+      outputs: [
+        { name: "Supplier", description: "who sends it" },
+        { name: " ", description: "an unnamed row is left out" },
+        { name: "Total", description: "" },
+      ],
+      synthesis: "Rank them",
+    });
+
+    // WHEN the launch is built
+    const body = buildLaunch(asked, []);
+
+    // THEN the task holds them, and the columns written are the fields
+    expect(body?.task).toEqual({
+      instruction: "Read the quote.",
+      outputs: [
+        { name: "Supplier", description: "who sends it" },
+        { name: "Total", description: "" },
+      ],
+      synthesis: "Rank them",
+    });
+    expect(body?.source.write?.columns).toEqual(["Supplier", "Total"]);
+    // AND two fields of one name are refused
+    expect(refusalOf(form({ outputs: [{ name: "Total", description: "" }, { name: "total", description: "" }] }))).toBe(
+      "columns_duplicate",
+    );
   });
 });
 
