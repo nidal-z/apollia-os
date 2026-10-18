@@ -16,7 +16,7 @@ use apollia_tools::{ActionFamily, ResolvedAgent};
 
 use super::access::{classify, known_tools, sensitive, BatchAccess, KnownTool};
 use super::write_back::SOURCE_WRITE_ACCESS;
-use super::{item_message, ItemEnd, ItemRunner, ItemStatus, StartedItem};
+use super::{item_message_for, ItemEnd, ItemRunner, ItemStatus, StartedItem};
 use crate::agents::task::{resolve_runnable, AgentTaskLauncher};
 use crate::coordinator::ExecutionBackend;
 use crate::governance::{
@@ -189,9 +189,9 @@ impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
         &self,
         batch_id: &str,
         agent: &str,
-        input: &serde_json::Value,
-        once: Option<&str>,
+        item: super::ItemStart<'_>,
     ) -> Result<StartedItem, String> {
+        let super::ItemStart { input, once, task } = item;
         let resolved = self.resolve(agent).await?;
         let mut authorized = self.authorized(&resolved, batch_id).await?;
         if let Some(access) = once {
@@ -200,13 +200,21 @@ impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
         let template = apollia_oria::plan_template::PlanTemplate {
             key: format!("{batch_id}:{agent}"),
             fields: item_fields(input),
+            outputs: task
+                .map(|t| {
+                    t.outputs
+                        .iter()
+                        .map(|o| (o.name.trim().to_string(), o.description.trim().to_string()))
+                        .collect()
+                })
+                .unwrap_or_default(),
         };
         let (task_id, outcome) = self
             .launcher
             .launch_batch_item(
                 &resolved,
                 input,
-                item_message(input),
+                item_message_for(task, input),
                 crate::agents::task::BatchItemRun {
                     authorized,
                     template,
@@ -239,6 +247,20 @@ impl<B: ExecutionBackend> ItemRunner for AgentItemRunner<B> {
             task_id: task_id.to_string(),
             end,
         })
+    }
+
+    async fn synthesize(&self, agent: &str, message: String) -> Result<String, String> {
+        let resolved = self.resolve(agent).await?;
+        let (_, outcome) = self
+            .launcher
+            .launch_unattended(&resolved, &serde_json::json!({}), message, Vec::new())
+            .await
+            .map_err(|e| e.to_string())?;
+        match outcome.await {
+            Ok(outcome) if outcome.status == "completed" => Ok(outcome.output),
+            Ok(outcome) => Err(outcome.output),
+            Err(_) => Err("the run of the synthesis was dropped".into()),
+        }
     }
 
     async fn cancel(&self, task_id: &str) {

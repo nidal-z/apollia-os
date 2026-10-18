@@ -35,6 +35,8 @@ pub(super) struct Scripted {
     pub(super) original_writes: Mutex<Vec<(String, String)>>,
     /// The access each start was allowed one call of, in order.
     pub(super) once: Mutex<Vec<Option<String>>>,
+    /// The messages the syntheses were asked with.
+    pub(super) syntheses: Mutex<Vec<String>>,
 }
 
 /// The sensitive accesses of the scripted agent: one to grant, one never.
@@ -107,9 +109,9 @@ impl ItemRunner for Arc<Scripted> {
         &self,
         _batch_id: &str,
         _agent: &str,
-        input: &serde_json::Value,
-        once: Option<&str>,
+        item: ItemStart<'_>,
     ) -> Result<StartedItem, String> {
+        let ItemStart { input, once, .. } = item;
         let n = self.started.fetch_add(1, Ordering::SeqCst);
         self.inputs.lock().unwrap().push(input.clone());
         self.once.lock().unwrap().push(once.map(str::to_owned));
@@ -137,6 +139,11 @@ impl ItemRunner for Arc<Scripted> {
             });
         }
         Ok(StartedItem { task_id, end })
+    }
+
+    async fn synthesize(&self, _agent: &str, message: String) -> Result<String, String> {
+        self.syntheses.lock().unwrap().push(message);
+        Ok("The synthesis of the batch.".into())
     }
 
     async fn cancel(&self, task_id: &str) {
@@ -194,6 +201,7 @@ pub(super) fn launch(concurrency: Option<u32>, max_failures: Option<u32>) -> Bat
         grants: vec![],
         concurrency,
         max_failures,
+        task: None,
     }
 }
 
@@ -513,6 +521,104 @@ fn test_item_message_lists_the_fields() {
 
     // THEN
     assert_eq!(message, "client: Durand\nrequest: Refund order 12");
+}
+
+#[tokio::test]
+async fn test_a_batch_with_a_synthesis_keeps_it_once_its_items_have_run() {
+    // GIVEN a batch of two items whose launch asks for a synthesis
+    let dir = tempfile::tempdir().unwrap();
+    let repo = repository(&dir).await;
+    let runner = Arc::new(Scripted::default());
+    let (handle, _bus) = spawn(repo.clone(), registry(&["ok", "ok"]), runner.clone());
+    let mut asked = launch(None, None);
+    asked.task = Some(BatchTask {
+        instruction: "Check each request.".into(),
+        outputs: Vec::new(),
+        synthesis: Some("Rank the requests.".into()),
+    });
+
+    // WHEN it runs to its end
+    let batch = handle.launch(asked).await.unwrap();
+    wait_state(&repo, &batch.batch_id, "completed").await;
+    let kept = poll_until_async(WAIT, || async {
+        let row = repo.batch(&batch.batch_id).await.unwrap().unwrap();
+        row.source[SYNTHESIS_KEY]["state"] == "completed"
+    })
+    .await;
+
+    // THEN the synthesis is kept with the batch, and was asked with the
+    // instruction and the results of the items
+    assert!(kept, "the synthesis was never kept");
+    let row = repo.batch(&batch.batch_id).await.unwrap().unwrap();
+    assert_eq!(
+        row.source[SYNTHESIS_KEY]["text"],
+        "The synthesis of the batch."
+    );
+    assert_eq!(row.source[TASK_KEY]["instruction"], "Check each request.");
+    let message = runner.syntheses.lock().unwrap()[0].clone();
+    assert!(message.starts_with("Rank the requests."), "{message}");
+    assert!(
+        message.contains("row-0: ok 0") && message.contains("row-1: ok 1"),
+        "{message}"
+    );
+}
+
+#[test]
+fn test_an_item_tells_the_agent_what_to_do_and_the_fields_to_answer() {
+    // GIVEN a batch that says what to do and the two fields it wants back
+    let task = BatchTask {
+        instruction: "Check the quote against the conditions.".into(),
+        outputs: vec![
+            BatchOutput {
+                name: "Price".into(),
+                description: "Price before tax".into(),
+            },
+            BatchOutput {
+                name: "Compliant".into(),
+                description: String::new(),
+            },
+        ],
+        synthesis: None,
+    };
+    let input = serde_json::json!({"file": "q-01.pdf"});
+
+    // WHEN the message of an item is built
+    let message = item_message_for(Some(&task), &input);
+
+    // THEN it opens on the instruction, gives the item, and asks for the fields as JSON
+    assert!(
+        message.starts_with("Check the quote against the conditions.\n\nITEM:\nfile: q-01.pdf"),
+        "{message}"
+    );
+    assert!(
+        message.contains("- \"Price\": Price before tax"),
+        "{message}"
+    );
+    assert!(message.contains("- \"Compliant\""), "{message}");
+    assert_eq!(item_message_for(None, &input), "file: q-01.pdf");
+}
+
+#[test]
+fn test_a_task_naming_a_field_twice_is_refused() {
+    // GIVEN a task whose answer names a field twice, in two cases
+    let task = BatchTask {
+        instruction: String::new(),
+        outputs: vec![
+            BatchOutput {
+                name: "Price".into(),
+                description: String::new(),
+            },
+            BatchOutput {
+                name: "price".into(),
+                description: String::new(),
+            },
+        ],
+        synthesis: None,
+    };
+
+    // WHEN it is checked
+    // THEN it is refused
+    assert!(task.check().is_err());
 }
 
 #[test]

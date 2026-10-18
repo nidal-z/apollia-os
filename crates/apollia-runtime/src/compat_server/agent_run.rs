@@ -221,6 +221,7 @@ async fn launch_agent(
             grants: Vec::new(),
             concurrency: None,
             max_failures: None,
+            task: None,
         })
         .await
         .map_err(|e| StartError::Refused(e.to_string()))?;

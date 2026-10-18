@@ -27,6 +27,7 @@ mod actor;
 mod checked;
 pub mod chunk;
 mod document;
+mod folder_source;
 pub mod index;
 pub mod indexer;
 mod ocr;
@@ -41,6 +42,9 @@ pub use apollia_core::source_registry::{
 pub use checked::{checked_sources, searchable_sources, CheckedSource};
 pub use document::{
     is_office_document, is_readable_document, read_document, DocumentPart, DocumentText, PartUnit,
+};
+pub use folder_source::{
+    register_folder_source, FolderSource, FILE_FIELD, FOLDER_KIND, OPTION_RECURSIVE, TEXT_FIELD,
 };
 pub use indexer::{PassOutcome, PassageEmbedder, MAX_INDEXED_FILE_BYTES};
 pub use ocr::{Ocr, OcrError};

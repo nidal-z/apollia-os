@@ -61,7 +61,10 @@ from .batch_item_view_input import BatchItemViewInput
 from .batch_item_view_sources_type_0 import BatchItemViewSourcesType0
 from .batch_launch import BatchLaunch
 from .batch_list_view import BatchListView
+from .batch_output import BatchOutput
 from .batch_retry import BatchRetry
+from .batch_synthesis import BatchSynthesis
+from .batch_task import BatchTask
 from .batch_view import BatchView
 from .batch_view_source import BatchViewSource
 from .broken_link import BrokenLink
@@ -676,7 +679,10 @@ __all__ = (
     "BatchItemViewSourcesType0",
     "BatchLaunch",
     "BatchListView",
+    "BatchOutput",
     "BatchRetry",
+    "BatchSynthesis",
+    "BatchTask",
     "BatchView",
     "BatchViewSource",
     "BrokenLink",

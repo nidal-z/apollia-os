@@ -20320,6 +20320,17 @@
           "source": {
             "$ref": "#/components/schemas/SourceDescriptor",
             "description": "Where the items come from."
+          },
+          "task": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BatchTask",
+                "description": "What the agent does on each item and at the end."
+              }
+            ]
           }
         }
       },
@@ -32139,6 +32150,74 @@
           "copy",
           "original"
         ]
+      },
+      "BatchOutput": {
+        "type": "object",
+        "description": "One field of the answer of an item.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the field, and of its column."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the field holds, told to the agent."
+          }
+        }
+      },
+      "BatchTask": {
+        "type": "object",
+        "description": "What the agent does on each item, and at the end, said at launch and\nrecorded with the batch, beside its source, under `task`.",
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "description": "What the agent does with each item."
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchOutput"
+            },
+            "description": "The fields the answer of each item gives, one column of the results\neach. Empty: the answer is free text."
+          },
+          "synthesis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the agent does once every item has run, on the table of their\nresults: a ranking, a summary. Absent: no synthesis."
+          }
+        }
+      },
+      "BatchSynthesis": {
+        "type": "object",
+        "description": "The synthesis of a batch, written once its items have run.",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "`running`, `completed` or `failed`."
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The text the agent wrote, once completed; the cause, once failed."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The file it was written to, when the source is a file or a folder."
+          }
+        }
       }
     },
     "securitySchemes": {

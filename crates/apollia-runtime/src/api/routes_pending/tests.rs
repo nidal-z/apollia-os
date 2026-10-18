@@ -326,13 +326,17 @@ impl ItemRunner for Arc<WaitsOnce> {
         Ok(())
     }
 
+    async fn synthesize(&self, _agent: &str, _message: String) -> Result<String, String> {
+        Ok(String::new())
+    }
+
     async fn start(
         &self,
         batch_id: &str,
         _agent: &str,
-        input: &Value,
-        once: Option<&str>,
+        item: crate::batch::ItemStart<'_>,
     ) -> Result<StartedItem, String> {
+        let crate::batch::ItemStart { input, once, .. } = item;
         let n = {
             let mut started = self.started.lock().unwrap();
             *started += 1;
@@ -399,6 +403,7 @@ fn launch() -> BatchLaunch {
         grants: vec![],
         concurrency: None,
         max_failures: None,
+        task: None,
     }
 }
 

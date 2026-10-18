@@ -50,6 +50,8 @@ pub(super) struct Active {
     /// The rank of the batch in the order batches were taken: the oldest
     /// waiting batch runs first once the engine is free.
     pub(super) order: u64,
+    /// What the agent does on each item and at the end, when the launch said.
+    pub(super) task: Option<super::BatchTask>,
 }
 
 pub(super) struct BatchActor<R: ItemRunner> {
@@ -174,6 +176,7 @@ impl<R: ItemRunner> BatchActor<R> {
                     .filter(|source| source.write.is_some()),
                 original_granted: batch.grants.iter().any(|g| g == SOURCE_WRITE_ACCESS),
                 order,
+                task: super::BatchTask::of_source(&batch.source),
             },
         );
     }
@@ -213,7 +216,20 @@ impl<R: ItemRunner> BatchActor<R> {
         }
     }
 
-    async fn launch(&mut self, launch: BatchLaunch) -> Result<BatchRow, BatchError> {
+    async fn launch(&mut self, mut launch: BatchLaunch) -> Result<BatchRow, BatchError> {
+        if let Some(task) = &launch.task {
+            task.check()?;
+            // The columns of the results are the fields the answer gives.
+            if let Some(write) = launch.source.write.as_mut() {
+                if !task.outputs.is_empty() {
+                    write.columns = task
+                        .outputs
+                        .iter()
+                        .map(|o| o.name.trim().to_string())
+                        .collect();
+                }
+            }
+        }
         let concurrency = launch.concurrency.unwrap_or(DEFAULT_CONCURRENCY);
         if !(1..=MAX_CONCURRENCY).contains(&concurrency) {
             return Err(BatchError::Invalid(format!(
@@ -235,8 +251,15 @@ impl<R: ItemRunner> BatchActor<R> {
             .collect();
         let grants = resolve_grants(&sensitive, &agent_grants)?;
         let items = self.read_items(&launch).await?;
-        let source =
+        let mut source =
             serde_json::to_value(&launch.source).map_err(|e| BatchError::Invalid(e.to_string()))?;
+        // The task is kept beside the source, read back with the batch.
+        if let (Some(task), Some(map)) = (&launch.task, source.as_object_mut()) {
+            map.insert(
+                super::TASK_KEY.to_string(),
+                serde_json::to_value(task).map_err(|e| BatchError::Invalid(e.to_string()))?,
+            );
+        }
         let batch_id = uuid::Uuid::new_v4().to_string();
         if writes_original {
             self.runner
@@ -402,9 +425,18 @@ impl<R: ItemRunner> BatchActor<R> {
         input: &serde_json::Value,
     ) {
         let once = self.once.remove(&(batch_id.to_string(), rank));
+        let task = self.active.get(batch_id).and_then(|a| a.task.clone());
         match self
             .runner
-            .start(batch_id, agent, input, once.as_deref())
+            .start(
+                batch_id,
+                agent,
+                super::ItemStart {
+                    input,
+                    once: once.as_deref(),
+                    task: task.as_ref(),
+                },
+            )
             .await
         {
             Ok(started) => {
@@ -566,6 +598,9 @@ impl<R: ItemRunner> BatchActor<R> {
         let agent = active.agent.clone();
         let write_back = active.write_back.clone();
         let original_granted = active.original_granted;
+        // A batch stopped or interrupted still has the results it got; its
+        // synthesis runs on them when the launch asked for one.
+        let synthesis = active.task.as_ref().and_then(|task| task.synthesis.clone());
         self.active.remove(batch_id);
         if let Err(reason) = self.runner.release(batch_id).await {
             tracing::event!(Level::WARN, batch_id, reason = %reason, "batch.release.failed");
@@ -573,25 +608,37 @@ impl<R: ItemRunner> BatchActor<R> {
         let repository = self.repository.clone();
         let event_bus = self.event_bus.clone();
         let batch_id = batch_id.to_string();
-        match write_back {
-            // The answers are written off the actor's loop; the end is
-            // announced once they are in the file.
-            Some(descriptor) => {
-                let sources = self.sources.clone();
-                tokio::spawn(async move {
-                    write_answers(
-                        &repository,
-                        sources,
-                        &batch_id,
-                        descriptor,
-                        original_granted,
-                    )
-                    .await;
-                    publish_end(&repository, &event_bus, &batch_id, &agent).await;
-                });
-            }
-            None => publish_end(&repository, &event_bus, &batch_id, &agent).await,
+        if write_back.is_none() && synthesis.is_none() {
+            publish_end(&repository, &event_bus, &batch_id, &agent).await;
+            return;
         }
+        // The answers are written and the synthesis runs off the actor's
+        // loop; the end is announced once both are done.
+        let sources = self.sources.clone();
+        let runner = self.runner.clone();
+        tokio::spawn(async move {
+            if let Some(descriptor) = write_back {
+                write_answers(
+                    &repository,
+                    sources,
+                    &batch_id,
+                    descriptor,
+                    original_granted,
+                )
+                .await;
+            }
+            if let Some(instruction) = synthesis {
+                super::synthesis::run_synthesis(
+                    &repository,
+                    runner.as_ref(),
+                    &batch_id,
+                    &agent,
+                    &instruction,
+                )
+                .await;
+            }
+            publish_end(&repository, &event_bus, &batch_id, &agent).await;
+        });
     }
 }
 

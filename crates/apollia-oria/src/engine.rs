@@ -2398,6 +2398,7 @@ mod orchestrated_tests {
         let item = |file: &str| crate::plan_template::PlanTemplate {
             key: "batch-1".into(),
             fields: vec![("File".into(), file.into())],
+            outputs: Vec::new(),
         };
         let template = r#"{"steps":[
             {"step_id":"s1","description":"Read {{File}}","tool_hint":"file_io","depends_on":[]}

@@ -204,6 +204,12 @@ impl PlanFirstRun<'_> {
                 event_bus: self.deps.event_bus.clone(),
                 session_id: input.session_id.to_string(),
                 message_id: input.message_id.to_string(),
+                outputs: self
+                    .deps
+                    .plan_template
+                    .as_ref()
+                    .map(|t| t.outputs.clone())
+                    .unwrap_or_default(),
             },
         };
         let task = task_of(input.session_id, input.user_message);

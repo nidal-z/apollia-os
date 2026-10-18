@@ -134,6 +134,7 @@ fn writing_launch(destination: Option<WriteDestination>, grants: &[&str]) -> Bat
         grants: grants.iter().map(|g| (*g).to_owned()).collect(),
         concurrency: None,
         max_failures: None,
+        task: None,
     }
 }
 
@@ -604,6 +605,7 @@ fn table_launch(kind: &str, file: &Path, write: SourceWrite, grants: &[&str]) ->
         grants: grants.iter().map(|g| (*g).to_owned()).collect(),
         concurrency: None,
         max_failures: None,
+        task: None,
     }
 }
 

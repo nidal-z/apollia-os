@@ -22,6 +22,9 @@ pub struct PlanTemplate {
     pub key: String,
     /// The fields of the item, in the order of the source, with their values.
     pub fields: Vec<(String, String)>,
+    /// The fields the answer of every item gives, with what each holds; the
+    /// answer is then one JSON object of them. Empty: the answer is free.
+    pub outputs: Vec<(String, String)>,
 }
 
 impl PlanTemplate {
@@ -95,6 +98,7 @@ mod tests {
                 ("File".into(), "quote-07-joinery.pdf".into()),
                 ("No".into(), "7".into()),
             ],
+            outputs: Vec::new(),
         }
     }
 

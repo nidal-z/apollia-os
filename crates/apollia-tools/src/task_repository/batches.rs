@@ -416,6 +416,29 @@ impl TaskRepository {
         self.set_batch_state(batch_id, state, true).await
     }
 
+    /// Replaces the stored source of `batch_id`: what its synthesis adds to it.
+    ///
+    /// # Errors
+    ///
+    /// [`TaskRepoError::Sqlite`] or [`TaskRepoError::Json`].
+    pub async fn set_batch_source(
+        &self,
+        batch_id: &str,
+        source: &serde_json::Value,
+    ) -> Result<(), TaskRepoError> {
+        let batch_id = batch_id.to_string();
+        let source = serde_json::to_string(source)?;
+        self.blocking(move |conn| {
+            conn.execute(
+                "UPDATE batches SET source_json = ?2, updated_at = CURRENT_TIMESTAMP \
+                 WHERE batch_id = ?1",
+                params![&batch_id, &source],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
     /// Moves a batch to `state`. An ended state stamps `ended_at`; `running`
     /// and `paused` clear it, so a batch run again is no longer ended.
     ///

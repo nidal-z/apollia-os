@@ -52,6 +52,7 @@ mod control;
 mod export;
 mod request_source;
 mod runner;
+mod synthesis;
 mod write_back;
 
 #[cfg(test)]
@@ -114,6 +115,99 @@ pub struct SourceDescriptor {
     pub write: Option<SourceWrite>,
 }
 
+/// What the agent does on each item, and at the end, said at launch and
+/// recorded with the batch, beside its source, under `task`.
+///
+/// Without it, each item told the agent its fields and nothing else: the
+/// agent guessed what to do from its mission, and answered in prose that
+/// landed whole in one cell of the results.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchTask {
+    /// What the agent does with each item.
+    #[serde(default)]
+    pub instruction: String,
+    /// The fields the answer of each item gives, one column of the results
+    /// each. Empty: the answer is free text.
+    #[serde(default)]
+    pub outputs: Vec<BatchOutput>,
+    /// What the agent does once every item has run, on the table of their
+    /// results: a ranking, a summary. Absent: no synthesis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub synthesis: Option<String>,
+}
+
+/// One field of the answer of an item.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchOutput {
+    /// The name of the field, and of its column.
+    pub name: String,
+    /// What the field holds, told to the agent.
+    #[serde(default)]
+    pub description: String,
+}
+
+/// The most fields the answer of an item gives.
+pub const MAX_OUTPUTS: usize = 20;
+
+impl BatchTask {
+    /// Refuses a blank field, the same field twice, or too many.
+    ///
+    /// # Errors
+    ///
+    /// [`BatchError::Invalid`] with the reason.
+    pub fn check(&self) -> Result<(), BatchError> {
+        if self.outputs.len() > MAX_OUTPUTS {
+            return Err(BatchError::Invalid(format!(
+                "the answer of an item gives at most {MAX_OUTPUTS} fields, got {}",
+                self.outputs.len()
+            )));
+        }
+        let mut seen: Vec<String> = Vec::new();
+        for output in &self.outputs {
+            let name = output.name.trim();
+            if name.is_empty() {
+                return Err(BatchError::Invalid(
+                    "a field of the answer has no name".into(),
+                ));
+            }
+            if seen.iter().any(|known| known.eq_ignore_ascii_case(name)) {
+                return Err(BatchError::Invalid(format!(
+                    "the field '{name}' of the answer is named twice"
+                )));
+            }
+            seen.push(name.to_string());
+        }
+        Ok(())
+    }
+
+    /// The task recorded with the batch whose stored source is `source`.
+    #[must_use]
+    pub fn of_source(source: &serde_json::Value) -> Option<Self> {
+        serde_json::from_value(source.get(TASK_KEY)?.clone()).ok()
+    }
+}
+
+/// Where the task of a batch is kept in its stored source.
+pub const TASK_KEY: &str = "task";
+/// Where the synthesis of a batch is kept in its stored source.
+pub const SYNTHESIS_KEY: &str = "synthesis";
+
+/// The synthesis of a batch, written once its items have run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchSynthesis {
+    /// `running`, `completed` or `failed`.
+    pub state: String,
+    /// The text the agent wrote, once completed; the cause, once failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// The file it was written to, when the source is a file or a folder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
 /// What a batch is launched with.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -133,6 +227,9 @@ pub struct BatchLaunch {
     /// How many failed items the batch tolerates; 10 when absent.
     #[serde(default)]
     pub max_failures: Option<u32>,
+    /// What the agent does on each item and at the end.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task: Option<BatchTask>,
 }
 
 /// Why a batch could not be launched or read.
@@ -251,19 +348,25 @@ pub trait ItemRunner: Send + Sync + 'static {
     /// Withdraws every consent given for the batch `batch_id`.
     fn release(&self, batch_id: &str) -> impl Future<Output = Result<(), String>> + Send;
 
-    /// Starts `agent` on one item of the batch `batch_id` whose input is
-    /// `input`, with the accesses granted to it now, and `once`, an access
-    /// the user allowed for one call of this run alone.
+    /// Starts `agent` on one item of the batch `batch_id`, with the accesses
+    /// granted to it now.
     fn start(
         &self,
         batch_id: &str,
         agent: &str,
-        input: &serde_json::Value,
-        once: Option<&str>,
+        item: ItemStart<'_>,
     ) -> impl Future<Output = Result<StartedItem, String>> + Send;
 
     /// Cancels the run of the task `task_id`; its end is reported as usual.
     fn cancel(&self, task_id: &str) -> impl Future<Output = ()> + Send;
+
+    /// Runs `agent` once on `message`, the synthesis of a batch over the
+    /// results of its items, and returns its answer, or the cause it failed.
+    fn synthesize(
+        &self,
+        agent: &str,
+        message: String,
+    ) -> impl Future<Output = Result<String, String>> + Send;
 }
 
 /// A batch with its items, as read.
@@ -531,7 +634,52 @@ pub fn awaited_access(output: &str) -> Option<&str> {
 const AWAITING_PREFIX: &str = "Waiting for a decision: the agent asked to use '";
 const AWAITING_SUFFIX: &str = "', which is not granted";
 
-/// The message an agent reads for one item: each field on its own line.
+/// One item a runner is asked to start.
+#[derive(Debug, Clone, Copy)]
+pub struct ItemStart<'a> {
+    /// The fields of the item.
+    pub input: &'a serde_json::Value,
+    /// An access the user allowed for one call of this run alone.
+    pub once: Option<&'a str>,
+    /// What the agent was asked to do on each item, said at launch.
+    pub task: Option<&'a BatchTask>,
+}
+
+/// The message an agent reads for one item: what the batch asks of it, the
+/// fields of the item, and the fields its answer must give, as JSON.
+pub fn item_message_for(task: Option<&BatchTask>, input: &serde_json::Value) -> String {
+    let fields = item_message(input);
+    let Some(task) = task else {
+        return fields;
+    };
+    let mut message = String::new();
+    if !task.instruction.trim().is_empty() {
+        message.push_str(task.instruction.trim());
+        message.push_str("\n\n");
+    }
+    message.push_str("ITEM:\n");
+    message.push_str(&fields);
+    if !task.outputs.is_empty() {
+        message.push_str(
+            "\n\nANSWER with one JSON object and nothing else, holding exactly these fields:",
+        );
+        for output in &task.outputs {
+            if output.description.trim().is_empty() {
+                message.push_str(&format!("\n- \"{}\"", output.name.trim()));
+            } else {
+                message.push_str(&format!(
+                    "\n- \"{}\": {}",
+                    output.name.trim(),
+                    output.description.trim()
+                ));
+            }
+        }
+    }
+    message
+}
+
+/// The fields of an item, one `name: value` line each: the message of an
+/// item whose batch says nothing more.
 pub fn item_message(input: &serde_json::Value) -> String {
     match input.as_object() {
         Some(fields) => fields

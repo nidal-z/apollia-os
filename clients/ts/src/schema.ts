@@ -6859,6 +6859,7 @@ export interface components {
             maxFailures?: number | null;
             /** @description Where the items come from. */
             source: components["schemas"]["SourceDescriptor"];
+            task?: null | components["schemas"]["BatchTask"];
         };
         /** @description The batches, newest first. */
         BatchListView: {
@@ -12178,6 +12179,40 @@ export interface components {
          * @enum {string}
          */
         WriteDestination: "copy" | "original";
+        /** @description One field of the answer of an item. */
+        BatchOutput: {
+            /** @description The name of the field, and of its column. */
+            name: string;
+            /** @description What the field holds, told to the agent. */
+            description?: string;
+        };
+        /**
+         * @description What the agent does on each item, and at the end, said at launch and
+         *     recorded with the batch, beside its source, under `task`.
+         */
+        BatchTask: {
+            /** @description What the agent does with each item. */
+            instruction?: string;
+            /**
+             * @description The fields the answer of each item gives, one column of the results
+             *     each. Empty: the answer is free text.
+             */
+            outputs?: components["schemas"]["BatchOutput"][];
+            /**
+             * @description What the agent does once every item has run, on the table of their
+             *     results: a ranking, a summary. Absent: no synthesis.
+             */
+            synthesis?: string | null;
+        };
+        /** @description The synthesis of a batch, written once its items have run. */
+        BatchSynthesis: {
+            /** @description `running`, `completed` or `failed`. */
+            state: string;
+            /** @description The text the agent wrote, once completed; the cause, once failed. */
+            text?: string | null;
+            /** @description The file it was written to, when the source is a file or a folder. */
+            path?: string | null;
+        };
     };
     responses: never;
     parameters: never;
