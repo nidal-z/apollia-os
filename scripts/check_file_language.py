@@ -304,6 +304,9 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-memory/src/user_memory/persona.rs": 1,
     # The copy of a batch's results is named in the language of the interface.
     "crates/apollia-sources/src/table/results.rs": 1,
+    # The synthesis of a batch is named in the language of the interface,
+    # and its test pins the French name.
+    "crates/apollia-runtime/src/batch/synthesis.rs": 2,
     "scripts/check_release_artifacts.py": 1,
     # The headings of the mission the agent workshop lays out, in the language
     # of the person, and the French request its test feeds it.

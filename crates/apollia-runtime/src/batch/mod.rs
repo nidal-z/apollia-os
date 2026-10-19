@@ -135,6 +135,10 @@ pub struct BatchTask {
     /// results: a ranking, a summary. Absent: no synthesis.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub synthesis: Option<String>,
+    /// The language of the interface the batch was launched from (`fr`,
+    /// `en`), which names the files the batch writes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
 }
 
 /// One field of the answer of an item.
@@ -193,6 +197,8 @@ impl BatchTask {
 pub const TASK_KEY: &str = "task";
 /// Where the synthesis of a batch is kept in its stored source.
 pub const SYNTHESIS_KEY: &str = "synthesis";
+/// The key of the stored source that names the file the results were written to.
+pub const RESULTS_KEY: &str = "results";
 
 /// The synthesis of a batch, written once its items have run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]

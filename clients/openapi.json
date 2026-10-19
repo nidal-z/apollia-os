@@ -32189,6 +32189,13 @@
               "null"
             ],
             "description": "What the agent does once every item has run, on the table of their\nresults: a ranking, a summary. Absent: no synthesis."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The language of the interface the batch was launched from (`fr`,\n`en`), which names the files the batch writes."
           }
         }
       },

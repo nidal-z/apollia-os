@@ -532,6 +532,7 @@ async fn test_a_batch_with_a_synthesis_keeps_it_once_its_items_have_run() {
     let (handle, _bus) = spawn(repo.clone(), registry(&["ok", "ok"]), runner.clone());
     let mut asked = launch(None, None);
     asked.task = Some(BatchTask {
+        language: None,
         instruction: "Check each request.".into(),
         outputs: Vec::new(),
         synthesis: Some("Rank the requests.".into()),
@@ -567,6 +568,7 @@ async fn test_a_batch_with_a_synthesis_keeps_it_once_its_items_have_run() {
 fn test_an_item_tells_the_agent_what_to_do_and_the_fields_to_answer() {
     // GIVEN a batch that says what to do and the two fields it wants back
     let task = BatchTask {
+        language: None,
         instruction: "Check the quote against the conditions.".into(),
         outputs: vec![
             BatchOutput {
@@ -602,6 +604,7 @@ fn test_an_item_tells_the_agent_what_to_do_and_the_fields_to_answer() {
 fn test_a_task_naming_a_field_twice_is_refused() {
     // GIVEN a task whose answer names a field twice, in two cases
     let task = BatchTask {
+        language: None,
         instruction: String::new(),
         outputs: vec![
             BatchOutput {

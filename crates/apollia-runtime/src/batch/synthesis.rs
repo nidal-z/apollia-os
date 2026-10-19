@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use apollia_tools::TaskRepository;
 use tracing::Level;
 
-use super::{BatchSynthesis, ItemRunner, SourceDescriptor, SYNTHESIS_KEY};
+use super::{BatchSynthesis, BatchTask, ItemRunner, SourceDescriptor, RESULTS_KEY, SYNTHESIS_KEY};
 
 /// The longest table of results handed to the agent, in characters.
 const MAX_RESULTS_CHARS: usize = 80_000;
@@ -83,7 +83,10 @@ pub(super) async fn run_synthesis<R: ItemRunner>(
     let synthesis = match runner.synthesize(agent, message).await {
         Ok(text) => {
             let path = match repository.batch(batch_id).await {
-                Ok(Some(row)) => write_beside_source(&row.source, &row.created_at, &text),
+                Ok(Some(row)) => {
+                    let language = BatchTask::of_source(&row.source).and_then(|task| task.language);
+                    write_beside_source(&row.source, &row.created_at, language.as_deref(), &text)
+                }
                 _ => None,
             };
             tracing::event!(
@@ -112,23 +115,44 @@ pub(super) async fn run_synthesis<R: ItemRunner>(
 
 /// Keeps `synthesis` in the stored source of `batch_id`.
 async fn record(repository: &TaskRepository, batch_id: &str, synthesis: &BatchSynthesis) {
+    if let Ok(value) = serde_json::to_value(synthesis) {
+        keep_in_source(repository, batch_id, SYNTHESIS_KEY, value).await;
+    }
+}
+
+/// Keeps the file the results of `batch_id` were written to in its stored
+/// source, for the view of the batch to open it.
+pub(super) async fn record_results(repository: &TaskRepository, batch_id: &str, path: &Path) {
+    let value = serde_json::json!({ "path": path.display().to_string() });
+    keep_in_source(repository, batch_id, RESULTS_KEY, value).await;
+}
+
+/// Sets `key` to `value` in the stored source of `batch_id`.
+async fn keep_in_source(
+    repository: &TaskRepository,
+    batch_id: &str,
+    key: &str,
+    value: serde_json::Value,
+) {
     let Ok(Some(row)) = repository.batch(batch_id).await else {
         return;
     };
     let mut source = row.source.clone();
-    if let (Some(map), Ok(value)) = (source.as_object_mut(), serde_json::to_value(synthesis)) {
-        map.insert(SYNTHESIS_KEY.to_string(), value);
+    if let Some(map) = source.as_object_mut() {
+        map.insert(key.to_string(), value);
     }
     if let Err(e) = repository.set_batch_source(batch_id, &source).await {
-        tracing::event!(Level::WARN, batch_id, error = %e, "batch.synthesis.record_failed");
+        tracing::event!(Level::WARN, batch_id, key, error = %e, "batch.source.record_failed");
     }
 }
 
 /// Writes `text` beside a source that is a file or a folder, under a dated
-/// name, and returns where; `None` for any other source or a write refused.
+/// name in `language` (`Quotes (synthèse 2026-10-19).md` in French), and
+/// returns where; `None` for any other source or a write refused.
 fn write_beside_source(
     source: &serde_json::Value,
     created_at: &str,
+    language: Option<&str>,
     text: &str,
 ) -> Option<PathBuf> {
     let descriptor: SourceDescriptor = serde_json::from_value(source.clone()).ok()?;
@@ -145,7 +169,12 @@ fn write_beside_source(
         _ => return None,
     };
     let day: String = created_at.chars().take(10).collect();
-    let path = dir.join(format!("{stem} (synthesis {day}).md"));
+    let label = if language.is_some_and(|l| l.trim().eq_ignore_ascii_case("fr")) {
+        "synthèse"
+    } else {
+        "synthesis"
+    };
+    let path = dir.join(format!("{stem} ({label} {day}).md"));
     match std::fs::write(&path, text) {
         Ok(()) => Some(path),
         Err(e) => {
@@ -168,12 +197,17 @@ mod tests {
         let mail = serde_json::json!({"kind": "mail", "location": "imap:ada@example.org"});
 
         // WHEN their synthesis is written
-        let written = write_beside_source(&csv, "2026-10-18 09:00:00", "Ranking").expect("a file");
+        let written =
+            write_beside_source(&csv, "2026-10-18 09:00:00", None, "Ranking").expect("a file");
 
         // THEN the file sits beside the source under a dated name, and a
         // mailbox has none
         assert_eq!(written, dir.path().join("quotes (synthesis 2026-10-18).md"));
         assert_eq!(std::fs::read_to_string(&written).expect("read"), "Ranking");
-        assert!(write_beside_source(&mail, "2026-10-18 09:00:00", "x").is_none());
+        assert!(write_beside_source(&mail, "2026-10-18 09:00:00", None, "x").is_none());
+        // AND in French the file is named in French
+        let french = write_beside_source(&csv, "2026-10-18 09:00:00", Some("fr"), "Classement")
+            .expect("a file");
+        assert_eq!(french, dir.path().join("quotes (synthèse 2026-10-18).md"));
     }
 }

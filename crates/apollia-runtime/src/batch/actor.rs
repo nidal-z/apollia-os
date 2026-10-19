@@ -658,19 +658,32 @@ async fn write_answers(
             return;
         }
     };
+    let location = descriptor.location.clone();
+    let original = descriptor
+        .write
+        .as_ref()
+        .is_some_and(|write| write.destination == super::write_back::WriteDestination::Original);
     let written = tokio::task::spawn_blocking(move || {
         write_results(&sources, &descriptor, original_granted, &items)
     })
     .await;
     match written {
-        Ok(Ok(Some(written))) => tracing::event!(
-            Level::INFO,
-            batch_id,
-            path = %written.backup.display(),
-            items = written.items,
-            refused = written.refused,
-            "batch.results.written"
-        ),
+        Ok(Ok(Some(written))) => {
+            tracing::event!(
+                Level::INFO,
+                batch_id,
+                path = %written.backup.display(),
+                items = written.items,
+                refused = written.refused,
+                "batch.results.written"
+            );
+            let target = if original {
+                std::path::PathBuf::from(&location)
+            } else {
+                written.backup.clone()
+            };
+            super::synthesis::record_results(repository, batch_id, &target).await;
+        }
         Ok(Ok(None)) => tracing::event!(Level::INFO, batch_id, "batch.results.nothing_to_write"),
         Ok(Err(e)) => {
             tracing::event!(Level::WARN, batch_id, error = %e, "batch.results.write_failed");

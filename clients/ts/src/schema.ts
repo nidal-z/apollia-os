@@ -12203,6 +12203,11 @@ export interface components {
              *     results: a ranking, a summary. Absent: no synthesis.
              */
             synthesis?: string | null;
+            /**
+             * @description The language of the interface the batch was launched from (`fr`,
+             *     `en`), which names the files the batch writes.
+             */
+            language?: string | null;
         };
         /** @description The synthesis of a batch, written once its items have run. */
         BatchSynthesis: {

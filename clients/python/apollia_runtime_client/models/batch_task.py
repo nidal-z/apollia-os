@@ -26,11 +26,14 @@ class BatchTask:
                 each. Empty: the answer is free text.
             synthesis (None | str | Unset): What the agent does once every item has run, on the table of their
                 results: a ranking, a summary. Absent: no synthesis.
+            language (None | str | Unset): The language of the interface the batch was launched from (`fr`,
+                `en`), which names the files the batch writes.
     """
 
     instruction: str | Unset = UNSET
     outputs: list[BatchOutput] | Unset = UNSET
     synthesis: None | str | Unset = UNSET
+    language: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -49,6 +52,12 @@ class BatchTask:
         else:
             synthesis = self.synthesis
 
+        language: None | str | Unset
+        if isinstance(self.language, Unset):
+            language = UNSET
+        else:
+            language = self.language
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -58,6 +67,8 @@ class BatchTask:
             field_dict["outputs"] = outputs
         if synthesis is not UNSET:
             field_dict["synthesis"] = synthesis
+        if language is not UNSET:
+            field_dict["language"] = language
 
         return field_dict
 
@@ -86,10 +97,20 @@ class BatchTask:
 
         synthesis = _parse_synthesis(d.pop("synthesis", UNSET))
 
+        def _parse_language(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        language = _parse_language(d.pop("language", UNSET))
+
         batch_task = cls(
             instruction=instruction,
             outputs=outputs,
             synthesis=synthesis,
+            language=language,
         )
 
         batch_task.additional_properties = d
