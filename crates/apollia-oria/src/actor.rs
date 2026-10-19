@@ -262,6 +262,10 @@ pub struct ActorLoop {
     ///
     /// [`with_context_manager`]: ActorLoop::with_context_manager
     pub(crate) context_manager: ContextManager,
+    /// The tools the agent is granted, handed to the replanner: a replan
+    /// that sees none invents them (`read_file`, `pdf_text`) and is not held
+    /// to the tools there are.
+    pub(crate) available_tools: Vec<String>,
 }
 
 impl ActorLoop {
@@ -290,7 +294,14 @@ impl ActorLoop {
             memory_manager: None,
             step_memory_max_chars: DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
+            available_tools: Vec::new(),
         }
+    }
+
+    /// The tools the agent is granted, which a replan is held to.
+    pub fn with_available_tools(mut self, tools: Vec<String>) -> Self {
+        self.available_tools = tools;
+        self
     }
 
     /// Names the backend every model call of a step goes to: the model the
@@ -438,10 +449,10 @@ pub fn interpolate_outputs(description: &str, outputs: &HashMap<String, String>)
 
 /// Builds a minimal [`ContextBundle`] for replanning.
 ///
-/// The bundle carries only the plan's `task_id`; the other fields
-/// (`memory_snapshot`, `available_tools`, `manifest_system_prompt`) are empty.
-/// The Reasoner uses this context to build the replanner prompt.
-pub(crate) fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
+/// The bundle carries the plan's `task_id` and the tools the agent is
+/// granted, which the replanner is shown and its plan checked against; the
+/// memory snapshot and the system prompt are empty.
+pub(crate) fn build_replan_context(plan: &ExecutionPlan, tools: &[String]) -> ContextBundle {
     use apollia_core::task::AIPTask;
 
     ContextBundle {
@@ -451,7 +462,7 @@ pub(crate) fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
         },
         memory_snapshot: None,
         execution_mode: ExecutionMode::Orchestrated,
-        available_tools: vec![],
+        available_tools: tools.to_vec(),
         manifest_system_prompt: None,
     }
 }
@@ -580,6 +591,20 @@ mod tests {
         fn model_id(&self) -> &str {
             "mock-model"
         }
+    }
+
+    #[test]
+    fn test_a_replan_is_shown_the_tools_the_agent_is_granted() {
+        // GIVEN a plan whose agent is granted the reading of a folder
+        let plan = make_plan(vec![("s1", &[])]);
+        let granted = vec!["conn:folder:abc/file_read".to_string()];
+
+        // WHEN the context of its replan is built
+        let ctx = build_replan_context(&plan, &granted);
+
+        // THEN the replanner sees those tools, so its plan is held to them
+        assert_eq!(ctx.available_tools, granted);
+        assert_eq!(ctx.task.task_id, "task-001");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

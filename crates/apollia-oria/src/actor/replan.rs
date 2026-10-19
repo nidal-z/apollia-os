@@ -53,7 +53,7 @@ impl ActorLoop {
             });
 
             // Build a minimal context for the Reasoner.
-            let ctx = build_replan_context(&self.plan);
+            let ctx = build_replan_context(&self.plan, &self.available_tools);
 
             let new_plan = match deps
                 .reasoner

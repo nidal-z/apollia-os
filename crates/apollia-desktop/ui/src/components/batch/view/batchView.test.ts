@@ -187,6 +187,21 @@ describe("the table of a batch", () => {
     expect(entryOf(bare)).toEqual({ title: "one line", summary: "" });
   });
 
+  it("names a file of a folder by its path in the folder, and its text without the lead", () => {
+    // GIVEN an item read from a folder: its full path, then its text
+    const file = item(0, "pending", {
+      origin: "devis-01.pdf",
+      input: {
+        File: "/data/Devis/devis-01.pdf",
+        Text: "(The text of this file, already read for you: there is no need to open the file.)\nAtelier Bellier",
+      },
+    });
+
+    // WHEN its row is read
+    // THEN the title is its name in the folder, the summary its text
+    expect(entryOf(file)).toEqual({ title: "devis-01.pdf", summary: "Atelier Bellier" });
+  });
+
   it("names the sources an answer cites, and the access a waiting item reached for", () => {
     // GIVEN an item with two cited sources and one that waits
     // WHEN they are read

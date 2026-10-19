@@ -3,9 +3,12 @@
 //!
 //! A folder of quotes, of contracts, of applications is the most common thing
 //! a user wants an agent to go through, file by file. Each item carries the
-//! path of its file, relative to the folder, and the text a reader extracts
-//! from it (PDF, Word, PowerPoint, workbooks, CSV, plain text), so the agent
-//! works on the content without having to be granted the folder. A folder is
+//! full path of its file, and the text a reader extracts from it (PDF, Word,
+//! PowerPoint, workbooks, CSV, plain text), said to be the text already read,
+//! so the agent works on the content without opening the file. When it does
+//! open it, the full path is the one its file tools resolve; a path relative
+//! to the folder of the batch named no file they knew. The item is named in
+//! the batch by its path in the folder. A folder is
 //! only read: a batch on a folder writes no file next to its items; its
 //! results are exported.
 
@@ -20,7 +23,7 @@ use crate::document::{is_readable_document, read_document};
 
 /// The kind of a folder source; its location is the path of the folder.
 pub const FOLDER_KIND: &str = "folder";
-/// The field of an item that holds the path of its file, relative to the folder.
+/// The field of an item that holds the full path of its file.
 pub const FILE_FIELD: &str = "File";
 /// The field of an item that holds the text of its file.
 pub const TEXT_FIELD: &str = "Text";
@@ -35,6 +38,9 @@ const MAX_FILES: usize = 5_000;
 /// The longest text an item carries, in characters: past it, the text is cut
 /// and the agent told so, rather than a single file filling its context.
 const MAX_TEXT_CHARS: usize = 30_000;
+/// The line the text of an item opens with: the agent need not open the file.
+const TEXT_LEAD: &str =
+    "(The text of this file, already read for you: there is no need to open the file.)\n";
 /// Extensions read as plain text.
 const TEXT_EXTENSIONS: [&str; 6] = ["txt", "md", "json", "xml", "html", "eml"];
 
@@ -110,8 +116,11 @@ impl FolderSource {
             .display()
             .to_string();
         let mut fields = BTreeMap::new();
-        fields.insert(FILE_FIELD.to_string(), relative.clone());
-        fields.insert(TEXT_FIELD.to_string(), text_of(path));
+        fields.insert(FILE_FIELD.to_string(), path.display().to_string());
+        fields.insert(
+            TEXT_FIELD.to_string(),
+            format!("{TEXT_LEAD}{}", text_of(path)),
+        );
         SourceItem {
             origin: OriginRef::new(relative),
             fields,
@@ -196,8 +205,11 @@ mod tests {
 
         // THEN each visible file is an item, in order, with its path and text
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].fields[FILE_FIELD], "a.txt");
-        assert_eq!(items[0].fields[TEXT_FIELD], "first");
+        assert_eq!(
+            items[0].fields[FILE_FIELD],
+            dir.path().join("a.txt").display().to_string()
+        );
+        assert_eq!(items[0].fields[TEXT_FIELD], format!("{TEXT_LEAD}first"));
         assert_eq!(items[1].origin.as_str(), "b.txt");
     }
 
@@ -218,6 +230,6 @@ mod tests {
             .items
             .collect::<Result<_, _>>()
             .expect("read");
-        assert_eq!(items[0].fields[FILE_FIELD], "Quotes/q.txt");
+        assert_eq!(items[0].origin.as_str(), "Quotes/q.txt");
     }
 }

@@ -208,12 +208,22 @@ export function fieldsOf(item: BatchItem): { name: string; value: string }[] {
 }
 
 /** What a row shows of an input: its first filled field, then the next ones. */
+// i18n-ignore: marker the runtime opens the text of a file of a folder with, never shown
+const FILE_TEXT_LEAD = "(The text of this file, already read for you: there is no need to open the file.)";
+
+/** `true` for a full path of this machine, Unix or Windows. */
+function isFullPath(value: string): boolean {
+  return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value);
+}
+
 export function entryOf(item: BatchItem): { title: string; summary: string } {
   const filled = fieldsOf(item)
-    .map((field) => field.value)
+    .map((field) => (field.value.startsWith(FILE_TEXT_LEAD) ? field.value.slice(FILE_TEXT_LEAD.length).trim() : field.value))
     .filter((value) => value !== "");
   if (filled.length === 0) return { title: text(item.input), summary: "" };
-  return { title: filled[0], summary: filled.slice(1).join(" · ") };
+  // A file of a folder is named by its path in the folder, not its full path.
+  const title = isFullPath(filled[0]) && item.origin !== "" ? item.origin : filled[0];
+  return { title, summary: filled.slice(1).join(" · ") };
 }
 
 // i18n-ignore: marker of the runtime output text, matched on the wire, never shown

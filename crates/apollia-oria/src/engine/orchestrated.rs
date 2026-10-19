@@ -380,6 +380,7 @@ impl ORIAEngine {
                 manifest.clone(),
             )
             .with_model_backend(agent.model_backend())
+            .with_available_tools(ctx.available_tools.clone())
             .with_memory_manager(self.memory_manager.clone())
             .with_step_memory_max_chars(self.oria_config.step_memory_max_chars)
             .with_context_manager(self.context_manager.clone());
