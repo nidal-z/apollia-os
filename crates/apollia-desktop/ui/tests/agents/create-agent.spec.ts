@@ -363,7 +363,7 @@ test.describe("creating an agent from a form", () => {
     ]);
   });
 
-  test("leaving while the workshop works stops its run and creates no agent", async ({ page }) => {
+  test("leaving while the workshop works keeps its run and the draft, discarding stops it", async ({ page }) => {
     // GIVEN the workshop launched, waiting on its question
     await openCreation(page);
     await page.getByTestId("agent-create-purpose").fill("Read the press every morning");
@@ -373,9 +373,25 @@ test.describe("creating an agent from a form", () => {
     // WHEN the person leaves without answering
     await page.getByTestId("agent-create-back").click();
 
-    // THEN the list is back, the run was stopped and no agent was created
+    // THEN the list is back with the draft above it, and the run goes on
     await expect(page.getByTestId("agents-list")).toBeVisible();
+    await expect(page.getByTestId("agent-creation-draft")).toBeVisible();
+    expect(await sent(page, "cancel_workflow_run")).toEqual([]);
+
+    // WHEN the draft is resumed
+    await page.getByTestId("agent-creation-draft-resume").click();
+
+    // THEN the workshop is followed again, its question waiting
+    await expect(page.getByTestId("agent-create-question")).toBeVisible();
+
+    // WHEN the person goes back to the list and discards the draft
+    await page.getByTestId("agent-create-back").click();
+    await page.getByTestId("agent-creation-draft-discard").click();
+    await page.getByTestId("agent-creation-draft-discard-dialog").getByRole("button", { name: "Discard" }).click();
+
+    // THEN the run is stopped, the draft is gone, and no agent was created
     await expect.poll(async () => await sent(page, "cancel_workflow_run")).toEqual([{ runId: "run-1" }]);
+    await expect(page.getByTestId("agent-creation-draft")).toHaveCount(0);
     expect(await sent(page, "create_agent_definition")).toEqual([]);
   });
 });

@@ -31,6 +31,7 @@
     openPackagePreview,
   } from "$lib/stores/packagePreview";
   import CreateAgent from "../agents/create/CreateAgent.svelte";
+  import { currentCreation } from "../agents/create/creationDraft";
   import {
     FIRST_AGENT_CARDS,
     agentCreated,
@@ -150,6 +151,8 @@
   }
 
   onMount(() => {
+    // A creation left under way opens again where it was.
+    if (view === "cards" && currentCreation("onboarding") !== null) view = "create";
     window.addEventListener(PACKAGE_INSTALLED_EVENT, onInstalled);
     return () => window.removeEventListener(PACKAGE_INSTALLED_EVENT, onInstalled);
   });

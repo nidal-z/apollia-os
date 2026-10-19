@@ -13,21 +13,24 @@
    *     an agent sheet, where everything stays editable;
    *   - the saved agent: its sheet, read as any other, with a way to try it.
    *
-   * Nothing is written before "Save the agent". Leaving at any moment before
-   * the save leaves no agent behind; a run of the workshop still going is
-   * stopped when the screen is left.
+   * Nothing is written before "Save the agent". The creation is a draft kept
+   * apart from this screen (`creationDraft`): leaving it, or the application,
+   * loses nothing. A run of the workshop goes on while the screen is away and
+   * is followed again on the way back, its question waiting; the sheet under
+   * review keeps its edits. Only "Discard the draft" or the save ends it.
    *
    * The first launch mounts the first three moments inside its own step: it
    * passes `oncreated`, which takes the saved agent in place of the last
    * moment, and `embedded`, which leaves the breadcrumb of the Agents screen
    * out.
    */
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
   import { locale, t } from "svelte-i18n";
   import { Bot, ChevronRight, MessageSquare } from "lucide-svelte";
   import { DetailHeader, ErrorBanner, PageHeader } from "$lib/components/operator";
   import { Banner } from "$lib/components/ui/banner";
   import { Button } from "$lib/components/ui/button";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { llmBackends } from "$lib/stores/llm";
   import { setAgentModel } from "$lib/ipc/agentAdjust";
   import {
@@ -51,6 +54,7 @@
   import CreateAgentProgress from "./CreateAgentProgress.svelte";
   import { modelReadiness } from "./modelReady";
   import CreateAgentReview from "./CreateAgentReview.svelte";
+  import { currentCreation, endCreation, keepCreation, wishStarted, type CreationScope } from "./creationDraft";
   import {
     UNAVAILABLE_LABEL,
     WORKSHOP_WORKFLOW,
@@ -97,11 +101,18 @@
 
   /** How often the run of the workshop is read, in milliseconds. */
   const POLL_MS = 1000;
+  /** Reads of the run that fail in a row before it is taken for lost. */
+  const LOST_AFTER = 10;
 
   type Phase = "form" | "drafting" | "review" | "saved";
 
-  let phase = $state<Phase>("form");
-  let wish = $state<WorkshopForm>(emptyForm());
+  // The first launch holds a creation of its own, apart from the Agents screen.
+  const scope: CreationScope = untrack(() => (embedded ? "onboarding" : "agents"));
+  const restored = currentCreation(scope);
+  const restoredReview = restored?.review ?? null;
+
+  let phase = $state<Phase>(restored?.phase ?? "form");
+  let wish = $state<WorkshopForm>(restored?.wish ?? emptyForm());
   let offer = $state<DraftOffer | null>(null);
   let launching = $state(false);
   // Why the workshop could not start or did not hand a sheet back.
@@ -110,22 +121,29 @@
   let serverDown = $state<string | null>(null);
 
   // The run of the workshop, while it goes on.
-  let runId = $state<string | null>(null);
+  let runId = $state<string | null>(restored?.runId ?? null);
+  let failedReads = 0;
+  const resumedRun = restored?.runId ?? null;
+  // Saved or discarded: the draft is no longer kept.
+  let ended = false;
+  let discarding = $state(false);
   let steps = $state<WorkflowStep[]>([]);
   let question = $state<WorkshopQuestion | null>(null);
   let answering = $state(false);
 
   // The form of the review, filled from the draft when the review opens.
-  let name = $state("");
-  let form = $state<AdjustDraft>({ mission: "", examples: [], access: [], sources: [], model: null });
-  let listed = $state<string[]>([]);
-  let checked = $state<string[]>([]);
-  let notes = $state<Record<string, AccessNote>>({});
-  let missing = $state<UnavailableView[]>([]);
+  let name = $state(restoredReview?.name ?? "");
+  let form = $state<AdjustDraft>(
+    restoredReview?.form ?? { mission: "", examples: [], access: [], sources: [], model: null },
+  );
+  let listed = $state<string[]>(restoredReview?.listed ?? []);
+  let checked = $state<string[]>(restoredReview?.checked ?? []);
+  let notes = $state<Record<string, AccessNote>>(restoredReview?.notes ?? {});
+  let missing = $state<UnavailableView[]>(restoredReview?.missing ?? []);
   // The draft the form was last filled from, `null` before the first review.
-  let reviewedKey: string | null = null;
+  let reviewedKey: string | null = restoredReview?.key ?? null;
   // A sheet was opened already: the form offers the way back to it.
-  let reviewed = $state(false);
+  let reviewed = $state(restoredReview !== null);
 
   let saving = $state(false);
   let saveError = $state<string | null>(null);
@@ -167,7 +185,16 @@
     if (!run || following) return;
     following = true;
     try {
-      const detail = await getWorkflowRun(run);
+      let detail;
+      try {
+        detail = await getWorkflowRun(run);
+        failedReads = 0;
+      } catch {
+        // A run the runtime no longer knows gives the form back, as typed.
+        failedReads += 1;
+        if (failedReads >= LOST_AFTER && runId === run) fail($t("agent_create.run_lost"));
+        return;
+      }
       if (runId !== run) return;
       steps = detail.steps;
       if (detail.run.status === "running") {
@@ -180,7 +207,9 @@
       stopPolling();
       question = null;
       if (detail.run.status !== "completed") {
-        fail(detail.run.error ?? $t("agent_create.run_stopped"));
+        // A run left going and found ended was stopped while away.
+        const reason = detail.run.error ?? $t("agent_create.run_stopped");
+        fail(run === resumedRun ? `${$t("agent_create.run_lost")} (${reason})` : reason);
         return;
       }
       const sheet = sheetOfRun(detail.run.output);
@@ -227,7 +256,7 @@
       steps = [];
       question = null;
       phase = "drafting";
-      pollTimer = setInterval(() => void follow(), POLL_MS);
+      startPolling();
     } catch (err) {
       runError = message(err);
     } finally {
@@ -262,10 +291,56 @@
     phase = "form";
   }
 
-  onDestroy(() => {
+  function startPolling(): void {
+    stopPolling();
+    failedReads = 0;
+    pollTimer = setInterval(() => void follow(), POLL_MS);
+  }
+
+  // A run left going is followed again where it is.
+  onMount(() => {
+    if (phase === "drafting" && runId) {
+      startPolling();
+      void follow();
+    }
+  });
+
+  // Leaving stops the reading only: the run, and the draft, stay.
+  onDestroy(stopPolling);
+
+  // The draft follows every change, until the save ends it.
+  $effect(() => {
+    if (ended || phase === "saved") return;
+    keepCreation(scope, {
+      phase,
+      wish: $state.snapshot(wish) as WorkshopForm,
+      runId,
+      review: reviewed
+        ? {
+            name,
+            form: $state.snapshot(form) as AdjustDraft,
+            listed,
+            checked,
+            notes,
+            missing,
+            key: reviewedKey,
+          }
+        : null,
+      updatedAt: new Date().toISOString(),
+    });
+  });
+
+  const started = $derived(runId !== null || reviewed || wishStarted(wish));
+
+  /** Ends the creation: the run stopped, the draft dropped, back to the list. */
+  function discard(): void {
+    discarding = false;
     stopPolling();
     if (runId) void cancelWorkflowRun(runId).catch(() => undefined);
-  });
+    ended = true;
+    endCreation(scope);
+    onback();
+  }
 
   /** Open the form on `proposal`, or empty for a sheet written by hand. */
   function openReview(proposal: ProposedAgent | null): void {
@@ -297,6 +372,8 @@
         setModel: (agent, model) => setAgentModel(agent, model.model_source, model.model_id, model.preset_id),
       });
       if (!outcome) return;
+      ended = true;
+      endCreation(scope);
       if (oncreated) {
         oncreated(outcome.agent);
         return;
@@ -375,6 +452,15 @@
     >
       {#snippet actions()}
         <Button
+          variant="ghost"
+          size="sm"
+          onclick={() => (discarding = true)}
+          disabled={saving}
+          data-testid="agent-create-review-discard"
+        >
+          {$t("agent_create.discard")}
+        </Button>
+        <Button
           variant="outline"
           size="sm"
           onclick={() => (phase = "form")}
@@ -424,7 +510,7 @@
     >
       {#snippet actions()}
         <Button variant="outline" size="sm" onclick={backToForm} data-testid="agent-create-drafting-back">
-          {$t("agent_create.review_back")}
+          {$t("agent_create.drafting_stop")}
         </Button>
       {/snippet}
     </PageHeader>
@@ -434,6 +520,9 @@
           <p class="text-caption opacity-90">{runError}</p>
         </ErrorBanner>
       {/if}
+      <p class="m-0 max-w-3xl text-caption text-muted-foreground" data-testid="agent-create-drafting-kept">
+        {$t("agent_create.drafting_kept")}
+      </p>
       <CreateAgentProgress steps={progress} {question} {answering} onanswer={(text) => void answer(text)} />
     </div>
   {:else}
@@ -444,8 +533,13 @@
     >
       {#snippet actions()}
         <Button variant="outline" size="sm" onclick={onback} data-testid="agent-create-cancel">
-          {$t("common.cancel")}
+          {$t(started ? "agent_create.leave" : "common.cancel")}
         </Button>
+        {#if started}
+          <Button variant="ghost" size="sm" onclick={() => (discarding = true)} data-testid="agent-create-discard">
+            {$t("agent_create.discard")}
+          </Button>
+        {/if}
         {#if reviewed}
           <Button variant="outline" size="sm" onclick={() => (phase = "review")} data-testid="agent-create-review-resume">
             {$t("agent_create.review_resume")}
@@ -497,3 +591,13 @@
     </div>
   {/if}
 </div>
+
+<ConfirmDialog
+  open={discarding}
+  onclose={() => (discarding = false)}
+  onconfirm={discard}
+  title={$t("agent_create.discard_title")}
+  message={$t("agent_create.discard_message")}
+  confirmLabel={$t("agent_create.discard_confirm")}
+  data-testid="agent-create-discard-dialog"
+/>

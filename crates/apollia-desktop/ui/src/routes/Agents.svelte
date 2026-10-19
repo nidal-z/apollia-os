@@ -51,6 +51,7 @@
   import AgentDetailPane from "../components/agents/AgentDetailPane.svelte";
   import WorkflowSheet from "../components/workflows/WorkflowSheet.svelte";
   import CreateAgent from "../components/agents/create/CreateAgent.svelte";
+  import CreationDraftBanner from "../components/agents/create/CreationDraftBanner.svelte";
   import { WORKSHOP_WORKFLOW } from "../components/agents/create/agentDraft";
   import { filterWorkflows, splitWorkflowId } from "../components/workflows/workflowRuns";
   import { createAgentActions } from "../components/agents/useAgentActions.svelte";
@@ -333,6 +334,9 @@
 
   <div class="min-h-0 flex-1 overflow-y-auto">
     {#if view.kind === "list"}
+      <div class="px-8 pt-3 empty:hidden">
+        <CreationDraftBanner onresume={openCreation} />
+      </div>
       <AgentsOverview
         agents={filteredAgents}
         workflows={filteredWorkflows}

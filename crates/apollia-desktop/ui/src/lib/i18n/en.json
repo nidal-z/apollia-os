@@ -1075,6 +1075,13 @@
       "also_source": "Also add the folder as a source",
       "later": "Later",
       "launch": "Launch the batch on the workbook"
+    },
+    "creation_draft": {
+      "title": "An agent is being created",
+      "form": "Form started",
+      "drafting": "Apollia is preparing the sheet, a question may be waiting for you",
+      "review": "Sheet to review before saving",
+      "resume": "Resume"
     }
   },
   "inbox": {
@@ -4891,7 +4898,15 @@
     "run_failed": "The sheet could not be prepared",
     "run_stopped": "The preparation stopped before the end.",
     "run_no_sheet": "Apollia handed back no complete sheet. Try again, or fill in the sheet yourself.",
-    "review_resume": "Back to the sheet"
+    "review_resume": "Back to the sheet",
+    "leave": "Back to agents",
+    "discard": "Discard the draft",
+    "discard_title": "Discard this draft?",
+    "discard_message": "The form, the answers and the sheet under way are erased, and the preparation is stopped. No agent had been saved yet.",
+    "discard_confirm": "Discard",
+    "drafting_kept": "You can leave this screen: the preparation goes on, and the draft waits for you in Agents.",
+    "run_lost": "The preparation was interrupted, by a restart of Apollia for instance. Your form is kept: launch it again.",
+    "drafting_stop": "Stop and go back to the form"
   },
   "agent_export": {
     "action": "Export",

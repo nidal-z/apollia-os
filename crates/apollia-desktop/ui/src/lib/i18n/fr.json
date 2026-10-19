@@ -1075,6 +1075,13 @@
       "also_source": "Ajouter aussi le dossier comme source",
       "later": "Plus tard",
       "launch": "Lancer le lot sur le classeur"
+    },
+    "creation_draft": {
+      "title": "Un agent est en cours de création",
+      "form": "Formulaire commencé",
+      "drafting": "Apollia prépare la fiche, une question peut vous attendre",
+      "review": "Fiche à relire avant l'enregistrement",
+      "resume": "Reprendre"
     }
   },
   "inbox": {
@@ -4891,7 +4898,15 @@
     "run_failed": "La fiche n'a pas pu être préparée",
     "run_stopped": "La préparation s'est arrêtée avant la fin.",
     "run_no_sheet": "Apollia n'a pas rendu de fiche complète. Relancez, ou remplissez la fiche vous-même.",
-    "review_resume": "Revenir à la fiche"
+    "review_resume": "Revenir à la fiche",
+    "leave": "Revenir aux agents",
+    "discard": "Abandonner le brouillon",
+    "discard_title": "Abandonner ce brouillon ?",
+    "discard_message": "Le formulaire, les réponses et la fiche en cours sont effacés, et la préparation est arrêtée. Aucun agent n'avait encore été enregistré.",
+    "discard_confirm": "Abandonner",
+    "drafting_kept": "Vous pouvez quitter cet écran : la préparation continue, et le brouillon vous attend dans Agents.",
+    "run_lost": "La préparation a été interrompue, par exemple par un redémarrage d'Apollia. Votre formulaire est conservé : relancez-la.",
+    "drafting_stop": "Arrêter et revenir au formulaire"
   },
   "agent_export": {
     "action": "Exporter",
