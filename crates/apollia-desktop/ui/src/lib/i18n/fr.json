@@ -6846,6 +6846,33 @@
       "running": "L'agent écrit la synthèse du lot…",
       "written": "Enregistrée dans {path}",
       "failed": "La synthèse n'a pas pu être écrite : {cause}"
+    },
+    "results": {
+      "clear": "Tout afficher",
+      "count": "{shown} sur {total} éléments",
+      "to_review": "{count, plural, one {# à relire} other {# à relire}}",
+      "item": "Élément",
+      "unfitted": "Réponse hors des colonnes : à relire",
+      "missing": "non donné"
+    },
+    "request": {
+      "title": "Ce que vous avez demandé",
+      "no_instruction": "Aucune consigne : l'agent a traité chaque élément selon sa mission.",
+      "outputs": "{count, plural, one {# colonne} other {# colonnes}} : {names}",
+      "synthesis": "Synthèse demandée à la fin : {text}"
+    },
+    "files": {
+      "title": "Fichiers produits",
+      "none": "Aucun fichier pour l'instant. Exportez les résultats pour les ouvrir dans un tableur.",
+      "kind_results": "Le classeur avec les colonnes de l'agent",
+      "kind_synthesis": "La synthèse du lot",
+      "kind_export": "Export des résultats",
+      "open": "Ouvrir",
+      "reveal": "Afficher dans le dossier"
+    },
+    "surface": {
+      "results": "Résultats",
+      "items": "Éléments"
     }
   },
   "batch_history": {

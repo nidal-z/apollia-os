@@ -14,6 +14,26 @@
     "global-shortcut:allow-unregister-all",
     "opener:default",
     "opener:allow-open-url",
-    "opener:allow-reveal-item-in-dir"
+    "opener:allow-reveal-item-in-dir",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "$HOME/**/*.xlsx"
+        },
+        {
+          "path": "$HOME/**/*.xlsm"
+        },
+        {
+          "path": "$HOME/**/*.csv"
+        },
+        {
+          "path": "$HOME/**/*.md"
+        },
+        {
+          "path": "$HOME/**/*.json"
+        }
+      ]
+    }
   ]
 }

@@ -89,6 +89,8 @@ export interface LaunchForm {
   outputs?: BatchOutput[];
   /** What the agent does once every item has run; empty: no synthesis. */
   synthesis?: string;
+  /** The language of the interface (`fr`, `en`): the files the batch writes are named in it. */
+  language?: string;
   /**
    * The sheet, the header row and the checked columns of a previewed file;
    * absent or `null` while no preview is known, and the runtime then reads
@@ -326,6 +328,7 @@ export function buildLaunch(form: LaunchForm, accesses: BatchAccess[]): BatchLau
   const source: BatchSourceDescriptor = { ...form.source.reader, options: {} };
   if (writesResults(form.source)) {
     if (form.table) source.options = { ...form.table.options };
+    if (form.language) source.options.language = form.language;
     const original = form.destination === "original" && canWriteOriginal(form.source);
     const outputs = outputsOf(form);
     source.write = {
@@ -346,7 +349,12 @@ export function buildLaunch(form: LaunchForm, accesses: BatchAccess[]): BatchLau
   const synthesis = (form.synthesis ?? "").trim();
   const outputs = outputsOf(form);
   if (instruction !== "" || outputs.length > 0 || synthesis !== "") {
-    launch.task = { instruction, outputs, ...(synthesis === "" ? {} : { synthesis }) };
+    launch.task = {
+      instruction,
+      outputs,
+      ...(synthesis === "" ? {} : { synthesis }),
+      ...(form.language ? { language: form.language } : {}),
+    };
   }
   return launch;
 }

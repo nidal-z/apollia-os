@@ -10,7 +10,7 @@
 // so a failed reveal never breaks the surrounding render (worst case: nothing
 // happens and the user copies the path from the `title`).
 
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 
 /** True when running inside the Tauri runtime (vs. plain browser dev). */
 function isTauri(): boolean {
@@ -53,6 +53,19 @@ export async function revealPath(path: string): Promise<void> {
   } catch (err) {
     console.error("[fileRef] failed to reveal path", path, err);
   }
+}
+
+/**
+ * Open the file at `path` in the application the system gives its kind: a
+ * workbook in the spreadsheet, a text in the editor. Subject to the
+ * `opener:allow-open-path` capability, which admits only the kinds of files a
+ * batch writes. Unlike `revealPath`, a failure rejects, so the caller can say
+ * why the file did not open.
+ */
+export async function openFile(path: string): Promise<void> {
+  if (!path) return;
+  if (isTauri()) await openPath(path);
+  else console.info("[fileRef] open (dev no-op)", path);
 }
 
 /** Join a (possibly trailing-slashed) directory with a child name. */

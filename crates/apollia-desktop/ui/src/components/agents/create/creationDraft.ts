@@ -97,16 +97,28 @@ function parseWish(value: unknown): WorkshopForm | null {
   return { purpose, result, rules, examples, sources, rights };
 }
 
+/** The model of a stored sheet, or none when it is missing or of another shape. */
+function parseModel(value: unknown): AdjustDraft["model"] {
+  if (!isRecord(value)) return null;
+  const { model_source, model_id, preset_id } = value;
+  if ((model_source !== "local" && model_source !== "server") || typeof model_id !== "string") return null;
+  if (preset_id !== null && typeof preset_id !== "number") return null;
+  return { model_source, model_id, preset_id };
+}
+
 function parseReview(value: unknown): CreationReview | null {
   if (!isRecord(value) || typeof value.name !== "string" || !isRecord(value.form)) return null;
   const listed = strings(value.listed);
   const checked = strings(value.checked);
   if (listed === null || checked === null || !isRecord(value.notes) || !Array.isArray(value.missing)) return null;
   const form = value.form;
-  if (typeof form.mission !== "string" || strings(form.access) === null || strings(form.sources) === null) return null;
+  const access = strings(form.access);
+  const sources = strings(form.sources);
+  if (typeof form.mission !== "string" || access === null || sources === null) return null;
+  const model = parseModel(form.model);
   return {
     name: value.name,
-    form: form as unknown as AdjustDraft,
+    form: { mission: form.mission, examples: strings(form.examples) ?? [], access, sources, model },
     listed,
     checked,
     notes: value.notes as Record<string, AccessNote>,

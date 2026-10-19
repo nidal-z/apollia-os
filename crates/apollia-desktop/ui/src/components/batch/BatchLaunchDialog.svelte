@@ -13,7 +13,7 @@
    * agent receives. The decisions live in `launchBatch.ts` and
    * `workbookPreview.ts`; this component holds the form and the calls.
    */
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
   import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
   import { FolderOpen, KeyRound, Layers, Mail, Plus, Table2, X } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
@@ -233,6 +233,7 @@
     instruction,
     outputs,
     synthesis,
+    language: ($locale ?? "en").slice(0, 2),
     table: tableChoice(preview, selection),
   });
   const refusal = $derived(refusalOf(form));

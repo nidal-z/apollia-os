@@ -6846,6 +6846,33 @@
       "running": "The agent is writing the synthesis of the batch…",
       "written": "Saved to {path}",
       "failed": "The synthesis could not be written: {cause}"
+    },
+    "results": {
+      "clear": "Show all",
+      "count": "{shown} of {total} items",
+      "to_review": "{count, plural, one {# to read again} other {# to read again}}",
+      "item": "Item",
+      "unfitted": "Answer outside the columns: read it again",
+      "missing": "not given"
+    },
+    "request": {
+      "title": "What you asked",
+      "no_instruction": "No instruction: the agent worked on each item from its mission.",
+      "outputs": "{count, plural, one {# column} other {# columns}}: {names}",
+      "synthesis": "Synthesis asked at the end: {text}"
+    },
+    "files": {
+      "title": "Files produced",
+      "none": "No file yet. Export the results to open them in a spreadsheet.",
+      "kind_results": "The workbook with the agent's columns",
+      "kind_synthesis": "The synthesis of the batch",
+      "kind_export": "Export of the results",
+      "open": "Open",
+      "reveal": "Show in folder"
+    },
+    "surface": {
+      "results": "Results",
+      "items": "Items"
     }
   },
   "batch_history": {

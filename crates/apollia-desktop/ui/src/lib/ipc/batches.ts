@@ -108,6 +108,8 @@ export interface BatchSourceDescriptor {
   task?: BatchTask;
   /** The synthesis of the batch, once asked for. */
   synthesis?: BatchSynthesis;
+  /** The file the results were written to, once written. */
+  results?: { path: string };
 }
 
 /** The body of a launch. */
@@ -135,6 +137,8 @@ export interface BatchTask {
   outputs: BatchOutput[];
   /** What the agent does once every item has run; absent: no synthesis. */
   synthesis?: string;
+  /** The language of the interface (`fr`, `en`), which names the files written. */
+  language?: string;
 }
 
 /** The synthesis of a batch, written once its items have run. */

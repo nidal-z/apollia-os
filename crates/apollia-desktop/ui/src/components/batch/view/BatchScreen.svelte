@@ -28,6 +28,9 @@
   import BatchItemList from "./BatchItemList.svelte";
   import BatchSummaryCard from "./BatchSummaryCard.svelte";
   import BatchSynthesisCard from "./BatchSynthesisCard.svelte";
+  import BatchRequestCard from "./BatchRequestCard.svelte";
+  import BatchResults from "./BatchResults.svelte";
+  import { outputsOf } from "./batchResults";
   import {
     exportFileName,
     filterItems,
@@ -231,6 +234,33 @@
     followRunning = false;
   }
 
+  // The results read as the launch asked for them, once there are some; the
+  // items one by one otherwise, and while the batch runs.
+  let surfaceChosen = $state<"results" | "items" | null>(null);
+  /** The files exported from this view, opened from the card of the request. */
+  let exported = $state<string[]>([]);
+  const outputs = $derived(batch === null ? [] : outputsOf(batch));
+  const resultsOffered = $derived(outputs.length > 0 && items.some((item) => item.status === "completed"));
+  const surface = $derived(resultsOffered ? (surfaceChosen ?? (live ? "items" : "results")) : "items");
+  const producedFiles = $derived.by(() => {
+    const files: { kind: "results" | "synthesis" | "export"; path: string }[] = [];
+    const results = batch?.source.results?.path;
+    if (results) files.push({ kind: "results", path: results });
+    const written = batch?.source.synthesis?.path;
+    if (written) files.push({ kind: "synthesis", path: written });
+    for (const path of exported) if (!files.some((file) => file.path === path)) files.push({ kind: "export", path });
+    return files;
+  });
+
+  function openFromResults(rank: number): void {
+    const item = items.find((candidate) => candidate.rank === rank);
+    if (item === undefined) return;
+    selectItem(item);
+    tab = "all";
+    query = "";
+    surfaceChosen = "items";
+  }
+
   // The course of the run as recorded, then what the run reported since the
   // item was opened, which the record may not hold yet.
   function loadActivity(rank: number, taskId: string): void {
@@ -295,6 +325,7 @@
     if (typeof path !== "string") return;
     const written = await view.exportTo(format, path);
     if (written !== null) {
+      exported = [written, ...exported.filter((path) => path !== written)];
       addToast($t("batch_view.export.written", { values: { path: written } }), "success", {
         "data-testid": "batch-export-written",
       });
@@ -368,6 +399,10 @@
       {perItemMs}
     />
 
+    {#if batch.source.task !== undefined || producedFiles.length > 0}
+      <BatchRequestCard task={batch.source.task ?? null} files={producedFiles} />
+    {/if}
+
     {#if synthesis !== null}
       <BatchSynthesisCard {synthesis} />
     {/if}
@@ -381,6 +416,22 @@
       />
     {/if}
 
+    {#if resultsOffered}
+      <TabBar
+        items={[
+          { key: "results", label: $t("batch_view.surface.results") },
+          { key: "items", label: $t("batch_view.surface.items"), count: items.length },
+        ]}
+        activeTab={surface}
+        ontabchange={(key) => (surfaceChosen = key as "results" | "items")}
+        testidPrefix="batch-surface"
+        variant="pill"
+      />
+    {/if}
+
+    {#if surface === "results"}
+      <BatchResults {items} {outputs} onopen={openFromResults} />
+    {:else}
     <div class="grid items-start gap-4 lg:grid-cols-[minmax(18rem,26rem)_minmax(0,1fr)]" data-testid="batch-body">
       <Card class="flex min-w-0 flex-col overflow-hidden p-0 lg:sticky lg:top-28 lg:max-h-[calc(100vh-9rem)]">
         <div class="shrink-0 space-y-2 border-b border-border p-3">
@@ -453,6 +504,7 @@
         </div>
       {/if}
     </div>
+    {/if}
 
     <ConfirmDialog
       open={confirmingStop}
