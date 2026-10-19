@@ -162,6 +162,47 @@ fn test_a_source_column_never_shares_a_header_with_an_added_one() {
     );
 }
 
+#[test]
+fn test_a_folder_batch_exports_one_column_per_field_of_the_answer_and_no_file_text() {
+    // GIVEN a batch on a folder whose launch named two fields of the answer,
+    // one item answered in those fields and one failed
+    let mut detail = fixture();
+    detail.batch.source = json!({
+        "kind": "folder",
+        "location": "/data/Quotes",
+        "task": {"instruction": "Read the quote.", "outputs": [
+            {"name": "Supplier", "description": ""},
+            {"name": "Total", "description": ""}
+        ]}
+    });
+    detail.items = vec![
+        item(
+            0,
+            json!({"File": "q-01.pdf", "Text": "the whole quote"}),
+            "completed",
+            Some("```json\n{\"Supplier\": \"Ada SA\", \"Total\": \"3 950\"}\n```"),
+        ),
+        item(
+            1,
+            json!({"File": "q-02.pdf", "Text": "another quote"}),
+            "failed",
+            Some("the step timed out"),
+        ),
+    ];
+
+    // WHEN it is exported as CSV
+    let export = export(&detail, ExportFormat::Csv).expect("export");
+
+    // THEN each field is a column, the failure sits in the first, and the
+    // text of the files is left out
+    assert_eq!(
+        text(&export),
+        "File,Supplier,Total,status,sources\r\n\
+         q-01.pdf,Ada SA,3 950,completed,\r\n\
+         q-02.pdf,the step timed out,,failed,\r\n"
+    );
+}
+
 /// The entries of a zip archive, by name.
 fn unzip(bytes: &[u8]) -> BTreeMap<String, String> {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();

@@ -7,9 +7,14 @@
 //! leaves its cell empty. An input that is not an object of fields is a single
 //! `input` column.
 //!
+//! When the launch named the fields of the answer, each field is a column of
+//! its own in place of `output`, filled from the answer as the write-back
+//! fills a workbook. A batch on a folder leaves out the text of each file:
+//! the row names its file, and the text is the document itself.
+//!
 //! When a field of the source is itself named `output`, `status` or
-//! `sources`, the column the batch adds is named `batch.output`,
-//! `batch.status` or `batch.sources`, so that no two columns share a header.
+//! `sources`, or as a field of the answer, the column the batch adds is
+//! prefixed `batch.`, so that no two columns share a header.
 //!
 //! CSV and JSON are written without a dependency. Excel is written by
 //! `rust_xlsxwriter`, in one sheet; Excel refuses a cell longer than
@@ -21,7 +26,8 @@ use apollia_tools::BatchItemRow;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use super::BatchDetail;
+use super::write_back::answer_cells;
+use super::{BatchDetail, BatchTask};
 
 /// The longest text an Excel cell holds, in characters.
 pub const XLSX_CELL_MAX: usize = 32_767;
@@ -29,8 +35,10 @@ pub const XLSX_CELL_MAX: usize = 32_767;
 /// The column an input that is not an object of fields is written to.
 const BARE_INPUT: &str = "input";
 
-/// The columns the batch adds after those of the source.
-const ADDED: [&str; 3] = ["output", "status", "sources"];
+/// The column of the answer, when the launch named no field of it.
+const OUTPUT: &str = "output";
+/// The columns the batch adds after the answer.
+const TRAILING: [&str; 2] = ["status", "sources"];
 
 /// The format a batch is exported in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
@@ -110,8 +118,9 @@ pub struct BatchExport {
 struct Table {
     /// The input columns, in the order they first appear.
     inputs: Vec<String>,
-    /// The headers of the three added columns.
-    added: [String; 3],
+    /// The headers of the columns the batch adds: the answer, or one per
+    /// field of it, then the status and the sources.
+    added: Vec<String>,
     rows: Vec<Vec<String>>,
 }
 
@@ -182,20 +191,56 @@ fn input_cell(item: &BatchItemRow, column: &str) -> String {
     }
 }
 
-fn table(items: &[BatchItemRow]) -> Table {
-    let inputs = input_columns(items);
-    let added = ADDED.map(|name| {
-        if inputs.iter().any(|c| c == name) {
+/// The input columns left out of the export of a batch read from `source`:
+/// the text of each file of a folder.
+fn hidden_inputs(source: &Value) -> &'static [&'static str] {
+    if source.get("kind").and_then(Value::as_str) == Some(apollia_sources::FOLDER_KIND) {
+        &[apollia_sources::TEXT_FIELD]
+    } else {
+        &[]
+    }
+}
+
+fn table(items: &[BatchItemRow], fields: &[String], hidden: &[&str]) -> Table {
+    let mut inputs = input_columns(items);
+    inputs.retain(|column| !hidden.contains(&column.as_str()));
+    let named: Vec<&str> = if fields.is_empty() {
+        vec![OUTPUT]
+    } else {
+        fields.iter().map(String::as_str).collect()
+    };
+    let mut added: Vec<String> = Vec::new();
+    for name in named.iter().copied().chain(TRAILING) {
+        let taken = inputs.iter().chain(added.iter()).any(|c| c == name);
+        added.push(if taken {
             format!("batch.{name}")
         } else {
             name.to_owned()
-        }
-    });
+        });
+    }
     let rows = items
         .iter()
         .map(|item| {
             let mut row: Vec<String> = inputs.iter().map(|c| input_cell(item, c)).collect();
-            row.push(item.output.clone().unwrap_or_default());
+            let output = item.output.clone().unwrap_or_default();
+            if fields.is_empty() {
+                row.push(output);
+            } else {
+                // A failed item says why in the first field; an answer
+                // fills each field it gives.
+                let cells = if item.status == "completed" {
+                    answer_cells(fields, &output)
+                } else {
+                    vec![(fields[0].clone(), output)]
+                };
+                row.extend(fields.iter().map(|field| {
+                    cells
+                        .iter()
+                        .find(|(name, _)| name == field)
+                        .map(|(_, value)| value.clone())
+                        .unwrap_or_default()
+                }));
+            }
             row.push(item.status.clone());
             row.push(sources_text(item.sources.as_ref()));
             row
@@ -312,7 +357,15 @@ fn to_xlsx(table: &Table) -> Result<Vec<u8>, ExportError> {
 /// columns than a sheet holds), [`ExportError::Json`] when the document
 /// cannot be.
 pub fn export(detail: &BatchDetail, format: ExportFormat) -> Result<BatchExport, ExportError> {
-    let table = table(&detail.items);
+    let fields: Vec<String> = BatchTask::of_source(&detail.batch.source)
+        .map(|task| {
+            task.outputs
+                .into_iter()
+                .map(|output| output.name.trim().to_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    let table = table(&detail.items, &fields, hidden_inputs(&detail.batch.source));
     let bytes = match format {
         ExportFormat::Csv => to_csv(&table),
         ExportFormat::Json => to_json(detail, &table)?,
