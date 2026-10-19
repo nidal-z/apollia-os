@@ -19,10 +19,23 @@ d'introduction du type « Voici le titre : ».";
 
 /// Maximum tokens the LLM may produce for a session title.
 ///
-/// Generous enough that reasoning models (DeepSeek R1, o1-style, …) can finish
-/// their `<think>` block before emitting the few-word answer; the post-process
-/// step strips the reasoning block.
+/// The request turns reasoning off; a model that reasons anyway still has room
+/// to close a `<think>` block, which the post-process step strips.
 const TITLE_MAX_TOKENS: u32 = 1024;
+
+/// How the first line of a model that reasons in plain text opens, without
+/// any tag (a Qwen model served by MLX writes "Here's a thinking process:").
+/// A line that opens so is reasoning, never a title.
+const REASONING_OPENINGS: [&str; 8] = [
+    "here's a thinking process",
+    "here is a thinking process",
+    "thinking process",
+    "okay, the user",
+    "ok, the user",
+    "the user wants",
+    "let me think",
+    "alright, the user",
+];
 
 /// Maximum character length of the persisted title.
 const TITLE_MAX_CHARS: usize = 60;
@@ -106,6 +119,9 @@ pub async fn name_session(
             LlmChatMessage::user(first_message),
         ],
         max_tokens: Some(TITLE_MAX_TOKENS),
+        // A title is a few words: a model that reasons first wrote its
+        // reasoning as the title.
+        thinking: Some(false),
         ..CompletionRequest::default()
     };
     let obs = ObservabilityConfig::default();
@@ -143,6 +159,13 @@ fn sanitize_session_title(raw: &str) -> String {
         .map(str::trim)
         .find(|l| !l.is_empty())
         .unwrap_or("");
+    let lower = line.to_lowercase();
+    if REASONING_OPENINGS
+        .iter()
+        .any(|opening| lower.starts_with(opening))
+    {
+        return String::new();
+    }
     let mut s = strip_preamble(line).trim().to_string();
 
     // Strip a single pair of surrounding quotes (ASCII / French / typographic).
@@ -301,6 +324,16 @@ mod tests {
         // WHEN sanitised
         // THEN the result is empty (caller will reject it and fall back)
         assert_eq!(sanitize_session_title(raw), "");
+    }
+
+    #[test]
+    fn test_sanitize_session_title_refuses_untagged_reasoning() {
+        // GIVEN the answer of a model that reasons in plain text, without a tag
+        let raw = "Here's a thinking process:\n\n1. Analyze the request: the user wants a title.";
+        // WHEN it is sanitised
+        // THEN nothing comes back, so the session keeps its previous title
+        assert_eq!(sanitize_session_title(raw), "");
+        assert_eq!(sanitize_session_title("Okay, the user asks for a CV"), "");
     }
 
     #[test]
