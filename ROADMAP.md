@@ -60,14 +60,21 @@ tool and running a business case a matter of minutes.
 
 ## Planned
 
-### v0.4.0, voice
+### v0.4.0, agentic orchestration
 
-v0.3.0 reworks how language models are managed; v0.4.0 applies the same
-treatment to speech.
+v0.3.0 made an agent a sheet anyone can set up; its batches showed where a
+single plan written in advance stops. v0.4.0 brings the engine to long,
+complex work.
 
-- **Speech-to-text**: Whisper and its models brought to the level of the
-  language models (engines, registry, settings).
-- **Text-to-speech**: agents that speak, and accessibility.
+- **Agentic orchestration** (major): an agent that keeps and revises its own
+  task list over long sequences instead of one fixed plan; sub-agents with an
+  isolated context and a budget of their own, each on a precise task; agents
+  created on the fly when none fits; workflows used as skills; A2A as the way
+  agents call one another; context kept across very long runs; reliability
+  measured on real tasks, local models first.
+- **Speech-to-text** (minor): Whisper and its models optimised and brought to
+  the level of the language models (engines, registry, settings).
+- **Text-to-speech** (minor): agents that speak, and accessibility.
 
 ### v0.5.0, vision and proactive agents
 
