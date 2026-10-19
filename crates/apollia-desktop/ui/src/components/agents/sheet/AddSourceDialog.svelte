@@ -2,10 +2,12 @@
   /**
    * AddSourceDialog - the connection a new source is made on: a folder
    * connection for a folder or a code folder, a mailbox connection for a
-   * mailbox. Choosing one adds the source. With no connection of the kind,
-   * the dialog says so and sends to Connections, where one is added.
+   * mailbox. Choosing one adds the source. A folder of this machine is
+   * picked on the spot, and connected; a mailbox with no connection sends to
+   * Connections, where one is signed in.
    */
   import { t } from "svelte-i18n";
+  import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { Dialog, DialogFooter } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { navigateTo } from "$lib/stores/navigation";
@@ -19,9 +21,16 @@
     loading: boolean;
     onclose: () => void;
     onchoose: (candidate: SourceCandidate) => void;
+    /** A folder of this machine picked here, to be connected. */
+    onpick?: (path: string) => void;
   }
 
-  let { open, kind, candidates, loading, onclose, onchoose }: Props = $props();
+  let { open, kind, candidates, loading, onclose, onchoose, onpick }: Props = $props();
+
+  async function pickFolder(): Promise<void> {
+    const picked = await openDialog({ directory: true, multiple: false, title: $t("agent_sources.pick_folder_title") });
+    if (typeof picked === "string" && picked) onpick?.(picked);
+  }
 
   const title = $derived(kind === "mail" ? $t("agent_sources.pick_mail_title") : $t("agent_sources.pick_folder_title"));
   const empty = $derived(kind === "mail" ? $t("agent_sources.pick_mail_empty") : $t("agent_sources.pick_folder_empty"));
@@ -58,7 +67,15 @@
   {/if}
   <DialogFooter>
     <Button variant="outline" onclick={onclose} data-testid="agent-source-pick-cancel">{$t("common.cancel")}</Button>
-    {#if !loading && candidates.length === 0}
+    {#if kind !== "mail" && onpick}
+      <Button
+        variant={candidates.length === 0 ? "primary-solid" : "outline"}
+        onclick={() => void pickFolder()}
+        data-testid="agent-source-pick-local-folder"
+      >
+        {$t("agent_sources.pick_local_folder")}
+      </Button>
+    {:else if !loading && candidates.length === 0}
       <Button variant="primary-solid" onclick={openConnections} data-testid="agent-source-pick-connections">
         {$t("agent_sources.open_connections")}
       </Button>

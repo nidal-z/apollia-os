@@ -6880,7 +6880,7 @@
   "agent_sources": {
     "add": "Add a source",
     "add_folder": "A folder",
-    "add_folder_hint": "Among your folder connections",
+    "add_folder_hint": "A folder connection, or a folder of this computer",
     "add_file": "A file",
     "add_file_hint": "A document on this computer",
     "add_mail": "A mailbox",
@@ -6910,9 +6910,9 @@
     "skipped_unreadable": "unreadable",
     "open_ai": "Install a model in AI",
     "reading_note": "The agent can search this folder, not open its files.",
-    "grant_reading": "Grant reading too",
-    "pick_folder_title": "Choose a folder connection",
-    "pick_folder_empty": "No folder connection yet. Add a folder in Connections, then come back to this sheet.",
+    "grant_reading": "Let it open its files",
+    "pick_folder_title": "Choose a folder",
+    "pick_folder_empty": "No folder connection yet. Choose a folder on this computer: it will be connected.",
     "pick_mail_title": "Choose a mailbox",
     "pick_mail_empty": "No mailbox connected yet. Add one in Connections, then come back to this sheet.",
     "pick_file_title": "Choose the file the agent will consult",
@@ -6922,7 +6922,11 @@
     "remove_title": "Remove this source?",
     "remove_message": "“{name}” is removed for every agent that consults it, and what Apollia had read of it is erased. Your files and messages are not touched.",
     "remove_confirm": "Remove the source",
-    "remove_failed": "This source could not be removed."
+    "remove_failed": "This source could not be removed.",
+    "reading_note_file": "The agent can search this file, not open it whole.",
+    "connect_folder": "Let it open the file (connects the folder “{name}”)",
+    "pick_local_folder": "Choose a folder on this computer…",
+    "grant_reading_file": "Let it open it"
   },
   "presets": {
     "save_confirm": {

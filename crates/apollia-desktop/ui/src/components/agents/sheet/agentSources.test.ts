@@ -8,6 +8,9 @@ import {
   existingSource,
   fileName,
   folderCandidates,
+  folderToConnect,
+  liesIn,
+  parentFolder,
   indexedSources,
   mailCandidates,
   readingToGrant,
@@ -279,5 +282,47 @@ describe("agent sources - a source grants no tool", () => {
     expect(readingToGrant(checked, connections, ["mcp:fs/list"])).toEqual([]);
     expect(readingToGrant(unchecked, connections, [])).toEqual([]);
     expect(readingToGrant(file, connections, [])).toEqual([]);
+  });
+});
+
+describe("agent sources - opening a file the agent searches", () => {
+  const tools = [
+    { id: "mcp:fs/read_file", family: "read" as const, familySource: "server" as const, prechecked: true },
+    { id: "mcp:fs/write_file", family: "write_or_delete" as const, familySource: "server" as const, prechecked: false },
+  ];
+
+  test("a file inside a connected folder offers the reading of that folder", () => {
+    // GIVEN a checked file source that lies in a connected folder
+    const file = source({ id: "src-cga", kind: "file", reference: "/Users/ada/Requests/Terms/cga.pdf" });
+    const [row] = sourceRows([file], {}, ["src-cga"], true);
+    const connections = [connection({ tools })];
+
+    // WHEN the note of the row is computed
+    // THEN its reading is offered, and no folder is to connect
+    expect(readingToGrant(row, connections, [])).toEqual(["mcp:fs/read_file"]);
+    expect(folderToConnect(row, connections)).toBeNull();
+  });
+
+  test("a file no connection holds offers to connect its folder", () => {
+    // GIVEN a checked file source outside every connected folder
+    const file = source({ id: "src-cga", kind: "file", reference: "/Users/ada/Demo/cga.pdf" });
+    const [row] = sourceRows([file], {}, ["src-cga"], true);
+    const connections = [connection({ tools })];
+
+    // WHEN the note of the row is computed
+    // THEN nothing is granted yet, and its folder is the one to connect
+    expect(readingToGrant(row, connections, [])).toEqual([]);
+    expect(folderToConnect(row, connections)).toBe("/Users/ada/Demo");
+  });
+
+  test("a path lies in a folder only below it, on either separator", () => {
+    // GIVEN folders and files on Unix and Windows paths
+    // WHEN containment is read
+    // THEN a sibling sharing a prefix is not inside, a Windows drive ignores case
+    expect(liesIn("/Users/ada/Requests/a.pdf", "/Users/ada/Requests/")).toBe(true);
+    expect(liesIn("/Users/ada/Requests2/a.pdf", "/Users/ada/Requests")).toBe(false);
+    expect(liesIn("c:\\Data\\Demo\\cga.pdf", "C:\\data\\demo")).toBe(true);
+    expect(parentFolder("C:\\data\\demo\\cga.pdf")).toBe("C:\\data\\demo");
+    expect(parentFolder("cga.pdf")).toBeNull();
   });
 });

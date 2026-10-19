@@ -281,20 +281,70 @@ export function sourceOnFile(path: string): NewSource {
   return { kind: "file", label: fileName(path), reference: path };
 }
 
-// ── Reading a folder the agent searches ─────────────────────────────────
+// ── Reading what the agent searches ─────────────────────────────────────
+
+/** `path` with forward separators and no trailing one, folded on a Windows drive. */
+function comparable(path: string): string {
+  const forward = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  return /^[A-Za-z]:/.test(forward) ? forward.toLowerCase() : forward;
+}
+
+/** `true` when the file at `file` lies in the folder at `folder`, at any depth. */
+export function liesIn(file: string, folder: string): boolean {
+  const root = comparable(folder);
+  return root !== "" && comparable(file).startsWith(`${root}/`);
+}
+
+/** The folder that holds the file at `path`; `null` for a bare name. */
+export function parentFolder(path: string): string | null {
+  const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  if (cut <= 0) return cut === 0 ? path.slice(0, 1) : null;
+  return path.slice(0, cut);
+}
 
 /**
- * The reading tools of the folder connection `row` points at that the agent
- * is not granted, when it is granted none of them: what "grant reading too"
- * adds. Empty when the row is not a checked folder, when its connection is
- * gone, or when the agent already reads it.
+ * The folder connection a checked source is opened through: the one a
+ * folder points at, the narrowest one holding a file. `null` otherwise.
+ */
+function connectionOf(row: SourceRow, connections: Connection[]): Connection | null {
+  if (!row.checked || row.reference === null) return null;
+  if (row.kind === "folder" || row.kind === "code_folder") {
+    const bare = row.reference.startsWith("folder:") ? row.reference : `folder:${row.reference}`;
+    return connections.find((c) => c.kind === "folder" && c.id === bare) ?? null;
+  }
+  if (row.kind !== "file") return null;
+  const file = row.reference;
+  const holding = connections.filter((c) => c.kind === "folder" && c.path != null && liesIn(file, c.path));
+  holding.sort((a, b) => (b.path ?? "").length - (a.path ?? "").length);
+  return holding[0] ?? null;
+}
+
+/** The reading tools of a folder connection. */
+export function readingTools(connection: Connection): string[] {
+  return connection.tools.filter((tool) => tool.family === "read").map((tool) => tool.id);
+}
+
+/**
+ * The reading tools of the folder connection `row` is opened through that
+ * the agent is not granted, when it is granted none of them: what "let it
+ * open them" adds. A source is searched without them; opening one of its
+ * files takes them. Empty when the row is not a checked folder or file,
+ * when no connection holds it, or when the agent already reads it.
  */
 export function readingToGrant(row: SourceRow, connections: Connection[], access: string[]): string[] {
-  if (!row.checked || (row.kind !== "folder" && row.kind !== "code_folder") || row.reference === null) return [];
-  const bare = row.reference.startsWith("folder:") ? row.reference : `folder:${row.reference}`;
-  const connection = connections.find((c) => c.kind === "folder" && c.id === bare);
+  const connection = connectionOf(row, connections);
   if (!connection) return [];
-  const reading = connection.tools.filter((tool) => tool.family === "read").map((tool) => tool.id);
+  const reading = readingTools(connection);
   if (reading.some((id) => access.includes(id))) return [];
   return reading;
+}
+
+/**
+ * The folder to connect so the agent can open the checked file `row`: the
+ * one holding it, when no folder connection does. `null` for any other row.
+ */
+export function folderToConnect(row: SourceRow, connections: Connection[]): string | null {
+  if (!row.checked || row.kind !== "file" || row.reference === null) return null;
+  if (connectionOf(row, connections) !== null) return null;
+  return parentFolder(row.reference);
 }

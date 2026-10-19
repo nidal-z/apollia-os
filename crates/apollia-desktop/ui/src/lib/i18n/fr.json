@@ -6880,7 +6880,7 @@
   "agent_sources": {
     "add": "Ajouter une source",
     "add_folder": "Un dossier",
-    "add_folder_hint": "Parmi vos connexions dossier",
+    "add_folder_hint": "Une connexion dossier, ou un dossier de cet ordinateur",
     "add_file": "Un fichier",
     "add_file_hint": "Un document de cet ordinateur",
     "add_mail": "Une boîte mail",
@@ -6910,9 +6910,9 @@
     "skipped_unreadable": "illisible",
     "open_ai": "Installer un modèle dans IA",
     "reading_note": "L'agent peut chercher dans ce dossier, pas en ouvrir les fichiers.",
-    "grant_reading": "Accorder aussi la lecture",
-    "pick_folder_title": "Choisir une connexion dossier",
-    "pick_folder_empty": "Aucune connexion dossier pour l'instant. Ajoutez un dossier dans Connexions, puis revenez à cette fiche.",
+    "grant_reading": "Lui permettre d'en ouvrir les fichiers",
+    "pick_folder_title": "Choisir un dossier",
+    "pick_folder_empty": "Aucune connexion dossier pour l'instant. Choisissez un dossier sur ce poste : il sera connecté.",
     "pick_mail_title": "Choisir une boîte mail",
     "pick_mail_empty": "Aucune boîte mail connectée pour l'instant. Ajoutez-en une dans Connexions, puis revenez à cette fiche.",
     "pick_file_title": "Choisir le fichier que l'agent consultera",
@@ -6922,7 +6922,11 @@
     "remove_title": "Retirer cette source ?",
     "remove_message": "« {name} » est retirée pour tous les agents qui la consultent, et ce qu'Apollia en avait lu est effacé. Vos fichiers et vos messages ne sont pas touchés.",
     "remove_confirm": "Retirer la source",
-    "remove_failed": "Cette source n'a pas pu être retirée."
+    "remove_failed": "Cette source n'a pas pu être retirée.",
+    "reading_note_file": "L'agent peut chercher dans ce fichier, pas l'ouvrir en entier.",
+    "connect_folder": "Lui permettre de l'ouvrir (connecte le dossier « {name} »)",
+    "pick_local_folder": "Choisir un dossier sur ce poste…",
+    "grant_reading_file": "Lui permettre de l'ouvrir"
   },
   "presets": {
     "save_confirm": {
