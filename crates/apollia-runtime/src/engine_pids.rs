@@ -24,7 +24,13 @@ const ENGINE_MARKERS: [&str; 3] = ["vllm_mlx", "llama-server", "apollia-runner"]
 /// Serialises the writes of this process to the record.
 static RECORD: Mutex<()> = Mutex::new(());
 
+/// The record of this machine, under the data directory. A test run keeps
+/// none: the engines its tests start are theirs to stop, and the data
+/// directory of a test run is the home of the person running it.
 fn record_path() -> Option<PathBuf> {
+    if cfg!(test) {
+        return None;
+    }
     apollia_core::paths::data_dir().map(|dir| dir.join(FILE_NAME))
 }
 

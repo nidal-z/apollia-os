@@ -182,8 +182,10 @@ impl PlanFirstRun<'_> {
             engine = engine.with_plan_template(template.clone());
         }
         // The plan and its steps are kept where the timeline of the task
-        // reads them; in memory, a batch item that ended showed no step.
-        if let Some(data_dir) = apollia_core::paths::data_dir() {
+        // reads them; in memory, a batch item that ended showed no step. A test
+        // run keeps them in memory: its data directory is the home of the
+        // person running it.
+        if let Some(data_dir) = apollia_core::paths::data_dir().filter(|_| !cfg!(test)) {
             let plans = apollia_core::paths::DataFile::Plans.path(&data_dir);
             engine = engine.with_plans_db(plans.to_string_lossy().into_owned());
         }
