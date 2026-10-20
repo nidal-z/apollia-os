@@ -6873,6 +6873,12 @@
     "surface": {
       "results": "Results",
       "items": "Items"
+    },
+    "continue": {
+      "button": "Continue in the Chat",
+      "status": "Status",
+      "file_name": "{source} - results.csv",
+      "prompt": "Here are the results of the batch on “{source}” ({count} items treated), joined as a table. From this table, "
     }
   },
   "batch_history": {

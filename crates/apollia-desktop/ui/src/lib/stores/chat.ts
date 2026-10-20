@@ -42,6 +42,20 @@ export const currentSession = writable<
 export const pendingChatSessionId = writable<string | null>(null);
 
 /**
+ * What another screen hands the composer of a conversation it opened: the
+ * text of the request, written but not sent, and the files joined to it.
+ * The composer of that conversation takes it once; nothing is sent until the
+ * person sends it.
+ */
+export interface PendingComposer {
+  sessionId: string;
+  text: string;
+  files: File[];
+}
+
+export const pendingComposer = writable<PendingComposer | null>(null);
+
+/**
  * Cross-component signal: sidebar / command palette flips this to
  * `Date.now()`, `Chat.svelte` watches it and opens the new-chat picker.
  */

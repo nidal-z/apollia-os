@@ -11,6 +11,7 @@ import {
   nextSort,
   numberOf,
   resultRows,
+  resultsCsv,
   rowsToReview,
   sortRows,
   toggleFilter,
@@ -114,5 +115,23 @@ describe("the filters of the results", () => {
     const filter = toggleFilter({}, "Compliant", "non");
     expect(filterRows(rows, filter).map((row) => row.rank)).toEqual([1, 2]);
     expect(toggleFilter(filter, "Compliant", "NON")).toEqual({});
+  });
+});
+
+describe("the results handed to the chat", () => {
+  it("writes one CSV row per item, in source order, a value with a comma quoted", () => {
+    // GIVEN the rows of the results, one with a comma in a value
+    const rows = resultRows(
+      [item(1, "completed", '{"Supplier": "Ada, SA", "Price": "10", "Compliant": "oui"}'), item(0, "failed", "x")],
+      OUTPUTS,
+    );
+
+    // WHEN they are written as CSV
+    const csv = resultsCsv(rows, OUTPUTS, "Item", "Status");
+
+    // THEN the header names the fields, the rows follow the source
+    expect(csv).toBe(
+      "Item,Status,Supplier,Price,Compliant\r\nquote-1.pdf,failed,,,\r\nquote-2.pdf,completed,\"Ada, SA\",10,oui\r\n",
+    );
   });
 });

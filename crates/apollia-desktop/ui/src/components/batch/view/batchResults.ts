@@ -174,3 +174,22 @@ export function toggleFilter(filter: ResultFilter, field: string, value: string)
 export function rowsToReview(rows: ResultRow[], outputs: BatchOutput[]): number {
   return rows.filter((row) => row.unfitted || outputs.some((output) => cellMark(row, output.name) !== null)).length;
 }
+
+/** One CSV field, quoted when it holds a separator, a quote or a line break. */
+function csvField(value: string): string {
+  return /[",\r\n;]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/**
+ * The results as CSV, the table an agent reads back: the item, its status
+ * when it did not complete, then one column per field of the answer.
+ */
+export function resultsCsv(rows: ResultRow[], outputs: BatchOutput[], itemHeader: string, statusHeader: string): string {
+  const header = [itemHeader, statusHeader, ...outputs.map((output) => output.name)];
+  const lines = [header.map(csvField).join(",")];
+  for (const row of [...rows].sort((a, b) => a.rank - b.rank)) {
+    const cells = [row.title, row.status, ...outputs.map((output) => row.cells[output.name] ?? "")];
+    lines.push(cells.map(csvField).join(","));
+  }
+  return `${lines.join("\r\n")}\r\n`;
+}

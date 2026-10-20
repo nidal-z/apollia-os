@@ -23,6 +23,7 @@
   import { addToast } from "$lib/components/ui/toast";
   import { chatInputAppend } from "$lib/stores/artifacts";
   import { chatSendKey, composerEnterAction } from "$lib/stores/chatSendKey";
+  import { pendingComposer } from "$lib/stores/chat";
   import { chatFullWidth } from "$lib/stores/chatAppearance";
   import type { ImageSupport, PendingAttachment } from "$lib/chat/attachments";
   import type { ChatModelCapabilities } from "$lib/types";
@@ -131,6 +132,18 @@
   let value = $state("");
   const dictation = createComposerDictation();
   const attachments = createComposerAttachments(() => imageSupport);
+
+  // A request another screen wrote for this conversation, with its files:
+  // taken once, into the composer, never sent on its own.
+  $effect(() => {
+    const handed = $pendingComposer;
+    if (handed === null || sessionId === null || handed.sessionId !== sessionId) return;
+    pendingComposer.set(null);
+    untrack(() => {
+      if (value.trim() === "") value = handed.text;
+      if (handed.files.length > 0) void attachments.ingest(handed.files);
+    });
+  });
   const rateLimit = createComposerRateLimit();
   let focused = $state(false);
 

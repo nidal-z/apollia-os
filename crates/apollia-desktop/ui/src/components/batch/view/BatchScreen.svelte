@@ -11,7 +11,7 @@
   import { parseTimestampMs } from "$lib/utils";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-  import { Layers, Search } from "lucide-svelte";
+  import { Layers, MessageSquare, Search } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { Input } from "$lib/components/ui/input";
@@ -30,7 +30,11 @@
   import BatchSynthesisCard from "./BatchSynthesisCard.svelte";
   import BatchRequestCard from "./BatchRequestCard.svelte";
   import BatchResults from "./BatchResults.svelte";
-  import { outputsOf } from "./batchResults";
+  import { outputsOf, resultRows, resultsCsv } from "./batchResults";
+  import { createChatSession } from "$lib/ipc/agents";
+  import { navigateTo } from "$lib/stores/navigation";
+  import { pendingChatSessionId, pendingComposer } from "$lib/stores/chat";
+  import { reportError } from "$lib/errors/reportError";
   import {
     exportFileName,
     filterItems,
@@ -252,6 +256,40 @@
     return files;
   });
 
+  let continuing = $state(false);
+
+  /**
+   * A conversation with the agent of the batch, its results joined as a
+   * table and the start of a request written in the composer: the person
+   * says what to do with the forty answers, and sends.
+   */
+  async function continueInChat(): Promise<void> {
+    if (batch === null || continuing) return;
+    continuing = true;
+    try {
+      const source = sourceName(batch.source.location);
+      const csv = resultsCsv(
+        resultRows(items, outputs),
+        outputs,
+        $t("batch_view.results.item"),
+        $t("batch_view.continue.status"),
+      );
+      const file = new File([csv], $t("batch_view.continue.file_name", { values: { source } }), { type: "text/csv" });
+      const session = await createChatSession({ mode: "agent", agent_name: batch.agent });
+      pendingComposer.set({
+        sessionId: session.id,
+        text: $t("batch_view.continue.prompt", { values: { source, count: progressOf(batch).treated } }),
+        files: [file],
+      });
+      pendingChatSessionId.set(session.id);
+      navigateTo("chat");
+    } catch (err) {
+      reportError(err, { surface: "toast", testid: "batch-continue-error" });
+    } finally {
+      continuing = false;
+    }
+  }
+
   function openFromResults(rank: number): void {
     const item = items.find((candidate) => candidate.rank === rank);
     if (item === undefined) return;
@@ -417,6 +455,7 @@
     {/if}
 
     {#if resultsOffered}
+      <div class="flex flex-wrap items-center justify-between gap-3">
       <TabBar
         items={[
           { key: "results", label: $t("batch_view.surface.results") },
@@ -427,6 +466,13 @@
         testidPrefix="batch-surface"
         variant="pill"
       />
+      {#if !live}
+        <Button variant="primary-solid" size="sm" onclick={() => void continueInChat()} loading={continuing} data-testid="batch-continue-chat">
+          {#snippet icon()}<MessageSquare size={13} />{/snippet}
+          {$t("batch_view.continue.button")}
+        </Button>
+      {/if}
+      </div>
     {/if}
 
     {#if surface === "results"}
