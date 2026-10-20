@@ -152,7 +152,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "journal.filter.agent", // Agent
   "journal.filter.nature", // Nature
   "journal.nature.action", // Actions
-  "journal.title", // Journal
   "library.detail.agents", // Agents
   "library.detail.workflows", // Workflows
   "library.kind.agent", // agent
@@ -187,7 +186,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "plan_session.origin_initial", // Initial
   "plan_session.tab_plan", // Plan
   "policy.badge.active", // Active
-  "policy.section.journal.title", // Journal
   "policy.signature.title", // Signature
   "project_migration.row_documents_title", // Documents
   "project_migration.row_instructions_title", // Instructions
