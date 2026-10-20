@@ -31,10 +31,12 @@ at the end of this entry. From this version on, tags no longer carry the
   agents, workflows and Python tools, signed or not. Installing is opening the
   file: a preview shows what the package contains and who published it before
   anything is installed.
-- **Run an agent on a whole file, not only in a conversation.** An agent runs
-  on every row of a workbook, a CSV file or any other source as a batch that
-  can be paused, stopped, retried, survives a restart, and exports its result
-  as Excel, CSV or JSON.
+- **Run an agent on a whole folder, a workbook or a mailbox.** A batch is told
+  once what to do with each item and which columns to answer in; its results
+  read as a table that sorts and filters, open in a spreadsheet, end on a
+  synthesis when asked, and continue in a conversation with the agent. It can
+  be paused, stopped, retried, survives a restart, and runs again on another
+  source with what it asked.
 - **One question for inference: where does the AI run?** On this machine,
   Apollia picks the engine (llama.cpp, or MLX on Apple Silicon), checks that
   the model fits and loads it on demand. On a server, any OpenAI-compatible
@@ -106,16 +108,28 @@ at the end of this entry. From this version on, tags no longer carry the
   with `--json`.
 - A batch reads a workbook or a CSV file from a proposed sheet and header row,
   previewed on its first twenty rows, and sends the agent only the columns
-  checked. It also reads a mailbox, one item per message, over IMAP or on
-  Outlook, filtered by folder, period and unread state, and never writes back
-  to it.
+  checked. It reads a folder, one item per file with its full path and the
+  text a reader extracts (PDF, Word, PowerPoint, workbooks, CSV, plain text),
+  its sub-folders on request, and never writes into it. It also reads a
+  mailbox, one item per message, over IMAP or on Outlook, filtered by folder,
+  period and unread state, and never writes back to it. The launch dialog
+  offers the connected folders and mailboxes, a folder picked on this
+  computer, and a way to add a mailbox.
+- A batch is told at launch what the agent does with each item, and the
+  fields its answer gives, each with what it holds: the final answer of an
+  item is held to those fields by a JSON schema, which a local engine turns
+  into a grammar, and each field is a column of the results, of the copy of a
+  workbook and of every export. On request, once the last item has run, the
+  agent writes a synthesis of the table of results, kept with the batch and
+  written beside a file or a folder source.
 - A batch runs one item at a time by default and up to sixteen, and is
   interrupted once a set number of items have failed (ten by default, five to
   fifty, or never). An item that needs an access not granted at launch waits
   for a decision, answered once or refused from the list of waiting
   decisions, while the other items go on.
-- The results of a batch go by default to a dated copy beside its file
-  (`<name> (results YYYY-MM-DD).xlsx`). On request, and for `.xlsx` and
+- The results of a batch go by default to a dated copy beside its file, named
+  in the language of the interface (`<name> (résultats YYYY-MM-DD).xlsx` in
+  French, `(results …)` in English). On request, and for `.xlsx` and
   `.xlsm` only, they go into the original after a dated backup, under a write
   grant that is journaled. A CSV file gets a copy with the new column, and a
   `.xls`, `.xlsb` or `.ods` file a new `.xlsx` copy of its values.
@@ -128,6 +142,22 @@ at the end of this entry. From this version on, tags no longer carry the
   its view, with its items; the tasks that ran them are kept.
 - The end of a batch, and an item waiting for an access, raise a system
   notification.
+- A finished batch opens on what was asked at launch (the instruction, the
+  columns, the synthesis) and on the files it wrote, each opened in its
+  application or shown in its folder. Its results read as a table, one row per
+  item and one column per field: a header sorts (amounts read as numbers), the
+  fields of few values are filters with their counts, and a cell an answer
+  left empty is marked to be read again. "Continue in the Chat" opens a
+  conversation with its agent, the table joined, and "Run this batch again"
+  opens the launch dialog on what it asked.
+- The creation of an agent is a draft that outlives its screen and the
+  application: the form, the workshop that prepares the sheet, which goes on
+  while the screen is away, and the sheet under review with its edits. The
+  list of agents offers to resume or discard it.
+- A file added as a source of an agent offers to let it open the file, by the
+  reading of the connected folder that holds it, or by connecting that folder
+  on the spot; the sources of a sheet connect a folder of this computer
+  directly.
 - A trigger starts an agent or a workflow, set from the agent sheet.
 - An agent carries its own autonomy tier, declared by its package and
   overridable by the user; `apollia-os run --autonomy` overrides it for one
@@ -513,6 +543,19 @@ at the end of this entry. From this version on, tags no longer carry the
   Permissions settings.
 
 ### Fixed
+
+- A batch on a folder failed on every item: the item named its file by its
+  path in the folder, which no file tool resolves, and the replans that
+  followed were built without the tools of the agent, so they invented tools
+  it did not hold and ended on `MAX_REPLAN_EXCEEDED`. A replan is now held to
+  the tools the agent is granted, like the first plan.
+- On a model served by MLX, a conversation was named by the reasoning of the
+  model ("Here's a thinking process"); its title is now asked with reasoning
+  off, and a line that opens as reasoning is refused.
+- Leaving the creation of an agent lost the form, the answers given to the
+  workshop and the sheet under review, and stopped the workshop.
+- The export of a batch wrote the whole answer of an item, as JSON, in one
+  column, and the full text of every file of a folder.
 
 - A tool call whose argument a local model wrote as text, a list, an object, a
   boolean or a number, was refused ("invalid type: string, expected a
