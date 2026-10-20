@@ -187,10 +187,15 @@ async fn test_the_factory_reset_over_http_removes_the_daemons_data_directory() {
     // WHEN a client asks for a factory reset
     let (status, body) = call(state, "POST", "/api/v1/factory-reset", None).await;
 
-    // THEN the data directory is gone, and nothing around it
+    // THEN the data directory is gone, and nothing around it; on Windows,
+    // where the daemon holds files inside it, it is marked for the next start
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["removed"], true);
-    assert!(!data_dir.exists());
+    if cfg!(windows) {
+        assert!(data_dir.join(".factory-reset-pending").is_file());
+    } else {
+        assert!(!data_dir.exists());
+    }
     assert!(dir.path().exists());
 }
 
@@ -204,12 +209,14 @@ async fn test_a_data_directory_that_cannot_be_removed_is_refused_with_the_reason
     let (status, body) = call(state, "POST", "/api/v1/factory-reset", None).await;
 
     // THEN the daemon refuses and says what it could not do
+    let expected = if cfg!(windows) {
+        "failed to record the factory reset"
+    } else {
+        "failed to remove apollia home"
+    };
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     assert!(
-        body["error"]
-            .as_str()
-            .unwrap()
-            .starts_with("failed to remove apollia home"),
+        body["error"].as_str().unwrap().starts_with(expected),
         "{body}"
     );
 }

@@ -10,6 +10,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use apollia_memory::user_memory::UserMemoryError;
 
@@ -232,20 +233,160 @@ pub async fn clear_logs(data_dir: &Path) -> Result<bool, LifecycleError> {
 /// sessions, logs, models, credentials). Irreversible; the application is
 /// restarted afterwards.
 ///
-/// Returns whether a directory was removed.
+/// On Windows the directory cannot be removed by the process that runs in it:
+/// SQLite opens its databases without `FILE_SHARE_DELETE`, the log file and
+/// the model an engine has mapped stay open, so the removal stops on the first
+/// held file with "os error 32" and leaves a half-erased directory behind.
+/// There the reset is recorded instead, and the next start carries it out
+/// before anything opens a file ([`apply_pending_factory_reset`]).
+///
+/// Returns whether a directory was removed, or on Windows marked for removal.
 ///
 /// # Errors
 ///
-/// [`LifecycleError::Io`] when the directory cannot be removed.
+/// [`LifecycleError::Io`] when the directory cannot be removed, or on Windows
+/// when the request cannot be written.
 pub async fn factory_reset(data_dir: &Path) -> Result<bool, LifecycleError> {
     if !data_dir.exists() {
         return Ok(false);
+    }
+    if cfg!(windows) {
+        schedule_factory_reset(data_dir).await?;
+        tracing::warn!(path = %data_dir.display(), "lifecycle.factory_reset.scheduled");
+        return Ok(true);
     }
     tokio::fs::remove_dir_all(data_dir)
         .await
         .map_err(io("remove apollia home"))?;
     tracing::warn!(path = %data_dir.display(), "lifecycle.factory_reset.completed");
     Ok(true)
+}
+
+/// The file whose presence asks the next start to erase the data directory.
+const FACTORY_RESET_REQUEST: &str = ".factory-reset-pending";
+
+/// Appended to the name of the data directory while it is being erased.
+const ERASING_SUFFIX: &str = ".factory-reset";
+
+/// How long a start waits for the process it replaces to let go of the data
+/// directory. A restart launches the new process before the old one has
+/// exited, and the old one's engines end with it.
+pub const PENDING_RESET_WAIT: Duration = Duration::from_secs(10);
+
+/// Pause between two attempts while that wait lasts.
+const PENDING_RESET_RETRY: Duration = Duration::from_millis(250);
+
+/// Records that the data directory is to be erased at the next start.
+///
+/// # Errors
+///
+/// [`LifecycleError::Io`] when the request cannot be written.
+pub async fn schedule_factory_reset(data_dir: &Path) -> Result<(), LifecycleError> {
+    tokio::fs::write(data_dir.join(FACTORY_RESET_REQUEST), "")
+        .await
+        .map_err(io("record the factory reset"))
+}
+
+/// What a start found and did about a recorded factory reset.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum PendingReset {
+    /// No reset was recorded.
+    None,
+    /// The data directory was erased. `left_behind` names why its renamed
+    /// copy could not be removed in full; the next start tries again.
+    Applied {
+        /// The removal error of the renamed copy, if any.
+        left_behind: Option<std::io::Error>,
+    },
+    /// Another process still holds the directory: nothing was touched and the
+    /// request stays for the next start.
+    Deferred(std::io::Error),
+}
+
+/// Carries out a factory reset recorded by [`factory_reset`], before this
+/// process opens anything under `data_dir`.
+///
+/// The directory is first renamed, then removed. Windows refuses to rename a
+/// directory while any process holds a file inside it, so the rename is the
+/// test that nothing does: it either moves the whole directory or touches
+/// nothing, and a held directory is never left half-erased. A copy a previous
+/// start could not finish removing is removed here too.
+///
+/// Blocking: called at startup, before the async runtime, or through
+/// `spawn_blocking`.
+pub fn apply_pending_factory_reset(data_dir: &Path, wait: Duration) -> PendingReset {
+    apply_pending_with(data_dir, wait, &|from, to| std::fs::rename(from, to))
+}
+
+fn apply_pending_with(
+    data_dir: &Path,
+    wait: Duration,
+    rename: &dyn Fn(&Path, &Path) -> std::io::Result<()>,
+) -> PendingReset {
+    let Some(erasing) = erasing_path(data_dir) else {
+        return PendingReset::None;
+    };
+    // A copy that still resists is tried again at the next start; the rename
+    // below then fails and the request is deferred rather than lost.
+    let _ = remove_erasing(&erasing);
+    if !data_dir.join(FACTORY_RESET_REQUEST).is_file() {
+        return PendingReset::None;
+    }
+    let deadline = Instant::now() + wait;
+    loop {
+        match rename(data_dir, &erasing) {
+            Ok(()) => break,
+            Err(e) if Instant::now() >= deadline => return PendingReset::Deferred(e),
+            Err(_) => std::thread::sleep(PENDING_RESET_RETRY),
+        }
+    }
+    PendingReset::Applied {
+        left_behind: remove_erasing(&erasing),
+    }
+}
+
+/// The sibling the data directory is renamed to while it is erased.
+fn erasing_path(data_dir: &Path) -> Option<PathBuf> {
+    let mut name = data_dir.file_name()?.to_os_string();
+    name.push(ERASING_SUFFIX);
+    Some(data_dir.with_file_name(name))
+}
+
+/// Removes the renamed copy when there is one; answers why it could not be.
+fn remove_erasing(erasing: &Path) -> Option<std::io::Error> {
+    if !erasing.exists() {
+        return None;
+    }
+    std::fs::remove_dir_all(erasing).err()
+}
+
+/// Traces what [`apply_pending_factory_reset`] did, once the subscriber is up.
+pub fn log_pending_reset(outcome: &PendingReset, data_dir: &Path) {
+    match outcome {
+        PendingReset::None => {}
+        PendingReset::Applied { left_behind: None } => {
+            tracing::warn!(path = %data_dir.display(), "lifecycle.factory_reset.applied");
+        }
+        PendingReset::Applied {
+            left_behind: Some(e),
+        } => {
+            tracing::warn!(
+                path = %data_dir.display(),
+                error = %e,
+                detail = "the renamed copy is removed at the next start",
+                "lifecycle.factory_reset.applied_with_leftover"
+            );
+        }
+        PendingReset::Deferred(e) => {
+            tracing::error!(
+                path = %data_dir.display(),
+                error = %e,
+                detail = "the directory is still held; the reset stays recorded",
+                "lifecycle.factory_reset.deferred"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -298,5 +439,98 @@ mod tests {
         assert_eq!(removed, 2);
         assert!(!memory.join("b.db-wal").exists());
         assert!(memory.join("keep").is_dir());
+    }
+
+    /// A data directory holding a configuration file and a database.
+    fn populated_data_dir(root: &Path) -> PathBuf {
+        let data_dir = root.join(".apollia");
+        std::fs::create_dir_all(data_dir.join("memory")).unwrap();
+        std::fs::write(data_dir.join("apollia.toml"), "x").unwrap();
+        std::fs::write(data_dir.join("memory").join("a.db"), "x").unwrap();
+        data_dir
+    }
+
+    #[test]
+    fn test_apply_pending_factory_reset_without_a_request_touches_nothing() {
+        // GIVEN a data directory with no recorded reset
+        let root = tempfile::TempDir::new().unwrap();
+        let data_dir = populated_data_dir(root.path());
+
+        // WHEN a start looks for a pending reset
+        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO);
+
+        // THEN nothing is done and the files stay
+        assert!(matches!(outcome, PendingReset::None));
+        assert!(data_dir.join("apollia.toml").is_file());
+    }
+
+    #[tokio::test]
+    async fn test_apply_pending_factory_reset_erases_a_recorded_directory() {
+        // GIVEN a data directory whose reset was recorded
+        let root = tempfile::TempDir::new().unwrap();
+        let data_dir = populated_data_dir(root.path());
+        schedule_factory_reset(&data_dir).await.unwrap();
+
+        // WHEN the next start carries it out
+        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO);
+
+        // THEN the directory and its renamed copy are both gone
+        assert!(matches!(
+            outcome,
+            PendingReset::Applied { left_behind: None }
+        ));
+        assert!(!data_dir.exists());
+        assert!(!root.path().join(".apollia.factory-reset").exists());
+    }
+
+    #[tokio::test]
+    async fn test_apply_pending_factory_reset_on_a_held_directory_touches_nothing() {
+        // GIVEN a recorded reset on a directory another process holds, which
+        // Windows reports by refusing the rename
+        let root = tempfile::TempDir::new().unwrap();
+        let data_dir = populated_data_dir(root.path());
+        schedule_factory_reset(&data_dir).await.unwrap();
+        let held = |_: &Path, _: &Path| -> std::io::Result<()> {
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+        };
+
+        // WHEN the start tries to carry it out
+        let outcome = apply_pending_with(&data_dir, Duration::ZERO, &held);
+
+        // THEN it is deferred, every file stays, and the request is kept
+        assert!(matches!(outcome, PendingReset::Deferred(_)));
+        assert!(data_dir.join("apollia.toml").is_file());
+        assert!(data_dir.join("memory").join("a.db").is_file());
+        assert!(data_dir.join(FACTORY_RESET_REQUEST).is_file());
+    }
+
+    #[test]
+    fn test_apply_pending_factory_reset_removes_a_copy_left_by_a_previous_start() {
+        // GIVEN no recorded reset, and the renamed copy a previous start
+        // could not finish removing
+        let root = tempfile::TempDir::new().unwrap();
+        let data_dir = populated_data_dir(root.path());
+        let leftover = root.path().join(".apollia.factory-reset");
+        std::fs::create_dir_all(leftover.join("models")).unwrap();
+
+        // WHEN a start looks for a pending reset
+        let outcome = apply_pending_factory_reset(&data_dir, Duration::ZERO);
+
+        // THEN the copy is removed and the live directory is left alone
+        assert!(matches!(outcome, PendingReset::None));
+        assert!(!leftover.exists());
+        assert!(data_dir.join("apollia.toml").is_file());
+    }
+
+    #[tokio::test]
+    async fn test_factory_reset_of_a_missing_directory_removes_nothing() {
+        // GIVEN no data directory
+        let root = tempfile::TempDir::new().unwrap();
+
+        // WHEN a factory reset is asked
+        let removed = factory_reset(&root.path().join(".apollia")).await.unwrap();
+
+        // THEN nothing was removed or recorded
+        assert!(!removed);
     }
 }

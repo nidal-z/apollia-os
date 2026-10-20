@@ -67,6 +67,12 @@ fn main() {
             .to_string();
         apollia_core::paths::data_dir_under(home)
     };
+    // A factory reset asked on Windows is carried out here, before the log
+    // file or any database under the directory is opened by this process.
+    let pending_reset = apollia_runtime::app_lifecycle::apply_pending_factory_reset(
+        &apollia_data_dir,
+        apollia_runtime::app_lifecycle::PENDING_RESET_WAIT,
+    );
     // The same traces go to the terminal and to `~/.apollia/logs/desktop.log`,
     // rotated by size; a folder that cannot be opened leaves the terminal
     // alone, and says so once the subscriber is up.
@@ -91,6 +97,7 @@ fn main() {
             .with(file_layer)
             .init();
     }
+    apollia_runtime::app_lifecycle::log_pending_reset(&pending_reset, &apollia_data_dir);
     if let Some(error) = file_error {
         tracing::event!(
             tracing::Level::WARN,
