@@ -31,9 +31,10 @@ publication, `https://github.com/Apollia-OS/apollia-os/releases`.
    (Apollia), la version et la double licence MIT / Apache-2.0.
 3. L'app apparaît dans le menu Démarrer.
 
-L'installeur n'est pas encore signé par un certificat Authenticode : SmartScreen
-signale donc un éditeur inconnu. Choisissez **Informations complémentaires**,
-puis **Exécuter quand même**.
+La chaîne de publication ne signe les installeurs avec un certificat
+Authenticode que lorsqu'elle en dispose. Sur un installeur non signé,
+SmartScreen signale un éditeur inconnu : choisissez **Informations
+complémentaires**, puis **Exécuter quand même**.
 
 Le pare-feu Windows demandera à autoriser `apollia-os.exe`, le moteur d'inférence `llama-server.exe` et `apollia-runner-*.exe` (reconnaissance vocale) au premier lancement : **autorisez-les pour les réseaux privés** (ces composants communiquent avec le daemon en loopback 127.0.0.1).
 

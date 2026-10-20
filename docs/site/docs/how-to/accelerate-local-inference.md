@@ -7,8 +7,11 @@ title: Get the most from local inference
 
 Local LLM inference is served by an embedded `llama-server` (upstream
 llama.cpp) that the daemon spawns and supervises over its OpenAI-compatible HTTP
-API. This is the built-in and only local engine: there is no separate process to
-install, run, or point Apollia at. It ships prebuilt inside the desktop app, and
+API. It is the engine of GGUF models, and there is no separate process to
+install, run, or point Apollia at. On macOS arm64 the desktop app also ships an
+MLX engine (vllm-mlx) for models in the MLX format: the format of a model picks
+its engine, and System > Engines sets the engine of each format. This page is
+about `llama-server`. It ships prebuilt inside the desktop app, and
 on a source build the daemon finds `llama-server` on your `PATH` (see
 [Install and run the runtime](/how-to/install-and-run#local-gguf-inference)).
 
@@ -85,11 +88,13 @@ that move throughput are upstream of it:
   quantization that leaves headroom for the KV cache.
   `apollia-os model recommend` ranks candidates for this machine, with the
   memory each one needs and how many of its layers reach the GPU.
-- **Serve one model per server process.** The engine loads a single-file GGUF
-  model. Switching the default backend switches which model the daemon serves.
-- **Provision the slots before expecting concurrency.** Continuous batching is
-  on by default, but the engine starts with a single decode slot, so requests
-  queue rather than decode together. Raise `APOLLIA_LLAMA_N_PARALLEL` (below).
+- **One model per engine process.** Each loaded model runs in an engine of its
+  own, and several stay resident when the load guardrail judges they fit beside
+  each other; `APOLLIA_LLAMA_MAX_LOADED` sets an explicit ceiling.
+- **Slots are planned for you.** Continuous batching is on by default, and the
+  number of decode slots is planned at each start from the model and the
+  machine's memory, up to eight, so concurrent requests decode together when
+  there is room. `APOLLIA_LLAMA_N_PARALLEL` (below) pins the count instead.
 
 ## Tune the embedded engine
 
@@ -105,7 +110,7 @@ launches the daemon.
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | planned, else `999` | Layers offloaded to the GPU; `0` forces CPU. Left unset, the count is planned per model on a discrete GPU (below). |
 | `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
 | `APOLLIA_LLAMA_N_UBATCH` | engine default | Physical micro-batch size. |
-| `APOLLIA_LLAMA_N_PARALLEL` | `1` | Decode slots served concurrently. |
+| `APOLLIA_LLAMA_N_PARALLEL` | planned | Decode slots served concurrently. Unset, the count is planned from the model and the memory, up to `8`; set, it is used as given. |
 | `APOLLIA_LLAMA_CONT_BATCHING` | `true` | Continuous batching. |
 | `APOLLIA_LLAMA_CACHE_TYPE_K` | engine default | KV cache quantization, keys. |
 | `APOLLIA_LLAMA_CACHE_TYPE_V` | engine default | KV cache quantization, values. |
@@ -115,8 +120,9 @@ launches the daemon.
 | `APOLLIA_LLAMA_LOG_VERBOSITY` | `4` | Engine log level (`-lv`). At `4` the load names its device and its offload tally, which the daemon's journal reports as `llama.server.device`, `llama.server.offload` and `llama.server.buffer`. |
 | `APOLLIA_LLAMA_EXTRA_ARGS` | empty | Extra flags passed through verbatim. |
 
-Raising `N_PARALLEL` is what turns continuous batching into real concurrency: at
-the default of one slot, requests queue.
+The slot count is what turns continuous batching into real concurrency: with a
+single slot, requests queue. Pin `N_PARALLEL` only when the planned count does
+not suit your load.
 
 <!-- claim:llama-server-ngl-planned -->
 

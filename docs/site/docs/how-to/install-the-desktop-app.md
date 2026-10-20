@@ -38,7 +38,7 @@ Releases page:
 | Platform | Installer | Notes |
 |---|---|---|
 | macOS (Apple Silicon) | `.dmg` | Gatekeeper shows a warning on first launch unless the build is Developer ID signed (see below). |
-| Windows (x86-64) | `.msi` / `.exe` | SmartScreen warns until the build is Authenticode signed. Needs the WebView2 runtime, preinstalled on current Windows and downloaded by the installer otherwise. |
+| Windows (x86-64) | `.msi` / `.exe` | SmartScreen warns when the build carries no Authenticode signature (see below). Needs the WebView2 runtime, preinstalled on current Windows and downloaded by the installer otherwise. |
 | Linux (x86-64) | `.AppImage` / `.deb` | Needs WebKitGTK, present on current desktop distributions. |
 
 Tool confinement is not uniform across the three, and that difference is not
@@ -120,7 +120,10 @@ cannot be verified". To open it anyway:
   xattr -dr com.apple.quarantine "/Applications/Apollia OS.app"
   ```
 
-Apollia Desktop requires macOS 13 (Ventura) or newer.
+Apollia Desktop requires macOS 13 (Ventura) or newer. Models in the GGUF
+format run on the embedded llama.cpp engine on every supported version; models
+in the MLX format, served by the MLX engine the macOS bundle ships, need macOS 14
+or newer.
 
 ### Windows
 
@@ -129,9 +132,10 @@ Apollia Desktop requires macOS 13 (Ventura) or newer.
    under the entry **Apollia OS**.
 
 Windows SmartScreen may warn that the publisher is unrecognized. The installer
-names Apollia as its publisher, but it is not signed with an Authenticode
-certificate yet, which is what SmartScreen checks. Choose **More info**, then
-**Run anyway** to proceed.
+names Apollia as its publisher, but SmartScreen checks an Authenticode
+signature, which the release pipeline applies only when it holds the signing
+certificate. On an unsigned build, choose **More info**, then **Run anyway** to
+proceed.
 
 The app renders its interface with Microsoft Edge WebView2. It is preinstalled on
 current Windows 11 and updated Windows 10 systems. Where it is missing, the
@@ -140,9 +144,13 @@ reports a missing WebView2 runtime, install the "Evergreen Bootstrapper" from
 Microsoft's WebView2 Runtime download page, then relaunch.
 
 The window close button quits the app on Windows, stopping the runtime and the
-background inference and speech-to-text processes with it. Use the tray icon to
-keep it running while hiding the window. macOS is the exception, where closing a
-window leaves the app resident behind the menu-bar icon.
+background inference and speech-to-text processes with it. The tray icon opens
+the window, shows the pending approvals and quits; it does not hide the window
+while keeping the runtime up, so minimise the window instead. To keep agents
+running with no window at all, turn the developer mode on and use the switch of
+**Settings > Developer** that installs the runtime as a service of your
+session. macOS is the exception, where closing a window leaves the app resident
+behind the menu-bar icon.
 
 ### Linux
 
@@ -166,13 +174,49 @@ application menu, under the entry **Apollia OS**. The app relies on the system W
 
 ## First launch
 
-On first launch the app creates its data directory and walks you through a short
-onboarding flow (choosing a model backend, granting permissions). You can start
-with a cloud backend or point the app at a local model file you already have. To
+On first launch the app creates its data directory, `~/.apollia/`, and opens a
+first-launch window. It counts seven steps; the top of the window shows where
+you are, and **Configure later**, at the top right, closes it at any step.
+
+1. **Language**: French or English. Everything after this step follows it.
+2. **AI**: where the AI of your agents runs. This is the only step you cannot
+   skip.
+   - **On this computer**: Apollia lists the `.gguf` files it already finds (in
+     `~/.apollia/models/`, `~/Downloads/` and the LM Studio models folder) and
+     a list of **Recommended models**, sized for your machine. Clicking one
+     starts its download; you can go on with the next steps while it arrives.
+     **Search on HuggingFace** looks for another model.
+   - **Use a server**: the address of an OpenAI-compatible server your
+     organisation runs or that you already use (Ollama, vLLM, LM Studio, a
+     LiteLLM gateway), its key if it asks for one, then **Test** and the model
+     your agents will use.
+3. **Search, voice**: two optional, smaller models. One lets your agents find
+   a document by its meaning; the other transcribes your voice for dictation.
+   Each is downloaded or imported from a file, then tried on the spot.
+4. **About me**: the model you chose answers one question, so you see it work,
+   then a short form takes what your agents should know about you. Every field
+   is optional.
+5. **First agent**: install a package you received (a `.apo` file), create an
+   agent by describing your need in a few sentences, or start from an example
+   Apollia proposes. This step can be skipped.
+6. **Connection**: shown only when that agent needs a connection you do not
+   have yet, such as a mailbox or a folder. It can be skipped.
+7. **First task**: the window closes on your agent at work, a conversation
+   with its first example already written, or, for the example that qualifies
+   requests, a batch on a sample workbook. Without an agent, a conversation with
+   Apollia, the built-in agent, opens.
+
+Every step is detailed in
+[Set up your profile on first launch](/operator-help/installation/set-up-your-profile).
+The flow resumes where you left it after a restart, and it can be replayed from
+the **Danger Zone** of **Settings > General**.
+
 <!-- claim:desktop-downloads-models-in-app -->
-run fully local inference, download a GGUF from within the app: onboarding offers
-it, and the AI screen, Discover models, does the same afterwards. Dropping a `.gguf` file
-into `~/.apollia/models/` by hand also works, before or after onboarding.
+To run fully local inference, download a model from within the app: the first
+launch offers it, and the AI screen, **Discover models**, does the same
+afterwards. Dropping a `.gguf` file into `~/.apollia/models/` by hand also
+works, before or after the first launch. Apollia picks the engine from the
+format of the model: GGUF on llama.cpp, MLX on the MLX engine of Apple Silicon.
 
 ## The Python interpreter agents run on
 
@@ -180,8 +224,8 @@ Apollia ships with its own Python 3.13, and that is what agents run on: nothing
 has to be installed on the machine, and no administrator rights are needed. The
 interpreters already on the machine are not consulted, whatever their version.
 
-If your environment requires a different one, name it in Settings, Advanced, or
-in `apollia.toml`:
+If your environment requires a different one, name it in the settings, under
+**System > Hardware** with the developer mode on, or in `apollia.toml`:
 
 ```toml
 [tools]
@@ -207,19 +251,30 @@ Everything the app persists lives under a single directory in your home folder:
 | Path | Contents |
 |---|---|
 | `~/.apollia/` | The app's data root, created on first run. |
-| `~/.apollia/models/` | Local `.gguf` model files you provide. |
+| `~/.apollia/apollia.toml` | The configuration file, the one every surface reads and writes. |
+| `~/.apollia/models/` | The local models, downloaded from the app or placed there by hand. |
 | `~/.apollia/api-token` | The bearer token for the local HTTP API. |
 
-Nothing leaves your machine unless you explicitly configure a cloud backend or a
-connector. To reset the app to a clean state, quit it and remove `~/.apollia/`
+Nothing leaves your machine unless you explicitly declare a server or add a
+connection. To reset the app to a clean state, quit it and remove `~/.apollia/`
 (this deletes your agents, memory, and configuration, so back it up first if you
 care about it).
 
 On Windows the data root is the `.apollia` folder inside your user profile
 (`%USERPROFILE%\.apollia`).
 
+## Coming from 0.2.0-preview {#coming-from-0-2-0-preview}
+
+The installers keep the name Apollia OS, so 0.3.0 replaces an installed 0.2.0
+in place: use **Install and restart** in the app, or run the new installer. The
+databases under `~/.apollia` are migrated at the first start of 0.3.0, and
+0.2.0 refuses to open them afterwards: copy the folder first if you may go back.
+What changes for you, and what to do, is in
+[Update Apollia](/operator-help/installation/update-apollia#coming-from-0-2-0-preview).
+
 ## Next steps
 
 - Understand the runtime behind the app: [Install and run the runtime](/how-to/install-and-run).
 - Speed up local inference: [Accelerate local inference](/how-to/accelerate-local-inference).
-- Write your own agent: [Your first agent](/tutorials/your-first-agent).
+- Install, create or adjust an agent from the app: [Install an agent](/operator-help/agents/install-an-agent).
+- Write your own package, in code: [Your first agent](/tutorials/your-first-agent).

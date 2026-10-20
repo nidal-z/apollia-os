@@ -49,7 +49,7 @@ The rest of this page covers the **Memory** screen. It is one of the technical s
 2. **Left sidebar** - the list of **namespaces** (one namespace = one isolated memory space). Each namespace is classified automatically:
    - **Profile**: your shared user profile (`__user__`). Read-only from this page, editing happens in **Settings**, section **Profile**. A banner reminds you of that when you select `__user__`.
    - **Agents**: namespaces of installed agents (one per agent, for example `veille-ia`, `email-triage`).
-   - **Projects**: namespaces scoped to a project (format `{project_id}:{ns}`).
+   - **Projects**: namespaces of a former project (format `{project_id}:{ns}`). Projects became sources in this version: the update merges each of these spaces into the space of the same name, see [What became of projects](../projets/what-became-of-projects.md).
    - **Other**: legacy namespaces or namespaces of uninstalled agents.
 
    A **segmented control** at the top filters the list by category. A **Filter…** field lets you find a namespace by name.

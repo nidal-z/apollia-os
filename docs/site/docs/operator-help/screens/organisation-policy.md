@@ -10,7 +10,7 @@ sidebar_position: 19
 
 ## What it is for
 
-The organisation policy is set by the IT department of your organisation and applies to this whole machine. Nobody can change it from Apollia: this screen gives it to read, with who signed it and when.
+The organisation policy is set by the IT department of your organisation and applies to this whole machine. Nobody can change it from Apollia: this screen, **Organization policy**, gives it to read, with who signed it and when. It opens from the Permissions screen, with **View the policy**.
 
 ## What you can do
 

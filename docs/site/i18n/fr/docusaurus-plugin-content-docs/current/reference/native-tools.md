@@ -46,19 +46,16 @@ apollia-os tools list
 
 Désactivez ou réactivez un outil avec `apollia-os tools disable <name>` et
 `apollia-os tools enable <name>`. Le réglage est écrit dans la base de
-gouvernance, et il gouverne le chemin agent seulement : les runners d'agent
-fusionnent cet instantané dans la liste des outils désactivés du dispatcher, si
-bien qu'un agent qui invoque un outil désactivé reçoit une erreur `UnknownTool`.
+gouvernance. Un outil est désactivé quand cette base le désactive ou quand la
+liste `disabled` de `[tools]` dans `apollia.toml` le nomme : les runners d'agent
+comme le chemin de conversation lisent l'union des deux, si bien qu'un agent qui
+invoque un outil désactivé reçoit une erreur `UnknownTool`.
 
-Le chemin de conversation du bureau ne lit pas la base de gouvernance. Il
-construit son dispatcher depuis la liste `disabled` de `[tools]` dans
-`apollia.toml`, où `tools disable` n'écrit jamais. Six natifs échappent même à
-cette liste : `file_write`, `file_edit`, `notebook_edit`, `bash_executor`,
-`python_executor` et `http_fetch` sont retirés du dispatcher puis réinjectés
-derrière leur enrobage d'approbation, sans condition, donc une conversation peut
-toujours les appeler quoi que dise la configuration. Restreindre ce qu'une
-conversation atteint passe par la porte d'approbation et le sélecteur d'outils
-du chat, pas par `apollia-os tools disable`.
+Sur le chemin de conversation, `file_write`, `file_edit`, `notebook_edit`,
+`bash_executor`, `python_executor` et `http_fetch` sont construits à part,
+enracinés dans les dossiers accordés à l'agent, et un outil désactivé n'est pas
+construit du tout. L'état est relu à chaque message : un outil désactivé pendant
+une conversation disparaît dès le message suivant, sans redémarrage.
 
 ## Disponibilité et identifiants
 
@@ -155,7 +152,7 @@ connexion, et ses outils s'accordent à un agent sur sa fiche : les outils de
 lecture atteignent tous les dossiers accordés, les outils d'écriture seulement
 ceux accordés pour écrire. Le premier dossier accordé, par date d'ajout, est
 celui où arrive un chemin relatif. Ni le répertoire personnel, ni le dossier de
-données, ni le dossier d'un projet ne sont des racines. Un agent sans dossier
+données, ni le dossier d'un ancien projet ne sont des racines. Un agent sans dossier
 accordé a des outils de fichiers qui refusent, en disant comment en accorder un.
 
 | Outil | Objectif | Paramètres clés |
@@ -200,11 +197,13 @@ non fiables et est traité comme des données, jamais comme des instructions.
 | `memory_write` | Garde une note dans la mémoire propre de l'agent sous une clé (`remember`), en remplaçant ce que la clé contenait, ou la retire (`forget`). Seul l'espace de noms propre de l'agent est écrit. | `action`, `key`, `value` |
 | `profile_propose` | Propose un fait durable sur la personne pour son profil. L'appel est soumis à la personne à chaque fois, le fait affiché ; rien n'est écrit avant son accord. Un champ du formulaire de profil est refusé. | `key`, `fact` |
 | `source_search` | Recherche dans les dossiers et fichiers indexés cochés pour l'agent, par mots-clés, et par le sens quand un modèle d'embeddings est installé. Chaque résultat porte son extrait, son document, son emplacement, son score et sa source, et la réponse dit comment elle a été classée. Une source non cochée est refusée. | `query`, `sources`, `limit` (de 1 à 50) |
+| `code_context` | Lit l'état d'un dossier de code coché pour l'agent, au moment de l'appel : sa branche git, son statut et ses derniers commits, son fichier de règles (`APOLLIA.md`) et son arborescence. Rien du dossier n'atteint le prompt autrement. | `folder`, `parts` (`git`, `rules`, `tree`) |
 
 Chacun de ces outils n'est proposé à un agent que si sa source est cochée pour
 lui, quoi que listent ses accès : `memory_search` et `memory_write` quand sa
 mémoire l'est, `profile_propose` quand le profil l'est, `source_search` quand au
-moins un dossier ou un fichier indexé l'est. Cocher Mémoire sur la fiche d'un
+moins un dossier ou un fichier indexé l'est, `code_context` quand un dossier de
+code l'est. Cocher Mémoire sur la fiche d'un
 agent est ce qui ouvre sa mémoire, en lecture et en écriture, et aucun des deux
 outils de mémoire ne demande d'accord : ils agissent sur l'espace propre de
 l'agent. La mémoire d'un agent est un seul espace, nommé d'après l'agent et

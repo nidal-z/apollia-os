@@ -22,7 +22,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
         inside a JSX element is re-parsed as Markdown, which wraps it in a
         second <p>. The nested <p> is invalid HTML, the browser reparents it,
         and React fails to hydrate the whole page. */}
-    <p>A sovereign Rust runtime for autonomous AI agents. It runs any Python agent in isolation, locally, with tools, and without a cloud dependency. Apollia OS is that engine, with its command line and its Python SDK; Apollia Desktop is the application built on it, and its help center lives here too. This site is the adopters' manual: what Apollia does, how to drive it, and why it is built the way it is.</p>
+    <p>A sovereign Rust runtime for autonomous AI agents. An agent is a record anyone can read (a mission, a model, the accesses it is granted), and the runtime runs every agent with the same engine, locally, with tools, and without a cloud dependency; code is optional, and brings tools and workflows. Apollia OS is that engine, with its command line and its Python SDK; Apollia Desktop is the application built on it, and its help center lives here too. This site is the adopters' manual: what Apollia does, how to drive it, and why it is built the way it is.</p>
   </div>
 </div>
 
@@ -55,6 +55,10 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
   </Link>
 </div>
 
+To use Apollia without writing code, start with
+[Install Apollia Desktop](/how-to/install-the-desktop-app): it goes from the
+download to a first agent at work, and the help center takes over from there.
+
 The layout follows the [Diataxis](https://diataxis.fr) framework: each bucket
 answers a different kind of question, so pick the one that matches what you need
 right now rather than reading front to back.
@@ -62,8 +66,8 @@ right now rather than reading front to back.
 ## What running locally means here
 
 Apollia keeps inference, transcription, memory and audit on the machine. The
-desktop app embeds its own LLM engine and its own speech-to-text engine, so a
-fresh launch contacts nobody, and nothing about a conversation leaves the
+desktop app embeds its own inference engines (llama.cpp, and MLX on Apple
+Silicon) and its own speech-to-text engine, so a fresh launch contacts nobody, and nothing about a conversation leaves the
 machine unless an explicit action sends it.
 
 - [Sovereignty and local-first](/explanation/sovereignty-and-local-first) states the guarantee and its boundaries.

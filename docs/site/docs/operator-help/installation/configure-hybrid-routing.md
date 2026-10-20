@@ -6,12 +6,12 @@ sidebar_position: 7
 
 # Configure hybrid local + frontier routing
 
-> For anyone who wants to combine a fast local model for simple steps and a powerful cloud model for complex steps, with an automatic cost ceiling.
+> For anyone who wants to combine a fast local model for simple steps and a more capable model on a server for complex steps, with an automatic cost ceiling.
 
 ## Prerequisites
 
 - At least one backend for the default side, a `.gguf` model served by the embedded `llama-server` engine. See [Download local models](telecharger-des-modeles-locaux.md). An Ollama server does not belong in that role: Apollia reaches it over HTTP like any other OpenAI-compatible endpoint, so it is a remote backend even when it runs on your own network.
-- At least one cloud (frontier) backend declared. See [Connect a remote model](connecter-un-modele-distant.md).
+- At least one frontier backend declared: an OpenAI-compatible server. Apollia has no dedicated cloud provider since 0.3.0, so a hosted model is reached through a gateway you operate, such as LiteLLM. See [Connect a remote model](connecter-un-modele-distant.md).
 - The exact name of each backend as you named it during configuration.
 
 ## How hybrid routing behaves
@@ -20,7 +20,7 @@ The hybrid router routes each agent reasoning step according to its estimated co
 
 1. Simple steps (information retrieval, formatting, direct tool calls) are handled by the default backend.
 2. Complex steps (multi-hop reasoning, long synthesis, uncertain judgement) are escalated to the frontier backend.
-3. When the cumulative cloud cost reaches `cost_ceiling_usd`, all remaining steps are handled by the default backend, whatever their complexity level.
+3. When the cumulative cost estimated for the frontier reaches `cost_ceiling_usd`, all remaining steps are handled by the default backend, whatever their complexity level.
 
 The router does not guarantee a clean cut to the cent: steps already in flight when the ceiling is crossed finish on the backend that started them.
 
@@ -46,8 +46,8 @@ The same file must already carry a `[llm]` section with a `default` key and at
 least one `[[llm.backends]]` entry; both are required too.
 
 - `precise` and `fast`: names of the backends used for deep reasoning and for lightweight extraction. Both are required, and both must match a declared backend.
-- `frontier`: exact name of the cloud backend declared in `[llm.backends]`. The value cannot be empty.
-- `cost_ceiling_usd`: ceiling in US dollars per routing session. Set a strictly positive value.
+- `frontier`: exact name of the frontier backend declared in `[llm.backends]`. The value cannot be empty.
+- `cost_ceiling_usd`: ceiling in US dollars per routing session. Set a strictly positive value. The cost of a call is estimated from a rate table built into Apollia, by model name; a model the table does not know counts as zero, so the ceiling never fires for it.
 <!-- claim:hybrid-ceiling-action-decides-the-outcome -->
 - `ceiling_action`: what happens when the ceiling is crossed. `stay_local`, the default, keeps the run going on the local backend, silently degraded. `hard_stop` ends the run cleanly with a structured error instead. Choose `hard_stop` when a silently local answer would be worse than no answer.
 
@@ -55,8 +55,10 @@ Restart the daemon after the change.
 
 ## Verification
 
-The daemon does not validate this section at startup, and it prints nothing that
-names your frontier or your ceiling. The one routing line it emits when it
+At startup the daemon checks only that `frontier` is not empty and that
+`cost_ceiling_usd` is strictly positive, and refuses the file otherwise; it does
+not check that the name matches a backend, and it prints nothing that names
+your frontier or your ceiling. The one routing line it emits when it
 starts carries the two backends of `[llm.routing]` and nothing else:
 
 ```

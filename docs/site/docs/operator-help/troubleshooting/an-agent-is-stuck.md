@@ -52,7 +52,7 @@ Some agents can get stuck on a step they retry again and again. Apollia applies 
 
 ### 5a. The agent takes longer than expected in the supervised or bounded_autonomous tier
 
-In the `supervised` or `bounded_autonomous` tier, the agent checks its own work after execution and attempts a self-correction if needed. This lengthens the apparent duration before the agent declares itself done. It is normal behaviour, not a blockage.
+In the `supervised`, `bounded_autonomous` or `long_autonomous` tier, the agent checks its own work after execution and attempts a self-correction if needed. This lengthens the apparent duration before the agent declares itself done. It is normal behaviour, not a blockage.
 
 If the duration looks excessive to you, open the **Logs** panel (see [View an agent's logs](../agents/view-an-agent-logs.md)). Verification has no status of its own: the task stays **WORKING** while the agent checks itself. What tells you the loop is failing to converge is a task that stays working far past the point where its result should have landed. Stop the work, then rephrase the instructions.
 
@@ -69,6 +69,6 @@ The agent may require a connection that is not set up, a file that cannot be fou
 
 1. Stop the work in its conversation, then ask again with a shorter, more precise request.
 2. If the blockage comes back immediately, open the agent in **Agents** and read its sheet again: its mission, its model, its accesses and its sources.
-3. **Collect the logs for support**: open the **Logs** panel of the agent and click **Copy logs** in its header, next to **Refresh**. The tasks currently displayed (filters and search taken into account) are copied to the clipboard as text, ready to paste into a report. A message confirms the number of tasks copied.
+3. **Collect the logs for support**: open the **Logs** panel of the agent and click the **Copy logs** icon in its header, next to the **Refresh** icon (hover an icon to read its name). The tasks currently displayed (filters and search taken into account) are copied to the clipboard as text, ready to paste into a report. A message confirms the number of tasks copied.
 
 > **Technical reference:** [Apollia reference](/reference).

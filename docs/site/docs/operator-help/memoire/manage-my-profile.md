@@ -87,9 +87,9 @@ Conversation history and the memories of your agents are not touched.
 
 ### B - Take the guided flow again
 
-In **Settings**, section **General**, the **Danger Zone** block holds a **Reset Onboarding** button. It makes the welcome flow of the first launch run again.
+In **Settings**, section **General**, the **Danger Zone** block holds a **Reset Onboarding** button. It makes the welcome flow of the first launch run again at the next launch.
 
-It is not neutral for your profile: it also empties what your profile holds, even though the window says no data is deleted. Prefer path A when you only want to change a profile.
+It also empties your default profile, its fields and its facts, so that the flow starts from scratch; the window says so before you confirm. Your agents, conversations and models are kept. Prefer path A when you only want to change a profile.
 
 ### C - Erase all memories (profiles and agents)
 

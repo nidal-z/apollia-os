@@ -54,12 +54,18 @@ vous devez encore inspecter.
 <!-- claim:llm-schema-constrains-local-generation -->
 Objets et tableaux s'imbriquent librement, et leurs membres sont typés. Le
 schéma voyage en `response_format`, la surface de sortie structurée que le
-protocole OpenAI définit. Le `llama-server` embarqué en tire une grammaire qui
-contraint la réponse jeton par jeton, de sorte que le modèle ne peut pas émettre
-une forme que le schéma interdit ; un modèle qui réfléchit d'abord le fait
-librement, et la contrainte porte sur ce qu'il répond ensuite. Un schéma que le
-runtime ne sait pas exprimer en grammaire est refusé avant l'appel plutôt
-qu'assoupli.
+protocole OpenAI définit. Sur le moteur local llama.cpp, le `llama-server`
+embarqué en tire une grammaire qui contraint la réponse jeton par jeton, de
+sorte que le modèle ne peut pas émettre une forme que le schéma interdit ; un
+modèle qui réfléchit d'abord le fait librement, et la contrainte porte sur ce
+qu'il répond ensuite. Là, un schéma que le runtime ne sait pas exprimer en
+grammaire est refusé avant l'appel plutôt qu'assoupli.
+
+Sur le moteur MLX et sur un serveur compatible OpenAI que vous avez déclaré,
+`response_format` est une demande : le serveur applique la contrainte dans la
+mesure où il l'implémente, et le runtime ne vérifie pas le schéma avant
+l'appel. Sur tous les backends, la réponse est validée contre le schéma avant
+que votre code ne la reçoive.
 
 | Construction | Prise en charge |
 | --- | --- |
@@ -69,7 +75,7 @@ qu'assoupli.
 | `enum`, sur n'importe quel type | oui |
 | `required` | oui |
 | `minimum`, `maximum`, `minLength`, `maxLength`, `minItems`, `maxItems` | vérifié, non contraint |
-| `anyOf`, `oneOf`, `allOf`, `$ref` | refusé nommément |
+| `anyOf`, `oneOf`, `allOf`, `not`, `$ref` | refusé nommément sur le moteur local llama.cpp |
 
 Les deux dernières lignes sont les intéressantes.
 
@@ -77,7 +83,7 @@ Une borne sur un nombre ou sur une longueur est vérifiée après la génératio
 jamais pendant, car aucune grammaire de décodage n'en exprime. Déclarez-les :
 elles sont appliquées, simplement une étape plus tard que le reste.
 
-Un combinateur est refusé plutôt qu'ignoré. Une construction non prise en charge
+Sur le moteur local llama.cpp, un combinateur est refusé plutôt qu'ignoré. Une construction non prise en charge
 qui relâcherait la contrainte en silence vous laisserait valider une réponse que
 personne n'a contrainte, et en tenir le modèle pour responsable.
 
@@ -97,9 +103,11 @@ except StructuredOutputError as e:
 
 `e.kind` distingue les trois cas :
 
-- `schema_unsupported` : le schéma ne peut pas devenir une contrainte. Levé avant
-  l'appel au modèle, donc aucun jeton n'a été dépensé.
+- `schema_unsupported` : le schéma ne peut pas devenir une contrainte sur le
+  moteur local llama.cpp. Levé avant l'appel au modèle, donc aucun jeton n'a été
+  dépensé.
 - `backend_unsupported` : le backend résolu n'a pas de mode de sortie structurée.
+  Aucun backend de cette version ne le lève : tous reçoivent le schéma.
 - `response_invalid` : la réponse est revenue et le schéma la refuse.
 
 Rien n'est réessayé pour vous. Qu'une seconde tentative vaille ses jetons dépend

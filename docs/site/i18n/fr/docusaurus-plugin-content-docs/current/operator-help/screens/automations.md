@@ -14,8 +14,8 @@ Une automatisation lance un agent ou un workflow toute seule : selon une planifi
 
 ## Ce que vous pouvez faire
 
-- Créer une automatisation en disant quand elle doit se lancer.
-- Choisir l'agent ou le workflow qu'elle lance.
+- Créer une automatisation avec **Créer une automatisation**, en disant avec vos mots quand elle doit se lancer, puis vérifier la planification.
+- Choisir l'agent qu'elle lance, et passer en **Mode avancé** pour la lancer quand un fichier change ou par une adresse externe.
 - Voir les automatisations en place et ce que chacune lance.
 
 ## Pour aller plus loin

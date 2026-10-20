@@ -28,7 +28,7 @@ Apollia transcribes on your machine with a dictation model. With no model, the d
 
 **Solution:**
 1. Open **Settings → Dictation** and read the **Active model** line.
-2. If it reads **Model not loaded**, open the **AI** screen, click **Discover models**, choose the dictation models and download the one marked **Recommended**. A model file you already have can be added with **Load a model**, in **Settings → Dictation**.
+2. If it reads **Model not loaded**, open the **AI** screen, click **Discover models**, choose **Dictation** and download the one marked **Recommended**. A model file you already have can be added with **Load a model**, in **Settings → Dictation**.
 3. Go back to **Settings → Dictation**, choose the model in the **Model** list and save: the **Active model** line then shows its name.
 
 ### 3. Your system microphone is muted or wrongly selected

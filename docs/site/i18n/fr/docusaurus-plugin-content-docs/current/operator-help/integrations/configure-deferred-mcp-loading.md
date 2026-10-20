@@ -11,7 +11,7 @@ sidebar_position: 8
 ## Prérequis
 
 - Apollia lancé avec au moins un serveur MCP connecté.
-- Accès à `apollia.toml` pour modifier la configuration.
+- Accès à `apollia.toml` pour modifier la configuration. Avec le mode développeur allumé, le fichier s'ouvre dans **Réglages**, section **Configuration**.
 
 ## Eager vs deferred : quand choisir quoi
 
@@ -28,7 +28,7 @@ Une nuance décide de la façon dont l'agent atteint un outil une fois qu'il l'a
 
 ## Étapes - Configurer le mode de chargement
 
-Éditez `apollia.toml` :
+Éditez `apollia.toml`, dans un éditeur de texte ou dans **Réglages**, section **Configuration**, avec le mode développeur allumé :
 
 ```toml
 [mcp]
@@ -39,7 +39,7 @@ tool_search_limit = 20
 - `tool_loading` : `"deferred"` (défaut) ou `"eager"`.
 - `tool_search_limit` : nombre maximum d'outils retournés par un appel `tool_search` (défaut : `20`, bornes : `1` à `500`). Cette valeur sert aussi de borne en dessous de laquelle l'index entier est déclaré d'emblée : l'augmenter déclare plus d'outils directement et coûte plus de prompt, la diminuer renvoie davantage de découverte vers `tool_search`.
 
-Redémarrez le daemon après modification.
+Redémarrez Apollia après modification.
 
 ## Vérification
 

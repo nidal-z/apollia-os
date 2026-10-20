@@ -14,9 +14,10 @@ The Activity log lists what the agents did and what changed in their accesses, m
 
 ## What you can do
 
-- Filter the entries to find an action or a change.
+- Filter the entries by **Agent**, **Family**, **Nature**, **Result** or **Period** to find an action or a change.
 - Open an entry to read its detail in the detail panel.
-- Export the entries that match the filters in force.
+- Export the entries that match the filters in force with **Export**, as a CSV or a PDF file.
+- Check with **Verify integrity** that no entry was altered.
 
 ## Go further
 

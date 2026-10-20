@@ -42,7 +42,7 @@ The figures at the bottom match your intuition about consumption. The data refre
 ## If it does not work
 
 - **Observability is not in the sidebar**: the developer mode is off. Turn it on in **Settings**, section **Developer**.
-- **The chart is empty**: no priced call was recorded over the window, which has two causes. Your backend may be a fully local model, which costs nothing. Or the model you call carries no price in Apollia: the OpenAI-compatible client, which serves OpenAI, Mistral, Ollama and any custom gateway, prices only `gpt-4o-mini`, `gpt-4o` and `gpt-3.5-turbo`. Any other identifier is recorded with no cost at all.
+- **The chart is empty**: no priced call was recorded over the window, which has two causes. Your backend may be a fully local model, which costs nothing. Or the model you call carries no price in Apollia: the client of the OpenAI-compatible servers, which serves every server you declare, a gateway you operate among them, prices only `gpt-4o-mini`, `gpt-4o` and `gpt-3.5-turbo`. Any other identifier is recorded with no cost at all.
 - **The costs look too high**: open **Agents**, then **Logs** in the menu of the busiest agent, and look at the longest tasks - a bulky injected context inflates input tokens fast.
 - **Costs went up after enabling hybrid routing**: the frontier is being called more often than expected. Lower `cost_ceiling_usd` in `[llm.routing.hybrid]` to limit escalation, or disable hybrid routing temporarily. See [Connect a remote model](../installation/connecter-un-modele-distant.md).
 

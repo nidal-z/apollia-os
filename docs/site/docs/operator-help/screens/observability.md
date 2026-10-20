@@ -14,9 +14,9 @@ The Observability screen gathers the timeline of the runs, the cost of the model
 
 ## What you can do
 
-- Follow a run in the timeline.
-- Watch what the models cost.
-- Read the messages agents exchanged, in the Mailbox tab.
+- Follow a run in the **Timeline** tab.
+- Watch what the models cost, in the **LLM Costs** tab.
+- Read the messages agents exchanged, in the **Mailbox** tab.
 
 ## Go further
 

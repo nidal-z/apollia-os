@@ -42,7 +42,7 @@ Les chiffres en bas correspondent à votre intuition de la consommation. Les don
 ## Si ça ne marche pas
 
 - **Observabilité ne figure pas dans la barre latérale** : le mode développeur est éteint. Allumez-le dans **Réglages**, section **Développeur**.
-- **Le graphique est vide** : aucun appel tarifé n'a été enregistré sur la fenêtre, et il y a deux causes. Votre backend est peut-être un modèle 100 % local, qui ne coûte rien. Ou le modèle que vous appelez n'a pas de prix dans Apollia : le client compatible OpenAI, qui sert OpenAI, Mistral, Ollama et toute passerelle personnalisée, ne tarife que `gpt-4o-mini`, `gpt-4o` et `gpt-3.5-turbo`. Tout autre identifiant est enregistré sans aucun coût.
+- **Le graphique est vide** : aucun appel tarifé n'a été enregistré sur la fenêtre, et il y a deux causes. Votre backend est peut-être un modèle 100 % local, qui ne coûte rien. Ou le modèle que vous appelez n'a pas de prix dans Apollia : le client des serveurs compatibles OpenAI, qui sert tout serveur que vous déclarez, dont une passerelle que vous opérez, ne tarife que `gpt-4o-mini`, `gpt-4o` et `gpt-3.5-turbo`. Tout autre identifiant est enregistré sans aucun coût.
 - **Les coûts paraissent trop élevés** : ouvrez **Agents**, puis **Logs** dans le menu de l'agent le plus actif, et regardez les tâches les plus longues - un contexte injecté volumineux gonfle rapidement les jetons d'entrée.
 - **Coûts en hausse après activation du routage hybride** : le frontier est appelé plus souvent que prévu. Abaissez `cost_ceiling_usd` dans `[llm.routing.hybrid]` pour limiter l'escalade, ou désactivez temporairement le routage hybride. Voir [Connecter un modèle distant](../installation/connecter-un-modele-distant.md).
 

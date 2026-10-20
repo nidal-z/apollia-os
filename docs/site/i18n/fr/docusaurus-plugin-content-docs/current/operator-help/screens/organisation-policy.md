@@ -10,7 +10,7 @@ sidebar_position: 19
 
 ## À quoi ça sert
 
-La politique de l'organisation est fixée par le service informatique de votre organisation et s'applique à tout ce poste. Personne ne peut la modifier depuis Apollia : cet écran la donne à lire, avec qui l'a signée et quand.
+La politique de l'organisation est fixée par le service informatique de votre organisation et s'applique à tout ce poste. Personne ne peut la modifier depuis Apollia : cet écran, **Politique de l'organisation**, la donne à lire, avec qui l'a signée et quand. Il s'ouvre depuis l'écran Autorisations, avec **Voir la politique**.
 
 ## Ce que vous pouvez faire
 

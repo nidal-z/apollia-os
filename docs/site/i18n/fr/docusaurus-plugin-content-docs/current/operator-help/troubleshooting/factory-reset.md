@@ -43,7 +43,7 @@ Une fenêtre de confirmation s'ouvre avec une **pause de sécurité de 3 seconde
 ## Étape 4 - Après la réinitialisation
 
 1. Apollia redémarre automatiquement. Si le redémarrage automatique échoue (environnement de développement sans bundle packagé), un message vous invite à redémarrer l'application manuellement.
-2. Au redémarrage, le **parcours de configuration en sept étapes** s'ouvre automatiquement : **Langue → IA → Recherche → Qui je suis → Premier agent → Connexion → Première tâche**. C'est le même parcours qu'au tout premier lancement.
+2. Au redémarrage, le **parcours de configuration en sept étapes** s'ouvre automatiquement : **Langue → IA → Recherche, voix → Qui je suis → Premier agent → Connexion → Première tâche**. C'est le même parcours qu'au tout premier lancement.
 3. À l'étape **IA**, vous devez reconfigurer le LLM (téléchargement d'un modèle local ou connexion à un serveur) - la réinitialisation a effacé vos modèles et vos serveurs. Voir aussi [Connecter un modèle distant](../installation/connecter-un-modele-distant.md) si vous préférez ne pas passer par le parcours intégré.
 4. Une fois le parcours terminé, réinstallez vos agents, remettez en place vos connexions et ajoutez de nouveau vos sources, selon votre besoin.
 5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import --namespace <namespace> --input <fichier>`.

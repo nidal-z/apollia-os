@@ -32,9 +32,11 @@ declare the agent, write a tool, describe, build, install, run.
   tutorial and stop it with `apollia-os stop` at the end.
 - An LLM backend configured. Check it with `apollia-os llm status`. If nothing
   is set up yet, register a local model with
-  `apollia-os llm setup --local --model /path/to/model.gguf`, or a cloud backend
-  with `apollia-os llm backends create --provider <p> --model <m> --api-key <key>`.
-  See
+  `apollia-os llm setup --local --model /path/to/model.gguf`, or an
+  OpenAI-compatible server you designate with
+  `apollia-os llm backends create <name> --provider openai --base-url <url> --model <m>`
+  (add `--api-key <key>` when the server requires one), then run
+  `apollia-os llm reload`. See
   [Install and run the runtime](/how-to/install-and-run#step-3-configure-a-model-backend)
   and the [CLI reference](/reference/cli) for every `llm` subcommand.
 

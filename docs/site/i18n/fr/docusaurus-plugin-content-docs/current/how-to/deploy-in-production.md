@@ -127,6 +127,12 @@ apollia.example.com {
     reverse_proxy /api/v1/mailbox/stream 127.0.0.1:7771 {
         flush_interval -1
     }
+    reverse_proxy /api/v1/sessions/*/stream 127.0.0.1:7771 {
+        flush_interval -1
+    }
+    reverse_proxy /api/v1/events 127.0.0.1:7771 {
+        flush_interval -1
+    }
 }
 ```
 
@@ -142,7 +148,7 @@ server {
         proxy_set_header Authorization $http_authorization;
     }
     # SSE : streaming sans mise en tampon
-    location ~ ^/api/v1/(tasks/.*/stream|mailbox/stream)$ {
+    location ~ ^/api/v1/(tasks/.*/stream|sessions/.*/stream|mailbox/stream|events)$ {
         proxy_pass http://127.0.0.1:7771;
         proxy_buffering off;
         proxy_cache off;
@@ -151,8 +157,9 @@ server {
 }
 ```
 
-Les points de terminaison de streaming `GET /api/v1/tasks/{id}/stream` et
-`GET /api/v1/mailbox/stream` envoient les événements au fil de l'eau. Sans
+Les points de terminaison de streaming `GET /api/v1/tasks/{id}/stream`,
+`GET /api/v1/sessions/{id}/stream`, `GET /api/v1/mailbox/stream` et
+`GET /api/v1/events` envoient les événements au fil de l'eau. Sans
 désactivation de la mise en tampon, le proxy les retient jusqu'à la fermeture
 de la réponse, et l'hôte ne voit rien en direct. La même précaution
 s'applique côté client sous TLS natif : ne mettez pas la réponse en tampon.

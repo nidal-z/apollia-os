@@ -14,8 +14,8 @@ The Chat is where work gets asked for and followed. A conversation is held with 
 
 ## What you can do
 
-- Choose the agent or the model that answers, from the selector of the top bar.
-- Follow what an agent does while it works, step by step, in the Steps panel.
+- Choose the agent or the model that answers, from the selector at the top of the conversation, **Choose an agent or a model**.
+- Follow what an agent does while it works, step by step, in the **Steps** panel.
 - Answer an agreement an agent asks for, right in the conversation.
 
 ## Go further

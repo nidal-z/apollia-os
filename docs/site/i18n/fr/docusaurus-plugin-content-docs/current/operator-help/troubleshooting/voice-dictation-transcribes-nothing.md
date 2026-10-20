@@ -28,7 +28,7 @@ Apollia transcrit sur votre machine avec un modèle de dictée. Sans modèle, la
 
 **Solution :**
 1. Ouvrez **Réglages → Dictée** et lisez la ligne **Modèle actif**.
-2. Si elle indique **Modèle non chargé**, ouvrez l'écran **IA**, cliquez sur **Découvrir des modèles**, choisissez les modèles de dictée et téléchargez celui qui porte la mention **Recommandée**. Un fichier de modèle que vous avez déjà s'ajoute avec **Charger un modèle**, dans **Réglages → Dictée**.
+2. Si elle indique **Modèle non chargé**, ouvrez l'écran **IA**, cliquez sur **Découvrir des modèles**, choisissez **Dictée** et téléchargez celui qui porte la mention **Recommandée**. Un fichier de modèle que vous avez déjà s'ajoute avec **Charger un modèle**, dans **Réglages → Dictée**.
 3. Revenez dans **Réglages → Dictée**, choisissez le modèle dans la liste **Modèle** et enregistrez : la ligne **Modèle actif** affiche alors son nom.
 
 ### 3. Votre microphone système est muet ou mal sélectionné

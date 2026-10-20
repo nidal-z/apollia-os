@@ -10,7 +10,7 @@ sidebar_position: 4
 
 ## Prerequisites
 
-- At least one AI provider is configured and ready. The state is visible **in the top left corner**: a **coloured dot to the left of the word *Apollia*** in the top bar shows the combined runtime + LLM state.
+- At least one model is ready, installed on this machine or served by a server. The state is visible **in the top left corner**: a **coloured dot to the left of the word *Apollia*** in the top bar shows the combined runtime + LLM state.
   - 🟢 green - healthy runtime + at least one LLM ready, the guide can answer.
   - 🟡 amber - no LLM connected, the guide cannot answer yet.
   - 🔴 red - runtime disconnected, nothing will work; quit and relaunch the application.

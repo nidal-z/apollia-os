@@ -173,7 +173,7 @@ export PATH="$PWD/target/debug:$PATH"
 Sur Windows, le binaire est `target\debug\apollia-os.exe` ; ajoutez
 `target\debug` à votre `PATH` de façon équivalente.
 
-Cette compilation dialogue avec les serveurs compatibles OpenAI et Ollama,
+Cette compilation dialogue avec les serveurs compatibles OpenAI, Ollama compris,
 et sert les modèles GGUF locaux via le `llama-server`
 embarqué. Sur une build depuis les sources, ce moteur doit se trouver sur
 votre `PATH`, ce qui est couvert dans la dernière section.
@@ -227,9 +227,10 @@ apollia-os llm backends create prod --provider openai \
   --api-key "$VLLM_API_KEY" --default
 ```
 
-`--api-key` accepte aussi une forme `${VAR}`, résolue depuis l'environnement
-au démarrage, de sorte que la clé n'a pas besoin de figurer dans
-`apollia.toml`.
+Une clé donnée telle quelle part dans le magasin de secrets avant que le backend
+soit enregistré, et la base des backends ne garde que le fait que le magasin la
+détient. `--api-key` accepte aussi une forme `${VAR}`, qui nomme une variable
+d'environnement résolue au démarrage à la place.
 
 Utilisez l'identifiant du modèle que votre serveur sert pour `--model` ; la
 valeur ci-dessus n'est qu'un exemple.
@@ -261,8 +262,8 @@ apollia-os start --port 7771
 À son premier lancement, le runtime crée son répertoire de données dans
 `~/.apollia`. Il écoute sur un socket Unix (`~/.apollia/runtime.sock` par
 défaut, passé en `0600` après le bind) et sur `127.0.0.1:7771`. `apollia-os start` lie toujours le TCP ; `--port`
-choisit le numéro, et l'omettre prend la valeur par défaut 7771 plutôt que de
-laisser le port fermé. Au premier démarrage il écrit un
+choisit le numéro, et l'omettre prend `[api].port` de `apollia.toml` (7771 par
+défaut) plutôt que de laisser le port fermé. Au premier démarrage il écrit un
 jeton d'API dans `~/.apollia/api-token` ; les appelants en TCP doivent le
 présenter comme identifiant porteur, tandis que le socket Unix repose sur une
 confiance locale et n'en a besoin d'aucun. Laissez ce terminal en cours
@@ -480,6 +481,9 @@ voulez la dictée locale.
 
 - Écrire et exécuter votre propre agent : [Votre premier
   agent](/tutorials/your-first-agent).
+- Démarrer le runtime à l'ouverture de session, sans terminal et sans droits
+  d'administrateur : `apollia-os service install` (puis `service status`, et
+  `service uninstall` pour le retirer), sous macOS, Linux et Windows.
 - Faire tourner Apollia comme service géré : [Déployer en
   production](/how-to/deploy-in-production).
 - Chaque option de chaque commande figure dans la [référence

@@ -74,8 +74,8 @@ keeps it.
 
 | Key | Type | Meaning |
 | --- | --- | --- |
-| `access` | list of strings | Tools granted by default: a native tool name, `mcp:<server>/<tool>`, or `pkg:<package>/<tool>`. A `pkg:` entry must name a tool of this package. |
-| `sources` | list of strings | Sources checked by default. `"profile"` lets the agent read the user profile. |
+| `access` | list of strings | Tools granted by default: a native tool name, `mcp:<server>/<tool>`, or `pkg:<package>/<tool>`. A `pkg:` entry must name a tool of this package. `agent:<id>` and `workflow:<package>/<workflow>` let the agent call another agent or a workflow, each offered to it as one more tool. Nothing the list does not name is offered to the agent. |
+| `sources` | list of strings | Sources checked by default. `"profile"` lets the agent read the user profile through `ctx.profile`; `"memory"` opens its memory, to read and to write. Any other entry is a source identifier, as `apollia-os source list` shows it. |
 | `autonomy` | string | Autonomy tier: `assisted`, `supervised`, `bounded_autonomous` or `long_autonomous`. Without it, the global default applies. |
 | `planning` | string | Whether the agent plans a task before acting on it: `never`, `auto` or `always`. Without it, `auto`. |
 
@@ -154,6 +154,11 @@ The keys, defaults and meaning are those of a server in `mcp.toml`.
 | `max_response_bytes` | integer | `8388608` | Cap on one server response. |
 | `max_tools` | integer | `256` | Cap on the tools kept from `tools/list`. |
 | `tags` | list of strings | empty | Tags applied to every tool of the server. |
+
+A server carries no approval setting. `requires_approval`, a key of earlier
+versions, is still read, logs a `package.manifest.retired_key` warning and does
+nothing: whether a call to one of its tools asks first is decided on the action
+family of that tool.
 
 ## `[pip]`
 

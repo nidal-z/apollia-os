@@ -10,12 +10,13 @@ sidebar_position: 10
 
 ## What it is for
 
-The Permissions screen shows, agent by agent, what you agreed to once and for all. An agreement is withdrawn in one click, and each withdrawal is written to the Activity log.
+The Permissions screen shows, agent by agent and under **For every agent**, what you agreed to once and for all: the accesses granted by family, the **"Always" given** and the **Fine rules**. An agreement is withdrawn in one click, and each withdrawal is written to the Activity log. The **Organization policy** panel says whether a policy of your organisation applies.
 
 ## What you can do
 
 - Read what an agent may do without asking you.
-- Withdraw an agreement you gave for good.
+- Withdraw an agreement you gave for good with **Withdraw**, or several at once with **Revoke all**.
+- Open the policy of your organisation with **View the policy**.
 - Check in the Activity log that the withdrawal was recorded.
 
 ## Go further

@@ -54,11 +54,17 @@ inspect.
 <!-- claim:llm-schema-constrains-local-generation -->
 Objects and arrays nest freely, and their members are typed. The schema travels
 as `response_format`, the structured output surface the OpenAI protocol
-defines. The embedded `llama-server` turns it into a grammar that constrains
-the answer token by token, so the model cannot emit a shape the schema forbids;
-a model that reasons first does so freely, and the constraint applies to what
-it answers after. A schema the runtime cannot express as a grammar is refused
-before the call rather than relaxed.
+defines. On the local llama.cpp engine, the embedded `llama-server` turns it
+into a grammar that constrains the answer token by token, so the model cannot
+emit a shape the schema forbids; a model that reasons first does so freely, and
+the constraint applies to what it answers after. There, a schema the runtime
+cannot express as a grammar is refused before the call rather than relaxed.
+
+On the MLX engine and on an OpenAI-compatible server you declared,
+`response_format` is a request: the server applies the constraint as far as it
+implements it, and the runtime does not check the schema before the call. On
+every backend, the answer is validated against the schema before your code
+receives it.
 
 | Construct | Supported |
 | --- | --- |
@@ -68,7 +74,7 @@ before the call rather than relaxed.
 | `enum`, on any type | yes |
 | `required` | yes |
 | `minimum`, `maximum`, `minLength`, `maxLength`, `minItems`, `maxItems` | checked, not constrained |
-| `anyOf`, `oneOf`, `allOf`, `$ref` | refused by name |
+| `anyOf`, `oneOf`, `allOf`, `not`, `$ref` | refused by name on the local llama.cpp engine |
 
 The last two rows are the interesting ones.
 
@@ -76,7 +82,7 @@ A bound on a number or a length is checked after generation and never during it,
 because no decoding grammar expresses one. Declare them: they are enforced, just
 one step later than the rest.
 
-A combinator is refused rather than ignored. An unsupported construct that
+On the local llama.cpp engine, a combinator is refused rather than ignored. An unsupported construct that
 quietly relaxed the constraint would leave you validating an answer nobody
 constrained, and blaming the model for it.
 
@@ -96,9 +102,10 @@ except StructuredOutputError as e:
 
 `e.kind` tells the three cases apart:
 
-- `schema_unsupported`: the schema cannot become a constraint. Raised before the
-  model is called, so no tokens were spent.
-- `backend_unsupported`: the resolved backend has no structured output mode.
+- `schema_unsupported`: the schema cannot become a constraint on the local
+  llama.cpp engine. Raised before the model is called, so no tokens were spent.
+- `backend_unsupported`: the resolved backend has no structured output mode. No
+  backend of this release raises it: every one of them receives the schema.
 - `response_invalid`: the answer came back and the schema refuses it.
 
 Nothing is retried for you. Whether a second attempt is worth its tokens depends

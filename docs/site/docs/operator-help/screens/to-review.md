@@ -14,8 +14,9 @@ Agreements asked by agents, questions, paused tasks and batch items are gathered
 
 ## What you can do
 
+- Narrow the list with **All**, **Decisions**, **Questions** or **Batch items**.
 - Grant or refuse an agreement an agent asks for.
-- Answer a question an agent asks you.
+- Answer a question an agent asks you with **Answer**, or decline with **Decline to answer**.
 - Resume a paused task or a batch item.
 
 ## Go further

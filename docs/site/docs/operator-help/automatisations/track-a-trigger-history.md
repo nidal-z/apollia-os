@@ -37,7 +37,7 @@ sidebar_position: 2
    - **ERROR** - the run itself failed (before even creating the task). The **reason** shows in red on a dedicated line right below.
 
 6. **Filter the list** when there are many runs:
-   - Click a **status chip** (All / Fired / Skipped / Error) to see only that status.
+   - Click a **status chip** (All / FIRED / SKIPPED / ERROR) to see only that status.
    - Use the **sort menu** at the top right of the filters to order by: Most recent (default) or Oldest.
    - The counter at the top shows the number of runs displayed vs total (e.g. `4 / 27 runs`).
    - If no run matches, a **Reset filters** button appears.

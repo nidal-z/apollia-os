@@ -14,8 +14,9 @@ Les accords demandés par les agents, les questions, les tâches en pause et les
 
 ## Ce que vous pouvez faire
 
+- Restreindre la liste avec **Tout**, **Décisions**, **Questions** ou **Éléments de lot**.
 - Accorder ou refuser un accord qu'un agent demande.
-- Répondre à une question qu'un agent vous pose.
+- Répondre à une question qu'un agent vous pose avec **Répondre**, ou décliner avec **Refuser de répondre**.
 - Reprendre une tâche en pause ou un élément de lot.
 
 ## Pour aller plus loin

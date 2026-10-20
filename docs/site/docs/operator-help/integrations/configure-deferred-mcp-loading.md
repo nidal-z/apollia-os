@@ -11,7 +11,7 @@ sidebar_position: 8
 ## Prerequisites
 
 - Apollia running with at least one MCP server connected.
-- Access to `apollia.toml` to change the configuration.
+- Access to `apollia.toml` to change the configuration. With developer mode on, the file opens in **Settings**, section **Configuration**.
 
 ## Eager vs deferred: when to pick which
 
@@ -28,7 +28,7 @@ One nuance decides how the agent reaches a tool once it has found it. The index 
 
 ## Steps - Configure the loading mode
 
-Edit `apollia.toml`:
+Edit `apollia.toml`, in a text editor or in **Settings**, section **Configuration**, with developer mode on:
 
 ```toml
 [mcp]
@@ -39,7 +39,7 @@ tool_search_limit = 20
 - `tool_loading`: `"deferred"` (default) or `"eager"`.
 - `tool_search_limit`: maximum number of tools returned by a `tool_search` call (default: `20`, bounds: `1` to `500`). It doubles as the bound below which the whole index is declared up front, so raising it declares more tools directly and costs more prompt; lowering it pushes more discovery through `tool_search`.
 
-Restart the daemon after changing it.
+Restart Apollia after changing it.
 
 ## Verification
 

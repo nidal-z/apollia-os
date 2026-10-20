@@ -87,9 +87,9 @@ L'historique des conversations et les mémoires de vos agents ne sont pas touch�
 
 ### B - Repasser le parcours guidé
 
-Dans **Réglages**, section **Général**, le bloc **Zone de danger** contient un bouton **Réinitialiser l'onboarding**. Il fait rejouer le parcours d'accueil du premier lancement.
+Dans **Réglages**, section **Général**, le bloc **Zone de danger** contient un bouton **Réinitialiser l'onboarding**. Il fait rejouer le parcours d'accueil du premier lancement au prochain démarrage.
 
-Il n'est pas neutre pour votre profil : il vide aussi ce que votre profil contient, alors même que la fenêtre annonce qu'aucune donnée n'est supprimée. Préférez le chemin A quand vous voulez seulement changer un profil.
+Il vide aussi votre profil par défaut, ses champs comme ses faits, pour que le parcours reparte de zéro ; la fenêtre le dit avant que vous confirmiez. Vos agents, conversations et modèles sont conservés. Préférez le chemin A quand vous voulez seulement changer un profil.
 
 ### C - Effacer toutes les mémoires (profils et agents)
 

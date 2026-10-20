@@ -69,15 +69,17 @@ A lock prevents two simultaneous updates.
 
 ## What happens to your data
 
-**Nothing.** The update replaces an executable, not your `~/.apollia`
-directory. Your sessions, sources, agents, memory, audit journal and
-`apollia.toml` are kept as they are.
+**Nothing is removed.** The update replaces an executable, not your
+`~/.apollia` directory. Your sessions, sources, agents, memory, audit journal
+and `apollia.toml` are kept. A new version may migrate the databases of that
+directory at its first start, as 0.3.0 does.
 
 One point to know before updating a machine you could not easily reinstall:
 **there is no rollback path**. `apollia-os update` takes no target version, it
 installs the most recent one, and nothing is provided to reinstall the previous
-one nor to bring your databases back to an earlier state. An older version
-restarted on data written by a newer one is not a tested case.
+one nor to bring your databases back to an earlier state. Once 0.3.0 has
+migrated them, 0.2.0 refuses to open a database whose schema is newer than its
+own.
 
 If you want to be able to go back, copy `~/.apollia` before the update:
 
@@ -90,6 +92,47 @@ On Windows:
 ```powershell
 Copy-Item -Recurse "$env:USERPROFILE\.apollia" "$env:USERPROFILE\.apollia.backup"
 ```
+
+## Coming from 0.2.0-preview {#coming-from-0-2-0-preview}
+
+The installers and the installed application keep the name Apollia OS, so
+0.3.0 updates a 0.2.0 installation in place rather than installing beside it;
+the window and the interface say Apollia Desktop. An installation made from a
+former `-cuda` installer is brought to the standard installer of its system,
+and the AI screen then offers the accelerated NVIDIA engine. Copy `~/.apollia`
+first, as above, if you may go back to 0.2.0.
+
+At its first start, 0.3.0 converts what 0.2.0 left, and a few things ask a
+gesture from you:
+
+- **Cloud providers.** The Anthropic, Mistral and OpenAI cloud backends are
+  deleted, and the default moves to the local engine when there is one. A
+  server you run yourself is kept. To keep reaching a hosted model, put a
+  gateway you operate in front of it (LiteLLM, for instance) and declare its
+  address on the AI screen, as in
+  [Connect a remote model](connecter-un-modele-distant.md).
+- **Projects.** Each project becomes sources grouped under its name, its
+  working folder a folder connection granted to no agent, and its conversations
+  keep their agent. Anything that could not be imported is listed in a report,
+  shown once in the app and readable with `apollia-os source report`. Grant
+  the imported folders to the agents that need them, on their sheets. See
+  [What became of projects](../projets/what-became-of-projects.md).
+- **Operator and Builder.** They are replaced by one switch, the developer
+  mode, in **Settings > Developer**, off by default. A former Builder choice
+  turns it on.
+- **Folders.** An agent with no folder granted no longer reaches your home
+  folder. Grant it a folder connection, for reading or for writing, on its
+  sheet.
+- **Standing consents.** Rules scoped to a project or a session are converted
+  once and journaled; a standing allow on a code executor, or on a tool of
+  unknown family, is removed and will be asked again.
+- **Agents written in Python.** An agent is no longer written in Python: an
+  agent that was is rewritten as a package, its mission and accesses as a
+  record, its code as tools and workflows.
+- **Configuration.** Only `~/.apollia/apollia.toml` is read. A file left in
+  the working directory or under `~/.config/apollia` is ignored, and
+  `apollia-os doctor` names it with the command that moves it. Keys that 0.3.0
+  withdrew still load, with a warning, and do nothing.
 
 ## If it does not work
 

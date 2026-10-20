@@ -116,6 +116,12 @@ apollia.example.com {
     reverse_proxy /api/v1/mailbox/stream 127.0.0.1:7771 {
         flush_interval -1
     }
+    reverse_proxy /api/v1/sessions/*/stream 127.0.0.1:7771 {
+        flush_interval -1
+    }
+    reverse_proxy /api/v1/events 127.0.0.1:7771 {
+        flush_interval -1
+    }
 }
 ```
 
@@ -131,7 +137,7 @@ server {
         proxy_set_header Authorization $http_authorization;
     }
     # SSE: unbuffered streaming
-    location ~ ^/api/v1/(tasks/.*/stream|mailbox/stream)$ {
+    location ~ ^/api/v1/(tasks/.*/stream|sessions/.*/stream|mailbox/stream|events)$ {
         proxy_pass http://127.0.0.1:7771;
         proxy_buffering off;
         proxy_cache off;
@@ -140,8 +146,9 @@ server {
 }
 ```
 
-The streaming endpoints `GET /api/v1/tasks/{id}/stream` and
-`GET /api/v1/mailbox/stream` push events as they happen. Without buffering
+The streaming endpoints `GET /api/v1/tasks/{id}/stream`,
+`GET /api/v1/sessions/{id}/stream`, `GET /api/v1/mailbox/stream` and
+`GET /api/v1/events` push events as they happen. Without buffering
 disabled, the proxy holds them until the response closes and the host sees nothing
 live. The same caution applies client-side under native TLS: do not buffer the
 response.

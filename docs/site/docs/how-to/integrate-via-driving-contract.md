@@ -38,9 +38,15 @@ which is generated from that same specification.
 
 ## Stability guarantee
 
-`/api/v1` is a versioned, stable contract. Breaking changes ship under a new
-major version (`/api/v2`); `v1` is never mutated incompatibly. You can pin your
-integration to `v1` and rely on it.
+`/api/v1` is the versioned contract, and the OpenAPI document of each release
+describes it exactly. Before 1.0, a release can still remove or change an
+operation of `v1`, and each such change is listed with its migration under
+"Breaking changes and migration" in the changelog. 0.3.0 removed the project
+routes (among them `PUT /api/v1/sessions/{id}/project` and
+`GET /api/v1/projects/{id}/sessions`, and the `project` field of
+`POST /api/v1/sessions`), the route of the resolved approvals and
+`PUT /api/v1/onboarding/profile`. Read that section before you upgrade the
+runtime under an integration.
 
 ## Authentication
 
@@ -128,7 +134,9 @@ task = get_task.sync(id=resp.task_id, client=client)
 
 Beyond submit-and-poll, the contract exposes server-sent event streams for
 long-running work: task output at `GET /api/v1/tasks/{id}/stream` and chat
-session output at `GET /api/v1/sessions/{id}/stream`. Consult the
+session output at `GET /api/v1/sessions/{id}/stream`. `GET /api/v1/events`
+streams the event bus of the runtime as a whole, for a host that follows every
+run rather than one. Consult the
 [HTTP API reference](/reference/api/apollia-os-runtime-api) for their event
 shapes.
 

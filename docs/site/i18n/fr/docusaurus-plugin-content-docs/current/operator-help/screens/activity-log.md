@@ -14,9 +14,10 @@ Le Journal liste ce que les agents ont fait et ce qui a changé dans leurs accè
 
 ## Ce que vous pouvez faire
 
-- Filtrer les entrées pour retrouver une action ou un changement.
+- Filtrer les entrées par **Agent**, **Famille**, **Nature**, **Résultat** ou **Période** pour retrouver une action ou un changement.
 - Ouvrir une entrée pour lire son détail dans le panneau de détail.
-- Exporter les entrées qui correspondent aux filtres en cours.
+- Exporter les entrées qui correspondent aux filtres en cours avec **Exporter**, en fichier CSV ou PDF.
+- Vérifier avec **Vérifier l'intégrité** qu'aucune entrée n'a été altérée.
 
 ## Pour aller plus loin
 

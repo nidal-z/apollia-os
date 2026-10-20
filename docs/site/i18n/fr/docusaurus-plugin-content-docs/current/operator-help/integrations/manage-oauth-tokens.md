@@ -69,7 +69,7 @@ Apollia rafraîchit les tokens proactivement :
 
 ## Changer les scopes d'un compte
 
-Vous ne pouvez pas. L'ensemble de scopes d'un connecteur natif est figé dans l'application : la fenêtre Google demande toujours les mêmes dix alias de scope et la fenêtre Microsoft les mêmes cinq, et il n'y a aucune case à ajuster avant de connecter. Déconnecter puis reconnecter rejoue exactement la même demande. Restreindre ce qu'Apollia peut faire se joue côté fournisseur, en bridant le client OAuth, ou en ne connectant pas le compte.
+Vous ne pouvez pas. L'ensemble de scopes d'un connecteur natif est figé dans l'application : la fenêtre Google demande toujours les mêmes dix alias de scope et la fenêtre Microsoft les mêmes six, et il n'y a aucune case à ajuster avant de connecter. Déconnecter puis reconnecter rejoue exactement la même demande. Restreindre ce qu'Apollia peut faire se joue côté fournisseur, en bridant le client OAuth, ou en ne connectant pas le compte.
 
 ## Vérification
 

@@ -10,8 +10,8 @@ Le **runner** (`apollia-runner-<backend>`) est le sidecar de reconnaissance voca
 
 Si vous voyez des messages comme :
 
-- `RUNNER_HANDSHAKE_TIMEOUT`
-- `runner sidecar not available (spawn failed)`
+- `runner handshake timeout after 10s`
+- `supervisor.runner.spawn.failed`
 
 ...le sidecar STT n'a pas pu démarrer et la dictée vocale est indisponible. Voici les causes courantes.
 
@@ -52,7 +52,7 @@ Le premier spawn du runner Metal peut prendre 5 à 15 secondes (init MTLDevice).
 
 ```sh
 apollia-os stop
-APOLLIA_LOG=debug apollia-os start 2>&1 | tee /tmp/apollia.log
+apollia-os start --debug 2>&1 | tee /tmp/apollia.log
 ```
 
 Cherchez :

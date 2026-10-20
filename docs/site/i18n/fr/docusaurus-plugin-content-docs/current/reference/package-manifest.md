@@ -74,8 +74,8 @@ une mise à jour du paquet la conserve.
 
 | Clé | Type | Sens |
 | --- | --- | --- |
-| `access` | liste de chaînes | Outils accordés par défaut : le nom d'un outil natif, `mcp:<serveur>/<outil>`, ou `pkg:<paquet>/<outil>`. Une entrée `pkg:` doit nommer un outil de ce paquet. |
-| `sources` | liste de chaînes | Sources cochées par défaut. `"profile"` laisse l'agent lire le profil de l'utilisateur. |
+| `access` | liste de chaînes | Outils accordés par défaut : le nom d'un outil natif, `mcp:<serveur>/<outil>`, ou `pkg:<paquet>/<outil>`. Une entrée `pkg:` doit nommer un outil de ce paquet. `agent:<id>` et `workflow:<paquet>/<workflow>` permettent à l'agent d'appeler un autre agent ou un workflow, chacun lui étant proposé comme un outil de plus. Rien de ce que la liste ne nomme pas n'est proposé à l'agent. |
+| `sources` | liste de chaînes | Sources cochées par défaut. `"profile"` laisse l'agent lire le profil de l'utilisateur par `ctx.profile` ; `"memory"` ouvre sa mémoire, en lecture et en écriture. Toute autre entrée est un identifiant de source, tel que `apollia-os source list` l'affiche. |
 | `autonomy` | chaîne | Palier d'autonomie : `assisted`, `supervised`, `bounded_autonomous` ou `long_autonomous`. Sans elle, le défaut global s'applique. |
 | `planning` | chaîne | Si l'agent planifie une tâche avant d'agir : `never`, `auto` ou `always`. Sans elle, `auto`. |
 
@@ -154,6 +154,11 @@ Les clés, leurs défauts et leur sens sont ceux d'un serveur de `mcp.toml`.
 | `max_response_bytes` | entier | `8388608` | Plafond d'une réponse du serveur. |
 | `max_tools` | entier | `256` | Plafond des outils retenus de `tools/list`. |
 | `tags` | liste de chaînes | vide | Étiquettes appliquées à chaque outil du serveur. |
+
+Un serveur ne porte aucun réglage d'approbation. `requires_approval`, une clé
+des versions précédentes, est encore lue, journalise un avertissement
+`package.manifest.retired_key` et n'a aucun effet : qu'un appel à l'un de ses
+outils demande d'abord se décide sur la famille d'action de cet outil.
 
 ## `[pip]`
 

@@ -41,10 +41,15 @@ partir de cette même spécification.
 
 ## Garantie de stabilité
 
-`/api/v1` est un contrat versionné et stable. Les changements incompatibles
-sont livrés sous une nouvelle version majeure (`/api/v2`) ; `v1` n'est jamais
-modifiée de façon incompatible. Vous pouvez figer votre intégration sur `v1`
-et vous y fier.
+`/api/v1` est le contrat versionné, et le document OpenAPI de chaque version
+le décrit exactement. Avant la 1.0, une version peut encore retirer ou changer
+une opération de `v1`, et chacun de ces changements est listé avec sa migration
+sous « Breaking changes and migration » dans le journal des modifications. La
+0.3.0 a retiré les routes des projets (dont `PUT /api/v1/sessions/{id}/project`
+et `GET /api/v1/projects/{id}/sessions`, et le champ `project` de
+`POST /api/v1/sessions`), la route des approbations résolues et
+`PUT /api/v1/onboarding/profile`. Lisez cette section avant de mettre à jour le
+runtime sous une intégration.
 
 ## Authentification
 
@@ -136,7 +141,9 @@ task = get_task.sync(id=resp.task_id, client=client)
 Au-delà du modèle soumettre-puis-interroger, le contrat expose des flux
 d'événements serveur (server-sent events) pour les traitements longs : la
 sortie d'une tâche à `GET /api/v1/tasks/{id}/stream` et la sortie d'une
-session de chat à `GET /api/v1/sessions/{id}/stream`. Consultez la
+session de chat à `GET /api/v1/sessions/{id}/stream`. `GET /api/v1/events`
+diffuse le bus d'événements du runtime tout entier, pour un hôte qui suit chaque
+exécution plutôt qu'une seule. Consultez la
 [référence de l'API HTTP](/reference/api/apollia-os-runtime-api) pour la
 forme de leurs événements.
 

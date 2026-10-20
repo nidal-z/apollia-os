@@ -44,11 +44,12 @@ and explicit. The agent can only use what your server advertises.
 
 Register your server with the runtime and confirm its tools are discovered. Once
 connected, an agent running inside Apollia invokes your MCP tools through its
-tool interface (tool names are namespaced with an `mcp:` prefix). Those calls go
-through the same governed path as native tools, so they are subject to
-permissions and land in the audit trail.
+tool interface (tool names take the form `mcp:<server>/<tool>`). A tool is
+offered to an agent only when its access list grants it, on the sheet of the
+agent or in its package. Those calls go through the same governed path as
+native tools, so they are subject to permissions and land in the audit trail.
 
-For the desktop setup details, see the operator help (in French) on
+For the desktop setup details, see the operator help on
 [connecting an MCP server](/operator-help/integrations/connect-an-mcp-server)
 and [wiring your own MCP server](/operator-help/integrations/wire-your-own-mcp-server).
 

@@ -14,9 +14,9 @@ L'écran Observabilité réunit la chronologie des exécutions, le coût des mod
 
 ## Ce que vous pouvez faire
 
-- Suivre une exécution dans la chronologie.
-- Surveiller ce que coûtent les modèles.
-- Lire les messages échangés par les agents, dans l'onglet Messagerie.
+- Suivre une exécution dans l'onglet **Chronologie**.
+- Surveiller ce que coûtent les modèles, dans l'onglet **Coûts LLM**.
+- Lire les messages échangés par les agents, dans l'onglet **Messagerie**.
 
 ## Pour aller plus loin
 

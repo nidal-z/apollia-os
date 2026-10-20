@@ -14,8 +14,8 @@ Le Chat est l'endroit où le travail se demande et se suit. Une conversation se 
 
 ## Ce que vous pouvez faire
 
-- Choisir l'agent ou le modèle qui répond, depuis le sélecteur de la barre du haut.
-- Suivre ce que fait un agent pendant qu'il travaille, étape par étape, dans le panneau Étapes.
+- Choisir l'agent ou le modèle qui répond, depuis le sélecteur en haut de la conversation, **Choisir un agent ou un modèle**.
+- Suivre ce que fait un agent pendant qu'il travaille, étape par étape, dans le panneau **Étapes**.
 - Répondre à un accord qu'un agent demande, directement dans la conversation.
 
 ## Pour aller plus loin

@@ -39,7 +39,7 @@ Sovereign means self-contained, not feature-poor. The runtime is a single binary
 
 **Key capabilities:**
 
-- **Local-first LLM inference** - run GGUF models locally through the embedded `llama-server` (CPU, Metal, Vulkan, CUDA depending on the platform), or connect to an OpenAI-compatible server or to Ollama
+- **Local-first LLM inference** - run GGUF models locally through the embedded `llama-server` (CPU, Metal, Vulkan, CUDA depending on the platform) and, on Apple Silicon, MLX models through the bundled MLX engine; or connect to any OpenAI-compatible server, Ollama included
 - **Persistent memory** - one SQLite memory space per agent, with FTS5 full-text search. An agent whose Memory source is checked reads it with the `memory_search` tool and writes it with `memory_write`; nothing is injected into its prompt
 - **Native tools** - bash (Linux PID/mount namespaces), path-confined file I/O, Python execution with per-agent venv isolation, HTTP fetch, web search, and more
 - **Step budget** - `max_steps` / `max_tool_calls` / wall-clock timeout enforced at the runtime level, not bypassable by agent code
@@ -56,17 +56,38 @@ Sovereign means self-contained, not feature-poor. The runtime is a single binary
 
 Three ways in, and most people want the first.
 
-**Install Apollia Desktop, the application.** Installers are attached to each GitHub
-release: a `.dmg` for macOS Apple Silicon, an `.msi` or `.exe` for Windows
-x86-64, an `.AppImage` or `.deb` for Linux x86-64: one installer per system.
-No compiler, no checkout, no command line. The step by step,
-including the checksum verification and the first-launch warnings, is in
+**Install Apollia Desktop, the application.** Installers are attached to each
+[GitHub release](https://github.com/Apollia-OS/apollia-os/releases), one per
+system. No compiler, no checkout, no command line.
+
+| System | Installer |
+|---|---|
+| macOS 13 or later, Apple Silicon | `Apollia-OS_<version>_aarch64.dmg` |
+| Windows x86-64 | `Apollia-OS_<version>_x64_en-US.msi` or `Apollia-OS_<version>_x64-setup.exe` |
+| Linux x86-64 | `Apollia-OS_<version>_amd64.AppImage` or `Apollia-OS_<version>_amd64.deb` |
+
+The files, and the installed application (`Apollia OS.app`, the **Apollia OS**
+menu entry), keep the name Apollia OS; the window says Apollia Desktop. There
+is no separate installer for NVIDIA cards: the AI screen offers the accelerated
+engine when it detects one. At first launch, the application asks where the AI
+runs (a model it downloads to this computer, or an OpenAI-compatible server you
+already use), then helps you install, create or pick an example agent, and
+closes on that agent at work. The step by step, including the checksum
+verification and the first-launch warnings, is in
 [Install the desktop app](https://docs.apollia.fr/how-to/install-the-desktop-app/).
+
+**Coming from 0.2.0-preview.** 0.3.0 updates the installed application in
+place and migrates the databases under `~/.apollia` at its first start; 0.2.0
+cannot open them afterwards, so copy that folder first if you may go back. The
+dedicated cloud providers are removed: a hosted model is reached through an
+OpenAI-compatible gateway you operate. What else changes is in the
+[changelog](CHANGELOG.md) and in
+[Update Apollia](https://docs.apollia.fr/operator-help/installation/update-apollia/).
 
 **Install the command-line runtime.** The same releases attach a self-contained
 archive per platform preset (`apollia-os-macos-silicon.tar.gz`,
 `apollia-os-linux-x86-cpu.tar.gz`, `apollia-os-windows-x86-cpu.zip`, and their
-Vulkan and Linux ARM counterparts). Unpack it, put `apollia-os` on your `PATH`,
+Vulkan and Linux ARM counterparts, attached when their build succeeds). Unpack it, put `apollia-os` on your `PATH`,
 and `apollia-os update` handles later versions from the same feed.
 
 Apollia publishes no package on crates.io or PyPI, so the third way in is a
@@ -194,7 +215,7 @@ an NVIDIA card.
 
 | Platform | Local inference | Tool sandbox | Notes |
 |----------|-----------------|--------------|-------|
-| macOS Apple Silicon | Metal | `setrlimit` | Desktop `.dmg` and CLI archive |
+| macOS Apple Silicon | Metal; MLX models on the bundled MLX engine (macOS 14 or later) | `setrlimit` | Desktop `.dmg` and CLI archive |
 | Linux x86_64 | Vulkan, CPU, plus CUDA downloaded on demand by the desktop app | PID + mount namespaces, `setrlimit` | Strongest isolation of the four |
 | Windows x86_64 | Vulkan, CPU, plus CUDA downloaded on demand by the desktop app | none | `bash_executor` needs a POSIX shell on `PATH` (Git Bash, WSL or MSYS2) |
 | Linux aarch64 | CPU | PID + mount namespaces, `setrlimit` | CLI archive only, no desktop bundle |
@@ -219,10 +240,11 @@ you whether one is there.
 ## LLM Backends
 
 Apollia serves local GGUF models through an embedded `llama-server` that the
-daemon spawns and supervises, and reaches two kinds of external server: any
-OpenAI-compatible endpoint at an address you designate (LM Studio, vLLM, a
-self-hosted gateway) and Ollama. There is no dedicated backend per cloud
-vendor. A local model is the default; an external server is a choice you make,
+daemon spawns and supervises, and, in the macOS Apple Silicon desktop bundle,
+MLX models through vllm-mlx; the format of a model picks the engine. It reaches
+one kind of external server: any OpenAI-compatible endpoint at an address you
+designate (Ollama, LM Studio, vLLM, a self-hosted gateway such as LiteLLM).
+There is no dedicated backend per cloud vendor. A local model is the default; an external server is a choice you make,
 per agent or per conversation.
 
 Declaring a backend:

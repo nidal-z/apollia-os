@@ -6,8 +6,15 @@ description: Des leçons qui vous mènent de bout en bout, du premier agent à u
 
 # Tutoriels
 
-Des leçons orientées apprentissage qui vous font aller de bout en bout.
-Commencez ici si vous découvrez Apollia.
+Des leçons orientées apprentissage qui vous font aller de bout en bout. Elles
+s'adressent à qui construit des paquets, avec la ligne de commande et un
+éditeur de code.
+
+Pour utiliser Apollia sans écrire de code, ces leçons ne sont pas la porte
+d'entrée : installez l'application avec
+[Installer Apollia Desktop](/how-to/install-the-desktop-app), dont le premier
+lancement se termine sur un premier agent au travail, puis suivez le
+[centre d'aide](/operator-help).
 
 ## Leçons
 

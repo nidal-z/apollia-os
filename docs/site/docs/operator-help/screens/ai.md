@@ -10,13 +10,13 @@ sidebar_position: 5
 
 ## What it is for
 
-The AI screen shows the models loaded in memory, the models installed on this machine, and the servers that make the models of your organisation available without installing them here.
+The AI screen shows the models loaded in memory (**Loaded**), the models installed on this machine (**On this computer**), and, under **Servers**, the servers that make the models of your organisation available without installing them here.
 
 ## What you can do
 
-- Discover a model suited to this machine, or import a model file you already have.
-- Free the memory a loaded model holds.
-- Add the AI server of your organisation and test it.
+- Find a model suited to this machine with **Discover models**, or bring in a model file you already have with **Import a file**.
+- Free the memory a loaded model holds with **Unload**, or keep it loaded with **Keep in memory**.
+- Add the AI server of your organisation with **Add a server**, then check it answers with **Test**.
 
 ## Go further
 

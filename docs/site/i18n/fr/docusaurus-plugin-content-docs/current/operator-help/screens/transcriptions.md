@@ -15,7 +15,7 @@ L'écran Transcriptions garde ce que vous avez dicté et ce qui a été transcri
 ## Ce que vous pouvez faire
 
 - Relire une dictée passée.
-- Transcrire un fichier audio.
+- Transcrire un fichier audio avec **Transcrire un fichier**.
 - Supprimer une transcription.
 
 ## Pour aller plus loin

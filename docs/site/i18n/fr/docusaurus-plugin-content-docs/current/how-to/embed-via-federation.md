@@ -51,12 +51,13 @@ que ce que votre serveur annonce.
 Enregistrez votre serveur auprès du runtime et vérifiez que ses outils sont
 bien découverts. Une fois connecté, un agent exécuté à l'intérieur d'Apollia
 invoque vos outils MCP via son interface d'outils (les noms d'outils sont
-préfixés par un espace de noms `mcp:`). Ces appels passent par le même chemin
-gouverné que les outils natifs : ils sont donc soumis aux permissions et
-consignés dans le journal d'audit.
+de la forme `mcp:<serveur>/<outil>`). Un outil n'est proposé à un agent que si
+sa liste d'accès l'accorde, sur la fiche de l'agent ou dans son paquet. Ces
+appels passent par le même chemin gouverné que les outils natifs : ils sont donc
+soumis aux permissions et consignés dans le journal d'audit.
 
 Pour le détail de la configuration côté desktop, consultez l'aide opérateur
-(en français) sur
+sur
 [la connexion d'un serveur MCP](/operator-help/integrations/connect-an-mcp-server)
 et [le câblage de votre propre serveur MCP](/operator-help/integrations/wire-your-own-mcp-server).
 

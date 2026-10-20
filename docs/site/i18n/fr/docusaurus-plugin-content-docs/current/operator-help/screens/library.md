@@ -14,9 +14,10 @@ La Bibliothèque liste ce qui a été installé sur ce poste : agents, workflows
 
 ## Ce que vous pouvez faire
 
-- Installer un paquet.
-- Lire qui a publié un élément et si sa signature tient.
-- Voir ce qu'un paquet a apporté.
+- Installer un paquet avec **Installer un paquet**.
+- Lire qui a publié un élément et si sa signature tient (**Signé** ou **Non signé**).
+- Voir ce qu'un paquet a apporté, sous **Contenu**.
+- Mettre à jour ou retirer un paquet avec **Mettre à jour…** ou **Désinstaller…**. Les agents fournis avec Apollia ne se désinstallent pas.
 
 ## Pour aller plus loin
 

@@ -64,7 +64,7 @@ Si l'une des deux moitiés manque, Apollia refuse la connexion avant d'ouvrir vo
 
 3. Choisissez le compte Google à utiliser, puis acceptez les autorisations proposées (Mail, Calendar, Drive Workspace, etc.).
 
-4. De retour dans Apollia, la fenêtre détecte automatiquement le retour. Une seconde étape vous propose le dossier racine Drive de l'agent (défaut **Apollia**). Validez en cliquant **Enregistrer** (ou **Défaut** pour garder la valeur proposée).
+4. De retour dans Apollia, la fenêtre détecte automatiquement le retour. Une seconde étape vous propose le dossier racine Drive de l'agent (défaut **Apollia**). Validez en cliquant **Enregistrer** (ou **Garder le défaut** pour garder la valeur proposée).
 
 5. La fenêtre confirme que Google Workspace est ajouté, avec **Essayer** et **Terminé**. Votre compte apparaît sous l'onglet **Comptes** de la fiche.
 

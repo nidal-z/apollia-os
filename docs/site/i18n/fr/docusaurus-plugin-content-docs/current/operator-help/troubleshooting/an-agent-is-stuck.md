@@ -52,7 +52,7 @@ Certains agents peuvent rester coincés sur une étape qu'ils retentent sans fin
 
 ### 5a. L'agent prend plus de temps que prévu en palier supervised ou bounded_autonomous
 
-En palier `supervised` ou `bounded_autonomous`, l'agent contrôle son travail après l'exécution et tente une auto-correction si nécessaire. Cela allonge la durée apparente avant que l'agent se déclare terminé. C'est un comportement normal, pas un blocage.
+En palier `supervised`, `bounded_autonomous` ou `long_autonomous`, l'agent contrôle son travail après l'exécution et tente une auto-correction si nécessaire. Cela allonge la durée apparente avant que l'agent se déclare terminé. C'est un comportement normal, pas un blocage.
 
 Si la durée vous semble excessive, ouvrez le panneau **Logs** (voir [Consulter les logs d'un agent](../agents/view-an-agent-logs.md)). La vérification n'a pas de statut propre : la tâche reste **EN COURS** pendant que l'agent contrôle son travail. Ce qui vous signale une boucle qui ne converge pas, c'est une tâche qui reste en cours bien au-delà du moment où son résultat aurait dû tomber. Arrêtez le travail, puis reformulez les instructions.
 
@@ -69,6 +69,6 @@ L'agent peut requérir une connexion qui n'est pas en place, un fichier introuva
 
 1. Arrêtez le travail dans sa conversation, puis redemandez avec une requête plus courte et plus précise.
 2. Si le blocage se reproduit immédiatement, ouvrez l'agent dans **Agents** et relisez sa fiche : sa mission, son modèle, ses accès et ses sources.
-3. **Récupérer les logs pour le support** : ouvrez le panneau **Logs** de l'agent et cliquez sur **Copier les logs** dans son en-tête, à côté de **Actualiser**. Les tâches actuellement affichées (filtres et recherche pris en compte) sont copiées dans le presse-papiers au format texte, prêtes à coller dans un signalement. Un message confirme le nombre de tâches copiées.
+3. **Récupérer les logs pour le support** : ouvrez le panneau **Logs** de l'agent et cliquez sur l'icône **Copier les logs** dans son en-tête, à côté de l'icône **Actualiser** (survolez une icône pour lire son nom). Les tâches actuellement affichées (filtres et recherche pris en compte) sont copiées dans le presse-papiers au format texte, prêtes à coller dans un signalement. Un message confirme le nombre de tâches copiées.
 
 > **Référence technique :** [Référence Apollia](/reference).

@@ -8,9 +8,11 @@ title: Environment variables
 What the runtime reads from its environment, and what it does with it. The
 tables below cover the `APOLLIA_*` names Apollia defines. Apollia also reads
 standard variables it does not own, where their usual meaning applies:
-`XDG_CONFIG_HOME` and `EDITOR` when the CLI resolves or edits `apollia.toml`,
-`NO_COLOR` for terminal output, `PATH` when it looks for a binary, `TZ`, and
-`USERNAME` on Windows to derive the named pipe. A cloud backend reads whatever
+`EDITOR` when `apollia-os config edit` opens `apollia.toml`, `XDG_CONFIG_HOME`
+when `apollia-os doctor` looks for a configuration file left in a former place
+and when `apollia-os service install` writes a systemd user unit, `NO_COLOR` for
+terminal output, `PATH` when it looks for a binary, `TZ`, and `USERNAME` on
+Windows to derive the named pipe. An OpenAI-compatible backend reads whatever
 variable its `api_key_env` names.
 
 Most configuration belongs in `apollia.toml`, see
@@ -32,7 +34,7 @@ tune and why.
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | planned, else `999` | Layers offloaded to the GPU; `0` forces CPU. Left unset, the daemon plans the count from the model file on a discrete GPU, and passes `999` on Apple Silicon or with no GPU. |
 | `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
 | `APOLLIA_LLAMA_N_UBATCH` | engine default | Physical micro-batch size. |
-| `APOLLIA_LLAMA_N_PARALLEL` | `1` | Decode slots served concurrently. |
+| `APOLLIA_LLAMA_N_PARALLEL` | planned | Decode slots served concurrently. Unset, the count is planned from the model and the memory, up to `8`; set, it is used as given. |
 | `APOLLIA_LLAMA_CONT_BATCHING` | `true` | Continuous batching. |
 | `APOLLIA_LLAMA_CACHE_TYPE_K` | engine default | KV cache quantization, keys. |
 | `APOLLIA_LLAMA_CACHE_TYPE_V` | engine default | KV cache quantization, values. |

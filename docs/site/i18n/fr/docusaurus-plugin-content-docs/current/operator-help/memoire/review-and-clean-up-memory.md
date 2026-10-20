@@ -49,7 +49,7 @@ La suite de cette page couvre l'écran **Mémoire**. C'est l'un des écrans tech
 2. **Sidebar gauche** - la liste des **namespaces** (un namespace = un espace mémoire isolé). Chaque namespace est classifié automatiquement :
    - **Profil** : votre profil utilisateur partagé (`__user__`). En lecture seule depuis cette page - l'édition se fait dans **Réglages**, section **Profil**. Une bannière le rappelle quand vous sélectionnez `__user__`.
    - **Agents** : namespaces d'agents installés (un par agent - ex: `veille-ia`, `email-triage`).
-   - **Projets** : namespaces scopés à un projet (format `{project_id}:{ns}`).
+   - **Projets** : namespaces d'un ancien projet (format `{project_id}:{ns}`). Les projets sont devenus des sources dans cette version : la mise à jour fusionne chacun de ces espaces dans l'espace du même nom, voir [Ce que sont devenus les projets](../projets/what-became-of-projects.md).
    - **Autres** : namespaces legacy ou d'agents désinstallés.
 
    Un **segmented control** en haut permet de filtrer la liste par catégorie. Un champ **Filtrer…** permet de retrouver un namespace par nom.

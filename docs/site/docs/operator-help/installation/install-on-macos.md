@@ -20,7 +20,7 @@ for this platform:
 
 ## Requirements
 
-- macOS 13 (Ventura) or newer.
+- macOS 13 (Ventura) or newer; models in the MLX format need macOS 14 or newer.
 - Apple Silicon (M1, M2, M3, M4). Intel Macs are not supported: no installer is published for them.
 - 4 GB of free RAM minimum. The models offered at first launch are ranked for your machine; 8 GB is a comfortable floor for a model of 8 billion parameters.
 - 10 GB of disk space for the bundle + one quantized model.
@@ -74,9 +74,13 @@ Windows and Linux differ here: the close button quits outright on both.
 The macOS bundle contains:
 
 - `llama-server`: the local LLM inference engine (GGUF models, Metal acceleration). The daemon starts and supervises it automatically.
+- the MLX engine, vllm-mlx, run on the embedded Python interpreter: it serves models in the MLX format on Apple Silicon.
 - `apollia-runner-metal` and `apollia-runner-cpu`: the speech-to-text runner (STT, whisper), with Metal acceleration or CPU fallback.
 
-The daemon selects Metal acceleration automatically at startup.
+The daemon selects Metal acceleration automatically at startup. The engine of a
+model follows its format, GGUF on `llama-server`, MLX on vllm-mlx; **System >
+Engines**, in the settings, shows each engine with its version and can change
+the engine of a format.
 
 ## Update
 

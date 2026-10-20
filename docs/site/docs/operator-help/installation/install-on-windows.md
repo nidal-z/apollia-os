@@ -31,8 +31,9 @@ Every file below is attached to each release on the publication page,
    (Apollia), the version and the dual MIT / Apache-2.0 licence.
 3. The app shows up in the Start menu.
 
-The installer is not signed with an Authenticode certificate yet, so SmartScreen
-warns about an unrecognised publisher: choose **More info**, then **Run anyway**.
+The release pipeline signs the installers with an Authenticode certificate only
+when it holds one. On an unsigned installer, SmartScreen warns about an
+unrecognised publisher: choose **More info**, then **Run anyway**.
 
 The Windows firewall will ask you to allow `apollia-os.exe`, the `llama-server.exe` inference engine and `apollia-runner-*.exe` (speech-to-text) on first launch: **allow them on private networks** (these components talk to the daemon over loopback 127.0.0.1).
 

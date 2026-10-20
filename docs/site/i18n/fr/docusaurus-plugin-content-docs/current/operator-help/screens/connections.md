@@ -14,9 +14,9 @@ Une connexion donne aux agents des outils pour travailler avec l'un de vos servi
 
 ## Ce que vous pouvez faire
 
-- Ajouter une connexion depuis la sélection d'Apollia ou le catalogue public, ou en ajouter une personnalisée.
-- Connecter un compte et tester la connexion.
-- Activer ou désactiver les outils intégrés : recherche web, lecture de page, exécution de code.
+- Ouvrir **Ajouter une connexion**, puis en choisir une dans la sélection d'Apollia, parcourir le catalogue public avec **Explorer tout**, ou décrire la vôtre dans **Connexion personnalisée**.
+- Connecter un compte avec **Connecter un compte**, et vérifier une connexion avec **Tester**.
+- Activer ou désactiver les outils intégrés dans **Apollia, outils intégrés** : recherche web, lecture de page, exécution de code.
 
 ## Pour aller plus loin
 

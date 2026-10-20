@@ -70,16 +70,17 @@ Un verrou empêche deux mises à jour simultanées.
 
 ## Ce qui arrive à vos données
 
-**Rien.** La mise à jour remplace un exécutable, pas votre répertoire
-`~/.apollia`. Vos sessions, sources, agents, mémoire, journal d'audit et
-`apollia.toml` sont conservés tels quels.
+**Rien n'est supprimé.** La mise à jour remplace un exécutable, pas votre
+répertoire `~/.apollia`. Vos sessions, sources, agents, mémoire, journal
+d'audit et `apollia.toml` sont conservés. Une nouvelle version peut migrer les
+bases de ce répertoire à son premier démarrage, comme le fait la 0.3.0.
 
 Un point à connaître avant de mettre à jour un poste que vous ne pourrez pas
 réinstaller facilement : **il n'existe pas de chemin de retour arrière**.
 `apollia-os update` ne prend pas de version cible, il installe la plus récente,
 et rien n'est prévu pour réinstaller la précédente ni pour ramener vos bases à un
-état antérieur. Une version plus ancienne relancée sur des données écrites par
-une plus récente n'est pas un cas testé.
+état antérieur. Une fois que la 0.3.0 les a migrées, la 0.2.0 refuse d'ouvrir
+une base dont le schéma est plus récent que le sien.
 
 Si vous voulez pouvoir revenir en arrière, copiez `~/.apollia` avant la mise à
 jour :
@@ -93,6 +94,49 @@ Sur Windows :
 ```powershell
 Copy-Item -Recurse "$env:USERPROFILE\.apollia" "$env:USERPROFILE\.apollia.backup"
 ```
+
+## Depuis la 0.2.0-preview {#coming-from-0-2-0-preview}
+
+Les installeurs et l'application installée gardent le nom Apollia OS : la 0.3.0
+met donc à jour sur place une installation 0.2.0 au lieu de s'installer à côté ;
+la fenêtre et l'interface disent Apollia Desktop. Une installation faite depuis
+un ancien installeur `-cuda` est amenée à l'installeur standard de son système,
+et l'écran IA propose ensuite le moteur accéléré NVIDIA. Copiez d'abord
+`~/.apollia`, comme ci-dessus, si vous risquez de revenir à la 0.2.0.
+
+À son premier démarrage, la 0.3.0 convertit ce que la 0.2.0 a laissé, et
+quelques points demandent un geste de votre part :
+
+- **Fournisseurs cloud.** Les backends cloud Anthropic, Mistral et OpenAI sont
+  supprimés, et le modèle par défaut passe au moteur local quand il y en a un.
+  Un serveur que vous exploitez vous-même est conservé. Pour continuer à
+  joindre un modèle hébergé, placez devant lui une passerelle que vous exploitez
+  (LiteLLM, par exemple) et déclarez son adresse dans l'écran IA, comme dans
+  [Connecter un modèle distant](connecter-un-modele-distant.md).
+- **Projets.** Chaque projet devient des sources regroupées sous son nom, son
+  dossier de travail une connexion de dossier accordée à aucun agent, et ses
+  conversations gardent leur agent. Ce qui n'a pas pu être importé est listé
+  dans un rapport, affiché une fois dans l'application et lisible avec
+  `apollia-os source report`. Accordez les dossiers importés aux agents qui en
+  ont besoin, sur leur fiche. Voir
+  [Ce que sont devenus les projets](../projets/what-became-of-projects.md).
+- **Opérateur et Builder.** Ils sont remplacés par un seul interrupteur, le
+  mode développeur, dans **Réglages > Développeur**, désactivé par défaut. Un
+  ancien choix Builder l'active.
+- **Dossiers.** Un agent sans dossier accordé n'atteint plus votre dossier
+  personnel. Accordez-lui une connexion de dossier, en lecture ou en écriture,
+  sur sa fiche.
+- **Consentements permanents.** Les règles limitées à un projet ou à une
+  session sont converties une fois et journalisées ; une autorisation
+  permanente sur un exécuteur de code, ou sur un outil de famille inconnue, est
+  retirée et sera demandée à nouveau.
+- **Agents écrits en Python.** Un agent ne s'écrit plus en Python : un agent
+  qui l'était se réécrit en paquet, sa mission et ses accès comme une fiche, son
+  code comme des outils et des workflows.
+- **Configuration.** Seul `~/.apollia/apollia.toml` est lu. Un fichier laissé
+  dans le répertoire de travail ou sous `~/.config/apollia` est ignoré, et
+  `apollia-os doctor` le nomme avec la commande qui le déplace. Les clés que la
+  0.3.0 a retirées se chargent encore, avec un avertissement, et ne font rien.
 
 ## Si ça ne marche pas
 

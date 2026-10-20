@@ -8,10 +8,13 @@ title: Variables d'environnement
 Ce que le runtime lit dans son environnement, et ce qu'il en fait. Les tableaux
 ci-dessous couvrent les noms `APOLLIA_*` définis par Apollia. Apollia lit aussi
 des variables standard qui ne lui appartiennent pas, là où leur sens habituel
-s'applique : `XDG_CONFIG_HOME` et `EDITOR` quand la ligne de commande résout ou
-édite `apollia.toml`, `NO_COLOR` pour la sortie terminal, `PATH` quand elle
+s'applique : `EDITOR` quand `apollia-os config edit` ouvre `apollia.toml`,
+`XDG_CONFIG_HOME` quand `apollia-os doctor` cherche un fichier de configuration
+resté à un ancien emplacement et quand `apollia-os service install` écrit une
+unité utilisateur systemd, `NO_COLOR` pour la sortie terminal, `PATH` quand elle
 cherche un binaire, `TZ`, et `USERNAME` sous Windows pour dériver le nom du
-tuyau nommé. Un backend distant lit la variable que nomme son `api_key_env`.
+tuyau nommé. Un backend compatible OpenAI lit la variable que nomme son
+`api_key_env`.
 
 L'essentiel de la configuration a sa place dans `apollia.toml`, voir
 [Configuration](/reference/configuration). Les variables d'environnement
@@ -33,7 +36,7 @@ quoi régler et pourquoi.
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | calculé, sinon `999` | Nombre de couches déchargées sur le GPU ; `0` force l'exécution sur CPU. Non définie, le daemon calcule ce nombre à partir du fichier du modèle sur un GPU dédié, et transmet `999` sur Apple Silicon ou sans GPU. |
 | `APOLLIA_LLAMA_N_BATCH` | valeur par défaut du moteur | Taille de batch logique. |
 | `APOLLIA_LLAMA_N_UBATCH` | valeur par défaut du moteur | Taille de micro-batch physique. |
-| `APOLLIA_LLAMA_N_PARALLEL` | `1` | Nombre d'emplacements de décodage servis en parallèle. |
+| `APOLLIA_LLAMA_N_PARALLEL` | planifié | Nombre d'emplacements de décodage servis en parallèle. Non définie, le nombre est planifié d'après le modèle et la mémoire, jusqu'à `8` ; définie, elle est prise telle quelle. |
 | `APOLLIA_LLAMA_CONT_BATCHING` | `true` | Batching continu. |
 | `APOLLIA_LLAMA_CACHE_TYPE_K` | valeur par défaut du moteur | Quantification du cache KV, clés. |
 | `APOLLIA_LLAMA_CACHE_TYPE_V` | valeur par défaut du moteur | Quantification du cache KV, valeurs. |

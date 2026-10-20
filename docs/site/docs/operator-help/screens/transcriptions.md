@@ -15,7 +15,7 @@ The Transcriptions screen keeps what you dictated and what was transcribed from 
 ## What you can do
 
 - Read a past dictation again.
-- Transcribe an audio file.
+- Transcribe an audio file with **Transcribe a file**.
 - Delete a transcription.
 
 ## Go further

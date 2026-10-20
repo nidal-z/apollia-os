@@ -6,12 +6,12 @@ sidebar_position: 7
 
 # Configurer le routage hybride local + frontier
 
-> Pour toute personne qui veut combiner un modèle local rapide pour les étapes simples et un modèle cloud puissant pour les étapes complexes, avec un plafond de coût automatique.
+> Pour toute personne qui veut combiner un modèle local rapide pour les étapes simples et un modèle plus capable, sur un serveur, pour les étapes complexes, avec un plafond de coût automatique.
 
 ## Prérequis
 
 - Au moins un backend pour le côté par défaut, un modèle `.gguf` servi par le moteur embarqué `llama-server`. Voir [Télécharger des modèles locaux](telecharger-des-modeles-locaux.md). Un serveur Ollama n'a pas sa place dans ce rôle : Apollia l'atteint en HTTP comme n'importe quel point de terminaison compatible OpenAI, c'est donc un backend distant même s'il tourne sur votre propre réseau.
-- Au moins un backend cloud (frontier) déclaré. Voir [Connecter un modèle distant](connecter-un-modele-distant.md).
+- Au moins un backend frontier déclaré : un serveur compatible OpenAI. Apollia n'a plus de fournisseur cloud dédié depuis la 0.3.0, un modèle hébergé se joint donc par une passerelle que vous exploitez, comme LiteLLM. Voir [Connecter un modèle distant](connecter-un-modele-distant.md).
 - Le nom exact de chaque backend tel que vous l'avez nommé lors de la configuration.
 
 ## Comportement du routage hybride
@@ -20,7 +20,7 @@ Le routeur hybride achemine chaque étape de raisonnement de l'agent selon sa co
 
 1. Les étapes simples (récupération d'information, formatage, appels d'outils directs) sont traitées par le backend par défaut.
 2. Les étapes complexes (raisonnement multi-sauts, synthèse longue, jugement incertain) sont escaladées vers le backend frontier.
-3. Quand le cumul de coût cloud atteint `cost_ceiling_usd`, toutes les étapes restantes sont traitées par le backend par défaut, quel que soit leur niveau de complexité.
+3. Quand le cumul de coût estimé pour le frontier atteint `cost_ceiling_usd`, toutes les étapes restantes sont traitées par le backend par défaut, quel que soit leur niveau de complexité.
 
 Le routeur ne garantit pas une coupure nette à l'euro près : les étapes déjà en cours au moment du dépassement se terminent sur le backend qui les a commencées.
 
@@ -46,8 +46,8 @@ Le même fichier doit déjà porter une section `[llm]` avec une clé `default` 
 moins une entrée `[[llm.backends]]` ; les deux sont requises également.
 
 - `precise` et `fast` : noms des backends utilisés pour le raisonnement profond et pour l'extraction légère. Les deux sont requis, et les deux doivent correspondre à un backend déclaré.
-- `frontier` : nom exact du backend cloud déclaré dans `[llm.backends]`. La valeur ne peut pas être vide.
-- `cost_ceiling_usd` : plafond en dollars US par session de routing. Mettez une valeur strictement positive.
+- `frontier` : nom exact du backend frontier déclaré dans `[llm.backends]`. La valeur ne peut pas être vide.
+- `cost_ceiling_usd` : plafond en dollars US par session de routing. Mettez une valeur strictement positive. Le coût d'un appel est estimé d'après une table de tarifs intégrée à Apollia, par nom de modèle ; un modèle que la table ne connaît pas compte pour zéro, et le plafond ne se déclenche donc jamais pour lui.
 <!-- claim:hybrid-ceiling-action-decides-the-outcome -->
 - `ceiling_action` : ce qui se passe au franchissement du plafond. `stay_local`, la valeur par défaut, poursuit l'exécution sur le backend local, silencieusement dégradée. `hard_stop` termine proprement l'exécution avec une erreur structurée. Choisissez `hard_stop` quand une réponse locale non signalée serait pire que pas de réponse.
 
@@ -55,8 +55,10 @@ Redémarrez le daemon après modification.
 
 ## Vérification
 
-Le daemon ne valide pas cette section au démarrage, et il n'affiche rien qui
-nomme votre frontier ou votre plafond. La seule ligne de routage qu'il émet au
+Au démarrage, le daemon vérifie seulement que `frontier` n'est pas vide et que
+`cost_ceiling_usd` est strictement positif, et refuse le fichier sinon ; il ne
+vérifie pas que le nom correspond à un backend, et il n'affiche rien qui nomme
+votre frontier ou votre plafond. La seule ligne de routage qu'il émet au
 démarrage porte les deux backends de `[llm.routing]`, et rien d'autre :
 
 ```

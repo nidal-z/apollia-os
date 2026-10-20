@@ -7,7 +7,7 @@ sidebar_position: 4
 # Set up your profile on first launch
 
 > On the first start of Apollia (or after a reset), a configuration flow opens automatically.
-> It walks you through seven steps - the language, the AI, the models for search by meaning and for dictation, a short conversation that proposes your profile, a first agent, a connection that agent needs, a first task with it - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode, a switch in **Settings → Developer**, off by default.
+> It walks you through seven steps - the language, the AI, the models for search by meaning and for dictation, a first answer from your model and a few words about you, a first agent, a connection that agent needs, a first task with it - so that Apollia is ready to use. It never asks you to pick a usage profile: the interface is the same for everyone, and the extra technical screens sit behind the developer mode, a switch in **Settings → Developer**, off by default.
 > Total duration: 3 to 8 minutes depending on model downloads.
 >
 > This page covers **the initial flow only**. To edit your profile day to day from the installed application, see **[My profile](../memoire/manage-my-profile.md)**.
@@ -26,7 +26,7 @@ The flow is paced by a progress rail visible at the top of the window, with the 
 | **Language** | A word of welcome and the choice of the interface language. |
 | **AI** | The language model your agents work with: a model on your computer, with a built-in download, or a server you already use. It is the only step you cannot skip. |
 | **Search, voice** | Two smaller models beside the one that converses: one lets your agents find a document by its meaning, the other transcribes your voice so you can dictate. Each is downloaded or imported from a file, then tried on the spot: **Try it** has the search model answer, and the dictation block records a few words and shows their transcription. The step can be skipped; dictation is optional. |
-| **About me** | A short conversation with an agent, every question of which can be skipped. The agent then proposes a profile, which you read over and correct before it is saved. |
+| **About me** | The model you chose answers one question, so you see it work, then a short form takes what your agents should know about you. Every field is optional, and the form can be skipped. |
 | **First agent** | Three ways to an agent that is ready to work: install a package, create one by describing your need, or start from an example. It can be skipped. |
 | **Connection** | The connections your first agent needs and you do not have yet, each one added in place. It is shown only when one is missing, and it can be skipped. |
 | **First task** | The window closes on your agent at work: a conversation with its first example ready to send, or a batch on a sample workbook. It has no screen of its own. |
@@ -63,14 +63,15 @@ Apollia offers a second model, smaller than the one you talk to, recommended for
 
 - **Download** fetches the recommended model; **Import from a file** takes it from a file you already have, which is the way in on a machine without a connection.
 - **Skip** shows what you give up before you confirm: search by meaning in your sources and in the memory of your agents. Keyword search still works, and the model can be installed later from the AI screen. **Continue without this model** confirms.
+- Once the model is there, **Try it** has it answer on the spot and says how long it took.
 
-### Step 4 - A short conversation, then your profile to review
+Below it, **Dictate instead of typing** offers a third model, optional, that transcribes your voice on this machine. It is downloaded or imported the same way; the **Dictation** block then lets you choose a microphone, apply the settings and try a few words. Leave it folded if you do not dictate.
 
-If the model you chose at step 2 is still downloading, the window says so and the conversation starts by itself as soon as the model is ready.
+### Step 4 - A first answer from your model, then a few words about you
 
-The onboarding agent opens in the window. It asks a few questions, one topic at a time, and every one of them can be skipped.
+The model you chose at step 2 answers one question, **Introduce yourself in one sentence.**, in a conversation of its own that is deleted once the answer is read. **Your model works: it answered in N s** confirms it; if it did not answer, **Test again** runs it once more, and you can go on and try later from the AI screen. If the model is still downloading, the window says so, the test starts as soon as it is ready, and you can fill the form meanwhile.
 
-The questions cover the fields of a profile:
+Under the test, a form, **Tell us about you**, holds the fields of a profile:
 
 | Field | Why |
 |---|---|
@@ -81,16 +82,16 @@ The questions cover the fields of a profile:
 | Preferences | The language, tone and answer format you prefer |
 | What your agents should know | Anything else, in your own words |
 
-Answer naturally, no precise wording required. **Nothing is written during the conversation.** When the questions are done, or as soon as you click **I'm done**, the agent proposes a profile and the conversation gives way to a form, **Your profile, to review**, filled with what it understood.
-
-No field is required. Correct anything that is off, then choose:
+No field is required, and nothing is written until you save. Then choose:
 
 - **Save** - the form is written to your default profile, and the flow moves on to the first agent.
 - **Skip without saving** - nothing is written, and the flow moves on to the first agent. Your profile stays empty until you fill it from **Settings → Profile**.
-- **Back** - returns to the conversation; **See the proposal again** reopens the form.
+- **Back** - returns to the previous step.
+
+The conversation that proposes a profile is not part of the first launch: it opens later, from **Settings → Profile**, with **Complete with an agent** (see [Restart the flow](#restart-the-flow)). It asks a few questions, one topic at a time, writes nothing while it runs, and ends on the same form, **Your profile, to review**, filled with what it understood.
 
 <!-- claim:onboarding-skip-direct -->
-The **Skip the questions** button (in the window footer) ends the conversation **immediately, with no extra AI turn**: the form opens at once, empty or holding what the agent had already proposed, and you fill it by hand or skip it. The in-chat **I'm done** button, by contrast, lets the agent propose a profile from what you already said.
+In that conversation, the **Skip the questions** button (in the window footer) ends it **immediately, with no extra AI turn**: the form opens at once, empty or holding what the agent had already proposed, and you fill it by hand or skip it. The in-chat **I'm done** button, by contrast, lets the agent propose a profile from what you already said.
 
 The first launch proposes no permission rule. A consent is given from an approval prompt, and what an agent may do is read and withdrawn on the **Permissions** screen of the sidebar.
 
@@ -157,7 +158,7 @@ Once the flow is finished, open **Settings → Profile**: the default profile ho
 - **The window does not open on first launch:** check the startup logs. If the error mentions the onboarding agent, restart Apollia; it is provisioned automatically at every launch.
 - **The Continue button stays disabled on the AI step:** it opens once a model is configured (green **Configured** badge), a model is chosen under **Use a server**, or a download is started. A download that failed or was cancelled closes it again.
 - **A model download is stuck at 0 %:** check your internet connection, cancel with the **X** button, then start again. Expected throughput is 5 to 50 MB/s depending on your link.
-- **The agent stops answering during the conversation:** close the window through **Configure later** and restart with **Reset Onboarding**, in the **Danger Zone** block of **Settings → General**.
+- **The model test does not answer:** go on with the flow; the model can be tried again from the AI screen. If the chat stays silent afterwards, see [The AI provider does not answer](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **The form opens empty:** the agent proposed nothing, or you skipped the questions. Fill the fields by hand, or skip and come back from **Settings → Profile**.
 
 > **Technical reference:** [Apollia reference](/reference).

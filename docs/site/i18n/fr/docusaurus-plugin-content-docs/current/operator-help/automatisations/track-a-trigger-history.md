@@ -29,7 +29,7 @@ sidebar_position: 2
    - **Identifiant court** de la tâche créée (8 premiers caractères, ou `-` si aucune tâche n'a été produite).
    - **Raison** affichée en rouge sur une ligne dédiée pour les statuts ERREUR.
 
-   ![Panneau d'historique des declenchements, puces de filtre de statut en haut et cartes d'execution empilees](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-2.png)
+   ![Panneau d'historique des déclenchements, puces de filtre de statut en haut et cartes d'exécution empilées](/img/operator-help/automatisations-suivre-l-historique-d-un-trigger-2.png)
 
 5. Repérez les **statuts possibles** :
    - **DÉCLENCHÉ** - le déclenchement a bien eu lieu et une tâche a été créée pour l'agent. Ce statut ne dit rien du résultat de la tâche elle-même : pour savoir si l'agent a réussi son travail, voir [Consulter les logs d'un agent](../agents/view-an-agent-logs.md).
@@ -37,7 +37,7 @@ sidebar_position: 2
    - **ERREUR** - le déclenchement lui-même a échoué (avant même de créer la tâche). La **raison** s'affiche en rouge sur une ligne dédiée juste en dessous.
 
 6. **Filtrer la liste** quand il y a beaucoup de déclenchements :
-   - Cliquez sur une **puce de statut** (Tous / Déclenché / Ignoré / Erreur) pour ne voir que ce statut.
+   - Cliquez sur une **puce de statut** (Tous / DÉCLENCHÉ / IGNORÉ / ERREUR) pour ne voir que ce statut.
    - Utilisez le **menu de tri** en haut à droite des filtres pour ordonner par : Plus récents (défaut) ou Plus anciens.
    - Le compteur en haut indique le nombre de déclenchements affichés vs total (ex. `4 / 27 déclenchements`).
    - Si aucun déclenchement ne correspond, un bouton **Réinitialiser les filtres** apparaît.

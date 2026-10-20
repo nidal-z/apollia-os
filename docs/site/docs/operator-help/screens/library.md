@@ -14,9 +14,10 @@ The Library lists what was installed on this machine: agents, workflows, tools a
 
 ## What you can do
 
-- Install a package.
-- Read who published an item and whether its signature holds.
-- See what a package brought with it.
+- Install a package with **Install a package**.
+- Read who published an item and whether its signature holds (**Signed** or **Unsigned**).
+- See what a package brought with it, under **Content**.
+- Update or remove a package with **Update…** or **Uninstall…**. The agents provided with Apollia cannot be uninstalled.
 
 ## Go further
 

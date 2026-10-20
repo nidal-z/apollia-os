@@ -7,7 +7,7 @@ sidebar_position: 4
 # Configurer votre profil au premier lancement
 
 > Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.
-> Il vous fait passer en sept étapes - la langue, l'IA, les modèles de recherche par le sens et de dictée, une courte conversation qui propose votre profil, un premier agent, une connexion dont cet agent a besoin, une première tâche avec lui - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur, un interrupteur dans **Réglages → Développeur**, éteint par défaut.
+> Il vous fait passer en sept étapes - la langue, l'IA, les modèles de recherche par le sens et de dictée, une première réponse de votre modèle et quelques mots sur vous, un premier agent, une connexion dont cet agent a besoin, une première tâche avec lui - pour qu'Apollia soit prêt à l'emploi. Il ne vous demande jamais de choisir un profil d'usage : l'interface est la même pour tous, et les écrans techniques supplémentaires relèvent du mode développeur, un interrupteur dans **Réglages → Développeur**, éteint par défaut.
 > Durée totale : 3 à 8 minutes selon le téléchargement des modèles.
 >
 > Cette page couvre **le parcours initial uniquement**. Pour éditer votre profil au quotidien depuis l'application installée, voir **[Mon profil](../memoire/manage-my-profile.md)**.
@@ -26,7 +26,7 @@ Le parcours est rythmé par un rail de progression visible en haut de la fenêtr
 | **Langue** | Un mot de bienvenue et le choix de la langue de l'interface. |
 | **IA** | Le modèle de langage avec lequel vos agents travaillent : un modèle sur votre poste, avec téléchargement embarqué, ou un serveur que vous utilisez déjà. C'est la seule étape que vous ne pouvez pas passer. |
 | **Recherche, voix** | Deux modèles plus petits, à côté de celui qui converse : l'un permet à vos agents de retrouver un document par son sens, l'autre transcrit votre voix pour que vous puissiez dicter. Chacun se télécharge ou s'importe depuis un fichier, puis s'essaie sur place : **Essayer** fait répondre le modèle de recherche, et le bloc de dictée enregistre quelques mots et affiche leur transcription. L'étape peut être passée ; la dictée est facultative. |
-| **Qui je suis** | Une courte conversation avec un agent, dont chaque question peut être passée. L'agent propose ensuite un profil, que vous relisez et corrigez avant qu'il soit enregistré. |
+| **Qui je suis** | Le modèle choisi répond à une question, pour que vous le voyiez fonctionner, puis un court formulaire recueille ce que vos agents doivent savoir de vous. Chaque champ est facultatif, et le formulaire peut être passé. |
 | **Premier agent** | Trois façons d'obtenir un agent prêt à travailler : installer un paquet, en créer un en décrivant votre besoin, ou partir d'un exemple. Elle peut être passée. |
 | **Connexion** | Les connexions dont votre premier agent a besoin et que vous n'avez pas encore, chacune ajoutée sur place. Elle n'apparaît que s'il en manque une, et elle peut être passée. |
 | **Première tâche** | La fenêtre se ferme sur votre agent au travail : une conversation avec son premier exemple prêt à envoyer, ou un lot sur un classeur d'exemple. Elle n'a pas d'écran à elle. |
@@ -63,14 +63,15 @@ Apollia propose un second modèle, plus petit que celui qui converse, recommand�
 
 - **Télécharger** récupère le modèle recommandé ; **Importer depuis un fichier** le prend dans un fichier que vous avez déjà, ce qui est le moyen d'une machine sans connexion.
 - **Passer** montre ce à quoi vous renoncez avant de confirmer : la recherche par le sens dans vos sources et dans la mémoire de vos agents. La recherche par mots-clés reste possible, et le modèle pourra être installé plus tard depuis l'écran IA. **Continuer sans ce modèle** confirme.
+- Une fois le modèle là, **Essayer** le fait répondre sur place et dit en combien de temps.
 
-### Étape 4 - Une courte conversation, puis votre profil à relire
+En dessous, **Dicter au lieu de taper** propose un troisième modèle, facultatif, qui transcrit votre voix sur ce poste. Il se télécharge ou s'importe de la même façon ; le bloc **Dictée** permet ensuite de choisir un micro, d'appliquer les réglages et d'essayer quelques mots. Laissez-le replié si vous ne dictez pas.
 
-Si le modèle choisi à l'étape 2 est encore en téléchargement, la fenêtre le dit et la conversation commence d'elle-même dès que le modèle est prêt.
+### Étape 4 - Une première réponse du modèle, puis quelques mots sur vous
 
-L'agent d'onboarding s'ouvre dans la fenêtre. Il pose quelques questions, un sujet à la fois, et chacune peut être passée.
+Le modèle choisi à l'étape 2 répond à une question, **Présente-toi en une phrase.**, dans une conversation à part, supprimée dès la réponse lue. **Votre modèle fonctionne : il a répondu en N s** le confirme ; s'il n'a pas répondu, **Tester à nouveau** relance l'essai, et vous pouvez continuer et réessayer plus tard depuis l'écran IA. Si le modèle est encore en téléchargement, la fenêtre le dit, le test se lance dès qu'il est prêt, et vous pouvez remplir le formulaire en attendant.
 
-Les questions couvrent les champs d'un profil :
+Sous le test, un formulaire, **Parlez-nous de vous**, reprend les champs d'un profil :
 
 | Champ | Pourquoi |
 |---|---|
@@ -81,16 +82,16 @@ Les questions couvrent les champs d'un profil :
 | Préférences | La langue, le ton et le format de réponse que vous préférez |
 | Ce que vos agents doivent savoir | Tout le reste, avec vos mots |
 
-Répondez naturellement, sans formulation précise. **Rien n'est écrit pendant la conversation.** Quand les questions sont finies, ou dès que vous cliquez sur **J'ai fini**, l'agent propose un profil et la conversation laisse place à un formulaire, **Votre profil, à relire**, rempli avec ce qu'il a compris.
-
-Aucun champ n'est obligatoire. Corrigez ce qui ne va pas, puis choisissez :
+Aucun champ n'est obligatoire, et rien n'est écrit tant que vous n'avez pas enregistré. Puis choisissez :
 
 - **Enregistrer** - le formulaire est écrit dans votre profil par défaut, et le parcours passe au premier agent.
 - **Passer sans enregistrer** - rien n'est écrit, et le parcours passe au premier agent. Votre profil reste vide jusqu'à ce que vous le remplissiez depuis **Réglages → Profil**.
-- **Retour** - revient à la conversation ; **Revoir la proposition** rouvre le formulaire.
+- **Retour** - revient à l'étape précédente.
+
+La conversation qui propose un profil ne fait pas partie du premier lancement : elle s'ouvre plus tard, depuis **Réglages → Profil**, avec **Compléter avec un agent** (voir [Relancer le parcours](#relancer-le-parcours)). Elle pose quelques questions, un sujet à la fois, n'écrit rien pendant qu'elle tourne, et aboutit au même formulaire, **Votre profil, à relire**, rempli avec ce qu'elle a compris.
 
 <!-- claim:onboarding-skip-direct -->
-Le bouton **Passer les questions** (dans le pied de la fenêtre) met fin à la conversation **immédiatement, sans tour d'IA supplémentaire** : le formulaire s'ouvre aussitôt, vide ou avec ce que l'agent avait déjà proposé, et vous le remplissez à la main ou vous passez. Le bouton **J'ai fini** dans le chat, lui, laisse l'agent proposer un profil à partir de ce que vous avez déjà dit.
+Dans cette conversation, le bouton **Passer les questions** (dans le pied de la fenêtre) y met fin **immédiatement, sans tour d'IA supplémentaire** : le formulaire s'ouvre aussitôt, vide ou avec ce que l'agent avait déjà proposé, et vous le remplissez à la main ou vous passez. Le bouton **J'ai fini** dans le chat, lui, laisse l'agent proposer un profil à partir de ce que vous avez déjà dit.
 
 Le premier lancement ne propose aucune règle de permission. Un consentement se donne depuis une demande d'approbation, et ce qu'un agent peut faire se lit et se retire sur l'écran **Autorisations** de la barre latérale.
 
@@ -157,7 +158,7 @@ Une fois le parcours terminé, ouvrez **Réglages → Profil** : le profil par d
 - **La fenêtre ne s'ouvre pas au premier lancement :** consultez les logs au démarrage. Si l'erreur évoque l'agent d'onboarding, redémarrez Apollia ; il est provisionné automatiquement à chaque lancement.
 - **Le bouton Continuer reste désactivé à l'étape IA :** il s'ouvre dès qu'un modèle est configuré (badge vert **Configuré**), qu'un modèle est choisi sous **Utiliser un serveur**, ou qu'un téléchargement est lancé. Un téléchargement échoué ou annulé le referme.
 - **Le téléchargement d'un modèle bloque à 0 % :** vérifiez votre connexion internet, annulez avec le bouton **X**, puis relancez. Le débit attendu est de 5 à 50 MB/s selon votre lien.
-- **L'agent ne répond plus pendant la conversation :** fermez la fenêtre via **Configurer plus tard** et relancez avec **Réinitialiser l'onboarding**, dans le bloc **Zone de danger** de **Réglages → Général**.
+- **Le test du modèle ne répond pas :** poursuivez le parcours ; le modèle peut être réessayé depuis l'écran IA. Si le chat reste muet ensuite, voir [Le fournisseur d'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **Le formulaire s'ouvre vide :** l'agent n'a rien proposé, ou vous avez passé les questions. Remplissez les champs à la main, ou passez et revenez depuis **Réglages → Profil**.
 
 > **Référence technique :** [Référence Apollia](/reference).

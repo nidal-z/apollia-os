@@ -153,7 +153,7 @@ export PATH="$PWD/target/debug:$PATH"
 On Windows the binary is `target\debug\apollia-os.exe`; add `target\debug` to your
 `PATH` the equivalent way.
 
-This build talks to OpenAI-compatible and Ollama servers, and
+This build talks to OpenAI-compatible servers, Ollama among them, and
 serves local GGUF models through the embedded `llama-server`. On a source build
 that engine has to be on your `PATH`, covered in the last section.
 
@@ -203,8 +203,10 @@ apollia-os llm backends create prod --provider openai \
   --api-key "$VLLM_API_KEY" --default
 ```
 
-`--api-key` also accepts a `${VAR}` form, resolved from the environment at
-startup, so the key need not sit in `apollia.toml`.
+A key given as is moves to the secret store before the backend is saved, and the
+backend database keeps only the fact that the store holds it. `--api-key` also
+accepts a `${VAR}` form, which names an environment variable resolved at
+startup instead.
 
 Use the model id your server serves for `--model`; the value above is only an
 example.
@@ -236,8 +238,8 @@ On its first run the runtime creates its data directory at `~/.apollia`. It
 listens on a Unix socket (`~/.apollia/runtime.sock` by default, set to `0600`
 after binding) and on
 `127.0.0.1:7771`. `apollia-os start` always binds TCP; `--port` chooses the
-number, and omitting it takes the default 7771 rather than leaving the port
-closed. On first boot it writes an API token to `~/.apollia/api-token`;
+number, and omitting it takes `[api].port` of `apollia.toml` (7771 by default)
+rather than leaving the port closed. On first boot it writes an API token to `~/.apollia/api-token`;
 TCP callers must present it as a bearer credential, while the Unix socket is
 local-trust and needs none. Leave this terminal running and open a second one for
 the next steps.
@@ -435,5 +437,8 @@ you want local dictation.
 ## Next steps
 
 - Write and run your own agent: [Your first agent](/tutorials/your-first-agent).
+- Start the runtime at logon, without a terminal and without administrator
+  rights: `apollia-os service install` (then `service status`, and
+  `service uninstall` to remove it), on macOS, Linux and Windows.
 - Run Apollia as a managed service: [Deploy in production](/how-to/deploy-in-production).
 - Every flag on every command is in the [CLI reference](/reference/cli).

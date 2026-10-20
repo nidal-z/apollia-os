@@ -43,19 +43,16 @@ apollia-os tools list
 
 Disable or re-enable a tool with `apollia-os tools disable <name>` and
 `apollia-os tools enable <name>`. The setting is written to the governance
-database, and it governs the agent path only: the agent runners merge that
-snapshot into the dispatcher's disabled list, so an agent that invokes a
+database. A tool is off when that database disables it or when the `disabled`
+list of `[tools]` in `apollia.toml` names it: the agent runners and the
+conversation path both read the union of the two, so an agent that invokes a
 disabled tool receives an `UnknownTool` error.
 
-The desktop chat path does not read the governance database at all. It builds
-its dispatcher from the `disabled` list of `[tools]` in `apollia.toml`, and
-`tools disable` never writes there. Six natives escape even that list:
-`file_write`, `file_edit`, `notebook_edit`, `bash_executor`, `python_executor`
-and `http_fetch` are removed from the dispatcher and re-added afterwards as
-approval-guarded wrappers, unconditionally, so a chat can still call them
-whatever the configuration says. Restricting what a chat can reach is done
-through the approval gate and the chat tool picker, not through
-`apollia-os tools disable`.
+On the conversation path, `file_write`, `file_edit`, `notebook_edit`,
+`bash_executor`, `python_executor` and `http_fetch` are built apart, rooted at
+the folders granted to the agent, and a disabled one is not built at all. The
+state is read at each message, so a tool disabled during a conversation is gone
+from the next message on, without a restart.
 
 ## Availability and credentials
 
@@ -146,7 +143,7 @@ connection, and its tools are granted to an agent on its sheet: the reading
 tools reach every folder granted, the writing tools only the folders granted
 for writing. The first folder granted, by the date it was added, is where a
 relative path lands. Neither the home folder, the data directory nor the folder
-of a project is a root. An agent granted no folder has file tools that refuse,
+of a former project is a root. An agent granted no folder has file tools that refuse,
 saying how to grant one.
 
 | Tool | Purpose | Key parameters |
@@ -189,11 +186,12 @@ and is treated as data, not instructions.
 | `memory_write` | Keeps a note in the agent's own memory under a key (`remember`), replacing what the key held, or drops it (`forget`). Only the agent's own namespace is written. | `action`, `key`, `value` |
 | `profile_propose` | Proposes one lasting fact about the person for their profile. The call is put to the person every time, with the fact shown; nothing is written before they accept. A field of the profile form is refused. | `key`, `fact` |
 | `source_search` | Search of the indexed folders and files checked for the agent, by keywords, and by meaning when an embeddings model is installed. Each result carries its excerpt, document, location, score and source, and the answer says how it was ranked. A source that is not checked is refused. | `query`, `sources`, `limit` (1 to 50) |
+| `code_context` | Reads the state of a code folder checked for the agent, at the moment of the call: its git branch, status and recent commits, its rules file (`APOLLIA.md`) and its file tree. Nothing of the folder reaches the prompt otherwise. | `folder`, `parts` (`git`, `rules`, `tree`) |
 
 Each of these tools is offered to an agent only when its source is checked
 for it, whatever its access lists: `memory_search` and `memory_write` when its
 memory is, `profile_propose` when the profile is, `source_search` when at least
-one indexed folder or file is. Checking Memory on the sheet of an agent is what
+one indexed folder or file is, `code_context` when a code folder is. Checking Memory on the sheet of an agent is what
 opens its memory, to read and to write, and neither memory tool asks for
 consent: they act on the agent's own space. The memory of an agent is one
 space, named after the agent and kept across its conversations and its tasks.

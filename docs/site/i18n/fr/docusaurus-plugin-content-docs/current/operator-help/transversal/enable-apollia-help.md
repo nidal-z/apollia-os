@@ -10,7 +10,7 @@ sidebar_position: 4
 
 ## Prérequis
 
-- Au moins un fournisseur d'IA est configuré et prêt. L'état est visible **en haut à gauche** : un **point coloré à gauche du mot *Apollia*** dans le bandeau supérieur indique l'état combiné runtime + LLM.
+- Au moins un modèle est prêt, installé sur ce poste ou servi par un serveur. L'état est visible **en haut à gauche** : un **point coloré à gauche du mot *Apollia*** dans le bandeau supérieur indique l'état combiné runtime + LLM.
   - 🟢 vert - runtime sain + au moins un LLM prêt → le guide peut répondre.
   - 🟡 ambre - aucun LLM connecté → le guide ne peut pas encore répondre.
   - 🔴 rouge - runtime déconnecté → rien ne fonctionnera ; quittez et relancez l'application.

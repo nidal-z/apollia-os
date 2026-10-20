@@ -14,9 +14,9 @@ A connection gives agents tools to work with a service of yours: a Google Worksp
 
 ## What you can do
 
-- Add a connection from the selection of Apollia or from the public catalogue, or add a custom one.
-- Connect an account and test the connection.
-- Turn the built-in tools on or off: web search, page reading, code execution.
+- Open **Add a connection**, then pick one from the selection of Apollia, look through the public catalogue with **Explore all**, or describe your own in **Custom connection**.
+- Connect an account with **Connect an account**, and check a connection with **Test**.
+- Turn the built-in tools on or off in **Apollia, built-in tools**: web search, page reading, code execution.
 
 ## Go further
 

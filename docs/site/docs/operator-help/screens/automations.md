@@ -14,8 +14,8 @@ An automation starts an agent or a workflow on its own: on a schedule, when a fi
 
 ## What you can do
 
-- Create an automation by saying when it must run.
-- Choose the agent or the workflow it starts.
+- Create an automation with **Create an automation**, by saying in your words when it must run, then check the schedule.
+- Choose the agent it starts, and switch to **Advanced mode** to start it when a file changes or through an external address.
 - See the automations in place and what each one starts.
 
 ## Go further
