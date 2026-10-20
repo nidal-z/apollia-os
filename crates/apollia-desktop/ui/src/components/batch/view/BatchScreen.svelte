@@ -21,7 +21,7 @@
   import { listBatchAccesses, listBatches, type BatchSummary } from "$lib/ipc/batches";
   import type { BatchControl, BatchExportFormat, BatchItem } from "$lib/ipc/batches";
   import { getTaskTimeline } from "$lib/ipc/tasks";
-  import { openBatchHistory, type BatchOrigin } from "$lib/stores/batchView";
+  import { openBatch, openBatchHistory, type BatchOrigin } from "$lib/stores/batchView";
   import BatchDecisionDialog from "./BatchDecisionDialog.svelte";
   import BatchDeleteAction from "./BatchDeleteAction.svelte";
   import BatchItemPanel from "./BatchItemPanel.svelte";
@@ -30,6 +30,7 @@
   import BatchSynthesisCard from "./BatchSynthesisCard.svelte";
   import BatchRequestCard from "./BatchRequestCard.svelte";
   import BatchResults from "./BatchResults.svelte";
+  import BatchLaunchDialog from "../BatchLaunchDialog.svelte";
   import { outputsOf, resultRows, resultsCsv } from "./batchResults";
   import { createChatSession } from "$lib/ipc/agents";
   import { navigateTo } from "$lib/stores/navigation";
@@ -257,6 +258,8 @@
   });
 
   let continuing = $state(false);
+  /** The launch dialog, opened on what this batch asked. */
+  let relaunching = $state(false);
 
   /**
    * A conversation with the agent of the batch, its results joined as a
@@ -467,10 +470,15 @@
         variant="pill"
       />
       {#if !live}
+        <span class="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onclick={() => (relaunching = true)} data-testid="batch-relaunch">
+          {$t("batch_view.relaunch")}
+        </Button>
         <Button variant="primary-solid" size="sm" onclick={() => void continueInChat()} loading={continuing} data-testid="batch-continue-chat">
           {#snippet icon()}<MessageSquare size={13} />{/snippet}
           {$t("batch_view.continue.button")}
         </Button>
+        </span>
       {/if}
       </div>
     {/if}
@@ -551,6 +559,14 @@
       {/if}
     </div>
     {/if}
+
+    <BatchLaunchDialog
+      open={relaunching}
+      onclose={() => (relaunching = false)}
+      agent={batch.agent}
+      task={batch.source.task ?? null}
+      onlaunched={(launched) => openBatch(launched.batchId, "launch")}
+    />
 
     <ConfirmDialog
       open={confirmingStop}

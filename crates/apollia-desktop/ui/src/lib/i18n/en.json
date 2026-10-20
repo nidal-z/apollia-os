@@ -6879,7 +6879,8 @@
       "status": "Status",
       "file_name": "{source} - results.csv",
       "prompt": "Here are the results of the batch on “{source}” ({count} items treated), joined as a table. From this table, "
-    }
+    },
+    "relaunch": "Run this batch again…"
   },
   "batch_history": {
     "open": "Batch history",

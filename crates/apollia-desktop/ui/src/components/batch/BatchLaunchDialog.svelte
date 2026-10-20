@@ -35,6 +35,7 @@
     type BatchAccess,
     type LaunchedBatch,
     type BatchOutput,
+    type BatchTask,
     type RegistrySource,
     type SourcePreview,
     type WriteDestination,
@@ -80,9 +81,11 @@
     /** A file the dialog opens on: the one joined to the chat. */
     file?: string | null;
     onlaunched?: (batch: LaunchedBatch) => void;
+    /** What an earlier batch asked, to launch it again on another source. */
+    task?: BatchTask | null;
   }
 
-  let { open, onclose, agent, file = null, onlaunched }: Props = $props();
+  let { open, onclose, agent, file = null, onlaunched, task = null }: Props = $props();
 
   const FAMILY_ICONS = { table: Table2, folder: FolderOpen, mail: Mail } as const;
 
@@ -133,9 +136,12 @@
     granted = [];
     threshold = DEFAULT_THRESHOLD;
     columns = $t("batch_launch.results.default_column");
-    outputs = [{ name: $t("batch_launch.results.default_column"), description: "" }];
-    instruction = "";
-    synthesis = "";
+    outputs =
+      task !== null && task.outputs.length > 0
+        ? task.outputs.map((output) => ({ ...output }))
+        : [{ name: $t("batch_launch.results.default_column"), description: "" }];
+    instruction = task?.instruction ?? "";
+    synthesis = task?.synthesis ?? "";
     pickedFolder = null;
     recursive = false;
     unreadOnly = false;

@@ -6879,7 +6879,8 @@
       "status": "État",
       "file_name": "{source} - résultats.csv",
       "prompt": "Voici les résultats du lot sur « {source} » ({count} éléments traités), joints en tableau. À partir de ce tableau, "
-    }
+    },
+    "relaunch": "Refaire ce lot…"
   },
   "batch_history": {
     "open": "Historique des lots",
