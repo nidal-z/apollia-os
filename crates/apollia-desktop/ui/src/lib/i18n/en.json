@@ -6647,7 +6647,9 @@
       "output_remove": "Remove this column",
       "output_add": "Add a column",
       "synthesis_title": "At the end of the batch (optional)",
-      "synthesis_placeholder": "For example: rank the quotes from cheapest to most expensive and recommend one."
+      "synthesis_placeholder": "For example: rank the quotes from cheapest to most expensive and recommend one.",
+      "prefilled": "Request taken from the latest batch of this agent, on {date}.",
+      "start_empty": "Start from scratch"
     }
   },
   "batch_view": {

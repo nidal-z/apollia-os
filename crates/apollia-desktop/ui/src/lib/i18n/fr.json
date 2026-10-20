@@ -6647,7 +6647,9 @@
       "output_remove": "Retirer cette colonne",
       "output_add": "Ajouter une colonne",
       "synthesis_title": "À la fin du lot (facultatif)",
-      "synthesis_placeholder": "Par exemple : classe les devis du moins cher au plus cher et recommande-en un."
+      "synthesis_placeholder": "Par exemple : classe les devis du moins cher au plus cher et recommande-en un.",
+      "prefilled": "Demande reprise du dernier lot de cet agent, le {date}.",
+      "start_empty": "Repartir de zéro"
     }
   },
   "batch_view": {

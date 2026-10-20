@@ -9,7 +9,7 @@ const ipc = vi.hoisted(() => vi.fn(async (_cmd: string, _args?: unknown): Promis
 vi.mock("@tauri-apps/api/core", () => ({ invoke: ipc }));
 
 import { launchBatch, listBatchAccesses, listBatchSources } from "$lib/ipc/batches";
-import type { BatchAccess, RegistrySource } from "$lib/ipc/batches";
+import type { BatchAccess, BatchSummary, RegistrySource } from "$lib/ipc/batches";
 import type { Connection } from "$lib/types";
 import {
   DEFAULT_THRESHOLD,
@@ -23,6 +23,7 @@ import {
   connectionChoices,
   fileChoice,
   folderChoice,
+  lastTaskOf,
   maxFailuresOf,
   refusalOf,
   sourceChoices,
@@ -377,5 +378,42 @@ describe("the commands behind the dialog", () => {
 
     // THEN the call rejects with its reason
     await expect(launchBatch(launch)).rejects.toBe("the source could not be read");
+  });
+});
+
+describe("the request a launch starts from", () => {
+  it("takes the request of the latest batch of the agent that said what to do", () => {
+    // GIVEN batches of two agents, one of them without a request
+    const batch = (agent: string, createdAt: string, instruction: string): BatchSummary => ({
+        batchId: createdAt,
+        agent,
+        source: { kind: "folder", location: "/data/Quotes", options: {}, task: { instruction, outputs: [] } },
+        grants: [],
+        concurrency: 1,
+        maxFailures: 10,
+        state: "completed",
+        total: 1,
+        completed: 1,
+        failed: 0,
+        canceled: 0,
+        awaiting: 0,
+        createdAt,
+        updatedAt: createdAt,
+        endedAt: createdAt,
+      });
+    const batches = [
+      batch("audit", "2026-10-19 09:00:00", "Check the quote."),
+      batch("audit", "2026-10-20 03:30:00", "Check the quote against the terms."),
+      batch("audit", "2026-10-20 04:00:00", ""),
+      batch("triage", "2026-10-20 05:00:00", "Sort the mail."),
+    ];
+
+    // WHEN the request of "audit" is looked for
+    const latest = lastTaskOf([...batches], "audit");
+
+    // THEN the latest one with an instruction is taken, and an agent with none has none
+    expect(latest?.task.instruction).toBe("Check the quote against the terms.");
+    expect(latest?.createdAt).toBe("2026-10-20 03:30:00");
+    expect(lastTaskOf([...batches], "nobody")).toBeNull();
   });
 });

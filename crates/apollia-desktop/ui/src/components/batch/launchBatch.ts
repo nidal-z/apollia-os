@@ -7,6 +7,8 @@ import type {
   BatchAccess,
   BatchLaunch,
   BatchOutput,
+  BatchSummary,
+  BatchTask,
   BatchSourceDescriptor,
   RegistrySource,
   WriteDestination,
@@ -416,4 +418,20 @@ const ACCESS_FAMILY_KEYS: Record<string, string> = {
 /** The catalogue key of the action family of an access; an unknown one reads as unclassified. */
 export function accessFamilyKey(family: string): string {
   return ACCESS_FAMILY_KEYS[family] ?? "batch_launch.accesses.family.unclassified";
+}
+
+/**
+ * The request of the latest batch of `agent` that said what to do, and when it
+ * was launched: what the launch dialog starts from, so a batch run again is
+ * not typed again. `null` when the agent ran none.
+ */
+export function lastTaskOf(batches: BatchSummary[], agent: string): { task: BatchTask; createdAt: string } | null {
+  let latest: { task: BatchTask; createdAt: string } | null = null;
+  for (const batch of batches) {
+    const task = batch.source.task;
+    if (batch.agent !== agent || task === undefined) continue;
+    if (task.instruction.trim() === "" && task.outputs.length === 0) continue;
+    if (latest === null || batch.createdAt > latest.createdAt) latest = { task, createdAt: batch.createdAt };
+  }
+  return latest;
 }

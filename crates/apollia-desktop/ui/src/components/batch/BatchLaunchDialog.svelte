@@ -14,6 +14,7 @@
    * `workbookPreview.ts`; this component holds the form and the calls.
    */
   import { locale, t } from "svelte-i18n";
+  import { parseTimestampMs } from "$lib/utils";
   import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
   import { FolderOpen, KeyRound, Layers, Mail, Plus, Table2, X } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
@@ -31,6 +32,7 @@
     launchBatch,
     listBatchAccesses,
     listBatchSources,
+    listBatches,
     previewBatchSource,
     type BatchAccess,
     type LaunchedBatch,
@@ -56,6 +58,7 @@
     familyChoices,
     fileChoice,
     folderChoice,
+    lastTaskOf,
     refusalOf,
     sourceChoices,
     splitAccesses,
@@ -97,6 +100,8 @@
   let instruction = $state("");
   let outputs = $state<BatchOutput[]>([]);
   let synthesis = $state("");
+  /** When the request was taken from the latest batch of the agent, its date. */
+  let prefilledFrom = $state<string | null>(null);
   let sourcesError = $state<string | null>(null);
   let picked = $state<string | null>(null);
   let family = $state<SourceFamily | null>(null);
@@ -142,6 +147,7 @@
         : [{ name: $t("batch_launch.results.default_column"), description: "" }];
     instruction = task?.instruction ?? "";
     synthesis = task?.synthesis ?? "";
+    prefilledFrom = null;
     pickedFolder = null;
     recursive = false;
     unreadOnly = false;
@@ -167,6 +173,52 @@
     return () => {
       live = false;
     };
+  }
+
+  // A form still untouched starts from the request of the latest batch of the
+  // agent: running the same batch again types nothing again. A request handed
+  // by "Run this batch again" is kept as it is.
+  $effect(() => {
+    const name = open && task === null ? chosenAgent : null;
+    if (!name) return;
+    let live = true;
+    void listBatches(200)
+      .then((batches) => {
+        if (!live) return;
+        const latest = lastTaskOf(batches, name);
+        const untouched =
+          instruction.trim() === "" &&
+          synthesis.trim() === "" &&
+          outputs.length === 1 &&
+          outputs[0].description === "" &&
+          outputs[0].name === $t("batch_launch.results.default_column");
+        if (latest === null || !untouched) return;
+        instruction = latest.task.instruction;
+        outputs = latest.task.outputs.length > 0 ? latest.task.outputs.map((output) => ({ ...output })) : outputs;
+        synthesis = latest.task.synthesis ?? "";
+        prefilledFrom = latest.createdAt;
+      })
+      .catch(() => {
+        // Without the history the form starts empty, as it did.
+      });
+    return () => {
+      live = false;
+    };
+  });
+
+  /** A day as the interface says it: "20 octobre". */
+  function formatDay(timestamp: string): string {
+    const date = new Date(parseTimestampMs(timestamp));
+    return Number.isNaN(date.getTime())
+      ? timestamp
+      : date.toLocaleDateString($locale ?? "fr", { day: "numeric", month: "long" });
+  }
+
+  function startEmpty(): void {
+    instruction = "";
+    synthesis = "";
+    outputs = [{ name: $t("batch_launch.results.default_column"), description: "" }];
+    prefilledFrom = null;
   }
 
   // The sensitive accesses are those of the agent the batch runs.
@@ -507,6 +559,19 @@
     </div>
 
     <div class="min-w-0 space-y-4">
+      {#if prefilledFrom !== null}
+        <p class="m-0 flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground" data-testid="batch-launch-prefilled">
+          {$t("batch_launch.task.prefilled", { values: { date: formatDay(prefilledFrom) } })}
+          <button
+            type="button"
+            class="text-primary underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            onclick={startEmpty}
+            data-testid="batch-launch-start-empty"
+          >
+            {$t("batch_launch.task.start_empty")}
+          </button>
+        </p>
+      {/if}
       <section class="space-y-1.5" data-testid="batch-launch-task">
         <h3 class="m-0 text-body-xs font-medium text-muted-foreground">{$t("batch_launch.task.title")}</h3>
         <Textarea
