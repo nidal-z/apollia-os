@@ -84,6 +84,6 @@ Le routage hybride permet à Apollia d'utiliser un modèle local par défaut et 
 - **Cette adresse ne répond pas comme un serveur d'IA** : quelque chose répond, mais sans liste de modèles. Utilisez l'adresse de l'interface du serveur, pas celle de sa page d'accueil.
 - **Le serveur ne propose aucun modèle** : il répond, mais sa liste est vide. Installez ou chargez un modèle sur le serveur, puis testez de nouveau.
 - **La politique de votre organisation refuse ce serveur** : utilisez un serveur que votre organisation autorise, ou demandez à la personne qui gère Apollia pour vous.
-- **Pas de réponse dans le chat alors que le serveur est Actif** : voir [Le fournisseur d'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
+- **Pas de réponse dans le chat alors que le serveur est Actif** : voir [L'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
 
 > **Référence technique :** [Configuration](/reference/configuration) pour la section `[llm]`, ses backends et ses clés de routage, et [Valeurs par défaut d'échantillonnage](/reference/sampling-defaults) pour le seul paramètre d'échantillonnage qu'une requête porte réellement jusqu'au modèle.

@@ -1,10 +1,10 @@
 ---
-title: Le fournisseur d'IA ne répond pas
-slug: /operator-help/troubleshooting/the-ai-provider-does-not-answer
+title: L'IA ne répond pas
+slug: /operator-help/troubleshooting/the-ai-does-not-answer
 sidebar_position: 1
 ---
 
-# Le fournisseur d'IA ne répond pas
+# L'IA ne répond pas
 
 > Pour toute personne dont le chat reste figé ou dont le **point d'état à gauche du mot *Apollia*** dans la barre du haut passe à l'ambre ou au rouge : retrouver une IA fonctionnelle en moins de cinq minutes.
 

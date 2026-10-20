@@ -6,7 +6,7 @@ sidebar_position: 2
 
 # The sidecar runner does not start
 
-The **runner** (`apollia-runner-<backend>`) is the speech recognition sidecar (STT, whisper). The daemon spawns it at startup and talks to it over HTTP loopback. Local LLM inference does not go through the runner: it is served by the embedded `llama-server` engine. If it is the local LLM that does not answer, see [The AI provider does not answer](the-ai-provider-does-not-answer.md) instead.
+The **runner** (`apollia-runner-<backend>`) is the speech recognition sidecar (STT, whisper). The daemon spawns it at startup and talks to it over HTTP loopback. Local LLM inference does not go through the runner: it is served by the embedded `llama-server` engine. If it is the local LLM that does not answer, see [The AI does not answer](the-ai-provider-does-not-answer.md) instead.
 
 If you see messages such as:
 

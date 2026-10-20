@@ -16,7 +16,7 @@ Une réinitialisation supprime **toutes** vos données locales : agents install�
 
 Avant de continuer, demandez-vous :
 
-- Souhaitez-vous vraiment tout perdre, ou voulez-vous simplement résoudre un problème précis ? Consultez d'abord [Un agent est bloqué](an-agent-is-stuck.md) ou [Le fournisseur d'IA ne répond pas](the-ai-provider-does-not-answer.md).
+- Souhaitez-vous vraiment tout perdre, ou voulez-vous simplement résoudre un problème précis ? Consultez d'abord [Un agent est bloqué](an-agent-is-stuck.md) ou [L'IA ne répond pas](the-ai-provider-does-not-answer.md).
 - Avez-vous fait une **sauvegarde** de ce qui compte ? Voir l'étape 1 ci-dessous.
 
 ## Étape 1 - Sauvegarder ce qui compte (recommandé)

@@ -6,7 +6,7 @@ sidebar_position: 2
 
 # Le runner sidecar ne démarre pas
 
-Le **runner** (`apollia-runner-<backend>`) est le sidecar de reconnaissance vocale (STT, whisper). Le daemon le spawn au démarrage et communique avec lui en HTTP loopback. L'inférence LLM locale, elle, ne passe pas par le runner : elle est servie par le moteur embarqué `llama-server`. Si c'est le LLM local qui ne répond pas, voir plutôt [Le fournisseur d'IA ne répond pas](the-ai-provider-does-not-answer.md).
+Le **runner** (`apollia-runner-<backend>`) est le sidecar de reconnaissance vocale (STT, whisper). Le daemon le spawn au démarrage et communique avec lui en HTTP loopback. L'inférence LLM locale, elle, ne passe pas par le runner : elle est servie par le moteur embarqué `llama-server`. Si c'est le LLM local qui ne répond pas, voir plutôt [L'IA ne répond pas](the-ai-provider-does-not-answer.md).
 
 Si vous voyez des messages comme :
 

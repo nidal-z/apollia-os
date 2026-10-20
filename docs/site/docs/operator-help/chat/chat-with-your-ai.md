@@ -52,7 +52,7 @@ Your conversation shows up in the list on the left with a title and the date of 
 ## If it does not work
 
 - **No answer:** check in the **AI** screen that a model is installed or that your server answers.
-- **Answer in error or truncated:** choose another model in the selector of the conversation, or read [The AI provider does not respond](../troubleshooting/the-ai-provider-does-not-answer.md).
+- **Answer in error or truncated:** choose another model in the selector of the conversation, or read [The AI does not answer](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **The AI does not know about your files:** check the sources of the agent you talk to, and grant it the folder that holds them in **Connections**.
 
 > **Concept:** [Apollia explanation](/explanation) - understand how a conversation with an agent differs from a conversation with a model alone.

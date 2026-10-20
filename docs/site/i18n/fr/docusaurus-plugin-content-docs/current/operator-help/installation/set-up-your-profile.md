@@ -158,7 +158,7 @@ Une fois le parcours terminé, ouvrez **Réglages → Profil** : le profil par d
 - **La fenêtre ne s'ouvre pas au premier lancement :** consultez les logs au démarrage. Si l'erreur évoque l'agent d'onboarding, redémarrez Apollia ; il est provisionné automatiquement à chaque lancement.
 - **Le bouton Continuer reste désactivé à l'étape IA :** il s'ouvre dès qu'un modèle est configuré (badge vert **Configuré**), qu'un modèle est choisi sous **Utiliser un serveur**, ou qu'un téléchargement est lancé. Un téléchargement échoué ou annulé le referme.
 - **Le téléchargement d'un modèle bloque à 0 % :** vérifiez votre connexion internet, annulez avec le bouton **X**, puis relancez. Le débit attendu est de 5 à 50 MB/s selon votre lien.
-- **Le test du modèle ne répond pas :** poursuivez le parcours ; le modèle peut être réessayé depuis l'écran IA. Si le chat reste muet ensuite, voir [Le fournisseur d'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
+- **Le test du modèle ne répond pas :** poursuivez le parcours ; le modèle peut être réessayé depuis l'écran IA. Si le chat reste muet ensuite, voir [L'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **Le formulaire s'ouvre vide :** l'agent n'a rien proposé, ou vous avez passé les questions. Remplissez les champs à la main, ou passez et revenez depuis **Réglages → Profil**.
 
 > **Référence technique :** [Référence Apollia](/reference).

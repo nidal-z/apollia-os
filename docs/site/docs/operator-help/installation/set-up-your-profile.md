@@ -158,7 +158,7 @@ Once the flow is finished, open **Settings → Profile**: the default profile ho
 - **The window does not open on first launch:** check the startup logs. If the error mentions the onboarding agent, restart Apollia; it is provisioned automatically at every launch.
 - **The Continue button stays disabled on the AI step:** it opens once a model is configured (green **Configured** badge), a model is chosen under **Use a server**, or a download is started. A download that failed or was cancelled closes it again.
 - **A model download is stuck at 0 %:** check your internet connection, cancel with the **X** button, then start again. Expected throughput is 5 to 50 MB/s depending on your link.
-- **The model test does not answer:** go on with the flow; the model can be tried again from the AI screen. If the chat stays silent afterwards, see [The AI provider does not answer](../troubleshooting/the-ai-provider-does-not-answer.md).
+- **The model test does not answer:** go on with the flow; the model can be tried again from the AI screen. If the chat stays silent afterwards, see [The AI does not answer](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **The form opens empty:** the agent proposed nothing, or you skipped the questions. Fill the fields by hand, or skip and come back from **Settings → Profile**.
 
 > **Technical reference:** [Apollia reference](/reference).

@@ -52,7 +52,7 @@ Votre conversation apparaît dans la liste de gauche avec un titre et la date du
 ## Si ça ne marche pas
 
 - **Pas de réponse :** vérifiez dans l'écran **IA** qu'un modèle est installé ou que votre serveur répond.
-- **Réponse en erreur ou tronquée :** choisissez un autre modèle dans le sélecteur de la conversation, ou consultez [Le fournisseur d'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
+- **Réponse en erreur ou tronquée :** choisissez un autre modèle dans le sélecteur de la conversation, ou consultez [L'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **L'IA ne connaît pas vos fichiers :** vérifiez les sources de l'agent avec qui vous parlez, et accordez-lui le dossier qui les contient dans **Connexions**.
 
 > **Concept :** [Explication Apollia](/explanation) - comprendre en quoi une conversation avec un agent diffère d'une conversation avec un modèle seul.

@@ -16,7 +16,7 @@ A reset deletes **all** your local data: installed agents, conversation memory, 
 
 Before continuing, ask yourself:
 
-- Do you really want to lose everything, or do you simply want to solve one specific problem? Check [An agent is stuck](an-agent-is-stuck.md) or [The AI provider does not answer](the-ai-provider-does-not-answer.md) first.
+- Do you really want to lose everything, or do you simply want to solve one specific problem? Check [An agent is stuck](an-agent-is-stuck.md) or [The AI does not answer](the-ai-provider-does-not-answer.md) first.
 - Have you made a **backup** of what matters? See step 1 below.
 
 ## Step 1 - Back up what matters (recommended)

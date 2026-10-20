@@ -83,6 +83,6 @@ Hybrid routing lets Apollia use a local model by default and switch automaticall
 - **This address does not answer like an AI server**: something answers, but with no list of models. Use the address of the interface of the server, not the one of its home page.
 - **The server offers no model**: it answers, but its list is empty. Install or load a model on the server, then test again.
 - **The policy of your organisation refuses this server**: use a server your organisation allows, or ask the person who manages Apollia for you.
-- **No answer in the chat although the server is Active**: see [The AI provider does not answer](../troubleshooting/the-ai-provider-does-not-answer.md).
+- **No answer in the chat although the server is Active**: see [The AI does not answer](../troubleshooting/the-ai-provider-does-not-answer.md).
 
 > **Technical reference:** [Configuration](/reference/configuration) for the `[llm]` section, its backends and its routing keys, and [LLM sampling defaults](/reference/sampling-defaults) for the one sampling parameter a request actually carries to a model.
