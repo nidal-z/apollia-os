@@ -892,6 +892,11 @@
       "reconnect": "Relancer",
       "remove": "Retirer",
       "remove_confirm": "Retirer cette connexion"
+    },
+    "grant_apollia": {
+      "label": "Laisser Apollia s'en servir dans le Chat",
+      "hint": "Apollia reçoit tous les outils de cette connexion. Ceux qui écrivent, envoient ou exécutent du code, et ceux qui ne sont pas classés, demandent votre accord avant de s'exécuter. Les autres agents la reçoivent sur leur fiche.",
+      "failed": "La connexion est ajoutée, mais Apollia n'a pas pu la recevoir : {error}. Accordez-la depuis la fiche d'Apollia."
     }
   },
   "integrations": {

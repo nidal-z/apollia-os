@@ -892,6 +892,11 @@
       "reconnect": "Start again",
       "remove": "Remove",
       "remove_confirm": "Remove this connection"
+    },
+    "grant_apollia": {
+      "label": "Let Apollia use it in the Chat",
+      "hint": "Apollia gets every tool of this connection. Those that write, send or run code, and those nobody classified, ask for your approval before they run. Other agents get it on their sheet.",
+      "failed": "The connection is added, but Apollia could not be given it: {error}. Grant it from the sheet of Apollia."
     }
   },
   "integrations": {

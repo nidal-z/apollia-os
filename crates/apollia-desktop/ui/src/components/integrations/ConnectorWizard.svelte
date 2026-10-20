@@ -27,6 +27,8 @@
   import WizardStepAuth from "./WizardStepAuth.svelte";
   import WizardStepCoaching from "./WizardStepCoaching.svelte";
   import ConnectionRefusal from "./ConnectionRefusal.svelte";
+  import GrantApolliaOption from "./GrantApolliaOption.svelte";
+  import { grantConnectionToApollia } from "$lib/connections/apolliaGrant";
   import {
     buildConnectorConfig,
     deriveServerName,
@@ -89,6 +91,10 @@
   let argValues = $state<Record<number, string>>({});
   /** The connection exists once added, whatever its trial answers. */
   let added = $state(false);
+  // The agent of the chat is offered the connection, checked: the person
+  // adding it expects to use it there. Unchecked, nothing is granted.
+  let grantApollia = $state(true);
+  let grantError = $state<string | null>(null);
   let nodeState = $state<NodeRuntimeState | null>(null);
   let refusal = $state<Refusal | null>(null);
   let addError = $state<string | null>(null);
@@ -486,6 +492,17 @@
     }
     added = true;
     await trial(config);
+    if (grantApollia) await grantToApollia(config.name);
+  }
+
+  /** Give Apollia the tools of the connection; a failure leaves it added and says so. */
+  async function grantToApollia(name: string): Promise<void> {
+    grantError = null;
+    try {
+      await grantConnectionToApollia(name);
+    } catch (err: unknown) {
+      grantError = err instanceof Error ? err.message : String(err);
+    }
   }
 
   /** Try the added connection; a failure leaves it added. */
@@ -548,6 +565,7 @@
   <div class="min-h-[180px] space-y-4" data-phase={phase} data-testid="wizard-body">
     {#if phase === "warning"}
       <WizardStepDisclaimer name={displayName} />
+      <GrantApolliaOption bind:checked={grantApollia} />
     {:else if phase === "auth"}
       <WizardStepAuth
         envVars={authEnvVars}
@@ -600,6 +618,11 @@
         {$t("integrations.wizard.trying")}
       </div>
     {:else if phase === "succeeded"}
+      {#if grantError}
+        <p class="text-caption text-destructive" role="alert" data-testid="wizard-grant-error">
+          {$t("connections.grant_apollia.failed", { values: { error: grantError } })}
+        </p>
+      {/if}
       <div
         class="rounded-md border border-success/30 bg-success/10 px-4 py-3"
         data-testid="test-result-success"

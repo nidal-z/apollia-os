@@ -15,6 +15,8 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { Button } from "$lib/components/ui/button";
   import { addMcpServer, testMcpConnection } from "$lib/ipc/connections";
+  import { grantConnectionToApollia } from "$lib/connections/apolliaGrant";
+  import GrantApolliaOption from "../../integrations/GrantApolliaOption.svelte";
   import { formatTauriError } from "$lib/connections/errors";
   import type { CustomTransport } from "../shared/types";
 
@@ -23,6 +25,10 @@
   }
 
   let { oninstalled }: Props = $props();
+
+  // The agent of the chat is offered the connection, checked: the person
+  // adding it expects to use it there. Unchecked, nothing is granted.
+  let grantApollia = $state(true);
 
   let form = $state({
     name: "",
@@ -115,12 +121,25 @@
     busy = true;
     try {
       await addMcpServer(config);
-      oninstalled();
     } catch (e) {
       error = formatTauriError(e, $t);
-    } finally {
       busy = false;
+      return;
     }
+    if (grantApollia) {
+      try {
+        await grantConnectionToApollia(String(config.name));
+      } catch (e) {
+        // The connection exists: the person is told, and the list shows it.
+        error = $t("connections.grant_apollia.failed", {
+          values: { error: formatTauriError(e, $t) },
+        });
+        busy = false;
+        return;
+      }
+    }
+    busy = false;
+    oninstalled();
   }
 </script>
 
@@ -208,6 +227,10 @@
         data-testid="custom-mcp-env-input"
       />
     </label>
+  </div>
+
+  <div class="mt-4">
+    <GrantApolliaOption bind:checked={grantApollia} disabled={busy} />
   </div>
 
   {#if testResult}
