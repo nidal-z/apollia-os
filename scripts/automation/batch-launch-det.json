@@ -185,6 +185,15 @@
       "command": "list_batch_accesses"
     },
     {
+      "kind": "clearStubs",
+      "command": "list_connections"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_connections",
+      "resolve": []
+    },
+    {
       "kind": "stubInvoke",
       "command": "list_batch_sources",
       "resolve": [

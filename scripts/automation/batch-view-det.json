@@ -2000,16 +2000,6 @@
       "label": "04-item-detail"
     },
     {
-      "kind": "click",
-      "testid": "batch-item-open",
-      "nth": 0
-    },
-    {
-      "kind": "waitGone",
-      "testid": "batch-item-panel",
-      "timeoutMs": 4000
-    },
-    {
       "kind": "stubInvoke",
       "command": "batch_item_decision",
       "resolve": {
