@@ -303,7 +303,7 @@
     },
     {
       "kind": "expect",
-      "testid": "agent-source-pick-connections"
+      "testid": "agent-source-pick-local-folder"
     },
     {
       "kind": "click",
