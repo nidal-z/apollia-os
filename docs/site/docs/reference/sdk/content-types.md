@@ -125,11 +125,14 @@ Attributes:
 
 _Bases: object_
 
-Result returned by an agent's ``run()`` method to the Apollia runtime.
+The result shape of the former agent ``run()`` contract.
 
-The runtime deserializes this via `to_dict` to determine the
-outcome of a task execution.  Three factory methods cover the common
-cases:
+The runtime no longer reads it: an agent is a record of ``apollia.toml``,
+and a ``@tool`` or ``@workflow`` function returns a plain value. A pause
+on a human is raised as `NeedHumanInput` (see
+`apollia.hitl`). The class stays for the assertion helpers of
+`apollia.testing` and for code written against it. Three factory
+methods build its three statuses:
 
 * `completed` - successful execution
 * `failed` - error with structured info

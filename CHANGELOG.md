@@ -735,9 +735,20 @@ of unknown family is removed and will be asked again.
 #### SDK contract
 
 - `ctx.user_context` no longer exists. Read the profile through `ctx.profile`,
-  which answers only when the agent's profile source is checked.
-- `@tool` no longer takes `dangerous`; declare the action family that says
-  what the tool does.
+  which answers only when the agent's profile source is checked: declare
+  `sources = ["profile"]` under `[agents.defaults]` of the package, or let
+  the user check the source on the agent sheet; `ctx.profile` is `None`
+  otherwise.
+- `@tool` no longer takes `dangerous`, and `action` is required: one of
+  `read`, `read_personal`, `write_or_delete`, `send_external` or
+  `execute_code`. Every family except `read` is sensitive, so a former
+  `dangerous=True` becomes the family that says what the tool does, for
+  example `action="write_or_delete"`.
+- `ctx.secrets`, `ctx.datasources` and `ctx.templates` read nothing: the
+  `secrets`, `datasources` and `templates` of the former `@agent` decorator
+  have no counterpart in `apollia.toml`. `get` returns `None` on
+  `ctx.secrets` and raises `FileNotFoundError` on the other two. Pass the
+  value as an argument of the tool or the workflow instead.
 - A package manifest (`apollia.toml` of a package) refuses any key it does not
   know. Fix the key the error names.
 - An agent's tools, agents and workflows are an access list: a tool the agent

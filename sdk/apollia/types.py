@@ -267,11 +267,14 @@ class Ctx(Protocol):
 
 @dataclass
 class AIPResult:
-    """Result returned by an agent's ``run()`` method to the Apollia runtime.
+    """The result shape of the former agent ``run()`` contract.
 
-    The runtime deserializes this via :meth:`to_dict` to determine the
-    outcome of a task execution.  Three factory methods cover the common
-    cases:
+    The runtime no longer reads it: an agent is a record of ``apollia.toml``,
+    and a ``@tool`` or ``@workflow`` function returns a plain value. A pause
+    on a human is raised as :class:`~apollia.errors.NeedHumanInput` (see
+    :mod:`apollia.hitl`). The class stays for the assertion helpers of
+    :mod:`apollia.testing` and for code written against it. Three factory
+    methods build its three statuses:
 
     * :meth:`completed` - successful execution
     * :meth:`failed` - error with structured info

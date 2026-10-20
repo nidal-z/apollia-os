@@ -14,6 +14,12 @@ _Bases: Protocol_
 
 Runtime access to the YAML datasources the context was given.
 
+A datasource is a YAML file the context was given by name. No datasource
+is given today: ``apollia.toml`` has no section that names one, and the
+runtime builds this service empty, so on every binary this project ships
+``get`` raises `FileNotFoundError`, ``has`` returns ``False`` and
+``list_names`` returns an empty list.
+
 #### `get`
 
 ```python
@@ -23,8 +29,8 @@ def get(self, name: str) -> Any
 Load datasource by name.
 
 Returns parsed YAML (``dict`` / ``list`` / ``str`` / ``int`` / ...).
-Raises `FileNotFoundError` if ``name`` is not declared in the
-agent manifest.
+Raises `FileNotFoundError` if ``name`` was not given to the
+context, or was given but its YAML file could not be loaded.
 
 #### `has`
 
@@ -32,7 +38,7 @@ agent manifest.
 def has(self, name: str) -> bool
 ```
 
-Whether ``name`` is declared and loaded.
+Whether ``name`` was given to the context and loaded.
 
 More idiomatic than wrapping `get` in a ``try``/``except`` when
 the agent means to degrade gracefully on a missing YAML file.
@@ -43,4 +49,4 @@ the agent means to degrade gracefully on a missing YAML file.
 def list_names(self) -> list[str]
 ```
 
-Return the names of every datasource the manifest declares.
+Return the names of every datasource the context was given.

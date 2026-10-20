@@ -7,7 +7,14 @@ from typing import Any, Protocol, runtime_checkable
 
 @runtime_checkable
 class DatasourcesInterface(Protocol):
-    """Runtime access to the YAML datasources the context was given."""
+    """Runtime access to the YAML datasources the context was given.
+
+    A datasource is a YAML file the context was given by name. No datasource
+    is given today: ``apollia.toml`` has no section that names one, and the
+    runtime builds this service empty, so on every binary this project ships
+    ``get`` raises :class:`FileNotFoundError`, ``has`` returns ``False`` and
+    ``list_names`` returns an empty list.
+    """
 
     # REASON(ANN401): the return is parsed YAML of a shape only the package author
     # knows. `object` would force every caller to cast before indexing, which is
@@ -16,13 +23,13 @@ class DatasourcesInterface(Protocol):
         """Load datasource by name.
 
         Returns parsed YAML (``dict`` / ``list`` / ``str`` / ``int`` / ...).
-        Raises :class:`FileNotFoundError` if ``name`` is not declared in the
-        agent manifest.
+        Raises :class:`FileNotFoundError` if ``name`` was not given to the
+        context, or was given but its YAML file could not be loaded.
         """
         ...
 
     def has(self, name: str) -> bool:
-        """Whether ``name`` is declared and loaded.
+        """Whether ``name`` was given to the context and loaded.
 
         More idiomatic than wrapping :meth:`get` in a ``try``/``except`` when
         the agent means to degrade gracefully on a missing YAML file.
@@ -30,5 +37,5 @@ class DatasourcesInterface(Protocol):
         ...
 
     def list_names(self) -> list[str]:
-        """Return the names of every datasource the manifest declares."""
+        """Return the names of every datasource the context was given."""
         ...

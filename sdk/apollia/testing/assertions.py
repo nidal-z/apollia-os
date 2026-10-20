@@ -2,8 +2,9 @@
 
 Synchronous functions that raise :class:`AssertionError` on failure -
 directly compatible with ``pytest``.  They inspect both the
-:class:`AIPResult` dicts that agents return and the
-:class:`~apollia.testing.MockContext` services to verify behaviour.
+:class:`AIPResult` dicts that code written against the former
+``run()`` contract returns, and the :class:`~apollia.testing.MockContext`
+services to verify behaviour.
 
 Example::
 

@@ -9,14 +9,14 @@ from typing import Protocol, runtime_checkable
 class SecretsInterface(Protocol):
     """Read-only access to the credentials the context was granted.
 
-    Every ``get`` reads the encrypted credential store at call time; there is
-    no snapshot taken at task startup. The store is the ``governance.db``
-    SQLite database and the key file beside it, opened once when the runtime
-    starts, and a runtime that could not open it hands back ``None`` for every
-    key. The manifest declaration is the only authority: a key it does not
-    declare returns ``None`` even when a value is stored under it. Agents never
-    write to this surface, credentials are provisioned from the desktop app
-    (Settings > Integrations) or with ``apollia-os tools credentials set``.
+    The keys the context was granted are the only authority: a key outside
+    them returns ``None`` even when a value is stored under it. No key is
+    granted today. ``apollia.toml`` has no section that names one, and the
+    runtime builds this service with no key and no credential store, so on
+    every binary this project ships ``get`` returns ``None``, ``has`` returns
+    ``False`` and ``list_names`` returns an empty list. A credential a
+    connection or a native tool needs is held by that connection or tool, not
+    read through ``ctx``. Agents never write to this surface.
     """
 
     def get(self, key: str) -> str | None:
@@ -24,12 +24,12 @@ class SecretsInterface(Protocol):
         ...
 
     def has(self, key: str) -> bool:
-        """Whether ``key`` is declared and currently holds a value.
+        """Whether ``key`` was granted and currently holds a value.
 
         Strictly equivalent to ``ctx.secrets.get(key) is not None``.
         """
         ...
 
     def list_names(self) -> list[str]:
-        """Return the secret keys the manifest declares, never their values."""
+        """Return the secret keys the context was granted, never their values."""
         ...

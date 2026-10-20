@@ -14,10 +14,12 @@ The bridge never attaches this service. `ctx.workspace` is `None` on every binar
 
 _Bases: Protocol_
 
-Snapshot of the workspace at task start.
+The sections collected from a workspace, by title.
 
-Exposes the parsed ``APOLLIA.md`` (project rules) and named sections.
-The snapshot is immutable for the duration of the task.
+The rules file of a workspace (``APOLLIA.md`` by default) is the section
+titled ``Project rules``; other sections carry their own title. The
+runtime collects no workspace for the code of a package, so this view is
+never attached and ``ctx.workspace`` is ``None``.
 
 | Field | Type | Default |
 | --- | --- | --- |

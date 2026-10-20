@@ -7,20 +7,22 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class WorkspaceContext(Protocol):
-    """Snapshot of the workspace at task start.
+    """The sections collected from a workspace, by title.
 
-    Exposes the parsed ``APOLLIA.md`` (project rules) and named sections.
-    The snapshot is immutable for the duration of the task.
+    The rules file of a workspace (``APOLLIA.md`` by default) is the section
+    titled ``Project rules``; other sections carry their own title. The
+    runtime collects no workspace for the code of a package, so this view is
+    never attached and ``ctx.workspace`` is ``None``.
     """
 
     @property
     def rules(self) -> str | None:
-        """APOLLIA.md content (alias for :attr:`apollia_md`)."""
+        """The ``Project rules`` section (the rules file), or ``None`` when absent."""
         ...
 
     @property
     def apollia_md(self) -> str | None:
-        """Raw ``APOLLIA.md`` content, or None when the workspace has none."""
+        """Alias for :attr:`rules`."""
         ...
 
     def get(self, title: str) -> str | None:
@@ -29,5 +31,5 @@ class WorkspaceContext(Protocol):
 
     @property
     def sections(self) -> list[dict[str, str]]:
-        """Every parsed section, each as a ``{"title", "body"}`` mapping."""
+        """Every section, each as a ``{"title", "content"}`` mapping."""
         ...
