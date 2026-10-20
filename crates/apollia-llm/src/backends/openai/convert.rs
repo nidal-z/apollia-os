@@ -83,7 +83,7 @@ pub(super) fn build_messages(
                             id: tc.id.clone(),
                             r#type: ChatCompletionToolType::Function,
                             function: FunctionCall {
-                                name: tc.name.clone(),
+                                name: super::tool_names::wire_name(&tc.name),
                                 arguments: tc.arguments.to_string(),
                             },
                         })
@@ -174,7 +174,7 @@ pub(super) fn build_tools(tools: &[crate::types::ToolSpec]) -> Vec<ChatCompletio
         .map(|spec| ChatCompletionTool {
             r#type: ChatCompletionToolType::Function,
             function: FunctionObject {
-                name: spec.name.clone(),
+                name: super::tool_names::wire_name(&spec.name),
                 description: Some(spec.description.clone()),
                 parameters: Some(crate::schema_sanitize::grammar_safe_schema(
                     &spec.parameters,

@@ -28,6 +28,7 @@ use futures::{Stream, StreamExt};
 mod convert;
 mod reasoning;
 mod stream;
+mod tool_names;
 
 use convert::{
     build_messages, build_tools, estimate_cost_usd, map_finish_reason, map_openai_error,
@@ -280,6 +281,7 @@ impl OpenAICompatibleClient {
     /// - 401 to [`LlmError::Unauthorized`]
     async fn do_complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
+        let names = tool_names::WireNames::of(&req.tools);
         let model = req
             .model
             .as_deref()
@@ -348,11 +350,11 @@ impl OpenAICompatibleClient {
                     );
                     serde_json::Value::Null
                 });
-                ToolCall {
+                names.restore(ToolCall {
                     id: tc.id,
                     name: tc.function.name,
                     arguments,
-                }
+                })
             })
             .collect();
 
@@ -555,7 +557,9 @@ impl CompletionModel for OpenAICompatibleClient {
             finish: None,
         };
 
-        let mapped = futures::stream::unfold(state, next_openai_stream_item);
+        let names = tool_names::WireNames::of(&req.tools);
+        let mapped = futures::stream::unfold(state, next_openai_stream_item)
+            .map(move |chunk| names.restore_chunk(chunk));
 
         Ok(Box::pin(mapped))
     }
