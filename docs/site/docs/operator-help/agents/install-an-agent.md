@@ -67,11 +67,22 @@ Opening the file of a newer version of a package already installed updates it. T
 
 4. The draft of the sheet opens under **Review the draft**. Give the agent a **Name** and adjust what Apollia wrote: mission, model, accesses and sources all stay editable. **Back to the form** returns to the form.
 
-5. Click **Save the agent**. Nothing is saved before this click: leaving the screen earlier leaves no agent behind.
+5. Click **Save the agent**. No agent is saved before this click.
 
 6. The sheet of the new agent opens. **Try it in the Chat** starts a conversation with it.
 
 To write the sheet without the questions, click **Fill in the sheet myself** on the form.
+
+## Leave a creation and come back to it
+
+A creation under way is kept as a draft. Leaving the screen loses nothing: the form, your answers and the sheet in progress wait for you. Closing the application keeps the form and a sheet already under review; a preparation still going stops, and you launch it again from the form as you typed it.
+
+- While Apollia prepares the sheet, you can leave: the preparation goes on while you are away. When you come back, it is followed again where it stands, and a question it asked meanwhile waits for your answer.
+- The **Agents** screen shows **An agent is being created**, with where the creation stands: the form started, the sheet being prepared with a question that may be waiting for you, or the sheet to review before saving.
+- **Resume** reopens the creation where you left it.
+- **Discard the draft** erases the form, the answers and the sheet in progress, and stops the preparation, once you confirm with **Discard**.
+
+Only **Save the agent**, or a confirmed discard, ends the draft.
 
 ## Verification
 

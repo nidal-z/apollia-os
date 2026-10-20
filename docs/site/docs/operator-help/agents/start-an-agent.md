@@ -37,9 +37,26 @@ You can also click the row to open the sheet of the agent, then **New chat** at 
 
 1. Open **Agents** and click the row of the agent to open its sheet.
 
-2. Click **Process a batch** at the top of the sheet, and follow the window that opens.
+2. Click **Process a batch** at the top of the sheet. The window that opens hands the items of a source to the agent one at a time, each item a request of its own.
 
-3. Follow the batch from **Batch history**, at the top of the **Agents** screen.
+3. Under **Source**, choose where the items come from:
+   - **Excel or CSV file**: a row of the workbook becomes an item. **Choose a file…** picks it on this computer. A preview of the workbook lets you choose the sheet, the header row and the columns sent to the agent.
+   - **Folder**: a file of the folder becomes an item. Pick a connected folder, or **Choose a folder…** on this computer. The agent receives the text of each file, read from PDF, Word, PowerPoint, workbooks, CSV and plain text files. Tick **Read the sub-folders too** to take the files of its sub-folders as well. The folder is only read: nothing is written into it.
+   - **Mailbox**: a received message becomes an item. The list holds the IMAP mailboxes and the Microsoft account (read as Outlook) of your **Connections**. **Add a mailbox…** opens **Connections**. Tick **Unread messages only** to leave the read messages out.
+
+4. Under **What the agent does for each item**, write the instruction sent with every item.
+
+5. Under **Result columns**, give each column a name and say what the field holds. **Add a column** adds one. The agent answers each item with exactly these fields, and each field becomes a column. For a file source, the columns are written into a copy of the workbook. With an .xlsx or .xlsm workbook, you can choose instead **In the original file, after a backup**. For a folder or a mailbox, the results are kept with the batch, and you export them from its view.
+
+6. Under **At the end of the batch (optional)**, say what the agent writes once every item has run, for example a ranking or a recommendation. The agent writes this synthesis from the table of results. It is shown on the view of the batch and, for a file or a folder source, written as a Markdown file beside the source, named in the language of the interface: `<name> (synthesis YYYY-MM-DD).md` in English.
+
+7. Under **Accesses to grant for the duration of the batch**, tick the sensitive accesses the agent may use without asking you, until the batch ends. Without a grant, the item concerned waits for your decision in **To review**, and the batch goes on.
+
+8. Under **Failure threshold**, choose after how many failures the batch interrupts itself, or **Never interrupt**.
+
+9. Click **Launch the batch**. The view of the batch opens and follows it item by item. See [The view of a batch](../screens/batch.md).
+
+Every batch stays in **Batch history**, at the top of the **Agents** screen. An Excel or CSV file dropped in the Chat also offers **Process each row**, which opens the same window.
 
 ## Steps - Let an automation call the agent
 

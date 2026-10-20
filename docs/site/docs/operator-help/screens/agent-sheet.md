@@ -14,6 +14,15 @@ The sheet says what the agent does (its mission and examples of requests), which
 
 Two sources change what the agent keeps. With **The agent's memory** checked, the agent keeps notes of its own and finds them again across its conversations. With **Profile** checked, the agent reads your profile and may propose a fact for it, which you accept or refuse each time.
 
+## Sources the agent searches, and files it opens
+
+A file or a folder among the sources of the agent is searched, not opened: the agent can search a file, not open it whole, and search a folder, not open its files.
+
+- On the row of a file source, **Let it open it** grants the agent the reading of the connected folder that holds the file. When no connected folder holds it, the button names the folder of the file and connects it on the spot.
+- On the row of a folder source, **Let it open its files** grants the agent the reading of that folder.
+
+To add a folder, click **Add a source**, then **A folder**. The window lists your folder connections and offers **Choose a folder on this computer…**: the folder you choose is connected directly, without going through **Connections**.
+
 ## What you can do
 
 - Adjust the agent: its mission, its model, its accesses and its sources.

@@ -14,7 +14,8 @@ Agents work for you: each has a mission, a model and accesses you decide. Workfl
 
 ## What you can do
 
-- Create an agent from a short form: Apollia asks what is missing, writes its sheet, and nothing is saved before you validate it.
+- Create an agent from a short form: Apollia asks what is missing, writes its sheet, and no agent is saved before you validate it.
+- Come back to a creation under way: it is kept as a draft, shown as **An agent is being created** with **Resume** and **Discard the draft**.
 - Start from an example offered by Apollia, or install a package.
 - Open the sheet of an agent to read what it does and what it may access, or start a conversation with it from its row.
 

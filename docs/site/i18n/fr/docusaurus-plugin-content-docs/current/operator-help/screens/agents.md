@@ -14,7 +14,8 @@ Les agents travaillent pour vous : chacun a une mission, un modèle et des accè
 
 ## Ce que vous pouvez faire
 
-- Créer un agent depuis un court formulaire : Apollia demande ce qui manque, rédige sa fiche, et rien n'est enregistré avant votre validation.
+- Créer un agent depuis un court formulaire : Apollia demande ce qui manque, rédige sa fiche, et aucun agent n'est enregistré avant votre validation.
+- Revenir à une création en cours : elle est gardée comme brouillon, affichée comme **Un agent est en cours de création** avec **Reprendre** et **Abandonner le brouillon**.
 - Partir d'un exemple proposé par Apollia, ou installer un paquet.
 - Ouvrir la fiche d'un agent pour lire ce qu'il fait et ce à quoi il a accès, ou ouvrir une conversation avec lui depuis sa ligne.
 

@@ -37,9 +37,26 @@ Vous pouvez aussi cliquer sur la ligne pour ouvrir la fiche de l'agent, puis sur
 
 1. Ouvrez **Agents** et cliquez sur la ligne de l'agent pour ouvrir sa fiche.
 
-2. Cliquez sur **Traiter un lot** en haut de la fiche, et suivez la fenêtre qui s'ouvre.
+2. Cliquez sur **Traiter un lot** en haut de la fiche. La fenêtre qui s'ouvre confie les éléments d'une source à l'agent un par un, chaque élément étant une demande à part entière.
 
-3. Suivez le lot depuis **Historique des lots**, en haut de l'écran **Agents**.
+3. Sous **Source**, choisissez d'où viennent les éléments :
+   - **Fichier Excel ou CSV** : une ligne du classeur devient un élément. **Choisir un fichier…** le prend sur ce poste. Un aperçu du classeur permet de choisir la feuille, la ligne d'en-tête et les colonnes envoyées à l'agent.
+   - **Dossier** : un fichier du dossier devient un élément. Prenez un dossier connecté, ou **Choisir un dossier…** sur ce poste. L'agent reçoit le texte de chaque fichier, lu dans les fichiers PDF, Word, PowerPoint, les classeurs, les CSV et le texte brut. Cochez **Lire aussi les sous-dossiers** pour prendre aussi les fichiers de ses sous-dossiers. Le dossier est seulement lu : rien n'y est écrit.
+   - **Boîte mail** : un message reçu devient un élément. La liste contient les boîtes IMAP et le compte Microsoft (lu comme Outlook) de vos **Connexions**. **Ajouter une boîte mail…** ouvre **Connexions**. Cochez **Messages non lus seulement** pour laisser de côté les messages déjà lus.
+
+4. Sous **Ce que l'agent fait pour chaque élément**, écrivez la consigne envoyée avec chaque élément.
+
+5. Sous **Colonnes du résultat**, donnez un nom à chaque colonne et dites ce que contient le champ. **Ajouter une colonne** en ajoute une. L'agent répond à chaque élément avec exactement ces champs, et chaque champ devient une colonne. Pour une source fichier, les colonnes sont écrites dans une copie du classeur. Avec un classeur .xlsx ou .xlsm, vous pouvez choisir à la place **Dans le fichier d'origine, après une sauvegarde**. Pour un dossier ou une boîte mail, les résultats sont gardés avec le lot, et vous les exportez depuis sa vue.
+
+6. Sous **À la fin du lot (facultatif)**, dites ce que l'agent écrit une fois tous les éléments traités, par exemple un classement ou une recommandation. L'agent écrit cette synthèse à partir du tableau des résultats. Elle s'affiche sur la vue du lot et, pour une source fichier ou dossier, elle est écrite en fichier Markdown à côté de la source, nommée dans la langue de l'interface : `<nom> (synthèse AAAA-MM-JJ).md` en français.
+
+7. Sous **Accès à accorder pour la durée du lot**, cochez les accès sensibles que l'agent peut utiliser sans vous demander, jusqu'à la fin du lot. Sans accord, l'élément concerné attend votre décision dans **À valider**, et le lot continue.
+
+8. Sous **Seuil d'échecs**, choisissez après combien d'échecs le lot s'interrompt de lui-même, ou **Ne jamais interrompre**.
+
+9. Cliquez sur **Lancer le lot**. La vue du lot s'ouvre et le suit élément par élément. Voir [La vue d'un lot](../screens/batch.md).
+
+Tous les lots restent dans **Historique des lots**, en haut de l'écran **Agents**. Un fichier Excel ou CSV déposé dans le Chat propose aussi **Traiter chaque ligne**, qui ouvre la même fenêtre.
 
 ## Étapes - Laisser une automatisation appeler l'agent
 

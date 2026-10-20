@@ -67,11 +67,22 @@ Ouvrir le fichier d'une version plus récente d'un paquet déjà installé le me
 
 4. Le brouillon de la fiche s'ouvre sous **Relire le brouillon**. Donnez un **Nom** à l'agent et ajustez ce qu'Apollia a rédigé : mission, modèle, accès et sources restent tous modifiables. **Revenir au formulaire** ramène au formulaire.
 
-5. Cliquez sur **Enregistrer l'agent**. Rien n'est enregistré avant ce clic : quitter l'écran plus tôt ne laisse aucun agent.
+5. Cliquez sur **Enregistrer l'agent**. Aucun agent n'est enregistré avant ce clic.
 
 6. La fiche du nouvel agent s'ouvre. **Essayer dans le Chat** ouvre une conversation avec lui.
 
 Pour rédiger la fiche sans les questions, cliquez sur **Remplir la fiche moi-même** dans le formulaire.
+
+## Quitter une création et y revenir
+
+Une création en cours est gardée comme brouillon. Quitter l'écran ne fait rien perdre : le formulaire, vos réponses et la fiche en cours vous attendent. Fermer l'application garde le formulaire et une fiche déjà en relecture ; une préparation encore en cours s'arrête, et vous la relancez depuis le formulaire tel que vous l'aviez saisi.
+
+- Pendant qu'Apollia prépare la fiche, vous pouvez partir : la préparation continue en votre absence. À votre retour, elle est de nouveau suivie là où elle en est, et une question posée entre-temps attend votre réponse.
+- L'écran **Agents** affiche **Un agent est en cours de création**, avec où en est la création : le formulaire commencé, la fiche en préparation avec une question qui peut vous attendre, ou la fiche à relire avant l'enregistrement.
+- **Reprendre** rouvre la création là où vous l'avez laissée.
+- **Abandonner le brouillon** efface le formulaire, les réponses et la fiche en cours, et arrête la préparation, une fois que vous confirmez avec **Abandonner**.
+
+Seuls **Enregistrer l'agent**, ou un abandon confirmé, mettent fin au brouillon.
 
 ## Vérification
 

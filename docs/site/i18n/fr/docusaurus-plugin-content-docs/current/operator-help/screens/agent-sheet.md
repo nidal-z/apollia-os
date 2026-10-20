@@ -14,6 +14,15 @@ La fiche dit ce que fait l'agent (sa mission et des exemples de demandes), quel 
 
 Deux sources changent ce que l'agent garde. Avec **Mémoire de l'agent** cochée, l'agent garde des notes qui lui sont propres et les retrouve d'une conversation à l'autre. Avec **Profil** coché, l'agent lit votre profil et peut proposer un fait à y ajouter, que vous acceptez ou refusez à chaque fois.
 
+## Les sources où l'agent cherche, et les fichiers qu'il ouvre
+
+Un fichier ou un dossier parmi les sources de l'agent est fouillé, pas ouvert : l'agent peut chercher dans un fichier, pas l'ouvrir en entier, et chercher dans un dossier, pas en ouvrir les fichiers.
+
+- Sur la ligne d'une source fichier, **Lui permettre de l'ouvrir** accorde à l'agent la lecture du dossier connecté qui contient le fichier. Quand aucun dossier connecté ne le contient, le bouton nomme le dossier du fichier et le connecte sur place.
+- Sur la ligne d'une source dossier, **Lui permettre d'en ouvrir les fichiers** accorde à l'agent la lecture de ce dossier.
+
+Pour ajouter un dossier, cliquez sur **Ajouter une source**, puis sur **Un dossier**. La fenêtre liste vos connexions dossier et propose **Choisir un dossier sur ce poste…** : le dossier choisi est connecté directement, sans passer par **Connexions**.
+
 ## Ce que vous pouvez faire
 
 - Ajuster l'agent : sa mission, son modèle, ses accès et ses sources.
