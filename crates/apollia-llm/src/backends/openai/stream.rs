@@ -32,6 +32,11 @@ pub(super) enum OpenAIStreamState {
         /// emit. Held back so they surface on the following poll, since the
         /// state machine yields one item at a time.
         pending_timings: Option<serde_json::Value>,
+        /// Token accounting seen on a chunk that also carried text. An engine
+        /// may send its last tokens, its finish reason and its usage in one
+        /// chunk (vllm-mlx does): the text is emitted first, the usage on the
+        /// following poll, rather than the text being lost behind it.
+        pending_usage: Option<TokenUsage>,
         /// Whether a `<think>` block opened by a separate reasoning field is
         /// still open. See [`RawReasoning`].
         in_think: bool,
@@ -108,6 +113,7 @@ pub(super) async fn next_openai_stream_item(
             mut pending,
             model,
             mut pending_timings,
+            mut pending_usage,
             mut in_think,
             mut finish,
         } => {
@@ -122,6 +128,22 @@ pub(super) async fn next_openai_stream_item(
                         pending,
                         model,
                         pending_timings: None,
+                        pending_usage,
+                        in_think,
+                        finish,
+                    },
+                ));
+            }
+            if let Some(usage) = pending_usage.take() {
+                return Some((
+                    Ok(StreamChunk::Usage(usage)),
+                    OpenAIStreamState::Streaming {
+                        inner,
+                        first,
+                        pending,
+                        model,
+                        pending_timings,
+                        pending_usage: None,
                         in_think,
                         finish,
                     },
@@ -142,33 +164,21 @@ pub(super) async fn next_openai_stream_item(
                         }
                         let reasoning = envelope.reasoning;
                         let response = envelope.inner;
-                        // The terminal chunk (empty `choices`, populated `usage`)
-                        // carries the call's token accounting. Surface it as
-                        // `StreamChunk::Usage`, priced like the non-streaming path.
-                        if let Some(usage) = response.usage.as_ref() {
-                            let mapped = TokenUsage {
-                                prompt_tokens: usage.prompt_tokens,
-                                completion_tokens: usage.completion_tokens,
-                                cost_usd: estimate_cost_usd(
-                                    &model,
-                                    usage.prompt_tokens,
-                                    usage.completion_tokens,
-                                ),
-                                ..Default::default()
-                            };
-                            return Some((
-                                Ok(StreamChunk::Usage(mapped)),
-                                OpenAIStreamState::Streaming {
-                                    inner,
-                                    first,
-                                    pending,
-                                    model,
-                                    pending_timings,
-                                    in_think,
-                                    finish,
-                                },
-                            ));
-                        }
+                        // The chunk that carries `usage` holds the call's token
+                        // accounting, priced like the non-streaming path. It is
+                        // usually the terminal one, with empty `choices`; an
+                        // engine may put its last tokens and its finish reason
+                        // in it too, and those are read before the usage.
+                        let usage = response.usage.as_ref().map(|usage| TokenUsage {
+                            prompt_tokens: usage.prompt_tokens,
+                            completion_tokens: usage.completion_tokens,
+                            cost_usd: estimate_cost_usd(
+                                &model,
+                                usage.prompt_tokens,
+                                usage.completion_tokens,
+                            ),
+                            ..Default::default()
+                        });
                         if let Some(text) = next_emittable_text(
                             &mut pending,
                             response,
@@ -186,6 +196,22 @@ pub(super) async fn next_openai_stream_item(
                                     pending,
                                     model,
                                     pending_timings,
+                                    pending_usage: usage,
+                                    in_think,
+                                    finish,
+                                },
+                            ));
+                        }
+                        if let Some(usage) = usage {
+                            return Some((
+                                Ok(StreamChunk::Usage(usage)),
+                                OpenAIStreamState::Streaming {
+                                    inner,
+                                    first,
+                                    pending,
+                                    model,
+                                    pending_timings,
+                                    pending_usage: None,
                                     in_think,
                                     finish,
                                 },

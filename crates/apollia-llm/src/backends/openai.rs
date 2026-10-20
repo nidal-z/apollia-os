@@ -550,6 +550,7 @@ impl CompletionModel for OpenAICompatibleClient {
             pending: HashMap::new(),
             model,
             pending_timings: None,
+            pending_usage: None,
             in_think: false,
             finish: None,
         };
@@ -1170,6 +1171,56 @@ mod tests {
         assert_eq!(call.id, "call_abc123");
         assert_eq!(call.name, "file_read");
         assert_eq!(call.arguments["path"], "/tmp/x");
+    }
+
+    // ── The last chunk of a stream ──────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_the_text_of_the_chunk_that_carries_the_usage_is_kept() {
+        // GIVEN a stream whose last chunk carries the last tokens, the finish
+        // reason and the usage together, as vllm-mlx sends it
+        let opening =
+            stream_chunk(serde_json::json!({"content": "{\"Terms\": \"30 days end of mo"}));
+        let last: TimedStreamResponse = serde_json::from_value(serde_json::json!({
+            "id": "c1",
+            "object": "chat.completion.chunk",
+            "created": 0,
+            "model": "m",
+            "choices": [{"index": 0, "delta": {"content": "nth\"}"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 12, "total_tokens": 22},
+        }))
+        .expect("chunk must parse");
+        let inner: TimedChatStream = Box::pin(futures::stream::iter(vec![Ok(opening), Ok(last)]));
+        let state = OpenAIStreamState::Streaming {
+            inner,
+            first: None,
+            pending: HashMap::new(),
+            model: "m".into(),
+            pending_timings: None,
+            pending_usage: None,
+            in_think: false,
+            finish: None,
+        };
+
+        // WHEN the stream is read to its end
+        let chunks: Vec<StreamChunk> =
+            futures::stream::unfold(state, super::stream::next_openai_stream_item)
+                .map(|chunk| chunk.expect("a chunk"))
+                .collect()
+                .await;
+
+        // THEN the whole answer is there, and the usage still comes after it
+        let text: String = chunks
+            .iter()
+            .filter_map(|chunk| match chunk {
+                StreamChunk::Text(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(text, "{\"Terms\": \"30 days end of month\"}");
+        assert!(chunks
+            .iter()
+            .any(|chunk| matches!(chunk, StreamChunk::Usage(u) if u.completion_tokens == 12)));
     }
 
     // ── Reasoning reported beside the content ───────────────────────────────
