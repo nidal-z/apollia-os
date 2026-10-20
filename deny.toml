@@ -23,6 +23,22 @@ ignore = [
     "RUSTSEC-2024-0419", # gtk3-macros: unmaintained (gtk-rs GTK3)
     "RUSTSEC-2024-0420", # gtk-sys: unmaintained (gtk-rs GTK3)
     "RUSTSEC-2024-0370", # proc-macro-error: unmaintained, via gtk3-macros
+    # zip 4 (apollia-runtime, apollia-sources) and zip 8 (calamine,
+    # office_oxide): the three advisories concern `ZipArchive::extract` and
+    # `ZipStreamReader::extract`, which write an archive to disk. Nothing in
+    # the tree extracts an archive: packages, workbooks and office documents
+    # are read entry by entry, in memory. The fix is zip 9, a major version.
+    # Lift condition: the workspace and calamine/office_oxide move to zip 9.
+    "RUSTSEC-2026-0367", # zip: SUID/SGID bits kept on extraction
+    "RUSTSEC-2026-0368", # zip: extracted symlinks may point outside the target
+    "RUSTSEC-2026-0369", # zip: permissions applied through extracted symlinks
+    # zbus 5 (notify-rust, Linux desktop notifications): its name and value
+    # crates were merged into zbus 6 and are no longer published apart. No
+    # safe upgrade exists in zbus 5. Lift condition: notify-rust moves to
+    # zbus 6.
+    "RUSTSEC-2026-0370", # zvariant: unmaintained, merged into zbus 6
+    "RUSTSEC-2026-0371", # zbus_names: unmaintained, merged into zbus 6
+    "RUSTSEC-2026-0372", # zvariant_derive: unmaintained, merged into zbus 6
     # In apollia-llm through async-openai's HTTP retry layer (backoff, and
     # instant underneath it); apollia-llm declares backoff to bound that
     # retry. Lift condition: async-openai migrates off backoff upstream.
