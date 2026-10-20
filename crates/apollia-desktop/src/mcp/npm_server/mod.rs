@@ -70,6 +70,10 @@ const EMBEDDED_LOCKS: &[(&str, &str)] = &[
         "@modelcontextprotocol/server-postgres",
         include_str!("locks/server-postgres/package-lock.json"),
     ),
+    (
+        "@playwright/mcp",
+        include_str!("locks/playwright-mcp/package-lock.json"),
+    ),
 ];
 
 /// The embedded npm lock of a curated package, if it has one.

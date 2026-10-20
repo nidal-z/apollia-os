@@ -543,11 +543,12 @@ mod tests {
         // remains accessible via the local Dev Mode entry.
         // WHEN it is loaded
         let enrichments = load_builtin_enrichments();
-        // THEN it holds eighteen entries
+        // THEN it holds nineteen entries, the browser on the Chrome of the
+        //      machine included
         assert_eq!(
             enrichments.len(),
-            18,
-            "expected 18 curated entries in the v0.1.0 catalog"
+            19,
+            "expected 19 curated entries in the catalog"
         );
         // AND every entry declares a cost model so the UI can show the badge
         for e in &enrichments {

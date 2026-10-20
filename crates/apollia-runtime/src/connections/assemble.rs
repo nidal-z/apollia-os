@@ -9,8 +9,10 @@ use apollia_auth::ConnectorProvider;
 use apollia_connectors::imap::{providers::provider_for_email, ImapAccount};
 use apollia_core::FolderConnection;
 use apollia_core::McpHealth;
+use apollia_mcp::classify::classify_mcp_tool;
 use apollia_mcp::config::McpServerConfig;
 use apollia_mcp::manager::McpServerStatus;
+use apollia_mcp::tool_search::ToolIndexSnapshot;
 use apollia_mcp::Provenance;
 use apollia_tools::{FamilySource, ToolDescriptor};
 
@@ -31,6 +33,9 @@ pub struct ConnectionSources {
     pub mcp_statuses: Vec<McpServerStatus>,
     /// Every descriptor of the tool registry.
     pub descriptors: Vec<ToolDescriptor>,
+    /// The tools each live MCP session indexed. In deferred loading none of
+    /// them reaches the registry, so this is where a server's tools are read.
+    pub mcp_index: Vec<ToolIndexSnapshot>,
     /// Names of the MCP servers an installed package brought.
     pub package_servers: HashSet<String>,
     /// Connected accounts of each native provider.
@@ -146,7 +151,7 @@ fn mcp_connection(config: &McpServerConfig, sources: &ConnectionSources) -> Conn
         remote: is_remote(&config.transport, config.url.as_deref()),
         official,
         state: status.map_or(ConnectionState::Stopped, |s| state_of(&s.health)),
-        tools: mcp_tools(config, &sources.descriptors, provenance, official),
+        tools: mcp_tools(config, sources, provenance, official),
     }
 }
 
@@ -159,16 +164,19 @@ fn state_of(health: &McpHealth) -> ConnectionState {
     }
 }
 
-/// The tools a server published, as registered; for a server without a live
-/// session, the tools its selection entry classified.
+/// The tools a server published, as registered; otherwise the tools its
+/// selection entry classified, then every other tool its live session
+/// indexed, unclassified. In deferred loading nothing is registered, so a
+/// server with no selection entry would otherwise offer no tool to grant.
 fn mcp_tools(
     config: &McpServerConfig,
-    descriptors: &[ToolDescriptor],
+    sources: &ConnectionSources,
     provenance: Provenance,
     official: bool,
 ) -> Vec<ConnectionTool> {
     let prefix = format!("mcp:{}/", config.name);
-    let registered: Vec<ConnectionTool> = descriptors
+    let registered: Vec<ConnectionTool> = sources
+        .descriptors
         .iter()
         .filter(|d| d.name.starts_with(&prefix))
         .map(|d| tool_from_descriptor(d, provenance, official))
@@ -176,7 +184,7 @@ fn mcp_tools(
     if !registered.is_empty() {
         return registered;
     }
-    config
+    let mut tools: Vec<ConnectionTool> = config
         .tool_families
         .iter()
         .map(|(name, family)| ConnectionTool {
@@ -185,7 +193,26 @@ fn mcp_tools(
             family_source: FamilySource::Selection,
             prechecked: is_prechecked(*family, provenance, official),
         })
-        .collect()
+        .collect();
+    let mut indexed: Vec<&ToolIndexSnapshot> = sources
+        .mcp_index
+        .iter()
+        .filter(|e| {
+            e.server_name == config.name && !config.tool_families.contains_key(&e.tool_name)
+        })
+        .collect();
+    indexed.sort_by(|a, b| a.tool_name.cmp(&b.tool_name));
+    indexed.dedup_by(|a, b| a.tool_name == b.tool_name);
+    tools.extend(indexed.into_iter().map(|entry| {
+        let (family, family_source) = classify_mcp_tool(None, None, config.has_account());
+        ConnectionTool {
+            id: format!("{prefix}{}", entry.tool_name),
+            family,
+            family_source,
+            prechecked: is_prechecked(family, provenance, official),
+        }
+    }));
+    tools
 }
 
 fn tool_from_descriptor(

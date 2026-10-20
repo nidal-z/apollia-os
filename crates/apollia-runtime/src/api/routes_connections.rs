@@ -99,9 +99,9 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
             .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?,
         None => Vec::new(),
     };
-    let mcp_statuses = match &state.mcp_handle {
-        Some(handle) => handle.status().await,
-        None => Vec::new(),
+    let (mcp_statuses, mcp_index) = match &state.mcp_handle {
+        Some(handle) => (handle.status().await, handle.get_tool_index().await),
+        None => (Vec::new(), Vec::new()),
     };
     let descriptors = match &state.tool_registry_handle {
         Some(registry) => registry
@@ -124,6 +124,7 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
         mcp_configs,
         mcp_statuses,
         descriptors,
+        mcp_index,
         package_servers,
         native_accounts,
         imap_accounts,

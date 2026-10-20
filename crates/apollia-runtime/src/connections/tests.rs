@@ -94,6 +94,7 @@ fn test_two_mcp_servers_and_one_google_account_are_three_connections_with_tools(
         imap_accounts: Vec::new(),
         forbidden: HashSet::new(),
         folders: Vec::new(),
+        mcp_index: Vec::new(),
     };
 
     // WHEN the connections are listed
@@ -411,4 +412,45 @@ fn test_a_forbidden_connection_is_marked_forbidden_by_policy() {
         ConnectionState::ForbiddenByPolicy
     );
     assert_eq!(by_id(&list, "mcp:files").state, ConnectionState::Connected);
+}
+
+#[test]
+fn a_custom_server_in_deferred_loading_offers_every_tool_its_session_indexed() {
+    // GIVEN a custom server with no selection entry, whose live session
+    // indexed two tools and registered none, as deferred loading does
+    let index = |tool: &str| apollia_mcp::tool_search::ToolIndexSnapshot {
+        server_name: "navigateur".to_owned(),
+        tool_name: tool.to_owned(),
+        description: None,
+        tags: Vec::new(),
+        input_schema: None,
+    };
+    let sources = ConnectionSources {
+        mcp_configs: vec![server(
+            "navigateur",
+            "http",
+            Some("http://localhost:8931/mcp"),
+        )],
+        mcp_statuses: vec![healthy("navigateur")],
+        mcp_index: vec![index("browser_navigate"), index("browser_click")],
+        ..ConnectionSources::default()
+    };
+
+    // WHEN the connections are listed
+    let list = assemble(&sources);
+
+    // THEN the connection offers both tools, unclassified and unchecked, so
+    //      an agent sheet can grant them
+    let tools = &by_id(&list, "mcp:navigateur").tools;
+    let ids: Vec<&str> = tools.iter().map(|t| t.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        [
+            "mcp:navigateur/browser_click",
+            "mcp:navigateur/browser_navigate"
+        ]
+    );
+    assert!(tools
+        .iter()
+        .all(|t| t.family == ActionFamily::Unclassified && !t.prechecked));
 }

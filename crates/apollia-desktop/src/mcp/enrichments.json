@@ -258,6 +258,64 @@
     }
   },
   {
+    "package_identifier": "@playwright/mcp",
+    "registry_names": [],
+    "operator_label": { "en": "Web Browser", "fr": "Navigateur web" },
+    "description": {
+      "en": "Open pages, read them, click and fill forms in the Google Chrome of this computer.",
+      "fr": "Ouvrir des pages, les lire, cliquer et remplir des formulaires dans le Google Chrome de cet ordinateur."
+    },
+    "category": "development",
+    "icon_name": "globe",
+    "trust_level": "community_verified",
+    "auth_help_url": null,
+    "auth_help_text": {
+      "en": "Needs Google Chrome installed on this computer.",
+      "fr": "Demande Google Chrome installé sur cet ordinateur."
+    },
+    "package_registry_type": "npm",
+    "package_runtime_hint": "npx",
+    "package_version": "0.0.83",
+    "cost_model": { "kind": "free" },
+    "tool_families": {
+      "browser_click": "send_external",
+      "browser_close": "read",
+      "browser_console_messages": "read",
+      "browser_drag": "send_external",
+      "browser_drop": "send_external",
+      "browser_emulate_media": "read",
+      "browser_evaluate": "execute_code",
+      "browser_file_upload": "send_external",
+      "browser_fill_form": "send_external",
+      "browser_find": "read",
+      "browser_handle_dialog": "send_external",
+      "browser_hover": "read",
+      "browser_navigate": "read",
+      "browser_navigate_back": "read",
+      "browser_network_request": "read",
+      "browser_network_requests": "read",
+      "browser_press_key": "send_external",
+      "browser_resize": "read",
+      "browser_run_code_unsafe": "execute_code",
+      "browser_select_option": "send_external",
+      "browser_snapshot": "read",
+      "browser_tabs": "read",
+      "browser_take_screenshot": "read",
+      "browser_type": "send_external",
+      "browser_wait_for": "read"
+    },
+    "examples": [
+      {
+        "tool": "browser_navigate",
+        "label": { "en": "read a web page", "fr": "lire une page web" },
+        "question": {
+          "en": "Open apollia.fr and tell me what the page says.",
+          "fr": "Ouvre apollia.fr et dis-moi ce que dit la page."
+        }
+      }
+    ]
+  },
+  {
     "package_identifier": "io.github.github/github-mcp-server",
     "awaiting_registration": true,
     "registry_names": ["io.github.github/github-mcp-server"],
