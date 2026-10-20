@@ -18,7 +18,9 @@ use std::sync::Mutex;
 /// The record, one `engine_pid owner_pid` line per engine started.
 const FILE_NAME: &str = "engine-pids";
 
-/// Words one of our engines carries on its command line.
+/// Words one of our engines carries on its command line. Only the unix
+/// `is_our_engine` reads a command line; Windows stops nothing yet.
+#[cfg(unix)]
 const ENGINE_MARKERS: [&str; 3] = ["vllm_mlx", "llama-server", "apollia-runner"];
 
 /// Serialises the writes of this process to the record.
