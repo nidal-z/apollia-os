@@ -12,8 +12,8 @@ de confiance, mais qui veulent malgré tout des agents autonomes agissant
 dessus.
 
 Il suppose que vous pouvez exécuter un daemon Apollia, que vous pouvez
-déployer un serveur MCP devant vos données, et que votre produit expose une
-API HTTP qu'Apollia peut rappeler.
+déployer un serveur MCP devant vos données, et que votre produit reçoit les
+écritures en retour par ce serveur ou par une API HTTP publique.
 
 ## Le principe
 
@@ -26,10 +26,11 @@ Dans le modèle de fédération, les deux systèmes restent pairs :
   connecte en tant que client MCP et appelle vos outils pour lire ce dont il a
   besoin. Vos données restent de votre côté ; Apollia les lit à travers les
   outils que vous choisissez d'exposer.
-- **Apollia écrit en retour via votre API HTTP.** Quand l'agent a un résultat
-  à persister, il appelle les points de terminaison REST de votre produit, de
-  sorte que votre produit reste le système de référence et garde le contrôle
-  de chaque écriture.
+- **Apollia écrit en retour via votre produit.** Quand l'agent a un résultat
+  à persister, il appelle un outil d'écriture de votre serveur MCP, ou les
+  points de terminaison REST de votre produit lorsqu'ils sont publics, de sorte
+  que votre produit reste le système de référence et garde le contrôle de
+  chaque écriture.
 
 Apollia est souvent le client de l'hôte, pas l'inverse. Rien n'est copié dans
 le runtime que vous n'ayez délibérément exposé.
@@ -85,20 +86,39 @@ Pour comprendre comment les approbations et les paliers d'autonomie
 s'articulent ici, voir [Paliers d'autonomie](/explanation/autonomy-tiers) et
 l'explication du [modèle de responsabilité](/explanation/accountability-model).
 
-## Étape 4 : laisser Apollia écrire en retour via REST
+## Étape 4 : laisser Apollia écrire en retour via votre produit
 
-Quand l'agent produit un résultat, il appelle l'API HTTP de votre produit
-pour le persister. Votre produit valide et stocke le changement, restant
-ainsi le système de référence. Si vous pilotez aussi Apollia depuis votre
-produit (soumission de tâches, streaming des résultats), ce volet utilise le
-même contrat stable décrit dans
+L'agent a deux façons de persister un résultat dans votre produit, et elles
+n'atteignent pas les mêmes endroits.
+
+La première est un outil d'écriture de votre serveur MCP, celui de l'étape 1.
+L'appel suit le chemin gouverné de l'étape 3, et votre serveur atteint votre
+API où qu'elle tourne, y compris dans votre réseau interne, avec l'identifiant
+qu'il lui faut : rien de cet identifiant ne passe par l'agent. C'est la voie à
+choisir quand votre API est interne ou demande un secret.
+
+La seconde est `http_fetch`, l'outil natif qui appelle une adresse web. Il
+n'est proposé qu'à un agent dont la fiche ou le paquet l'accorde, et sa famille
+est `send_external` : un appel est demandé, sauf si un « toujours » de la
+personne ou un accord de l'exécution le couvre, et une exécution sans personne
+devant attend la réponse. Il refuse toute destination qui n'est pas publique :
+adresses de bouclage, privées et de lien local, `localhost`, noms finissant par
+`.local`, `.internal` ou `.localdomain`, et une redirection vers l'une d'elles. Le modèle
+écrit sa méthode, ses en-têtes et son corps, donc une clé d'API qu'il envoie
+doit figurer dans le contexte de l'agent, et il lit au plus 1 Mo de la réponse.
+Réservez-le à un point de terminaison public qui ne demande aucun secret.
+
+Dans les deux cas, votre produit valide et stocke le changement, restant ainsi
+le système de référence. Si vous pilotez aussi Apollia depuis votre produit
+(soumission de tâches, streaming des résultats), ce volet utilise le même
+contrat stable décrit dans
 [Intégrer Apollia via le contrat de pilotage](/how-to/integrate-via-driving-contract).
 
 ## Pourquoi la fédération
 
 Cela maintient la souveraineté de votre côté de la ligne. Vos données sont
-lues via les outils que vous exposez et écrites via une API que vous
-possédez, tandis qu'Apollia apporte le runtime agentique avec sa gouvernance.
+lues via les outils que vous exposez et écrites via un serveur ou une API que
+vous possédez, tandis qu'Apollia apporte le runtime agentique avec sa gouvernance.
 C'est le modèle d'intégration pour les produits qui ne peuvent pas confier
 leurs données à un bac à sable cloud, mais veulent malgré tout des agents
 autonomes et auditables.

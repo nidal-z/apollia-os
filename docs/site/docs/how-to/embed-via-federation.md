@@ -11,7 +11,8 @@ cannot leave their trust boundary but that still want autonomous agents acting
 on it.
 
 It assumes you can run an Apollia daemon, that you can stand up an MCP server in
-front of your data, and that your product has an HTTP API Apollia can call back.
+front of your data, and that your product takes writes back through that server
+or through a public HTTP API.
 
 ## The pattern
 
@@ -23,9 +24,10 @@ In the federation model the two systems stay peers:
 - **Your product exposes its data through an MCP server.** Apollia connects to it
   as an MCP client and calls your tools to read what it needs. Your data stays on
   your side; Apollia reads it through the tools you choose to expose.
-- **Apollia writes back through your HTTP API.** When the agent has a result to
-  persist, it calls your product's REST endpoints, so your product remains the
-  system of record and keeps control of every write.
+- **Apollia writes back through your product.** When the agent has a result to
+  persist, it calls a write tool of your MCP server, or your product's REST
+  endpoints when they are public, so your product remains the system of record
+  and keeps control of every write.
 
 Apollia is often the client of the host, not the other way around. Nothing is
 copied into the runtime that you did not deliberately expose.
@@ -76,18 +78,36 @@ For how approvals and autonomy levels shape this, see
 [Autonomy tiers](/explanation/autonomy-tiers) and the explanation of
 [the accountability model](/explanation/accountability-model).
 
-## Step 4: let Apollia write back through REST
+## Step 4: let Apollia write back through your product
 
-When the agent produces a result, it calls your product's HTTP API to persist
-it. Your product validates and stores the change, remaining the system of
-record. If you also drive Apollia from your product (submitting tasks, streaming
-results), that side uses the same stable contract described in
+The agent has two ways to persist a result in your product, and they do not
+reach the same places.
+
+The first is a write tool of your MCP server, from step 1. The call goes through
+the governed path of step 3, and your server reaches your API wherever it runs,
+inside your network included, with whatever credential it needs: nothing of
+that credential passes through the agent. This is the way to choose when your
+API is internal or needs a secret.
+
+The second is `http_fetch`, the native tool that calls a web address. It is
+offered only to an agent whose sheet or package grants it, and its family is
+`send_external`, so a call is asked unless an "always" of the person or a grant
+of the run covers it, and an unattended run waits for the answer. It refuses
+any destination that is not public: loopback, private and link-local addresses,
+`localhost`, names ending in `.local`, `.internal` or `.localdomain`, and a
+redirect toward one of them. The model writes its method, headers and
+body, so an API key it sends has to sit in the agent's context, and it reads
+at most 1 MB of the answer. Use it for a public endpoint that needs no secret.
+
+Either way, your product validates and stores the change, remaining the system
+of record. If you also drive Apollia from your product (submitting tasks,
+streaming results), that side uses the same stable contract described in
 [Integrate Apollia via the driving contract](/how-to/integrate-via-driving-contract).
 
 ## Why federation
 
 This keeps sovereignty on your side of the line. Your data is read through tools
-you expose and written through an API you own, while Apollia contributes the
+you expose and written through a server or an API you own, while Apollia contributes the
 agent runtime with its governance. It is the integration model for products that
 cannot hand their data to a cloud sandbox but still want autonomous, auditable
 agents.
