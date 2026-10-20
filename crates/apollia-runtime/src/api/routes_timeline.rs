@@ -53,6 +53,9 @@ pub enum TimelineEvent {
         step_id: String,
         /// Tool used or suggested.
         tool: Option<String>,
+        /// What the step does, as the plan wrote it: the name the course of a
+        /// run shows, where a tool such as `llm` says nothing.
+        description: Option<String>,
         /// Input preview (truncated to 200 chars).
         input_preview: Option<String>,
         /// ISO 8601 timestamp.
@@ -434,7 +437,7 @@ fn read_plan_steps(
 ) {
     let Ok(mut stmt) = conn.prepare(
         "SELECT ps.step_id, ps.tool_hint, ps.tool_used, ps.input_rendered, \
-                ps.status, ps.started_at, ps.completed_at, ps.duration_ms \
+                ps.status, ps.started_at, ps.completed_at, ps.duration_ms, ps.description \
          FROM plan_steps ps \
          JOIN execution_plans ep ON ps.plan_id = ep.plan_id \
          WHERE ep.task_id = ?1 \
@@ -453,6 +456,7 @@ fn read_plan_steps(
             row.get::<_, Option<String>>(5)?,
             row.get::<_, Option<String>>(6)?,
             row.get::<_, Option<i64>>(7)?,
+            row.get::<_, String>(8)?,
         ))
     }) else {
         return;
@@ -468,6 +472,7 @@ fn read_plan_steps(
             started_at,
             completed_at,
             duration_ms,
+            description,
         )) = row_result
         else {
             continue;
@@ -481,6 +486,7 @@ fn read_plan_steps(
                 TimelineEvent::StepStarted {
                     step_id: step_id.clone(),
                     tool: tool.clone(),
+                    description: Some(description).filter(|d| !d.trim().is_empty()),
                     input_preview: input_rendered
                         .map(|t| truncate_preview(&t, MAX_INPUT_PREVIEW).0),
                     timestamp: ts.clone(),

@@ -11381,6 +11381,11 @@ export interface components {
             /** @enum {string} */
             type: "task_transition";
         } | {
+            /**
+             * @description What the step does, as the plan wrote it: the name the course of a
+             *     run shows, where a tool such as `llm` says nothing.
+             */
+            description?: string | null;
             /** @description Input preview (truncated to 200 chars). */
             input_preview?: string | null;
             /** @description Step identifier. */

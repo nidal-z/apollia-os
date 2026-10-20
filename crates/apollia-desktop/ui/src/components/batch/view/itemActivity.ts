@@ -64,6 +64,19 @@ function at(timestamp: string): number {
   return Number.isNaN(value) ? 0 : value;
 }
 
+/** The longest name a step is shown under, in characters. */
+const STEP_NAME_MAX = 120;
+
+/**
+ * The name a step is shown under: the first line of what the plan wrote,
+ * cut short. A plan may quote the whole item it works on in a step, and the
+ * course of a run reads as a list, not as the document.
+ */
+export function stepName(desc: string): string {
+  const line = desc.split("\n").map((part) => part.trim()).find((part) => part !== "") ?? "";
+  return line.length > STEP_NAME_MAX ? `${line.slice(0, STEP_NAME_MAX - 1).trimEnd()}…` : line;
+}
+
 /** The activity a recorded timeline tells, oldest first. */
 export function activityFromTimeline(timeline: readonly TaskTimelineEvent[]): ItemActivity {
   const entries: ActivityEntry[] = [];
@@ -75,7 +88,7 @@ export function activityFromTimeline(timeline: readonly TaskTimelineEvent[]): It
           stepId: event.step_id,
           num: null,
           total: null,
-          desc: event.tool ?? event.step_id,
+          desc: stepName(event.description ?? event.tool ?? event.step_id),
           target: previewTarget(event.input_preview),
           status: "running",
           error: null,
@@ -204,7 +217,7 @@ export function applyActivityEvent(
         stepId: text(fields.step_id),
         num: count(fields.step_num),
         total: count(fields.total),
-        desc: text(fields.desc) || text(fields.step_id),
+        desc: stepName(text(fields.desc) || text(fields.step_id)),
         target: null,
         status: "running",
         error: null,

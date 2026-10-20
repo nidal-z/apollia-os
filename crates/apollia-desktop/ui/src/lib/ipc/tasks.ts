@@ -35,6 +35,8 @@ export type TaskTimelineEvent =
       type: "step_started";
       step_id: string;
       tool: string | null;
+      /** What the step does, as the plan wrote it. */
+      description?: string | null;
       input_preview: string | null;
       timestamp: string;
     }

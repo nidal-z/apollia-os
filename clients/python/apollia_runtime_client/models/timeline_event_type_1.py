@@ -20,6 +20,8 @@ class TimelineEventType1:
         step_id (str): Step identifier.
         timestamp (str): ISO 8601 timestamp.
         type_ (TimelineEventType1Type):
+        description (None | str | Unset): What the step does, as the plan wrote it: the name the course of a
+            run shows, where a tool such as `llm` says nothing.
         input_preview (None | str | Unset): Input preview (truncated to 200 chars).
         tool (None | str | Unset): Tool used or suggested.
     """
@@ -27,6 +29,7 @@ class TimelineEventType1:
     step_id: str
     timestamp: str
     type_: TimelineEventType1Type
+    description: None | str | Unset = UNSET
     input_preview: None | str | Unset = UNSET
     tool: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -37,6 +40,12 @@ class TimelineEventType1:
         timestamp = self.timestamp
 
         type_ = self.type_.value
+
+        description: None | str | Unset
+        if isinstance(self.description, Unset):
+            description = UNSET
+        else:
+            description = self.description
 
         input_preview: None | str | Unset
         if isinstance(self.input_preview, Unset):
@@ -59,6 +68,8 @@ class TimelineEventType1:
                 "type": type_,
             }
         )
+        if description is not UNSET:
+            field_dict["description"] = description
         if input_preview is not UNSET:
             field_dict["input_preview"] = input_preview
         if tool is not UNSET:
@@ -74,6 +85,15 @@ class TimelineEventType1:
         timestamp = d.pop("timestamp")
 
         type_ = TimelineEventType1Type(d.pop("type"))
+
+        def _parse_description(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        description = _parse_description(d.pop("description", UNSET))
 
         def _parse_input_preview(data: object) -> None | str | Unset:
             if data is None:
@@ -97,6 +117,7 @@ class TimelineEventType1:
             step_id=step_id,
             timestamp=timestamp,
             type_=type_,
+            description=description,
             input_preview=input_preview,
             tool=tool,
         )

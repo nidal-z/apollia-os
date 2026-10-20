@@ -30256,6 +30256,13 @@
               "type"
             ],
             "properties": {
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "What the step does, as the plan wrote it: the name the course of a\nrun shows, where a tool such as `llm` says nothing."
+              },
               "input_preview": {
                 "type": [
                   "string",

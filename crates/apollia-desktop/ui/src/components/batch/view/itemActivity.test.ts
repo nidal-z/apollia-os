@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { TaskTimelineEvent } from "$lib/ipc/tasks";
-import { EMPTY_ACTIVITY, activityFromTimeline, applyActivityEvent, splitThinking, type ItemActivity } from "./itemActivity";
+import { EMPTY_ACTIVITY, activityFromTimeline, applyActivityEvent, splitThinking, stepName, type ItemActivity } from "./itemActivity";
 
 const TASK = "task-7";
 
@@ -81,6 +81,24 @@ describe("the activity of a batch item", () => {
     expect(activity.entries[0]).toMatchObject({ status: "done", durationMs: 900 });
     expect(activity.entries[2]).toMatchObject({ tokens: 640, latencyMs: 7000 });
     expect(activity.entries[3]).toMatchObject({ approved: true });
+  });
+
+  test("a recorded step is named by what it does, its tool only when the plan said nothing", () => {
+    // GIVEN two recorded steps run by the model, one described by the plan
+    const timeline: TaskTimelineEvent[] = [
+      { type: "step_started", step_id: "s2", tool: "llm", description: "Compare the quote with the terms", input_preview: null, timestamp: "2026-10-16 10:00:01" },
+      { type: "step_started", step_id: "s3", tool: "llm", input_preview: null, timestamp: "2026-10-16 10:00:05" },
+    ];
+
+    // WHEN the timeline is read
+    const activity = activityFromTimeline(timeline);
+
+    // THEN the described step reads as its description, the other as its tool
+    expect(activity.entries[0]).toMatchObject({ kind: "step", desc: "Compare the quote with the terms" });
+    expect(activity.entries[1]).toMatchObject({ kind: "step", desc: "llm" });
+    // AND a description that quotes a whole document is cut to its first line
+    expect(stepName("Analyse the quote\n--- page 1 ---\nAda SA")).toBe("Analyse the quote");
+    expect(stepName("x".repeat(200))).toHaveLength(120);
   });
 
   test("a written text splits into its reasoning and its answer", () => {
