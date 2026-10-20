@@ -257,7 +257,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::ConfirmPhrase,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Delete an Outlook calendar event.\n\nInputs: event_id (string).\nApproval: required + confirmation phrase.\nSide effects: permanently removes the event.",
+        description: "Delete an Outlook calendar event.\n\nInputs: event_id (string).\nApproval: required.\nSide effects: permanently removes the event.",
     },
     OperationSpec {
         id: "onedrive.search",

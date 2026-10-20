@@ -99,7 +99,7 @@ mod tests {
             let expected = match op.approval {
                 ApprovalPolicy::AutoApprove => "Approval: not required.",
                 ApprovalPolicy::AlwaysRequireApproval => "Approval: required.",
-                ApprovalPolicy::ConfirmPhrase => "Approval: required + confirmation phrase.",
+                ApprovalPolicy::ConfirmPhrase => "Approval: required.",
             };
 
             // THEN the two agree, so no operation promises the model a free call

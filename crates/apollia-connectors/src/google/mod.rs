@@ -286,7 +286,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::ConfirmPhrase,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Delete a calendar event.\n\nWhen to use: when the user wants to cancel an event.\nInputs: calendar_id (string), event_id (string).\nApproval: required + confirmation phrase.\nSide effects: permanently removes the event from the calendar.",
+        description: "Delete a calendar event.\n\nWhen to use: when the user wants to cancel an event.\nInputs: calendar_id (string), event_id (string).\nApproval: required.\nSide effects: permanently removes the event from the calendar.",
     },
     OperationSpec {
         id: "gdrive.workspace_list",
@@ -556,7 +556,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::ConfirmPhrase,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Delete a Google Task permanently.\n\nInputs: task_list_id (string), task_id (string).\nApproval: required + confirmation phrase.\nSide effects: removes the task irreversibly.",
+        description: "Delete a Google Task permanently.\n\nInputs: task_list_id (string), task_id (string).\nApproval: required.\nSide effects: removes the task irreversibly.",
     },
     // ─── Forms ─────────────────────────────────────────────────────────
     OperationSpec {
