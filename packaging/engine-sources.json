@@ -42,6 +42,19 @@
       ]
     },
     {
+      "engine": "llama-server",
+      "tag": "b11541",
+      "variant": "cuda",
+      "platform": "linux-x64",
+      "released": "2026-10-10",
+      "sources": [
+        {
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11541/llama-b11541-bin-ubuntu-cuda-12.8-x64.tar.gz",
+          "sha256": "551ee13d02dd42599861c8ffbd71c7a110f379a51cb9c5947cb799cdbbc610b2"
+        }
+      ]
+    },
+    {
       "engine": "nodejs",
       "tag": "v24.21.0",
       "variant": "cpu",
