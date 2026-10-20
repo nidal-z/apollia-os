@@ -156,7 +156,14 @@ pub fn detect_gpu() -> GpuInfo {
 /// `nvidia-smi.exe`, HIP SDK, `vulkan-1.dll`.
 #[cfg(target_os = "windows")]
 pub fn detect_gpu() -> GpuInfo {
-    let controllers = wmi_list_video_controllers().unwrap_or_default();
+    let mut controllers = wmi_list_video_controllers().unwrap_or_default();
+    if let Some(adapters) = registry_list_adapters() {
+        for ctrl in &mut controllers {
+            if let Some(bytes) = registry_memory_bytes(&ctrl.name, &ctrl.pnp_device_id, &adapters) {
+                ctrl.adapter_ram = bytes;
+            }
+        }
+    }
 
     if let Some(ctrl) = controllers.iter().find(|c| c.name.contains("NVIDIA")) {
         let info = build_video_controller_info(ctrl, Vendor::Nvidia, nvidia_backend_windows());
@@ -588,6 +595,12 @@ fn vulkan_loader_present_linux() -> bool {
 // ─────────────────────────────────────────────
 
 /// GPU controller as exposed by WMI `Win32_VideoController`.
+///
+/// `adapter_ram` starts as WMI's `AdapterRAM`, a 32-bit field that saturates
+/// at 4095 MiB: a 16 GB Radeon RX 6900 XT was logged `memory_mb=4095` and the
+/// model was sized, and partly computed on the processor, for a 4 GB card.
+/// [`detect_gpu`] replaces it with the 64-bit size of the registry when the
+/// adapter is found there.
 #[cfg(target_os = "windows")]
 #[derive(Debug, Clone, serde::Deserialize)]
 struct VideoController {
@@ -595,12 +608,14 @@ struct VideoController {
     name: String,
     #[serde(rename = "AdapterRAM", default)]
     adapter_ram: u64,
+    #[serde(rename = "PNPDeviceID", default)]
+    pnp_device_id: String,
 }
 
 #[cfg(target_os = "windows")]
 impl VideoController {
     fn adapter_ram_mb(&self) -> u32 {
-        (self.adapter_ram / 1024 / 1024) as u32
+        u32::try_from(self.adapter_ram / 1024 / 1024).unwrap_or(u32::MAX)
     }
 }
 
@@ -610,9 +625,96 @@ fn wmi_list_video_controllers() -> Option<Vec<VideoController>> {
     let com_con = COMLibrary::new().ok()?;
     let wmi_con = WMIConnection::new(com_con).ok()?;
     let results: Vec<VideoController> = wmi_con
-        .raw_query("SELECT Name, AdapterRAM FROM Win32_VideoController")
+        .raw_query("SELECT Name, AdapterRAM, PNPDeviceID FROM Win32_VideoController")
         .ok()?;
     Some(results)
+}
+
+/// A display adapter as its driver recorded it under the display class key
+/// of the registry.
+#[cfg(any(target_os = "windows", test))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RegistryAdapter {
+    /// `DriverDesc`, the name WMI reports as `Name`.
+    driver_desc: String,
+    /// `MatchingDeviceId`, lowercase, a prefix of WMI's `PNPDeviceID`.
+    matching_device_id: String,
+    /// `HardwareInformation.qwMemorySize`, in bytes.
+    memory_bytes: u64,
+}
+
+/// Parses the `DriverDesc<tab>MatchingDeviceId<tab>bytes` lines of
+/// [`registry_list_adapters`]. A line without a positive size is skipped.
+#[cfg(any(target_os = "windows", test))]
+fn parse_registry_adapters(stdout: &str) -> Vec<RegistryAdapter> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split('\t');
+            let driver_desc = fields.next()?.trim().to_string();
+            let matching_device_id = fields.next()?.trim().to_ascii_lowercase();
+            let memory_bytes: u64 = fields.next()?.trim().parse().ok()?;
+            (memory_bytes > 0).then_some(RegistryAdapter {
+                driver_desc,
+                matching_device_id,
+                memory_bytes,
+            })
+        })
+        .collect()
+}
+
+/// The registry size of the controller named `name` with the plug-and-play
+/// id `pnp_device_id`.
+///
+/// The device id decides first, the longest matching id winning, since two
+/// cards may share a name and a driver may write a name of its own. The name
+/// is the fallback, for a controller WMI listed without an id.
+#[cfg(any(target_os = "windows", test))]
+fn registry_memory_bytes(
+    name: &str,
+    pnp_device_id: &str,
+    adapters: &[RegistryAdapter],
+) -> Option<u64> {
+    let pnp = pnp_device_id.trim().to_ascii_lowercase();
+    let by_id = adapters
+        .iter()
+        .filter(|a| !a.matching_device_id.is_empty() && pnp.starts_with(&a.matching_device_id))
+        .max_by_key(|a| a.matching_device_id.len());
+    let name = name.trim();
+    by_id
+        .or_else(|| {
+            adapters
+                .iter()
+                .find(|a| !name.is_empty() && a.driver_desc.eq_ignore_ascii_case(name))
+        })
+        .map(|a| a.memory_bytes)
+}
+
+/// Every display adapter of the registry with its 64-bit memory size, read
+/// through PowerShell as the language-model crate already reads it, so no
+/// registry crate is added.
+#[cfg(target_os = "windows")]
+fn registry_list_adapters() -> Option<Vec<RegistryAdapter>> {
+    // A driver may store the size as an 8-byte binary rather than a QWORD;
+    // both are turned into a decimal count of bytes.
+    const SCRIPT: &str = concat!(
+        r"$k = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\",
+        r"{4d36e968-e325-11ce-bfc1-08002be10318}\*'; ",
+        "Get-ItemProperty $k -ErrorAction SilentlyContinue | ForEach-Object { ",
+        "$m = $_.'HardwareInformation.qwMemorySize'; ",
+        "if ($m -is [byte[]]) { $m = [BitConverter]::ToUInt64($m, 0) }; ",
+        "if ($m) { $_.DriverDesc + [char]9 + $_.MatchingDeviceId + [char]9 + $m } }",
+    );
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args(["-NoProfile", "-NonInteractive", "-Command", SCRIPT]);
+    apollia_core::subprocess_window::hide_console(&mut cmd);
+    let out = cmd.output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(parse_registry_adapters(&String::from_utf8_lossy(
+        &out.stdout,
+    )))
 }
 
 #[cfg(target_os = "windows")]
@@ -886,5 +988,91 @@ mod tests {
         assert!(rocm_supports_card("AMD Instinct MI300"));
         assert!(!rocm_supports_card("AMD Radeon RX 7800 XT"));
         assert!(!rocm_supports_card("NVIDIA GeForce RTX 4070"));
+    }
+
+    /// Registry lines as the Windows probe prints them: a discrete Radeon of
+    /// 16 GB, an integrated Radeon with no size of its own, and the Microsoft
+    /// basic display adapter.
+    const REGISTRY_LINES: &str = "AMD Radeon RX 6900 XT\tpci\\ven_1002&dev_73bf\t17163091968\r\n\
+        AMD Radeon(TM) Graphics\tPCI\\VEN_1002&DEV_164E\t0\r\n\
+        Microsoft Basic Display Adapter\tpci\\cc_0300\t\r\n";
+
+    #[test]
+    fn test_parse_registry_adapters_keeps_the_adapters_with_a_size() {
+        // GIVEN the probe's output for three adapters, one with a size
+        // WHEN it is parsed
+        let adapters = parse_registry_adapters(REGISTRY_LINES);
+
+        // THEN only the sized adapter remains, its id lowercased
+        assert_eq!(
+            adapters,
+            vec![RegistryAdapter {
+                driver_desc: "AMD Radeon RX 6900 XT".to_string(),
+                matching_device_id: "pci\\ven_1002&dev_73bf".to_string(),
+                memory_bytes: 17_163_091_968,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_registry_memory_bytes_matches_the_controller_by_device_id() {
+        // GIVEN the registry adapters and a controller whose WMI name differs
+        // from the driver's description but whose device id matches
+        let adapters = parse_registry_adapters(REGISTRY_LINES);
+        let pnp = "PCI\\VEN_1002&DEV_73BF&SUBSYS_0E3A1002&REV_C0\\6&1A2B3C4D&0&00000019";
+
+        // WHEN the controller's memory is looked up
+        let bytes = registry_memory_bytes("Radeon RX 6900 XT (vendor name)", pnp, &adapters);
+
+        // THEN the registry's 16 GB is returned, above WMI's 4095 MiB ceiling
+        assert_eq!(bytes, Some(17_163_091_968));
+    }
+
+    #[test]
+    fn test_registry_memory_bytes_falls_back_to_the_driver_description() {
+        // GIVEN a controller WMI listed with no device id
+        let adapters = parse_registry_adapters(REGISTRY_LINES);
+
+        // WHEN its memory is looked up by name
+        let bytes = registry_memory_bytes("amd radeon rx 6900 xt", "", &adapters);
+
+        // THEN the adapter of the same description answers
+        assert_eq!(bytes, Some(17_163_091_968));
+    }
+
+    #[test]
+    fn test_registry_memory_bytes_of_an_unknown_controller_is_none() {
+        // GIVEN a controller absent from the registry listing
+        let adapters = parse_registry_adapters(REGISTRY_LINES);
+
+        // WHEN its memory is looked up
+        let bytes = registry_memory_bytes(
+            "Intel(R) Arc(TM) A770",
+            "PCI\\VEN_8086&DEV_56A0\\4&1",
+            &adapters,
+        );
+
+        // THEN nothing is found, and WMI's AdapterRAM is kept
+        assert_eq!(bytes, None);
+    }
+
+    #[test]
+    fn test_registry_memory_bytes_prefers_the_longest_device_id() {
+        // GIVEN two entries whose ids both prefix the controller's, the
+        // longer naming its subsystem
+        let adapters = parse_registry_adapters(
+            "Generic\tpci\\ven_1002&dev_73bf\t4294967296\n\
+             Board\tpci\\ven_1002&dev_73bf&subsys_0e3a1002\t17163091968\n",
+        );
+
+        // WHEN the controller's memory is looked up
+        let bytes = registry_memory_bytes(
+            "AMD Radeon RX 6900 XT",
+            "PCI\\VEN_1002&DEV_73BF&SUBSYS_0E3A1002&REV_C0\\6&1",
+            &adapters,
+        );
+
+        // THEN the more specific entry answers
+        assert_eq!(bytes, Some(17_163_091_968));
     }
 }
