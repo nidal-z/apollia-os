@@ -1668,7 +1668,7 @@ First-run helper: configure a local LLM in one step.
 
 ###### **Options:**
 
-* `--local` - Use the local llama-cpp backend (required for v0.1.0; a cloud provider is declared with `llm backends create --api-key`)
+* `--local` - Use the local llama-cpp backend (required: a server elsewhere is declared with `llm backends create --base-url`)
 * `--model <PATH>` - Path to the `.gguf` model file
 * `--name <NAME>` - Backend name (default: `local`). Overwrites the existing entry of the same name
 

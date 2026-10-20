@@ -60,8 +60,8 @@ pub enum LlmCommand {
     /// `is_default=true` in `system.db`. The runtime picks the new default
     /// on the next `llm reload` (or daemon restart).
     Setup {
-        /// Use the local llama-cpp backend (required for v0.1.0; a cloud
-        /// provider is declared with `llm backends create --api-key`).
+        /// Use the local llama-cpp backend (required: a server elsewhere is
+        /// declared with `llm backends create --base-url`).
         #[arg(long)]
         local: bool,
         /// Path to the `.gguf` model file.
