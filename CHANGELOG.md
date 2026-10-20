@@ -5,7 +5,7 @@ All notable changes to Apollia OS are documented in this file.
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
 This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
-## [0.3.0] - Unreleased
+## [0.3.0] - 2026-10-20
 
 The desktop application is named Apollia Desktop from this version on.
 Apollia OS keeps naming the engine under it, the `apollia-os` command line and
@@ -19,7 +19,7 @@ agent holds is granted, shown and journaled the same way.
 
 The version is a minor bump with breaking changes, listed with their migration
 at the end of this entry. From this version on, tags no longer carry the
-`-preview` suffix. The date and the tag land when the release is published.
+`-preview` suffix.
 
 ### Highlights
 
