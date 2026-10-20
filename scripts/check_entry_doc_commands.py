@@ -199,7 +199,7 @@ def parse_argv(line: str) -> list[str] | None:
         return None
     argv: list[str] = []
     for token in tokens:
-        if token in ("|", "||", "&&", ";", ">", ">>", "2>", "<") or token.startswith("$("):
+        if token in ("|", "||", "&&", ";", "<") or token.startswith(("$(", ">", "2>", "&>")):
             break
         if (token.startswith("[") and token.endswith("]")) or token == "...":
             continue
