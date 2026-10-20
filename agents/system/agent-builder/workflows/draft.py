@@ -42,9 +42,11 @@ MAX_NAME_CHARS: int = 60
 
 # Each call is bounded, and made without reasoning: a model that reasons spends
 # its cap on the reasoning first and answers nothing, and one that starts
-# repeating itself stops here.
-UNDERSTAND_MAX_TOKENS: int = 700
-WRITE_MAX_TOKENS: int = 1800
+# repeating itself stops here. The bounds leave a small local model room for
+# its answer: a 4B model wrote its questions in 700 tokens and was cut there,
+# in the middle of the JSON.
+UNDERSTAND_MAX_TOKENS: int = 1400
+WRITE_MAX_TOKENS: int = 3600
 TEMPERATURE: float = 0.3
 
 # The family every agent may be offered, whatever the person checked.
