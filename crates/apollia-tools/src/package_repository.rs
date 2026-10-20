@@ -323,6 +323,50 @@ impl PackageRepository {
         }
     }
 
+    /// Records the content digest of `package_name` as installed
+    /// ([`crate::apo_archive::content_digest`]). The package must be saved
+    /// first, and saving it again forgets the digest.
+    ///
+    /// # Errors
+    ///
+    /// [`PackageRepositoryError::NotFound`] when the package is not stored,
+    /// or [`PackageRepositoryError::Sqlite`].
+    pub fn set_content_digest(
+        &self,
+        package_name: &str,
+        digest: &str,
+    ) -> Result<(), PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let changed = conn.execute(
+            "UPDATE installed_packages SET content_digest = ?2 WHERE name = ?1",
+            params![package_name, digest],
+        )?;
+        if changed == 0 {
+            return Err(PackageRepositoryError::NotFound(package_name.to_owned()));
+        }
+        Ok(())
+    }
+
+    /// The content digest recorded for `package_name`; `None` for a package
+    /// that is not installed or was installed without one.
+    ///
+    /// # Errors
+    ///
+    /// [`PackageRepositoryError::Sqlite`].
+    pub fn content_digest(
+        &self,
+        package_name: &str,
+    ) -> Result<Option<String>, PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let mut stmt =
+            conn.prepare("SELECT content_digest FROM installed_packages WHERE name = ?1")?;
+        let mut rows = stmt.query(params![package_name])?;
+        match rows.next()? {
+            Some(row) => Ok(row.get(0)?),
+            None => Ok(None),
+        }
+    }
+
     /// Forgets what `package_name` installed, before an update records the
     /// items of its new version.
     ///
@@ -490,6 +534,32 @@ mod tests {
 
         repo.save(&pkg).unwrap();
         assert!(!repo.is_embedded("guide").unwrap());
+    }
+
+    // GIVEN a saved package, and no package of another name
+    // WHEN its content digest is recorded, then the package is saved again
+    // THEN the digest reads back, a new save forgets it, and the digest of
+    //   an unknown package is refused and reads as none
+    #[test]
+    fn test_content_digest_is_set_read_and_forgotten_by_a_save() {
+        let repo = open_test_repo();
+        let pkg = test_package("guide");
+        repo.save(&pkg).unwrap();
+        assert_eq!(repo.content_digest("guide").unwrap(), None);
+
+        repo.set_content_digest("guide", "abc").unwrap();
+        assert_eq!(
+            repo.content_digest("guide").unwrap().as_deref(),
+            Some("abc")
+        );
+
+        repo.save(&pkg).unwrap();
+        assert_eq!(repo.content_digest("guide").unwrap(), None);
+        assert!(matches!(
+            repo.set_content_digest("ghost", "abc"),
+            Err(PackageRepositoryError::NotFound(_))
+        ));
+        assert_eq!(repo.content_digest("ghost").unwrap(), None);
     }
 
     // GIVEN no package of that name

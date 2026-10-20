@@ -11,7 +11,10 @@
 //! embedded too.
 //!
 //! On start, unless the installed package is already the version the binary
-//! carries, the desktop assembles each into a `.apo` archive under
+//! carries with the same content (compared by the digest recorded at its
+//! installation, so a fix shipped without a new version number still
+//! reaches an installed package), the desktop assembles each into a `.apo`
+//! archive under
 //! `<data dir>/agents/bundled/` (for the guide, the knowledge appended to the
 //! mission) and installs it through the same path as any package
 //! ([`apollia_runtime::packages::install_embedded`]): unsigned and recognised
@@ -27,7 +30,7 @@
 use std::path::{Path, PathBuf};
 
 use apollia_aip::package_tools::grant::{ONBOARDING_MODULE, ONBOARDING_PACKAGE, ONBOARDING_SOURCE};
-use apollia_runtime::governance::GovernanceHandle;
+use apollia_runtime::governance::{GovernanceContract, GovernanceHandle};
 use apollia_runtime::packages::{install_embedded, EmbeddedOutcome, PackageError};
 use apollia_tools::apo_archive::{build_from_dir, ApoError, BuildOptions};
 use apollia_tools::apollia_manifest::{self, ApolliaManifest, ApolliaManifestError};
@@ -172,39 +175,6 @@ pub fn agent_builder_manifest() -> Result<ApolliaManifest, BundledPackageError> 
     Ok(apollia_manifest::parse(AGENT_BUILDER_MANIFEST)?)
 }
 
-/// Assembles the agent workshop, its workflow included, into
-/// `<data_dir>/agents/bundled/agent-builder.apo` and returns its path.
-///
-/// # Errors
-///
-/// [`BundledPackageError`] when the manifest is invalid or the archive cannot
-/// be written.
-pub fn assemble_agent_builder(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
-    assemble(data_dir, &agent_builder_manifest()?, &AGENT_BUILDER_FILES)
-}
-
-/// Assembles the guide into `<data_dir>/agents/bundled/apollia-guide.apo` and
-/// returns its path.
-///
-/// # Errors
-///
-/// [`BundledPackageError`] when the manifest is invalid or the archive cannot
-/// be written.
-pub fn assemble_guide(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
-    assemble(data_dir, &guide_manifest()?, &[])
-}
-
-/// Assembles the onboarding, its tool included, into
-/// `<data_dir>/agents/bundled/onboarding-agent.apo` and returns its path.
-///
-/// # Errors
-///
-/// [`BundledPackageError`] when the manifest is invalid or the archive cannot
-/// be written.
-pub fn assemble_onboarding(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
-    assemble(data_dir, &onboarding_manifest()?, &ONBOARDING_FILES)
-}
-
 /// Assembles `manifest` and `files` (relative path, content) into
 /// `<data_dir>/agents/bundled/<package>.apo` and returns its path.
 fn assemble(
@@ -270,50 +240,70 @@ fn write_file(staging: &Path, relative: &str, content: &str) -> Result<(), Bundl
     std::fs::write(&path, content).map_err(|source| BundledPackageError::Io { path, source })
 }
 
-/// A package the binary ships: its manifest and how to assemble it.
+/// A package the binary ships: its manifest and the files besides it.
 struct Shipped {
     manifest: fn() -> Result<ApolliaManifest, BundledPackageError>,
-    assemble: fn(&Path) -> Result<PathBuf, BundledPackageError>,
+    files: &'static [(&'static str, &'static str)],
+}
+
+impl Shipped {
+    /// The content digest of the archive this package assembles into,
+    /// computed from what the binary carries without assembling it.
+    fn content_digest(&self, manifest: &ApolliaManifest) -> Result<String, BundledPackageError> {
+        let text = manifest.to_toml()?;
+        let files = std::iter::once((apollia_manifest::MANIFEST_FILE_NAME, text.as_bytes())).chain(
+            self.files
+                .iter()
+                .map(|(name, content)| (*name, content.as_bytes())),
+        );
+        Ok(apollia_tools::apo_archive::content_digest(files)?)
+    }
 }
 
 /// The packages the binary ships, in the order they are installed.
 const SHIPPED: [Shipped; 3] = [
     Shipped {
         manifest: guide_manifest,
-        assemble: assemble_guide,
+        files: &[],
     },
     Shipped {
         manifest: onboarding_manifest,
-        assemble: assemble_onboarding,
+        files: &ONBOARDING_FILES,
     },
     Shipped {
         manifest: agent_builder_manifest,
-        assemble: assemble_agent_builder,
+        files: &AGENT_BUILDER_FILES,
     },
 ];
 
 /// Installs `shipped` into the stores under `data_dir`, recording the
 /// installation through `governance`. Nothing is assembled when the installed
-/// package is already this version.
+/// package is already this version with this content.
 async fn install_shipped(
     shipped: &Shipped,
     data_dir: &Path,
-    governance: &GovernanceHandle,
+    governance: &dyn GovernanceContract,
 ) -> Result<EmbeddedOutcome, BundledPackageError> {
-    let package = (shipped.manifest)()?.package;
+    let manifest = (shipped.manifest)()?;
+    let digest = shipped.content_digest(&manifest)?;
+    let package = &manifest.package;
     let db = apollia_core::paths::DataFile::Agents.path(data_dir);
-    let installed = PackageRepository::open(&db)
-        .and_then(|packages| packages.get(&package.name))
+    let current = PackageRepository::open(&db)
+        .and_then(|packages| {
+            let same_version = packages
+                .get(&package.name)?
+                .is_some_and(|p| p.version == package.version);
+            let same_content =
+                packages.content_digest(&package.name)?.as_deref() == Some(digest.as_str());
+            Ok(same_version && same_content)
+        })
         .map_err(|e| BundledPackageError::Store(e.to_string()))?;
-    if installed
-        .as_ref()
-        .is_some_and(|p| p.version == package.version)
-    {
+    if current {
         return Ok(EmbeddedOutcome::Current {
-            version: package.version,
+            version: package.version.clone(),
         });
     }
-    let archive = (shipped.assemble)(data_dir)?;
+    let archive = assemble(data_dir, &manifest, shipped.files)?;
     Ok(install_embedded(&archive, data_dir, governance).await?)
 }
 

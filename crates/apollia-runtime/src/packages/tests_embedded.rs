@@ -1,5 +1,6 @@
 //! Installing a package Apollia ships inside its binary.
 
+use apollia_tools::apo_archive::{build_from_dir, BuildOptions};
 use apollia_tools::OverrideField;
 
 use super::tests::{archive, manifest, Env};
@@ -73,6 +74,111 @@ async fn test_the_installed_version_is_left_alone() {
         }
     );
     assert_eq!(env.governance.recorded.lock().unwrap().len(), recorded);
+}
+
+#[tokio::test]
+async fn test_the_same_version_with_another_content_is_installed_again_keeping_the_user_state() {
+    // GIVEN 1.0.0 installed, its agent's mission overridden and the agent
+    // disabled by the user, and a binary that carries 1.0.0 again with the
+    // code of its tool fixed and its manifest unchanged
+    let env = Env::new();
+    let first = archive(env.data_dir(), "crm.apo", &manifest("1.0.0", &[], ""), None);
+    install_embedded(&first, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+    env.agents
+        .set_override(
+            "crm-agent",
+            OverrideField::Mission,
+            &serde_json::json!("My own mission."),
+        )
+        .unwrap();
+    env.agents.set_enabled("crm-agent", false).unwrap();
+    let fixed = archive(
+        env.data_dir(),
+        "fixed.apo",
+        &manifest("1.0.0", &[], ""),
+        None,
+    );
+    let fixed_src = env.data_dir().join("src-fixed.apo");
+    let fixed_code = "@tool(name='lookup')\nasync def lookup(ctx, inputs):\n    return {}\n";
+    std::fs::write(fixed_src.join("tools/lookup.py"), fixed_code).unwrap();
+    build_from_dir(&fixed_src, &fixed, &BuildOptions::default()).unwrap();
+
+    // WHEN the binary starts, then starts again
+    let outcome = install_embedded(&fixed, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+    let again = install_embedded(&fixed, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+
+    // THEN the fixed code is installed and recorded as an update, the
+    // override stays and the agent is still disabled, and the next start
+    // installs nothing
+    assert!(
+        matches!(outcome, EmbeddedOutcome::Installed(ref r) if r.previous_version.as_deref() == Some("1.0.0")),
+        "{outcome:?}"
+    );
+    let root = env.packages.get("crm").unwrap().unwrap().root_path;
+    assert_eq!(
+        std::fs::read_to_string(root.join("tools/lookup.py")).unwrap(),
+        fixed_code
+    );
+    assert!(env
+        .governance
+        .recorded
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|e| matches!(
+            e,
+            GovernanceEvent::PackageUpdated { from_version, to_version, .. }
+                if from_version == "1.0.0" && to_version == "1.0.0"
+        )));
+    let stored = env.agents.stored("crm-agent").unwrap().unwrap();
+    assert!(
+        !stored.enabled,
+        "a reinstallation never enables a disabled agent"
+    );
+    let overrides = env.agents.overrides("crm-agent").unwrap();
+    assert_eq!(overrides.len(), 1);
+    assert_eq!(overrides[0].value, serde_json::json!("My own mission."));
+    assert!(env.packages.is_embedded("crm").unwrap());
+    assert_eq!(
+        again,
+        EmbeddedOutcome::Current {
+            version: "1.0.0".into()
+        }
+    );
+}
+
+#[tokio::test]
+async fn test_an_installation_without_a_digest_is_installed_again_once() {
+    // GIVEN the embedded package installed by a binary that recorded no
+    // content digest
+    let env = Env::new();
+    let apo = archive(env.data_dir(), "crm.apo", &manifest("1.0.0", &[], ""), None);
+    install_embedded(&apo, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+    let installed = env.packages.get("crm").unwrap().unwrap();
+    env.packages.save(&installed).unwrap();
+    assert_eq!(env.packages.content_digest("crm").unwrap(), None);
+
+    // WHEN the binary starts with the same version, then starts again
+    let first = install_embedded(&apo, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+    let second = install_embedded(&apo, env.data_dir(), &env.governance)
+        .await
+        .unwrap();
+
+    // THEN the first start installs it and records its digest, and the
+    // second leaves it alone
+    assert!(matches!(first, EmbeddedOutcome::Installed(_)), "{first:?}");
+    assert!(env.packages.content_digest("crm").unwrap().is_some());
+    assert!(matches!(second, EmbeddedOutcome::Current { .. }));
 }
 
 #[tokio::test]

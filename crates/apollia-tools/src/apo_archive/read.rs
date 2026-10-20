@@ -209,6 +209,17 @@ impl<R: Read + Seek> ApoArchive<R> {
         }
     }
 
+    /// The content digest of the archive: [`super::content_digest`] over
+    /// every file entry except the two signature entries, so signing a
+    /// package does not change it.
+    ///
+    /// # Errors
+    ///
+    /// [`ApoError::LimitExceeded`] or [`ApoError::Zip`] while reading entries.
+    pub fn content_digest(&mut self) -> Result<String, ApoError> {
+        Ok(super::digest_of(&self.digest_list()?))
+    }
+
     /// The public key that travels with the signature, as 64 lowercase
     /// hexadecimal characters; `None` for an archive without `SIGNATURE.key`.
     ///

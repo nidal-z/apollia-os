@@ -51,6 +51,27 @@ impl GovernanceContract for StrictGovernance {
     }
 }
 
+/// Assembles the shipped package `name` the way the desktop does at start.
+fn assemble_shipped(name: &str, data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
+    let shipped = SHIPPED
+        .iter()
+        .find(|s| (s.manifest)().is_ok_and(|m| m.package.name == name))
+        .unwrap();
+    assemble(data_dir, &(shipped.manifest)()?, shipped.files)
+}
+
+fn assemble_guide(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
+    assemble_shipped(GUIDE, data_dir)
+}
+
+fn assemble_onboarding(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
+    assemble_shipped(ONBOARDING, data_dir)
+}
+
+fn assemble_agent_builder(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
+    assemble_shipped(AGENT_BUILDER, data_dir)
+}
+
 fn agents(dir: &Path) -> AgentRepository {
     AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(dir)).unwrap()
 }
@@ -405,4 +426,121 @@ async fn the_agent_workshop_installs_with_its_workflow_under_a_strict_governance
         std::fs::read_to_string(out.join(AGENT_BUILDER_FILES[0].0)).unwrap(),
         AGENT_BUILDER_FILES[0].1
     );
+}
+
+#[test]
+fn the_digest_known_before_assembly_is_the_digest_of_the_assembled_archive() {
+    // GIVEN an empty data directory
+    let dir = tempfile::tempdir().unwrap();
+
+    for shipped in &SHIPPED {
+        // WHEN each shipped package is assembled
+        let manifest = (shipped.manifest)().unwrap();
+        let path = assemble(dir.path(), &manifest, shipped.files).unwrap();
+
+        // THEN the digest the start compares without assembling is the one
+        // the installation records from the archive
+        assert_eq!(
+            shipped.content_digest(&manifest).unwrap(),
+            ApoArchive::open(&path).unwrap().content_digest().unwrap(),
+            "{}",
+            manifest.package.name
+        );
+    }
+}
+
+/// The shipped entry of the agent workshop.
+fn shipped_agent_builder() -> &'static Shipped {
+    SHIPPED
+        .iter()
+        .find(|s| (s.manifest)().unwrap().package.name == AGENT_BUILDER)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn the_same_version_with_the_same_content_is_current_and_nothing_is_assembled() {
+    // GIVEN the agent workshop installed by a first start, its archive then
+    // removed from the folder the start assembles into
+    let dir = tempfile::tempdir().unwrap();
+    let governance = StrictGovernance::default();
+    let shipped = shipped_agent_builder();
+    let first = install_shipped(shipped, dir.path(), &governance)
+        .await
+        .unwrap();
+    let archive = dir.path().join("agents/bundled/agent-builder.apo");
+    std::fs::remove_file(&archive).unwrap();
+    let recorded = governance.recorded.lock().unwrap().len();
+
+    // WHEN the desktop starts again with the same binary
+    let again = install_shipped(shipped, dir.path(), &governance)
+        .await
+        .unwrap();
+
+    // THEN the first start installed it, the second is current, assembles
+    // nothing and records nothing
+    assert!(matches!(first, EmbeddedOutcome::Installed(_)), "{first:?}");
+    assert_eq!(
+        again,
+        EmbeddedOutcome::Current {
+            version: env!("CARGO_PKG_VERSION").into()
+        }
+    );
+    assert!(
+        !archive.exists(),
+        "nothing is assembled for a current package"
+    );
+    assert_eq!(governance.recorded.lock().unwrap().len(), recorded);
+}
+
+#[tokio::test]
+async fn the_same_version_with_another_content_is_installed_again() {
+    // GIVEN the agent workshop installed at the version the binary carries,
+    // with a workflow that differs from the one the binary carries, as an
+    // earlier build of the same version shipped it
+    let dir = tempfile::tempdir().unwrap();
+    let governance = StrictGovernance::default();
+    let src = dir.path().join("earlier");
+    std::fs::create_dir_all(src.join("workflows")).unwrap();
+    std::fs::write(
+        src.join(apollia_manifest::MANIFEST_FILE_NAME),
+        agent_builder_manifest().unwrap().to_toml().unwrap(),
+    )
+    .unwrap();
+    let earlier_code = format!("{}\n# an earlier build\n", AGENT_BUILDER_FILES[0].1);
+    std::fs::write(src.join(AGENT_BUILDER_FILES[0].0), &earlier_code).unwrap();
+    let earlier = dir.path().join("earlier.apo");
+    build_from_dir(&src, &earlier, &BuildOptions::default()).unwrap();
+    install_embedded(&earlier, dir.path(), &governance)
+        .await
+        .unwrap();
+    let packages =
+        PackageRepository::open(&apollia_core::paths::DataFile::Agents.path(dir.path())).unwrap();
+    let root = packages.get(AGENT_BUILDER).unwrap().unwrap().root_path;
+    assert_eq!(
+        std::fs::read_to_string(root.join(AGENT_BUILDER_FILES[0].0)).unwrap(),
+        earlier_code
+    );
+
+    // WHEN the desktop starts with the binary's agent workshop
+    let outcome = install_shipped(shipped_agent_builder(), dir.path(), &governance)
+        .await
+        .unwrap();
+
+    // THEN the workflow the binary carries replaces the installed one, and
+    // the reinstallation is recorded as an update at the same version
+    let version = env!("CARGO_PKG_VERSION");
+    assert!(
+        matches!(outcome, EmbeddedOutcome::Installed(ref r) if r.previous_version.as_deref() == Some(version)),
+        "{outcome:?}"
+    );
+    let root = packages.get(AGENT_BUILDER).unwrap().unwrap().root_path;
+    assert_eq!(
+        std::fs::read_to_string(root.join(AGENT_BUILDER_FILES[0].0)).unwrap(),
+        AGENT_BUILDER_FILES[0].1
+    );
+    assert!(governance.recorded.lock().unwrap().iter().any(|e| matches!(
+        e,
+        GovernanceEvent::PackageUpdated { from_version, to_version, .. }
+            if from_version == version && to_version == version
+    )));
 }

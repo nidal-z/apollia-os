@@ -3,10 +3,14 @@
 //! An embedded package goes through the same preview and installation as any
 //! other, with [`PackageOrigin::Embedded`]: it is unsigned and installs with no
 //! notice about it, whatever the governance requires. On each start the
-//! version the binary carries is compared with the installed one: the same
-//! version is left alone, an older one is replaced, and a newer one is never
-//! downgraded. Replacing keeps what the user set: the overrides of its agents
-//! and whether each is enabled.
+//! version and the content the binary carries are compared with the installed
+//! ones: the same version with the same content is left alone, an older
+//! version, or the same version with another content, is replaced, and a
+//! newer version is never downgraded. The content is compared by its digest
+//! ([`apollia_tools::apo_archive::content_digest`]), recorded at each
+//! embedded installation; a package installed before the digest was recorded
+//! is replaced once. Replacing keeps what the user set: the overrides of its
+//! agents and whether each is enabled.
 
 use std::path::Path;
 
@@ -44,8 +48,9 @@ pub enum EmbeddedOutcome {
 }
 
 /// Installs the embedded package at `archive` into the stores under
-/// `data_dir`, unless the same or a newer version is installed. The
-/// installation is recorded through `governance`.
+/// `data_dir`, unless a newer version is installed, or the same version with
+/// the same content. The installation is recorded through `governance`, and
+/// the content digest of the archive with the package.
 ///
 /// # Errors
 ///
@@ -57,11 +62,16 @@ pub async fn install_embedded(
     data_dir: &Path,
     governance: &dyn GovernanceContract,
 ) -> Result<EmbeddedOutcome, PackageError> {
-    let incoming = ApoArchive::open(archive)?.manifest().package.clone();
+    let mut opened = ApoArchive::open(archive)?;
+    let incoming = opened.manifest().package.clone();
+    let digest = opened.content_digest()?;
+    drop(opened);
     let db = apollia_core::paths::DataFile::Agents.path(data_dir);
     let packages = PackageRepository::open(&db)?;
     if let Some(installed) = packages.get(&incoming.name)? {
-        if installed.version == incoming.version {
+        let same_content =
+            packages.content_digest(&incoming.name)?.as_deref() == Some(digest.as_str());
+        if installed.version == incoming.version && same_content {
             // An installation made before the mark existed is marked here.
             packages.set_embedded(&incoming.name, true)?;
             return Ok(EmbeddedOutcome::Current {
@@ -107,9 +117,9 @@ pub async fn install_embedded(
         mcp: None,
         venvs: &venvs,
     };
-    commit(staged, &targets, EMBEDDED_ACTOR)
-        .await
-        .map(|report| EmbeddedOutcome::Installed(Box::new(report)))
+    let report = commit(staged, &targets, EMBEDDED_ACTOR).await?;
+    packages.set_content_digest(&report.name, &digest)?;
+    Ok(EmbeddedOutcome::Installed(Box::new(report)))
 }
 
 /// Stands for the MCP manager an embedded package never needs.

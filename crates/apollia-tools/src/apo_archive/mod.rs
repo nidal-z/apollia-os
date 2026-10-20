@@ -202,6 +202,41 @@ impl From<zip::result::ZipError> for ApoError {
     }
 }
 
+/// The content digest of a package made of `files` (archive path, bytes):
+/// the SHA-256 of the canonical digest list the signature covers, as 64
+/// lowercase hexadecimal characters.
+///
+/// It depends on the names and the bytes of the files only, never on their
+/// order, on the zip metadata or on a signature, so the same files always give
+/// the same digest, whether they come from a folder about to be archived or
+/// from an archive ([`ApoArchive::content_digest`]).
+///
+/// # Errors
+///
+/// [`ApoError::Signing`] for an empty name, a name carrying a NUL byte, or a
+/// name given twice.
+pub fn content_digest<'a>(
+    files: impl IntoIterator<Item = (&'a str, &'a [u8])>,
+) -> Result<String, ApoError> {
+    let mut list = apollia_signing::DigestList::new();
+    for (name, bytes) in files {
+        list.insert(name, apollia_signing::sha256(bytes))?;
+    }
+    Ok(digest_of(&list))
+}
+
+/// The hexadecimal SHA-256 of the canonical encoding of `list`.
+fn digest_of(list: &apollia_signing::DigestList) -> String {
+    apollia_signing::sha256(&list.canonical_bytes())
+        .iter()
+        .fold(String::with_capacity(64), |mut out, byte| {
+            use std::fmt::Write;
+            // Writing into a String cannot fail.
+            let _ = write!(out, "{byte:02x}");
+            out
+        })
+}
+
 /// Checks that `name` is a relative path made of plain components only.
 ///
 /// A trailing `/` (a directory entry) is accepted. Everything that could make

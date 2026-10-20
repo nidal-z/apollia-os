@@ -20,14 +20,14 @@ use rusqlite::Connection;
 use apollia_core::schema::Migration;
 
 /// Current schema version of `agents.db`.
-pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 7;
+pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 8;
 
 /// Numbered migration steps of `agents.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`AGENTS_DB_SCHEMA_VERSION`].
 pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] = &[
-    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7,
+    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7, migrate_v8,
 ];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
@@ -180,6 +180,21 @@ fn migrate_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
         }
     }
     tx.commit()
+}
+
+/// v8: `installed_packages` records the content digest of a package Apollia
+/// ships inside its binary, so that a change to its files is installed even
+/// when its version number stays the same. A row written before the column
+/// existed holds no digest, which reads as a content that differs: the next
+/// start installs the package the binary carries once more.
+///
+/// The column is added only when the probe does not find it, so the step can
+/// run over a file a previous attempt left half-way.
+fn migrate_v8(conn: &Connection) -> Result<(), rusqlite::Error> {
+    if !has_column(conn, "installed_packages", "content_digest")? {
+        conn.execute_batch("ALTER TABLE installed_packages ADD COLUMN content_digest TEXT")?;
+    }
+    Ok(())
 }
 
 /// `true` when `table` has a column named `column`.
@@ -606,6 +621,47 @@ mod tests {
         assert_eq!(columns, 1);
     }
 
+    // GIVEN a file at v7 holding an installed package
+    // WHEN it is opened through the versioned layer, and the v8 step runs again
+    // THEN the package is kept with no content digest, and the column is
+    //   added once
+    #[test]
+    fn test_agents_db_v8_adds_the_content_digest_column_once() {
+        let at_v7 = Connection::open_in_memory().unwrap();
+        for step in &AGENTS_DB_MIGRATIONS[..7] {
+            step(&at_v7).unwrap();
+        }
+        at_v7.pragma_update(None, "user_version", 7).unwrap();
+        at_v7
+            .execute(
+                "INSERT INTO installed_packages (name, version, root_path, manifest_json) \
+                 VALUES ('crm', '1.0.0', '/p', '{}')",
+                [],
+            )
+            .unwrap();
+
+        open_agents_schema(&at_v7).unwrap();
+        migrate_v8(&at_v7).unwrap();
+
+        let digest: Option<String> = at_v7
+            .query_row(
+                "SELECT content_digest FROM installed_packages WHERE name = 'crm'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(digest, None);
+        let columns: i64 = at_v7
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('installed_packages') \
+                 WHERE name = 'content_digest'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(columns, 1);
+    }
+
     // GIVEN a database stamped by a newer binary
     // WHEN opening it through the versioned layer
     // THEN the open is refused
@@ -667,6 +723,6 @@ mod tests {
         let version: u32 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 7);
+        assert_eq!(version, AGENTS_DB_SCHEMA_VERSION);
     }
 }
