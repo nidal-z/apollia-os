@@ -534,7 +534,7 @@
         "gcal_get": "Read a specific event",
         "gcal_create": "Create a new event (requires approval)",
         "gcal_update": "Update an existing event (requires approval)",
-        "gcal_delete": "Delete an event (requires confirmation phrase)",
+        "gcal_delete": "Delete an event (requires approval)",
         "gdrive_workspace_list": "List files Apollia created in the folder you chose",
         "gdrive_workspace_read": "Read a file Apollia previously wrote",
         "gdrive_workspace_write": "Create or replace a file (requires approval)",
@@ -560,7 +560,7 @@
         "gtasks_list": "List your tasks and task lists",
         "gtasks_create": "Create a task (requires approval)",
         "gtasks_complete": "Mark a task as completed (requires approval)",
-        "gtasks_delete": "Delete a task (confirmation phrase required)",
+        "gtasks_delete": "Delete a task (requires approval)",
         "gtasks_detail": "Full Google Tasks access: all your lists and tasks.",
         "gforms_create": "Create a Google Form (requires approval)",
         "gforms_detail": "Form creation (questions are not edited afterwards). Included in the free tier.",
@@ -575,7 +575,7 @@
         "outlook_cal_read": "List and read your events",
         "outlook_cal_create": "Create an event (requires approval)",
         "outlook_cal_update": "Update an event (requires approval)",
-        "outlook_cal_delete": "Delete an event (confirmation phrase required)",
+        "outlook_cal_delete": "Delete an event (requires approval)",
         "onedrive_search": "Search your OneDrive",
         "onedrive_read": "Read and download a OneDrive file",
         "onedrive_recent": "List your recent files",
@@ -905,7 +905,7 @@
       "agents": "Your agents will be able to use what {name} offers. An action that sends, changes or deletes something asks for your agreement first.",
       "data": "What your agents read or send through this connection goes through {name}, under its own terms.",
       "responsibility": "Apollia tests the connections of its selection; it does not answer for the service itself, which you can remove at any time from Connections.",
-      "journal": "Your agreement is recorded in the Journal."
+      "journal": "Your agreement is recorded in the Activity log."
     },
     "status": {
       "connected": "Connected",
@@ -1206,7 +1206,7 @@
         "description": "The agents that can be installed."
       },
       "journal": {
-        "title": "Journal",
+        "title": "Activity log",
         "description": "What is kept of the agents' activity."
       }
     },
@@ -1219,7 +1219,7 @@
       "inference_hash": "Imported models without a known digest",
       "packages_signature": "Agent package signature",
       "packages_publishers": "Trusted publishers",
-      "journal_required": "Journal for sensitive actions",
+      "journal_required": "Activity log for sensitive actions",
       "journal_retention": "Entries kept",
       "journal_detail": "Detail in exports",
       "journal_daily": "Daily summary export"
@@ -2134,7 +2134,7 @@
       "docs_title": "Help center",
       "docs_desc": "Step-by-step guides for every screen, on docs.apollia.fr.",
       "hero_title": "Get started with Apollia",
-      "hero_body": "The help center walks you through installing a model, running your first agent, and reading the execution journal. This page is a map to it, not a copy.",
+      "hero_body": "The help center walks you through installing a model, running your first agent, and reading the Activity log. This page is a map to it, not a copy.",
       "hero_cta": "Open the help center",
       "resources": "Resources & support",
       "shortcuts_title": "Keyboard shortcuts",
@@ -2168,7 +2168,7 @@
       "github_title": "Source code",
       "github_desc": "Browse the repository on GitHub.",
       "report_title": "Report a problem",
-      "data_desc": "Everything Apollia keeps sits in one directory on this machine: conversations, memory, models, configuration and the audit journal. Back it up or delete it like any other folder.",
+      "data_desc": "Everything Apollia keeps sits in one directory on this machine: conversations, memory, models, configuration and the Activity log. Back it up or delete it like any other folder.",
       "kv_data_dir": "Data directory",
       "data_dir_unknown": "Your home directory could not be resolved, so this path is unknown.",
       "local_title": "What runs on this machine",
@@ -2176,7 +2176,7 @@
       "local_inference": "Inference runs on an embedded llama-server. Model weights are files on your disk.",
       "local_transcription": "Voice dictation is transcribed by an embedded Whisper engine. No audio is uploaded.",
       "local_memory": "Conversations, agent memory and project context are stored in local SQLite databases.",
-      "local_audit": "Every sensitive action is written to a local, tamper-evident audit journal you can export.",
+      "local_audit": "Every sensitive action is written to a local, tamper-evident activity log you can export.",
       "license_title": "License",
       "license_body": "Apollia Desktop is free and open source, dual-licensed under either the MIT license or the Apache License 2.0, at your option.",
       "contact_title": "Contact",
@@ -2215,7 +2215,7 @@
       "truncation_section_title": "Truncation",
       "truncation_section_desc": "Maximum size kept per record. Beyond this, content is truncated to bound the database size.",
       "retention_section_title": "Retention",
-      "retention_section_desc": "How long events are kept before automatic purge, consistent with the audit journal.",
+      "retention_section_desc": "How long events are kept before automatic purge, consistent with the Activity log.",
       "debug_log_prompt": "Log raw prompt text",
       "debug_log_prompt_desc": "Emits the full prompt to the log, at TRACE level. No visible effect on its own: the default filter is apollia=info, so the application also has to run with RUST_LOG=apollia=trace. Nothing is persisted to a database.",
       "max_input_bytes": "Task and step inputs",
@@ -4738,7 +4738,7 @@
     "run_tech_status": "Raw state",
     "run_tech_started": "Started",
     "changes_title": "Changes",
-    "changes_empty": "No change recorded in the Journal.",
+    "changes_empty": "No change recorded in the Activity log.",
     "change_access_granted": "Access granted: {subject}",
     "change_access_revoked": "Access removed: {subject}",
     "change_access_rescoped": "Access changed: {subject}",
@@ -4793,7 +4793,7 @@
     "pending": "{count, plural, =0 {Adjusting} one {Adjusting · 1 change} other {Adjusting · # changes}}",
     "reset": "Back to defaults",
     "reset_title": "Back to defaults?",
-    "reset_message": "Every override saved for this agent is erased, its chosen model too, and the changes in progress are dropped. The agent takes back the settings of its package; the change is noted in the Journal. To drop only the changes in progress, choose Cancel.",
+    "reset_message": "Every override saved for this agent is erased, its chosen model too, and the changes in progress are dropped. The agent takes back the settings of its package; the change is noted in the Activity log. To drop only the changes in progress, choose Cancel.",
     "reset_done": "The agent took back the settings of its package",
     "save": "Save",
     "saving": "Saving…",
@@ -4811,7 +4811,7 @@
     "model_option_server": "{name} · on a server",
     "preset_label": "Preset",
     "preset_default": "Default preset of the model",
-    "access_legend": "Grant or revoke, family by family; each change is noted in the Journal",
+    "access_legend": "Grant or revoke, family by family; each change is noted in the Activity log",
     "sources_legend": "Check what the agent consults; the profile is read only when checked",
     "grant_open": "Grant a tool, an agent or a workflow",
     "grant_title": "Grant a tool, an agent or a workflow",
@@ -6000,7 +6000,7 @@
       "title": "Sensitive actions blocked",
       "store_unreadable": "The permissions database cannot be read: Apollia refuses anything that writes, sends or runs. Reading continues.",
       "policy_invalid": "The organization policy is invalid ({reason}): sensitive actions and new connections are refused. Reading continues.",
-      "journal_unavailable": "The organization policy requires the journal, and the journal could not be opened: sensitive actions and new connections are refused. Reading continues.",
+      "journal_unavailable": "The organization policy requires the Activity log, and it could not be opened: sensitive actions and new connections are refused. Reading continues.",
       "policy_reason": {
         "schema": "content does not conform",
         "signature": "signature not recognized",
@@ -6013,8 +6013,8 @@
       "retry_failed": "The state of permissions could not be read again."
     },
     "journal_notice": {
-      "unsigned": "The journal opened without its signing key: actions are still recorded and any alteration still shows, but the entries are not signed.",
-      "daily_export_failed": "The daily export of the journal could not be written to {directory}. Nothing is blocked; tell your IT department."
+      "unsigned": "The Activity log opened without its signing key: actions are still recorded and any alteration still shows, but the entries are not signed.",
+      "daily_export_failed": "The daily export of the Activity log could not be written to {directory}. Nothing is blocked; tell your IT department."
     }
   },
   "packages": {
@@ -6363,8 +6363,8 @@
     "error_unknown": "This workflow declares no such input."
   },
   "journal": {
-    "title": "Journal",
-    "subtitle": "Every action of the agents and every access change, in plain words, newest first. The journal stays on this device.",
+    "title": "Activity log",
+    "subtitle": "Every action of the agents and every access change, in plain words, newest first. The Activity log stays on this device.",
     "agent_unknown": "An agent",
     "filter": {
       "agent": "Agent",
@@ -6387,7 +6387,7 @@
       "today": "Today",
       "last_7_days": "Last 7 days",
       "last_30_days": "Last 30 days",
-      "all": "The whole journal"
+      "all": "The whole Activity log"
     },
     "state": {
       "success": "Succeeded",
@@ -6406,14 +6406,14 @@
     "see_more": "See more",
     "see_less": "See less",
     "load_older": "Show older entries",
-    "load_failed": "The journal could not be read.",
-    "empty_title": "Nothing in the journal yet",
+    "load_failed": "The Activity log could not be read.",
+    "empty_title": "Nothing in the Activity log yet",
     "empty_body": "The actions of the agents and the access changes will be written here.",
     "empty_filtered_title": "No entry matches these filters",
-    "empty_filtered_body": "Widen the period or clear the filters to see the whole journal again.",
+    "empty_filtered_body": "Widen the period or clear the filters to see the whole Activity log again.",
     "export": {
       "action": "Export",
-      "title": "Export the journal",
+      "title": "Export the Activity log",
       "intro": "The export takes over the filters in force: {filters}. It holds every entry that matches them, not only the ones shown.",
       "format": "File format",
       "format_csv": "CSV, to open in a spreadsheet",
@@ -6430,27 +6430,27 @@
       "cancel": "Cancel",
       "confirm": "Export",
       "csv_file": "CSV file",
-      "written": "Journal exported: {path}",
+      "written": "Activity log exported: {path}",
       "failed": "The export could not be made: {message}"
     },
     "verify": {
       "action": "Verify integrity",
       "running": "Verifying…",
       "failed": "The verification could not be made: {message}",
-      "intact_title": "The journal is intact",
-      "intact_origin": "{count, plural, one {The only entry of the journal, since its beginning, was not modified.} other {The # entries of the journal, since its beginning, were neither modified nor moved, and none was inserted.}}",
-      "intact_purge": "{count, plural, one {The only entry of the journal, since {date} (last purge), was not modified.} other {The # entries of the journal, since {date} (last purge), were neither modified nor moved, and none was inserted.}}",
-      "empty_title": "The journal is empty",
+      "intact_title": "The Activity log is intact",
+      "intact_origin": "{count, plural, one {The only entry of the Activity log, since its beginning, was not modified.} other {The # entries of the Activity log, since its beginning, were neither modified nor moved, and none was inserted.}}",
+      "intact_purge": "{count, plural, one {The only entry of the Activity log, since {date} (last purge), was not modified.} other {The # entries of the Activity log, since {date} (last purge), were neither modified nor moved, and none was inserted.}}",
+      "empty_title": "The Activity log is empty",
       "empty_body": "There is no entry to verify yet.",
       "altered_title": "Alteration detected at entry {entry}",
-      "altered_body": "Entry {entry} no longer matches what was written. From this entry on, the journal can no longer serve as proof.",
+      "altered_body": "Entry {entry} no longer matches what was written. From this entry on, the Activity log can no longer serve as proof.",
       "altered_before": "{count, plural, =0 {No verified entry precedes it.} one {The entry that precedes it is intact.} other {The # entries that precede it are intact.}}",
       "since_purge": "The verification starts on {date}, the first entry the last purge kept.",
-      "end_title": "Alteration detected at the end of the journal",
-      "end_body": "{count, plural, =0 {The journal holds no entry any more, though it had recorded some: entries were removed, or its state was replaced.} one {The entry present is intact, but it is not the last one the journal had recorded: entries were removed at the end, or its state was replaced.} other {The # entries present follow one another, but the last is not the one the journal had recorded: entries were removed at the end, or its state was replaced.}}",
-      "limit": "Limit: a removal of the last entries may not show here. It is only caught for certain with an anchor exported beforehand and kept elsewhere; an export of the journal made earlier stands for one, for the entries it holds.",
+      "end_title": "Alteration detected at the end of the Activity log",
+      "end_body": "{count, plural, =0 {The Activity log holds no entry any more, though it had recorded some: entries were removed, or its state was replaced.} one {The entry present is intact, but it is not the last one the Activity log had recorded: entries were removed at the end, or its state was replaced.} other {The # entries present follow one another, but the last is not the one the Activity log had recorded: entries were removed at the end, or its state was replaced.}}",
+      "limit": "Limit: a removal of the last entries may not show here. It is only caught for certain with an anchor exported beforehand and kept elsewhere; an export of the Activity log made earlier stands for one, for the entries it holds.",
       "checked_at": "Verified on {date} at {time}.",
-      "export_as_is": "Export the journal as it is",
+      "export_as_is": "Export the Activity log as it is",
       "close": "Close"
     },
     "print": {
@@ -6459,7 +6459,7 @@
       "hint": "Preview of the page. The print dialog of your system prints it or saves it as a PDF.",
       "print": "Print or save as PDF",
       "close": "Close the preview",
-      "place": "Place in the journal",
+      "place": "Place in the Activity log",
       "place_value": "{run} · no. {seq}",
       "empty": "No entry matches these filters.",
       "failed": "The print dialog could not open: {message}"
@@ -6476,10 +6476,10 @@
       "output": "What the action returned",
       "record": "Detail",
       "loading": "Reading the detail…",
-      "missing": "The journal no longer holds the detail of this entry.",
+      "missing": "The Activity log no longer holds the detail of this entry.",
       "failed": "The detail could not be read.",
-      "parameters_none": "The journal kept no parameter of this action.",
-      "output_none": "The journal kept nothing of what the action returned.",
+      "parameters_none": "The Activity log kept no parameter of this action.",
+      "output_none": "The Activity log kept nothing of what the action returned.",
       "in_progress": "Running, or no ending recorded"
     },
     "sentence": {
@@ -6533,10 +6533,10 @@
       "policy_changed": "The organization policy changed",
       "policy_unreadable": "The organization policy was refused",
       "fail_closed_triggered": "Sensitive actions are now refused",
-      "journal_exported": "The journal was exported",
+      "journal_exported": "The Activity log was exported",
       "journal_purged": "Entries older than the retention period were removed",
-      "journal_unsigned": "The journal opened without its signing key",
-      "journal_export_failed": "The daily export of the journal failed"
+      "journal_unsigned": "The Activity log opened without its signing key",
+      "journal_export_failed": "The daily export of the Activity log failed"
     }
   },
   "batch_launch": {
