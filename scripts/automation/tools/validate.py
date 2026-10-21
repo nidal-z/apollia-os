@@ -239,8 +239,9 @@ def build_corpus(ui_root=UI):
         # `X-tabbar`, `X-tab-<key>` (TabBar) and `X-<key>` (FilterChipBar).
         # SplitLayout: sidebarTestid="X" / detailTestid="X" render as data-testid,
         # and so do DetailHeader's titleTestid="X" on its title and Tooltip's
-        # triggerTestid="X" on its trigger.
-        for pm in re.finditer(f'(?:sidebarTestid|detailTestid|titleTestid|triggerTestid)\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
+        # triggerTestid="X" on its trigger. BrowseLayout's listTestid="X" and
+        # offlineTestid="X" land on its list column and its offline banner.
+        for pm in re.finditer(f'(?:sidebarTestid|detailTestid|titleTestid|triggerTestid|listTestid|offlineTestid)\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
             static_ids.add(pm.group(1))
         for pm in re.finditer(f'testidPrefix\\s*=\\s*["\\\']({ID}+)["\\\']', txt):
             X = pm.group(1)
