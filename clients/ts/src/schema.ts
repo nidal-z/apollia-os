@@ -1136,6 +1136,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections/{id}/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/connections/{id}/agents`: the agents that hold at least one
+         *     tool of the connection.
+         */
+        get: operations["get_connection_agents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/connections/{id}/grants`: grant tools of the connection to
+         *     several agents at once. Every agent's list is written, or none is.
+         */
+        post: operations["grant_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/accounts": {
         parameters: {
             query?: never;
@@ -7285,6 +7325,38 @@ export interface components {
             /** @description Tools the connection brings. */
             tools: components["schemas"]["ConnectionTool"][];
         };
+        /** @description One agent that holds at least one tool of a connection. */
+        ConnectionAgent: {
+            /**
+             * @description Whether the agent holds these tools through the default access, nobody
+             *     having chosen its access.
+             */
+            byDefault: boolean;
+            /** @description Whether the agent is active. */
+            enabled: boolean;
+            /** @description Identifier of the agent. */
+            id: string;
+            /** @description Display name of the agent. */
+            name: string;
+            /**
+             * @description The tools of the connection the agent holds, in the order of its
+             *     access.
+             */
+            tools: string[];
+        };
+        /** @description The agents that hold the tools of one connection. */
+        ConnectionAgents: {
+            /** @description Every agent holding at least one of its tools, by identifier. */
+            agents: components["schemas"]["ConnectionAgent"][];
+            /** @description Identifier of the connection. */
+            connection: string;
+            /**
+             * @description Other connections its tools reach as well, by identifier: the other
+             *     mailboxes, for a mailbox, since the mailbox tools are common to all of
+             *     them. Empty for every other kind.
+             */
+            sharedWith: string[];
+        };
         /**
          * @description The kind of thing a connection plugs in.
          * @enum {string}
@@ -8214,6 +8286,16 @@ export interface components {
              *     asks for cannot be written. Empty for a journal in order.
              */
             journal_notices?: components["schemas"]["JournalNotice"][];
+        };
+        /** @description Body of `POST /api/v1/connections/{id}/grants`. */
+        GrantConnectionBody: {
+            /** @description Identifiers of the agents to grant the tools to. */
+            agents: string[];
+            /**
+             * @description Tools of the connection to grant, as `GET /api/v1/connections` lists
+             *     them.
+             */
+            tools: string[];
         };
         /** @description The load guardrail's view of a load. */
         GuardrailCheckDto: {
@@ -15056,6 +15138,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FolderErrorBody"];
+                };
+            };
+        };
+    };
+    get_connection_agents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Connection identifier, as `GET /api/v1/connections` lists it */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agents holding tools of the connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionAgents"];
+                };
+            };
+            /** @description Connection not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A store could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    grant_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Connection identifier, as `GET /api/v1/connections` lists it */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantConnectionBody"];
+            };
+        };
+        responses: {
+            /** @description Granted; the agents holding tools of the connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionAgents"];
+                };
+            };
+            /** @description Connection or agent not found; nothing written */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No agent or no tool named, or a tool the connection does not bring; nothing written */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not available; nothing written */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
