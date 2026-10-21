@@ -53,6 +53,8 @@ pub struct JournalQuery {
     pub natures: Vec<String>,
     /// Results: `success`, `failure`, `refused`.
     pub results: Vec<String>,
+    /// Prefixes of tool names, such as `mcp:notion/` for one connection.
+    pub tool_prefixes: Vec<String>,
     /// Start of the period, included: a day or an RFC 3339 instant.
     pub since: Option<String>,
     /// End of the period, excluded: a day or an RFC 3339 instant.
@@ -72,6 +74,7 @@ fn filter_parameters(query: &JournalQuery) -> String {
         ("family", &query.families),
         ("nature", &query.natures),
         ("result", &query.results),
+        ("tool_prefix", &query.tool_prefixes),
     ];
     for (name, values) in lists {
         let values: Vec<&str> = values
@@ -250,12 +253,14 @@ mod tests {
 
     #[test]
     fn test_every_filter_travels_in_the_query_of_the_route() {
-        // GIVEN a query naming two agents, a family, two natures, a result and a period
+        // GIVEN a query naming two agents, a family, two natures, a result, a
+        // connection and a period
         let query = JournalQuery {
             agents: vec!["mail sorter".to_owned(), "watch".to_owned()],
             families: vec!["send_external".to_owned()],
             natures: vec!["action".to_owned(), "policy".to_owned()],
             results: vec!["refused".to_owned()],
+            tool_prefixes: vec!["mcp:notion/".to_owned()],
             since: Some("2026-10-01".to_owned()),
             until: Some("2026-10-03T00:00:00+02:00".to_owned()),
             limit: Some(20),
@@ -271,6 +276,7 @@ mod tests {
             "/api/v1/audit/journal?limit=20&offset=40\
              &agents=mail%20sorter%2Cwatch&family=send_external\
              &nature=action%2Cpolicy&result=refused\
+             &tool_prefix=mcp%3Anotion%2F\
              &since=2026-10-01&until=2026-10-03T00%3A00%3A00%2B02%3A00"
         );
     }

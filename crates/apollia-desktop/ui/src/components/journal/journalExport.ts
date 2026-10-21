@@ -78,6 +78,7 @@ export function filterMentions(
   agentName: (agent: string | null) => string,
 ): FilterMention[] {
   const mentions: FilterMention[] = [];
+  if (filters.connection !== null) mentions.push({ text: filters.connection.label });
   if (filters.agent !== "") mentions.push({ text: agentName(filters.agent) });
   if (filters.family !== "") {
     const key = familyLabelKey(filters.family);

@@ -1688,6 +1688,77 @@
         }
       }
     },
+    "/api/v1/audit/activity": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /api/v1/audit/activity`: the last use of the tools of a connection\nand the number of actions each agent took with them over a period.",
+        "description": "An action is a tool call of the connection that ended, successfully or\nnot. The journal is read whole for the period, without an index. 400 when\nthe prefix is missing or a bound cannot be read, 503 when the journal is\nnot configured.",
+        "operationId": "get_connection_activity",
+        "parameters": [
+          {
+            "name": "tool_prefix",
+            "in": "query",
+            "description": "The prefix the tools of the connection share, such as `mcp:notion/`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Start of the period, included: a day (`YYYY-MM-DD`, UTC) or an RFC 3339\ninstant. Defaults to seven days before the request.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "End of the period, excluded: a day or an RFC 3339 instant. Defaults to\nno end.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The last use and the actions per agent of the connection over the period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionActivityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No tool prefix, or a bound of the period that cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit/anchor": {
       "get": {
         "tags": [
@@ -1798,6 +1869,15 @@
             "name": "result",
             "in": "query",
             "description": "Comma-separated results: `success`, `failure`, `refused`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool_prefix",
+            "in": "query",
+            "description": "Comma-separated prefixes of tool names, such as `mcp:notion/`. When\nset, the export holds the entries whose tool starts with one of them.",
             "required": false,
             "schema": {
               "type": "string"
@@ -1933,6 +2013,15 @@
             "name": "result",
             "in": "query",
             "description": "Comma-separated results: `success`, `failure`, `refused`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool_prefix",
+            "in": "query",
+            "description": "Comma-separated prefixes of tool names, such as `mcp:notion/` for the tools of one connection. When set, only the entries whose tool starts with one of them are paged.",
             "required": false,
             "schema": {
               "type": "string"
@@ -19254,6 +19343,33 @@
           }
         }
       },
+      "AgentActivity": {
+        "type": "object",
+        "description": "What one agent did with the tools of a connection over the period.",
+        "required": [
+          "actions",
+          "lastUsedAt"
+        ],
+        "properties": {
+          "actions": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tool calls of the connection that ended over the period.",
+            "minimum": 0
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent, `None` for calls whose entry names none."
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "description": "When the last of them ended, RFC 3339 UTC."
+          }
+        }
+      },
       "AgentDraft": {
         "type": "object",
         "description": "The draft of an agent, as the form opens it. Nothing of it is stored.",
@@ -21286,6 +21402,53 @@
               "$ref": "#/components/schemas/ConnectionTool"
             },
             "description": "Tools the connection brings."
+          }
+        }
+      },
+      "ConnectionActivityResponse": {
+        "type": "object",
+        "description": "Response body of `GET /api/v1/audit/activity`.",
+        "required": [
+          "toolPrefix",
+          "since",
+          "actions",
+          "agents"
+        ],
+        "properties": {
+          "actions": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tool calls of the connection that ended over the period.",
+            "minimum": 0
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentActivity"
+            },
+            "description": "One line per agent, the most active first."
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the last of them ended, RFC 3339 UTC; `None` when none did."
+          },
+          "since": {
+            "type": "string",
+            "description": "Start of the period read, RFC 3339 UTC."
+          },
+          "toolPrefix": {
+            "type": "string",
+            "description": "The prefix the activity was read for."
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "End of the period read, RFC 3339 UTC; `None` when it has no end."
           }
         }
       },

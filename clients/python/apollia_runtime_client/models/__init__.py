@@ -15,6 +15,7 @@ from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
 from .added_permission_rule import AddedPermissionRule
 from .advance_phase_body import AdvancePhaseBody
+from .agent_activity import AgentActivity
 from .agent_draft import AgentDraft
 from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
@@ -102,6 +103,7 @@ from .config_validation import ConfigValidation
 from .config_view import ConfigView
 from .connected_account_response import ConnectedAccountResponse
 from .connection import Connection
+from .connection_activity_response import ConnectionActivityResponse
 from .connection_kind import ConnectionKind
 from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
@@ -633,6 +635,7 @@ __all__ = (
     "AddFolderBody",
     "AddPermissionRuleBody",
     "AdvancePhaseBody",
+    "AgentActivity",
     "AgentDraft",
     "AgentListResponse",
     "AgentMessageDto",
@@ -720,6 +723,7 @@ __all__ = (
     "ConfigView",
     "ConnectedAccountResponse",
     "Connection",
+    "ConnectionActivityResponse",
     "ConnectionKind",
     "ConnectionState",
     "ConnectionTool",

@@ -40,6 +40,7 @@ fn filter_of(criteria: [&str; 6]) -> Result<JournalFilter, JournalFilterError> {
         families,
         natures,
         outcomes,
+        tool_prefixes: None,
         since,
         until,
     })
@@ -207,4 +208,54 @@ fn an_unreadable_criterion_is_refused_and_named() {
     assert_eq!(nature, Err(JournalFilterError::Nature("other".into())));
     assert_eq!(outcome, Err(JournalFilterError::Outcome("ok".into())));
     assert_eq!(date, Err(JournalFilterError::Date("last week".into())));
+}
+
+fn call_of(tool: &str) -> JournalEntry {
+    entry(
+        "run-1",
+        "2026-10-04T09:00:00Z",
+        JournalEntryKind::ToolCallCompleted,
+        json!({ "tool_name": tool, "agent_id": "quotes", "family": "read", "success": true }),
+    )
+}
+
+#[test]
+fn a_tool_prefix_keeps_the_calls_of_its_connection_only() {
+    // GIVEN a filter on the tools of the `notion` connection
+    let filter = JournalFilter::from_criteria(JournalCriteria {
+        tool_prefixes: Some("mcp:notion/"),
+        ..JournalCriteria::default()
+    })
+    .unwrap();
+    // WHEN calls of `notion`, of a server whose name extends it, of a native
+    // tool and an entry naming no tool are checked
+    let notion = call_of("mcp:notion/search");
+    let longer = call_of("mcp:notion-team/search");
+    let native = call_of("file_write");
+    let clock = entry(
+        "run-1",
+        "2026-10-04T09:00:00Z",
+        JournalEntryKind::ClockSample,
+        json!({}),
+    );
+    // THEN only the call of `notion` passes
+    assert!(passes(&filter, &notion));
+    assert!(!passes(&filter, &longer));
+    assert!(!passes(&filter, &native));
+    assert!(!passes(&filter, &clock));
+}
+
+#[test]
+fn several_tool_prefixes_are_alternatives() {
+    // GIVEN a filter on two connections
+    let filter = JournalFilter::from_criteria(JournalCriteria {
+        tool_prefixes: Some("mcp:notion/, conn:google:ada/"),
+        ..JournalCriteria::default()
+    })
+    .unwrap();
+    // WHEN a call of each and a call of a third are checked
+    // THEN the first two pass and the third does not
+    assert!(passes(&filter, &call_of("mcp:notion/search")));
+    assert!(passes(&filter, &call_of("conn:google:ada/gmail.send")));
+    assert!(!passes(&filter, &call_of("mcp:github/list")));
 }

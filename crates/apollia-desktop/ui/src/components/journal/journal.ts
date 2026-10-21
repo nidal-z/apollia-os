@@ -14,6 +14,7 @@ import type {
   JournalOutcome,
   JournalQuery,
 } from "$lib/ipc/journal";
+import type { JournalConnectionFocus } from "$lib/stores/journalFocus";
 import type { JournalDetailState } from "$lib/stores/journalSelection";
 
 /** Entries asked for in one page. */
@@ -29,13 +30,17 @@ export interface JournalIpc {
 
 export type JournalPeriod = "today" | "7d" | "30d" | "all";
 
-/** The five filters of the screen. An empty string keeps everything. */
+/**
+ * The filters of the screen: the five of its bar, and the connection another
+ * screen opened it on. An empty string, or no connection, keeps everything.
+ */
 export interface JournalFilters {
   agent: string;
   family: string;
   nature: JournalNature | "";
   result: JournalOutcome | "";
   period: JournalPeriod;
+  connection: JournalConnectionFocus | null;
 }
 
 export const DEFAULT_PERIOD: JournalPeriod = "7d";
@@ -46,7 +51,18 @@ export const NO_FILTER: JournalFilters = {
   nature: "",
   result: "",
   period: DEFAULT_PERIOD,
+  connection: null,
 };
+
+/** The filters the screen opens with: none, or the connection it was asked to show. */
+export function openingFilters(connection: JournalConnectionFocus | null): JournalFilters {
+  return { ...NO_FILTER, connection };
+}
+
+/** `filters` without their connection, every other filter kept. */
+export function withoutConnection(filters: JournalFilters): JournalFilters {
+  return { ...filters, connection: null };
+}
 
 /** The families a line can be filtered on, in the order of the screens. */
 export const FAMILY_OPTIONS = [
@@ -117,7 +133,9 @@ export function periodStart(period: JournalPeriod, now: Date): string | undefine
 export function activeFilterCount(filters: JournalFilters): number {
   return (
     [filters.agent, filters.family, filters.nature, filters.result].filter((value) => value !== "")
-      .length + (filters.period === DEFAULT_PERIOD ? 0 : 1)
+      .length +
+    (filters.period === DEFAULT_PERIOD ? 0 : 1) +
+    (filters.connection === null ? 0 : 1)
   );
 }
 
@@ -140,6 +158,7 @@ export function queryOf(
   if (filters.agent !== "") query.agents = [filters.agent];
   if (filters.family !== "") query.families = [filters.family];
   if (filters.result !== "") query.results = [filters.result];
+  if (filters.connection !== null) query.tool_prefixes = [filters.connection.prefix];
   const since = periodStart(filters.period, now);
   if (since !== undefined) query.since = since;
   return query;

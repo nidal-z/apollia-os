@@ -14,6 +14,7 @@ pub mod routes_app_lifecycle;
 pub mod routes_approvals;
 pub mod routes_artifacts;
 pub mod routes_audit;
+pub mod routes_audit_activity;
 pub mod routes_audit_export;
 pub mod routes_batches;
 pub mod routes_chat;
